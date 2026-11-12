@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 import { isSourceControlHostName, sourceControlHostKey } from '@shared/types/source-control'
 
 /** Where a Git remote points, as OpenWaggle needs it to address the provider. */
@@ -29,9 +30,9 @@ function splitRepositoryPath(rawPath: string) {
 
 /** `user@host:owner/repo`; a single-letter host is a Windows drive, not a remote. */
 function parseScpRemote(remoteUrl: string): RemoteLocation | null {
-  const scp = SCP_REMOTE.exec(remoteUrl)
-  const host = scp?.groups?.host
-  const path = scp?.groups?.path ? splitRepositoryPath(scp.groups.path) : null
+  const scp = namedGroups(SCP_REMOTE.exec(remoteUrl), ['host', 'path'])
+  const host = scp?.host
+  const path = scp?.path ? splitRepositoryPath(scp.path) : null
   if (!host || !path || WINDOWS_DRIVE.test(host)) return null
   const key = sourceControlHostKey(host)
   if (!isSourceControlHostName(key)) return null

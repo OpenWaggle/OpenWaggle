@@ -1,11 +1,20 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openHostSqliteDatabase } from '../host-sqlite-database'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { validateSessionHostTarget } from '../session-host-cutover-validation'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
+
+const workspaceBindingRowSchema = Schema.Struct({
+  session_id: Schema.String,
+  session_project_path: Schema.NullOr(Schema.String),
+  workspace_id: Schema.String,
+  workspace_project_path: Schema.String,
+  working_path: Schema.String,
+})
 
 describe('Session Host cutover Workspace identity', () => {
   let temporaryRoot = ''
@@ -79,12 +88,7 @@ describe('Session Host cutover Workspace identity', () => {
           ORDER BY sessions.id
         `)
         .all()
-        .map((value) => {
-          if (typeof value !== 'object' || value === null) {
-            throw new Error('Workspace binding row is invalid.')
-          }
-          return Object.fromEntries(Object.entries(value))
-        })
+        .map((value) => decodeUnknownOrThrow(workspaceBindingRowSchema, value))
 
       expect(rows).toHaveLength(2)
       expect(rows.map((row) => row.session_project_path)).toEqual(['/project-a', '/project-b'])

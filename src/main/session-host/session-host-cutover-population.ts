@@ -1,17 +1,15 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import {
-  type AgentAuthorizationMode,
-  isAgentAuthorizationMode,
-} from '@shared/types/agent-authorization'
+import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { DEFAULT_SETTINGS, DEFAULT_THINKING_LEVEL, THINKING_LEVELS } from '@shared/types/settings'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { resolveWorkspaceWorktreePath } from '../services/git/session-worktree-path'
 import type { HostSqliteDatabase } from './host-sqlite-database'
 import {
-  cutoverRecord,
   cutoverTableExists,
-  queryCutoverRecord,
+  decodeCutoverRow,
+  queryCutoverRow,
 } from './session-host-cutover-database'
 import { populateSessionReportReferenceCatalog } from './session-host-report-reference-catalog'
 import { populateSessionSearchCatalog } from './session-host-search-cutover'
@@ -19,24 +17,29 @@ import { populateSessionTranscriptTermCatalog } from './session-transcript-term-
 
 const RESOURCE_ID_DIGEST_CHARACTERS = 32
 
-interface LegacySessionRow {
-  readonly id: string
-  readonly project_path: string | null
-  readonly environment_mode: string
-  readonly worktree_path: string | null
-  readonly worktree_base_ref: string | null
-  readonly worktree_start_from_origin: number
-  readonly authorization_mode_override: AgentAuthorizationMode | null
-  readonly created_at: number
-  readonly updated_at: number
-}
+const legacySessionRowSchema = Schema.Struct({
+  id: Schema.String,
+  project_path: Schema.NullOr(Schema.String),
+  environment_mode: Schema.String,
+  worktree_path: Schema.NullOr(Schema.String),
+  worktree_base_ref: Schema.NullOr(Schema.String),
+  worktree_start_from_origin: Schema.Number,
+  authorization_mode_override: Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  created_at: Schema.Number,
+  updated_at: Schema.Number,
+})
 
-interface LegacyActiveRunRow {
-  readonly run_id: string
-  readonly session_id: string
-  readonly runtime_json: string
-  readonly updated_at: number
-}
+type LegacySessionRow = SchemaType<typeof legacySessionRowSchema>
+
+const legacyActiveRunRowSchema = Schema.Struct({
+  run_id: Schema.String,
+  session_id: Schema.String,
+  runtime_json: Schema.String,
+  updated_at: Schema.Number,
+})
+
+const legacySettingRowSchema = Schema.Struct({ value_json: Schema.String })
+const tableColumnRowSchema = Schema.Struct({ name: Schema.String })
 
 function stableResourceId(kind: string, identity: string) {
   const digest = createHash('sha256')
@@ -48,12 +51,13 @@ function stableResourceId(kind: string, identity: string) {
 
 function legacySetting(database: HostSqliteDatabase, key: string): unknown {
   if (!cutoverTableExists(database, 'settings_store')) return undefined
-  const valueJson = queryCutoverRecord(
+  const valueJson = queryCutoverRow(
     database,
+    legacySettingRowSchema,
     'SELECT value_json FROM settings_store WHERE key = ?',
     key,
   )?.value_json
-  if (typeof valueJson !== 'string') return undefined
+  if (valueJson === undefined) return undefined
   try {
     const value: unknown = JSON.parse(valueJson)
     return value
@@ -98,8 +102,8 @@ export function normalizeLegacySessionColumns(database: HostSqliteDatabase) {
       .prepare('PRAGMA table_info(sessions)')
       .all()
       .flatMap((value) => {
-        const row = cutoverRecord(value)
-        return typeof row?.name === 'string' ? [row.name] : []
+        const row = decodeCutoverRow(tableColumnRowSchema, value)
+        return row ? [row.name] : []
       }),
   )
   for (const [name, declaration] of LEGACY_SESSION_COLUMN_NORMALIZATIONS) {
@@ -142,54 +146,19 @@ function workspaceForSession(session: LegacySessionRow) {
   }
 }
 
-function requiredString(row: Record<string, unknown>, key: string) {
-  const value = row[key]
-  if (typeof value !== 'string') throw new Error(`Legacy row has invalid ${key}.`)
-  return value
-}
-
-function nullableString(row: Record<string, unknown>, key: string) {
-  const value = row[key]
-  return value === null ? null : requiredString(row, key)
-}
-
-function requiredNumber(row: Record<string, unknown>, key: string) {
-  const value = row[key]
-  if (typeof value !== 'number') throw new Error(`Legacy row has invalid ${key}.`)
-  return value
+/** A legacy row decoded with its schema; the error names each column that did not match. */
+function decodeLegacyRow<A, I>(schema: Schema.Schema<A, I>, value: unknown, what: string): A {
+  const decoded = safeDecodeUnknown(schema, value)
+  if (!decoded.success) throw new Error(`${what} is invalid: ${decoded.issues.join('; ')}`)
+  return decoded.data
 }
 
 function decodeLegacySession(value: unknown): LegacySessionRow {
-  const row = cutoverRecord(value)
-  if (!row) throw new Error('Legacy Session row is invalid.')
-  return {
-    id: requiredString(row, 'id'),
-    project_path: nullableString(row, 'project_path'),
-    environment_mode: requiredString(row, 'environment_mode'),
-    worktree_path: nullableString(row, 'worktree_path'),
-    worktree_base_ref: nullableString(row, 'worktree_base_ref'),
-    worktree_start_from_origin: requiredNumber(row, 'worktree_start_from_origin'),
-    authorization_mode_override: (() => {
-      const mode = nullableString(row, 'authorization_mode_override')
-      if (mode !== null && !isAgentAuthorizationMode(mode)) {
-        throw new Error('Legacy row has invalid authorization_mode_override.')
-      }
-      return mode
-    })(),
-    created_at: requiredNumber(row, 'created_at'),
-    updated_at: requiredNumber(row, 'updated_at'),
-  }
+  return decodeLegacyRow(legacySessionRowSchema, value, 'Legacy Session row')
 }
 
-function decodeLegacyActiveRun(value: unknown): LegacyActiveRunRow {
-  const row = cutoverRecord(value)
-  if (!row) throw new Error('Legacy active Run row is invalid.')
-  return {
-    run_id: requiredString(row, 'run_id'),
-    session_id: requiredString(row, 'session_id'),
-    runtime_json: requiredString(row, 'runtime_json'),
-    updated_at: requiredNumber(row, 'updated_at'),
-  }
+function decodeLegacyActiveRun(value: unknown) {
+  return decodeLegacyRow(legacyActiveRunRowSchema, value, 'Legacy active Run row')
 }
 
 function readLegacyRows(database: HostSqliteDatabase) {

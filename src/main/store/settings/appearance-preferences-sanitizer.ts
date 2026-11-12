@@ -1,3 +1,4 @@
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import {
   APPEARANCE_MOTION_PREFERENCES,
   type AppearancePreferences,
@@ -50,9 +51,10 @@ function fontFamily(raw: unknown, fallback: string) {
     : fallback
 }
 
-function resolveAppearanceTypography(raw: unknown): AppearanceTypographyPreferences {
+function resolveAppearanceTypography(value: unknown): AppearanceTypographyPreferences {
   const defaults = DEFAULT_APPEARANCE_PREFERENCES.typography
-  if (!isObjectRecord(raw)) return defaults
+  if (!isObjectRecord(value)) return defaults
+  const raw: UncheckedFields<AppearanceTypographyPreferences> = value
 
   const codeFontSize = boundedNumber(
     raw.codeFontSize,
@@ -124,8 +126,9 @@ function resolveTerminalPalette(raw: unknown): AppearanceTerminalPalettePreferen
   return resolved
 }
 
-export function resolveAppearancePreferences(raw: unknown): AppearancePreferences {
-  if (!isObjectRecord(raw)) return DEFAULT_APPEARANCE_PREFERENCES
+export function resolveAppearancePreferences(value: unknown): AppearancePreferences {
+  if (!isObjectRecord(value)) return DEFAULT_APPEARANCE_PREFERENCES
+  const raw: UncheckedFields<AppearancePreferences> = value
   const motion =
     typeof raw.motion === 'string' && includes(APPEARANCE_MOTION_PREFERENCES, raw.motion)
       ? raw.motion

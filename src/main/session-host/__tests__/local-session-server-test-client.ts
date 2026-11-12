@@ -1,4 +1,5 @@
 import net, { type Socket } from 'node:net'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import { LocalSessionFrameDecoder } from '../local-session-framing'
 
@@ -32,18 +33,34 @@ export function connectLocalSessionTestClient(endpoint: string) {
   })
 }
 
+const testCursorSchema: Schema.Schema<SessionHostEventCursor> = Schema.Struct({
+  hostInstanceId: Schema.String,
+  sequence: Schema.Number,
+})
+
+/** The members of a Local Session server frame the tests read; values decode where they are used. */
+const testServerFrameSchema = Schema.Struct({
+  kind: Schema.String,
+  requestId: Schema.optional(Schema.Unknown),
+  subscriptionId: Schema.optional(Schema.Unknown),
+  code: Schema.optional(Schema.Unknown),
+  message: Schema.optional(Schema.Unknown),
+  reason: Schema.optional(Schema.Unknown),
+  cursor: Schema.optional(Schema.Unknown),
+  payload: Schema.optional(Schema.Unknown),
+  event: Schema.optional(Schema.Unknown),
+})
+
+export function decodeTestServerFrame(value: unknown) {
+  return decodeUnknownOrThrow(testServerFrameSchema, value)
+}
+
+/** Whether a value is a server frame of that kind (and, when given, that error code). */
+export function isTestServerFrame(value: unknown, kind: string, code?: string) {
+  if (!Schema.is(testServerFrameSchema)(value)) return false
+  return value.kind === kind && (code === undefined || value.code === code)
+}
+
 export function sessionHostCursorFromTestFrame(frame: unknown): SessionHostEventCursor {
-  if (typeof frame !== 'object' || frame === null) {
-    throw new Error('Expected a Local Session frame with a cursor.')
-  }
-  const cursor = Reflect.get(frame, 'cursor')
-  if (typeof cursor !== 'object' || cursor === null) {
-    throw new Error('Expected a Local Session frame with a valid cursor.')
-  }
-  const hostInstanceId = Reflect.get(cursor, 'hostInstanceId')
-  const sequence = Reflect.get(cursor, 'sequence')
-  if (typeof hostInstanceId !== 'string' || typeof sequence !== 'number') {
-    throw new Error('Expected a Local Session frame with a valid cursor.')
-  }
-  return { hostInstanceId, sequence }
+  return decodeUnknownOrThrow(Schema.Struct({ cursor: testCursorSchema }), frame).cursor
 }

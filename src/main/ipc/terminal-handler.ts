@@ -32,10 +32,10 @@ const registeredTerminalSurfaces = new WeakSet<object>()
 
 function registerTerminalSurfaceLifecycle(sender: object, service: TerminalServiceShape) {
   if (registeredTerminalSurfaces.has(sender)) return
-  const on: unknown = Reflect.get(sender, 'on')
+  const on = 'on' in sender ? sender.on : undefined
   if (typeof on !== 'function') return
   registeredTerminalSurfaces.add(sender)
-  const surfaceId: unknown = Reflect.get(sender, 'id')
+  const surfaceId = 'id' in sender ? sender.id : undefined
   if (typeof surfaceId !== 'number') return
   const detach = () => {
     void Effect.runPromise(service.detachSurface(surfaceId)).catch((error: unknown) => {

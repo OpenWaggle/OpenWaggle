@@ -108,7 +108,7 @@ describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 006
     const { emit, published, fixture } = hive()
     fixture.running = new Set(['w1'])
     await emit(settled('run-1', 'completed'), 100)
-    fixture.visits.root = 105
+    fixture.visits = { ...fixture.visits, root: 105 }
     fixture.running.clear()
     await emit(workerSettled('w1'), 110)
     expect(shownKinds(published)).toEqual(['shown:completed'])

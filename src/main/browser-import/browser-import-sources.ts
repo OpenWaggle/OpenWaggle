@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { access, readdir, readFile, readlink, stat } from 'node:fs/promises'
 import { homedir, hostname } from 'node:os'
 import path from 'node:path'
@@ -21,6 +22,15 @@ import {
 } from './browser-import-source-definitions'
 import { listSafariProfiles } from './safari-profile-discovery'
 
+/** The profile list Chromium keeps in `Local State`: one entry per profile directory. */
+const localStateProfilesSchema = Schema.Struct({
+  profile: Schema.Struct({ info_cache: Schema.Unknown }),
+})
+const profileInfoSchema = Schema.Struct({ name: Schema.String })
+const cookieCountRowSchema = Schema.Struct({
+  count: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+})
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -37,18 +47,13 @@ async function listChromiumProfiles(
     const localStateStat = await stat(localStatePath)
     if (localStateStat.size > BROWSER_IMPORT_LIMITS.LOCAL_STATE_BYTES) return []
     const state: unknown = JSON.parse(await readFile(localStatePath, 'utf8'))
-    if (isRecord(state)) {
-      const profile = state.profile
-      if (isRecord(profile)) {
-        const cache = profile.info_cache
-        if (isRecord(cache)) {
-          declared = Object.entries(cache).flatMap(([directory, info]) => {
-            if (!isSafeBrowserProfileDirectory(directory)) return []
-            const name = isRecord(info) && typeof info.name === 'string' ? info.name.trim() : ''
-            return [{ directory, name: name || directory }]
-          })
-        }
-      }
+    const cache = Schema.is(localStateProfilesSchema)(state) ? state.profile.info_cache : undefined
+    if (isRecord(cache)) {
+      declared = Object.entries(cache).flatMap(([directory, info]) => {
+        if (!isSafeBrowserProfileDirectory(directory)) return []
+        const name = Schema.is(profileInfoSchema)(info) ? info.name.trim() : ''
+        return [{ directory, name: name || directory }]
+      })
     }
   } catch {
     declared = []
@@ -102,10 +107,8 @@ function countProfileCookies(definition: BrowserImportSourceDefinition, database
       definition.engine === 'firefox'
         ? "SELECT count(*) AS count FROM moz_cookies WHERE originAttributes = ''"
         : 'SELECT count(*) AS count FROM cookies'
-    const value = database.prepare(query).get()?.count
-    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-      ? value
-      : undefined
+    const row: unknown = database.prepare(query).get()
+    return Schema.is(cookieCountRowSchema)(row) ? row.count : undefined
   } catch {
     return undefined
   } finally {

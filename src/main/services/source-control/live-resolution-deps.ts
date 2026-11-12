@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { SourceControlProviderId } from '@shared/types/change-request'
@@ -12,6 +13,8 @@ import type {
   SourceControlRemoteResolutionDeps,
   SourceControlResolutionPreferences,
 } from './source-control-remote-resolution'
+
+const CREDENTIAL_HELPER_LINE = /^credential\.(?<url>.+)\.helper\s+(?<helper>.+)$/u
 
 const execFileAsync = promisify(execFile)
 const logger = createLogger('source-control-resolution')
@@ -60,11 +63,11 @@ export async function readCredentialHelperProviders(workingPath: string) {
   const providers: Record<string, SourceControlProviderId> = {}
   if (result.code !== 0) return providers
   for (const line of result.stdout.split('\n')) {
-    const match = /^credential\.(?<url>.+)\.helper\s+(?<helper>.+)$/u.exec(line.trim())
-    const provider = match?.groups?.helper ? credentialHelperProvider(match.groups.helper) : null
-    if (!provider || !match?.groups?.url) continue
+    const groups = namedGroups(CREDENTIAL_HELPER_LINE.exec(line.trim()), ['url', 'helper'])
+    const provider = groups?.helper ? credentialHelperProvider(groups.helper) : null
+    if (!provider || !groups?.url) continue
     try {
-      providers[sourceControlHostKey(new URL(match.groups.url).host)] = provider
+      providers[sourceControlHostKey(new URL(groups.url).host)] = provider
     } catch {
       // A helper scoped by something other than a URL names no host.
     }

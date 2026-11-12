@@ -1,4 +1,5 @@
 import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
+import { errorCode } from '@shared/utils/node-error'
 import { SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS } from '../application/session-host-liveness'
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
@@ -56,7 +57,7 @@ function processExists(processId: number) {
     return true
   } catch (error) {
     // EPERM means the process exists but belongs to someone else.
-    return typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'EPERM'
+    return errorCode(error) === 'EPERM'
   }
 }
 

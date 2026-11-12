@@ -17,7 +17,7 @@ describe('workspace file handlers', () => {
     ])
   })
 
-  it.each<[string, unknown[], string, Record<string, unknown>, unknown]>([
+  it.each<[string, unknown[], string, object, unknown]>([
     ['search', ['src', 10], 'searchFiles', { query: 'src', limit: 10 }, [{ path: 'src/main.ts' }]],
     [
       'search',

@@ -190,9 +190,11 @@ describe('openwaggle mcp list', () => {
 
     expect(result.exitCode).toBe(1)
     expect(parsed).toMatchObject({ type: 'response', command: 'mcp list' })
-    expect(Reflect.get(Object(parsed), 'result')).toMatchObject({
-      servers: [{ name: 'sentry', state: 'needs-sign-in', error: 'Sign in required' }],
-      errors: ['bad: invalid entry'],
+    expect(parsed).toMatchObject({
+      result: {
+        servers: [{ name: 'sentry', state: 'needs-sign-in', error: 'Sign in required' }],
+        errors: ['bad: invalid entry'],
+      },
     })
   })
 

@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH } from '@shared/types/local-session-profile'
-import { includesEvery } from '@shared/utils/set-membership'
 import {
   deriveProfileCredentialServerKey,
   type ProfileCredentialServerChallenge,
@@ -42,29 +42,52 @@ export type LocalSessionServerAuthenticator = (
   value: unknown,
 ) => Promise<LocalSessionServerAuthenticationResponse>
 
-function isExactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const actual = Object.keys(value)
-  return actual.length === keys.length && includesEvery(actual, keys)
+const proofSchema = Schema.String.pipe(Schema.pattern(BASE64URL_32_BYTE_PATTERN))
+
+/** Exact keys: an undeclared member, or an explicitly undefined `profile`, is refused. */
+const authenticationRequestSchema = Schema.Struct({
+  kind: Schema.Literal('server-authentication-request'),
+  nonce: proofSchema,
+  profile: Schema.optionalWith(
+    Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.maxLength(LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH),
+    ),
+    { exact: true },
+  ),
+})
+
+const profileAuthenticationResponseSchema = Schema.Struct({
+  kind: Schema.Literal('server-authentication-response'),
+  nonce: Schema.String,
+  authority: Schema.Literal('profile'),
+  profile: Schema.String,
+  challenge: Schema.Struct({ kind: Schema.Literal('scrypt-v1'), salt: Schema.String }),
+  proof: proofSchema,
+})
+
+const localUserAuthenticationResponseSchema = Schema.Struct({
+  kind: Schema.Literal('server-authentication-response'),
+  nonce: Schema.String,
+  authority: Schema.Literal('local-user'),
+  proof: proofSchema,
+})
+
+/** The value decoded with exactly the schema's members, or `null`. */
+function decodeExactly<A, I>(schema: Schema.Schema<A, I>, value: unknown): A | null {
+  try {
+    return decodeUnknownExactOrThrow(schema, value)
+  } catch {
+    return null
+  }
 }
 
 function decodeRequest(value: unknown): LocalSessionServerAuthenticationRequest {
-  if (
-    (!isExactRecord(value, ['kind', 'nonce']) &&
-      !isExactRecord(value, ['kind', 'nonce', 'profile'])) ||
-    value.kind !== 'server-authentication-request' ||
-    typeof value.nonce !== 'string' ||
-    !BASE64URL_32_BYTE_PATTERN.test(value.nonce) ||
-    ('profile' in value &&
-      (typeof value.profile !== 'string' ||
-        value.profile.length === 0 ||
-        value.profile.length > LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH))
-  ) {
-    throw new Error('Invalid Local Session server-authentication request.')
-  }
-  return typeof value.profile === 'string'
-    ? { kind: 'server-authentication-request', nonce: value.nonce, profile: value.profile }
-    : { kind: 'server-authentication-request', nonce: value.nonce }
+  const request = decodeExactly(authenticationRequestSchema, value)
+  if (!request) throw new Error('Invalid Local Session server-authentication request.')
+  return request.profile === undefined
+    ? { kind: 'server-authentication-request', nonce: request.nonce }
+    : { kind: 'server-authentication-request', nonce: request.nonce, profile: request.profile }
 }
 
 function proofFor(
@@ -174,38 +197,20 @@ function decodeProfileResponse(
   readonly challenge: ProfileCredentialServerChallenge
   readonly proof: string
 } {
-  if (
-    !isExactRecord(value, ['kind', 'nonce', 'authority', 'profile', 'challenge', 'proof']) ||
-    value.kind !== 'server-authentication-response' ||
-    value.nonce !== request.nonce ||
-    value.authority !== 'profile' ||
-    value.profile !== request.profile ||
-    !isExactRecord(value.challenge, ['kind', 'salt']) ||
-    value.challenge.kind !== 'scrypt-v1' ||
-    typeof value.challenge.salt !== 'string' ||
-    typeof value.proof !== 'string' ||
-    !BASE64URL_32_BYTE_PATTERN.test(value.proof)
-  ) {
+  const response = decodeExactly(profileAuthenticationResponseSchema, value)
+  if (!response || response.nonce !== request.nonce || response.profile !== request.profile) {
     throw identityVerificationFailed()
   }
   return {
-    challenge: { kind: value.challenge.kind, salt: value.challenge.salt },
-    proof: value.proof,
+    challenge: { kind: response.challenge.kind, salt: response.challenge.salt },
+    proof: response.proof,
   }
 }
 
 function decodeLocalUserProof(value: unknown, request: { readonly nonce: string }) {
-  if (
-    !isExactRecord(value, ['kind', 'nonce', 'authority', 'proof']) ||
-    value.kind !== 'server-authentication-response' ||
-    value.nonce !== request.nonce ||
-    value.authority !== 'local-user' ||
-    typeof value.proof !== 'string' ||
-    !BASE64URL_32_BYTE_PATTERN.test(value.proof)
-  ) {
-    throw identityVerificationFailed()
-  }
-  return value.proof
+  const response = decodeExactly(localUserAuthenticationResponseSchema, value)
+  if (!response || response.nonce !== request.nonce) throw identityVerificationFailed()
+  return response.proof
 }
 
 async function verifyProfileResponse(input: {

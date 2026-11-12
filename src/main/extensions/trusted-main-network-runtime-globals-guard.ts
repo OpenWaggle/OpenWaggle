@@ -170,7 +170,7 @@ function installBunGuard(bun: object, guard: TrustedMainRuntimeGlobalsGuard) {
     })
   }
 
-  const dns: unknown = Reflect.get(bun, 'dns')
+  const dns = 'dns' in bun ? bun.dns : undefined
   if (!isGuardable(dns)) {
     return
   }
@@ -198,7 +198,8 @@ interface RuntimeGlobals {
 }
 
 function currentRuntimeGlobals(): RuntimeGlobals {
-  return { globals: globalThis, bun: Reflect.get(globalThis, 'Bun') }
+  const globals: object = globalThis
+  return { globals, bun: 'Bun' in globals ? globals.Bun : undefined }
 }
 
 /**

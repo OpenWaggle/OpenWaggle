@@ -48,13 +48,13 @@ describe('desktop browser executor', () => {
 
   it('rejects a mutated scoped command before touching local capabilities', async () => {
     const service = localService()
-    const command = decodeDesktopBrowserCommand({
+    const decoded = decodeDesktopBrowserCommand({
       service: 'browser',
       operation: 'open',
       scope,
       input: inputs.open,
     })
-    Reflect.set(command.scope, 'workingPath', '/repo\0other')
+    const command = { ...decoded, scope: { ...decoded.scope, workingPath: '/repo\0other' } }
 
     await expect(Effect.runPromise(executeDesktopBrowserCommand(service, command))).rejects.toThrow(
       'received an invalid command',

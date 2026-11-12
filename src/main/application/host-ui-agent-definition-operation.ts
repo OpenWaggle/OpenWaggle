@@ -1,3 +1,4 @@
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { loadAgentDefinitionSemanticCatalog } from '../agent-definition-semantic-catalog-loader'
@@ -13,17 +14,19 @@ export interface HostUiAgentDefinitionOperationDependencies {
   readonly resolve?: typeof resolveAgentDefinition
 }
 
+/** A command with the source paths the user selected; the command is decoded by its operation. */
+const agentDefinitionInputSchema = Schema.Struct({
+  command: Schema.Unknown,
+  selectedSourcePaths: Schema.Array(Schema.String),
+})
+
 export function decodeAgentDefinitionInput(value: unknown) {
   if (!isRecord(value) || !Object.hasOwn(value, 'command')) {
     return { command: value, selectedSourcePaths: undefined }
   }
-  if (
-    !Array.isArray(value.selectedSourcePaths) ||
-    !value.selectedSourcePaths.every((sourcePath) => typeof sourcePath === 'string')
-  ) {
-    return null
-  }
-  return { command: value.command, selectedSourcePaths: value.selectedSourcePaths }
+  const decoded = safeDecodeUnknown(agentDefinitionInputSchema, value)
+  if (!decoded.success) return null
+  return { command: decoded.data.command, selectedSourcePaths: decoded.data.selectedSourcePaths }
 }
 
 export function manageHostUiAgentDefinitions(

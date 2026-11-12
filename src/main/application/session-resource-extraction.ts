@@ -31,8 +31,23 @@ function supportedHttpUrl(value: string) {
   }
 }
 
+/**
+ * The members of a tool-result or content object that name an image, link or site, each still
+ * unchecked: any JSON object satisfies it, and each collector narrows the members it reads.
+ */
+interface ResourceRecordFields {
+  readonly type?: unknown
+  readonly data?: unknown
+  readonly mimeType?: unknown
+  readonly name?: unknown
+  readonly url?: unknown
+  readonly uri?: unknown
+  readonly title?: unknown
+  readonly activity?: unknown
+}
+
 function collectGeneratedImageRecord(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: ResourceRecordFields,
   images: CapturedImage[],
   order: CapturedResourceOrder[],
   remainingTextCharacters: number,
@@ -59,7 +74,7 @@ function collectGeneratedImageRecord(
 }
 
 function collectSiteRecord(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: ResourceRecordFields,
   sites: CapturedSite[],
   remainingTextCharacters: number,
 ) {
@@ -86,7 +101,7 @@ function collectSiteRecord(
 }
 
 function collectResourceLinkRecord(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: ResourceRecordFields,
   links: CapturedLink[],
   order: CapturedResourceOrder[],
   remainingTextCharacters: number,
@@ -113,7 +128,7 @@ function collectResourceLinkRecord(
 }
 
 function collectRecord(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: ResourceRecordFields,
   images: CapturedImage[],
   links: CapturedLink[],
   sites: CapturedSite[],

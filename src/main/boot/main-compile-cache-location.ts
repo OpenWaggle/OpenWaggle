@@ -1,5 +1,6 @@
 import path from 'node:path'
 import type { BuildChannel } from '@shared/types/build-identity'
+import type { BootEnvironment } from './boot-environment'
 
 /** Directory name under the per-user cache root; the channel keeps release lines apart. */
 const CACHE_DIRECTORY_NAME = 'compile-cache'
@@ -18,7 +19,8 @@ export type MainCompileCacheLocation =
   | { readonly kind: 'disabled'; readonly reason: 'opted-out' | 'appimage' }
 
 function perUserCacheRoot(environment: MainCompileCacheEnvironment) {
-  const { env, homeDirectory, platform } = environment
+  const { homeDirectory, platform } = environment
+  const env: BootEnvironment = environment.env
   if (platform === 'darwin') {
     return path.join(homeDirectory, 'Library', 'Caches', APPLICATION_DIRECTORY_NAME)
   }
@@ -48,7 +50,8 @@ function perUserCacheRoot(environment: MainCompileCacheEnvironment) {
 export function mainCompileCacheLocation(
   environment: MainCompileCacheEnvironment,
 ): MainCompileCacheLocation {
-  const { env, platform, channel } = environment
+  const { platform, channel } = environment
+  const env: BootEnvironment = environment.env
   if (env.OPENWAGGLE_DISABLE_COMPILE_CACHE === '1') {
     return { kind: 'disabled', reason: 'opted-out' }
   }

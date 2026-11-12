@@ -1,7 +1,10 @@
+import { Schema } from '@shared/schema'
 import { SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS } from '../services/session-host-discovery-term-population'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import type { HostSqliteDatabase } from './host-sqlite-database'
-import { queryCutoverRecord } from './session-host-cutover-database'
+import { queryCutoverRow } from './session-host-cutover-database'
+
+const presentRowSchema = Schema.Struct({ present: Schema.Literal(1) })
 
 const CUTOVER_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
 const CUTOVER_ROW_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('nodes')
@@ -11,11 +14,12 @@ const NODE_SEARCH_SESSION_INDEX = 'idx_session_node_search_rows_session'
 
 function populateNodeSearchRows(database: HostSqliteDatabase) {
   const hasSessionIndex =
-    queryCutoverRecord(
+    queryCutoverRow(
       database,
+      presentRowSchema,
       "SELECT 1 AS present FROM sqlite_master WHERE type = 'index' AND name = ?",
       NODE_SEARCH_SESSION_INDEX,
-    )?.present === 1
+    ) !== undefined
   if (hasSessionIndex) database.exec(`DROP INDEX ${NODE_SEARCH_SESSION_INDEX}`)
   try {
     database.exec(`

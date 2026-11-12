@@ -2,6 +2,7 @@ import { isSessionHostErrorKind } from '@shared/domain/session-host-refusals'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import { CLI_EXIT, CliError, cliExitCodeForKind } from './cli-error'
 import type { SessionsCliErrorKind } from './sessions-cli-output'
+import type { PageQueryRefusalFields } from './sessions-cli-response-fields'
 
 export const SESSION_CLI_EXIT = CLI_EXIT
 
@@ -43,7 +44,7 @@ export function sessionCliResultErrorKind(
  * A later page of `hive export` or `hive read --full` that the Session Host refused: the command
  * stops with the refusal's kind, as a refused first page does (ADR 0063).
  */
-export function pageQueryRefusal(error: Readonly<Record<string, unknown>>) {
+export function pageQueryRefusal(error: PageQueryRefusalFields) {
   const code = typeof error.code === 'string' ? error.code : 'query_failed'
   const message = typeof error.message === 'string' ? error.message : 'Query failed.'
   return new CliError(refusalKind(error), `${code}: ${message}`, { code })

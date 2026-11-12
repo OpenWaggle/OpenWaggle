@@ -2,28 +2,24 @@ import fs from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { Schema } from '@shared/schema'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  decodeTestServerFrame,
+  sessionHostCursorFromTestFrame,
+  TestFrameReader,
+} from './local-session-server-test-client'
+
+const snapshotOperationSchema = Schema.Struct({ operation: Schema.Literal('snapshot') })
 
 function cursorFromResponse(frame: unknown) {
-  if (typeof frame !== 'object' || frame === null) throw new Error('Expected a response frame.')
-  const payload = Reflect.get(frame, 'payload')
-  if (typeof payload !== 'object' || payload === null) {
-    throw new Error('Expected a response payload.')
-  }
-  const cursor = Reflect.get(payload, 'cursor')
-  if (typeof cursor !== 'object' || cursor === null) throw new Error('Expected an event cursor.')
-  const hostInstanceId = Reflect.get(cursor, 'hostInstanceId')
-  const sequence = Reflect.get(cursor, 'sequence')
-  if (typeof hostInstanceId !== 'string' || typeof sequence !== 'number') {
-    throw new Error('Expected a valid event cursor.')
-  }
-  return { hostInstanceId, sequence }
+  return sessionHostCursorFromTestFrame(decodeTestServerFrame(frame).payload)
 }
 
 function within<T>(promise: Promise<T>, stage: string) {
@@ -78,9 +74,7 @@ describe('Local Session server profile revocation', () => {
         },
       }),
       dispatch: async ({ eventCursor, payload }) =>
-        typeof payload === 'object' &&
-        payload !== null &&
-        Reflect.get(payload, 'operation') === 'snapshot'
+        Schema.is(snapshotOperationSchema)(payload)
           ? { cursor: eventCursor }
           : {
               contract: 'local-access-v1',

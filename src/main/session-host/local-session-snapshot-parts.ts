@@ -1,4 +1,9 @@
-import { decodeUnknownExactOrThrow, getParseIssuePaths, Schema } from '@shared/schema'
+import {
+  decodeUnknownExactOrThrow,
+  getParseIssuePaths,
+  Schema,
+  safeDecodeUnknown,
+} from '@shared/schema'
 import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
 import { browserPreviewAttachmentSchema, jsonValueSchema } from '@shared/schemas/validation'
 import type { MessagePart } from '@shared/types/agent'
@@ -6,7 +11,6 @@ import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { ToolCallId } from '@shared/types/brand'
 import { createLogger } from '../logger'
 import { describeError } from '../utils/describe-error'
-import { isRecord } from './local-session-client-connection'
 
 const logger = createLogger('session-host/run-snapshots')
 const MAX_REPORTED_ISSUES = 5
@@ -110,6 +114,15 @@ function decodeMessagePart(value: unknown): MessagePart {
   return part
 }
 
+/** An earlier assistant message, with its parts still to decode one by one. */
+const assistantMessageCandidateSchema = Schema.Struct({
+  messageId: Schema.String,
+  timestamp: Schema.Number,
+  parts: Schema.Array(Schema.Unknown),
+})
+
+const partTypeSchema = Schema.Struct({ type: Schema.String })
+
 /**
  * The Run's earlier assistant messages, from a Host that retains them. Fields a later Host adds to
  * one are not read. One that is malformed, or holds a part this client cannot decode, is left out,
@@ -124,18 +137,15 @@ export function decodeAssistantMessageSnapshots(
     reportUndecodable(context, 'the earlier assistant messages', 'not an array')
     return {}
   }
-  const assistantMessages = value.flatMap((candidate, messageIndex) => {
-    if (
-      !isRecord(candidate) ||
-      typeof candidate.messageId !== 'string' ||
-      typeof candidate.timestamp !== 'number' ||
-      !Array.isArray(candidate.parts)
-    ) {
+  const assistantMessages = value.flatMap((value: unknown, messageIndex) => {
+    const decoded = safeDecodeUnknown(assistantMessageCandidateSchema, value)
+    if (!decoded.success) {
       reportUndecodable(context, 'an earlier assistant message', 'malformed message', {
         messageIndex,
       })
       return []
     }
+    const candidate = decoded.data
     try {
       return [
         {
@@ -160,7 +170,7 @@ export function decodeAssistantMessageSnapshots(
  * for the whole message over a longer copy it already shows.
  */
 export function decodeStreamingParts(
-  candidate: { readonly parts: readonly unknown[]; readonly messageId?: string },
+  candidate: { readonly parts: readonly unknown[]; readonly messageId?: string | undefined },
   context: SnapshotContext,
 ) {
   const parts: MessagePart[] = []
@@ -173,7 +183,7 @@ export function decodeStreamingParts(
       reportUndecodable(context, 'a streaming message part', error, {
         ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
         partIndex,
-        partType: isRecord(part) && typeof part.type === 'string' ? part.type : null,
+        partType: Schema.is(partTypeSchema)(part) ? part.type : null,
       })
     }
   })

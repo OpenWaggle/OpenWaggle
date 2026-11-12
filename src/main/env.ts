@@ -9,6 +9,11 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
+import {
+  type LiveEnv,
+  liveEnvSchema,
+  SOURCE_CONTROL_CLI_STRIPPED_VARIABLES,
+} from './env-live-schema'
 import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 import {
   applyPiPackageDirectoryTo,
@@ -63,6 +68,16 @@ const envSchema = Schema.Struct({
 
 export type Env = SchemaType<typeof envSchema>
 
+export type { LiveEnv }
+
+/**
+ * The live process environment, decoded now (unlike the startup {@link env} snapshot):
+ * desktop-shell hydration and `withTemporaryProcessEnv` change `process.env` while the app runs.
+ */
+export function readLiveEnv(): LiveEnv {
+  return decodeUnknownOrThrow(liveEnvSchema, process.env)
+}
+
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
@@ -85,8 +100,16 @@ export function restoreHostTemporaryDirectory(
 
 /** Unlike the startup snapshot above, PATH can change after desktop-shell hydration. */
 export function getCurrentProcessPath(): string | undefined {
-  return process.env.PATH
+  return readLiveEnv().PATH
 }
+
+const livePiEnvSchema = Schema.Struct({
+  PI_CODING_AGENT_SESSION_DIR: Schema.optional(Schema.String),
+})
+
+/** Pi's session directory override, read live like PATH: Pi reads it when it opens a session. */
+export const getPiSessionDirectoryOverride = (): string | undefined =>
+  decodeUnknownOrThrow(livePiEnvSchema, process.env).PI_CODING_AGENT_SESSION_DIR
 
 const TERMINAL_PROGRAM_NAME = 'OpenWaggle'
 const TERMINAL_TYPE = 'xterm-256color'
@@ -124,25 +147,27 @@ export const applyPiPackageDirectory = (directory?: string) =>
 /** Safe environment for child processes: essential variables only, so no API key or other
  * secret of the parent process leaks. */
 export function getSafeChildEnv(): Record<string, string | undefined> {
+  const live = readLiveEnv()
   return {
     PATH: getNpmCompatiblePath(),
-    HOME: process.env.HOME,
-    SHELL: process.env.SHELL,
-    TERM: process.env.TERM,
-    LANG: process.env.LANG,
-    USER: process.env.USER,
-    TMPDIR: process.env.TMPDIR,
+    HOME: live.HOME,
+    SHELL: live.SHELL,
+    TERM: live.TERM,
+    LANG: live.LANG,
+    USER: live.USER,
+    TMPDIR: live.TMPDIR,
   }
 }
 
 /** Minimum environment required by the built-in Windows PowerShell security helper. */
 export function getWindowsSecurityChildEnv(): Record<string, string | undefined> {
+  const live = readLiveEnv()
   return {
     PATH: getNpmCompatiblePath(),
-    SystemRoot: process.env.SystemRoot,
-    TEMP: process.env.TEMP,
-    TMP: process.env.TMP,
-    USERPROFILE: process.env.USERPROFILE,
+    SystemRoot: live.SystemRoot,
+    TEMP: live.TEMP,
+    TMP: live.TMP,
+    USERPROFILE: live.USERPROFILE,
   }
 }
 
@@ -161,18 +186,19 @@ export function getSessionHostChildEnv(): Record<string, string | undefined> {
  * through to either subprocess.
  */
 export function getBrowserCredentialChildEnv(): Record<string, string | undefined> {
+  const live = readLiveEnv()
   return {
     ...getSafeChildEnv(),
-    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
-    DISPLAY: process.env.DISPLAY,
-    LC_ALL: process.env.LC_ALL,
-    SystemRoot: process.env.SystemRoot,
-    TEMP: process.env.TEMP,
-    TMP: process.env.TMP,
-    USERNAME: process.env.USERNAME,
-    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
-    WINDIR: process.env.WINDIR,
-    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+    DBUS_SESSION_BUS_ADDRESS: live.DBUS_SESSION_BUS_ADDRESS,
+    DISPLAY: live.DISPLAY,
+    LC_ALL: live.LC_ALL,
+    SystemRoot: live.SystemRoot,
+    TEMP: live.TEMP,
+    TMP: live.TMP,
+    USERNAME: live.USERNAME,
+    WAYLAND_DISPLAY: live.WAYLAND_DISPLAY,
+    WINDIR: live.WINDIR,
+    XDG_RUNTIME_DIR: live.XDG_RUNTIME_DIR,
   }
 }
 
@@ -181,8 +207,9 @@ export function getBrowserImportPathEnv(): {
   readonly appData?: string
   readonly localAppData?: string
 } {
-  const appData = process.env.APPDATA?.trim()
-  const localAppData = process.env.LOCALAPPDATA?.trim()
+  const live = readLiveEnv()
+  const appData = live.APPDATA?.trim()
+  const localAppData = live.LOCALAPPDATA?.trim()
   return {
     ...(appData ? { appData } : {}),
     ...(localAppData ? { localAppData } : {}),
@@ -237,28 +264,7 @@ export function getSourceControlCliEnv(): Record<string, string | undefined> {
     ...process.env,
     PATH: getNpmCompatiblePath(),
   }
-  delete env.GITHUB_TOKEN
-  delete env.GH_TOKEN
-  delete env.GITHUB_ENTERPRISE_TOKEN
-  delete env.GH_ENTERPRISE_TOKEN
-  delete env.GITLAB_TOKEN
-  delete env.GITLAB_ACCESS_TOKEN
-  delete env.GITLAB_PRIVATE_TOKEN
-  delete env.OAUTH_TOKEN
-  delete env.CI_JOB_TOKEN
-  // Repository/host selection is supplied explicitly on every gh/glab invocation. Ambient
-  // overrides would otherwise be able to retarget a command despite the validated Git remote.
-  delete env.GH_REPO
-  delete env.GH_HOST
-  delete env.GITLAB_REPO
-  delete env.GITLAB_HOST
-  delete env.GITLAB_API_HOST
-  delete env.GITLAB_SSH_HOST
-  delete env.GITLAB_HEAD_REPO
-  delete env.GITLAB_URI
-  delete env.GITLAB_URL
-  delete env.GLAB_REPO
-  delete env.GLAB_HOST
+  for (const name of SOURCE_CONTROL_CLI_STRIPPED_VARIABLES) delete env[name]
   return env
 }
 
@@ -280,7 +286,7 @@ export function getEnvWithOverrides(
 }
 
 export function getNpmCompatiblePath(): string {
-  return buildNpmCompatiblePath(process.env.PATH, process.platform, homedir())
+  return buildNpmCompatiblePath(readLiveEnv().PATH, process.platform, homedir())
 }
 
 export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {

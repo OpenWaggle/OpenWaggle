@@ -1,8 +1,11 @@
+import { Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
 import { containsInlineVisualizationReference } from '@shared/utils/inline-visualization'
 import { isRecord } from '@shared/utils/validation'
 import type { AgentKernelSessionSnapshot } from '../ports/agent-kernel-service'
+
+const visualizationOwnerMetadataSchema = Schema.Struct({ visualizationSessionId: Schema.String })
 
 function mergeVisualizationOwner(metadataJson: string, ownerSessionId: SessionId) {
   try {
@@ -27,7 +30,7 @@ export function attributeCopiedVisualizationSources(
     sourceSession.nodes.flatMap((node) => {
       try {
         const metadata: unknown = JSON.parse(node.metadataJson)
-        if (isRecord(metadata) && typeof metadata.visualizationSessionId === 'string') {
+        if (Schema.is(visualizationOwnerMetadataSchema)(metadata)) {
           return [[String(node.id), SessionId(metadata.visualizationSessionId)] as const]
         }
       } catch {

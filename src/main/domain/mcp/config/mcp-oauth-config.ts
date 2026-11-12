@@ -1,9 +1,19 @@
-import {
-  isJsonRecord,
-  type JsonRecord,
-  MCP_LOOPBACK_HOSTS,
-  type McpOAuthConfig,
-} from './mcp-server-config'
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
+import { isJsonRecord, MCP_LOOPBACK_HOSTS, type McpOAuthConfig } from './mcp-server-config'
+
+/** The `oauth` members the rules check, each still unchecked so a rule names the one it refuses. */
+const oauthFieldsSchema = Schema.Struct({
+  clientId: Schema.optional(Schema.Unknown),
+  clientSecret: Schema.optional(Schema.Unknown),
+  callbackPort: Schema.optional(Schema.Unknown),
+  callbackUrl: Schema.optional(Schema.Unknown),
+  scope: Schema.optional(Schema.Unknown),
+  clientName: Schema.optional(Schema.Unknown),
+  clientRegistration: Schema.optional(Schema.Unknown),
+  authServerMetadataUrl: Schema.optional(Schema.Unknown),
+})
+
+type OAuthFields = SchemaType<typeof oauthFieldsSchema>
 
 const MIN_PORT = 1
 const MAX_PORT = 65_535
@@ -23,7 +33,7 @@ function optionalString(value: unknown) {
   return value === undefined || typeof value === 'string'
 }
 
-type OAuthRule = (value: JsonRecord) => string | undefined
+type OAuthRule = (value: OAuthFields) => string | undefined
 
 function stringField(field: 'clientId' | 'clientSecret' | 'scope'): OAuthRule {
   return (value) => (optionalString(value[field]) ? undefined : `oauth.${field} must be a string`)
@@ -94,7 +104,7 @@ const OAUTH_RULES: readonly OAuthRule[] = [
   metadataUrlRule,
 ]
 
-function oauthConfig(value: JsonRecord): McpOAuthConfig {
+function oauthConfig(value: OAuthFields): McpOAuthConfig {
   const config: McpOAuthConfig = {}
   if (typeof value.clientId === 'string') config.clientId = value.clientId
   if (typeof value.clientSecret === 'string') config.clientSecret = value.clientSecret
@@ -118,9 +128,10 @@ export type McpOAuthValidation =
 export function validateMcpOAuthConfig(name: string, value: unknown): McpOAuthValidation {
   if (value === undefined) return { ok: true, oauth: undefined }
   if (!isJsonRecord(value)) return { ok: false, error: `server "${name}": oauth must be an object` }
+  const fields = decodeUnknownOrThrow(oauthFieldsSchema, value)
   for (const rule of OAUTH_RULES) {
-    const error = rule(value)
+    const error = rule(fields)
     if (error) return { ok: false, error: `server "${name}": ${error}` }
   }
-  return { ok: true, oauth: oauthConfig(value) }
+  return { ok: true, oauth: oauthConfig(fields) }
 }

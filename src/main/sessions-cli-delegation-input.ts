@@ -1,3 +1,4 @@
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { delegationScopeClaimSchema } from '@shared/schemas/session-collaboration-control'
 import { delegationSpecificationSchema } from '@shared/schemas/session-lifecycle'
@@ -35,7 +36,7 @@ function evidenceItem(value: unknown): DelegationEvidenceInput {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Delegation evidence must be an object.')
   }
-  const record = Object.fromEntries(Object.entries(value))
+  const record: UncheckedFields<DelegationEvidenceInput> = value
   const kind = EVIDENCE_OPTIONS.map(([, candidate]) => candidate).find(
     (candidate) => candidate === record.kind,
   )

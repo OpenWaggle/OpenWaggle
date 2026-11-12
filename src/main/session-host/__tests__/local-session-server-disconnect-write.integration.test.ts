@@ -9,21 +9,13 @@ import { encodeLocalSessionFrame } from '../local-session-framing'
 import type { LocalSessionSocketFrameWriter } from '../local-session-outbound-writer'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
 import { writeLocalSessionSocketFrame } from '../local-session-server-frame'
-import { connectLocalSessionTestClient } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  isTestServerFrame,
+} from './local-session-server-test-client'
 
 const SETTLE_MS = 150
 const HANDSHAKE_TIMEOUT_MS = 60
-
-/** The frame kind and code a writer was handed, without asserting the frame's shape. */
-function frameKindAndCode(value: unknown) {
-  if (typeof value !== 'object' || value === null) return undefined
-  const kind = Reflect.get(value, 'kind')
-  const code = Reflect.get(value, 'code')
-  return {
-    kind: typeof kind === 'string' ? kind : undefined,
-    code: typeof code === 'string' ? code : undefined,
-  }
-}
 
 /**
  * A frame writer that reports the kernel's verdict for a write to a peer that went away: the
@@ -32,8 +24,7 @@ function frameKindAndCode(value: unknown) {
  */
 function epipeWriter(errorCode: string): LocalSessionSocketFrameWriter {
   return async (input) => {
-    const frame = frameKindAndCode(input.value)
-    if (frame?.kind === 'error' && frame.code === errorCode) {
+    if (isTestServerFrame(input.value, 'error', errorCode)) {
       throw Object.assign(new Error('write EPIPE'), { code: 'EPIPE' })
     }
     return writeLocalSessionSocketFrame(input)

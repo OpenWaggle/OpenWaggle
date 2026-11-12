@@ -1,5 +1,6 @@
 import type { Socket } from 'node:net'
 import { decodeLocalSessionClientHello } from '@shared/schemas/local-session-protocol'
+import { errorCode } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
@@ -18,8 +19,7 @@ function authenticationFailureCode(error: unknown) {
   const failure: unknown = Runtime.isFiberFailure(error)
     ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
     : error
-  const code: unknown =
-    typeof failure === 'object' && failure !== null ? Reflect.get(failure, 'code') : undefined
+  const code = errorCode(failure)
   return typeof code === 'string' ? code : 'unknown'
 }
 

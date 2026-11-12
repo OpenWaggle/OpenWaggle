@@ -14,7 +14,9 @@ import { emptySessionCatalogMethods } from './session-repository-test-support'
 interface DispatchedCommand {
   readonly payload: {
     readonly contract: string
-    readonly request: { readonly command: Record<string, unknown> }
+    readonly request: {
+      readonly command: { readonly operation?: unknown; readonly sessionId?: unknown }
+    }
   }
 }
 

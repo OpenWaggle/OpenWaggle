@@ -224,7 +224,7 @@ describe('inline visualization host runtime', () => {
       theme: { colorScheme: 'dark', reducedMotion: false, variables: {} },
     })
 
-    expect(documentElement.dataset.motion).toBeUndefined()
+    expect(documentElement.dataset).not.toHaveProperty('motion')
     expect(reducedMotionQuery.matches).toBe(false)
     for (const listener of [functionListener, objectListener.handleEvent, onChange]) {
       expect(listener).toHaveBeenCalledOnce()

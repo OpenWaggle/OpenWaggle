@@ -42,12 +42,12 @@ function optionString(value: unknown) {
 }
 
 function agentProtocol(agent: http.Agent) {
-  const protocol: unknown = Reflect.get(agent, 'protocol')
+  const protocol = 'protocol' in agent ? agent.protocol : undefined
   return typeof protocol === 'string' ? protocol : HTTP_PROTOCOL
 }
 
 function agentDefaultPort(agent: http.Agent) {
-  return optionString(Reflect.get(agent, 'defaultPort'))
+  return optionString('defaultPort' in agent ? agent.defaultPort : undefined)
 }
 
 /** The URL a Node HTTP agent is asked to connect to. `addRequest` sees every import style alike. */
@@ -91,7 +91,8 @@ function requestApi(url: URL | null) {
  * `net.Socket.prototype.connect`, which denies them because they carry no authorized target.
  */
 export function installTrustedMainHttpNetworkGuard(input: TrustedMainHttpNetworkGuard) {
-  const addRequestValue: unknown = Reflect.get(http.Agent.prototype, 'addRequest')
+  const prototype: object = http.Agent.prototype
+  const addRequestValue = 'addRequest' in prototype ? prototype.addRequest : undefined
   if (!isAddRequest(addRequestValue)) {
     throw new TypeError('node:http Agent.prototype.addRequest is unavailable.')
   }

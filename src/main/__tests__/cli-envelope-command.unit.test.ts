@@ -43,8 +43,8 @@ type StatusDependencies = NonNullable<Parameters<typeof runStatusCli>[1]>
 
 function envelopeCommand(text: string | undefined) {
   const envelope: unknown = JSON.parse(text ?? 'null')
-  return typeof envelope === 'object' && envelope !== null
-    ? Reflect.get(envelope, 'command')
+  return typeof envelope === 'object' && envelope !== null && 'command' in envelope
+    ? envelope.command
     : undefined
 }
 

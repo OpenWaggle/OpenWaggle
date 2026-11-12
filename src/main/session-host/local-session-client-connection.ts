@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import net, { type Socket } from 'node:net'
+import { Schema } from '@shared/schema'
 import { decodeLocalSessionNegotiationResult } from '@shared/schemas/local-session-protocol'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import {
@@ -34,9 +35,16 @@ export class LocalSessionHostConnectionClosedError extends Error {
   }
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/** A reader failure handed to the waiting `next`, which rejects with its error. */
+class ReaderFailure {
+  readonly error: Error
+
+  constructor(error: Error) {
+    this.error = error
+  }
 }
+
+const errorFrameKindSchema = Schema.Struct({ kind: Schema.Literal('error') })
 
 export class LocalSessionFrameReader {
   private readonly decoder = new LocalSessionFrameDecoder()
@@ -78,7 +86,7 @@ export class LocalSessionFrameReader {
     if (!this.waiter) return
     const waiter = this.waiter
     this.waiter = null
-    waiter({ kind: '__client-error', error })
+    waiter(new ReaderFailure(error))
   }
 
   async next(timeoutMs?: number): Promise<unknown> {
@@ -97,7 +105,7 @@ export class LocalSessionFrameReader {
             }, timeoutMs)
       this.waiter = (value) => {
         if (timer) clearTimeout(timer)
-        if (isRecord(value) && value.kind === '__client-error' && value.error instanceof Error) {
+        if (value instanceof ReaderFailure) {
           reject(value.error)
           return
         }
@@ -220,7 +228,7 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
       credential: authentication.credential,
     })
     const negotiationFrame = await reader.next(timeoutMs)
-    if (isRecord(negotiationFrame) && negotiationFrame.kind === 'error') {
+    if (Schema.is(errorFrameKindSchema)(negotiationFrame)) {
       throw localSessionClientProtocolError(
         negotiationFrame,
         'Local Session authentication failed.',

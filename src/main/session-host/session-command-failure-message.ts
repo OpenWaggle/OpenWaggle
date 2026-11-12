@@ -32,7 +32,8 @@ function isAuthenticationFailure(failure: unknown) {
     failure instanceof LocalSessionAuthenticationError ||
     (typeof failure === 'object' &&
       failure !== null &&
-      Reflect.get(failure, '_tag') === 'LocalSessionAuthenticationError')
+      '_tag' in failure &&
+      failure._tag === 'LocalSessionAuthenticationError')
   )
 }
 

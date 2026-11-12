@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { createProjectActionTerminalEnvironment } from '@shared/utils/terminal-environment'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -18,8 +19,11 @@ import {
 const MINIMAL_PATH = ['/usr/bin', '/bin'].join(delimiter)
 const TEST_APP_VERSION = '1.2.3-test'
 
-function pathEntries(value: string | undefined) {
-  return value?.split(delimiter) ?? []
+const childPathSchema = Schema.Struct({ PATH: Schema.optional(Schema.String) })
+
+/** The PATH entries of a child environment map, decoded rather than read out of the map. */
+function pathEntries(environment: Readonly<Record<string, string | undefined>>) {
+  return decodeUnknownOrThrow(childPathSchema, environment).PATH?.split(delimiter) ?? []
 }
 
 afterEach(() => {
@@ -61,7 +65,7 @@ describe('main process environment helpers', () => {
   it('adds common user tool directories to the npm-compatible PATH', () => {
     vi.stubEnv('PATH', MINIMAL_PATH)
 
-    const entries = pathEntries(getNpmCompatiblePath())
+    const entries = getNpmCompatiblePath().split(delimiter)
 
     expect(entries).toContain(join(homedir(), '.local', 'bin'))
     expect(entries).toContain(join(homedir(), '.volta', 'bin'))
@@ -76,7 +80,7 @@ describe('main process environment helpers', () => {
     vi.stubEnv('PATH', MINIMAL_PATH)
 
     const childEnv = getSafeChildEnv()
-    const entries = pathEntries(childEnv.PATH)
+    const entries = pathEntries(childEnv)
 
     expect(entries).toContain(join(homedir(), '.local', 'bin'))
     expect(entries).toContain('/usr/local/bin')
@@ -86,7 +90,7 @@ describe('main process environment helpers', () => {
     const existingEntries = ['/custom/shims', '/usr/bin', '/bin']
     vi.stubEnv('PATH', existingEntries.join(delimiter))
 
-    const entries = pathEntries(getSafeChildEnv().PATH)
+    const entries = pathEntries(getSafeChildEnv())
 
     expect(entries.slice(0, existingEntries.length)).toEqual(existingEntries)
     expect(entries).toContain(join(homedir(), '.local', 'bin'))
@@ -154,7 +158,7 @@ describe('main process environment helpers', () => {
       WAYLAND_DISPLAY: 'wayland-1',
       SystemRoot: 'C:\\Windows',
     })
-    expect(childEnv.BROWSER_IMPORT_SECRET_CANARY).toBeUndefined()
+    expect(childEnv).not.toHaveProperty('BROWSER_IMPORT_SECRET_CANARY')
   })
 
   it('reads the Windows browser profile roots without exposing unrelated environment values', () => {
@@ -172,7 +176,7 @@ describe('main process environment helpers', () => {
     const existingEntries = ['/custom/shims', '/custom/bin', '/usr/bin', '/bin']
     vi.stubEnv('PATH', existingEntries.join(delimiter))
 
-    const entries = pathEntries(getInteractiveTerminalEnv(TEST_APP_VERSION).PATH)
+    const entries = pathEntries(getInteractiveTerminalEnv(TEST_APP_VERSION))
 
     expect(entries.slice(0, existingEntries.length)).toEqual(existingEntries)
     expect(entries).toContain(join(homedir(), '.local', 'bin'))
@@ -216,14 +220,14 @@ describe('main process environment helpers', () => {
 
     const terminalEnv = getInteractiveTerminalEnv(TEST_APP_VERSION)
 
-    expect(terminalEnv.OPENWAGGLE_AUTOMATION).toBeUndefined()
-    expect(terminalEnv.openwaggle_private_control).toBeUndefined()
-    expect(terminalEnv.ELECTRON_RENDERER_URL).toBeUndefined()
-    expect(terminalEnv.ELECTRON_RUN_AS_NODE).toBeUndefined()
-    expect(terminalEnv.NODE_OPTIONS).toBeUndefined()
-    expect(terminalEnv.NODE_PATH).toBeUndefined()
-    expect(terminalEnv.NODE_REPL_EXTERNAL_MODULE).toBeUndefined()
-    expect(terminalEnv.NODE_ENV).toBe('development')
+    expect(terminalEnv).not.toHaveProperty('OPENWAGGLE_AUTOMATION')
+    expect(terminalEnv).not.toHaveProperty('openwaggle_private_control')
+    expect(terminalEnv).not.toHaveProperty('ELECTRON_RENDERER_URL')
+    expect(terminalEnv).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
+    expect(terminalEnv).not.toHaveProperty('NODE_OPTIONS')
+    expect(terminalEnv).not.toHaveProperty('NODE_PATH')
+    expect(terminalEnv).not.toHaveProperty('NODE_REPL_EXTERNAL_MODULE')
+    expect(terminalEnv).toHaveProperty('NODE_ENV', 'development')
   })
 
   it('takes a fresh environment snapshot for every terminal spawn', () => {
@@ -233,16 +237,16 @@ describe('main process environment helpers', () => {
     vi.stubEnv('OPENWAGGLE_FRESHNESS_CANARY_USER', 'second')
     const second = getInteractiveTerminalEnv(TEST_APP_VERSION)
 
-    expect(first.OPENWAGGLE_FRESHNESS_CANARY_USER).toBeUndefined()
-    expect(second.OPENWAGGLE_FRESHNESS_CANARY_USER).toBeUndefined()
+    expect(first).not.toHaveProperty('OPENWAGGLE_FRESHNESS_CANARY_USER')
+    expect(second).not.toHaveProperty('OPENWAGGLE_FRESHNESS_CANARY_USER')
 
     vi.stubEnv('TERMINAL_FRESHNESS_CANARY', 'first')
     const inheritedFirst = getInteractiveTerminalEnv(TEST_APP_VERSION)
     vi.stubEnv('TERMINAL_FRESHNESS_CANARY', 'second')
     const inheritedSecond = getInteractiveTerminalEnv(TEST_APP_VERSION)
 
-    expect(inheritedFirst.TERMINAL_FRESHNESS_CANARY).toBe('first')
-    expect(inheritedSecond.TERMINAL_FRESHNESS_CANARY).toBe('second')
+    expect(inheritedFirst).toHaveProperty('TERMINAL_FRESHNESS_CANARY', 'first')
+    expect(inheritedSecond).toHaveProperty('TERMINAL_FRESHNESS_CANARY', 'second')
   })
 
   it('advertises OpenWaggle and true-color terminal capabilities', () => {
@@ -253,10 +257,10 @@ describe('main process environment helpers', () => {
 
     const terminalEnv = getInteractiveTerminalEnv(TEST_APP_VERSION)
 
-    expect(terminalEnv.TERM).toBe('xterm-256color')
-    expect(terminalEnv.COLORTERM).toBe('truecolor')
-    expect(terminalEnv.TERM_PROGRAM).toBe('OpenWaggle')
-    expect(terminalEnv.TERM_PROGRAM_VERSION).toBe(TEST_APP_VERSION)
+    expect(terminalEnv).toHaveProperty('TERM', 'xterm-256color')
+    expect(terminalEnv).toHaveProperty('COLORTERM', 'truecolor')
+    expect(terminalEnv).toHaveProperty('TERM_PROGRAM', 'OpenWaggle')
+    expect(terminalEnv).toHaveProperty('TERM_PROGRAM_VERSION', TEST_APP_VERSION)
   })
 
   it('layers explicit launch overrides over a fresh inferred environment', () => {
@@ -273,8 +277,8 @@ describe('main process environment helpers', () => {
       SHELL: '/bin/zsh',
       OPENWAGGLE_PROJECT_ROOT: '/current/project',
     })
-    expect(terminalEnv.T3CODE_PROJECT_ROOT).toBeUndefined()
-    expect(pathEntries(terminalEnv.PATH)).toContain('/usr/bin')
+    expect(terminalEnv).not.toHaveProperty('T3CODE_PROJECT_ROOT')
+    expect(pathEntries(terminalEnv)).toContain('/usr/bin')
   })
 
   it('removes legacy vendor aliases and keeps worktree variables out of Local actions', () => {
@@ -287,12 +291,12 @@ describe('main process environment helpers', () => {
       createProjectActionTerminalEnvironment({ projectRoot: '/current/project' }),
     )
 
-    expect(normalTerminalEnv.T3CODE_PROJECT_ROOT).toBeUndefined()
-    expect(normalTerminalEnv.T3CODE_WORKTREE_PATH).toBeUndefined()
-    expect(terminalEnv.T3CODE_PROJECT_ROOT).toBeUndefined()
-    expect(terminalEnv.OPENWAGGLE_PROJECT_ROOT).toBe('/current/project')
-    expect(terminalEnv.T3CODE_WORKTREE_PATH).toBeUndefined()
-    expect(terminalEnv.OPENWAGGLE_WORKTREE_PATH).toBeUndefined()
+    expect(normalTerminalEnv).not.toHaveProperty('T3CODE_PROJECT_ROOT')
+    expect(normalTerminalEnv).not.toHaveProperty('T3CODE_WORKTREE_PATH')
+    expect(terminalEnv).not.toHaveProperty('T3CODE_PROJECT_ROOT')
+    expect(terminalEnv).toHaveProperty('OPENWAGGLE_PROJECT_ROOT', '/current/project')
+    expect(terminalEnv).not.toHaveProperty('T3CODE_WORKTREE_PATH')
+    expect(terminalEnv).not.toHaveProperty('OPENWAGGLE_WORKTREE_PATH')
   })
 
   it('strips AppImage runtime markers and mounted paths without losing host paths', () => {
@@ -308,15 +312,15 @@ describe('main process environment helpers', () => {
 
     const terminalEnv = getInteractiveTerminalEnv(TEST_APP_VERSION)
 
-    expect(terminalEnv.APPIMAGE).toBeUndefined()
-    expect(terminalEnv.APPDIR).toBeUndefined()
-    expect(terminalEnv.ARGV0).toBeUndefined()
-    expect(terminalEnv.OWD).toBeUndefined()
-    expect(terminalEnv.PATH).not.toContain(appDir)
-    expect(terminalEnv.PATH).toContain('/usr/local/bin')
-    expect(terminalEnv.LD_LIBRARY_PATH).toBe('/home/user/.local/lib')
-    expect(terminalEnv.XDG_DATA_DIRS).toBe('/usr/local/share:/usr/share')
-    expect(terminalEnv.GSETTINGS_SCHEMA_DIR).toBeUndefined()
+    expect(terminalEnv).not.toHaveProperty('APPIMAGE')
+    expect(terminalEnv).not.toHaveProperty('APPDIR')
+    expect(terminalEnv).not.toHaveProperty('ARGV0')
+    expect(terminalEnv).not.toHaveProperty('OWD')
+    expect(pathEntries(terminalEnv).filter((entry) => entry.startsWith(appDir))).toEqual([])
+    expect(pathEntries(terminalEnv)).toContain('/usr/local/bin')
+    expect(terminalEnv).toHaveProperty('LD_LIBRARY_PATH', '/home/user/.local/lib')
+    expect(terminalEnv).toHaveProperty('XDG_DATA_DIRS', '/usr/local/share:/usr/share')
+    expect(terminalEnv).not.toHaveProperty('GSETTINGS_SCHEMA_DIR')
   })
 
   it('keeps ordinary OWD when the app was not launched from an AppImage', () => {
@@ -324,6 +328,9 @@ describe('main process environment helpers', () => {
     vi.stubEnv('APPDIR', undefined)
     vi.stubEnv('OWD', '/home/user/keep-this')
 
-    expect(getInteractiveTerminalEnv(TEST_APP_VERSION).OWD).toBe('/home/user/keep-this')
+    expect(getInteractiveTerminalEnv(TEST_APP_VERSION)).toHaveProperty(
+      'OWD',
+      '/home/user/keep-this',
+    )
   })
 })

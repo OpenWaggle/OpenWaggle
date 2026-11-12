@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { Socket } from 'node:net'
+import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type {
   SessionHostEventCursor,
@@ -8,7 +9,6 @@ import type {
 import { createLogger } from '../logger'
 import { decodeActiveRunSnapshots } from './local-session-active-run-snapshots'
 import {
-  isRecord,
   type LocalSessionClientConnectionInput,
   type LocalSessionFrameReader,
   openLocalSessionConnection,
@@ -19,11 +19,43 @@ import { decideSessionHostEvent } from './local-session-event-validation'
 
 const logger = createLogger('session-host/event-client')
 
+const eventCursorSchema = Schema.Struct({ hostInstanceId: Schema.String, sequence: Schema.Number })
+
+/** The frame fields this client reads; each one's value is decoded where it is used. */
+const serverFrameFieldsSchema = Schema.Struct({
+  kind: Schema.String,
+  requestId: Schema.optional(Schema.Unknown),
+  subscriptionId: Schema.optional(Schema.Unknown),
+  cursor: Schema.optional(Schema.Unknown),
+  activeRuns: Schema.optional(Schema.Unknown),
+  event: Schema.optional(Schema.Unknown),
+  reason: Schema.optional(Schema.Unknown),
+})
+
+type ServerFrameFields = SchemaType<typeof serverFrameFieldsSchema>
+
+const resyncRequiredFrameSchema = Schema.Struct({
+  reason: Schema.Literal('host-restarted', 'cursor-expired', 'cursor-ahead', 'slow-consumer'),
+  cursor: eventCursorSchema,
+})
+
+const describedEventSchema = Schema.Struct({
+  payload: Schema.Struct({
+    kind: Schema.optional(Schema.Unknown),
+    sessionId: Schema.optional(Schema.Unknown),
+    event: Schema.optional(Schema.Unknown),
+  }),
+})
+
+const describedTransportEventSchema = Schema.Struct({ type: Schema.optional(Schema.Unknown) })
+
 /** What the log may say about an event: never its content. */
 function describeEventFrame(event: unknown) {
-  if (!isRecord(event) || !isRecord(event.payload)) return {}
+  if (!Schema.is(describedEventSchema)(event)) return {}
   const { kind, sessionId } = event.payload
-  const transport = isRecord(event.payload.event) ? event.payload.event.type : undefined
+  const transport = Schema.is(describedTransportEventSchema)(event.payload.event)
+    ? event.payload.event.type
+    : undefined
   return {
     ...(typeof kind === 'string' ? { kind } : {}),
     ...(typeof sessionId === 'string' ? { sessionId } : {}),
@@ -63,10 +95,11 @@ async function establishSubscription(
       ? { sessionIds: [...new Set(input.sessionIds)] }
       : {}),
   })
-  const first = await reader.next(timeoutMs)
-  if (!isRecord(first) || typeof first.kind !== 'string') {
+  const value = await reader.next(timeoutMs)
+  if (!Schema.is(serverFrameFieldsSchema)(value)) {
     throw new Error('Local Session Host returned an invalid subscription frame.')
   }
+  const first = value
   if (first.kind === 'resync-required') return decodeResyncRequired(first)
   if (first.kind === 'error') {
     throw localSessionClientProtocolError(first, 'Subscription failed.')
@@ -105,7 +138,7 @@ async function consumeSubscriptionFrame(
   subscriptionId: string,
   input: LocalSessionWatchInput,
 ): Promise<LocalSessionWatchResult | undefined> {
-  if (!isRecord(frame) || typeof frame.kind !== 'string') {
+  if (!Schema.is(serverFrameFieldsSchema)(frame)) {
     throw new Error('Local Session Host returned an invalid event frame.')
   }
   if (frame.kind === 'event' && frame.subscriptionId === subscriptionId) {
@@ -150,11 +183,7 @@ async function consumeCursorAdvancement(cursor: unknown, input: LocalSessionWatc
 }
 
 function decodeCursor(value: unknown, label: string): SessionHostEventCursor {
-  if (
-    !isRecord(value) ||
-    typeof value.hostInstanceId !== 'string' ||
-    typeof value.sequence !== 'number'
-  ) {
+  if (!Schema.is(eventCursorSchema)(value)) {
     throw new Error(`Local Session Host returned an invalid ${label}.`)
   }
   return { hostInstanceId: value.hostInstanceId, sequence: value.sequence }
@@ -184,22 +213,10 @@ export async function watchLocalSessionEvents(
   }
 }
 
-function decodeResyncRequired(frame: Record<string, unknown>): LocalSessionWatchResult {
-  const reasons = ['host-restarted', 'cursor-expired', 'cursor-ahead', 'slow-consumer'] as const
-  if (
-    typeof frame.reason !== 'string' ||
-    !reasons.some((reason) => reason === frame.reason) ||
-    !isRecord(frame.cursor) ||
-    typeof frame.cursor.hostInstanceId !== 'string' ||
-    typeof frame.cursor.sequence !== 'number'
-  ) {
+function decodeResyncRequired(frame: ServerFrameFields): LocalSessionWatchResult {
+  const decoded = safeDecodeUnknown(resyncRequiredFrameSchema, frame)
+  if (!decoded.success) {
     throw new Error('Local Session Host returned an invalid resynchronization frame.')
   }
-  const reason = reasons.find((candidate) => candidate === frame.reason)
-  if (!reason) throw new Error('Local Session Host returned an invalid resynchronization reason.')
-  return {
-    status: 'resync-required',
-    reason,
-    cursor: decodeCursor(frame.cursor, 'resynchronization cursor'),
-  }
+  return { status: 'resync-required', reason: decoded.data.reason, cursor: decoded.data.cursor }
 }

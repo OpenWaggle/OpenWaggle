@@ -39,10 +39,6 @@ function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
-function optionValue(options: object, property: keyof SocketConnectOptions): unknown {
-  return Reflect.get(options, property)
-}
-
 /**
  * The options a `Socket.prototype.connect` call connects with, in each overload Node and Bun
  * accept: `[options, listener]` already normalized by `net.connect`/`tls.connect`, an options
@@ -53,14 +49,15 @@ function socketConnectOptions(args: readonly unknown[]): SocketConnectOptions | 
   const second = args[SECOND_ARGUMENT_INDEX]
   const options: unknown = Array.isArray(first) ? first[FIRST_ARGUMENT_INDEX] : first
   if (isObject(options)) {
+    const fields: SocketConnectOptions = options
     return {
-      host: optionValue(options, 'host') ?? HTTP_DEFAULT_HOST,
-      port: optionValue(options, 'port'),
-      path: optionValue(options, 'path'),
-      lookup: optionValue(options, 'lookup'),
-      socket: optionValue(options, 'socket'),
-      fd: optionValue(options, 'fd'),
-      ALPNProtocols: optionValue(options, 'ALPNProtocols'),
+      host: fields.host ?? HTTP_DEFAULT_HOST,
+      port: fields.port,
+      path: fields.path,
+      lookup: fields.lookup,
+      socket: fields.socket,
+      fd: fields.fd,
+      ALPNProtocols: fields.ALPNProtocols,
     }
   }
   if (typeof options === 'number' || (typeof options === 'string' && /^\d+$/u.test(options))) {
@@ -114,7 +111,8 @@ function isAuthorizedTlsConnection(
  * allowed are TLS connections that an allowed HTTPS request opens to its declared origin.
  */
 export function installTrustedMainSocketNetworkGuard(guard: TrustedMainSocketNetworkGuard) {
-  const connectValue: unknown = Reflect.get(net.Socket.prototype, 'connect')
+  const prototype: object = net.Socket.prototype
+  const connectValue = 'connect' in prototype ? prototype.connect : undefined
   if (!isSocketConnect(connectValue)) {
     throw new TypeError('node:net Socket.prototype.connect is unavailable.')
   }

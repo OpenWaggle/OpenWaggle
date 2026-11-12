@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -45,11 +46,14 @@ function positiveWhole(value: string, label: string) {
 
 /** `--every 30m`, `--every 2h`, or a plain number of minutes. */
 function everyMinutes(value: string) {
-  const match = /^(?<amount>\d+)\s*(?<unit>m|min|h|hr)?$/i.exec(value.trim())
-  const amountText = match?.groups?.amount
+  const match = namedGroups(/^(?<amount>\d+)\s*(?<unit>m|min|h|hr)?$/i.exec(value.trim()), [
+    'amount',
+    'unit',
+  ])
+  const amountText = match?.amount
   if (!amountText) throw new CommandCliUsageError('--every takes minutes (30, 30m) or hours (2h).')
   const amount = Number(amountText)
-  const unit = (match?.groups?.unit ?? 'm').toLowerCase()
+  const unit = (match?.unit ?? 'm').toLowerCase()
   return unit.startsWith('h') ? amount * MINUTES_PER_HOUR : amount
 }
 

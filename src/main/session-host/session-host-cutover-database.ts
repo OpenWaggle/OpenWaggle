@@ -1,24 +1,36 @@
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { SESSION_HOST_BASELINE_MIGRATION_ID } from '../services/session-host-schema-identity'
 import type { HostSqliteDatabase } from './host-sqlite-database'
 
-export function cutoverRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value))
-    : undefined
+/** A row decoded with its schema, or `undefined` when there is none or it does not match. */
+export function decodeCutoverRow<A, I>(schema: Schema.Schema<A, I>, value: unknown): A | undefined {
+  const decoded = safeDecodeUnknown(schema, value)
+  return decoded.success ? decoded.data : undefined
 }
 
-export function queryCutoverRecord(
+export function queryCutoverRow<A, I>(
   database: HostSqliteDatabase,
+  schema: Schema.Schema<A, I>,
   sql: string,
   ...parameters: string[]
 ) {
   const value: unknown = database.prepare(sql).get(...parameters)
-  return cutoverRecord(value)
+  return decodeCutoverRow(schema, value)
+}
+
+const countRowSchema = Schema.Struct({ count: Schema.Number })
+
+/** The `count` column of a `SELECT COUNT(*) AS count ...` query. */
+export function queryCutoverCount(
+  database: HostSqliteDatabase,
+  sql: string,
+  ...parameters: string[]
+) {
+  return queryCutoverRow(database, countRowSchema, sql, ...parameters)?.count
 }
 
 export function readCutoverCount(database: HostSqliteDatabase, table: string) {
-  const count = queryCutoverRecord(database, `SELECT COUNT(*) AS count FROM ${table}`)?.count
-  return typeof count === 'number' ? count : 0
+  return queryCutoverCount(database, `SELECT COUNT(*) AS count FROM ${table}`) ?? 0
 }
 
 export function cutoverTableExists(database: HostSqliteDatabase, table: string) {
@@ -29,12 +41,13 @@ export function cutoverTableExists(database: HostSqliteDatabase, table: string) 
   )
 }
 
+const revisionRowSchema = Schema.Struct({ revision: Schema.Number })
+
 export function sourceSchemaRevision(database: HostSqliteDatabase) {
-  const revision = queryCutoverRecord(
-    database,
-    'SELECT MAX(id) AS revision FROM _migrations',
-  )?.revision
-  return typeof revision === 'number' ? revision : 0
+  return (
+    queryCutoverRow(database, revisionRowSchema, 'SELECT MAX(id) AS revision FROM _migrations')
+      ?.revision ?? 0
+  )
 }
 
 /**

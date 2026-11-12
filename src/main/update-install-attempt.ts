@@ -1,3 +1,4 @@
+import { errorCode } from '@shared/utils/node-error'
 import { type FileHandle, open, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
@@ -44,7 +45,7 @@ const SHIPIT_APP_RUNNING = 'Aborting update attempt because there are'
 const logger = createLogger('update-install-attempt')
 
 function isMissingFile(error: unknown) {
-  return typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'ENOENT'
+  return errorCode(error) === 'ENOENT'
 }
 
 async function readOptionalFile(file: string, description: string): Promise<string | null> {

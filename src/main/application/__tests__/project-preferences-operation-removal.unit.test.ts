@@ -20,7 +20,7 @@ async function fakeStripWrite(projectPath: string): Promise<void> {
   const configPath = path.join(projectPath, '.openwaggle', 'settings.json')
   try {
     const raw = await fs.readFile(configPath, 'utf-8')
-    const parsed: { preferences?: Record<string, unknown> } = JSON.parse(raw)
+    const parsed: { preferences?: { model?: unknown } } = JSON.parse(raw)
     if (parsed.preferences && 'model' in parsed.preferences) {
       delete parsed.preferences.model
       if (Object.keys(parsed.preferences).length === 0) delete parsed.preferences
