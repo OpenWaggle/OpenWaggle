@@ -214,6 +214,7 @@ interface DevToolsTarget {
   readonly type?: unknown
   readonly url?: unknown
   readonly title?: unknown
+  readonly webSocketDebuggerUrl?: unknown
 }
 
 function isDevToolsTarget(value: unknown): value is DevToolsTarget {
@@ -224,6 +225,43 @@ async function devToolsTargets(port: number): Promise<DevToolsTarget[]> {
   const response = await fetch(`http://${LOOPBACK}:${String(port)}/json/list`)
   const targets: unknown = await response.json()
   return Array.isArray(targets) ? targets.filter(isDevToolsTarget) : []
+}
+
+const CDP_SCREENSHOT_TIMEOUT_MS = 15_000
+
+/**
+ * A PNG of a DevTools target through its own CDP socket. Playwright's connection made before the
+ * preview existed does not list the preview's page, so the proof asks the target directly.
+ */
+function captureTarget(target: DevToolsTarget, file: string) {
+  const url = target.webSocketDebuggerUrl
+  if (typeof url !== 'string') return Promise.resolve(null)
+  return new Promise<string | null>((resolve) => {
+    const socket = new WebSocket(url)
+    const timer = setTimeout(() => {
+      socket.close()
+      resolve(null)
+    }, CDP_SCREENSHOT_TIMEOUT_MS)
+    const finish = (result: string | null) => {
+      clearTimeout(timer)
+      socket.close()
+      resolve(result)
+    }
+    socket.addEventListener('open', () =>
+      socket.send(JSON.stringify({ id: 1, method: 'Page.captureScreenshot', params: {} })),
+    )
+    socket.addEventListener('message', (event) => {
+      const reply: unknown = JSON.parse(String(event.data))
+      const result =
+        typeof reply === 'object' && reply !== null && 'result' in reply ? reply.result : null
+      const data =
+        typeof result === 'object' && result !== null && 'data' in result ? result.data : null
+      if (typeof data !== 'string') return finish(null)
+      fs.writeFileSync(file, Buffer.from(data, 'base64'))
+      finish(file)
+    })
+    socket.addEventListener('error', () => finish(null))
+  })
 }
 
 /** Opens a Browser preview of a local page and waits for CEF to list it as a DevTools target. */
@@ -258,17 +296,10 @@ export async function proveBrowserPreview(input: {
         (candidate) => typeof candidate.url === 'string' && candidate.url.startsWith(fixture.url),
       ),
     )
-    const previewPage = input.app.browser
-      .contexts()
-      .flatMap((context) => context.pages())
-      .find((page) => page.url().startsWith(fixture.url))
     const shot =
-      previewPage === undefined || input.screenshots === null
+      input.screenshots === null
         ? null
-        : await previewPage
-            .screenshot({ path: path.join(input.screenshots, 'browser-preview.png') })
-            .then(() => path.join(input.screenshots ?? '', 'browser-preview.png'))
-            .catch(() => null)
+        : await captureTarget(target, path.join(input.screenshots, 'browser-preview.png'))
     await input.app.page
       .evaluate(
         async ({ id, key }) => {
