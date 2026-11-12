@@ -1,5 +1,5 @@
 import type { SessionThinkingLevelChange } from '@shared/types/session'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import type { ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
@@ -11,18 +11,12 @@ import {
   requireArgCount,
   validateOptionalModel,
   validateSessionId,
+  validateThinkingLevel,
 } from './host-ui-session-operation-validation'
 import { forgetRefusedContinuation } from './pi-session-refused-continuations'
 
 const TWO_ARGUMENTS = 2
 const logger = createLogger('host-ui-session-settings')
-
-function validateThinkingLevel(value: unknown): Effect.Effect<ThinkingLevel, Error> {
-  const level = THINKING_LEVELS.find((candidate) => candidate === value)
-  return level
-    ? Effect.succeed(level)
-    : invalid(`Thinking level must be one of ${THINKING_LEVELS.join(', ')}.`)
-}
 
 /**
  * Switches the durable model of an existing Session.
