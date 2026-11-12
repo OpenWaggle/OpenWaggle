@@ -76,16 +76,16 @@ function listPart(
   key: 'byMonthDay' | 'byMonth' | 'byHour' | 'byMinute',
   name: string,
   range: { readonly minimum: number; readonly maximum: number; readonly negative?: boolean },
-): PartParser {
-  return (rule, value) => {
+) {
+  return ((rule, value) => {
     const parsed = parseIntegerList(value, range.minimum, range.maximum, range.negative)
     if (!parsed) return `${name}=${value} is not valid.`
     rule[key] = parsed
     return null
-  }
+  }) satisfies PartParser
 }
 
-function unsupportedEnd(name: string): PartParser {
+function unsupportedEnd(name: string) {
   return () => `${name} is not supported: use the task's end date or run count instead.`
 }
 
@@ -129,7 +129,7 @@ function applyPart(rule: MutableRule, name: string, value: string) {
   return parser ? parser(rule, value) : `${name} is not supported.`
 }
 
-function validateCombination(rule: RecurrenceRule): string | null {
+function validateCombination(rule: RecurrenceRule) {
   const ordinalWeekdays = rule.byWeekday?.some((weekday) => weekday.ordinal !== undefined)
   if (ordinalWeekdays && rule.frequency !== 'MONTHLY' && rule.frequency !== 'YEARLY') {
     return 'A numbered BYDAY such as 2TU needs FREQ=MONTHLY or FREQ=YEARLY.'
@@ -147,24 +147,34 @@ function validateCombination(rule: RecurrenceRule): string | null {
 }
 
 /** Parses a recurrence rule, with or without its `RRULE:` prefix. */
-export function parseRecurrenceRule(text: string): RecurrenceRuleParse {
+export function parseRecurrenceRule(text: string) {
   const body = text.trim().replace(/^RRULE:/i, '')
-  if (!body) return { ok: false, message: 'The recurrence rule is empty.' }
+  if (!body) {
+    return { ok: false, message: 'The recurrence rule is empty.' } satisfies RecurrenceRuleParse
+  }
   const rule: MutableRule = { interval: 1 }
   const seen = new Set<string>()
   for (const part of body.split(';')) {
     if (!part) continue
     const separator = part.indexOf('=')
-    if (separator <= 0) return { ok: false, message: `"${part}" is not NAME=VALUE.` }
+    if (separator <= 0) {
+      return { ok: false, message: `"${part}" is not NAME=VALUE.` } satisfies RecurrenceRuleParse
+    }
     const name = part.slice(0, separator).toUpperCase()
     const value = part.slice(separator + 1).toUpperCase()
-    if (seen.has(name)) return { ok: false, message: `${name} appears twice.` }
+    if (seen.has(name)) {
+      return { ok: false, message: `${name} appears twice.` } satisfies RecurrenceRuleParse
+    }
     seen.add(name)
     const error = applyPart(rule, name, value)
-    if (error) return { ok: false, message: error }
+    if (error) return { ok: false, message: error } satisfies RecurrenceRuleParse
   }
-  if (!rule.frequency) return { ok: false, message: 'The recurrence rule needs FREQ.' }
+  if (!rule.frequency) {
+    return { ok: false, message: 'The recurrence rule needs FREQ.' } satisfies RecurrenceRuleParse
+  }
   const parsed: RecurrenceRule = { ...rule, frequency: rule.frequency }
   const combination = validateCombination(parsed)
-  return combination ? { ok: false, message: combination } : { ok: true, rule: parsed }
+  return (
+    combination ? { ok: false, message: combination } : { ok: true, rule: parsed }
+  ) satisfies RecurrenceRuleParse
 }

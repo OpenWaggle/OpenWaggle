@@ -33,24 +33,18 @@ const GITLAB_TERMINOLOGY: ChangeRequestTerminology = {
   providerName: 'GitLab',
 }
 
-export function getChangeRequestTerminology(
-  provider: SourceControlProviderId | null | undefined,
-): ChangeRequestTerminology {
+export function getChangeRequestTerminology(provider: SourceControlProviderId | null | undefined) {
   if (provider === 'github') return GITHUB_TERMINOLOGY
   if (provider === 'gitlab') return GITLAB_TERMINOLOGY
   return DEFAULT_CHANGE_REQUEST_TERMINOLOGY
 }
 
 /** e.g. "Create PR" / "Create MR". */
-export function formatCreateChangeRequest(
-  provider: SourceControlProviderId | null | undefined,
-): string {
+export function formatCreateChangeRequest(provider: SourceControlProviderId | null | undefined) {
   return `Create ${getChangeRequestTerminology(provider).shortLabel}`
 }
 
 /** e.g. "View PR" / "View MR". */
-export function formatViewChangeRequest(
-  provider: SourceControlProviderId | null | undefined,
-): string {
+export function formatViewChangeRequest(provider: SourceControlProviderId | null | undefined) {
   return `View ${getChangeRequestTerminology(provider).shortLabel}`
 }

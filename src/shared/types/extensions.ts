@@ -28,7 +28,6 @@ export interface ExtensionDiagnosticView {
 export type {
   ExtensionContributionEligibilityView,
   ExtensionContributionIconView,
-  ExtensionContributionMatchView,
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
   ExtensionContributionTargetView,

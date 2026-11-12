@@ -39,7 +39,7 @@ function hasDefaultShortcutBindings(bindings: ShortcutBindings) {
 }
 
 /** Builds the lossy one-binding compatibility view used by older renderer consumers. */
-export function shortcutBindingsFromRules(rules: ShortcutRules): ShortcutBindings {
+export function shortcutBindingsFromRules(rules: ShortcutRules) {
   const bindings: Record<ShortcutCommand, ShortcutBinding | null> = {
     'commandPalette.toggle': null,
     'filePicker.toggle': null,
@@ -75,7 +75,7 @@ export function shortcutBindingsFromRules(rules: ShortcutRules): ShortcutBinding
 }
 
 /** Migrates the legacy record in deterministic definition order with its former fixed scopes. */
-export function shortcutRulesFromBindings(bindings: ShortcutBindings): ShortcutRules {
+export function shortcutRulesFromBindings(bindings: ShortcutBindings) {
   if (hasDefaultShortcutBindings(bindings)) return DEFAULT_SHORTCUT_RULES
   const migrated = SHORTCUT_DEFINITIONS.flatMap((definition) => {
     const shortcut = bindings[definition.command]
@@ -116,7 +116,7 @@ function coversContext(custom: ShortcutRule, rule: ShortcutRule) {
  * command was added after the user chose that chord, so it starts unassigned instead of showing
  * a chord that runs the user's command.
  */
-export function shortcutRulesWithDefaults(customRules: ShortcutRules): ShortcutRules {
+export function shortcutRulesWithDefaults(customRules: ShortcutRules) {
   if (customRules.length === 0) return DEFAULT_SHORTCUT_RULES
   const overriddenCommands = new Set(customRules.map((rule) => rule.command))
   const takenByAnotherCommand = (rule: ShortcutRule) =>

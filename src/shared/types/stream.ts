@@ -10,13 +10,13 @@ import type { SchemaType } from '@shared/schema'
 import type { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import type {
   agentExtensionStatusSlotSchema,
-  agentTransportAgentEndEventSchema,
   agentTransportCustomEventSchema,
   agentTransportEventSchema,
   agentTransportInteractionRequestEventSchema,
   agentTransportInteractionResolvedEventSchema,
   agentTransportMessageStartEventSchema,
   agentTransportMessageUpdateEventSchema,
+  agentTransportAgentEndEventSchema,
 } from '@shared/schemas/stream'
 import type { agentAssistantMessageEventSchema } from '@shared/schemas/stream-assistant-events'
 
@@ -30,6 +30,7 @@ export type AgentAssistantMessageEvent = SchemaType<typeof agentAssistantMessage
 export type AgentTransportUserMessage = SchemaType<typeof agentTransportUserMessageSchema>
 
 export type AgentTransportAgentEndEvent = SchemaType<typeof agentTransportAgentEndEventSchema>
+
 export type AgentTransportMessageStartEvent = SchemaType<
   typeof agentTransportMessageStartEventSchema
 >

@@ -1,5 +1,5 @@
 /** `values` in consecutive batches of at most `size` values, in order. */
-export function batchesOf<T>(values: readonly T[], size: number): T[][] {
+export function batchesOf<T>(values: readonly T[], size: number) {
   if (!Number.isSafeInteger(size) || size < 1) throw new Error('A batch holds at least one value.')
   const batches: T[][] = []
   for (let offset = 0; offset < values.length; offset += size) {
@@ -20,7 +20,7 @@ export async function loadInBatches<T, R>(
   size: number,
   load: (batch: T[]) => Promise<readonly R[]>,
   stopped: () => boolean = () => false,
-): Promise<R[]> {
+) {
   const results: R[] = []
   for (const batch of batchesOf(values, size)) {
     results.push(...(await load(batch)))

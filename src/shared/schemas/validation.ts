@@ -189,15 +189,14 @@ export const agentSendPayloadSchema = Schema.Struct({
   visualizationContext: Schema.optionalWith(inlineVisualizationContextSchema, { exact: true }),
 })
 
-export function toAgentSendPayload(
-  input: SchemaType<typeof agentSendPayloadSchema>,
-): AgentSendPayload {
-  return {
+export function toAgentSendPayload(input: SchemaType<typeof agentSendPayloadSchema>) {
+  const payload: AgentSendPayload = {
     text: input.text,
     attachments: input.attachments,
     ...(input.waggle ? { waggle: toWaggleInvocation(input.waggle) } : {}),
     ...(input.visualizationContext ? { visualizationContext: input.visualizationContext } : {}),
   }
+  return payload
 }
 
 export const projectPreferencesSchema = Schema.Struct({

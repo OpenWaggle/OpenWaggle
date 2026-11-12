@@ -69,7 +69,7 @@ export function upsertShortcutRule(
   rules: ShortcutRules,
   next: ShortcutRule,
   replace?: ShortcutRule,
-): ShortcutRules {
+) {
   const nextIdentity = shortcutRuleIdentity(next)
   const replaceIdentity = replace === undefined ? null : shortcutRuleIdentity(replace)
   return [
@@ -82,7 +82,7 @@ export function upsertShortcutRule(
 }
 
 /** Removes every exact duplicate of the selected persisted rule. */
-export function removeShortcutRule(rules: ShortcutRules, target: ShortcutRule): ShortcutRules {
+export function removeShortcutRule(rules: ShortcutRules, target: ShortcutRule) {
   const identity = shortcutRuleIdentity(target)
   return rules.filter((rule) => shortcutRuleIdentity(rule) !== identity)
 }

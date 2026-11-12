@@ -19,7 +19,7 @@ const innerErrorSchema = Schema.Struct({
 
 type InnerErrorData = typeof innerErrorSchema.Type
 
-function parseInnerErrorData(raw: string): InnerErrorData | null {
+function parseInnerErrorData(raw: string) {
   const jsonStart = raw.indexOf('{')
   if (jsonStart < 0) return null
 
@@ -37,35 +37,32 @@ function parseInnerErrorData(raw: string): InnerErrorData | null {
  * type, status, and the HTTP status that prefixes the JSON (`402 {...billing_error...}`). Dropping
  * them classified an OpenRouter billing error as "Something went wrong".
  */
-function extractedFromErrorMessage(
-  message: string,
-  context: readonly (string | undefined)[],
-): ExtractedError {
+function extractedFromErrorMessage(message: string, context: readonly (string | undefined)[]) {
   const lower = message.toLowerCase()
   const extra = context.filter(
     (value): value is string =>
       value !== undefined && value !== '' && !lower.includes(value.toLowerCase()),
   )
-  return {
+  const error: ExtractedError = {
     message,
     classifyTarget: extra.length > 0 ? `${message} [${extra.join('] [')}]` : message,
   }
+  return error
 }
 
-function extractedFromInnerErrorData(
-  data: InnerErrorData,
-  httpStatus: string | undefined,
-): ExtractedError | null {
+function extractedFromInnerErrorData(data: InnerErrorData, httpStatus: string | undefined) {
   if (data.error?.message) {
-    return extractedFromErrorMessage(data.error.message, [
+    const result: ExtractedError | null = extractedFromErrorMessage(data.error.message, [
       data.error.status,
       data.error.type,
       httpStatus,
     ])
+    return result
   }
 
   if (data.message) {
-    return extractedFromErrorMessage(data.message, [httpStatus])
+    const result: ExtractedError | null = extractedFromErrorMessage(data.message, [httpStatus])
+    return result
   }
 
   return null
@@ -77,7 +74,10 @@ const LEADING_HTTP_STATUS = /^\s*(\d{3})\b/
  * Extract provider SDK inner error messages while keeping provider status
  * context available for classification.
  */
-export function extractInnerErrorMessage(raw: string): ExtractedError | null {
+export function extractInnerErrorMessage(raw: string) {
   const data = parseInnerErrorData(raw)
-  return data ? extractedFromInnerErrorData(data, LEADING_HTTP_STATUS.exec(raw)?.[1]) : null
+  const error: ExtractedError | null = data
+    ? extractedFromInnerErrorData(data, LEADING_HTTP_STATUS.exec(raw)?.[1])
+    : null
+  return error
 }

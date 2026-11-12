@@ -124,26 +124,25 @@ export const waggleHandoffRequestDomainSchema = Schema.Struct({
   config: waggleConfigDomainSchema,
 })
 
-export function toWaggleConfig(input: SchemaType<typeof waggleConfigSchema>): WaggleConfig {
-  return {
+export function toWaggleConfig(input: SchemaType<typeof waggleConfigSchema>) {
+  const config: WaggleConfig = {
     ...input,
     agents: [
       { ...input.agents[0], model: createWaggleModelBinding(input.agents[0].model) },
       { ...input.agents[1], model: createWaggleModelBinding(input.agents[1].model) },
     ],
   }
+  return config
 }
 
-export function toWaggleInvocation(
-  input: SchemaType<typeof waggleInvocationSchema>,
-): WaggleInvocation {
-  return { ...input, config: toWaggleConfig(input.config) }
+export function toWaggleInvocation(input: SchemaType<typeof waggleInvocationSchema>) {
+  const invocation: WaggleInvocation = { ...input, config: toWaggleConfig(input.config) }
+  return invocation
 }
 
-export function toWaggleHandoffRequest(
-  input: SchemaType<typeof waggleHandoffRequestSchema>,
-): WaggleHandoffRequest {
-  return { ...input, config: toWaggleConfig(input.config) }
+export function toWaggleHandoffRequest(input: SchemaType<typeof waggleHandoffRequestSchema>) {
+  const request: WaggleHandoffRequest = { ...input, config: toWaggleConfig(input.config) }
+  return request
 }
 
 export const wagglePresetSchema = Schema.Struct({

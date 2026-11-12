@@ -152,7 +152,7 @@ export function nextRecurrence(
   timeZone: string,
   anchorEpoch: number,
   after: number,
-): number | null {
+) {
   return rule.frequency === 'MINUTELY'
     ? nextElapsedOccurrence(rule, timeZone, anchorEpoch, after)
     : nextCalendarOccurrence(rule, timeZone, anchorEpoch, after)

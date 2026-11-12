@@ -3,9 +3,9 @@ import type {
   heartbeatAutoPauseSchema,
   heartbeatSettingsInputSchema,
   heartbeatSettingsSchema,
-  heartbeatWakeCheckSchema,
   scheduledTaskRunOutcomeSchema,
   scheduledTaskRunWakeCheckSchema,
+  heartbeatWakeCheckSchema,
 } from '@shared/schemas/scheduled-task-heartbeat'
 
 /**

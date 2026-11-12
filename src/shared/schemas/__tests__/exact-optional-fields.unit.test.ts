@@ -30,18 +30,14 @@ function decodes<A, I>(schema: Schema.Schema<A, I>) {
   return (value: unknown) => safeDecodeUnknown(schema, value).success
 }
 
-function exactField<A, I>(
-  name: string,
-  schema: Schema.Schema<A, I>,
-  valid: object,
-  field: string,
-): ExactFieldCase {
-  return {
+function exactField<A, I>(name: string, schema: Schema.Schema<A, I>, valid: object, field: string) {
+  const result: ExactFieldCase = {
     name: `${name}.${field}`,
     decodes: decodes(schema),
     valid,
     withUndefined: { ...valid, [field]: undefined },
   }
+  return result
 }
 
 const attachment = {

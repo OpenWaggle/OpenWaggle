@@ -24,15 +24,11 @@ const KEPT_REASONS: readonly (AutomaticWorktreeRemovalKeptReason & WorktreeAtten
   'locked',
 ]
 
-function keptReason(
-  candidate: AutomaticWorktreeRemovalCandidate,
-): AutomaticWorktreeRemovalKeptReason | null {
-  if (candidate.group === 'in-use' || candidate.blockers.length > 0) return 'in-use'
-  return (
-    KEPT_REASONS.find((reason) =>
-      candidate.attention.some((attention) => attention.kind === reason),
-    ) ?? null
-  )
+function keptReason(candidate: AutomaticWorktreeRemovalCandidate) {
+  if (candidate.group === 'in-use' || candidate.blockers.length > 0) return 'in-use' as const
+  return (KEPT_REASONS.find((reason) =>
+    candidate.attention.some((attention) => attention.kind === reason),
+  ) ?? null) satisfies AutomaticWorktreeRemovalKeptReason | null
 }
 
 /**
@@ -45,14 +41,16 @@ export function decideAutomaticWorktreeRemoval(
   candidate: AutomaticWorktreeRemovalCandidate,
   rule: AutomaticWorktreeRemovalSettings,
   now: number,
-): AutomaticWorktreeRemovalDecision {
+) {
   if (!rule.enabled || !candidate.managed || candidate.archivedAt === null) {
-    return { kind: 'not-applicable' }
+    return { kind: 'not-applicable' } satisfies AutomaticWorktreeRemovalDecision
   }
   const dueAt = candidate.archivedAt + rule.archivedDays * MS_PER_DAY
-  if (now < dueAt) return { kind: 'waiting', dueAt }
+  if (now < dueAt) return { kind: 'waiting', dueAt } satisfies AutomaticWorktreeRemovalDecision
   const reason = keptReason(candidate)
-  return reason === null ? { kind: 'due', dueAt } : { kind: 'kept', dueAt, reason }
+  return (
+    reason === null ? { kind: 'due', dueAt } : { kind: 'kept', dueAt, reason }
+  ) satisfies AutomaticWorktreeRemovalDecision
 }
 
 /**
