@@ -107,7 +107,7 @@ function findUnavailableModel(ctx: ExtensionContext, config: WaggleConfig) {
 export async function activateConfig(
   input: DefaultWaggleCommandInput & {
     readonly config: WaggleConfig
-    readonly prompt?: string | undefined
+    readonly prompt?: string
     readonly presetId?: string
     readonly presetName?: string
   },
@@ -144,7 +144,7 @@ export async function activateConfig(
 export async function activatePreset(
   input: DefaultWaggleCommandInput & {
     readonly preset: WagglePreset
-    readonly prompt?: string | undefined
+    readonly prompt?: string
   },
 ): Promise<void> {
   await activateConfig({

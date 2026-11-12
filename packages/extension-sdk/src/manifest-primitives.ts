@@ -116,7 +116,7 @@ export function isNetworkOrigin(value: string) {
 
 export function validateBrokerCapabilityDeclaration(declaration: {
   readonly id: string
-  readonly methods?: readonly string[] | undefined
+  readonly methods?: readonly string[]
 }) {
   const supportedMethods =
     OPENWAGGLE_EXTENSION_BROKER.CAPABILITY_METHODS.find(

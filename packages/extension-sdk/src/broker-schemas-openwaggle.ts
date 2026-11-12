@@ -120,11 +120,14 @@ export const extensionSettingsViewSchema = Schema.Struct({
 })
 
 export const extensionModelPreferencesSettingsPatchSchema = Schema.Struct({
-  selectedModel: Schema.optional(Schema.String),
-  favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
+  favoriteModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
+  enabledModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
   /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-  thinkingLevel: Schema.optional(Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.THINKING_LEVELS)),
+  thinkingLevel: Schema.optionalWith(
+    Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.THINKING_LEVELS),
+    { exact: true },
+  ),
 })
 
 export const extensionSettingsGetModelPreferencesPayloadSchema = Schema.Struct({
@@ -158,13 +161,17 @@ export const extensionSettingsUpdateSettingPayloadSchema = Schema.Union(
 )
 
 export const extensionSettingsUpdatePayloadSchema = Schema.Struct({
-  selectedModel: Schema.optional(Schema.String),
-  favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
+  favoriteModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
+  enabledModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
   /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-  thinkingLevel: Schema.optional(Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.THINKING_LEVELS)),
-  projectDisplayNames: Schema.optional(
+  thinkingLevel: Schema.optionalWith(
+    Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.THINKING_LEVELS),
+    { exact: true },
+  ),
+  projectDisplayNames: Schema.optionalWith(
     Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.String })),
+    { exact: true },
   ),
 })
 

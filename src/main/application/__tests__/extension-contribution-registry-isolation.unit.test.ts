@@ -25,7 +25,7 @@ import {
 
 function withContributions(
   extensionPackage: DiscoveredExtensionPackage,
-  contributions: OpenWaggleExtensionManifest['contributions'],
+  contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>,
 ): DiscoveredExtensionPackage {
   const manifest = extensionPackage.manifest
   if (!manifest) {
