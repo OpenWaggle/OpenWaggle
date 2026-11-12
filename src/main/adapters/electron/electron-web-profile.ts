@@ -34,16 +34,38 @@ function repairChromiumDipsDatabaseOnce(sessionDataPath: string) {
   writeFileSync(repairMarkerPath, `${CHROMIUM_DIPS_REPAIR_MARKER_FILENAME}\n`)
 }
 
+const DISABLE_FEATURES_SWITCH = 'disable-features'
+const AUDIO_SERVICE_OUT_OF_PROCESS = 'AudioServiceOutOfProcess'
+
 /**
- * Chromium's own profile (`sessionData`) under OpenWaggle's: repair its DIPS database once and
- * bound its HTTP disk cache, both before the app is ready.
+ * Run Chromium's audio service in the app process. Out of process it is a helper that starts with
+ * the first Notification sound or voice input and never exits, 45 MB resident on macOS and about
+ * 80 MB on Windows, for a few short tones. Keeps any features a `--disable-features` given on the
+ * command line already turns off.
+ */
+export function runChromiumAudioServiceInProcess(
+  commandLine: Pick<CommandLine, 'appendSwitch' | 'getSwitchValue'>,
+) {
+  const disabled = commandLine.getSwitchValue(DISABLE_FEATURES_SWITCH)
+  const features = disabled.split(',').filter((feature) => feature !== '')
+  if (features.includes(AUDIO_SERVICE_OUT_OF_PROCESS)) return
+  commandLine.appendSwitch(
+    DISABLE_FEATURES_SWITCH,
+    [...features, AUDIO_SERVICE_OUT_OF_PROCESS].join(','),
+  )
+}
+
+/**
+ * Chromium's own profile (`sessionData`) under OpenWaggle's: repair its DIPS database once,
+ * bound its HTTP disk cache and keep its audio service in process, all before the app is ready.
  */
 export function prepareChromiumProfile(
   sessionDataPath: string,
   setSessionDataPath: (directory: string) => void,
-  commandLine: Pick<CommandLine, 'appendSwitch' | 'hasSwitch'>,
+  commandLine: Pick<CommandLine, 'appendSwitch' | 'hasSwitch' | 'getSwitchValue'>,
 ) {
   repairChromiumDipsDatabaseOnce(sessionDataPath)
   setSessionDataPath(sessionDataPath)
   limitChromiumHttpDiskCache(commandLine)
+  runChromiumAudioServiceInProcess(commandLine)
 }
