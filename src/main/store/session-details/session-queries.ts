@@ -1,3 +1,5 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionNodeRowSchema, sessionRowSchema, sessionSummaryRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SESSION_TITLE_SOURCES } from '@shared/session-title-source'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
@@ -116,7 +118,7 @@ function isSessionDetail(session: SessionDetail | null) {
 }
 
 function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
-  return sql<SessionRow>`
+  return sql`
     SELECT
       sessions.id,
       sessions.pi_session_id,
@@ -145,11 +147,11 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       ON session_execution_profiles.session_id = sessions.id
     WHERE sessions.id = ${id}
     LIMIT 1
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionRowSchema, 'sessions')))
 }
 
 function selectSessionNodeRows(sql: SqlClient.SqlClient, id: SessionId) {
-  return sql<SessionNodeRow>`
+  return sql`
     SELECT
       id,
       session_id,
@@ -166,7 +168,7 @@ function selectSessionNodeRows(sql: SqlClient.SqlClient, id: SessionId) {
     FROM session_nodes
     WHERE session_id = ${id}
     ORDER BY created_order ASC
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionNodeRowSchema, 'session_nodes')))
 }
 
 function summaryCountSql(
@@ -175,7 +177,7 @@ function summaryCountSql(
   limit: number | null,
   offset = 0,
 ) {
-  return sql<SessionSummaryRow>`
+  return sql`
     SELECT
       s.id,
       s.title,
@@ -194,7 +196,7 @@ function summaryCountSql(
     ORDER BY s.updated_at DESC
     LIMIT ${limit ?? -1}
     OFFSET ${offset}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
 export async function listSessionSummaries(limit?: number, offset = 0): Promise<SessionSummary[]> {
