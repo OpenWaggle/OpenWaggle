@@ -1,9 +1,12 @@
-import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { Schema } from '@shared/schema'
 import {
-  APPEARANCE_MOTION_PREFERENCES,
+  appearanceMotionPreferenceSchema,
+  appearanceTerminalPalettePreferencesSchema,
+  appearanceTypographyPreferencesSchema,
+} from '@shared/schemas/appearance-preferences'
+import { lenientResolved, lenientWithFallback } from '@shared/schemas/lenient-exact'
+import {
   type AppearancePreferences,
-  type AppearanceTerminalPalettePreferences,
-  type AppearanceTypographyPreferences,
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
   CODE_LINE_HEIGHT_MAX,
@@ -19,124 +22,138 @@ import {
   normalizeTerminalPaletteColor,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
-  TERMINAL_PALETTE_ROLES,
 } from '@shared/types/appearance-preferences'
-import { includes } from '@shared/utils/validation'
+import { Option } from 'effect'
+
+/**
+ * Stored Appearance preferences, resolved field by field: a number out of range is clamped, a
+ * font family is cleaned of control characters, and anything unreadable takes its default, so a
+ * damaged value never costs the user the rest of their preferences.
+ */
 
 const FIRST_CONTROL_CHARACTER_LIMIT = 32
 const DELETE_CONTROL_CHARACTER = 127
 const CODE_LINE_HEIGHT_FONT_SIZE_GAP = 2
 
-function isObjectRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+const DEFAULT_TYPOGRAPHY = DEFAULT_APPEARANCE_PREFERENCES.typography
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value))
 }
 
-function boundedNumber(raw: unknown, minimum: number, maximum: number, fallback: number) {
-  const candidate = typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback
-  return Math.min(maximum, Math.max(minimum, candidate))
+function boundedNumber(minimum: number, maximum: number, fallback: number) {
+  return lenientResolved(Schema.Number, (raw) =>
+    clamp(typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback, minimum, maximum),
+  )
 }
 
-function fontFamily(raw: unknown, fallback: string) {
-  if (typeof raw !== 'string') return fallback
-  const normalized = Array.from(raw, (character) => {
-    const codePoint = character.codePointAt(0) ?? 0
-    return codePoint < FIRST_CONTROL_CHARACTER_LIMIT || codePoint === DELETE_CONTROL_CHARACTER
-      ? ' '
-      : character
+function fontFamily(fallback: string) {
+  return lenientResolved(Schema.String, (raw) => {
+    if (typeof raw !== 'string') return fallback
+    const normalized = Array.from(raw, (character) => {
+      const codePoint = character.codePointAt(0) ?? 0
+      return codePoint < FIRST_CONTROL_CHARACTER_LIMIT || codePoint === DELETE_CONTROL_CHARACTER
+        ? ' '
+        : character
+    })
+      .join('')
+      .trim()
+    return normalized.length > 0 && normalized.length <= FONT_FAMILY_MAX_LENGTH
+      ? normalized
+      : fallback
   })
-    .join('')
-    .trim()
-  return normalized.length > 0 && normalized.length <= FONT_FAMILY_MAX_LENGTH
-    ? normalized
-    : fallback
 }
 
-function resolveAppearanceTypography(value: unknown): AppearanceTypographyPreferences {
-  const defaults = DEFAULT_APPEARANCE_PREFERENCES.typography
-  if (!isObjectRecord(value)) return defaults
-  const raw: UncheckedFields<AppearanceTypographyPreferences> = value
+function flag(fallback: boolean) {
+  return lenientWithFallback(Schema.Boolean, () => fallback)
+}
 
-  const codeFontSize = boundedNumber(
-    raw.codeFontSize,
+const storedTypographySchema = Schema.Struct({
+  interfaceFontFamily: fontFamily(DEFAULT_TYPOGRAPHY.interfaceFontFamily),
+  documentFontFamily: fontFamily(DEFAULT_TYPOGRAPHY.documentFontFamily),
+  codeFontFamily: fontFamily(DEFAULT_TYPOGRAPHY.codeFontFamily),
+  terminalFontFamily: fontFamily(DEFAULT_TYPOGRAPHY.terminalFontFamily),
+  terminalUsesCodeFont: flag(DEFAULT_TYPOGRAPHY.terminalUsesCodeFont),
+  interfaceScale: boundedNumber(
+    INTERFACE_SCALE_MIN,
+    INTERFACE_SCALE_MAX,
+    DEFAULT_TYPOGRAPHY.interfaceScale,
+  ),
+  documentFontSize: boundedNumber(
+    DOCUMENT_FONT_SIZE_MIN,
+    DOCUMENT_FONT_SIZE_MAX,
+    DEFAULT_TYPOGRAPHY.documentFontSize,
+  ),
+  documentLineHeight: boundedNumber(
+    DOCUMENT_LINE_HEIGHT_MIN,
+    DOCUMENT_LINE_HEIGHT_MAX,
+    DEFAULT_TYPOGRAPHY.documentLineHeight,
+  ),
+  codeFontSize: boundedNumber(
     CODE_FONT_SIZE_MIN,
     CODE_FONT_SIZE_MAX,
-    defaults.codeFontSize,
-  )
-  const minimumCodeLineHeight = Math.max(
+    DEFAULT_TYPOGRAPHY.codeFontSize,
+  ),
+  codeLineHeight: boundedNumber(
     CODE_LINE_HEIGHT_MIN,
-    codeFontSize + CODE_LINE_HEIGHT_FONT_SIZE_GAP,
-  )
-  return {
-    interfaceFontFamily: fontFamily(raw.interfaceFontFamily, defaults.interfaceFontFamily),
-    documentFontFamily: fontFamily(raw.documentFontFamily, defaults.documentFontFamily),
-    codeFontFamily: fontFamily(raw.codeFontFamily, defaults.codeFontFamily),
-    terminalFontFamily: fontFamily(raw.terminalFontFamily, defaults.terminalFontFamily),
-    terminalUsesCodeFont:
-      typeof raw.terminalUsesCodeFont === 'boolean'
-        ? raw.terminalUsesCodeFont
-        : defaults.terminalUsesCodeFont,
-    interfaceScale: boundedNumber(
-      raw.interfaceScale,
-      INTERFACE_SCALE_MIN,
-      INTERFACE_SCALE_MAX,
-      defaults.interfaceScale,
-    ),
-    documentFontSize: boundedNumber(
-      raw.documentFontSize,
-      DOCUMENT_FONT_SIZE_MIN,
-      DOCUMENT_FONT_SIZE_MAX,
-      defaults.documentFontSize,
-    ),
-    documentLineHeight: boundedNumber(
-      raw.documentLineHeight,
-      DOCUMENT_LINE_HEIGHT_MIN,
-      DOCUMENT_LINE_HEIGHT_MAX,
-      defaults.documentLineHeight,
-    ),
-    codeFontSize,
-    codeLineHeight: boundedNumber(
-      raw.codeLineHeight,
-      minimumCodeLineHeight,
-      CODE_LINE_HEIGHT_MAX,
-      defaults.codeLineHeight,
-    ),
-    terminalFontSize: boundedNumber(
-      raw.terminalFontSize,
-      TERMINAL_FONT_SIZE_MIN,
-      TERMINAL_FONT_SIZE_MAX,
-      defaults.terminalFontSize,
-    ),
-    codeLigatures:
-      typeof raw.codeLigatures === 'boolean' ? raw.codeLigatures : defaults.codeLigatures,
-  }
+    CODE_LINE_HEIGHT_MAX,
+    DEFAULT_TYPOGRAPHY.codeLineHeight,
+  ),
+  terminalFontSize: boundedNumber(
+    TERMINAL_FONT_SIZE_MIN,
+    TERMINAL_FONT_SIZE_MAX,
+    DEFAULT_TYPOGRAPHY.terminalFontSize,
+  ),
+  codeLigatures: flag(DEFAULT_TYPOGRAPHY.codeLigatures),
+})
+
+const decodeStoredTypography = Schema.decodeUnknownOption(storedTypographySchema)
+
+/** The code line height stays at least 2px above the code font size, as the strict schema requires. */
+function resolveTypography(raw: unknown) {
+  return Option.match(decodeStoredTypography(raw), {
+    onNone: () => DEFAULT_TYPOGRAPHY,
+    onSome: (typography) => ({
+      ...typography,
+      codeLineHeight: Math.max(
+        typography.codeLineHeight,
+        typography.codeFontSize + CODE_LINE_HEIGHT_FONT_SIZE_GAP,
+      ),
+    }),
+  })
 }
 
-function resolveTerminalPalette(raw: unknown): AppearanceTerminalPalettePreferences {
-  const defaults = DEFAULT_APPEARANCE_PREFERENCES.terminalPalette
-  if (!isObjectRecord(raw)) return defaults
+const paletteColor = lenientResolved(
+  appearanceTerminalPalettePreferencesSchema.fields.background,
+  normalizeTerminalPaletteColor,
+)
 
-  const resolved = { ...defaults }
-  for (const role of TERMINAL_PALETTE_ROLES) {
-    if (raw[role] === null) {
-      resolved[role] = null
-      continue
-    }
-    resolved[role] = normalizeTerminalPaletteColor(raw[role])
-  }
-  return resolved
-}
+const storedTerminalPaletteSchema = Schema.Struct({
+  background: paletteColor,
+  foreground: paletteColor,
+  cursor: paletteColor,
+  selection: paletteColor,
+  scrollbar: paletteColor,
+})
+
+const decodeStoredTerminalPalette = Schema.decodeUnknownOption(storedTerminalPaletteSchema)
+
+const decodeStoredAppearance = Schema.decodeUnknownOption(
+  Schema.Struct({
+    typography: lenientResolved(appearanceTypographyPreferencesSchema, resolveTypography),
+    terminalPalette: lenientResolved(appearanceTerminalPalettePreferencesSchema, (raw) =>
+      Option.getOrElse(
+        decodeStoredTerminalPalette(raw),
+        () => DEFAULT_APPEARANCE_PREFERENCES.terminalPalette,
+      ),
+    ),
+    motion: lenientWithFallback(
+      appearanceMotionPreferenceSchema,
+      () => DEFAULT_APPEARANCE_PREFERENCES.motion,
+    ),
+  }),
+)
 
 export function resolveAppearancePreferences(value: unknown): AppearancePreferences {
-  if (!isObjectRecord(value)) return DEFAULT_APPEARANCE_PREFERENCES
-  const raw: UncheckedFields<AppearancePreferences> = value
-  const motion =
-    typeof raw.motion === 'string' && includes(APPEARANCE_MOTION_PREFERENCES, raw.motion)
-      ? raw.motion
-      : DEFAULT_APPEARANCE_PREFERENCES.motion
-
-  return {
-    typography: resolveAppearanceTypography(raw.typography),
-    terminalPalette: resolveTerminalPalette(raw.terminalPalette),
-    motion,
-  }
+  return Option.getOrElse(decodeStoredAppearance(value), () => DEFAULT_APPEARANCE_PREFERENCES)
 }
