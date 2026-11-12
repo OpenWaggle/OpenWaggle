@@ -49,7 +49,7 @@ export type WaggleValidationResult<T> =
   | { readonly success: true; readonly value: T }
   | { readonly success: false; readonly issues: readonly string[] }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -99,11 +99,11 @@ function collectIssues(results: readonly WaggleValidationResult<unknown>[]) {
   return results.flatMap((result) => (result.success ? [] : result.issues))
 }
 
-export function isWaggleInheritedModel(model: string) {
+export function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL {
   return model === WAGGLE_INHERIT_MODEL
 }
 
-export function isProviderQualifiedWaggleModel(model: string) {
+export function isProviderQualifiedWaggleModel(model: string): boolean {
   const separatorIndex = model.indexOf('/')
   return (
     model.trim() === model &&
@@ -131,10 +131,10 @@ function parseAgentSlot(value: unknown, path: string): WaggleValidationResult<Wa
     return { success: false, issues: [`${path} must be an object.`] }
   }
 
-  const label = stringValue(value.label, `${path}.label`)
-  const model = modelValue(value.model, `${path}.model`)
-  const roleDescription = stringValue(value.roleDescription, `${path}.roleDescription`)
-  const color = literalValue(value.color, WAGGLE_AGENT_COLORS, `${path}.color`)
+  const label = stringValue(value['label'], `${path}.label`)
+  const model = modelValue(value['model'], `${path}.model`)
+  const roleDescription = stringValue(value['roleDescription'], `${path}.roleDescription`)
+  const color = literalValue(value['color'], WAGGLE_AGENT_COLORS, `${path}.color`)
   const issues = collectIssues([label, model, roleDescription, color])
   if (
     issues.length > 0 ||
@@ -180,8 +180,8 @@ function parseStopConfig(value: unknown): WaggleValidationResult<WaggleStopConfi
     return { success: false, issues: ['stop must be an object.'] }
   }
 
-  const primary = literalValue(value.primary, WAGGLE_STOP_CONDITIONS, 'stop.primary')
-  const maxTurnsSafety = parseMaxTurnsSafety(value.maxTurnsSafety)
+  const primary = literalValue(value['primary'], WAGGLE_STOP_CONDITIONS, 'stop.primary')
+  const maxTurnsSafety = parseMaxTurnsSafety(value['maxTurnsSafety'])
   const issues = collectIssues([primary, maxTurnsSafety])
   if (issues.length > 0 || !primary.success || !maxTurnsSafety.success) {
     return { success: false, issues }
@@ -221,9 +221,9 @@ export function parseWaggleConfig(value: unknown): WaggleValidationResult<Waggle
     return { success: false, issues: ['config must be an object.'] }
   }
 
-  const mode = literalValue(value.mode, WAGGLE_COLLABORATION_MODES, 'mode')
-  const agents = parseAgentTuple(value.agents)
-  const stop = parseStopConfig(value.stop)
+  const mode = literalValue(value['mode'], WAGGLE_COLLABORATION_MODES, 'mode')
+  const agents = parseAgentTuple(value['agents'])
+  const stop = parseStopConfig(value['stop'])
   const issues = collectIssues([mode, agents, stop])
   if (issues.length > 0 || !mode.success || !agents.success || !stop.success) {
     return { success: false, issues }
@@ -244,13 +244,13 @@ export function parseWagglePreset(value: unknown): WaggleValidationResult<Waggle
     return { success: false, issues: ['preset must be an object.'] }
   }
 
-  const id = stringValue(value.id, 'id')
-  const name = stringValue(value.name, 'name')
-  const description = stringValue(value.description, 'description')
-  const config = parseWaggleConfig(value.config)
-  const isBuiltIn = booleanValue(value.isBuiltIn, 'isBuiltIn')
-  const createdAt = timestampValue(value.createdAt, 'createdAt')
-  const updatedAt = timestampValue(value.updatedAt, 'updatedAt')
+  const id = stringValue(value['id'], 'id')
+  const name = stringValue(value['name'], 'name')
+  const description = stringValue(value['description'], 'description')
+  const config = parseWaggleConfig(value['config'])
+  const isBuiltIn = booleanValue(value['isBuiltIn'], 'isBuiltIn')
+  const createdAt = timestampValue(value['createdAt'], 'createdAt')
+  const updatedAt = timestampValue(value['updatedAt'], 'updatedAt')
   const issues = collectIssues([id, name, description, config, isBuiltIn, createdAt, updatedAt])
 
   if (
