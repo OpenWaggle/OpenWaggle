@@ -172,7 +172,6 @@ async function activateExtensionResourceRow(input: {
       })
       return true
     }
-    if (typeof api.getSessionResource !== 'function') return false
     const resource = await api.getSessionResource(
       SessionId(input.sessionId),
       input.resourceId,
@@ -202,7 +201,7 @@ async function activateExtensionResourceRow(input: {
 function activateResolvedExtensionSurface(input: {
   readonly resolution: SessionSummaryActionResolution
   readonly family: string
-  readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
+  readonly onOpenSidePanel?: ((target: SessionSummaryExtensionSidePanelTarget) => void) | undefined
   readonly setDialogEntry: (entry: ExtensionContributionRegistryEntry) => void
 }) {
   const { entry } = input.resolution
@@ -229,7 +228,7 @@ export function useSessionSummaryExtensionActions(input: {
   readonly messageCount: number
   readonly resources: readonly SessionResource[]
   readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
-  readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
+  readonly onOpenSidePanel?: ((target: SessionSummaryExtensionSidePanelTarget) => void) | undefined
 }) {
   const openResourceViewer = useUIStore((state) => state.openResourceViewer)
   const showToast = useUIStore((state) => state.showToast)
@@ -286,8 +285,9 @@ export function useSessionSummaryExtensionActions(input: {
         onOpenSidePanel: input.onOpenSidePanel,
         setDialogEntry,
       })
-    )
+    ) {
       return
+    }
     if (resolution.kind !== 'command') return
     await invokeSessionSummaryExtensionCommand({
       entry: resolution.entry,

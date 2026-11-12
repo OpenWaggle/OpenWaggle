@@ -22,7 +22,7 @@ export function createSavedAnswerMatcher(
   persistedMessages: readonly UIMessage[],
   since: SavedAnswerSince = {},
 ) {
-  const unmatched: Array<{ readonly id: string; readonly key: string; readonly order: number }> = []
+  const unmatched: { readonly id: string; readonly key: string; readonly order: number }[] = []
   const notBefore = since.createdAt ?? Number.NEGATIVE_INFINITY
   for (const message of persistedMessages) {
     const order = message.metadata?.sessionNodeCreatedOrder
@@ -102,8 +102,9 @@ export interface SavedAnswerScope {
 }
 
 function inRunScope(message: UIMessage, order: number | undefined, scope: SavedAnswerScope) {
-  if (scope.fromOrder !== undefined && (order === undefined || order < scope.fromOrder))
+  if (scope.fromOrder !== undefined && (order === undefined || order < scope.fromOrder)) {
     return false
+  }
   if (scope.fromTime === undefined) return true
   const createdAt = message.createdAt === undefined ? undefined : new Date(message.createdAt)
   // Only a persisted row (one with a log order) is a saved copy.

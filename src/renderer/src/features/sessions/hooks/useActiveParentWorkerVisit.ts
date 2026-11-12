@@ -15,7 +15,7 @@ function workersLastRunEndedAt(sessions: readonly SessionSummary[], sessionId: s
 }
 
 /**
- * Done below means finished while the person was away (ADR 0063). A Worker Run that ends while its
+ * Done below means finished while the person was away (ADR 0065). A Worker Run that ends while its
  * parent is the Session on screen is seen, as the parent's own completion is, so the open parent
  * is marked visited when its catalog entry reports a later Worker Run end. Only a change while it
  * stays open counts, so marking the open Session unread is not undone.

@@ -13,7 +13,6 @@ import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
 import { useShellNotices } from '@/shell/useShellNotices'
-import { DesktopNativeAdmissionNotice } from './DesktopNativeAdmissionNotice'
 import { useDesktopNativeAdmissionStore } from './desktop-native-admission-store'
 import { RightPanelCommandPalette } from './right-panel/RightPanelCommandPalette'
 import { RightPanelHost } from './right-panel/RightPanelHost'
@@ -38,11 +37,27 @@ const LazyProjectFilePicker = lazy(() =>
     default: module.ProjectFilePicker,
   })),
 )
+// Loaded once desktop tools need a notice, which a healthy window never shows.
+const LazyDesktopNativeAdmissionNotice = lazy(() =>
+  import('./DesktopNativeAdmissionNotice').then((module) => ({
+    default: module.DesktopNativeAdmissionNotice,
+  })),
+)
 const LazyWorkspaceBrowserFloatingPreview = lazy(() =>
   import('./WorkspaceBrowserFloatingPreview').then((module) => ({
     default: module.WorkspaceBrowserFloatingPreview,
   })),
 )
+
+function AdmissionNotice({ placement }: { readonly placement: 'top' | 'bottom' }) {
+  const shown = useDesktopNativeAdmissionStore((state) => state.notice.kind !== 'hidden')
+  if (!shown) return null
+  return (
+    <Suspense fallback={null}>
+      <LazyDesktopNativeAdmissionNotice placement={placement} />
+    </Suspense>
+  )
+}
 
 interface WorkspaceShellProps {
   readonly children: ReactNode
@@ -73,7 +88,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!settingsOpen && <Header />}
-        {!settingsOpen && <DesktopNativeAdmissionNotice placement="top" />}
+        {!settingsOpen && <AdmissionNotice placement="top" />}
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <ActionPanelLayout>
             <WorkspaceRightPanel hidden={settingsOpen}>
@@ -89,7 +104,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
           {chatRoute ? <RightPanelHost /> : null}
           <RightPanelMaximizePublisher />
         </div>
-        {settingsOpen && <DesktopNativeAdmissionNotice placement="bottom" />}
+        {settingsOpen && <AdmissionNotice placement="bottom" />}
       </div>
 
       <ToastOverlay />

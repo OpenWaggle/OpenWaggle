@@ -1,3 +1,5 @@
+import { codePointLength } from '@shared/utils/code-point-length'
+
 interface TerminalNativeKeyEvent {
   readonly type?: string
   readonly key: string
@@ -23,7 +25,7 @@ function isMacPlatform(platform: string) {
 }
 
 function isAltGraphPrintable(event: TerminalNativeKeyEvent) {
-  return event.getModifierState?.('AltGraph') === true && [...event.key].length === 1
+  return event.getModifierState?.('AltGraph') === true && codePointLength(event.key) === 1
 }
 
 function hasOnlyControl(event: TerminalNativeKeyEvent) {
@@ -44,8 +46,9 @@ function isCopyGesture(event: TerminalNativeKeyEvent, key: string, isMac: boolea
 }
 
 function isPasteGesture(event: TerminalNativeKeyEvent, key: string, isMac: boolean) {
-  if (key === 'insert')
+  if (key === 'insert') {
     return !isMac && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+  }
   if (key !== 'v') return false
   if (isMac) return event.metaKey
   return event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey

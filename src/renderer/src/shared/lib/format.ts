@@ -23,8 +23,9 @@ export function formatElapsed(ms: number): string {
 export function formatDuration(ms: number): string {
   const value = Math.max(0, ms)
   if (value < TIME_UNIT.MILLISECONDS_PER_SECOND) return `${value}ms`
-  if (value < TIME_UNIT.ONE_MINUTE_MS)
+  if (value < TIME_UNIT.ONE_MINUTE_MS) {
     return `${(value / TIME_UNIT.MILLISECONDS_PER_SECOND).toFixed(1)}s`
+  }
   return formatElapsed(value)
 }
 

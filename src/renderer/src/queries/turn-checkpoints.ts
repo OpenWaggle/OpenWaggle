@@ -18,10 +18,10 @@ interface PendingTurnFiles {
   readonly turnIds: Set<string>
   readonly waiters: Map<
     string,
-    Array<{
+    {
       readonly resolve: (files: readonly TurnDiffFileSummary[]) => void
       readonly reject: (error: unknown) => void
-    }>
+    }[]
   >
 }
 

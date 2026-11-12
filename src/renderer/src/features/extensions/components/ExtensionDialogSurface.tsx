@@ -12,11 +12,12 @@ import type {
 } from '../lib/extension-dialog-resolution'
 import { resolveExtensionDialogContribution } from '../lib/extension-dialog-resolution'
 import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
+import { ExtensionPanelStatusCard } from './ExtensionPanelStatusCard'
 
 interface ExtensionDialogSurfaceActions {
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
 }
 
 const DIALOG_SIZE_STYLE: CSSProperties & {
@@ -99,31 +100,6 @@ function ExtensionDialogShell({
   )
 }
 
-function ExtensionDialogStatusCard({
-  icon,
-  title,
-  message,
-  action,
-}: {
-  readonly icon: ReactNode
-  readonly title: string
-  readonly message: string
-  readonly action?: ReactNode
-}) {
-  return (
-    <section role="alert" className="rounded-xl border border-border bg-bg-secondary p-4">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-accent">{icon}</div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-          <p className="mt-1 text-xs leading-5 text-text-tertiary">{message}</p>
-          {action ? <div className="mt-3">{action}</div> : null}
-        </div>
-      </div>
-    </section>
-  )
-}
-
 function ExtensionDialogLoadingCard() {
   return (
     <output className="rounded-xl border border-border bg-bg-secondary p-4">
@@ -140,9 +116,9 @@ function ExtensionDialogContribution({
   resolution,
   surfacePayload,
 }: {
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
   readonly resolution: Extract<ExtensionDialogResolution, { readonly status: 'available' }>
-  readonly surfacePayload?: JsonValue
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const entry = resolution.contribution.entry
 
@@ -175,8 +151,8 @@ function extensionDialogBody({
   readonly loading: boolean
   readonly error: string | null
   readonly onRefresh: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }): ReactNode {
   if (loading && registry === null) {
     return <ExtensionDialogLoadingCard />
@@ -184,7 +160,7 @@ function extensionDialogBody({
 
   if (error !== null && registry === null) {
     return (
-      <ExtensionDialogStatusCard
+      <ExtensionPanelStatusCard
         action={
           <Button onClick={onRefresh} size="xs" variant="accent">
             <RefreshCw className="size-3" />
@@ -219,7 +195,7 @@ function extensionDialogBody({
   }
 
   return (
-    <ExtensionDialogStatusCard
+    <ExtensionPanelStatusCard
       icon={<ShieldAlert className="size-4" />}
       message={formatDisplayPathsInText(resolution.message, projectPaths)}
       title={resolution.title}
@@ -264,7 +240,7 @@ export function ExtensionDialogSurfaceContent({
   readonly loading: boolean
   readonly error: string | null
   readonly actions: ExtensionDialogSurfaceActions
-  readonly surfacePayload?: JsonValue
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const title = extensionDialogTitle({ registry, target, projectPaths })
   const body = extensionDialogBody({
@@ -303,8 +279,8 @@ export function ExtensionDialogSurface({
   readonly error: string | null
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const actions = onSurfaceAction ? { onClose, onRefresh, onSurfaceAction } : { onClose, onRefresh }
 

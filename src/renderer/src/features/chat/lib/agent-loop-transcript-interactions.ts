@@ -112,7 +112,7 @@ function parseConfirmInteraction(
   const message = stringField(interaction, 'message')
   if (title === null || message === null) return null
 
-  const scopeKey = parseScopeKey(interaction.scopeKey)
+  const scopeKey = parseScopeKey(interaction['scopeKey'])
   return {
     ...base,
     kind: 'confirm',
@@ -128,7 +128,7 @@ function parseSelectInteraction(
   interaction: UnknownObject,
 ): AgentLoopSelectInteraction | null {
   const title = stringField(interaction, 'title')
-  const choices = parseChoices(interaction.choices)
+  const choices = parseChoices(interaction['choices'])
   return title !== null && choices !== null ? { ...base, kind: 'select', title, choices } : null
 }
 
@@ -172,9 +172,9 @@ function parseCustomInteraction(
 ): AgentLoopCustomInteraction | null {
   const customType =
     stringField(interaction, 'customType') ?? OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE
-  const payload = optionalJsonValue(interaction.payload)
-  const renderer = isObject(interaction.renderer) ? interaction.renderer : null
-  const overlay = renderer?.overlay
+  const payload = optionalJsonValue(interaction['payload'])
+  const renderer = isObject(interaction['renderer']) ? interaction['renderer'] : null
+  const overlay = renderer?.['overlay']
 
   return {
     ...base,
@@ -201,7 +201,7 @@ export function parseInteraction(
     return null
   }
 
-  return match(interaction.kind)
+  return match(interaction['kind'])
     .with('confirm', () => parseConfirmInteraction(base, interaction))
     .with('select', () => parseSelectInteraction(base, interaction))
     .with('input', () => parseInputInteraction(base, interaction))

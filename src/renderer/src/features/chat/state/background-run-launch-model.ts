@@ -3,7 +3,7 @@ import type { SessionId } from '@shared/types/brand'
 
 interface WorktreeLaunchSourceSnapshot {
   readonly sessionId: SessionId
-  readonly worktreeLaunch?: WorktreeLaunchSnapshot
+  readonly worktreeLaunch?: WorktreeLaunchSnapshot | undefined
 }
 
 export function launchesFromSnapshots(

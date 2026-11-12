@@ -10,33 +10,32 @@ import { Button } from '@/shared/ui/Button'
 
 const logger = createRendererLogger('agent-access-grants')
 
+/** A finished read of a project's grants, for the request it answered. */
+interface AuthorizationGrantsRead {
+  readonly request: string
+  readonly grants: readonly ScopedAuthorizationGrant[]
+  readonly error: boolean
+}
+
+const NO_GRANTS: readonly ScopedAuthorizationGrant[] = []
+
 function useProjectAuthorizationGrants(projectPath: string | null) {
-  const [grants, setGrants] = useState<readonly ScopedAuthorizationGrant[]>([])
-  const [loading, setLoading] = useState(Boolean(projectPath))
-  const [error, setError] = useState(false)
+  const [read, setRead] = useState<AuthorizationGrantsRead | null>(null)
   const [retryRevision, setRetryRevision] = useState(0)
+  const readable = projectPath !== null && projectPath !== ''
+  const request = readable ? `${projectPath}\u0000${String(retryRevision)}` : null
 
   useEffect(() => {
-    if (!projectPath || typeof api.listAuthorizationGrants !== 'function') {
-      setGrants([])
-      setError(false)
-      setLoading(false)
-      return
-    }
+    if (request === null || !projectPath) return
 
     // Cancellation matters more here than on a normal read: every row offers Revoke bound to the
     // *current* project, so painting a slower response for a previous project would invite revoking
     // a grant that is listed but belongs somewhere else.
     let cancelled = false
-    setLoading(true)
-    setError(false)
     api
       .listAuthorizationGrants(projectPath)
-      .then((next) => {
-        if (!cancelled) {
-          setGrants(next)
-          setError(false)
-        }
+      .then((grants) => {
+        if (!cancelled) setRead({ request, grants, error: false })
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -44,19 +43,22 @@ function useProjectAuthorizationGrants(projectPath: string | null) {
           error: String(err),
           attempt: retryRevision + 1,
         })
-        setGrants([])
-        setError(true)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
+        setRead({ request, grants: NO_GRANTS, error: true })
       })
 
     return () => {
       cancelled = true
     }
-  }, [projectPath, retryRevision])
+  }, [projectPath, request, retryRevision])
 
-  return { grants, loading, error, reload: () => setRetryRevision((revision) => revision + 1) }
+  // Only the read for the project and attempt on screen counts; until it arrives it is loading.
+  const current = request !== null && read?.request === request ? read : null
+  return {
+    grants: current?.grants ?? NO_GRANTS,
+    loading: request !== null && current === null,
+    error: current?.error ?? false,
+    reload: () => setRetryRevision((revision) => revision + 1),
+  }
 }
 
 function grantDescription(grant: ScopedAuthorizationGrant) {
@@ -77,7 +79,7 @@ function AuthorizationGrantRow({
   const [error, setError] = useState<string | null>(null)
 
   function handleRevoke() {
-    if (revoking || typeof api.revokeAuthorization !== 'function') return
+    if (revoking) return
 
     setError(null)
     setRevoking(true)

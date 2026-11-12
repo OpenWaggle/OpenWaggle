@@ -99,8 +99,9 @@ export interface ActionSummaryInput {
 }
 
 function audience(storage: ActionStorage, sharedEdit: boolean) {
-  if (sharedEdit)
+  if (sharedEdit) {
     return storage === 'local' ? 'only you get these changes' : 'everyone gets these changes'
+  }
   return storage === 'local' ? 'only you' : 'everyone on the project'
 }
 

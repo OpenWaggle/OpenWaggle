@@ -2,61 +2,39 @@ import type {
   SyntaxResourceCatalog,
   SyntaxThemeImportPreview,
 } from '@shared/types/syntax-resources'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  registerImportedSyntaxLanguageResources,
+  syntaxLanguageCatalog,
+} from '@/shared/lib/syntax/language-registry'
+import { setImportedPierreSyntaxResources } from '@/shared/lib/syntax/pierre-syntax'
+import { useSyntaxThemeRuntimeStore } from '@/shared/lib/syntax/syntax-theme-runtime'
+import { registerImportedSyntaxThemeResources } from '@/shared/lib/syntax/theme-registry'
 
-const {
-  applySyntaxThemeImportMock,
-  activatableLanguagesMock,
-  listSyntaxThemesMock,
-  removeSyntaxThemeMock,
-  registerLanguagesMock,
-  registerThemesMock,
-} = vi.hoisted(() => ({
-  applySyntaxThemeImportMock: vi.fn(),
-  activatableLanguagesMock: vi.fn(),
-  listSyntaxThemesMock: vi.fn(),
-  removeSyntaxThemeMock: vi.fn(),
-  registerLanguagesMock: vi.fn(),
-  registerThemesMock: vi.fn(),
-}))
+/*
+ * Only the preload is replaced: the language, theme, Pierre and runtime registries the store
+ * registers a catalog in are the real ones. The syntax service starts no worker until something
+ * is highlighted, so registering resources here stays in process.
+ */
+const { applySyntaxThemeImportMock, listSyntaxThemesMock, removeSyntaxThemeMock } = vi.hoisted(
+  () => ({
+    applySyntaxThemeImportMock: vi.fn(),
+    listSyntaxThemesMock: vi.fn(),
+    removeSyntaxThemeMock: vi.fn(),
+  }),
+)
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     applySyntaxThemeImport: applySyntaxThemeImportMock,
     listSyntaxThemes: listSyntaxThemesMock,
     removeSyntaxTheme: removeSyntaxThemeMock,
-  },
-}))
-
-vi.mock('@/shared/lib/syntax/language-registry', () => ({
-  activatableSyntaxLanguageResources: activatableLanguagesMock,
-  registerImportedSyntaxLanguageResources: vi.fn(),
-}))
-
-vi.mock('@/shared/lib/syntax/pierre-syntax', () => ({
-  setImportedPierreSyntaxResources: vi.fn(),
-}))
-
-vi.mock('@/shared/lib/syntax/syntax-service', () => ({
-  syntaxService: {
-    registerLanguages: registerLanguagesMock,
-    registerThemes: registerThemesMock,
-  },
-}))
-
-vi.mock('@/shared/lib/syntax/syntax-theme-runtime', () => ({
-  setRuntimeSyntaxThemeResources: vi.fn(),
-}))
-
-vi.mock('@/shared/lib/syntax/theme-registry', () => ({
-  registerImportedSyntaxThemeResources: vi.fn(),
-}))
-
-vi.mock('@/shared/lib/syntax/validate-imported-languages', () => ({
-  validateImportedSyntaxLanguages: vi.fn(),
+  }),
 }))
 
 import { useSyntaxThemeCatalogStore } from '../syntax-theme-store'
+
+const initialRuntime = useSyntaxThemeRuntimeStore.getInitialState()
 
 const EMPTY_CATALOG: SyntaxResourceCatalog = {
   themes: [],
@@ -103,53 +81,53 @@ function deferred<T>() {
 describe('syntax theme catalog store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    activatableLanguagesMock.mockImplementation((languages: readonly unknown[]) => languages)
     applySyntaxThemeImportMock.mockResolvedValue(EMPTY_CATALOG)
     removeSyntaxThemeMock.mockResolvedValue(EMPTY_CATALOG)
-    useSyntaxThemeCatalogStore.setState({
-      resources: [],
-      languages: [],
-      appearances: [],
-      preview: null,
-      loading: false,
-      error: null,
-      activeProjectPath: undefined,
-      loadedProjectPath: undefined,
-    })
+    useSyntaxThemeCatalogStore.setState(useSyntaxThemeCatalogStore.getInitialState())
   })
 
-  it('retains disabled project grammars in the settings catalog', async () => {
-    const projectLanguage = {
-      id: 'project:typescript',
-      packageId: 'project:package',
-      revision: 'revision-1',
-      label: 'Project TypeScript',
-      languageId: 'typescript',
-      scope: 'project',
-      format: 'openwaggle',
-      sourcePath: '/project/.openwaggle/languages/typescript.json',
-      engine: 'javascript',
-      registration: {
-        name: 'typescript',
-        displayName: 'Project TypeScript',
-        scopeName: 'source.ts',
-        aliases: [],
-        fileExtensions: ['.ts'],
-        fileNames: [],
-        embeddedLanguages: {},
-        injectTo: [],
-        grammar: {},
-      },
-      original: {},
-    } satisfies SyntaxResourceCatalog['languages'][number]
-    const catalog = { ...EMPTY_CATALOG, languages: [projectLanguage] }
-    listSyntaxThemesMock.mockResolvedValue(catalog)
-    activatableLanguagesMock.mockReturnValue([])
+  afterEach(() => {
+    registerImportedSyntaxLanguageResources([])
+    registerImportedSyntaxThemeResources([])
+    setImportedPierreSyntaxResources([], [])
+    useSyntaxThemeRuntimeStore.setState(initialRuntime, true)
+  })
+
+  it('retains a disabled project grammar in the settings catalog but does not activate it', async () => {
+    const language = (id: string, languageId: string, extension: string) =>
+      ({
+        id,
+        packageId: 'project:package',
+        revision: 'revision-1',
+        label: `Project ${languageId}`,
+        languageId,
+        scope: 'project',
+        format: 'openwaggle',
+        sourcePath: `/project/.openwaggle/languages/${languageId}.json`,
+        engine: 'javascript',
+        registration: {
+          name: languageId,
+          displayName: `Project ${languageId}`,
+          scopeName: `source.${languageId}`,
+          aliases: [],
+          fileExtensions: [extension],
+          fileNames: [],
+          embeddedLanguages: {},
+          injectTo: [],
+          grammar: {},
+        },
+        original: {},
+      }) satisfies SyntaxResourceCatalog['languages'][number]
+    // A project grammar may add a language but not replace the bundled TypeScript one.
+    const replacing = language('project:typescript', 'typescript', '.ts')
+    const adding = language('project:owlang', 'owlang', '.owl')
+    listSyntaxThemesMock.mockResolvedValue({ ...EMPTY_CATALOG, languages: [replacing, adding] })
 
     await useSyntaxThemeCatalogStore.getState().load('/project')
 
-    expect(activatableLanguagesMock).toHaveBeenCalledWith([projectLanguage])
-    expect(useSyntaxThemeCatalogStore.getState().languages).toEqual([projectLanguage])
+    expect(useSyntaxThemeCatalogStore.getState().languages).toEqual([replacing, adding])
+    const active = syntaxLanguageCatalog().filter((entry) => entry.provenance === 'project')
+    expect(active.map((entry) => entry.name)).toEqual(['Project owlang'])
   })
 
   it('does not restore an imported-theme refresh after the active project changes', async () => {

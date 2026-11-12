@@ -23,14 +23,10 @@ import {
 import { sessionFollowUpQueueOptions } from './session-follow-up-queue-options'
 
 export {
-  heldEdit,
   isLostFollowUpEdit,
-  SessionControlRejectedError,
   type SessionFollowUpEdit,
-  type SessionFollowUpEditHold,
   type SessionFollowUpEditPayload,
   type SessionFollowUpQueueItem,
-  type SessionFollowUpQueueSnapshot,
 } from './session-follow-up-queue-model'
 
 import { withFinally } from '@/shared/lib/async-outcome'

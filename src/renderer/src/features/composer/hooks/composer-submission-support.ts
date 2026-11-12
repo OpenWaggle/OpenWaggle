@@ -11,8 +11,9 @@ export function attachmentLimitReason(
   if (
     attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
     ATTACHMENT.MAX_TOTAL_SIZE_BYTES
-  )
+  ) {
     return 'size'
+  }
   return null
 }
 
@@ -24,7 +25,7 @@ export function attachmentLimitMessage(reason: 'count' | 'size') {
 
 interface SubmitBlockInput {
   readonly payload: AgentSendPayload
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly requiresText: boolean
   readonly projectPath: string | null
   readonly selectedModel: string | undefined
@@ -115,7 +116,7 @@ function toastSubmitBlock(message: string) {
 interface CanSendInput {
   readonly input: string
   readonly attachments: readonly PreparedAttachment[]
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly hasPreparingTextAttachment: boolean
   readonly projectPath: string | null
   readonly selectedModel: string | undefined

@@ -50,10 +50,6 @@ export type ActionPanelRequest =
       readonly review: PreparationReviewRequest
     }
 
-export function actionPanelRequestProject(request: ActionPanelRequest) {
-  return request.kind === 'review' ? request.projectPath : request.scope.projectPath
-}
-
 interface ActionPanelState {
   readonly request: ActionPanelRequest | null
   /** One Project action draft per project path. */

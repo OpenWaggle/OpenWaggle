@@ -136,7 +136,7 @@ function needsFocusRecheck(attention: SourceControlAttention) {
   )
 }
 
-function statusText(controls: NoticeControls) {
+function statusText(controls: Pick<NoticeControls, 'checking' | 'signingIn'>) {
   if (controls.checking) return 'Checking…'
   if (controls.signingIn) return 'Finish signing in in the terminal.'
   return ''
@@ -172,7 +172,7 @@ export function SourceControlAttentionNotice({
     },
   }
   useRecheckOnWindowFocus(needsFocusRecheck(attention), actions.recheck)
-  const status = statusText(controls)
+  const status = statusText(actions)
   return (
     <section
       ref={regionRef}

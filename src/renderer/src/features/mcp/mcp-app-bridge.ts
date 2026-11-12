@@ -50,6 +50,8 @@ function appToolResult(value: McpAppToolCallResult) {
 
 interface McpAppBridgeInput {
   readonly contentWindow: Window
+  /** Which load of the frame's document this is: a reload is a new document with a new bridge. */
+  readonly documentLoad: number
   readonly descriptor: McpAppDescriptor
   readonly projectPath: string | null
   readonly sessionId: string | null

@@ -272,7 +272,9 @@ describe('ChatTranscript pinned-turn scroll behavior', () => {
     // A token re-renders only its bubble (B2); the content column's observer must see it grow.
     class RecordingResizeObserver {
       readonly targets: Element[] = []
-      constructor(readonly callback: ResizeObserverCallback) {
+      readonly callback: ResizeObserverCallback
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
         observers.push(this)
       }
       observe(target: Element) {
@@ -308,10 +310,8 @@ describe('ChatTranscript pinned-turn scroll behavior', () => {
 
     layout.setNaturalScrollHeight(1200)
     const contentObserver = observers.find((observer) => observer.targets.includes(content))
-    expect(contentObserver).toBeDefined()
-    act(() => {
-      if (contentObserver) contentObserver.callback([], contentObserver)
-    })
+    if (contentObserver === undefined) throw new Error('Content observer not found')
+    act(() => contentObserver.callback([], contentObserver))
 
     expect(layout.getScrollTop()).toBe(700)
   })

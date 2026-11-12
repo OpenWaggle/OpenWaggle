@@ -4,7 +4,6 @@ import type {
   SessionResourceCatalogPage,
   SessionResourceCatalogView,
   SessionResourceImageLocation,
-  SessionResourceList,
   SessionResourceRouteSelection,
 } from '@shared/types/session-resource'
 import { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-resource'
@@ -43,7 +42,7 @@ interface SessionResourceCatalogOptions {
 }
 
 export type SessionResourceCatalogQueryResult = Pick<
-  UseInfiniteQueryResult<InfiniteData<SessionResourceCatalogPage>, Error>,
+  UseInfiniteQueryResult<InfiniteData<SessionResourceCatalogPage>>,
   | 'data'
   | 'error'
   | 'hasNextPage'
@@ -83,46 +82,6 @@ function routeSelection(
   return { branchId: activeBranchId, pathNodeIds: boundedNodeIds }
 }
 
-function matchesCatalogView(resource: SessionResource, view: SessionResourceCatalogView) {
-  if (view === 'sources') return resource.isSource
-  if (view === 'outputs') return resource.isOutput
-  if (view === 'change-requests') return resource.kind === 'change-request' && resource.isOutput
-  if (view === 'images') {
-    if (resource.kind !== 'image' || resource.locator?.startsWith('http://')) return false
-    return resource.available || resource.locator?.startsWith('https://') === true
-  }
-  return true
-}
-
-function normalizeSessionResourceList(
-  result: SessionResourceList | SessionResource[],
-): SessionResourceList {
-  return 'resources' in result ? result : { resources: result, backfillComplete: true }
-}
-
-export async function loadLegacyCatalogPage(
-  sessionId: string,
-  view: SessionResourceCatalogView,
-  cursor: string | null = null,
-  limit = Number.POSITIVE_INFINITY,
-): Promise<SessionResourceCatalogPage> {
-  const result: SessionResourceList | SessionResource[] = await api.listSessionResources(
-    SessionId(sessionId),
-  )
-  const matching = normalizeSessionResourceList(result).resources.filter((resource) =>
-    matchesCatalogView(resource, view),
-  )
-  const offset = cursor?.startsWith('legacy:') ? Number(cursor.slice('legacy:'.length)) : 0
-  const pageResources = matching.slice(offset, offset + limit)
-  const nextOffset = offset + pageResources.length
-  return {
-    resources: pageResources,
-    total: matching.length,
-    nextCursor: nextOffset < matching.length ? `legacy:${String(nextOffset)}` : null,
-    orderRevision: 'legacy',
-  }
-}
-
 function isStaleCatalogError(error: unknown) {
   return error instanceof Error && error.message.includes(SESSION_RESOURCE_CATALOG_STALE_MESSAGE)
 }
@@ -154,14 +113,12 @@ function catalogInfiniteOptions(
           orderRevision: 'none',
         } satisfies SessionResourceCatalogPage)
       }
-      return typeof api.listSessionResourcePage === 'function'
-        ? api.listSessionResourcePage(
-            SessionId(sessionId),
-            selection
-              ? { view, cursor: pageParam, limit: pageSize, selection }
-              : { view, cursor: pageParam, limit: pageSize },
-          )
-        : loadLegacyCatalogPage(sessionId, view, pageParam, pageSize)
+      return api.listSessionResourcePage(
+        SessionId(sessionId),
+        selection
+          ? { view, cursor: pageParam, limit: pageSize, selection }
+          : { view, cursor: pageParam, limit: pageSize },
+      )
     },
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled,
@@ -260,13 +217,9 @@ export function useSessionResource(
       ] as const,
       queryFn: async () => {
         if (!sessionId || !resourceId) return null
-        if (typeof api.getSessionResource === 'function') {
-          return selection
-            ? api.getSessionResource(SessionId(sessionId), resourceId, view, selection)
-            : api.getSessionResource(SessionId(sessionId), resourceId, view)
-        }
-        const page = await loadLegacyCatalogPage(sessionId, view)
-        return page.resources.find((resource) => resource.id === resourceId) ?? null
+        return selection
+          ? api.getSessionResource(SessionId(sessionId), resourceId, view, selection)
+          : api.getSessionResource(SessionId(sessionId), resourceId, view)
       },
       enabled: sessionId !== null && resourceId !== null,
     }),
@@ -291,23 +244,9 @@ export function useSessionImageLocation(
       ] as const,
       queryFn: async (): Promise<SessionResourceImageLocation | null> => {
         if (!sessionId || !resourceId) return null
-        if (typeof api.locateSessionResourceImage === 'function') {
-          return selection
-            ? api.locateSessionResourceImage(SessionId(sessionId), resourceId, selection)
-            : api.locateSessionResourceImage(SessionId(sessionId), resourceId)
-        }
-        const page = await loadLegacyCatalogPage(sessionId, 'images')
-        const index = page.resources.findIndex((resource) => resource.id === resourceId)
-        const resource = page.resources[index]
-        if (!resource || index < 0) return null
-        return {
-          resource,
-          previous: page.resources[index - 1] ?? null,
-          next: page.resources[index + 1] ?? null,
-          index,
-          total: page.total,
-          orderRevision: page.orderRevision,
-        }
+        return selection
+          ? api.locateSessionResourceImage(SessionId(sessionId), resourceId, selection)
+          : api.locateSessionResourceImage(SessionId(sessionId), resourceId)
       },
       enabled: sessionId !== null && resourceId !== null,
     }),

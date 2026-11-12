@@ -3,6 +3,7 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { describe, expect, it } from 'vitest'
 import { isFederatedModule } from '../extension-federated-module'
 import { createExtensionModuleUrl } from '../extension-module-url'
+import { omitKey } from '@/test-utils/omit-key'
 
 const ENTRY: ExtensionContributionRegistryEntry = {
   extensionId: 'sample-extension',
@@ -76,7 +77,7 @@ describe('extension federated module helpers', () => {
   })
 
   it('returns null when a visual registry entry has no module entry path', () => {
-    expect(createExtensionModuleUrl({ ...ENTRY, entryPath: undefined })).toBeNull()
+    expect(createExtensionModuleUrl(omitKey(ENTRY, 'entryPath'))).toBeNull()
   })
 
   it('identifies modules that export mount(context)', () => {

@@ -18,8 +18,8 @@ interface ModelSelectorProps {
   providerModels: ProviderInfo[]
   className?: string
   disabled?: boolean
-  fallbackLabel?: string
-  title?: string
+  fallbackLabel?: string | undefined
+  title?: string | undefined
 }
 
 /**
@@ -215,7 +215,7 @@ export function ModelSelector({
     closeList()
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
       event.preventDefault()
       closeList()

@@ -56,7 +56,7 @@ function list() {
 
 function dropTargets() {
   return [...document.querySelectorAll<HTMLElement>('[data-drop-target]')].map(
-    (row) => `${row.dataset.followUpId ?? ''}:${row.dataset.dropTarget ?? ''}`,
+    (row) => `${row.dataset['followUpId'] ?? ''}:${row.dataset['dropTarget'] ?? ''}`,
   )
 }
 

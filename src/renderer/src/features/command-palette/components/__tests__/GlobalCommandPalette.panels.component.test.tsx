@@ -1,103 +1,45 @@
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
-import { extensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
-import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { useUIStore } from '@/shell/ui-store'
 import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { installModalDialogStub } from '@/test-utils/modal-dialog'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { answerProjectActions, NOTES, sidePanelEntry } from './global-command-palette-fixtures'
 
-const NOTES = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
+/*
+ * Only the preload and the router are replaced: the palette's action hooks, the project action
+ * and terminal hooks, and the chat, preference, UI and Right sidebar stores are the real ones.
+ * The open Session's project differs from the palette's (preference-backed) project: the
+ * preference write that follows a Session switch can lag or fail.
+ */
+const SESSION_ID = SessionId('session-1')
 
-const mocks = vi.hoisted(() => {
-  const settings: { current: Settings | null } = { current: null }
-  return {
-    close: vi.fn(),
-    openBuiltInPanel: vi.fn(),
-    openExtensionPanel: vi.fn(),
-    listExtensionContributions: vi.fn(),
-    projectActionsProject: vi.fn(),
-    runProjectActionProject: vi.fn(),
-    settings,
-  }
-})
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { listExtensionContributions: mocks.listExtensionContributions },
+const mocks = vi.hoisted(() => ({
+  listExtensionContributions: vi.fn(),
+  manageProjectActions: vi.fn(),
+  navigate: vi.fn(),
 }))
-vi.mock('../../hooks/useGlobalCommandActions', async () => {
-  const { DEFAULT_SETTINGS: defaults } = await import('@shared/types/settings')
-  return {
-    useGlobalCommandActions: () => ({
-      actions: {
-        finish: (action: () => void) => action(),
-        openBuiltInPanel: mocks.openBuiltInPanel,
-      },
-      close: mocks.close,
-      projectPath: '/repo',
-      sessionId: 'session-1',
-      sessions: [],
-      settings: mocks.settings.current ?? defaults,
-    }),
-  }
-})
-vi.mock('../../hooks/useGlobalExtensionActions', () => ({
-  useGlobalExtensionActions: () => ({
-    invokeExtensionCommand: vi.fn(),
-    openExtensionPanel: mocks.openExtensionPanel,
+
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    listExtensionContributions: mocks.listExtensionContributions,
+    manageProjectActions: mocks.manageProjectActions,
   }),
 }))
-vi.mock('@/features/project-actions', () => ({
-  createProjectActionCommandItems: () => [],
-  useProjectActions: (projectPath: string | null) => {
-    mocks.projectActionsProject(projectPath)
-    return { data: [] }
-  },
-  useRunProjectAction: (projectPath: string | null) => {
-    mocks.runProjectActionProject(projectPath)
-    return vi.fn()
-  },
+// The palette navigates the app route tree, which a component test does not build.
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mocks.navigate,
+  useRouterState: ({ select }: { select: (state: unknown) => unknown }) =>
+    select({ location: { pathname: '/' } }),
 }))
-// The open Session's project differs from the palette's (preference-backed) project: the
-// preference write that follows a Session switch can lag or fail.
-vi.mock('@/features/sessions/hooks', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/features/sessions/hooks')>()),
-  useSessionProjectPath: () => '/session-project',
-}))
-vi.mock('@/features/terminal', () => ({ useRunningTerminalCounts: () => new Map() }))
-
-function sidePanelEntry(): ExtensionContributionRegistryEntry {
-  return {
-    extensionId: 'acme.notes',
-    extensionName: 'Acme Notes',
-    extensionVersion: '1.0.0',
-    scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
-    packagePath: '/extensions/acme-notes',
-    manifestPath: '/extensions/acme-notes/openwaggle.extension.json',
-    contentHash: 'hash-1',
-    projectPaths: ['/repo'],
-    appliesToAllRequestedProjects: true,
-    family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
-    contributionId: 'notes',
-    title: 'Notes',
-    label: 'Notes',
-    category: 'Writing',
-    runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
-    execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
-    entryPath: 'modules/notes.js',
-    eligibility: {
-      runtimeEnabled: true,
-      enabled: true,
-      trusted: true,
-      sdkCompatible: true,
-      updateAvailable: false,
-      disabledProjectPaths: [],
-    },
-    diagnostics: [],
-  }
-}
 
 async function renderPalette() {
   const { GlobalCommandPalette } = await import('../GlobalCommandPalette')
@@ -113,6 +55,12 @@ function panelLabels() {
   const first = items.findIndex((item) => within(item).queryByText('All panels') !== null)
   return items.slice(first, first + PANEL_COUNT).map((item) => item.textContent)
 }
+
+const initialChat = useChatStore.getInitialState()
+const initialPreferences = usePreferencesStore.getInitialState()
+const initialUI = useUIStore.getInitialState()
+const initialCoordinator = useRightSidebarCoordinator.getInitialState()
+const isClosed = () => useUIStore.getState().commandSurface === null
 
 describe('GlobalCommandPalette Panels section', () => {
   const controller = {
@@ -132,19 +80,36 @@ describe('GlobalCommandPalette Panels section', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.settings.current = {
-      ...DEFAULT_SETTINGS,
-      extensionPanelShortcutBindings: { [NOTES]: { key: 'G', mod: true, shift: true } },
-    }
+    usePreferencesStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        projectPath: '/repo',
+        extensionPanelShortcutBindings: { [NOTES]: { key: 'G', mod: true, shift: true } },
+      },
+    })
+    useChatStore.setState({
+      activeSessionId: SESSION_ID,
+      activeSession: fromPartial<SessionDetail>({
+        id: SESSION_ID,
+        projectPath: '/session-project',
+        messages: [],
+      }),
+    })
+    useUIStore.setState({ commandSurface: 'commands' })
     mocks.listExtensionContributions.mockResolvedValue({
       projectPaths: ['/repo'],
       entries: [sidePanelEntry()],
     })
+    mocks.manageProjectActions.mockImplementation(answerProjectActions)
   })
 
   afterEach(() => {
     unregister?.()
     unregister = null
+    useChatStore.setState(initialChat, true)
+    usePreferencesStore.setState(initialPreferences, true)
+    useUIStore.setState(initialUI, true)
+    useRightSidebarCoordinator.setState(initialCoordinator, true)
   })
 
   it('lists each surface once with its binding, extension panels under their extension name', async () => {
@@ -173,9 +138,15 @@ describe('GlobalCommandPalette Panels section', () => {
   it("lists and runs project actions of the open Session's project, not the preference", async () => {
     await renderPalette()
 
-    expect(mocks.projectActionsProject).toHaveBeenCalledWith('/session-project')
-    expect(mocks.runProjectActionProject).toHaveBeenCalledWith('/session-project')
-    expect(mocks.projectActionsProject).not.toHaveBeenCalledWith('/repo')
+    fireEvent.click(await screen.findByRole('option', { name: /^Serve app/ }))
+
+    expect(isClosed()).toBe(true)
+    await waitFor(() =>
+      expect(mocks.manageProjectActions).toHaveBeenCalledWith({
+        scope: { projectPath: '/session-project', sessionId: SESSION_ID },
+        operation: expect.objectContaining({ type: 'start', actionId: 'serve' }),
+      }),
+    )
   })
 
   it('shows the chosen surface through the Right panel controller', async () => {
@@ -184,7 +155,7 @@ describe('GlobalCommandPalette Panels section', () => {
 
     fireEvent.click(screen.getByRole('option', { name: /^Notes/ }))
 
-    expect(mocks.close).toHaveBeenCalled()
+    expect(isClosed()).toBe(true)
     expect(controller.showSurface).toHaveBeenCalledWith(NOTES)
     expect(controller.toggleSurface).not.toHaveBeenCalled()
   })
@@ -245,7 +216,7 @@ describe('GlobalCommandPalette Panels section', () => {
       key: 'Escape',
     })
 
-    expect(mocks.close).toHaveBeenCalled()
+    expect(isClosed()).toBe(true)
   })
 
   it('exposes each section as a named group of options', async () => {
@@ -282,8 +253,30 @@ describe('GlobalCommandPalette Panels section', () => {
     fireEvent.click(screen.getByRole('option', { name: /^Changes/ }))
     fireEvent.click(screen.getByRole('option', { name: /^Notes/ }))
 
-    expect(mocks.openBuiltInPanel).toHaveBeenCalledWith('diff')
-    expect(mocks.openExtensionPanel).toHaveBeenCalledWith({ entry: sidePanelEntry() })
+    // Each opens through the open Session's route search, keeping the rest of it.
+    const searches = mocks.navigate.mock.calls.map(([options]) => {
+      expect(options).toMatchObject({
+        to: '/sessions/$sessionId',
+        params: { sessionId: 'session-1' },
+      })
+      return options.search({ keep: true })
+    })
+    expect(searches).toEqual([
+      expect.objectContaining({ keep: true, panel: 'diff' }),
+      expect.objectContaining({
+        keep: true,
+        panel: 'extension-side-panel',
+        sidePanelExtensionId: 'acme.notes',
+        sidePanelId: 'notes',
+        sidePanelPackagePath: '/extensions/acme-notes',
+        sidePanelContentHash: 'hash-1',
+      }),
+    ])
+    expect(useUIStore.getState().lastRightSidebarPanel).toMatchObject({
+      kind: 'extension-side-panel',
+      extensionId: 'acme.notes',
+      sidePanelId: 'notes',
+    })
   })
 
   it('lists extension panels for the Session checkout the Panel rail asks about', async () => {

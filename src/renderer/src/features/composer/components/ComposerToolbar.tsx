@@ -7,15 +7,15 @@ import { ContextMeter } from './ContextMeter'
 import { ThinkingLevelMenu } from './ThinkingLevelMenu'
 
 interface ComposerToolbarProps {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly accessControl?: ReactNode
   readonly submission: {
     readonly onSend: () => void
     readonly onCancel: () => void
     readonly isLoading: boolean
-    readonly finishing?: ComposerRunFinishing
+    readonly finishing?: ComposerRunFinishing | undefined
     readonly canSend: boolean
-    readonly sendTitle?: string
+    readonly sendTitle?: string | undefined
     /** The primary action saves a queued-message edit instead of sending. */
     readonly savesEdit?: boolean
   }

@@ -66,8 +66,8 @@ vi.mock('../../hooks/use-chat-panel-controller', () => ({
   useChatPanelSections: mocks.useChatPanelSections,
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
@@ -79,6 +79,9 @@ vi.mock('@/shared/lib/ipc', () => ({
     onWaggleEvent: vi.fn(() => () => undefined),
     onWaggleTurnEvent: vi.fn(() => () => undefined),
     listSessionResources: mocks.listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(mocks.listSessionResources),
     readSessionResource: mocks.readSessionResource,
     advanceSessionResourceBackfill: mocks.advanceSessionResourceBackfill,
     locateSessionResourceImage: mocks.locateSessionResourceImage,
@@ -88,7 +91,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     activateSessionResourceOwner: mocks.activateSessionResourceOwner,
     getVcsStatus: vi.fn().mockResolvedValue(null),
     onGitWorkingTreeChanged: vi.fn(() => () => undefined),
-  },
+  }),
 }))
 
 export const SESSION: SessionDetail = {

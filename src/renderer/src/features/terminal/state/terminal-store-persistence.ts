@@ -17,7 +17,7 @@ const textEncoder = new TextEncoder()
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
 export function resolveTerminalStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+  if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
     getItem: (key) => memory.get(key) ?? null,
@@ -151,14 +151,15 @@ function sanitizeTab(entry: unknown, terminalIds: Set<string>): TerminalTabState
     return null
   }
   const panes = sanitizePanes(readStoredField(entry, 'panes'), terminalIds)
-  if (panes.length === 0) return null
+  const firstPane = panes[0]
+  if (firstPane === undefined) return null
   const customName: unknown = readStoredField(entry, 'customName')
   const storedActivePaneId = readStoredField(entry, 'activePaneId')
   const activePaneId =
     typeof storedActivePaneId === 'string' &&
     panes.some((pane) => pane.terminalId === storedActivePaneId)
       ? storedActivePaneId
-      : panes[0].terminalId
+      : firstPane.terminalId
   return {
     id,
     panes,
@@ -193,7 +194,7 @@ function sanitizeTabs(value: unknown): TerminalTabState[] {
 
 function sanitizeActiveTabId(value: unknown, tabs: readonly TerminalTabState[]) {
   if (typeof value === 'string' && tabs.some((tab) => tab.id === value)) return value
-  return tabs[tabs.length - 1].id
+  return tabs.at(-1)?.id ?? null
 }
 
 /** Keep only structurally valid tabs and groups, so a corrupt entry cannot poison the panel. */

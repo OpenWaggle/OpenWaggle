@@ -39,7 +39,7 @@ export interface ExtensionInteractionView {
 
 export interface ExtensionStatusView {
   readonly label: string
-  readonly detail?: string
+  readonly detail?: string | undefined
   readonly tone: 'neutral' | 'running' | 'success' | 'warning' | 'error'
 }
 
@@ -63,7 +63,9 @@ export type ExtensionAgentLoopSurfaceInput =
   | {
       readonly surface: 'interaction'
       readonly interaction: ExtensionInteractionView
-      readonly onAction?: (interactionId: string, actionId: string, payload?: JsonValue) => void
+      readonly onAction?:
+        | ((interactionId: string, actionId: string, payload?: JsonValue) => void)
+        | undefined
     }
   | {
       readonly surface: 'status'

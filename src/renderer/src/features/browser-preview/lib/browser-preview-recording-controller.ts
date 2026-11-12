@@ -23,8 +23,6 @@ import type {
 export type {
   BrowserPreviewRecordingEnvironment,
   BrowserPreviewRecordingOperations,
-  BrowserPreviewRecordingPhase,
-  BrowserPreviewRecordingSnapshot,
 } from './browser-preview-recording-types'
 
 const RECORDING_TIMESLICE_MS = 1_000
@@ -42,11 +40,19 @@ export class BrowserPreviewRecordingController {
     error: null,
   }
 
+  private readonly operations: BrowserPreviewRecordingOperations
+  private readonly environment: BrowserPreviewRecordingEnvironment
+  private readonly preferredFrameRate: number
+
   constructor(
-    private readonly operations: BrowserPreviewRecordingOperations,
-    private readonly environment: BrowserPreviewRecordingEnvironment = DEFAULT_BROWSER_PREVIEW_RECORDING_ENVIRONMENT,
-    private readonly preferredFrameRate = DEFAULT_BROWSER_PREVIEW_RECORDING_FRAME_RATE,
-  ) {}
+    operations: BrowserPreviewRecordingOperations,
+    environment: BrowserPreviewRecordingEnvironment = DEFAULT_BROWSER_PREVIEW_RECORDING_ENVIRONMENT,
+    preferredFrameRate = DEFAULT_BROWSER_PREVIEW_RECORDING_FRAME_RATE,
+  ) {
+    this.operations = operations
+    this.environment = environment
+    this.preferredFrameRate = preferredFrameRate
+  }
 
   getSnapshot = (): BrowserPreviewRecordingSnapshot => this.snapshot
 
@@ -165,11 +171,6 @@ export class BrowserPreviewRecordingController {
       await this.operations.finish(previewId).catch(() => undefined)
     }
     this.publish({ phase: 'idle', previewId: null, bytes: 0, artifact: null, error: null })
-  }
-
-  async dispose(): Promise<void> {
-    await this.cancel()
-    this.listeners.clear()
   }
 
   clearResult(): void {
@@ -293,13 +294,7 @@ export class BrowserPreviewRecordingController {
       session.reject(error)
       return
     }
-    this.publish({
-      phase: 'idle',
-      previewId: null,
-      bytes: 0,
-      artifact: result,
-      error: null,
-    })
+    this.publish({ phase: 'idle', previewId: null, bytes: 0, artifact: result, error: null })
     session.resolve(result)
   }
 

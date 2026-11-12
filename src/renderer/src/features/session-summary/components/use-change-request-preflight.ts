@@ -76,6 +76,10 @@ function useSettledPreflightInput(
   const headRef = payload.headRef
   const baseRef = payload.baseRef
   const createFeatureBranch = payload.createFeatureBranch
+  // Another Session or repository settles at once; only edits to the same one wait out the debounce.
+  if (!scopeIsSettled) {
+    setSettled({ sessionId, workingPath, provider, headRef, baseRef, createFeatureBranch })
+  }
 
   useEffect(() => {
     const next = {
@@ -86,11 +90,7 @@ function useSettledPreflightInput(
       baseRef,
       createFeatureBranch,
     } satisfies SettledPreflightInput
-    if (!scopeIsSettled) {
-      setSettled(next)
-      return
-    }
-    if (capabilityIsSettled) return
+    if (!scopeIsSettled || capabilityIsSettled) return
     const timer = window.setTimeout(() => setSettled(next), PREFLIGHT_PAYLOAD_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
   }, [

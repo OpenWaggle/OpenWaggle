@@ -8,8 +8,10 @@ import { useMcpConfigurationActions } from '../../../hooks/useMcpConfiguration'
 import { McpInlineError } from './McpLabels'
 
 function entryCommand(entry: (typeof MCP_CATALOG_SERVERS)[number]['entry']) {
-  const args = Array.isArray(entry.args) ? entry.args.filter((arg) => typeof arg === 'string') : []
-  return typeof entry.command === 'string' ? [entry.command, ...args].join(' ') : ''
+  const args = Array.isArray(entry['args'])
+    ? entry['args'].filter((arg) => typeof arg === 'string')
+    : []
+  return typeof entry['command'] === 'string' ? [entry['command'], ...args].join(' ') : ''
 }
 
 /** One click saves an ordinary entry to OpenWaggle's file; it then works like any other server. */

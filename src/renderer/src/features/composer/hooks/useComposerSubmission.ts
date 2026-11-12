@@ -33,9 +33,9 @@ interface UseComposerSubmissionInput {
   readonly onEnqueue: (
     payload: AgentSendPayload,
   ) => Promise<boolean | undefined> | boolean | undefined
-  readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
+  readonly onSendFailure?: ((cause: unknown) => SendFailureDisposition) | undefined
   readonly isLoading: boolean
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly requiresText: boolean
   readonly clearOnSubmit: boolean
   readonly recordHistory: boolean
@@ -45,7 +45,7 @@ interface UseComposerSubmissionInput {
    * Waggle now would overtake the held message.
    */
   readonly enqueueWaggle?: boolean
-  readonly onToast?: (message: string) => void
+  readonly onToast?: ((message: string) => void) | undefined
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly projectPath: string | null
   readonly attachments: readonly PreparedAttachment[]
@@ -225,7 +225,8 @@ export function useComposerSubmission({
     )
     pendingQueuedSubmissions.set(pendingKey, result)
     // A Follow-up edit waits for this: acknowledgement clears the draft that submitted it.
-    trackComposerSubmission(draftSnapshot.activeDraftContextKey, result)
+    // `result` settles to false on a refusal and never rejects.
+    void trackComposerSubmission(draftSnapshot.activeDraftContextKey, result)
     void result.then(() => {
       if (pendingQueuedSubmissions.get(pendingKey) === result) {
         pendingQueuedSubmissions.delete(pendingKey)
@@ -279,7 +280,7 @@ export function useComposerSubmission({
 
   function submitCurrentDraft() {
     const state = useComposerStore.getState()
-    submitPayload({
+    void submitPayload({
       text: state.input.trim(),
       attachments: state.attachments,
       ...(state.selectedWagglePreset

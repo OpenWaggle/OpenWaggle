@@ -263,7 +263,9 @@ describe('useBrowserPreviewOwnerRegistration', () => {
     await waitFor(() => expect(api.registerBrowserPreviewOwner).toHaveBeenCalledWith('session-2'))
     expect(api.unregisterBrowserPreviewOwner).not.toHaveBeenCalledWith('session-1')
 
-    act(() => useWorkspacePanelStore.setState({ groups: {} }))
+    act(() => {
+      useWorkspacePanelStore.setState({ groups: {} })
+    })
 
     await waitFor(() => expect(api.unregisterBrowserPreviewOwner).toHaveBeenCalledWith('session-1'))
     unmount()

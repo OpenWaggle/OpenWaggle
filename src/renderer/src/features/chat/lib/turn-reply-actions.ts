@@ -18,7 +18,7 @@ function isReply(row: MessageChatRow) {
 function lastReplyIndex(messages: readonly MessageChatRow[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (message && message.message.role === 'assistant') return isReply(message) ? index : -1
+    if (message?.message.role === 'assistant') return isReply(message) ? index : -1
   }
   return -1
 }

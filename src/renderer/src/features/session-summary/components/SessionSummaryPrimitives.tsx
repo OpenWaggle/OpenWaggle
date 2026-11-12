@@ -19,12 +19,12 @@ export function SessionSummarySection({
 }: {
   readonly id: string
   readonly title: string
-  readonly count?: number
+  readonly count?: number | undefined
   readonly expanded: boolean
   readonly onExpandedChange: (expanded: boolean) => void
-  readonly actions?: ReactNode
-  readonly sectionRef?: Ref<HTMLElement>
-  readonly triggerRef?: Ref<HTMLButtonElement>
+  readonly actions?: ReactNode | undefined
+  readonly sectionRef?: Ref<HTMLElement> | undefined
+  readonly triggerRef?: Ref<HTMLButtonElement> | undefined
   readonly children: ReactNode
 }) {
   const contentId = `session-summary-section-${id}`
@@ -80,12 +80,12 @@ export function SessionSummaryRow({
   disabledReason,
   ariaLabel,
 }: {
-  readonly icon?: ReactNode
+  readonly icon?: ReactNode | undefined
   readonly label: string
-  readonly value?: ReactNode
-  readonly onClick?: () => void
-  readonly disabledReason?: string
-  readonly ariaLabel?: string
+  readonly value?: ReactNode | undefined
+  readonly onClick?: (() => void) | undefined
+  readonly disabledReason?: string | undefined
+  readonly ariaLabel?: string | undefined
 }) {
   const descriptionId = useId()
   const content = (
@@ -165,8 +165,8 @@ export function SessionSummaryLinkSection({
   readonly label: string
   readonly icon: ReactNode
   readonly title: string
-  readonly details?: ReactNode
-  readonly target?: SessionSummaryLinkTarget
+  readonly details?: ReactNode | undefined
+  readonly target?: SessionSummaryLinkTarget | undefined
 }) {
   const content = (
     <>
@@ -188,7 +188,7 @@ export function SessionSummaryLinkSection({
         <Button
           variant="unstyled"
           // Keyboard focus only: the row stays focused after a click, and `focus:` would keep it
-          // painted as if hovered (MEMORY.md, "A focused row keeps its focus").
+          // painted as if hovered (.agents/memory/renderer.md, "A focused row keeps its focus").
           className={cn(
             SECTION_ROW_CLASS,
             'group cursor-pointer transition-colors hover:bg-bg-hover focus-visible:bg-bg-hover',
@@ -221,7 +221,7 @@ export function SessionSummaryFacts({
   readonly items: readonly {
     readonly key: string
     readonly text: string
-    readonly className?: string
+    readonly className?: string | undefined
   }[]
 }) {
   if (items.length === 0) return null

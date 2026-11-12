@@ -10,6 +10,7 @@ import {
   getWaggleTurnRows,
   type WaggleMessageMetadata,
 } from './useBuildChatRows.test-utils'
+import { required } from '@/test-utils/required'
 
 describe('buildChatRows tool-call rendering', () => {
   it('renders repeated Pi tool calls within the same user turn', () => {
@@ -166,7 +167,7 @@ describe('buildChatRows tool-call rendering', () => {
     const assistantRows = getAssistantMessageRows(messages, {}, new Set(['user-1']))
     expect(assistantRows).toHaveLength(2)
 
-    const firstAssistantParts = assistantRows[0].message.parts
+    const firstAssistantParts = required(assistantRows[0]).message.parts
     expect(firstAssistantParts).toHaveLength(2)
     expect(firstAssistantParts[0]).toMatchObject({
       type: 'text',
@@ -178,7 +179,7 @@ describe('buildChatRows tool-call rendering', () => {
       state: 'input-complete',
     })
 
-    const secondAssistantParts = assistantRows[1].message.parts
+    const secondAssistantParts = required(assistantRows[1]).message.parts
     expect(secondAssistantParts).toHaveLength(3)
     expect(secondAssistantParts[0]).toMatchObject({
       type: 'tool-call',

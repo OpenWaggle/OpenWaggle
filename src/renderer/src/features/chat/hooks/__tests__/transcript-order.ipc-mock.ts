@@ -12,9 +12,9 @@ type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 export type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
 
 const apiMock = (() => {
-  const agentEventHandlers: Array<(payload: AgentEventPayload) => void> = []
-  const runCompletedHandlers: Array<(payload: RunCompletedPayload) => void> = []
-  const resyncHandlers: Array<() => void> = []
+  const agentEventHandlers: ((payload: AgentEventPayload) => void)[] = []
+  const runCompletedHandlers: ((payload: RunCompletedPayload) => void)[] = []
+  const resyncHandlers: (() => void)[] = []
   function subscribe<Handler>(handlers: Handler[]) {
     return (handler: Handler) => {
       handlers.push(handler)

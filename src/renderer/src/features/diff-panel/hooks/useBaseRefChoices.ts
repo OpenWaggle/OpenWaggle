@@ -6,6 +6,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('diff-panel-base-ref-choices')
 const EMPTY_CHOICES: readonly BaseRefChoice[] = []
+const NOT_LOADED: BaseRefChoices = { choices: EMPTY_CHOICES, loaded: false }
 
 export interface BaseRefChoices {
   readonly choices: readonly BaseRefChoice[]
@@ -20,27 +21,31 @@ export interface BaseRefChoices {
   readonly loaded: boolean
 }
 
+interface LoadedBaseRefChoices {
+  readonly repositoryPath: RepositoryPath
+  readonly choices: BaseRefChoices
+}
+
 /** Load the repository's branches and shape them into base-ref combobox choices (WS6b). */
 export function useBaseRefChoices(repositoryPath: RepositoryPath | null): BaseRefChoices {
-  const [state, setState] = useState<BaseRefChoices>({ choices: EMPTY_CHOICES, loaded: false })
+  const [state, setState] = useState<LoadedBaseRefChoices | null>(null)
 
   useEffect(() => {
-    /*
-     * Cleared before loading, so `loaded` never describes a different repository's branches. Keeping
-     * the previous value across the switch would have marked the *new* repository's refs
-     * "(unavailable)" - a guess presented as fact, which is the regression this flag exists to stop.
-     */
-    setState({ choices: EMPTY_CHOICES, loaded: false })
     if (!repositoryPath) return
 
     let cancelled = false
     void (async () => {
       try {
         const result = await api.listGitBranches(repositoryPath)
-        if (!cancelled) setState({ choices: buildBaseRefChoices(result.branches), loaded: true })
+        if (!cancelled) {
+          setState({
+            repositoryPath,
+            choices: { choices: buildBaseRefChoices(result.branches), loaded: true },
+          })
+        }
       } catch (error) {
         logger.warn('Failed to load base-ref choices', { error: String(error) })
-        if (!cancelled) setState({ choices: EMPTY_CHOICES, loaded: false })
+        if (!cancelled) setState({ repositoryPath, choices: NOT_LOADED })
       }
     })()
     return () => {
@@ -48,5 +53,11 @@ export function useBaseRefChoices(repositoryPath: RepositoryPath | null): BaseRe
     }
   }, [repositoryPath])
 
-  return state
+  /*
+   * Another repository's list is never shown, so `loaded` never describes a different repository's
+   * branches. Keeping the previous value across the switch would have marked the *new*
+   * repository's refs "(unavailable)" - a guess presented as fact, which is the regression this
+   * flag exists to stop.
+   */
+  return state !== null && state.repositoryPath === repositoryPath ? state.choices : NOT_LOADED
 }

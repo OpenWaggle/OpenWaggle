@@ -5,6 +5,7 @@ import type {
   ExtensionContributionRuntime,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 
 export interface ExtensionDialogTarget {
   readonly extensionId: string
@@ -64,37 +65,6 @@ function dialogEntriesForTargetPackage(
   )
 }
 
-function disabledForRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
-  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
-}
-
-function missingRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const availableProjectPaths = new Set(entry.projectPaths)
-  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
-}
-
-function isBlockedDialogEntry(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  return (
-    !entry.eligibility.runtimeEnabled ||
-    !entry.eligibility.enabled ||
-    !entry.eligibility.trusted ||
-    entry.eligibility.sdkCompatible === false ||
-    entry.eligibility.updateAvailable ||
-    disabledForRequestedProject(entry, requestedProjectPaths) ||
-    missingRequestedProject(entry, requestedProjectPaths)
-  )
-}
-
 export function resolveExtensionDialogContribution({
   registry,
   target,
@@ -147,7 +117,7 @@ export function resolveExtensionDialogContribution({
     }
   }
 
-  if (isBlockedDialogEntry(entry, requestedProjectPaths)) {
+  if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
     return {
       status: 'blocked',
       title: 'Extension dialog blocked',

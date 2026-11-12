@@ -21,7 +21,7 @@ interface SessionsToolCallBlockProps {
   readonly name: string
   readonly args: string
   readonly state: string
-  readonly result?: ToolCallResultPayload
+  readonly result?: ToolCallResultPayload | undefined
   readonly isStreaming?: boolean
   readonly resultNotRecorded?: boolean
 }
@@ -54,7 +54,7 @@ function SessionTargetToolCallBlock({
     callerSessionId === null ? null : String(callerSessionId),
   )
   const session = findHiveSession(targetId, hive)
-  const spawned = parsedArgs.action === 'spawn' && session !== null ? session : null
+  const spawned = parsedArgs['action'] === 'spawn' && session !== null ? session : null
   return (
     <ToolCallBlock
       {...props}

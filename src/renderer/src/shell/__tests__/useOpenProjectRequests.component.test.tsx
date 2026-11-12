@@ -1,55 +1,69 @@
+import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { useProviderStore } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
+import { useUIStore } from '@/shell/ui-store'
 
+/*
+ * Only the preload and the router's navigate are replaced: the hook opens a project through the
+ * real sidebar action and stores, so each case asserts the project and draft the app ends up on.
+ */
 const mocks = vi.hoisted(() => {
   const listener: { current: (() => void) | null } = { current: null }
   const requests: (string | null)[] = []
   return {
     listener,
     requests,
-    navigate: vi.fn(async () => undefined),
-    openProjectInDraft: vi.fn(async (_deps: unknown, _path: string) => undefined),
-    showToast: vi.fn(),
+    navigate: vi.fn(async (_options: unknown) => undefined),
+    updateSettings: vi.fn(async (_patch: Partial<Settings>) => ({ ok: true })),
     unsubscribe: vi.fn(),
-    settingsLoaded: { current: true },
   }
 })
 
+// A memory router would add a route tree for one navigate call; navigation is the outcome here.
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
-vi.mock('@/features/sidebar/hooks', () => ({
-  openProjectInDraft: mocks.openProjectInDraft,
-  storeProjectDraftNavigation: (navigate: unknown) => ({ navigate }),
-}))
-vi.mock('@/features/settings/state', () => ({
-  usePreferencesStore: (select: (state: { isLoaded: boolean }) => boolean) =>
-    select({ isLoaded: mocks.settingsLoaded.current }),
-}))
-vi.mock('@/shell/ui-store', () => ({
-  useUIStore: { getState: () => ({ showToast: mocks.showToast }) },
-}))
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     takeOpenProjectRequest: async () => mocks.requests.shift() ?? null,
     onOpenProjectRequested: (listener: () => void) => {
       mocks.listener.current = listener
       return mocks.unsubscribe
     },
-  },
+    updateSettings: mocks.updateSettings,
+    getProjectPreferences: async () => ({}),
+    getProviderModels: async () => [],
+    getAuthAccountInfos: async () => [],
+    getGitStatus: async () => null,
+    listGitBranches: async () => [],
+  }),
 }))
 
 const { useOpenProjectRequests } = await import('../useOpenProjectRequests')
 
-const openedPaths = () => mocks.openProjectInDraft.mock.calls.map(([, path]) => path)
+const openProject = () => usePreferencesStore.getState().settings.projectPath
+const draftProject = () => useChatStore.getState().draftSession?.projectPath
+
+function resetStores() {
+  usePreferencesStore.setState(
+    { ...usePreferencesStore.getInitialState(), settings: DEFAULT_SETTINGS, isLoaded: true },
+    true,
+  )
+  useProviderStore.setState(useProviderStore.getInitialState(), true)
+  useChatStore.setState(useChatStore.getInitialState(), true)
+  useUIStore.setState({ toastMessage: null, toastData: null })
+}
 
 beforeEach(() => {
   mocks.listener.current = null
   mocks.requests.length = 0
   mocks.navigate.mockClear()
-  mocks.openProjectInDraft.mockReset().mockResolvedValue(undefined)
-  mocks.showToast.mockClear()
+  mocks.updateSettings.mockReset().mockResolvedValue({ ok: true })
   mocks.unsubscribe.mockClear()
-  mocks.settingsLoaded.current = true
+  resetStores()
 })
+afterEach(resetStores)
 
 describe('command-line project requests', () => {
   it('opens a project requested before the window loaded, like the sidebar does', async () => {
@@ -57,42 +71,48 @@ describe('command-line project requests', () => {
 
     renderHook(useOpenProjectRequests)
 
-    await vi.waitFor(() => expect(openedPaths()).toEqual(['/work/app']))
-    expect(mocks.openProjectInDraft.mock.calls[0]?.[0]).toEqual({ navigate: mocks.navigate })
+    await vi.waitFor(() => expect(openProject()).toBe('/work/app'))
+    expect(draftProject()).toBe('/work/app')
+    expect(usePreferencesStore.getState().settings.recentProjects).toContain('/work/app')
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/' })
   })
 
   it('opens projects requested while the app is running, one at a time', async () => {
     renderHook(useOpenProjectRequests)
     await vi.waitFor(() => expect(mocks.listener.current).not.toBeNull())
-    let finishFirst: () => void = () => undefined
-    mocks.openProjectInDraft.mockImplementationOnce(
-      () => new Promise<undefined>((resolve) => (finishFirst = () => resolve(undefined))),
-    )
+    const firstSave = Promise.withResolvers<{ ok: true }>()
+    mocks.updateSettings.mockReturnValueOnce(firstSave.promise)
 
     mocks.requests.push('/work/api', '/work/web')
     act(() => {
       mocks.listener.current?.()
       mocks.listener.current?.()
     })
-    await vi.waitFor(() => expect(openedPaths()).toEqual(['/work/api']))
-    finishFirst()
+    await vi.waitFor(() => expect(draftProject()).toBe('/work/api'))
+    // The second request waits, untaken, until the first project is open.
+    expect(mocks.requests).toEqual(['/work/web'])
+    await act(async () => firstSave.resolve({ ok: true }))
 
-    await vi.waitFor(() => expect(openedPaths()).toEqual(['/work/api', '/work/web']))
+    await vi.waitFor(() => expect(openProject()).toBe('/work/web'))
+    expect(draftProject()).toBe('/work/web')
   })
 
   it('shows an error instead of silently losing a request that fails', async () => {
-    mocks.openProjectInDraft.mockRejectedValueOnce(new Error('model refresh failed'))
+    mocks.updateSettings.mockRejectedValueOnce(new Error('settings write failed'))
     mocks.requests.push('/work/app')
 
     renderHook(useOpenProjectRequests)
 
     await vi.waitFor(() =>
-      expect(mocks.showToast).toHaveBeenCalledWith('Could not open /work/app.', 'error'),
+      expect(useUIStore.getState().toastData).toMatchObject({
+        message: 'Could not open /work/app.',
+        variant: 'error',
+      }),
     )
   })
 
   it('waits for settings before selecting a project', () => {
-    mocks.settingsLoaded.current = false
+    usePreferencesStore.setState({ isLoaded: false })
     mocks.requests.push('/work/app')
 
     const { unmount } = renderHook(useOpenProjectRequests)

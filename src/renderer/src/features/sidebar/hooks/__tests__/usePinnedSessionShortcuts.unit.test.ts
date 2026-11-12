@@ -5,55 +5,28 @@
  */
 import { SessionId } from '@shared/types/brand'
 import type { PinnedSession, SessionSummary } from '@shared/types/session'
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { createElement } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { useSessionStore } from '@/features/sessions/state'
+import { renderInMemoryRouter } from '@/test-utils/memory-router'
 
-interface RegisteredHotkey {
-  readonly hotkey: string
-  readonly callback: () => void
-}
-
-const { navigateMock, registeredHotkeys, setActiveSessionMock, sessionsRef } = vi.hoisted(() => {
-  const hotkeys: { hotkey: string; callback: () => void }[] = []
-  const sessions: { sessions: SessionSummary[] } = { sessions: [] }
-  return {
-    navigateMock: vi.fn(),
-    registeredHotkeys: hotkeys,
-    setActiveSessionMock: vi.fn(),
-    sessionsRef: sessions,
-  }
-})
-
-vi.mock('@tanstack/react-hotkeys', () => ({
-  useHotkeys: (definitions: readonly RegisteredHotkey[]) => {
-    registeredHotkeys.length = 0
-    registeredHotkeys.push(...definitions)
-  },
-}))
-
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
-
-vi.mock('@/features/chat/state', () => ({
-  useChatStore: { getState: () => ({ setActiveSession: setActiveSessionMock }) },
-}))
-
-vi.mock('@/features/sessions/hooks', () => ({
-  useSessions: () => sessionsRef,
-}))
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    listPinnedSessions: vi.fn(async () => []),
-    pinSession: vi.fn(),
-    unpinSession: vi.fn(),
-    movePinnedSession: vi.fn(),
-  },
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    // Opening a Session reads its detail; the read stays in flight, so the open Session holds.
+    getSessionDetail: () => new Promise(() => {}),
+  }),
 }))
 
 import { PINNED_SHORTCUT_LIMIT } from '../../lib/pinned-sessions'
 import { usePinnedSessionsStore } from '../../state/pinned-sessions-store'
 import { PINNED_SHORTCUT_HOTKEYS, usePinnedSessionShortcuts } from '../usePinnedSessionShortcuts'
 
+/*
+ * Only the preload is replaced: the hotkey manager, the memory router and the chat, Session and
+ * Pinned stores are the real ones, so a case presses a key and asserts which Session opens.
+ */
 function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
     id: SessionId(id),
@@ -71,110 +44,134 @@ const pin = (id: string, sortKey: string): PinnedSession => ({
   sortKey,
 })
 
-const press = (position: number) => {
-  const entry = registeredHotkeys.find((item) => item.hotkey === `Mod+${position}`)
-  if (!entry) throw new Error(`No hotkey registered for position ${position}`)
-  entry.callback()
+function ShortcutsProbe() {
+  usePinnedSessionShortcuts()
+  return null
+}
+
+function seed(sessions: readonly SessionSummary[], pins: readonly PinnedSession[]) {
+  useSessionStore.setState({ sessions: [...sessions] })
+  usePinnedSessionsStore.setState({ pins: [...pins] })
+}
+
+async function renderShortcuts() {
+  const { router } = await renderInMemoryRouter(createElement(ShortcutsProbe))
+  return {
+    /** Mod is Control under jsdom's Linux user agent. */
+    press: (position: number) => {
+      fireEvent.keyDown(document.body, {
+        key: String(position),
+        code: `Digit${String(position)}`,
+        ctrlKey: true,
+      })
+    },
+    pathname: () => router.state.location.pathname,
+  }
+}
+
+async function expectOpened(view: { readonly pathname: () => string }, id: string) {
+  expect(useChatStore.getState().activeSessionId).toBe(SessionId(id))
+  await waitFor(() => expect(view.pathname()).toBe(`/sessions/${id}`))
 }
 
 describe('pinned session shortcuts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    registeredHotkeys.length = 0
-    window.localStorage.clear()
+    useChatStore.setState(useChatStore.getInitialState())
+    useSessionStore.setState(useSessionStore.getInitialState())
     usePinnedSessionsStore.setState({ pins: [], sortMode: 'manual' })
   })
 
-  it('registers exactly one hotkey per shortcut position', () => {
-    sessionsRef.sessions = []
-    renderHook(() => usePinnedSessionShortcuts())
-
-    expect(registeredHotkeys.map((entry) => entry.hotkey)).toStrictEqual([
-      ...PINNED_SHORTCUT_HOTKEYS,
-    ])
-    expect(PINNED_SHORTCUT_HOTKEYS).toHaveLength(PINNED_SHORTCUT_LIMIT)
+  afterEach(() => {
+    // The unit tier does not unmount between cases, and each mounted hook registers its hotkeys.
+    cleanup()
+    useChatStore.setState(useChatStore.getInitialState())
+    useSessionStore.setState(useSessionStore.getInitialState())
   })
 
-  it('opens the session at the pressed position', () => {
-    sessionsRef.sessions = [session('a'), session('b'), session('c')]
-    usePinnedSessionsStore.setState({
+  it.each([
+    {
+      label: 'the session at the pressed position',
+      sessions: [session('a'), session('b'), session('c')],
       pins: [pin('a', 'i'), pin('b', 'm'), pin('c', 'q')],
+      position: 2,
+      opened: 'b',
+    },
+    {
+      label: 'past a pin whose session is archived or gone',
+      sessions: [session('b')],
+      pins: [pin('gone', 'i'), pin('b', 'm')],
+      position: 1,
+      opened: 'b',
+    },
+  ])('opens $label', async ({ sessions, pins, position, opened }) => {
+    seed(sessions, pins)
+    const view = await renderShortcuts()
+
+    view.press(position)
+
+    await expectOpened(view, opened)
+  })
+
+  it('does nothing for a position with no row, including the ninth', async () => {
+    seed([session('a')], [pin('a', 'i')])
+    const view = await renderShortcuts()
+    // A callback that threw would surface as an uncaught error from the key event.
+    const uncaught: unknown[] = []
+    const record = (event: ErrorEvent) => {
+      uncaught.push(event.error)
+      event.preventDefault()
+    }
+    window.addEventListener('error', record)
+
+    view.press(2)
+    view.press(9)
+
+    expect(useChatStore.getState().activeSessionId).toBeNull()
+    expect(view.pathname()).toBe('/')
+    window.removeEventListener('error', record)
+    expect(uncaught).toEqual([])
+  })
+
+  it.each([
+    {
+      label: 'a Pinned sort change',
+      sessions: [session('a', { title: 'Zebra' }), session('b', { title: 'Apple' })],
+      change: () => usePinnedSessionsStore.setState({ sortMode: 'name' }),
+    },
+    {
+      label: 'a reorder',
+      sessions: [session('a'), session('b')],
+      // b dragged above a: the main process returns new keys, not new positions.
+      change: () => usePinnedSessionsStore.setState({ pins: [pin('a', 'i'), pin('b', 'c')] }),
+    },
+  ])('re-derives the positions after $label, following what is rendered', async (row) => {
+    seed(row.sessions, [pin('a', 'i'), pin('b', 'm')])
+    const view = await renderShortcuts()
+
+    view.press(1)
+    await expectOpened(view, 'a')
+
+    act(() => {
+      row.change()
     })
-    renderHook(() => usePinnedSessionShortcuts())
+    view.press(1)
 
-    press(2)
-
-    expect(setActiveSessionMock).toHaveBeenCalledWith(SessionId('b'))
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/sessions/$sessionId',
-      params: { sessionId: 'b' },
-    })
+    await expectOpened(view, 'b')
   })
 
-  it('re-derives after a Pinned sort change, following what is rendered', () => {
-    sessionsRef.sessions = [session('a', { title: 'Zebra' }), session('b', { title: 'Apple' })]
-    usePinnedSessionsStore.setState({ pins: [pin('a', 'i'), pin('b', 'm')] })
-    const { rerender } = renderHook(() => usePinnedSessionShortcuts())
-
-    press(1)
-    expect(setActiveSessionMock).toHaveBeenLastCalledWith(SessionId('a'))
-
-    usePinnedSessionsStore.setState({ sortMode: 'name' })
-    rerender()
-
-    press(1)
-    expect(setActiveSessionMock).toHaveBeenLastCalledWith(SessionId('b'))
-  })
-
-  it('re-derives after a reorder', () => {
-    sessionsRef.sessions = [session('a'), session('b')]
-    usePinnedSessionsStore.setState({ pins: [pin('a', 'i'), pin('b', 'm')] })
-    const { rerender } = renderHook(() => usePinnedSessionShortcuts())
-
-    press(1)
-    expect(setActiveSessionMock).toHaveBeenLastCalledWith(SessionId('a'))
-
-    // b dragged above a: the main process returns new keys, not new positions.
-    usePinnedSessionsStore.setState({ pins: [pin('a', 'i'), pin('b', 'c')] })
-    rerender()
-
-    press(1)
-    expect(setActiveSessionMock).toHaveBeenLastCalledWith(SessionId('b'))
-  })
-
-  it('does nothing for a position with no row, including past the ninth', () => {
-    sessionsRef.sessions = [session('a')]
-    usePinnedSessionsStore.setState({ pins: [pin('a', 'i')] })
-    renderHook(() => usePinnedSessionShortcuts())
-
-    press(2)
-    press(9)
-
-    expect(setActiveSessionMock).not.toHaveBeenCalled()
-    expect(navigateMock).not.toHaveBeenCalled()
-  })
-
-  it('ignores a pin whose session is archived or gone when mapping positions', () => {
-    sessionsRef.sessions = [session('b')]
-    usePinnedSessionsStore.setState({ pins: [pin('gone', 'i'), pin('b', 'm')] })
-    renderHook(() => usePinnedSessionShortcuts())
-
-    press(1)
-
-    expect(setActiveSessionMock).toHaveBeenCalledWith(SessionId('b'))
-  })
-
-  it('maps the tenth pin to no shortcut while leaving the first nine intact', () => {
+  it('gives the first nine pins a shortcut each and the tenth none', async () => {
+    // The badges render from PINNED_SHORTCUT_LIMIT, so the hotkeys must cover exactly that many.
+    expect(PINNED_SHORTCUT_HOTKEYS).toHaveLength(PINNED_SHORTCUT_LIMIT)
     const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
-    sessionsRef.sessions = ids.map((id) => session(id))
-    usePinnedSessionsStore.setState({
-      pins: ids.map((id, index) => pin(id, `m${String.fromCharCode(97 + index)}`)),
-    })
-    renderHook(() => usePinnedSessionShortcuts())
+    seed(
+      ids.map((id) => session(id)),
+      ids.map((id, index) => pin(id, `m${String.fromCharCode(97 + index)}`)),
+    )
+    const view = await renderShortcuts()
 
-    press(9)
-    expect(setActiveSessionMock).toHaveBeenLastCalledWith(SessionId('i'))
-    expect(registeredHotkeys).toHaveLength(PINNED_SHORTCUT_LIMIT)
-    expect(registeredHotkeys.some((entry) => entry.hotkey === 'Mod+10')).toBe(false)
+    for (const [index, id] of ids.slice(0, PINNED_SHORTCUT_LIMIT).entries()) {
+      view.press(index + 1)
+      await expectOpened(view, id)
+    }
   })
 })

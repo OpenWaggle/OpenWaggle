@@ -44,8 +44,9 @@ export function CollapsingRows({
       className="overflow-hidden opacity-100 transition-[height,opacity] duration-[180ms] ease-out motion-reduce:transition-none"
       style={height === null ? undefined : { height, opacity: 0 }}
       onTransitionEnd={(event) => {
-        if (event.target === event.currentTarget && event.propertyName === 'height')
+        if (event.target === event.currentTarget && event.propertyName === 'height') {
           onDoneRef.current()
+        }
       }}
     >
       {children}

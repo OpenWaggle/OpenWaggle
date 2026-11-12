@@ -48,7 +48,9 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/shell/useFullscreen', () => ({ useFullscreen: () => false }))
 
-vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMock),
+}))
 
 const PROJECT_PATH = '/repo/openwaggle'
 const SESSION_ID = SessionId('session-project-1')
@@ -318,8 +320,9 @@ describe('Sidebar project actions', () => {
       )
       expect(apiMock.showConfirm.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
       expect(apiMock.cancelAgent).toHaveBeenCalledWith(SESSION_ID)
-      for (const id of [SESSION_ID, ARCHIVED_SESSION_ID])
+      for (const id of [SESSION_ID, ARCHIVED_SESSION_ID]) {
         expect(apiMock.deleteSession).toHaveBeenCalledWith(id, { removingProject: true })
+      }
       expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(SESSION_ID))
       expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(
         String(ARCHIVED_SESSION_ID),

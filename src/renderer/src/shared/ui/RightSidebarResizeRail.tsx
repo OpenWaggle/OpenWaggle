@@ -15,7 +15,7 @@ interface ResizeRailProps {
   readonly bounds: ResizeRailBounds
   readonly handles: ResizeRailRefs
   readonly state: ResizeRailStateInput
-  readonly shouldAcceptWidth?: (context: WidthAcceptanceContext) => boolean
+  readonly shouldAcceptWidth?: ((context: WidthAcceptanceContext) => boolean) | undefined
 }
 
 export function RightSidebarResizeRail({

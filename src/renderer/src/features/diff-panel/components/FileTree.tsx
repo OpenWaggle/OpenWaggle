@@ -181,8 +181,8 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
     if (focusedItem !== undefined) visibleRows.push({ item: focusedItem, index: focusedIndex })
   }
   const containerProps = tree.getContainerProps()
-  const treeContainerRef = isContainerRefCallback(containerProps.ref)
-    ? containerProps.ref
+  const treeContainerRef = isContainerRefCallback(containerProps['ref'])
+    ? containerProps['ref']
     : undefined
   const handleContainerRef = useCallback(
     (element: HTMLDivElement | null) => {
@@ -216,7 +216,7 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
   // its visible-item list changes. The compiler therefore cached the mapped rows
   // and the navigator rendered permanently empty in the packaged/dev app while
   // every test passed -- vitest does not run the compiler, so the suite is
-  // structurally blind to this class of bug (see MEMORY.md).
+  // structurally blind to this class of bug (see .agents/memory/testing.md).
   'use no memo'
 
   const { tree, containerProps, handleContainerRef, handleScroll, items, rowHeight, visibleRows } =
@@ -241,7 +241,9 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
             const isFolder = !data.isFile
             const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
             const itemProps = item.getProps()
-            const libraryOnClick = isClickHandler(itemProps.onClick) ? itemProps.onClick : undefined
+            const libraryOnClick = isClickHandler(itemProps['onClick'])
+              ? itemProps['onClick']
+              : undefined
             return (
               <Button
                 variant="unstyled"

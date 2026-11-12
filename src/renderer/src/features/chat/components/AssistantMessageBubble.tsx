@@ -65,7 +65,7 @@ function ViewTurnDiffButton({
 }
 
 interface MessageActions {
-  readonly onViewTurnDiff?: (messageId: string) => void
+  readonly onViewTurnDiff?: ((messageId: string) => void) | undefined
 }
 
 /**
@@ -82,7 +82,7 @@ function MessageActionButtons({
   readonly messageId: string
   readonly actions: MessageActions
   readonly className: string
-  readonly turnFolded?: boolean
+  readonly turnFolded?: boolean | undefined
 }) {
   const onViewTurnDiff = turnFolded ? undefined : actions.onViewTurnDiff
   if (!onViewTurnDiff) return null
@@ -93,11 +93,11 @@ function MessageActionButtons({
   )
 }
 
-type ToolResultEntry = {
+interface ToolResultEntry {
   content: unknown
   state: string
-  error?: string
-  nestedCalls?: NestedToolCalls
+  error?: string | undefined
+  nestedCalls?: NestedToolCalls | undefined
 }
 
 function collectMessageToolState(message: UIMessage) {
@@ -128,18 +128,22 @@ interface AssistantMessageBubbleProps {
       readonly projectPaths: readonly string[]
     }
   }
-  run?: {
-    readonly isStreaming?: boolean
-    readonly isRunActive?: boolean
-    readonly assistantModel?: SupportedModelId
-  }
-  waggle?: WaggleInfo
-  presentation?: {
-    readonly hideAgentLabel?: boolean
-    /** Terminal message of a folded turn: render only its final text part. */
-    readonly turnFolded?: boolean
-  }
-  actions?: MessageActions
+  run?:
+    | {
+        readonly isStreaming?: boolean | undefined
+        readonly isRunActive?: boolean | undefined
+        readonly assistantModel?: SupportedModelId | undefined
+      }
+    | undefined
+  waggle?: WaggleInfo | undefined
+  presentation?:
+    | {
+        readonly hideAgentLabel?: boolean | undefined
+        /** Terminal message of a folded turn: render only its final text part. */
+        readonly turnFolded?: boolean | undefined
+      }
+    | undefined
+  actions?: MessageActions | undefined
 }
 
 export function AssistantMessageBubble({

@@ -30,7 +30,7 @@ interface BranchSummaryWorkflowParams {
   readonly refreshSessionWorkspace: (
     sessionId: SessionId,
     selection?: {
-      readonly branchId?: SessionBranchId | null
+      readonly branchId?: SessionBranchId | null | undefined
       readonly nodeId?: SessionNodeId | null
     },
   ) => Promise<void>
@@ -242,12 +242,12 @@ async function materializeBranchSummaryAction(
 
 export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
   return {
-    async materializeBranchSummary(customInstructions?: string) {
+    materializeBranchSummary: async (customInstructions?: string) => {
       await materializeBranchSummaryAction(params, customInstructions)
     },
-    async materializeDraftBranchForSend(
+    materializeDraftBranchForSend: async (
       draftBranch: { readonly sessionId: SessionId; readonly sourceNodeId: SessionNodeId } | null,
-    ) {
+    ) => {
       if (!params.activeSessionId) return true
       if (draftBranch?.sessionId !== params.activeSessionId) return true
       if (!params.model) return true
@@ -266,7 +266,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
       })
       return true
     },
-    cancelBranchSummary() {
+    cancelBranchSummary: () => {
       const prompt = useBranchSummaryStore.getState().prompt
       if (!prompt) return
       const restoreContextKey = buildComposerDraftContextKey({
@@ -289,19 +289,19 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
       routeToSessionSelection(params, prompt.sessionId, prompt.restoreSelection)
       void params.refreshSessionWorkspace(prompt.sessionId, prompt.restoreSelection)
     },
-    skipBranchSummary() {
+    skipBranchSummary: () => {
       const prompt = useBranchSummaryStore.getState().prompt
       if (!prompt) return
       useBranchSummaryStore.getState().clearPrompt()
       setComposerTextValue(prompt.draftComposerText)
     },
-    startCustomBranchSummary() {
+    startCustomBranchSummary: () => {
       const prompt = useBranchSummaryStore.getState().prompt
       if (!prompt) return
       useBranchSummaryStore.getState().startCustomPrompt(useComposerStore.getState().input)
       setComposerTextValue('')
     },
-    switchComposerToDraftBranch(input: DraftBranchComposerInput) {
+    switchComposerToDraftBranch: (input: DraftBranchComposerInput) => {
       return switchComposerToDraftBranch(input)
     },
   }

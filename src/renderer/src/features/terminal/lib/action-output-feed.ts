@@ -40,8 +40,9 @@ function defaultSchedule(callback: () => void, delayMs: number) {
 
 function splitPartialEscape(text: string): readonly [string, string] {
   for (let length = ERASE_SCROLLBACK.length - 1; length > 0; length -= 1) {
-    if (text.endsWith(ERASE_SCROLLBACK.slice(0, length)))
+    if (text.endsWith(ERASE_SCROLLBACK.slice(0, length))) {
       return [text.slice(0, -length), text.slice(-length)]
+    }
   }
   return [text, '']
 }
@@ -76,8 +77,9 @@ export function createActionOutputFeed(options: ActionOutputFeedOptions) {
 
   /** Applies one page; returns whether the feed should keep reading without waiting. */
   const applyPage = (segment: FeedSegment, page: ActionOutputSnapshot) => {
-    if (page.startOffset > segment.offset)
+    if (page.startOffset > segment.offset) {
       options.write(segment.offset === 0 ? ACTION_OUTPUT_TRIMMED_NOTICE : ACTION_OUTPUT_GAP_NOTICE)
+    }
     writeOutput(segment, page.output)
     segment.offset = Math.max(segment.offset, page.endOffset)
     if (cursor === segments.length - 1) options.onRun(page.run)
@@ -117,8 +119,9 @@ export function createActionOutputFeed(options: ActionOutputFeedOptions) {
     pumping = true
     try {
       let segment = segments[cursor]
-      while (!disposed && segment !== undefined && (await readSegment(segment)))
+      while (!disposed && segment !== undefined && (await readSegment(segment))) {
         segment = segments[cursor]
+      }
     } finally {
       pumping = false
     }
@@ -147,5 +150,3 @@ export function createActionOutputFeed(options: ActionOutputFeedOptions) {
     },
   }
 }
-
-export type ActionOutputFeed = ReturnType<typeof createActionOutputFeed>

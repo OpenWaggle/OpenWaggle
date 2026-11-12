@@ -19,10 +19,10 @@ export function StructuredPayload({
   serialized,
 }: {
   readonly value: unknown
-  readonly ariaLabel?: string
-  readonly className?: string
-  readonly theme?: string
-  readonly serialized?: string | null
+  readonly ariaLabel?: string | undefined
+  readonly className?: string | undefined
+  readonly theme?: string | undefined
+  readonly serialized?: string | null | undefined
 }) {
   if (typeof value === 'string') {
     return (

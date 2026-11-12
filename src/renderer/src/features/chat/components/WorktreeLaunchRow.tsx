@@ -25,7 +25,7 @@ interface WorktreeLaunchRowProps {
   readonly launch: WorktreeLaunchSnapshot
 }
 
-function StepIcon({ state }: { readonly state: 'pending' | 'active' | 'complete' | 'failed' }) {
+function StepIcon({ state }: Pick<LaunchStepView, 'state'>) {
   if (state === 'complete') {
     return <Check aria-hidden="true" className="size-3.5 text-success" />
   }
@@ -36,13 +36,7 @@ function StepIcon({ state }: { readonly state: 'pending' | 'active' | 'complete'
   return <Circle aria-hidden="true" className="size-3.5 text-text-muted" />
 }
 
-function WorktreeStep({
-  label,
-  state,
-}: {
-  readonly label: string
-  readonly state: 'pending' | 'active' | 'complete' | 'failed'
-}) {
+function WorktreeStep({ label, state }: Pick<LaunchStepView, 'label' | 'state'>) {
   return (
     <div
       data-state={state}
@@ -309,8 +303,9 @@ function LaunchProgressCard({
 }
 
 export function WorktreeLaunchRow({ sessionId, launch }: WorktreeLaunchRowProps) {
-  if (launch.status !== 'complete')
+  if (launch.status !== 'complete') {
     return <LaunchProgressCard sessionId={sessionId} launch={launch} />
+  }
   // A local launch leaves no trace: the transcript continues with the run itself.
   return isLocalLaunch(launch) ? null : <WorktreeCreatedTrace launch={launch} />
 }

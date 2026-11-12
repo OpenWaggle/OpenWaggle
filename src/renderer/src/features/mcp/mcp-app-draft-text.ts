@@ -13,12 +13,12 @@ function draftTextBlock(entry: McpJsonValue) {
     typeof entry !== 'object' ||
     entry === null ||
     Array.isArray(entry) ||
-    entry.type !== 'text' ||
-    typeof entry.text !== 'string'
+    entry['type'] !== 'text' ||
+    typeof entry['text'] !== 'string'
   ) {
     return []
   }
-  const text = replaceMcpBinaryPayloads(entry.text)
+  const text = replaceMcpBinaryPayloads(entry['text'])
   return typeof text === 'string' ? [text] : []
 }
 

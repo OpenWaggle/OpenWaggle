@@ -26,7 +26,7 @@ interface ConditionNodeEditorProps {
   readonly node: ProjectActionWhenNode
   readonly depth?: number
   readonly onChange: (node: ProjectActionWhenNode) => void
-  readonly onRemove?: () => void
+  readonly onRemove?: (() => void) | undefined
 }
 
 function ConditionSelect(props: {
@@ -79,7 +79,7 @@ function IdentifierConditionEditor(props: {
   readonly condition: ConditionParts
   readonly depth: number
   readonly onChange: (node: ProjectActionWhenNode) => void
-  readonly onRemove?: () => void
+  readonly onRemove?: (() => void) | undefined
 }) {
   const unknown = projectActionUnknownWhenVariables(props.condition.identifier).length > 0
   return (

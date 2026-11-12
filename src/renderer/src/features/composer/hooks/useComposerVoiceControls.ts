@@ -6,7 +6,7 @@ import { useComposerStore } from '../state/composer-store'
 import { useVoiceCapture } from './useVoiceCapture'
 
 interface UseComposerVoiceControlsInput {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly sendComposed: (text: string) => boolean | Promise<boolean>
   readonly submitCurrentDraft: () => void

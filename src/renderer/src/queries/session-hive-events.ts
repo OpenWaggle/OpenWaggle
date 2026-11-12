@@ -56,15 +56,17 @@ export function subscribeSessionHiveUpdates(
           if (
             cursor?.hostInstanceId === event.cursor.hostInstanceId &&
             event.cursor.sequence <= cursor.sequence
-          )
+          ) {
             return
+          }
           cursor = event.cursor
           if (
             event.payload.kind === 'session-list-changed' ||
             event.payload.kind === 'session-state-changed' ||
             isInteractionChange(event.payload)
-          )
+          ) {
             schedule()
+          }
         })
       : undefined
   const unsubscribeResync =

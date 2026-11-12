@@ -39,8 +39,9 @@ export function createTerminalClipboardController(options: TerminalClipboardCont
     }).then((result) => {
       // A retired lifetime already owns its recovery notice. Its late clipboard
       // completion must not overwrite the currently attached terminal's UI.
-      if (result.status === 'rejected' && result.reason !== 'inactive')
+      if (result.status === 'rejected' && result.reason !== 'inactive') {
         throw new Error(result.error)
+      }
     })
   }
 

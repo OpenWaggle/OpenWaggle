@@ -15,6 +15,7 @@ export function HeaderSessionTitle({
   readonly title: string
 }) {
   const rename = useSessionTitleRename(sessionId, title)
+  const { returnFocusRef, start: startRename } = rename
 
   if (rename.isEditing) {
     return (
@@ -35,18 +36,18 @@ export function HeaderSessionTitle({
 
   return (
     <Button
-      ref={rename.returnFocusRef}
+      ref={returnFocusRef}
       variant="unstyled"
       type="button"
       data-qa="header-session-title"
       className={cn(HEADER_TITLE_CLASS, 'cursor-default text-left')}
       title={`${title}\nDouble-click to rename`}
       aria-description={RENAME_HINT}
-      onDoubleClick={rename.start}
+      onDoubleClick={startRename}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== 'F2') return
         event.preventDefault()
-        rename.start()
+        startRename()
       }}
     >
       {title}

@@ -4,7 +4,7 @@ import { ComposerToolbar } from './ComposerToolbar'
 import { VoiceRecorder } from './VoiceRecorder'
 
 interface ComposerModeControlsProps {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly accessControl?: ReactNode
   readonly fileInputRef: RefObject<HTMLInputElement | null>
   readonly voice: VoiceCaptureController

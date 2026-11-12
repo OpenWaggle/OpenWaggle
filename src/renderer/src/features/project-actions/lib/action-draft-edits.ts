@@ -30,12 +30,13 @@ export function applyScriptPick(draft: ActionDraft, reference: ProjectTaskRefere
   const untouched = !definition.name.trim() || definition.name === draft.suggestedName
   const invocation = { type: 'task' as const, task: reference }
   if (!untouched) return { ...draft, definition: { ...definition, invocation } }
-  if (draft.base !== null)
+  if (draft.base !== null) {
     return {
       ...draft,
       suggestedName: suggestion,
       definition: { ...definition, invocation, name: suggestion },
     }
+  }
   const kind = suggestActionKind(reference.task)
   return {
     ...draft,

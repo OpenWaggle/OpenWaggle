@@ -38,12 +38,14 @@ const LazySessionResourceViewer = lazy(() =>
 
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
-  readonly onOpenSessionTree?: () => void
-  readonly onOpenDiff?: () => void
-  readonly onOpenChangeRequest?: (url: string) => void
-  readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
-  readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
-  readonly rightSidebarOpen?: boolean
+  readonly onOpenSessionTree?: (() => void) | undefined
+  readonly onOpenDiff?: (() => void) | undefined
+  readonly onOpenChangeRequest?: ((url: string) => void) | undefined
+  readonly onOpenResources?: ((target: SessionResourceBrowserTarget) => void) | undefined
+  readonly onOpenExtensionSidePanel?:
+    | ((target: SessionSummaryExtensionSidePanelTarget) => void)
+    | undefined
+  readonly rightSidebarOpen?: boolean | undefined
 }
 
 function SessionNotificationStack({
@@ -86,7 +88,7 @@ function useNodeIdsForKey(key: string) {
   // It calls no hook, so the compiler skips it unless asked.
   'use memo'
   const ids: readonly string[] = key === '' ? [] : key.split(NODE_ID_SEPARATOR)
-  return { ids, idSet: new Set(ids) }
+  return ids
 }
 
 function summaryNeedsTransientOverlay(hasSpace: boolean, floatingPreviewVisible: boolean) {
@@ -134,9 +136,7 @@ export function ChatPanelContent({
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const resourceSessionId = summaryMessageCount > 0 ? activeSessionId : null
   useSessionResourceBackfill(resourceSessionId)
-  const { ids: activeMessageNodeIds, idSet: activeMessageIds } = useNodeIdsForKey(
-    nodeIdsKey(messageNodeIds(sections.transcript)),
-  )
+  const activeMessageNodeIds = useNodeIdsForKey(nodeIdsKey(messageNodeIds(sections.transcript)))
   const activePathNodeIds = sections.transcript.activePathNodeIds ?? activeMessageNodeIds
   const { panelRef, hasSpace } = useSessionSummarySpace(rightSidebarOpen)
   const floatingPreviewVisible = useSessionFloatingPreviewStatus(activeSessionId)
@@ -192,7 +192,6 @@ export function ChatPanelContent({
               <LazySessionResourceViewer
                 activeSessionId={activeSessionId}
                 activeBranchId={sections.transcript.activeBranchId ?? null}
-                activeMessageIds={activeMessageIds}
                 activePathNodeIds={activePathNodeIds}
               />
             </Suspense>

@@ -105,9 +105,9 @@ function foldedWithSources(text: string) {
     const start = cluster.index
     const part = foldText(cluster[0])
     folded += part
-    for (let unit = 0; unit < part.length; unit += 1) {
-      sources.push([start, start + cluster[0].length])
-    }
+    // One source span per UTF-16 code unit, not per code point, so no string iteration here.
+    const end = start + cluster[0].length
+    sources.push(...Array.from({ length: part.length }, (): TextRange => [start, end]))
   }
   return { folded, sources }
 }

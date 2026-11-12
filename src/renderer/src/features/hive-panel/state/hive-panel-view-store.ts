@@ -20,7 +20,7 @@ const MAX_REMEMBERED_COLLAPSED = 500
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
 function resolveStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+  if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
     getItem: (key) => memory.get(key) ?? null,
@@ -59,11 +59,11 @@ export function migrateHivePanelView(persisted: unknown): PersistedHivePanelView
   if (!isRecord(persisted)) return DEFAULT_VIEW
   return {
     view:
-      persisted.view === 'by-state' || persisted.view === 'by-next-actor'
+      persisted['view'] === 'by-state' || persisted['view'] === 'by-next-actor'
         ? 'by-next-actor'
         : 'tree',
-    showArchived: persisted.showArchived === true,
-    collapsed: rememberedCollapsed(persisted.collapsed),
+    showArchived: persisted['showArchived'] === true,
+    collapsed: rememberedCollapsed(persisted['collapsed']),
   }
 }
 

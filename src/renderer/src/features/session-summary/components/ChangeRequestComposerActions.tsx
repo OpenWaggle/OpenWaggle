@@ -45,7 +45,11 @@ function PreflightStatus({ model }: { readonly model: ChangeRequestActionModel }
   )
 }
 
-function CreationActions({ model }: { readonly model: ChangeRequestActionModel }) {
+function CreationActions({
+  model,
+}: {
+  readonly model: Omit<ChangeRequestActionModel, 'retryButtonRef'>
+}) {
   const disabled = model.branchMissing || model.preflight.nativeCreationBlocked
   const ariaDisabled = model.running || disabled
   const disabledTitle = model.preflight.nativeCreationBlocked ? model.preflight.message : undefined
@@ -90,11 +94,15 @@ function CreationActions({ model }: { readonly model: ChangeRequestActionModel }
   )
 }
 
-function PrimaryActions({ model }: { readonly model: ChangeRequestActionModel }) {
+function PrimaryActions({
+  model: { retryButtonRef, ...model },
+}: {
+  readonly model: ChangeRequestActionModel
+}) {
   if (model.pendingResourceRecord) {
     return (
       <Button
-        ref={model.retryButtonRef}
+        ref={retryButtonRef}
         variant="subtle"
         className="w-full justify-start"
         aria-disabled={model.running}

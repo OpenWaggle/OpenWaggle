@@ -37,8 +37,9 @@ async function readCurrentSession(cached: SessionDetail) {
     const session = await api.getSessionDetail(cached.id)
     if (!session) return cached
     const shown = useChatStore.getState().sessionById.get(cached.id)
-    if (!shown || session.updatedAt >= shown.updatedAt)
+    if (!shown || session.updatedAt >= shown.updatedAt) {
       useChatStore.getState().upsertSession(session)
+    }
     return session
   } catch (cause) {
     logger.warn('Could not read the Session again before sending', { error: String(cause) })

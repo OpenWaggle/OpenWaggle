@@ -7,7 +7,7 @@ interface TurnDividerProps {
   turnNumber: number
   agentLabel: string
   agentColor: WaggleAgentColor
-  agentModel?: SupportedModelId
+  agentModel?: SupportedModelId | undefined
 }
 
 export function TurnDivider({ turnNumber, agentLabel, agentColor, agentModel }: TurnDividerProps) {

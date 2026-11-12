@@ -5,6 +5,7 @@ import type {
   ExtensionContributionRuntime,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 
 export interface ResolvedExtensionRouteContribution {
   readonly entry: ExtensionContributionRegistryEntry
@@ -46,37 +47,6 @@ function routeEntriesForExtension(
 ) {
   return registry.entries.filter(
     (entry) => entry.family === ROUTE_FAMILY && entry.extensionId === extensionId,
-  )
-}
-
-function disabledForRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
-  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
-}
-
-function missingRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const availableProjectPaths = new Set(entry.projectPaths)
-  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
-}
-
-function isBlockedRouteEntry(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  return (
-    !entry.eligibility.runtimeEnabled ||
-    !entry.eligibility.enabled ||
-    !entry.eligibility.trusted ||
-    entry.eligibility.sdkCompatible === false ||
-    entry.eligibility.updateAvailable ||
-    disabledForRequestedProject(entry, requestedProjectPaths) ||
-    missingRequestedProject(entry, requestedProjectPaths)
   )
 }
 
@@ -124,7 +94,7 @@ export function resolveExtensionRouteContribution({
     }
   }
 
-  if (isBlockedRouteEntry(entry, requestedProjectPaths)) {
+  if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
     return {
       status: 'blocked',
       title: 'Extension route blocked',

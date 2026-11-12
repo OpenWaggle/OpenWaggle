@@ -72,7 +72,7 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
   const statuses = useSessionStatusStore((state) => state.statuses)
   const model = hiveSummaryModel(query.data?.pages, (id) => statuses.get(SessionId(id)))
 
-  if (!model)
+  if (!model) {
     return query.isError ? (
       <section aria-label="Hive" className="border-t border-border px-3 py-2 first:border-t-0">
         <p role="alert" className="text-sm text-text-secondary">
@@ -83,6 +83,7 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
         </Button>
       </section>
     ) : null
+  }
 
   const Icon = model.lineage.role === 'queen' ? ChessQueen : Pickaxe
   // A Worker names its parent in the words every Hive surface uses (#377).

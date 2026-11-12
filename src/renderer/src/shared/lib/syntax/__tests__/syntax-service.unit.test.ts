@@ -182,7 +182,7 @@ describe('SyntaxService scheduling and recovery', () => {
     const first = service.highlight(input)
     const worker = MockWorker.instances[0]
     const request = worker ? highlightMessages(worker)[0] : undefined
-    if (!worker || !request || request.type !== 'highlight') throw new Error('Expected work.')
+    if (!worker || request?.type !== 'highlight') throw new Error('Expected work.')
     worker.emitMessage(highlightedResponse(request.requestId))
     await first
     const messageCount = worker.messages.length

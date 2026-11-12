@@ -61,7 +61,11 @@ export class TranscriptViewportController {
   }
   private endSpace = 0
 
-  constructor(private readonly geometry: ViewportGeometry) {}
+  private readonly geometry: ViewportGeometry
+
+  constructor(geometry: ViewportGeometry) {
+    this.geometry = geometry
+  }
 
   get mode() {
     return this.currentMode

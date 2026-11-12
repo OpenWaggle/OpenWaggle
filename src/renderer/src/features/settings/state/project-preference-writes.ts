@@ -29,8 +29,9 @@ function trackPendingWrite(key: string, chain: Promise<void>) {
   const merged = Promise.allSettled([existing, chain]).then(() => undefined)
   pendingProjectPreferenceWrites.set(key, merged)
   void merged.finally(() => {
-    if (pendingProjectPreferenceWrites.get(key) === merged)
+    if (pendingProjectPreferenceWrites.get(key) === merged) {
       pendingProjectPreferenceWrites.delete(key)
+    }
   })
 }
 
@@ -55,8 +56,9 @@ async function reconcileProjectIdentity(
   // The aliased path is the identity the user just interacted through, so its entry wins on
   // conflict; entries that only existed under the canonical key are preserved by the merge.
   function rekeyFlat<V>(record: Record<string, V>): Record<string, V> {
-    if (!(requestedPath in record)) return record
-    const next = { ...record, [canonicalPath]: record[requestedPath] }
+    const value = record[requestedPath]
+    if (value === undefined) return record
+    const next = { ...record, [canonicalPath]: value }
     delete next[requestedPath]
     return next
   }
@@ -64,7 +66,7 @@ async function reconcileProjectIdentity(
     record: Record<string, Readonly<Record<string, boolean>>>,
   ): Record<string, Record<string, boolean>> {
     if (!(requestedPath in record)) return record
-    const merged = { ...(record[canonicalPath] ?? {}), ...record[requestedPath] }
+    const merged = { ...record[canonicalPath], ...record[requestedPath] }
     const next = { ...record, [canonicalPath]: merged }
     delete next[requestedPath]
     return next

@@ -12,11 +12,11 @@ const useGit = vi.hoisted(() => vi.fn())
 const useStackedGitActions = vi.hoisted(() => vi.fn())
 const useCombinedVcsStatus = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     listSessionResources,
     listArchivedSessions,
-  },
+  }),
 }))
 
 vi.mock('@/features/git/hooks', () => ({ useGit }))

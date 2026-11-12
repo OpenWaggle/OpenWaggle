@@ -22,8 +22,9 @@ export async function reconcileQueuedRunStarts(queryClient: QueryClient): Promis
           ...sessionFollowUpQueueOptions(sessionId),
           retry: false,
         })
-        if (queue.activeRunId === null)
+        if (queue.activeRunId === null) {
           useQueuedRunStartStore.getState().settleIdle(sessionId, runId)
+        }
       } catch (error) {
         // Unread, the mark stays: its Run's next event or the next resync clears it.
         logger.warn('Could not re-read a queue after a Session Host resync', {

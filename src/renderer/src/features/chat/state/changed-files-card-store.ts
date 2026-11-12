@@ -9,7 +9,7 @@ interface ChangedFilesCardState {
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
 function resolveStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+  if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
     getItem: (key) => memory.get(key) ?? null,

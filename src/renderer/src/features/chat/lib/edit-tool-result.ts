@@ -92,8 +92,8 @@ export function getEditDiff(content: unknown, name: string): EditDiffData | null
   if (!isRecord(details)) {
     return null
   }
-  const patch = renderablePatch(details.patch)
-  const text = patch ?? nonEmptyString(details.diff) ?? nonEmptyString(details.patch)
+  const patch = renderablePatch(details['patch'])
+  const text = patch ?? nonEmptyString(details['diff']) ?? nonEmptyString(details['patch'])
   if (text === null) {
     return null
   }
@@ -103,7 +103,7 @@ export function getEditDiff(content: unknown, name: string): EditDiffData | null
     text,
     ...countChangedLines(text, patch !== null),
     firstChangedLine:
-      positiveLine(details.firstChangedLine) ?? (patch ? firstChangedLineInPatch(patch) : null),
+      positiveLine(details['firstChangedLine']) ?? (patch ? firstChangedLineInPatch(patch) : null),
   }
 }
 

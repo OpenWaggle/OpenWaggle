@@ -11,13 +11,15 @@ function cleanupAlertMessage(
   generationMismatch: boolean,
   generationMismatchMessage: string | undefined,
 ) {
-  if (generationMismatch)
+  if (generationMismatch) {
     return (
       generationMismatchMessage ??
       'This checkout cannot be matched to the one that captured its cleanup. Cleanup cannot run here; choose Delete anyway to remove this checkout.'
     )
-  if (preparation.cleanup.status === 'succeeded' || preparation.cleanup.status === 'skipped')
+  }
+  if (preparation.cleanup.status === 'succeeded' || preparation.cleanup.status === 'skipped') {
     return 'Cleanup completed, but the worktree remains. Review changes or locks, then retry removal or explicitly force it.'
+  }
   return (
     preparation.cleanup.error ?? 'Workspace cleanup needs attention. The worktree was retained.'
   )
@@ -26,8 +28,8 @@ function cleanupAlertMessage(
 export function WorkspaceCleanupFailure(props: {
   readonly projectPath: string
   readonly initial: WorkspacePreparation
-  readonly generationMismatch?: boolean
-  readonly generationMismatchMessage?: string
+  readonly generationMismatch?: boolean | undefined
+  readonly generationMismatchMessage?: string | undefined
   readonly busy: boolean
   readonly onRetry: () => void
   readonly onDeleteAnyway: () => void

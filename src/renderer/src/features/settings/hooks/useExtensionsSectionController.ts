@@ -40,10 +40,10 @@ async function refreshProviderModelsAfterExtensionMutation() {
 export function useExtensionsSectionController(
   projectPaths: readonly string[],
 ): ExtensionsSectionController {
-  const extensionsQuery: UseQueryResult<ExtensionManagerView, Error> = useQuery(
+  const extensionsQuery: UseQueryResult<ExtensionManagerView> = useQuery(
     extensionPackagesQueryOptions(projectPaths),
   )
-  const contributionsQuery: UseQueryResult<ExtensionContributionRegistryView, Error> = useQuery(
+  const contributionsQuery: UseQueryResult<ExtensionContributionRegistryView> = useQuery(
     extensionContributionsQueryOptions(projectPaths),
   )
   const trustedMutation = useSetExtensionTrustedMutation(projectPaths)

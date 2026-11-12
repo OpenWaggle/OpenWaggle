@@ -24,7 +24,6 @@ export function CliAvailabilityNotice() {
   const [readError, setReadError] = useState(false)
 
   useEffect(() => {
-    if (typeof api.getCliShimStatus !== 'function') return
     let cancelled = false
     api.getCliShimStatus().then(
       (result) => {

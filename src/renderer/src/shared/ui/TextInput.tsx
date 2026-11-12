@@ -5,7 +5,7 @@ type TextInputVariant = 'default' | 'transparent'
 type TextInputSize = 'sm' | 'md'
 
 interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
-  readonly ref?: Ref<HTMLInputElement>
+  readonly ref?: Ref<HTMLInputElement> | undefined
   readonly variant?: TextInputVariant
   readonly inputSize?: TextInputSize
   readonly monospace?: boolean

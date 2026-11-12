@@ -159,7 +159,11 @@ describe('useVoiceCapture', () => {
     hook.rerender({ disabled: false })
     await waitFor(() => expect(mocks.transcribeVoiceLocal).toHaveBeenCalledOnce())
     if (change === 'disabled') hook.rerender({ disabled: true })
-    else act(() => useComposerStore.getState().switchScopedDraftContext('next-draft'))
+    else {
+      act(() => {
+        useComposerStore.getState().switchScopedDraftContext('next-draft')
+      })
+    }
     await act(async () => finish({ text: 'do not put this in another draft' }))
     await waitFor(() => expect(hook.result.current.mode).toBe('idle'))
     expect(insertText).not.toHaveBeenCalled()

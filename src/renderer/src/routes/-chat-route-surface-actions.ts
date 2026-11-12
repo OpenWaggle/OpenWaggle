@@ -73,7 +73,7 @@ export function useChatRouteSurfaceActions(
 
   function handleWorkspaceFileOpenChange(
     open: boolean,
-    target?: { readonly path: string; readonly line?: number | null },
+    target?: { readonly path: string; readonly line?: number | null | undefined },
   ) {
     coordinateWorkspaceFilePanel(open, target)
     setLastRightSidebarPanel('file')

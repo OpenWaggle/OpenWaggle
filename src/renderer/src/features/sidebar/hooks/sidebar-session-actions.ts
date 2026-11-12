@@ -12,7 +12,7 @@ import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
 import { api } from '@/shared/lib/ipc'
 import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
-import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftForSession, errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -209,7 +209,7 @@ async function cloneSessionWithModel(
 
 export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
   return {
-    archive(sessionId: SessionId) {
+    archive: (sessionId: SessionId) => {
       // Archiving is reversible from the archived list, so it does not ask first; only deletion does.
       const start = startRemoval(deps.removalNavigation, sessionId)
       void (async () => {
@@ -231,22 +231,25 @@ export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
         deps.showToast(`Failed to archive session: ${errorMessage(error)}`)
       })
     },
-    clone(sessionId: SessionId) {
+    clone: (sessionId: SessionId) => {
       void cloneSession(deps, sessionId)
     },
-    delete(sessionId: SessionId) {
+    delete: (sessionId: SessionId) => {
       const start = startRemoval(deps.removalNavigation, sessionId)
+      // The shell's panels, terminals and previews go with the Session. The chat store cannot
+      // clear them itself: the shell's features already depend on the chat store.
       void deps
         .deleteSession(sessionId)
+        .then(() => deleteWorkspaceOwner(String(sessionId)))
         .then(() => leaveRemovedActiveSession(deps, sessionId, start))
         .catch((error: unknown) => {
           deps.showToast(`Failed to delete session: ${errorMessage(error)}`)
         })
     },
-    select(id: SessionId) {
+    select: (id: SessionId) => {
       deps.removalNavigation.selectSession(id)
     },
-    togglePin(id: SessionId) {
+    togglePin: (id: SessionId) => {
       deps.togglePin(id)
     },
   }

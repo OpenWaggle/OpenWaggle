@@ -37,8 +37,9 @@ async function steerQueuedFollowUp(
 ) {
   const { promoteFollowUp, withDeferredSnapshotRefresh, showToast } = deps
   const item = deps.followUps.find((candidate) => candidate.id === messageId)
-  if (!item || !useOptimisticSteerStore.getState().beginPromotion(activeSessionId, messageId))
+  if (!item || !useOptimisticSteerStore.getState().beginPromotion(activeSessionId, messageId)) {
     return
+  }
   let preview: OptimisticSteerPreviewController | undefined
   const stopsBefore = userStopCount(activeSessionId)
   try {

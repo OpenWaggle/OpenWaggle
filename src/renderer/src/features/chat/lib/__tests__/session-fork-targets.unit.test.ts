@@ -2,6 +2,7 @@ import { MessageId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { getVisibleForkTargets } from '../session-fork-targets'
+import { required } from '@/test-utils/required'
 
 const SESSION_ID = SessionId('session-1')
 
@@ -71,7 +72,7 @@ describe('getVisibleForkTargets', () => {
         node('user-1', 'user', 'Initial request'),
         {
           ...wake,
-          message: wake.message ? { ...wake.message, metadata: { hiveWake: true } } : wake.message,
+          message: { ...required(wake.message), metadata: { hiveWake: true } },
         },
       ]),
     )
