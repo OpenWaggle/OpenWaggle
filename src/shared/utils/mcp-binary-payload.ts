@@ -122,20 +122,20 @@ function replacePayloads(value: unknown, state: ImageState): unknown {
   if (Array.isArray(value)) return value.map((item) => replacePayloads(item, state))
   if (!isRecord(value)) return value
 
-  if (value['type'] === 'image' && typeof value['data'] === 'string') {
-    const { mimeType } = imagePayload(value['data'], value['mimeType'])
+  if (value.type === 'image' && typeof value.data === 'string') {
+    const { mimeType } = imagePayload(value.data, value.mimeType)
     return {
       ...value,
-      data: imageMarker(value['data'], value['mimeType'], state),
+      data: imageMarker(value.data, value.mimeType, state),
       ...(mimeType ? { mimeType } : {}),
     }
   }
-  if (value['type'] === 'audio' && typeof value['data'] === 'string') {
-    return { ...value, data: omittedMarker('audio', value['data'].length) }
+  if (value.type === 'audio' && typeof value.data === 'string') {
+    return { ...value, data: omittedMarker('audio', value.data.length) }
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) =>
-      key === 'blob' && typeof entry === 'string' && typeof value['uri'] === 'string'
+      key === 'blob' && typeof entry === 'string' && typeof value.uri === 'string'
         ? [key, omittedMarker('resource blob', entry.length)]
         : [key, replacePayloads(entry, state)],
     ),

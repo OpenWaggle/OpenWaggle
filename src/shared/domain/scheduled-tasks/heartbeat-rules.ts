@@ -68,7 +68,7 @@ export interface HeartbeatToolUse {
 function isReadOnlyToolUse(use: HeartbeatToolUse) {
   if (HEARTBEAT_READ_ONLY_TOOLS.has(use.name)) return true
   const actions = READ_ONLY_TOOL_ACTIONS[use.name]
-  const action = use.args['action']
+  const action = use.args.action
   return actions !== undefined && typeof action === 'string' && actions.has(action)
 }
 
