@@ -1,22 +1,95 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
-    "src/renderer/src/main.tsx"
+    // The renderer entry: index.html loads it, so nothing imports it.
+    "src/renderer/src/main.tsx",
+    // Project Pi extensions: Pi loads every file here by convention; nothing imports them.
+    ".pi/extensions/*.ts",
+    // Tool configs loaded by name from the project root (react-doctor, oxlint).
+    "doctor.config.ts",
+    "oxlint.config.mts",
+    // Run by path from scripts/benchmark-docker/run.sh.
+    "scripts/benchmark-docker/count-request-tokens.ts",
+    "scripts/benchmark-docker/openwaggle-row.ts",
+    // Maintainer scripts run by path with bun (their doc comments, docs/, or the
+    // electron-automation allowlist in scripts/standards/electron-automation.ts).
+    "scripts/benchmark-terminal-output.ts",
+    "scripts/check-session-hive-api-compatibility.ts",
+    "scripts/generate-channel-icons.ts",
+    "scripts/generate-macos-icons.ts",
+    "scripts/measure-main-startup.ts",
+    // Run through `conformance client --command "bun scripts/node-script-bundle.ts --run ..."` in test:mcp:conformance.
+    "scripts/mcp-conformance-client.mts",
+    // scripts/pi-main-bundle-smoke.ts builds this config by path; its lib entry is the smoke entry.
+    "scripts/support/pi-main-bundle-smoke.electron-vite.config.ts",
+    "scripts/support/pi-main-bundle-smoke-entry.ts",
+    // Vitest globalSetup, referenced by path through TEST_TEMPORARY_ROOT_SETUP.
+    "scripts/test-support/vitest-temporary-root.ts",
+    // The reused-worker reset, the first setup file, referenced by path through REUSED_WORKER_SETUP.
+    "scripts/test-support/reused-worker-isolation.ts",
+    // The tiers' `node:os`, referenced by path through BUN_RUNTIME_ALIASES.
+    "scripts/test-support/node-os.ts",
+    // Vitest reporter, referenced by path through TEST_REPORTERS.
+    "scripts/test-support/vitest-compact-reporter.ts",
+    // Run by path as the check runner's typecheck step (scripts/check/steps.ts).
+    "scripts/check/typecheck.ts",
+    // Package smoke fixtures compiled or run by path inside the packed-package sandbox
+    // (tests/fixtures/package-smoke/tsconfig.json, scripts/package-smoke-scripts.ts).
+    "tests/fixtures/package-smoke/cjs-type-smoke.cts",
+    "tests/fixtures/package-smoke/require-waggle-turn-smoke.cjs"
   ],
-  "ignorePatterns": ["out/**", "dist/**", "release/**", "node_modules/**"],
+  "ignorePatterns": [
+    "out/**",
+    "dist/**",
+    "release/**",
+    "node_modules/**",
+    // Discovery skips hidden directories; the project Pi extensions are source.
+    "!.pi/extensions/**"
+  ],
   "ignoreDependencies": [
     "babel-plugin-react-compiler",
     "better-sqlite3",
     "diff",
-    // ESLint resolves the TypeScript import resolver through string config.
-    "eslint-import-resolver-typescript",
-    // ESLint loads eslint.config.ts through jiti before project imports run.
-    "jiti",
+    // oxlint.config.mts loads the TanStack lint plugins by package name (jsPlugins).
+    "@tanstack/eslint-plugin-query",
+    "@tanstack/eslint-plugin-router",
     // Packaged Electron updater resolves debug's `require("ms")` from the
     // app-level node_modules inside app.asar.
-    "ms"
+    "ms",
+    // Pi's bundled main process reads these packages' wasm from the installed
+    // root package (scripts/vite/pi-worker-bundles.ts); check:pi-runtime pins them.
+    "@silvia-odwyer/photon-node",
+    "quickjs-wasi",
+    // The attachment parser worker resolves these by package name at run time
+    // (src/main/utils/attachment-parser-worker.ts), so only tests import them statically.
+    "mammoth",
+    "tesseract.js",
+    "unpdf",
+    // CLI binaries run by check scripts; nothing imports them.
+    "oxfmt",
+    "react-doctor",
+    // Per-platform native builds of sharp and Pi's clipboard addon, loaded by
+    // their parent package for the current platform.
+    "@img/sharp-*",
+    "@mariozechner/clipboard-*",
+    // tools/bun-lint pins the dated Bun canary's per-platform binaries as optional
+    // dependencies; scripts/lint.ts runs the one for this platform by path.
+    "@oven/bun-*",
+    // The native rebuild scripts run `node-gyp rebuild` from node_modules/.bin
+    // (scripts/native-rebuild-invocations.ts); nothing imports it.
+    "node-gyp",
+    // The package-smoke browser fixture imports the packed tarball inside the
+    // packed-package sandbox (scripts/package-smoke-scripts.ts), not the workspace.
+    "@openwaggle/extension-react"
   ],
   "ignoreDependencyOverrides": [
+    // Nested `parent>child` overrides pin a transitive copy; bun.lock records each one
+    // under its parent, which Fallow's static override check does not read.
+    { "package": "@effect/sql-sqlite-node>better-sqlite3", "source": "package.json" },
+    { "package": "@huggingface/transformers>onnxruntime-node", "source": "package.json" },
+    { "package": "@pierre/diffs>shiki", "source": "package.json" },
+    { "package": "@pierre/theming>shiki", "source": "package.json" },
+    { "package": "electron-vite>vite", "source": "package.json" },
     { "package": "@tanstack/history", "source": "package.json" },
     { "package": "@tanstack/query-core", "source": "package.json" },
     { "package": "@tanstack/router-core", "source": "package.json" },
@@ -26,21 +99,112 @@
   ],
   // TanStack Router file routes must each export `Route`; that framework contract
   // makes duplicate-export analysis noisy for this app.
-  "rules": { "duplicate-exports": "off" },
+  //
+  // electron-vite bundles main, preload and renderer, and electron-builder ships
+  // only `dependencies`, so bundled packages are devDependencies on purpose
+  // (MEMORY.md; packaged-app:smoke rejects renderer-only packages that ship).
+  //
+  // The pi-runtime catalog pins Pi's whole matched release, including packages
+  // OpenWaggle only gets transitively; check:pi-runtime requires every entry
+  // (scripts/check-pi-runtime-alignment.ts). Overrides cannot scope this
+  // manifest-level rule to the package.json catalog, so it is off.
+  "rules": {
+    "duplicate-exports": "off",
+    "dev-dependencies-in-production": "off",
+    "unused-catalog-entries": "off"
+  },
   "overrides": [
+    {
+      // Fallow tracks class members only through instances it sees constructed in
+      // scope. These classes reach their callers through typed parameters, fields,
+      // getters, interface-typed refs or a stubbed global (MockWorker replaces
+      // Worker), so every member it reports here is in use.
+      "files": [
+        "src/main/adapters/electron/browser-preview/browser-preview-artifacts.ts",
+        "src/main/adapters/electron/browser-preview/browser-preview-automation-control.ts",
+        "src/main/adapters/mcp/migration/migration-record.ts",
+        "src/main/adapters/mcp/pool/mcp-connection-catalog.ts",
+        "src/main/adapters/mcp/pool/mcp-connection-lease.ts",
+        "src/main/adapters/mcp/pool/mcp-pooled-connection.ts",
+        "src/main/adapters/workspace-git-ignore-filter.ts",
+        "src/main/application/active-run-manager.ts",
+        "src/main/application/desktop-notifications/desktop-notification-ledger.ts",
+        "src/main/application/session-host-event-replay-views.ts",
+        "src/main/application/session-host-event-subscription.ts",
+        "src/renderer/src/features/browser-preview/lib/browser-preview-recording-controller.ts",
+        "src/renderer/src/features/chat/hooks/useAgentChat.stream-signal.ts",
+        "src/renderer/src/features/chat/lib/transcript-viewport-session.ts",
+        "src/renderer/src/shared/lib/syntax/__tests__/syntax-service-test-helpers.ts"
+      ],
+      "rules": { "unused-class-members": "off" }
+    },
+    {
+      // The desktop shell contract fakes stand in for the `electron` and `electron-updater`
+      // modules through vi.doMock (electron-shell.ts). The Electron adapters call their members
+      // through those module names, which fallow cannot follow to the fakes.
+      "files": ["src/main/adapters/electron/__tests__/contracts/fake-electron*.ts"],
+      "rules": { "unused-class-members": "off" }
+    },
+    {
+      // Vitest constructs the sequencer it is given in `sequence.sequencer` and calls its sort.
+      "files": ["scripts/test-support/environment-grouped-sequencer.ts"],
+      "rules": { "unused-class-members": "off" }
+    },
+    {
+      // Served by the extension frame protocol, which answers ./frame.css and
+      // ./bootstrap.js itself (src/main/extension-frame-protocol.ts).
+      "files": ["src/main/extension-frame-assets/extension-frame.html"],
+      "rules": { "unresolved-imports": "off" }
+    },
     {
       // Vitest mock specifiers intentionally point at virtual mock modules.
       "files": ["**/__tests__/**"],
       "rules": { "unresolved-imports": "off" }
+    },
+    {
+      // oxlint.config.mts loads the lint plugins by path (jsPlugins), which needs a default export.
+      "files": ["scripts/oxlint/openwaggle-plugin.ts", "scripts/oxlint/ts-match-plugin.ts"],
+      "rules": { "unused-exports": "off" }
     }
   ],
   "duplicates": {
-    "ignore": ["**/__tests__/**", "e2e/**"],
+    // A prebuilt extension fixture ships its built `modules/` as a copy of `src/`
+    // (openwaggle.extension.json sourceFiles and builtArtifacts).
+    "ignore": ["**/__tests__/**", "e2e/**", "fixtures/extensions/*/modules/**"],
     "ignoreImports": true,
     "minTokens": 100
   },
   "health": {
     "maxCrap": 100
   },
-  "ignoreExportsUsedInFile": true
+  // A dynamic import() inside a function loads on demand, after both modules
+  // have initialised, which is how main breaks runtime/composition-root cycles.
+  "circularDependencies": { "ignoreLazyImports": true },
+  "ignoreExportsUsedInFile": true,
+  "usedClassMembers": [
+    // Thrown errors cross the Session Host protocol as plain objects:
+    // local-session-command-frame.ts reads `code` and `retryable` structurally.
+    { "extends": "Error", "members": ["code", "retryable"] },
+    // The MCP SDK calls a Transport's methods.
+    { "implements": "Transport", "members": ["start", "send", "close"] }
+  ],
+  // The package release scripts load these modules by URL (`await import(moduleUrl)`) so
+  // they run under plain Node type stripping; the loader checks each export by name.
+  "ignoreExports": [
+    // session-host-cli-entry.ts reads it from `import('./runtime')` resolved inside a
+    // Promise.all tuple, which Fallow's member tracking does not follow.
+    {
+      "file": "src/main/runtime.ts",
+      "exports": ["startSessionHostServicesAfterListening"]
+    },
+    { "file": "scripts/package-release-promotion.ts", "exports": ["verifyPromotionBundle"] },
+    {
+      "file": "scripts/package-release-artifact-contract.ts",
+      "exports": ["verifyReleaseArtifactFile"]
+    },
+    {
+      "file": "scripts/package-release-provenance.ts",
+      "exports": ["verifyPackageReleaseArtifactProvenance"]
+    }
+  ]
 }
