@@ -24,7 +24,7 @@ describe('Sentry envelopes', () => {
     const envelope = parseSentryEnvelope(encodeUtf8(body), 10)
 
     expect(envelope?.header).toEqual({ event_id: '1' })
-    expect(envelope?.items.map((item) => item.header.type)).toEqual([
+    expect(envelope?.items.map((item) => item.header['type'])).toEqual([
       'event',
       'session',
       'attachment',

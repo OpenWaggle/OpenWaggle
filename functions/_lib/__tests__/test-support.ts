@@ -113,7 +113,11 @@ export class MemoryKeyValueStore implements KeyValueStore {
   private readonly deletedButListed = new Set<string>()
   private readonly lastWrite = new Map<string, number>()
 
-  constructor(private readonly options: MemoryStoreOptions = {}) {}
+  private readonly options: MemoryStoreOptions
+
+  constructor(options: MemoryStoreOptions = {}) {
+    this.options = options
+  }
 
   async get(key: string) {
     this.operations += 1

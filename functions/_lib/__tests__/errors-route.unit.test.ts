@@ -116,7 +116,7 @@ function forwarded(request: RecordedRequest | undefined) {
     header: parsed.header,
     items: parsed.items.map((item) => {
       const payload = parseJsonBytes(item.payload)
-      return { type: item.header.type, payload: payload.ok ? payload.value : undefined }
+      return { type: item.header['type'], payload: payload.ok ? payload.value : undefined }
     }),
   }
 }
