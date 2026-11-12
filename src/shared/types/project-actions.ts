@@ -20,12 +20,12 @@ export const PROJECT_ACTION_LIMITS = {
 
 export interface ProjectActionShortcutRule {
   readonly shortcut: ShortcutBinding
-  readonly when?: string | undefined
+  readonly when?: string
   /**
    * Global precedence among this project's action shortcuts. Later orders win.
    * Optional so pre-rule and hand-authored project settings remain readable.
    */
-  readonly order?: number | undefined
+  readonly order?: number
 }
 
 /** A saved project action from `.openwaggle/settings.json`. */
@@ -35,9 +35,9 @@ export interface ProjectAction {
   readonly command: string
   readonly icon: ProjectActionIcon
   readonly runOnWorktreeCreate: boolean
-  readonly previewUrl?: string | undefined
-  readonly autoOpenPreview?: boolean | undefined
-  readonly shortcutRules?: readonly ProjectActionShortcutRule[] | undefined
+  readonly previewUrl?: string
+  readonly autoOpenPreview?: boolean
+  readonly shortcutRules?: readonly ProjectActionShortcutRule[]
   /** Execution fingerprint of the displayed native definition; absent in legacy settings. */
   readonly executionKey?: string
   /** @deprecated Read-only compatibility for settings written before shortcut rules. */

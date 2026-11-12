@@ -22,14 +22,14 @@ const dimensions = {
 const identity = Schema.Struct({
   generation: id,
   sequence: integer,
-  incarnation: Schema.optional(terminalInputIncarnationSchema),
+  incarnation: Schema.optionalWith(terminalInputIncarnationSchema, { exact: true }),
 })
 const open = Schema.Struct({
   ...target,
   ...dimensions,
   cwd: id,
-  env: Schema.optional(terminalEnvironmentSchema),
-  inputGeneration: Schema.optional(id),
+  env: Schema.optionalWith(terminalEnvironmentSchema, { exact: true }),
+  inputGeneration: Schema.optionalWith(id, { exact: true }),
 })
 
 function command<K extends string, A>(operation: K, input: Schema.Schema<A>) {
@@ -49,15 +49,19 @@ export const desktopTerminalCommandSchema: Schema.Schema<DesktopTerminalCommand>
     Schema.Struct({
       ...target,
       data: Schema.String.pipe(Schema.maxLength(TERMINAL.MAX_PROJECT_ACTION_INPUT_BYTES)),
-      identity: Schema.optional(identity),
-      intent: Schema.optional(
+      identity: Schema.optionalWith(identity, { exact: true }),
+      intent: Schema.optionalWith(
         Schema.Struct({ kind: Schema.Literal('project-action'), executionId: id }),
+        { exact: true },
       ),
     }),
   ),
   command(
     'sendInputNow',
-    Schema.Struct({ ...target, incarnation: Schema.optional(terminalInputIncarnationSchema) }),
+    Schema.Struct({
+      ...target,
+      incarnation: Schema.optionalWith(terminalInputIncarnationSchema, { exact: true }),
+    }),
   ),
   command(
     'acknowledgeOutput',
@@ -81,7 +85,7 @@ const portPreviews = Schema.Array(Schema.Struct({ host: id, port: integer, url: 
   Schema.maxItems(MAX_DESKTOP_TERMINAL_PORTS),
 )
 const attach = Schema.Struct({
-  inputIncarnation: Schema.optional(terminalInputIncarnationSchema),
+  inputIncarnation: Schema.optionalWith(terminalInputIncarnationSchema, { exact: true }),
   history: text,
   outputBytes: integer,
   outputGeneration: integer,
@@ -91,25 +95,25 @@ const attach = Schema.Struct({
       generation: integer,
     }),
   ),
-  pendingInputBytes: Schema.optional(integer),
+  pendingInputBytes: Schema.optionalWith(integer, { exact: true }),
   running: Schema.Boolean,
-  cwdMissing: Schema.optional(Schema.Boolean),
-  exitCode: Schema.optional(Schema.Number),
+  cwdMissing: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  exitCode: Schema.optionalWith(Schema.Number, { exact: true }),
   processName: Schema.NullOr(text),
   ports,
-  portPreviews: Schema.optional(portPreviews),
+  portPreviews: Schema.optionalWith(portPreviews, { exact: true }),
   projectActionPending: Schema.Boolean,
 })
 const write = Schema.Union(
   Schema.Struct({
     status: Schema.Literal('written', 'queued'),
     acceptedBytes: integer,
-    identity: Schema.optional(identity),
+    identity: Schema.optionalWith(identity, { exact: true }),
   }),
   Schema.Struct({
     status: Schema.Literal('rejected'),
     acceptedBytes: Schema.Literal(0),
-    identity: Schema.optional(identity),
+    identity: Schema.optionalWith(identity, { exact: true }),
     reason: Schema.Literal(
       'empty',
       'input-too-large',
@@ -144,7 +148,7 @@ export const desktopTerminalResultSchema: Schema.Schema<DesktopTerminalResult> =
           activityStatus: Schema.Literal('unknown', 'idle', 'running'),
           processName: Schema.NullOr(text),
           ports,
-          portPreviews: Schema.optional(portPreviews),
+          portPreviews: Schema.optionalWith(portPreviews, { exact: true }),
           projectActionPending: Schema.Boolean,
         }),
       ).pipe(Schema.maxItems(MAX_DESKTOP_TERMINAL_SNAPSHOTS)),

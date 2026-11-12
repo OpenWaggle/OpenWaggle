@@ -32,7 +32,7 @@ export const projectTaskReferenceSchema = Schema.Struct({
   source: actionRelativePathSchema,
   task: text(ACTION_DEFINITION_LIMITS.NAME_LENGTH),
   directory: actionRelativePathSchema,
-  environment: Schema.optional(text(ACTION_DEFINITION_LIMITS.NAME_LENGTH)),
+  environment: Schema.optionalWith(text(ACTION_DEFINITION_LIMITS.NAME_LENGTH), { exact: true }),
 })
 export const actionInvocationSchema = Schema.Union(
   Schema.Struct({
@@ -50,15 +50,17 @@ export const actionDefinitionSchema = Schema.Struct({
   kind: Schema.Literal('task', 'service'),
   allowConcurrent: Schema.Boolean,
   autoOpenPreview: Schema.Boolean,
-  previewUrl: Schema.optional(
+  previewUrl: Schema.optionalWith(
     text(ACTION_DEFINITION_LIMITS.PATH_LENGTH).pipe(
       Schema.filter((value) => normalizeBrowserPreviewAddress(value) !== null),
     ),
+    { exact: true },
   ),
-  shortcutRules: Schema.optional(
+  shortcutRules: Schema.optionalWith(
     Schema.Array(projectActionShortcutRuleSchema).pipe(
       Schema.maxItems(PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT),
     ),
+    { exact: true },
   ),
 }).pipe(Schema.filter((action) => action.kind !== 'service' || !action.allowConcurrent))
 
@@ -70,7 +72,10 @@ export const commandRepairProposalSchema = Schema.Struct({
   type: Schema.Literal(COMMAND_REPAIR_PROPOSAL_TYPE),
   actionId: actionDefinitionIdSchema,
   actionName: text(ACTION_DEFINITION_LIMITS.NAME_LENGTH),
-  current: Schema.Struct({ ...repairCommand.fields, resolved: Schema.optional(Schema.Boolean) }),
+  current: Schema.Struct({
+    ...repairCommand.fields,
+    resolved: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  }),
   proposed: repairCommand,
   reason: text(ACTION_DEFINITION_LIMITS.REPAIR_REASON_LENGTH),
 })

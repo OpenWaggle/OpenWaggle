@@ -17,7 +17,7 @@ export const BROWSER_PREVIEW_AUTOMATION_LIMITS = {
 } as const
 
 export interface BrowserPreviewAutomationTarget {
-  readonly tabId?: string | undefined
+  readonly tabId?: string
 }
 
 export interface BrowserPreviewAutomationStatus {
@@ -32,9 +32,9 @@ export interface BrowserPreviewAutomationStatus {
 }
 
 export interface BrowserPreviewAutomationOpenInput extends BrowserPreviewAutomationTarget {
-  readonly url?: string | undefined
-  readonly open?: boolean | undefined
-  readonly reuseExistingTab?: boolean | undefined
+  readonly url?: string
+  readonly open?: boolean
+  readonly reuseExistingTab?: boolean
 }
 
 export type BrowserPreviewAutomationNavigationTarget =
@@ -42,15 +42,15 @@ export type BrowserPreviewAutomationNavigationTarget =
   | {
       readonly kind: 'environment-port'
       readonly port: number
-      readonly protocol?: 'http' | 'https' | undefined
-      readonly path?: string | undefined
+      readonly protocol?: 'http' | 'https'
+      readonly path?: string
     }
 
 export interface BrowserPreviewAutomationNavigateInput extends BrowserPreviewAutomationTarget {
-  readonly url?: string | undefined
-  readonly target?: BrowserPreviewAutomationNavigationTarget | undefined
-  readonly readiness?: 'load' | 'domContentLoaded' | 'none' | undefined
-  readonly timeoutMs?: number | undefined
+  readonly url?: string
+  readonly target?: BrowserPreviewAutomationNavigationTarget
+  readonly readiness?: 'load' | 'domContentLoaded' | 'none'
+  readonly timeoutMs?: number
 }
 
 export type BrowserPreviewAutomationResizeInput = BrowserPreviewAutomationTarget &
@@ -60,7 +60,7 @@ export type BrowserPreviewAutomationResizeInput = BrowserPreviewAutomationTarget
     | {
         readonly mode: 'preset'
         readonly preset: BrowserPreviewViewportPresetId
-        readonly orientation?: 'portrait' | 'landscape' | undefined
+        readonly orientation?: 'portrait' | 'landscape'
       }
   )
 

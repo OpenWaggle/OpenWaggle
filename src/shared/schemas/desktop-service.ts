@@ -85,7 +85,7 @@ export const desktopServiceRequestSchema = Schema.Union(
         commandId: id,
         outcome: Schema.Literal('failure'),
         message: Schema.String.pipe(Schema.maxLength(DESKTOP_SERVICE_LIMITS.errorLength)),
-        uncertain: Schema.optional(Schema.Boolean),
+        uncertain: Schema.optionalWith(Schema.Boolean, { exact: true }),
       }),
     ),
   }),

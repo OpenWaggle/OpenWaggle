@@ -96,7 +96,7 @@ export const desktopNotificationSchema = Schema.Struct({
   title: notificationTextSchema,
   body: notificationTextSchema,
   /** Only when the person turned previews on. */
-  preview: Schema.optional(notificationTextSchema),
+  preview: Schema.optionalWith(notificationTextSchema, { exact: true }),
   createdAt: Schema.Number,
   /**
    * Who shows it: the desktop app while it is connected, or the Session Host when no desktop app

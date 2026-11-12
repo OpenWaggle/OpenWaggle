@@ -70,7 +70,7 @@ export type DesktopCompletion =
       readonly commandId: string
       readonly outcome: 'failure'
       readonly message: string
-      readonly uncertain?: boolean | undefined
+      readonly uncertain?: boolean
     }
 
 export type DesktopServiceRequest =

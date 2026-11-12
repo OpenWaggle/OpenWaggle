@@ -35,10 +35,10 @@ export function useUsageCostView() {
     () => ({
       preset: query.preset,
       origin: query.origin,
-      day: drillDown.day,
-      provider: drillDown.provider,
-      modelId: drillDown.modelId,
-      projectPath: drillDown.projectPath,
+      ...(drillDown.day === undefined ? {} : { day: drillDown.day }),
+      ...(drillDown.provider === undefined ? {} : { provider: drillDown.provider }),
+      ...(drillDown.modelId === undefined ? {} : { modelId: drillDown.modelId }),
+      ...(drillDown.projectPath === undefined ? {} : { projectPath: drillDown.projectPath }),
     }),
     [query, drillDown],
   )

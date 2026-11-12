@@ -15,7 +15,7 @@ export interface InlineVisualizationFrameRegisterInput {
    * The state this visualization last reported, restored into a reloaded frame as
    * `window.openai.visualizationState` so a parked or remounted frame can keep the user's choices.
    */
-  readonly restoredState?: JsonValue | null | undefined
+  readonly restoredState?: JsonValue | null
 }
 
 export interface InlineVisualizationFrameRegisterResult {

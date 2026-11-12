@@ -20,11 +20,11 @@ export const usageCostQuerySchema = Schema.Struct({
 export const usageCostSessionQuerySchema = Schema.Struct({
   ...usageCostQuerySchema.fields,
   /** Local-timezone day bucket, `YYYY-MM-DD`, from a drill-down selection. */
-  day: Schema.optional(Schema.String),
-  provider: Schema.optional(Schema.String),
-  modelId: Schema.optional(Schema.String),
+  day: Schema.optionalWith(Schema.String, { exact: true }),
+  provider: Schema.optionalWith(Schema.String, { exact: true }),
+  modelId: Schema.optionalWith(Schema.String, { exact: true }),
   /** Resolved project path group key; `null` selects sessions recorded without a working directory. */
-  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
+  projectPath: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
 })
 
 export const usageCostTokensSchema = Schema.Struct({
