@@ -1,82 +1,23 @@
-import type { AgentSendReport, PreparedAttachment } from './agent'
+import type { SchemaType } from '@shared/schema'
+import type { waggleSendReportSchema } from '@shared/schemas/local-session-command-response'
 import type {
-  WaggleAgentColor,
-  WaggleCollaborationMode,
-  WaggleInvocationSource,
-  WaggleStopCondition,
-} from './waggle'
+  LocalSessionCommandPayload,
+  LocalSessionCommandResult,
+} from './local-session-protocol'
 
 export const SESSION_WAGGLE_CONTRACT_VERSION = 1 as const
 
-export interface LocalSessionWaggleConfig {
-  readonly mode: WaggleCollaborationMode
-  readonly agents: readonly [
-    {
-      readonly label: string
-      readonly model: string
-      readonly roleDescription: string
-      readonly color: WaggleAgentColor
-    },
-    {
-      readonly label: string
-      readonly model: string
-      readonly roleDescription: string
-      readonly color: WaggleAgentColor
-    },
-  ]
-  readonly stop: { readonly primary: WaggleStopCondition; readonly maxTurnsSafety: number }
-}
+type LocalSessionWaggleContract = 'session-waggle-v1' | 'session-waggle-cancel-v1'
 
-export interface LocalSessionWagglePayload {
-  readonly text: string
-  readonly attachments: PreparedAttachment[]
-  readonly waggle?: {
-    readonly presetId: string
-    readonly presetName: string
-    readonly source: WaggleInvocationSource
-    readonly config: LocalSessionWaggleConfig
-  }
-}
+export type LocalSessionWaggleCommandPayload = Extract<
+  LocalSessionCommandPayload,
+  { readonly contract: LocalSessionWaggleContract }
+>
 
-export type LocalSessionWaggleCommandPayload =
-  | {
-      readonly contract: 'session-waggle-v1'
-      readonly request: {
-        readonly contractVersion: typeof SESSION_WAGGLE_CONTRACT_VERSION
-        readonly requestId: string
-        readonly idempotencyKey: string
-        readonly sessionId: string
-        readonly payload: LocalSessionWagglePayload
-        readonly model: string
-        readonly config: LocalSessionWaggleConfig
-      }
-    }
-  | {
-      readonly contract: 'session-waggle-cancel-v1'
-      readonly request: {
-        readonly contractVersion: typeof SESSION_WAGGLE_CONTRACT_VERSION
-        readonly requestId: string
-        readonly sessionId: string
-      }
-    }
+export type LocalSessionWaggleCommandResult = Extract<
+  LocalSessionCommandResult,
+  { readonly contract: LocalSessionWaggleContract }
+>
 
-export type LocalSessionWaggleCommandResult =
-  | {
-      readonly contract: 'session-waggle-v1'
-      readonly response: {
-        readonly contractVersion: typeof SESSION_WAGGLE_CONTRACT_VERSION
-        readonly requestId: string
-        readonly idempotencyKey: string
-        readonly replayed: boolean
-        readonly report: AgentSendReport
-      }
-    }
-  | {
-      readonly contract: 'session-waggle-cancel-v1'
-      readonly response: {
-        readonly contractVersion: typeof SESSION_WAGGLE_CONTRACT_VERSION
-        readonly requestId: string
-        readonly sessionId: string
-        readonly cancelled: boolean
-      }
-    }
+/** A Waggle send's report; unlike a classic send, a Waggle send is never `queued`. */
+export type WaggleSendReport = SchemaType<typeof waggleSendReportSchema>

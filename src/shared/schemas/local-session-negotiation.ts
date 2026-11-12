@@ -7,7 +7,6 @@ import {
   LOCAL_SESSION_REVISION_4_CAPABILITIES,
   LOCAL_SESSION_REVISION_5_CAPABILITIES,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
-  type LocalSessionNegotiationResult,
 } from '@shared/types/local-session-protocol'
 
 const [currentRevision] = LOCAL_SESSION_SUPPORTED_REVISIONS
@@ -113,34 +112,33 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(refusalKindsCapability),
 )
 
-export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =
-  Schema.Union(
-    Schema.Struct({
-      accepted: Schema.Literal(true),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      revision: Schema.Literal(currentRevision),
-      hostInstanceId: Schema.String,
-      capabilities: currentCapabilitySchema,
-    }),
-    Schema.Struct({
-      accepted: Schema.Literal(false),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      code: Schema.Literal('incompatible_protocol'),
-      supportedRevisions: supportedRevisionListSchema,
-    }),
-    Schema.Struct({
-      accepted: Schema.Literal(false),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      code: Schema.Literal('host_upgrade_pending'),
-      hostInstanceId: Schema.String,
-      supportedRevisions: supportedRevisionListSchema,
-      blockingRuns: Schema.Array(Schema.Struct({ sessionId: Schema.String, runId: Schema.String })),
-      blockingOperations: Schema.Array(
-        Schema.Struct({
-          operationId: Schema.String,
-          operation: Schema.String,
-          targetScope: Schema.String,
-        }),
-      ),
-    }),
-  )
+export const localSessionNegotiationResultSchema = Schema.Union(
+  Schema.Struct({
+    accepted: Schema.Literal(true),
+    protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+    revision: Schema.Literal(currentRevision),
+    hostInstanceId: Schema.String,
+    capabilities: currentCapabilitySchema,
+  }),
+  Schema.Struct({
+    accepted: Schema.Literal(false),
+    protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+    code: Schema.Literal('incompatible_protocol'),
+    supportedRevisions: supportedRevisionListSchema,
+  }),
+  Schema.Struct({
+    accepted: Schema.Literal(false),
+    protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+    code: Schema.Literal('host_upgrade_pending'),
+    hostInstanceId: Schema.String,
+    supportedRevisions: supportedRevisionListSchema,
+    blockingRuns: Schema.Array(Schema.Struct({ sessionId: Schema.String, runId: Schema.String })),
+    blockingOperations: Schema.Array(
+      Schema.Struct({
+        operationId: Schema.String,
+        operation: Schema.String,
+        targetScope: Schema.String,
+      }),
+    ),
+  }),
+)

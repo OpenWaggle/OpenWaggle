@@ -1,15 +1,24 @@
 import { Schema } from '@shared/schema'
+import { desktopServiceResponseSchema } from './desktop-service'
+import { hostUiV1ResultSchema } from './host-ui-protocol'
+import { localHostResponseSchema } from './local-host'
+import { localSessionProfileManagementResponseSchema } from './local-session-profile-management'
+import { localUpdateResponseSchema } from './local-update'
+import { scheduledTasksResponseSchema } from './scheduled-task-records'
+import { sessionControlMutationResponseSchema } from './session-control'
+import { sessionHostEventCursorSchema } from './session-host-event-cursor'
+import { sessionLifecycleResponseSchema } from './session-lifecycle'
+import { preparedAttachmentSchema } from './validation'
 import type { ContextCompactionResult } from '@shared/types/context-usage'
 import { SESSION_WAGGLE_CONTRACT_VERSION } from '@shared/types/local-session-waggle'
-import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import {
   SESSION_QUERY_CONTRACT_VERSION,
   type SessionQueryOutcome,
 } from '@shared/types/session-query'
 
 /**
- * Responses the Local Session client receives for the command contracts whose response types are
- * declared inline in `LocalSessionCommandResult` (the other contracts have their own schemas).
+ * Responses the Local Session client receives, one schema per command contract, and
+ * `localSessionCommandResultSchema`, the result union `LocalSessionCommandResult` is inferred from.
  */
 
 const LOCAL_UI_EFFECTS = [
@@ -27,6 +36,11 @@ const LOCAL_UI_EFFECTS = [
   'follow-up-edit-hold-lost',
 ] as const
 
+export const localAttachmentsResponseSchema = Schema.Struct({
+  requestId: Schema.String,
+  attachments: Schema.Array(preparedAttachmentSchema),
+})
+
 export const localUiResponseSchema = Schema.Struct({
   requestId: Schema.String,
   effect: Schema.Literal(...LOCAL_UI_EFFECTS),
@@ -37,12 +51,8 @@ export const localUiResponseSchema = Schema.Struct({
       cancelled: Schema.Boolean,
     }),
   ),
+  /** For a renewed Follow-up edit hold: its new expiry (Host clock). */
   leaseExpiresAt: Schema.optional(Schema.Number),
-})
-
-const sessionHostEventCursorSchema: Schema.Schema<SessionHostEventCursor> = Schema.Struct({
-  hostInstanceId: Schema.String,
-  sequence: Schema.Number,
 })
 
 const sessionQueryOutcomeHeaderSchema = Schema.Struct({ operation: Schema.String })
@@ -65,10 +75,11 @@ export const sessionQueryResponseSchema = Schema.Struct({
 })
 
 /** A Waggle send's report; a Waggle send is never `queued`. */
-const waggleSendReportSchema = Schema.Struct({
+export const waggleSendReportSchema = Schema.Struct({
   outcome: Schema.Literal('delivered', 'refused', 'cancelled'),
   message: Schema.optionalWith(Schema.String, { exact: true }),
   code: Schema.optionalWith(Schema.String, { exact: true }),
+  /** The Run a `delivered` send started, when the Host reported it. */
   runId: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
@@ -110,3 +121,29 @@ export const localSessionCommandResponsePayloadSchema = Schema.Struct({
   contract: Schema.String,
   response: Schema.Unknown,
 })
+
+function commandResult<const Contract extends string, Response extends Schema.Schema.AnyNoContext>(
+  contract: Contract,
+  response: Response,
+) {
+  return Schema.Struct({ contract: Schema.Literal(contract), response })
+}
+
+/** Every contract's result: which contract answered, and its decoded response. */
+export const localSessionCommandResultSchema = Schema.Union(
+  commandResult('desktop-service-v1', desktopServiceResponseSchema),
+  commandResult('local-attachments-v1', localAttachmentsResponseSchema),
+  commandResult('local-ui-v1', localUiResponseSchema),
+  commandResult('local-access-v1', localSessionProfileManagementResponseSchema),
+  commandResult('session-control-v2', sessionControlMutationResponseSchema),
+  commandResult('session-lifecycle-v2', sessionLifecycleResponseSchema),
+  commandResult('session-query-v2', sessionQueryResponseSchema),
+  commandResult('host-ui-v1', hostUiV1ResultSchema),
+  commandResult('local-update-v1', localUpdateResponseSchema),
+  commandResult('local-host-v1', localHostResponseSchema),
+  commandResult('local-compaction-v1', localCompactionResponseSchema),
+  commandResult('local-compaction-cancel-v1', localCompactionCancellationResponseSchema),
+  commandResult('session-waggle-v1', sessionWaggleResponseSchema),
+  commandResult('session-waggle-cancel-v1', sessionWaggleCancellationResponseSchema),
+  commandResult('scheduled-tasks-v1', scheduledTasksResponseSchema),
+)

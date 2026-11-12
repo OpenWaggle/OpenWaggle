@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Socket } from 'node:net'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import { sessionHostEventCursorSchema } from '@shared/schemas/session-host-event-cursor'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type {
   SessionHostEventCursor,
@@ -19,8 +20,6 @@ import { decideSessionHostEvent } from './local-session-event-validation'
 
 const logger = createLogger('session-host/event-client')
 
-const eventCursorSchema = Schema.Struct({ hostInstanceId: Schema.String, sequence: Schema.Number })
-
 /** The frame fields this client reads; each one's value is decoded where it is used. */
 const serverFrameFieldsSchema = Schema.Struct({
   kind: Schema.String,
@@ -36,7 +35,7 @@ type ServerFrameFields = SchemaType<typeof serverFrameFieldsSchema>
 
 const resyncRequiredFrameSchema = Schema.Struct({
   reason: Schema.Literal('host-restarted', 'cursor-expired', 'cursor-ahead', 'slow-consumer'),
-  cursor: eventCursorSchema,
+  cursor: sessionHostEventCursorSchema,
 })
 
 const describedEventSchema = Schema.Struct({
@@ -183,7 +182,7 @@ async function consumeCursorAdvancement(cursor: unknown, input: LocalSessionWatc
 }
 
 function decodeCursor(value: unknown, label: string): SessionHostEventCursor {
-  if (!Schema.is(eventCursorSchema)(value)) {
+  if (!Schema.is(sessionHostEventCursorSchema)(value)) {
     throw new Error(`Local Session Host returned an invalid ${label}.`)
   }
   return { hostInstanceId: value.hostInstanceId, sequence: value.sequence }

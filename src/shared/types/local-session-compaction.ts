@@ -1,37 +1,16 @@
-import type { ContextCompactionResult } from './context-usage'
+import type {
+  LocalSessionCommandPayload,
+  LocalSessionCommandResult,
+} from './local-session-protocol'
 
-export type LocalSessionCompactionCommandPayload =
-  | {
-      readonly contract: 'local-compaction-v1'
-      readonly request: {
-        readonly requestId: string
-        readonly sessionId: string
-        readonly model: string
-        readonly customInstructions?: string | undefined
-      }
-    }
-  | {
-      readonly contract: 'local-compaction-cancel-v1'
-      readonly request: {
-        readonly requestId: string
-        readonly sessionId: string
-      }
-    }
+type LocalSessionCompactionContract = 'local-compaction-v1' | 'local-compaction-cancel-v1'
 
-export type LocalSessionCompactionCommandResult =
-  | {
-      readonly contract: 'local-compaction-v1'
-      readonly response: {
-        readonly requestId: string
-        readonly sessionId: string
-        readonly result: ContextCompactionResult
-      }
-    }
-  | {
-      readonly contract: 'local-compaction-cancel-v1'
-      readonly response: {
-        readonly requestId: string
-        readonly sessionId: string
-        readonly cancelled: boolean
-      }
-    }
+export type LocalSessionCompactionCommandPayload = Extract<
+  LocalSessionCommandPayload,
+  { readonly contract: LocalSessionCompactionContract }
+>
+
+export type LocalSessionCompactionCommandResult = Extract<
+  LocalSessionCommandResult,
+  { readonly contract: LocalSessionCompactionContract }
+>

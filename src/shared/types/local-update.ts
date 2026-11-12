@@ -1,29 +1,25 @@
-import type { UpdateChannel } from './update-channel'
+import type { SchemaType } from '@shared/schema'
+import type {
+  localUpdateRequestSchema,
+  localUpdateResponseSchema,
+} from '@shared/schemas/local-update'
+import type {
+  LocalSessionCommandPayload,
+  LocalSessionCommandResult,
+} from './local-session-protocol'
 
 export const LOCAL_UPDATE_CONTRACT_VERSION = 1 as const
 
-export type LocalUpdateRequest =
-  | {
-      readonly contractVersion: typeof LOCAL_UPDATE_CONTRACT_VERSION
-      readonly operation: 'get-channel'
-    }
-  | {
-      readonly contractVersion: typeof LOCAL_UPDATE_CONTRACT_VERSION
-      readonly operation: 'set-channel'
-      readonly channel: UpdateChannel
-    }
+export type LocalUpdateRequest = SchemaType<typeof localUpdateRequestSchema>
 
-export interface LocalUpdateResponse {
-  readonly contractVersion: typeof LOCAL_UPDATE_CONTRACT_VERSION
-  readonly updateChannel: UpdateChannel
-}
+export type LocalUpdateResponse = SchemaType<typeof localUpdateResponseSchema>
 
-export interface LocalUpdateCommandPayload {
-  readonly contract: 'local-update-v1'
-  readonly request: LocalUpdateRequest
-}
+export type LocalUpdateCommandPayload = Extract<
+  LocalSessionCommandPayload,
+  { readonly contract: 'local-update-v1' }
+>
 
-export interface LocalUpdateCommandResult {
-  readonly contract: 'local-update-v1'
-  readonly response: LocalUpdateResponse
-}
+export type LocalUpdateCommandResult = Extract<
+  LocalSessionCommandResult,
+  { readonly contract: 'local-update-v1' }
+>
