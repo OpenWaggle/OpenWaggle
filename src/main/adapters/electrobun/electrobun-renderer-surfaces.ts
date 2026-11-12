@@ -27,9 +27,15 @@ import { electrobun } from './electrobun-sdk'
  *
  * Electrobun reports `will-navigate` (with whether the navigation rules allowed it),
  * `did-commit-navigation` and `did-navigate-in-page`, which become the port's navigation events. It has no event for a
- * crashed web process, so the surface sends a `shell:heartbeat` request every few seconds; after
- * `HEARTBEAT_MISSES` unanswered ones in a row it reports `render-process-gone` and reloads the page.
- * The misses are generous because a hidden window's page may be throttled, not dead.
+ * crashed web process, so the surface sends a `shell:heartbeat` request every few seconds. Once the
+ * page has answered one, a page that then answers none for `PAGE_GONE_AFTER_MS` is reported as
+ * `render-process-gone` and its document is loaded again. The window is long because a busy or
+ * hidden page answers late, not never: on a loaded CI Mac, three missed 5 s beats reloaded a page
+ * that was working. A page still on its first load is never reported.
+ *
+ * CEF creates every browser on `about:blank` and reports that load like any other before it loads
+ * the app's document, so `about:blank` is not one of the page's documents: it neither counts as a
+ * navigation nor becomes the document a reload returns to.
  *
  * URLs the surface reports (`getURL`, navigation events) are in the form the rest of the app
  * knows: a page of a trusted origin reads as its scheme form (`openwaggle://app/index.html`), not
@@ -37,7 +43,8 @@ import { electrobun } from './electrobun-sdk'
  */
 export const HEARTBEAT_INTERVAL_MS = 5_000
 export const HEARTBEAT_TIMEOUT_MS = 5_000
-export const HEARTBEAT_MISSES = 3
+export const PAGE_GONE_AFTER_MS = 60_000
+const INITIAL_BROWSER_URL = 'about:blank'
 
 interface SurfaceEvents {
   destroyed: []
@@ -70,7 +77,8 @@ export class ElectrobunRendererSurface
   readonly id: number
   private url: string
   private destroyed = false
-  private missed = 0
+  /** When the page last answered a heartbeat; `null` until it first does. */
+  private answeredAt: number | null = null
   private heartbeat: ReturnType<typeof setInterval> | null = null
   private awaitingBeat = false
 
@@ -112,6 +120,7 @@ export class ElectrobunRendererSurface
 
   /** Records a navigation Electrobun reported; a blocked one never starts. */
   navigated(kind: 'start' | 'commit' | 'in-page', url: string) {
+    if (url === INITIAL_BROWSER_URL) return
     const logical = this.options.logicalUrl(url)
     if (kind === 'start') {
       this.emit('did-start-navigation', { url: logical, isMainFrame: true, isSameDocument: false })
@@ -139,10 +148,10 @@ export class ElectrobunRendererSurface
       await this.rpc.request(SHELL_HEARTBEAT_REQUEST, undefined, {
         maxRequestTime: HEARTBEAT_TIMEOUT_MS,
       })
-      this.missed = 0
+      this.answeredAt = Date.now()
     } catch {
-      this.missed += 1
-      if (this.missed >= HEARTBEAT_MISSES && !this.destroyed) this.renderProcessGone()
+      const silentFor = this.answeredAt === null ? 0 : Date.now() - this.answeredAt
+      if (silentFor >= PAGE_GONE_AFTER_MS && !this.destroyed) this.renderProcessGone()
     } finally {
       this.awaitingBeat = false
     }
@@ -150,7 +159,8 @@ export class ElectrobunRendererSurface
 
   /** The page stopped answering: its document is gone, so the page loads it again. */
   private renderProcessGone() {
-    this.missed = 0
+    // The reloaded page is on its first load again until it answers.
+    this.answeredAt = null
     this.emit('render-process-gone')
     if (this.url) this.view.loadURL(this.url)
   }

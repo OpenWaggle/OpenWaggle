@@ -66,9 +66,47 @@ describe('Electrobun renderer surfaces', () => {
     expect(gone).not.toHaveBeenCalled()
     view.page.alive = false
     const silence =
-      (surfaces.HEARTBEAT_INTERVAL_MS + surfaces.HEARTBEAT_TIMEOUT_MS) * surfaces.HEARTBEAT_MISSES
+      surfaces.PAGE_GONE_AFTER_MS + surfaces.HEARTBEAT_INTERVAL_MS + surfaces.HEARTBEAT_TIMEOUT_MS
     await vi.advanceTimersByTimeAsync(silence)
     expect(gone).toHaveBeenCalledTimes(1)
+    expect(view.loaded).toEqual([LOOPBACK_PAGE])
+  })
+
+  it('keeps a page that answers late, and one that never answered yet', async () => {
+    vi.useFakeTimers()
+    const { surfaces, surface, view } = await openPage()
+    const gone = vi.fn()
+    surface.on('render-process-gone', gone)
+    // Still on its first load: it has never answered, so it is not gone.
+    view.page.alive = false
+    await vi.advanceTimersByTimeAsync(surfaces.PAGE_GONE_AFTER_MS * 2)
+    expect(gone).not.toHaveBeenCalled()
+    view.page.alive = true
+    await vi.advanceTimersByTimeAsync(surfaces.HEARTBEAT_INTERVAL_MS * 2)
+    // Busy for several beats, then answering again.
+    view.page.alive = false
+    await vi.advanceTimersByTimeAsync(surfaces.PAGE_GONE_AFTER_MS / 2)
+    view.page.alive = true
+    await vi.advanceTimersByTimeAsync(surfaces.PAGE_GONE_AFTER_MS)
+    expect(gone).not.toHaveBeenCalled()
+    expect(view.loaded).toEqual([])
+  })
+
+  it("reloads the app's document, not the blank page CEF creates every browser on", async () => {
+    vi.useFakeTimers()
+    const { surfaces, surface, view } = await openPage()
+    const committed = vi.fn()
+    surface.on('did-navigate', committed)
+    view.emitEvent('did-commit-navigation', 'about:blank')
+    view.emitEvent('did-commit-navigation', LOOPBACK_PAGE)
+    view.emitEvent('did-commit-navigation', 'about:blank')
+    expect(committed).toHaveBeenCalledTimes(1)
+    expect(surface.getURL()).toBe(LOGICAL_PAGE)
+    await vi.advanceTimersByTimeAsync(surfaces.HEARTBEAT_INTERVAL_MS * 2)
+    view.page.alive = false
+    await vi.advanceTimersByTimeAsync(
+      surfaces.PAGE_GONE_AFTER_MS + surfaces.HEARTBEAT_INTERVAL_MS + surfaces.HEARTBEAT_TIMEOUT_MS,
+    )
     expect(view.loaded).toEqual([LOOPBACK_PAGE])
   })
 
