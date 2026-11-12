@@ -6,7 +6,6 @@ import type { SessionDeleteOptions } from '@shared/types/session'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
@@ -22,6 +21,7 @@ import {
   requiredString,
   requireOptionalArgCount,
   validateOptionalModel,
+  validateOptionalThinkingLevel,
   validateSessionId,
   validateSessionNodeId,
   validateWorktreePlan,
@@ -37,16 +37,6 @@ const logger = createLogger('host-ui-session-copy')
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
 const FOUR_ARGUMENTS = 4
-
-function validateOptionalThinkingLevel(
-  value: unknown,
-): Effect.Effect<ThinkingLevel | undefined, Error> {
-  if (value === undefined) return Effect.succeed(undefined)
-  const level = THINKING_LEVELS.find((candidate) => candidate === value)
-  return level
-    ? Effect.succeed(level)
-    : invalid(`Thinking level must be one of ${THINKING_LEVELS.join(', ')}.`)
-}
 
 export function mutateLocalUiSession(
   command: Extract<

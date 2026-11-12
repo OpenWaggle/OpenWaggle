@@ -9,10 +9,12 @@ import {
   sessionWorkspaceSelectionSchema,
   sessionWorktreePlanSchema,
 } from '@shared/schemas/session-operation-requests'
-import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
-import { SupportedModelId } from '@shared/types/brand'
-import { parseModelRef } from '@shared/types/llm'
 import * as Effect from 'effect/Effect'
+import {
+  sessionModelArgumentSchema,
+  sessionOperationStringSchema,
+  thinkingLevelArgumentSchema,
+} from './host-ui-argument-schemas'
 
 const ROOT_ISSUE_PREFIX = '(root): '
 /** The other member a nullable or optional field also failed, e.g. `nodeId: Expected null, ...`. */
@@ -79,13 +81,7 @@ export function requireOptionalArgCount(
 }
 
 export function requiredString(value: unknown, label: string): Effect.Effect<string, Error> {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    return invalid(`${label} must be a non-empty string.`)
-  }
-  if (value.length > SESSION_INPUT_LIMITS.pathLength) {
-    return invalid(`${label} exceeds the input limit.`)
-  }
-  return Effect.succeed(value)
+  return decodeSessionOperationArgument(sessionOperationStringSchema(label), value)
 }
 
 export function validateSessionId(value: unknown) {
@@ -101,14 +97,17 @@ export function validateSessionBranchId(value: unknown) {
 }
 
 export function validateOptionalModel(value: unknown) {
-  if (value === undefined) return Effect.succeed(undefined)
-  return requiredString(value, 'Session model').pipe(
-    Effect.flatMap((model) =>
-      parseModelRef(model)
-        ? Effect.succeed(SupportedModelId(model))
-        : invalid('Session model must be a canonical provider/model reference.'),
-    ),
-  )
+  return value === undefined
+    ? Effect.succeed(undefined)
+    : decodeSessionOperationArgument(sessionModelArgumentSchema, value)
+}
+
+export function validateThinkingLevel(value: unknown) {
+  return decodeSessionOperationArgument(thinkingLevelArgumentSchema, value)
+}
+
+export function validateOptionalThinkingLevel(value: unknown) {
+  return value === undefined ? Effect.succeed(undefined) : validateThinkingLevel(value)
 }
 
 export function validateWorkspaceSelection(value: unknown) {

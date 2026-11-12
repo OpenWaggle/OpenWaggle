@@ -6,7 +6,9 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
+import { withArgumentRefusal } from '../application/host-ui-argument-schemas'
 import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { decodeSessionOperationArgument } from '../application/host-ui-session-operation-validation'
 import { appPaths } from '../desktop-shell/app-paths'
 import { createLogger } from '../logger'
 import {
@@ -31,10 +33,18 @@ export {
 
 const logger = createLogger('ipc/attachments')
 
-const prepareArgsSchema = Schema.Struct({
-  projectPath: Schema.String.pipe(Schema.minLength(1)),
-  paths: Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
-})
+/*
+ * Each positional argument is decoded with its own schema, and a refusal is the one message
+ * that names it. The channel map keeps the labelled argument tuples, which a schema cannot carry.
+ */
+const projectPathArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(Schema.minLength(1)),
+  'Project path must be a non-empty string.',
+)
+const attachmentPathsArgumentSchema = withArgumentRefusal(
+  Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
+  `Attachment paths must be a list of at most ${String(ATTACHMENT.MAX_COUNT)} file paths.`,
+)
 /** The longest file name common file systems (ext4, APFS, NTFS in UTF-8) accept. */
 const MAX_FILE_NAME_BYTES = 255
 /**
@@ -42,15 +52,21 @@ const MAX_FILE_NAME_BYTES = 255
  * Markdown file name of letters, digits, spaces, and `_ . · -`, so it can neither leave its
  * directory nor carry markup into the `[Attachment: …]` line the model reads.
  */
-const promptAttachmentNameSchema = Schema.String.pipe(
-  Schema.pattern(/^[\p{L}\p{N}_·-][\p{L}\p{N}_. ·-]{0,124}\.md$/u),
-  Schema.filter((name) => Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES),
+const promptAttachmentNameArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(
+    Schema.pattern(/^[\p{L}\p{N}_·-][\p{L}\p{N}_. ·-]{0,124}\.md$/u),
+    Schema.filter((name) => Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES),
+  ),
+  'Attachment name must be a Markdown file name of letters, digits, spaces and _ . · -.',
 )
-const prepareFromTextArgsSchema = Schema.Struct({
-  text: Schema.String.pipe(Schema.minLength(1)),
-  operationId: Schema.String.pipe(Schema.minLength(1)),
-  name: Schema.optional(promptAttachmentNameSchema),
-})
+const attachmentTextArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(Schema.minLength(1)),
+  'Attachment text must be a non-empty string.',
+)
+const operationIdArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(Schema.minLength(1)),
+  'Operation ID must be a non-empty string.',
+)
 
 function describeUnknownError(error: unknown) {
   if (error instanceof Error) {
@@ -87,12 +103,13 @@ function prepareAttachmentsThroughHost(
 function registerPrepareAttachmentHandler() {
   typedHandle('attachments:prepare', (_event, rawProjectPath: unknown, rawPaths: unknown) =>
     Effect.gen(function* () {
-      const { projectPath: pp, paths } = decodeUnknownOrThrow(prepareArgsSchema, {
-        projectPath: rawProjectPath,
-        paths: rawPaths,
-      })
+      const requestedProjectPath = yield* decodeSessionOperationArgument(
+        projectPathArgumentSchema,
+        rawProjectPath,
+      )
+      const paths = yield* decodeSessionOperationArgument(attachmentPathsArgumentSchema, rawPaths)
 
-      const projectPath = yield* validateRequiredProjectPath(pp)
+      const projectPath = yield* validateRequiredProjectPath(requestedProjectPath)
       return yield* prepareAttachmentsThroughHost(
         projectPath,
         paths.map((filePath) => ({ path: filePath })),
@@ -106,11 +123,15 @@ function registerPrepareFromTextAttachmentHandler() {
     'attachments:prepare-from-text',
     (_event, rawText: unknown, rawOperationId: unknown, rawName?: unknown) =>
       Effect.gen(function* () {
-        const { text, operationId, name } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
-          text: rawText,
-          operationId: rawOperationId,
-          ...(rawName === undefined ? {} : { name: rawName }),
-        })
+        const text = yield* decodeSessionOperationArgument(attachmentTextArgumentSchema, rawText)
+        const operationId = yield* decodeSessionOperationArgument(
+          operationIdArgumentSchema,
+          rawOperationId,
+        )
+        const name =
+          rawName === undefined
+            ? undefined
+            : yield* decodeSessionOperationArgument(promptAttachmentNameArgumentSchema, rawName)
         const sizeBytes = Buffer.byteLength(text, 'utf8')
         if (sizeBytes > ATTACHMENT.MAX_SIZE_BYTES) {
           return yield* Effect.fail(
