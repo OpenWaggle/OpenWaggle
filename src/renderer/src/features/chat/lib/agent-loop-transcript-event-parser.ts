@@ -1,24 +1,24 @@
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
-import { safeDecodeUnknown } from '@shared/schema'
+import { Schema } from '@shared/schema'
 import { agentLoopResponseSchema } from '@shared/schemas/agent-loop-interaction'
+import { lenientExactOptional } from '@shared/schemas/lenient-exact'
+import {
+  agentTransportCustomEventSchema,
+  agentTransportInteractionRequestEventSchema,
+  agentTransportInteractionResolvedEventSchema,
+} from '@shared/schemas/stream'
+import { jsonValueSchema } from '@shared/schemas/validation'
 import type {
   AgentTransportCustomEvent,
   AgentTransportInteractionRequestEvent,
   AgentTransportInteractionResolvedEvent,
 } from '@shared/types/stream'
-import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
+import { Option } from 'effect'
 import {
-  baseEventFields,
-  optionalJsonValue,
-  parseJsonUnknownOrNull,
-  stringOrNull,
+  persistedTransportErrorInfoSchema,
+  persistedTransportEventBaseFields,
 } from './agent-loop-transcript-event-fields'
-import {
-  parseErrorInfo,
-  parseInteraction,
-  parseInteractionKind,
-  parseInteractionStatus,
-} from './agent-loop-transcript-interactions'
+import { persistedAgentLoopInteractionSchema } from './agent-loop-transcript-interactions'
 
 export interface AgentLoopTranscriptNode {
   readonly id: string
@@ -30,84 +30,33 @@ export interface AgentLoopTranscriptNode {
   readonly contentJson?: string
 }
 
-/** A persisted Agent loop session event's content, as an audit node stores it. */
-interface AgentLoopSessionEventContent {
-  readonly customType: string
-  readonly event: unknown
-}
+const persistedCustomEventSchema = Schema.Struct({
+  ...agentTransportCustomEventSchema.fields,
+  ...persistedTransportEventBaseFields,
+  value: lenientExactOptional(jsonValueSchema),
+})
 
-function parseCustomEvent(event: object): AgentTransportCustomEvent | null {
-  const fields = uncheckedFields<AgentTransportCustomEvent>(event)
-  if (fields.type !== 'custom') {
-    return null
-  }
+const persistedInteractionRequestEventSchema = Schema.Struct({
+  ...agentTransportInteractionRequestEventSchema.fields,
+  ...persistedTransportEventBaseFields,
+  interaction: persistedAgentLoopInteractionSchema,
+})
 
-  const base = baseEventFields(event)
-  const name = stringOrNull(fields.name)
-  if (base === null || name === null) {
-    return null
-  }
+/** A resolution keeps its identity and status; a response or error that does not decode is left out. */
+const persistedInteractionResolvedEventSchema = Schema.Struct({
+  ...agentTransportInteractionResolvedEventSchema.fields,
+  ...persistedTransportEventBaseFields,
+  response: lenientExactOptional(agentLoopResponseSchema),
+  error: lenientExactOptional(persistedTransportErrorInfoSchema),
+})
 
-  const value = optionalJsonValue(fields.value)
-  return {
-    type: 'custom',
-    name,
-    ...base,
-    ...(value !== undefined ? { value } : {}),
-  }
-}
-
-function parseInteractionRequestEvent(event: object): AgentTransportInteractionRequestEvent | null {
-  const fields = uncheckedFields<AgentTransportInteractionRequestEvent>(event)
-  if (fields.type !== 'agent_interaction_request') {
-    return null
-  }
-
-  const base = baseEventFields(event)
-  const interaction = parseInteraction(fields.interaction)
-  return base !== null && interaction !== null
-    ? { type: 'agent_interaction_request', ...base, interaction }
-    : null
-}
-
-function parseInteractionResolvedEvent(
-  event: object,
-): AgentTransportInteractionResolvedEvent | null {
-  const fields = uncheckedFields<AgentTransportInteractionResolvedEvent>(event)
-  if (fields.type !== 'agent_interaction_resolved') {
-    return null
-  }
-
-  const base = baseEventFields(event)
-  const runId = stringOrNull(fields.runId)
-  const interactionId = stringOrNull(fields.interactionId)
-  const kind = parseInteractionKind(stringOrNull(fields.kind))
-  const status = parseInteractionStatus(stringOrNull(fields.status))
-
-  if (
-    base === null ||
-    runId === null ||
-    interactionId === null ||
-    kind === null ||
-    status === null
-  ) {
-    return null
-  }
-
-  const response = safeDecodeUnknown(agentLoopResponseSchema, fields.response)
-  const error = parseErrorInfo(fields.error)
-
-  return {
-    type: 'agent_interaction_resolved',
-    ...base,
-    runId,
-    interactionId,
-    kind,
-    status,
-    ...(response.success ? { response: response.data } : {}),
-    ...(error !== undefined ? { error } : {}),
-  }
-}
+const decodeAgentLoopEvent = Schema.decodeUnknownOption(
+  Schema.Union(
+    persistedCustomEventSchema,
+    persistedInteractionRequestEventSchema,
+    persistedInteractionResolvedEventSchema,
+  ),
+)
 
 export function parseAgentLoopEvent(
   event: unknown,
@@ -116,36 +65,29 @@ export function parseAgentLoopEvent(
   | AgentTransportInteractionRequestEvent
   | AgentTransportInteractionResolvedEvent
   | null {
-  if (!isObjectValue(event)) {
-    return null
-  }
+  return Option.getOrNull(decodeAgentLoopEvent(event))
+}
 
-  return (
-    parseCustomEvent(event) ??
-    parseInteractionRequestEvent(event) ??
-    parseInteractionResolvedEvent(event)
-  )
+/** A persisted Agent loop session event's content, as an audit node stores it. */
+const decodeAgentLoopSessionEventContent = Schema.decodeUnknownOption(
+  Schema.parseJson(
+    Schema.Struct({
+      customType: Schema.Literal(OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE),
+      event: Schema.Unknown,
+    }),
+  ),
+)
+
+function agentLoopSessionEventContent(node: AgentLoopTranscriptNode) {
+  if (node.kind !== 'custom' || !node.contentJson) return Option.none()
+  return decodeAgentLoopSessionEventContent(node.contentJson)
 }
 
 export function isAgentLoopTranscriptNode(node: AgentLoopTranscriptNode) {
-  if (node.kind !== 'custom' || !node.contentJson) {
-    return false
-  }
-
-  const content = uncheckedFields<AgentLoopSessionEventContent>(
-    parseJsonUnknownOrNull(node.contentJson),
-  )
-  return content.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+  return Option.isSome(agentLoopSessionEventContent(node))
 }
 
 export function readAgentLoopEventFromNode(node: AgentLoopTranscriptNode) {
-  if (!isAgentLoopTranscriptNode(node)) {
-    return null
-  }
-
-  if (!node.contentJson) return null
-  const content = uncheckedFields<AgentLoopSessionEventContent>(
-    parseJsonUnknownOrNull(node.contentJson),
-  )
-  return parseAgentLoopEvent(content.event)
+  const content = agentLoopSessionEventContent(node)
+  return Option.isSome(content) ? parseAgentLoopEvent(content.value.event) : null
 }
