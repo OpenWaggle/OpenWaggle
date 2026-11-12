@@ -22,14 +22,16 @@ function effectTarget(target: string) {
   throw new Error(`Effect Schema cannot describe a tool schema as ${target} JSON Schema.`)
 }
 
+function jsonSchemaFor(schema: Schema.Schema.AnyNoContext, target: string) {
+  return { ...JSONSchema.make(schema, { target: effectTarget(target) }) }
+}
+
 function cachedJsonSchema(schema: Schema.Schema.AnyNoContext) {
-  const generated = new Map<string, Record<string, unknown>>()
+  const generated = new Map<string, ReturnType<typeof jsonSchemaFor>>()
   return ({ target }: { readonly target: string }) => {
     const cached = generated.get(target)
     if (cached) return cached
-    const jsonSchema: Record<string, unknown> = {
-      ...JSONSchema.make(schema, { target: effectTarget(target) }),
-    }
+    const jsonSchema = jsonSchemaFor(schema, target)
     generated.set(target, jsonSchema)
     return jsonSchema
   }
