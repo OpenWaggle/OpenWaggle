@@ -1266,7 +1266,8 @@ export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extens
 /**
  * One reason a value failed validation. `path` is the dotted field path the host reports in its
  * diagnostics, such as `contributions.sidePanels.0.icon`, with array items by index, and
- * `(root)` for the value itself.
+ * `(root)` for the value itself. It is empty when reading the value threw, for example from a
+ * throwing getter or a Proxy.
  */
 export interface ExtensionValidationIssue {
     readonly path: string;
@@ -3213,7 +3214,8 @@ export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extens
 /**
  * One reason a value failed validation. `path` is the dotted field path the host reports in its
  * diagnostics, such as `contributions.sidePanels.0.icon`, with array items by index, and
- * `(root)` for the value itself.
+ * `(root)` for the value itself. It is empty when reading the value threw, for example from a
+ * throwing getter or a Proxy.
  */
 export interface ExtensionValidationIssue {
     readonly path: string;
@@ -5271,7 +5273,8 @@ export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extens
 /**
  * One reason a value failed validation. `path` is the dotted field path the host reports in its
  * diagnostics, such as `contributions.sidePanels.0.icon`, with array items by index, and
- * `(root)` for the value itself.
+ * `(root)` for the value itself. It is empty when reading the value threw, for example from a
+ * throwing getter or a Proxy.
  */
 export interface ExtensionValidationIssue {
     readonly path: string;
@@ -6656,7 +6659,8 @@ export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extens
 /**
  * One reason a value failed validation. `path` is the dotted field path the host reports in its
  * diagnostics, such as `contributions.sidePanels.0.icon`, with array items by index, and
- * `(root)` for the value itself.
+ * `(root)` for the value itself. It is empty when reading the value threw, for example from a
+ * throwing getter or a Proxy.
  */
 export interface ExtensionValidationIssue {
     readonly path: string;
@@ -6841,7 +6845,8 @@ export declare const validateExtensionManifest: (value: unknown) => ExtensionVal
 export declare const validateBrokerCapabilityDeclaration: (value: unknown) => ExtensionValidationResult<ExtensionCapabilityDeclaration>;
 /**
  * Checks a theme object: its colour scheme, and that `tokens` and `cssVariables` hold exactly the
- * token groups and keys of the current theme contract. The theme itself may carry more fields.
+ * token groups and keys of the current theme contract. The theme itself may carry more fields,
+ * which `value` leaves out.
  */
 export declare const validateOpenWaggleExtensionTheme: (value: unknown) => ExtensionValidationResult<OpenWaggleExtensionTheme>;
 ```
@@ -7149,7 +7154,8 @@ export interface CreateOpenWaggleExtensionThemeOptions {
 /**
  * One reason a value failed validation. `path` is the dotted field path the host reports in its
  * diagnostics, such as `contributions.sidePanels.0.icon`, with array items by index, and
- * `(root)` for the value itself.
+ * `(root)` for the value itself. It is empty when reading the value threw, for example from a
+ * throwing getter or a Proxy.
  */
 export interface ExtensionValidationIssue {
     readonly path: string;

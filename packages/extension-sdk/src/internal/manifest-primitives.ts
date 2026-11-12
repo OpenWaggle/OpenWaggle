@@ -1,9 +1,12 @@
 import * as Schema from 'effect/Schema'
 import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
+import { MANIFEST_JSON_SCHEMA } from './manifest-json-schema.js'
 
 export const extensionNonEmptyStringSchema = Schema.String.pipe(
   Schema.minLength(1),
-  Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.'),
+  Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.', {
+    jsonSchema: MANIFEST_JSON_SCHEMA.NON_EMPTY,
+  }),
 )
 
 function isExtensionId(value: string) {
@@ -151,22 +154,24 @@ function isNotRuntimeModuleContextEntryPath(value: string) {
 
 export const extensionIdSchema = Schema.String.pipe(
   Schema.minLength(1),
-  Schema.filter(isExtensionId),
+  Schema.filter(isExtensionId, { jsonSchema: MANIFEST_JSON_SCHEMA.ID }),
 )
 export const extensionContributionIdSchema = Schema.String.pipe(
   Schema.minLength(1),
-  Schema.filter(isContributionId),
+  Schema.filter(isContributionId, { jsonSchema: MANIFEST_JSON_SCHEMA.CONTRIBUTION_ID }),
 )
 export const extensionSemverVersionSchema = Schema.String.pipe(
   Schema.minLength(1),
-  Schema.filter(isSemverVersion),
+  Schema.filter(isSemverVersion, { jsonSchema: MANIFEST_JSON_SCHEMA.SEMVER_VERSION }),
 )
 export const extensionRelativePathSchema = Schema.String.pipe(
   Schema.minLength(1),
-  Schema.filter(isPortableRelativePath),
+  Schema.filter(isPortableRelativePath, { jsonSchema: MANIFEST_JSON_SCHEMA.RELATIVE_PATH }),
 )
 export const extensionContributionEntryPathSchema = extensionRelativePathSchema.pipe(
-  Schema.filter(isNotRuntimeModuleContextEntryPath),
+  Schema.filter(isNotRuntimeModuleContextEntryPath, {
+    jsonSchema: MANIFEST_JSON_SCHEMA.ENTRY_PATH,
+  }),
 )
 
 const LUCIDE_ICON_NAME_MAX_LENGTH = 64
@@ -192,10 +197,15 @@ function hasSvgFileExtension(value: string) {
 
 export const extensionLucideIconNameSchema = Schema.String.pipe(
   Schema.minLength(1),
-  Schema.filter(isLucideIconName),
+  Schema.filter(isLucideIconName, {
+    jsonSchema: {
+      pattern: LUCIDE_ICON_NAME_PATTERN.source,
+      maxLength: LUCIDE_ICON_NAME_MAX_LENGTH,
+    },
+  }),
 )
 export const extensionSvgIconPathSchema = extensionRelativePathSchema.pipe(
-  Schema.filter(hasSvgFileExtension),
+  Schema.filter(hasSvgFileExtension, { jsonSchema: MANIFEST_JSON_SCHEMA.SVG_PATH }),
 )
 export const extensionCapabilityScopeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES,

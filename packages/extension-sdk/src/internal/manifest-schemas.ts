@@ -14,6 +14,7 @@ import {
   isNetworkOrigin,
   isRuntimeRequirementBinary,
 } from './manifest-primitives.js'
+import { MANIFEST_JSON_SCHEMA } from './manifest-json-schema.js'
 
 export const extensionRuntimeRequirementTypeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPES,
@@ -26,7 +27,11 @@ export const extensionRuntimeRequirementSchema = Schema.Struct({
   kind: Schema.optionalWith(extensionRuntimeRequirementTypeSchema, { exact: true }),
   command: Schema.optionalWith(extensionRelativePathSchema, { exact: true }),
   binary: Schema.optionalWith(
-    extensionNonEmptyStringSchema.pipe(Schema.filter(isRuntimeRequirementBinary)),
+    extensionNonEmptyStringSchema.pipe(
+      Schema.filter(isRuntimeRequirementBinary, {
+        jsonSchema: MANIFEST_JSON_SCHEMA.RUNTIME_REQUIREMENT_BINARY,
+      }),
+    ),
     { exact: true },
   ),
 }).pipe(
@@ -57,11 +62,17 @@ export const extensionRuntimeRequirementSchema = Schema.Struct({
 export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
 export const extensionInstallSchema = Schema.Struct({ source: extensionInstallSourceSchema })
 export const extensionBuildSchema = Schema.Struct({
-  command: extensionNonEmptyStringSchema.pipe(Schema.filter(isBuildCommand)),
+  command: extensionNonEmptyStringSchema.pipe(
+    Schema.filter(isBuildCommand, { jsonSchema: MANIFEST_JSON_SCHEMA.BUILD_COMMAND }),
+  ),
   outputs: Schema.optionalWith(Schema.Array(extensionRelativePathSchema), { exact: true }),
 })
 export const extensionNetworkSchema = Schema.Struct({
-  origins: Schema.Array(extensionNonEmptyStringSchema.pipe(Schema.filter(isNetworkOrigin))),
+  origins: Schema.Array(
+    extensionNonEmptyStringSchema.pipe(
+      Schema.filter(isNetworkOrigin, { jsonSchema: MANIFEST_JSON_SCHEMA.NETWORK_ORIGIN }),
+    ),
+  ),
 })
 export const extensionDocsTopicDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
