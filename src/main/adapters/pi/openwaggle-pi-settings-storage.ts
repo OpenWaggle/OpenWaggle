@@ -23,6 +23,7 @@ import {
   withOpenWaggleResourcePrecedence,
 } from './openwaggle-pi-settings-resources'
 import { renameLegacyProviderPiSettings } from './pi-provider-renames'
+import { piSettingsFields } from './pi-settings-fields'
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
@@ -127,7 +128,8 @@ function withOpenWaggleCompactionThreshold(
   thresholdPercent: number | undefined,
 ): JsonObject {
   if (thresholdPercent === undefined) return settings
-  const compaction = isJsonObject(settings.compaction) ? settings.compaction : {}
+  const current = piSettingsFields(settings).compaction
+  const compaction = current !== undefined && isJsonObject(current) ? current : {}
   return {
     ...settings,
     compaction: {
@@ -139,13 +141,14 @@ function withOpenWaggleCompactionThreshold(
 }
 
 function withoutOpenWaggleCompactionThreshold(settings: JsonObject): JsonObject {
-  if (!isJsonObject(settings.compaction)) return settings
+  const current = piSettingsFields(settings).compaction
+  if (current === undefined || !isJsonObject(current)) return settings
   const { compaction: _currentCompaction, ...otherSettings } = settings
   const {
     thresholdPercent: _thresholdPercent,
     maxThresholdTokens: _maxThresholdTokens,
     ...compaction
-  } = settings.compaction
+  } = current
   return {
     ...otherSettings,
     ...(Object.keys(compaction).length > 0 ? { compaction } : {}),

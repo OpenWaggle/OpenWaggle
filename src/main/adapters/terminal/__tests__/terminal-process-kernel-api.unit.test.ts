@@ -34,7 +34,7 @@ function kernelInfo(pid: number): TerminalKernelProcessInfo {
 
 function install(readMany: (pids: readonly number[]) => unknown) {
   const pty = fromPartial<typeof NodePtyModule>({})
-  Reflect.set(pty, 'native', { processInfos: readMany })
+  Object.assign(pty, { native: { processInfos: readMany } })
   installTerminalProcessKernelApi(pty)
 }
 

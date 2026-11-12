@@ -13,8 +13,8 @@ const PI_CLIENT_IDENTITY_MODULE = path.resolve(
 export async function piRequestIdentity(settingsManager: SettingsManager): Promise<ClientIdentity> {
   const piModule: unknown = await import(pathToFileURL(PI_CLIENT_IDENTITY_MODULE).href)
   const getClientIdentity: unknown =
-    typeof piModule === 'object' && piModule !== null
-      ? Reflect.get(piModule, 'getClientIdentity')
+    typeof piModule === 'object' && piModule !== null && 'getClientIdentity' in piModule
+      ? piModule.getClientIdentity
       : undefined
   if (typeof getClientIdentity !== 'function') throw new Error('Pi client identity moved')
   const identity: unknown = Reflect.apply(getClientIdentity, undefined, [settingsManager])

@@ -1,8 +1,8 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { parseJsonUnknown } from '@shared/schema'
+import { parseJsonUnknown, Schema } from '@shared/schema'
 import type { AgentSendReport } from '@shared/types/agent'
-import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionControlRepositoryError } from '../errors'
@@ -29,22 +29,24 @@ function commandJson(request: ExplicitWaggleRequest) {
   return canonicalJson(command)
 }
 
+/** The report a completed explicit Waggle operation stored for replay. */
+const decodeStoredReport = Schema.decodeUnknownOption(
+  Schema.Struct({
+    outcome: Schema.Literal('delivered', 'refused', 'cancelled'),
+    message: Schema.optional(Schema.String),
+    code: Schema.optional(Schema.String),
+  }),
+)
+
 function decodeReport(raw: string | null): AgentSendReport {
-  const value = raw === null ? null : parseJsonUnknown(raw)
-  if (
-    !isRecord(value) ||
-    (value.outcome !== 'delivered' &&
-      value.outcome !== 'refused' &&
-      value.outcome !== 'cancelled') ||
-    (value.message !== undefined && typeof value.message !== 'string') ||
-    (value.code !== undefined && typeof value.code !== 'string')
-  ) {
-    throw new Error('Completed explicit Waggle operation has an invalid report.')
-  }
+  const report = Option.getOrUndefined(
+    decodeStoredReport(raw === null ? null : parseJsonUnknown(raw)),
+  )
+  if (!report) throw new Error('Completed explicit Waggle operation has an invalid report.')
   return {
-    outcome: value.outcome,
-    ...(typeof value.message === 'string' ? { message: value.message } : {}),
-    ...(typeof value.code === 'string' ? { code: value.code } : {}),
+    outcome: report.outcome,
+    ...(report.message === undefined ? {} : { message: report.message }),
+    ...(report.code === undefined ? {} : { code: report.code }),
   }
 }
 

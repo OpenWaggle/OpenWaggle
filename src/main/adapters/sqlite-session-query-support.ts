@@ -1,3 +1,5 @@
+import { Schema } from '@shared/schema'
+import { Option } from 'effect'
 import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { DelegationState } from '@shared/types/session-collaboration'
@@ -116,18 +118,20 @@ export function authorizedSessionScope(authority: LocalSessionProfileAuthority |
   }
 }
 
-export function decodeSessionQueryCursor(
+/** A page cursor as the query that issued it wrote it; `invalid` when it is not that shape. */
+export function decodeSessionQueryCursor<A, I>(
   cursor: string | undefined,
-): Record<string, unknown> | null | 'invalid' {
+  schema: Schema.Schema<A, I>,
+): A | null | 'invalid' {
   if (!cursor) return null
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? Object.fromEntries(Object.entries(parsed))
-      : 'invalid'
+    parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
   } catch {
     return 'invalid'
   }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return 'invalid'
+  return Option.getOrElse(Schema.decodeUnknownOption(schema)(parsed), () => 'invalid' as const)
 }
 
 export function encodeSessionQueryCursor(value: unknown) {

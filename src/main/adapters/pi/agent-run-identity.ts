@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import type { ContextEvent, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import { OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE } from '@shared/constants/run-identity'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
+import { Option } from 'effect'
 
 type ContextMessage = ContextEvent['messages'][number]
 type CustomMessage = Extract<ContextMessage, { role: 'custom' }>
@@ -77,17 +78,25 @@ export function runIdentityEntryData(
   }
 }
 
+/** The Run identity entry as an earlier OpenWaggle wrote it; an entry that differs is not one. */
+const decodeStoredRunIdentity = Schema.decodeUnknownOption(
+  Schema.Struct({
+    content: Schema.String,
+    prompt: Schema.Struct({
+      timestamp: Schema.Number,
+      digest: Schema.String,
+      customType: Schema.optional(Schema.String),
+    }),
+  }),
+)
+
 function storedRunIdentity(entry: SessionEntry): RunIdentityEntryData | undefined {
   if (entry.type !== 'custom' || entry.customType !== OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE) {
     return undefined
   }
-  const data: unknown = entry.data
-  if (!isRecord(data) || typeof data.content !== 'string' || !isRecord(data.prompt)) {
-    return undefined
-  }
+  const data = Option.getOrUndefined(decodeStoredRunIdentity(entry.data))
+  if (!data) return undefined
   const { timestamp, digest, customType } = data.prompt
-  if (typeof timestamp !== 'number' || typeof digest !== 'string') return undefined
-  if (customType !== undefined && typeof customType !== 'string') return undefined
   return {
     content: data.content,
     prompt: customType === undefined ? { timestamp, digest } : { timestamp, digest, customType },

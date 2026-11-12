@@ -268,7 +268,6 @@ it("gives both Pi shell tools the user's PI_PACKAGE_DIR, not OpenWaggle's own", 
       cwd: '/workspace',
       env: { ...hostEnvironment, KEEP: 'value' },
     })
-    expect(spawned.env.PI_PACKAGE_DIR).toBe('/nix/store/pi')
-    expect(spawned.env.KEEP).toBe('value')
+    expect(spawned.env).toMatchObject({ PI_PACKAGE_DIR: '/nix/store/pi', KEEP: 'value' })
   }
 })

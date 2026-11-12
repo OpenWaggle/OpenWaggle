@@ -7,7 +7,7 @@ import {
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
-import { isRecord } from '@shared/utils/validation'
+import { errorCode } from '@shared/utils/node-error'
 import { logger } from './constants'
 
 /** A Session's Pi file cannot be used, so nothing is started in its place. */
@@ -38,7 +38,7 @@ export function unavailabilityOf(file: string): PiSessionFileUnavailability | un
     // Something is there that could not be followed or read.
     return 'file'
   } catch (cause) {
-    const code = isRecord(cause) ? cause.code : undefined
+    const code = errorCode(cause)
     if (code !== 'ENOENT') return 'file'
     return existsSync(dirname(file)) ? undefined : 'folder'
   }

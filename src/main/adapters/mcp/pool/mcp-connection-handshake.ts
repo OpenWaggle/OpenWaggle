@@ -1,4 +1,3 @@
-import { isRecord } from '@shared/utils/validation'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import {
   errorResponse,
@@ -14,6 +13,7 @@ import {
   type JsonRpcRequest,
   toError,
 } from './mcp-wire'
+import { mcpMessageFields, stringField } from './mcp-message-fields'
 
 interface HandshakeChannel {
   /** Sends a request upstream and waits for its result. */
@@ -64,9 +64,8 @@ export class McpConnectionHandshake {
         (value) => {
           this.result = { value }
           this.channel.onResult?.(value)
-          if (isRecord(value) && typeof value.protocolVersion === 'string') {
-            this.channel.onProtocolVersion(value.protocolVersion)
-          }
+          const protocolVersion = stringField(mcpMessageFields(value)?.protocolVersion)
+          if (protocolVersion !== undefined) this.channel.onProtocolVersion(protocolVersion)
           return value
         },
         (error: unknown) => {

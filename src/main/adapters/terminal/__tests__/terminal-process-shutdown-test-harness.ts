@@ -144,9 +144,9 @@ export function makeLiveProcess(
       return { dispose: () => undefined }
     },
   })
-  Reflect.set(pty, '_socket', { destroy })
-  Reflect.set(pty, 'closeDescriptor', closeDescriptor)
-  Reflect.set(pty, 'destroy', publicDestroy)
+  Object.assign(pty, { _socket: { destroy } })
+  Object.assign(pty, { closeDescriptor: closeDescriptor })
+  Object.assign(pty, { destroy: publicDestroy })
   const lifecycle = nativeLifecycle.install(pty)
   const live: LiveTerminalProcess = {
     pty,

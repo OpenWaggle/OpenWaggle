@@ -1,5 +1,5 @@
 import type { Logger } from '@shared/types/logger'
-import { isRecord } from '@shared/utils/validation'
+import { mcpConfigServerMaps } from '../mcp-config-server-maps'
 import { computeProjectFile, type McpFileSources } from './file-computation'
 import type { LegacyStateFile } from './legacy-state'
 
@@ -25,8 +25,7 @@ export async function reportHomeFolderProjectState(input: {
     preserveEnablement: true,
   })
   const parsed: unknown = computed.text === undefined ? undefined : JSON.parse(computed.text)
-  const servers =
-    isRecord(parsed) && isRecord(parsed.mcpServers) ? Object.keys(parsed.mcpServers) : []
+  const servers = Object.keys(mcpConfigServerMaps(parsed).mcpServers ?? {})
   if (servers.length === 0) return false
   input.logger.warn(
     'MCP migration left out the on/off choices of the project at the home folder, which shares its file with every project',

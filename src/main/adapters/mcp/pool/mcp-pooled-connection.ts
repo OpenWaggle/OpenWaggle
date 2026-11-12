@@ -31,6 +31,7 @@ import {
   type JsonRpcResponse,
   toError,
 } from './mcp-wire'
+import { mcpMessageFields } from './mcp-message-fields'
 
 /** How long a retiring connection waits for its open requests before it closes anyway. */
 const RETIRE_GRACE_MS = 30_000
@@ -257,7 +258,7 @@ export class McpPooledConnection {
     if (message.method === INITIALIZED) return this.handshake.initialized(message)
     if (message.method === CANCELLED) {
       const params = isRecord(message.params) ? message.params : {}
-      const upstreamId = this.ledger.upstreamId(lease, params.requestId)
+      const upstreamId = this.ledger.upstreamId(lease, mcpMessageFields(params)?.requestId)
       if (upstreamId === undefined) return
       this.ledger.forget(upstreamId)
       try {

@@ -1,4 +1,5 @@
 import type { LiveTerminalProcess } from './terminal-records'
+import { terminalBackendProcess } from './terminal-pty-backend-fields'
 
 export type TerminalTtySignalResult = 'signaled' | 'no-match' | 'partial' | 'unavailable'
 
@@ -6,12 +7,12 @@ const NATIVE_TTY_SIGNAL_PARTIAL = -2
 const TTY_SIGNAL_RETRY_POLL_MS = 5
 
 function ptyDescriptorIsOpen(live: LiveTerminalProcess) {
-  const socket: unknown = Reflect.get(live.pty, '_socket')
+  const socket: unknown = terminalBackendProcess(live.pty)._socket
   return (
     socket !== null &&
     typeof socket === 'object' &&
-    Reflect.get(socket, 'destroyed') !== true &&
-    Reflect.get(socket, 'closed') !== true
+    ('destroyed' in socket ? socket.destroyed : undefined) !== true &&
+    ('closed' in socket ? socket.closed : undefined) !== true
   )
 }
 

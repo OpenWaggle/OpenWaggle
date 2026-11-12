@@ -1,3 +1,4 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
 import { canonicalJson } from '@shared/canonical-json'
 import type { SessionExportManifest, SessionExportNodeRecord } from '@shared/types/session-export'
 import type { SessionExportFormat } from '@shared/types/session-export-operation'
@@ -5,13 +6,10 @@ import { sessionExportMarkdownHeading } from '@shared/utils/session-export-markd
 
 const JSON_INDENT_SPACES = 2
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function markdownContent(content: unknown) {
   if (typeof content === 'string') return content
-  if (isRecord(content) && typeof content.text === 'string') return content.text
+  const { text } = uncheckedFields<{ readonly text: string }>(content)
+  if (typeof text === 'string') return text
   return `\`\`\`json\n${JSON.stringify(content, null, JSON_INDENT_SPACES)}\n\`\`\``
 }
 

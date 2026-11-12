@@ -6,9 +6,9 @@ import { createNativeTtyMemberSignal } from '../terminal-pty-native-signal'
 
 function subject(signalByTty: (...args: readonly unknown[]) => unknown, fd: unknown = 42) {
   const pty = fromPartial<typeof NodePtyModule>({})
-  Reflect.set(pty, 'native', { signalByTty })
+  Object.assign(pty, { native: { signalByTty } })
   const spawned = fromPartial<NodePtyModule.IPty>({ pid: 4321 })
-  Reflect.set(spawned, 'fd', fd)
+  Object.assign(spawned, { fd: fd })
   return createNativeTtyMemberSignal(pty, spawned, 'darwin:16:42', 'darwin:123:456')
 }
 

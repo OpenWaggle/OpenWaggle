@@ -127,7 +127,7 @@ describe('terminal forced shutdown proof', () => {
   it('fails closed when node-pty exposes no descriptor-only POSIX close', () => {
     const subject = makeSubject('stubborn-flood')
     for (const closeDescriptor of [null, {}, 42]) {
-      Reflect.set(subject.live.pty, 'closeDescriptor', closeDescriptor)
+      Object.assign(subject.live.pty, { closeDescriptor: closeDescriptor })
 
       expect(forceClosePty(subject.live)).toBe(false)
     }

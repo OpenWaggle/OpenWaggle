@@ -9,10 +9,12 @@ import {
 } from '@shared/types/session-capability'
 import type { ResolvedSessionExecutionProfile } from '@shared/types/session-lifecycle'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import { valuesIn } from '@shared/utils/set-membership'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
 import { heartbeatRunIdentity } from '../domain/scheduled-tasks/heartbeat-run-context'
 import {
+  type ScheduledTaskRunFields,
   scheduledTaskMessageOrigin,
   scheduledTaskRecord,
   scheduledTaskRunContext,
@@ -106,6 +108,7 @@ function optionalStringArray(record: Record<string, unknown>, key: string, label
 export function decodeSessionExecutionProfile(value: string): ResolvedSessionExecutionProfile {
   const label = 'Session execution profile'
   const record = parseJsonRecord(value, label)
+  const { agentDefinitionName }: UncheckedFields<ResolvedSessionExecutionProfile> = record
   const thinkingLevel = requiredString(record, 'thinkingLevel', label)
   const validatedThinkingLevel = THINKING_LEVELS.find((candidate) => candidate === thinkingLevel)
   if (!validatedThinkingLevel) {
@@ -121,9 +124,7 @@ export function decodeSessionExecutionProfile(value: string): ResolvedSessionExe
   return {
     modelId: requiredString(record, 'modelId', label),
     thinkingLevel: validatedThinkingLevel,
-    ...(typeof record.agentDefinitionName === 'string'
-      ? { agentDefinitionName: record.agentDefinitionName }
-      : {}),
+    ...(typeof agentDefinitionName === 'string' ? { agentDefinitionName } : {}),
     ...(tools ? { tools } : {}),
     ...(skills ? { skills } : {}),
     ...(mcpServers ? { mcpServers } : {}),
@@ -241,7 +242,7 @@ function scheduledTaskOrigin(value: string | null | undefined) {
   }
 }
 
-function heartbeatIdentity(record: Readonly<Record<string, unknown>>) {
+function heartbeatIdentity(record: ScheduledTaskRunFields) {
   if (record.kind !== 'heartbeat') return {}
   const context = scheduledTaskRunContext(record)
   return context ? heartbeatRunIdentity(context) : {}

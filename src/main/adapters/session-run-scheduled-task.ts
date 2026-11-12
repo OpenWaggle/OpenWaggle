@@ -1,5 +1,7 @@
 import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import { SCHEDULED_TASK_KINDS } from '@shared/types/scheduled-task'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { isObjectValue } from '@shared/utils/object-shape'
 import {
   decodeHeartbeatRunContext,
   type HeartbeatRunContext,
@@ -7,6 +9,23 @@ import {
 import { createLogger } from '../logger'
 
 const logger = createLogger('session-run-scheduled-task')
+
+/** The Scheduled task run record the Host wrote for the Run's request, each field still unchecked. */
+interface ScheduledTaskRunRecord {
+  readonly id: string
+  readonly name: string
+  readonly kind: string
+  readonly trigger: string
+  readonly firedAt: number
+  readonly nominalAt: number
+  readonly missedCount: number
+  readonly previousFiredAt: number
+  readonly previousSessionId: string
+  /** Host-authored Heartbeat context JSON (#388). */
+  readonly context: string
+}
+
+export type ScheduledTaskRunFields = UncheckedFields<ScheduledTaskRunRecord>
 
 /** The Scheduled task run record the Run's request joined to, when it has an id and a name. */
 export function scheduledTaskRecord(value: string | null | undefined) {
@@ -21,10 +40,11 @@ export function scheduledTaskRecord(value: string | null | undefined) {
     })
     return undefined
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
-  const record: Record<string, unknown> = Object.fromEntries(Object.entries(parsed))
-  if (typeof record.id !== 'string' || typeof record.name !== 'string') return undefined
-  return { record, id: record.id, name: record.name }
+  if (!isObjectValue(parsed)) return undefined
+  const record: ScheduledTaskRunFields = parsed
+  const { id, name } = record
+  if (typeof id !== 'string' || typeof name !== 'string') return undefined
+  return { record, id, name }
 }
 
 /**
@@ -32,9 +52,9 @@ export function scheduledTaskRecord(value: string | null | undefined) {
  * A context that does not decode is dropped with a warning: the Run still starts, without it.
  */
 export function scheduledTaskRunContext(
-  record: Readonly<Record<string, unknown>>,
+  record: ScheduledTaskRunFields,
 ): HeartbeatRunContext | undefined {
-  const context = record.context
+  const { context } = record
   if (typeof context !== 'string') return undefined
   try {
     return decodeHeartbeatRunContext(context)

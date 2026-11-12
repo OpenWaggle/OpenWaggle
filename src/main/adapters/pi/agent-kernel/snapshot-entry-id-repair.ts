@@ -1,13 +1,16 @@
 import { readFile, stat } from 'node:fs/promises'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import type { PersistSessionSnapshotInput } from '../../../ports/session-repository'
 import {
   SessionTranscriptRepair,
   SessionTranscriptRepairError,
 } from '../../../ports/session-transcript-repair'
-import { rekeySessionLines, writeSessionLinesAtomically } from './fork-entry-identity'
+import {
+  rekeySessionLines,
+  sessionEntryIdOf,
+  writeSessionLinesAtomically,
+} from './fork-entry-identity'
 import { projectPiSessionSnapshot } from './session-projection'
 
 /** Parses every line, or returns null: a file Pi could only partly read is never rewritten. */
@@ -27,9 +30,8 @@ function parseSessionLines(text: string): unknown[] | null {
 function entryIdsOf(lines: readonly unknown[]) {
   const ids = new Set<string>()
   for (const line of lines) {
-    if (isRecord(line) && line.type !== 'session' && typeof line.id === 'string') {
-      ids.add(line.id)
-    }
+    const id = sessionEntryIdOf(line)
+    if (id !== undefined) ids.add(id)
   }
   return ids
 }
@@ -38,8 +40,9 @@ function entryIdsOf(lines: readonly unknown[]) {
 function changedEntryIds(before: readonly unknown[], after: readonly unknown[]) {
   const changed = new Set<string>()
   before.forEach((line, index) => {
-    if (!isRecord(line) || line.type === 'session' || typeof line.id !== 'string') return
-    if (JSON.stringify(line) !== JSON.stringify(after[index])) changed.add(line.id)
+    const id = sessionEntryIdOf(line)
+    if (id === undefined) return
+    if (JSON.stringify(line) !== JSON.stringify(after[index])) changed.add(id)
   })
   return changed
 }

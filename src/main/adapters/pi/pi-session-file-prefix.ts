@@ -1,5 +1,11 @@
 import { open, stat } from 'node:fs/promises'
 import type { PiSessionTitleSource } from '../../ports/pi-session-discovery'
+import {
+  type PiSessionEntry,
+  parsePiSessionEntryLine,
+  parsePiSessionObjectLine,
+  piUserMessageText,
+} from './pi-session-jsonl-entry'
 
 /**
  * The start of a Pi session file as discovery reads it (ADR 0051): the header, the first user
@@ -21,20 +27,6 @@ const MAX_FIRST_MESSAGE_SCAN_BYTES = 4 * 1024 * 1024
 /** Enough of the first message for a title, without remembering whole pasted prompts. */
 const MAX_REMEMBERED_MESSAGE_LENGTH = 1024
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseLine(line: string): unknown {
-  if (!line.trim()) return null
-  try {
-    return JSON.parse(line)
-  } catch {
-    // A line cut by the prefix bound, or one Pi itself would skip as malformed.
-    return null
-  }
-}
-
 /** The complete lines of the file's first `limit` bytes; a cut-off last line is dropped. */
 async function readLines(file: string, limit: number) {
   const handle = await open(file, 'r')
@@ -52,7 +44,7 @@ async function readLines(file: string, limit: number) {
 type HeaderSearch =
   | {
       readonly kind: 'header'
-      readonly header: Readonly<Record<string, unknown>>
+      readonly header: PiSessionEntry
       readonly index: number
     }
   | { readonly kind: 'not-a-session' }
@@ -64,9 +56,9 @@ type HeaderSearch =
  */
 function findHeader(lines: readonly string[]): HeaderSearch {
   for (const [index, line] of lines.entries()) {
-    const entry = parseLine(line)
+    const entry = parsePiSessionEntryLine(line)
     if (entry === null) continue
-    if (isRecord(entry) && entry.type === 'session' && typeof entry.id === 'string') {
+    if (entry.type === 'session' && entry.id !== undefined) {
       return { kind: 'header', header: entry, index }
     }
     return { kind: 'not-a-session' }
@@ -74,41 +66,22 @@ function findHeader(lines: readonly string[]): HeaderSearch {
   return { kind: 'not-found' }
 }
 
-function isUserMessage(entry: Readonly<Record<string, unknown>>) {
-  return entry.type === 'message' && isRecord(entry.message) && entry.message.role === 'user'
-}
-
 /** When the user message was sent: Pi's message time, else the entry's. */
-function messageTime(entry: Readonly<Record<string, unknown>>) {
-  const message = isRecord(entry.message) ? entry.message : undefined
-  if (typeof message?.timestamp === 'number' && Number.isFinite(message.timestamp)) {
-    return message.timestamp
-  }
-  const parsed = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : Number.NaN
+function messageTime(entry: PiSessionEntry) {
+  if (entry.message?.timestamp !== undefined) return entry.message.timestamp
+  const parsed = entry.timestamp === undefined ? Number.NaN : Date.parse(entry.timestamp)
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function modelChange(entry: Readonly<Record<string, unknown>>) {
+function modelChange(entry: PiSessionEntry) {
   if (entry.type !== 'model_change') return null
   const { provider, modelId } = entry
-  return typeof provider === 'string' && provider && typeof modelId === 'string' && modelId
-    ? `${provider}/${modelId}`
-    : null
+  return provider && modelId ? `${provider}/${modelId}` : null
 }
 
-function userMessageText(entry: Readonly<Record<string, unknown>>) {
-  if (entry.type !== 'message' || !isRecord(entry.message)) return null
-  const message = entry.message
-  if (message.role !== 'user') return null
-  if (typeof message.content === 'string') return message.content.trim() || null
-  if (!Array.isArray(message.content)) return null
-  const text = message.content
-    .flatMap((part: unknown) =>
-      isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
-    )
-    .join(' ')
-    .trim()
-  return text || null
+function userMessageText(entry: PiSessionEntry) {
+  if (entry.type !== 'message' || entry.message === undefined) return null
+  return piUserMessageText(entry.message)?.trim() || null
 }
 
 interface PiSessionPrefix extends PiSessionTitleSource {
@@ -125,16 +98,16 @@ interface PrefixEntries {
   readonly model: string | null
 }
 
-function sessionName(entry: Readonly<Record<string, unknown>>) {
-  return typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : null
+function sessionName(entry: PiSessionEntry) {
+  return entry.name?.trim() || null
 }
 
-function readEntry(read: PrefixEntries, entry: Readonly<Record<string, unknown>>): PrefixEntries {
+function readEntry(read: PrefixEntries, entry: PiSessionEntry): PrefixEntries {
   const named = entry.type === 'session_info' ? { ...read, name: sessionName(entry) } : read
   if (named.firstUserMessage !== null) return named
   // The model the session had when its first message was sent, which titles it.
   const withModel = { ...named, model: modelChange(entry) ?? named.model }
-  const text = isUserMessage(entry) ? userMessageText(entry) : null
+  const text = userMessageText(entry)
   if (text === null) return withModel
   return { ...withModel, firstUserMessage: text, firstUserMessageAt: messageTime(entry) }
 }
@@ -143,8 +116,8 @@ function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
   const search = findHeader(lines)
   if (search.kind !== 'header') return null
   const header = search.header
-  if (typeof header.id !== 'string' || !header.id) return null
-  if (typeof header.cwd !== 'string' || !header.cwd) return null
+  const { id, cwd } = header
+  if (!id || !cwd) return null
   let read: PrefixEntries = {
     name: null,
     firstUserMessage: null,
@@ -152,13 +125,13 @@ function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
     model: null,
   }
   for (const line of lines.slice(search.index + 1)) {
-    const entry = parseLine(line)
-    if (isRecord(entry)) read = readEntry(read, entry)
+    const entry = parsePiSessionObjectLine(line)
+    if (entry !== null) read = readEntry(read, entry)
   }
   return {
-    id: header.id,
-    cwd: header.cwd,
-    timestamp: typeof header.timestamp === 'string' ? header.timestamp : null,
+    id,
+    cwd,
+    timestamp: header.timestamp ?? null,
     ...read,
     model: read.firstUserMessage === null ? null : read.model,
   }

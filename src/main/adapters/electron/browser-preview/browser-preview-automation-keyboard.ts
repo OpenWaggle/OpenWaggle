@@ -13,7 +13,7 @@ interface KeyDefinition {
   readonly shiftedKey?: string
 }
 
-export interface BrowserPreviewAutomationKeyEvent extends Readonly<Record<string, unknown>> {
+export interface BrowserPreviewAutomationKeyEvent {
   readonly type: 'keyDown' | 'rawKeyDown' | 'keyUp'
   readonly key: string
   readonly code: string

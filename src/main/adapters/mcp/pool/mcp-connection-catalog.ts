@@ -20,6 +20,7 @@ export {
   type McpToolCatalogStore,
   memoryMcpToolCatalogStore,
 } from './mcp-tool-catalog-store'
+import { mcpMessageFields, stringField } from './mcp-message-fields'
 
 /** Hex characters of a catalog key: its file name. */
 const CATALOG_KEY_LENGTH = 32
@@ -40,13 +41,12 @@ export function mcpToolCatalogKey(input: {
 }
 
 function cursorOf(params: unknown) {
-  return isRecord(params) && typeof params.cursor === 'string' ? params.cursor : ''
+  return stringField(mcpMessageFields(params)?.cursor) ?? ''
 }
 
 export function hasToolsCapability(initialize: unknown) {
-  return (
-    isRecord(initialize) && isRecord(initialize.capabilities) && 'tools' in initialize.capabilities
-  )
+  const capabilities = mcpMessageFields(initialize)?.capabilities
+  return isRecord(capabilities) && 'tools' in capabilities
 }
 
 /** The catalog side of one pooled connection: what it records, and what it answers while lazy. */
@@ -111,7 +111,7 @@ export class McpConnectionCatalog {
   /** Records a listed page; the last page (no `nextCursor`) completes and saves the catalog. */
   recordToolsPage(params: unknown, result: unknown) {
     this.pages[cursorOf(params)] = result
-    if (!(isRecord(result) && typeof result.nextCursor === 'string')) this.save()
+    if (stringField(mcpMessageFields(result)?.nextCursor) === undefined) this.save()
   }
 
   /** Whether the tools now recorded differ from those that were served. */

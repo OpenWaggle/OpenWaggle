@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { errorCode } from '@shared/utils/node-error'
 
 export interface TerminalShellCandidate {
   readonly command: string
@@ -177,6 +178,6 @@ function isAbsolutePath(candidate: string, platform: NodeJS.Platform) {
 
 function isMissingPathError(error: unknown) {
   if (error === null || typeof error !== 'object') return false
-  const code: unknown = Reflect.get(error, 'code')
+  const code: unknown = errorCode(error)
   return code === 'ENOENT' || code === 'ENOTDIR'
 }

@@ -1,3 +1,4 @@
+import { errorCode } from '@shared/utils/node-error'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
@@ -33,6 +34,7 @@ export type {
   PtySpawnOutcome,
   PtySpawnRequest,
 } from './terminal-pty-types'
+import { terminalBackendProcess } from './terminal-pty-backend-fields'
 
 const logger = createLogger('terminal-pty-runner')
 
@@ -48,7 +50,7 @@ const MIN_SPAWN_ROWS = TERMINAL.MIN_ROWS
  * that already started the stream.
  */
 function createOutputFlowControl(spawned: IPty) {
-  const socket: unknown = Reflect.get(spawned, '_socket')
+  const socket: unknown = terminalBackendProcess(spawned)._socket
   let state: 'paused' | 'resumed' | 'unknown' = 'unknown'
 
   const invoke = (method: 'pause' | 'resume') => {
@@ -80,7 +82,7 @@ function createOutputFlowControl(spawned: IPty) {
 }
 
 function controllingTtyName(spawned: IPty) {
-  const value: unknown = Reflect.get(spawned, '_pty')
+  const value: unknown = terminalBackendProcess(spawned)._pty
   if (typeof value !== 'string' || !value.startsWith('/dev/')) return null
   const tty = value.slice('/dev/'.length)
   const segments = tty.split('/')
@@ -278,7 +280,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
 
 function isMissingShellError(error: unknown) {
   if (error !== null && typeof error === 'object') {
-    const code: unknown = Reflect.get(error, 'code')
+    const code: unknown = errorCode(error)
     if (code === 'ENOENT') return true
   }
   if (!(error instanceof Error)) return false

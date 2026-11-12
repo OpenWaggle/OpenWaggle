@@ -1,7 +1,7 @@
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
 import { vi } from 'vitest'
 
 interface AgentEndEvent {
@@ -149,8 +149,10 @@ export function assistantMessage(text: string) {
   }
 }
 
-function shouldTriggerTurn(options: unknown) {
-  return isRecord(options) && options.triggerTurn === true
+const triggerTurnOptionsSchema = Schema.Struct({ triggerTurn: Schema.Literal(true) })
+
+export function shouldTriggerTurn(options: unknown) {
+  return Schema.is(triggerTurnOptionsSchema)(options)
 }
 
 export function createFakePi(

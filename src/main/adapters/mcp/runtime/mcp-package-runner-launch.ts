@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 export type PackageRunner = 'npx' | 'npm-exec' | 'pnpm-dlx' | 'bunx'
 
@@ -113,9 +114,8 @@ function packageNameOf(spec: string, cwd: string | undefined) {
       return undefined
     }
   }
-  const parsed = REGISTRY_SPEC.exec(spec)
-  const name = parsed?.groups?.name
-  return name ? { name, version: parsed?.groups?.version ?? '' } : undefined
+  const groups = namedGroups(REGISTRY_SPEC.exec(spec), ['name', 'version'])
+  return groups?.name ? { name: groups.name, version: groups.version ?? '' } : undefined
 }
 
 /**

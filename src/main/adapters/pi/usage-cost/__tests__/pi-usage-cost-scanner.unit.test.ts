@@ -15,7 +15,10 @@ function modelChangeLine(provider: string, modelId: string, timestamp: string) {
 function assistantLine(
   timestamp: string,
   usage: Record<string, unknown>,
-  model: Record<string, string> = { provider: 'anthropic', modelId: 'claude-opus-5-5' },
+  model: { readonly provider: string; readonly modelId: string } = {
+    provider: 'anthropic',
+    modelId: 'claude-opus-5-5',
+  },
 ) {
   const message: Record<string, unknown> = {
     role: 'assistant',

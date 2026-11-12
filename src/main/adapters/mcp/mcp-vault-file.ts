@@ -4,7 +4,9 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpSecretSummary } from '@shared/types/mcp'
+import { Schema } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 import { McpVaultError } from '../../ports/mcp-errors'
 
 export interface VaultEntry {
@@ -46,22 +48,28 @@ function parseVaultEntry(name: string, value: unknown): VaultEntry {
   return { encryptedValue, createdAt, updatedAt }
 }
 
+const vaultFileSchema = Schema.Struct({
+  version: Schema.optional(Schema.Unknown),
+  secrets: Schema.optional(Schema.Unknown),
+})
+
 function parseVault(raw: string): VaultFile {
-  const parsed: unknown = JSON.parse(raw)
-  if (!isRecord(parsed) || parsed.version !== 1) {
+  const parsed = Schema.decodeUnknownOption(vaultFileSchema)(JSON.parse(raw))
+  if (Option.isNone(parsed) || parsed.value.version !== 1) {
     throw new McpVaultError({
       reason: 'io',
       message: 'OpenWaggle MCP vault has an unsupported format.',
     })
   }
-  if (!isRecord(parsed.secrets)) {
+  const encryptedSecrets = parsed.value.secrets
+  if (!isRecord(encryptedSecrets)) {
     throw new McpVaultError({
       reason: 'io',
       message: 'OpenWaggle MCP vault is missing its encrypted secret map.',
     })
   }
   const secrets: Record<string, VaultEntry> = {}
-  for (const [name, value] of Object.entries(parsed.secrets)) {
+  for (const [name, value] of Object.entries(encryptedSecrets)) {
     secrets[name] = parseVaultEntry(name, value)
   }
   return { version: 1, secrets }

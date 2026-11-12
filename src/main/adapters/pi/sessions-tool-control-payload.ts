@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { randomUUID } from 'node:crypto'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { agentLoopResponseSchema } from '@shared/schemas/agent-loop-interaction'
@@ -58,13 +59,20 @@ function messageInput(input: { readonly text: string; readonly thinking?: string
  * those properties for other actions, so refuse them here with the Host's codes instead of
  * dropping them silently.
  */
+/** The run settings an idle-only action refuses, read from the action's arguments. */
+const runSettingsSchema = Schema.Struct({
+  thinking: Schema.optional(Schema.Unknown),
+  authorization: Schema.optional(Schema.Unknown),
+})
+
 function refuseRunSettings(input: object, action: string) {
-  if (Reflect.get(input, 'thinking') !== undefined) {
+  const { thinking, authorization } = decodeUnknownOrThrow(runSettingsSchema, input)
+  if (thinking !== undefined) {
     throw new Error(
       `thinking_level_requires_idle_session: ${action} does not accept thinking. The Session thinking level can change only when no Run is active; pass thinking to message or start on an idle Session.`,
     )
   }
-  if (Reflect.get(input, 'authorization') !== undefined) {
+  if (authorization !== undefined) {
     throw new Error(
       `run_authorization_override_requires_idle_session: ${action} does not accept authorization. A Run authorization override applies only to a Run started on an idle Session; pass it to message or start.`,
     )

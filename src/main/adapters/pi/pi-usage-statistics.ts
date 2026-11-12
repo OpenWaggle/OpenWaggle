@@ -8,6 +8,9 @@
  * `custom`. That file is generated from Pi's built-in catalog and the shared built-in skill list,
  * and `bun run check:usage-statistics-catalog` fails while it is out of date.
  */
+import { Schema } from '@shared/schema'
+import { lenientOptional } from '@shared/schemas/lenient'
+import { Option } from 'effect'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
@@ -18,7 +21,8 @@ import {
 } from '@shared/usage-statistics/catalog.generated'
 import { USAGE_STATISTICS_CUSTOM_IDENTIFIER } from '@shared/usage-statistics/contract'
 import { containsInlineVisualizationReference } from '@shared/utils/inline-visualization'
-import { includes, isRecord } from '@shared/utils/validation'
+import { isObjectValue } from '@shared/utils/object-shape'
+import { includes } from '@shared/utils/validation'
 import { getProjectPreferencesStrict } from '../../config/project-config'
 import { usageStatisticsMcpServerIdentifier } from '../../domain/usage-statistics/usage-statistics-mcp'
 import { isUsageStatisticsEnabled } from '../../usage-statistics/usage-statistics-enablement'
@@ -31,6 +35,7 @@ import {
   usageStatisticsRunNeedsProjectDefault,
 } from '../../usage-statistics/usage-statistics-runs'
 import { OPENWAGGLE_BUILT_IN_SKILLS_DIRECTORY } from './pi-built-in-skills'
+import { piSessionUsageSchema } from './pi-session-jsonl-entry'
 
 const SKILL_FILE_NAME = 'SKILL.md'
 /** `<root>/<skill name>/SKILL.md`, counted from the end of the path. */
@@ -171,6 +176,17 @@ export function observePiMcpServerUseForUsageStatistics(
   })
 }
 
+const decodeReadArgs = Schema.decodeUnknownOption(
+  Schema.Struct({ path: lenientOptional(Schema.String) }),
+)
+const decodeTextPart = Schema.decodeUnknownOption(
+  Schema.Struct({ text: lenientOptional(Schema.String) }),
+)
+const decodeUsage = Schema.decodeUnknownOption(piSessionUsageSchema)
+const decodeCompactionDetails = Schema.decodeUnknownOption(
+  Schema.Struct({ mechanism: Schema.optional(Schema.Unknown) }),
+)
+
 /** Pi started a tool for the Run. */
 export function observePiToolUseForUsageStatistics(toolName: string, args: unknown): void {
   if (!isUsageStatisticsEnabled()) return
@@ -178,31 +194,28 @@ export function observePiToolUseForUsageStatistics(toolName: string, args: unkno
     recordUsageStatistics({ kind: 'feature', flag: 'browser_agent_driven' })
     return
   }
-  if (toolName !== READ_TOOL_NAME || !isRecord(args) || typeof args.path !== 'string') return
-  const skill = piSkillReadIdentifier(args.path)
+  if (toolName !== READ_TOOL_NAME) return
+  const readPath = Option.getOrUndefined(decodeReadArgs(args))?.path
+  if (readPath === undefined) return
+  const skill = piSkillReadIdentifier(readPath)
   if (skill) recordUsageStatistics({ kind: 'skill', identifier: skill })
 }
 
 function assistantText(content: unknown) {
   if (!Array.isArray(content)) return ''
   return content
-    .map((part: unknown) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
+    .map((part: unknown) => Option.getOrUndefined(decodeTextPart(part))?.text ?? '')
     .join('\n')
 }
 
-function usageNumber(usage: Readonly<Record<string, unknown>>, key: string) {
-  const value = usage[key]
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function addRunTokens(runId: string, usage: unknown) {
-  if (!isRecord(usage)) return
+function addRunTokens(runId: string, value: unknown) {
+  if (!isObjectValue(value)) return
+  const usage = Option.getOrUndefined(decodeUsage(value))
+  if (!usage) return
   addUsageStatisticsRunTokens(
     runId,
-    usageNumber(usage, 'input') +
-      usageNumber(usage, 'cacheRead') +
-      usageNumber(usage, 'cacheWrite'),
-    usageNumber(usage, 'output'),
+    (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0),
+    usage.output ?? 0,
   )
 }
 
@@ -237,8 +250,9 @@ export function observePiCompactionForUsageStatistics(event: {
 }): void {
   if (event.aborted || !isUsageStatisticsEnabled()) return
   const details = event.result?.details
-  if (!isRecord(details)) return
-  const mechanism = match(details.mechanism)
+  const compaction = Option.getOrUndefined(decodeCompactionDetails(details))
+  if (!compaction) return
+  const mechanism = match(compaction.mechanism)
     .with('native', () => 'native' as const)
     .with('portable', () => 'fallback' as const)
     .otherwise(() => undefined)

@@ -16,8 +16,24 @@ export type ExternalMcpImportSource = (typeof MCP_IMPORT_SOURCES)[number]
 /** Where an imported server goes: `~/.openwaggle/mcp.json` or `<project>/.openwaggle/mcp.json`. */
 export type McpImportTarget = 'global' | 'project'
 
+/** A value Pi reads, or a reference to the vault secret that replaced a plaintext credential. */
+export type ImportedCredential = string | { readonly secret: string }
+
 /** A server entry in Pi's `mcpServers` format (plus vault references, allowed in OpenWaggle files). */
-export type PiMcpEntry = Record<string, unknown>
+export interface PiMcpEntry {
+  readonly command?: string
+  readonly args?: readonly string[]
+  readonly cwd?: string
+  readonly url?: string
+  readonly type?: 'sse'
+  readonly env?: Readonly<Record<string, ImportedCredential>>
+  readonly headers?: Readonly<Record<string, ImportedCredential>>
+  readonly oauth?: Readonly<Record<string, string | number>>
+  readonly timeout?: number
+  readonly toolExposure?: Readonly<Record<string, string>>
+  readonly enabled?: false
+  readonly description?: string
+}
 
 /**
  * Relation of a candidate to the target file: not there yet, already imported

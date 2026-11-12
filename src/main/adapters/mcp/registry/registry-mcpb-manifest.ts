@@ -1,5 +1,7 @@
 import { lstat, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
+import { lenientOptional, lenientRecord, nonBlankStringSchema } from '@shared/schemas/lenient'
 import { isRecord } from '@shared/utils/validation'
 
 const MCPB_MANIFEST_LIMIT_BYTES = 1_000_000
@@ -22,14 +24,44 @@ export interface McpbCachedLauncher {
   readonly env?: Readonly<Record<string, string>>
 }
 
+const text = lenientOptional(nonBlankStringSchema)
+/** Checked by the reader of each field, which names the field when it has the wrong shape. */
+const checkedLater = Schema.optional(Schema.Unknown)
+
+const mcpbConfigFieldsSchema = Schema.Struct({
+  command: text,
+  args: checkedLater,
+  env: checkedLater,
+})
+
+/** The parts of an MCPB `manifest.json` the installer reads. */
+const mcpbManifestSchema = Schema.Struct({
+  manifest_version: text,
+  version: text,
+  name: text,
+  description: text,
+  author: lenientOptional(Schema.Struct({ name: text })),
+  server: lenientOptional(
+    Schema.Struct({
+      type: text,
+      entry_point: text,
+      mcp_config: lenientOptional(
+        Schema.Struct({
+          ...mcpbConfigFieldsSchema.fields,
+          platform_overrides: lenientOptional(lenientRecord(mcpbConfigFieldsSchema)),
+        }),
+      ),
+    }),
+  ),
+  compatibility: lenientOptional(Schema.Struct({ platforms: checkedLater })),
+})
+
+type McpbManifestSource = SchemaType<typeof mcpbManifestSchema>
+
 interface McpbManifest {
   readonly manifestVersion: string
-  readonly server: Readonly<Record<string, unknown>>
-  readonly raw: Readonly<Record<string, unknown>>
-}
-
-function nonemptyString(value: unknown) {
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+  readonly server: NonNullable<McpbManifestSource['server']>
+  readonly source: McpbManifestSource
 }
 
 async function readManifest(root: string): Promise<McpbManifest> {
@@ -49,16 +81,15 @@ async function readManifest(root: string): Promise<McpbManifest> {
     throw new Error('MCPB manifest.json is not valid JSON.')
   }
   if (!isRecord(value)) throw new Error('MCPB manifest.json must be an object.')
-  const manifestVersion = nonemptyString(value.manifest_version)
-  const version = nonemptyString(value.version)
-  const author = isRecord(value.author) ? value.author : undefined
-  const server = isRecord(value.server) ? value.server : undefined
+  const source = decodeUnknownOrThrow(mcpbManifestSchema, value)
+  const { version, server } = source
+  const manifestVersion = source.manifest_version
   const requiredFields = [
     manifestVersion && SUPPORTED_MANIFEST_VERSIONS.has(manifestVersion),
-    nonemptyString(value.name),
+    source.name,
     version,
-    nonemptyString(value.description),
-    nonemptyString(author?.name),
+    source.description,
+    source.author?.name,
     server,
   ]
   if (requiredFields.some((field) => !field) || !manifestVersion || !version || !server) {
@@ -67,12 +98,12 @@ async function readManifest(root: string): Promise<McpbManifest> {
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
     throw new Error('MCPB manifest version must be an exact semantic version.')
   }
-  return { manifestVersion, server, raw: value }
+  return { manifestVersion, server, source }
 }
 
 function serverLaunchDetails(manifest: McpbManifest, platform: NodeJS.Platform) {
-  const type = nonemptyString(manifest.server.type)
-  const declaredEntryPoint = nonemptyString(manifest.server.entry_point)
+  const { type } = manifest.server
+  const declaredEntryPoint = manifest.server.entry_point
   if (!type || !declaredEntryPoint || !SUPPORTED_SERVER_TYPES.has(type)) {
     throw new Error('MCPB server requires a supported type and entry_point.')
   }
@@ -126,17 +157,12 @@ function defaultLauncherArgs(type: string, root: string, entryPointPath: string)
 }
 
 function assertPlatformCompatibility(manifest: McpbManifest, platform: NodeJS.Platform) {
-  const compatibility = isRecord(manifest.raw.compatibility)
-    ? manifest.raw.compatibility
-    : undefined
-  if (compatibility?.platforms === undefined) return
-  if (
-    !Array.isArray(compatibility.platforms) ||
-    compatibility.platforms.some((candidate) => typeof candidate !== 'string')
-  ) {
+  const platforms = manifest.source.compatibility?.platforms
+  if (platforms === undefined) return
+  if (!Array.isArray(platforms) || platforms.some((candidate) => typeof candidate !== 'string')) {
     throw new Error('MCPB compatibility.platforms must be an array of platform names.')
   }
-  if (!compatibility.platforms.includes(platform)) {
+  if (!platforms.includes(platform)) {
     throw new Error(`MCPB package does not support the ${platform} platform.`)
   }
 }
@@ -219,15 +245,14 @@ function substituteManifestValue(value: string, root: string, homeDir: string) {
 }
 
 function resolvedMcpConfig(manifest: McpbManifest, platform: NodeJS.Platform) {
-  const base = isRecord(manifest.server.mcp_config) ? manifest.server.mcp_config : {}
-  const overrides = isRecord(base.platform_overrides) ? base.platform_overrides : {}
-  const override = isRecord(overrides[platform]) ? overrides[platform] : {}
+  const base = manifest.server.mcp_config
+  const override = base?.platform_overrides?.[platform]
   return {
-    command: nonemptyString(override.command) ?? nonemptyString(base.command),
-    args: stringArray(override.args, 'platform args') ?? stringArray(base.args, 'args'),
+    command: override?.command ?? base?.command,
+    args: stringArray(override?.args, 'platform args') ?? stringArray(base?.args, 'args'),
     env: {
-      ...stringMap(base.env, 'environment'),
-      ...stringMap(override.env, 'platform environment'),
+      ...stringMap(base?.env, 'environment'),
+      ...stringMap(override?.env, 'platform environment'),
     },
   }
 }

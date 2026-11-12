@@ -4,6 +4,9 @@
  * (converted to Pi's format)?
  */
 import path from 'node:path'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { lenientOptional, lenientRecord } from '@shared/schemas/lenient'
+import { jsonValueSchema } from '@shared/schemas/validation'
 import { isRecord } from '@shared/utils/validation'
 import {
   convertKeptLegacyEntry,
@@ -17,6 +20,7 @@ import {
   legacyImportFingerprint,
   legacyNormalizeImportedServer,
 } from './legacy-pi-import'
+import { mcpConfigServerMaps } from '../mcp-config-server-maps'
 
 export type McpServerMigrationAction =
   | 'replaced-by-pi-entry'
@@ -52,27 +56,52 @@ function withoutKeys(entry: Record<string, unknown>, keys: readonly string[]) {
   return Object.fromEntries(Object.entries(entry).filter(([key]) => !omitted.has(key)))
 }
 
+/** The fields of an OpenWaggle entry that tell a copy of a Pi entry from one written here. */
+const legacyEntryFieldsSchema = Schema.Struct({
+  provenance: lenientOptional(
+    Schema.Struct({
+      source: lenientOptional(Schema.String),
+      sourcePath: lenientOptional(Schema.String),
+      fingerprint: lenientOptional(Schema.String),
+    }),
+  ),
+  /** Only the values that are `{ secret }` vault references. */
+  env: lenientOptional(lenientRecord(Schema.Struct({ secret: Schema.String }))),
+  headers: lenientOptional(lenientRecord(Schema.Struct({ secret: Schema.String }))),
+  directTools: Schema.optional(Schema.Unknown),
+})
+
+const piConfigFieldsSchema = Schema.Struct({
+  openwaggle: lenientOptional(
+    Schema.Struct({
+      disabledMcpServers: lenientOptional(
+        Schema.Record({ key: Schema.String, value: jsonValueSchema }),
+      ),
+    }),
+  ),
+})
+
+function legacyEntryFields(entry: JsonEntry) {
+  return decodeUnknownOrThrow(legacyEntryFieldsSchema, entry)
+}
+
 function piProvenance(entry: JsonEntry) {
-  const provenance = entry.provenance
-  if (!isRecord(provenance) || provenance.source !== 'pi') return undefined
+  const { provenance } = legacyEntryFields(entry)
+  if (provenance?.source !== 'pi') return undefined
   const { sourcePath, fingerprint } = provenance
-  if (typeof sourcePath !== 'string' || typeof fingerprint !== 'string') return undefined
+  if (sourcePath === undefined || fingerprint === undefined) return undefined
   return { sourcePath, fingerprint }
 }
 
 function disabledInPiFile(config: Record<string, unknown>, name: string) {
-  const openwaggle = config.openwaggle
-  if (!isRecord(openwaggle) || !isRecord(openwaggle.disabledMcpServers)) return false
-  return openwaggle.disabledMcpServers[name] !== undefined
+  const disabled = decodeUnknownOrThrow(piConfigFieldsSchema, config).openwaggle?.disabledMcpServers
+  return disabled?.[name] !== undefined
 }
 
 /** Whether any `env` or `headers` value is a `{ secret }` vault reference. */
 function holdsVaultSecret(entry: JsonEntry) {
-  return [entry.env, entry.headers].some(
-    (values) =>
-      isRecord(values) &&
-      Object.values(values).some((value) => isRecord(value) && typeof value.secret === 'string'),
-  )
+  const { env, headers } = legacyEntryFields(entry)
+  return [env, headers].some((references) => Object.keys(references ?? {}).length > 0)
 }
 
 function winningLowerLayer(context: EntryMigrationContext, name: string) {
@@ -93,7 +122,7 @@ function decidePiCopy(
   const sourcePath = path.resolve(provenance.sourcePath)
   const config = context.livePiConfigs.get(sourcePath)
   if (!config) return { kind: 'kept', reason: `${provenance.sourcePath} is not read live here.` }
-  const servers = isRecord(config.mcpServers) ? config.mcpServers : {}
+  const servers = mcpConfigServerMaps(config).mcpServers ?? {}
   const piEntry = servers[name]
   if (!isFullEntry(piEntry) || disabledInPiFile(config, name)) {
     return { kind: 'kept', reason: `${provenance.sourcePath} no longer defines it.` }
@@ -132,7 +161,10 @@ export function migrateLegacyEntry(
   if (!isRecord(value)) return { entry: value }
   const decision = decidePiCopy(name, value, context)
   if (decision.kind === 'live') {
-    const override = directToolsOverride(value.directTools, liveExposureOf(decision.entry))
+    const override = directToolsOverride(
+      legacyEntryFields(value).directTools,
+      liveExposureOf(decision.entry),
+    )
     const kept = Object.keys(override)
     return {
       entry: kept.length > 0 ? override : undefined,

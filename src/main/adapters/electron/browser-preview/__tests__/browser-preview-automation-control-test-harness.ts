@@ -1,7 +1,9 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
 import { EventEmitter } from 'node:events'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { Debugger, WebContents } from 'electron'
 import { vi } from 'vitest'
+import type { CdpCommandParams } from '../browser-preview-cdp-input-params'
 
 export function createBrowserPreviewAutomationPageFixture(
   options: { readonly attached?: boolean; readonly devToolsOpen?: boolean } = {},
@@ -11,17 +13,15 @@ export function createBrowserPreviewAutomationPageFixture(
   let attached = options.attached ?? false
   let devToolsOpen = options.devToolsOpen ?? false
   let destroyed = false
-  const sendCommand = vi.fn(
-    async (method: string, params?: Readonly<Record<string, unknown>>): Promise<unknown> => {
-      if (method !== 'Runtime.evaluate') return {}
-      const expression = params?.expression
-      if (expression === 'answer') return { result: { value: 42 } }
-      if (expression === 'Boolean(globalThis.__openWagglePlaywrightInjected)') {
-        return { result: { value: true } }
-      }
-      return { result: { value: null } }
-    },
-  )
+  const sendCommand = vi.fn(async (method: string, params?: CdpCommandParams): Promise<unknown> => {
+    if (method !== 'Runtime.evaluate') return {}
+    const expression = uncheckedFields<{ expression: string }>(params).expression
+    if (expression === 'answer') return { result: { value: 42 } }
+    if (expression === 'Boolean(globalThis.__openWagglePlaywrightInjected)') {
+      return { result: { value: true } }
+    }
+    return { result: { value: null } }
+  })
   const browserDebugger = fromPartial<Debugger>({
     on: debuggerEvents.on.bind(debuggerEvents),
     removeListener: debuggerEvents.removeListener.bind(debuggerEvents),

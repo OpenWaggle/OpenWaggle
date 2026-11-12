@@ -1,3 +1,5 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -49,8 +51,9 @@ async function projectWithTwoSpellings(stateKnowsProject: boolean) {
 }
 
 async function docsEntry(projectFile: string) {
-  const config: { mcpServers: Record<string, Record<string, unknown>> } = JSON.parse(
-    await readFile(projectFile, 'utf8'),
+  const config = decodeUnknownOrThrow(
+    Schema.Struct({ mcpServers: Schema.Struct({ docs: jsonObjectSchema }) }),
+    JSON.parse(await readFile(projectFile, 'utf8')),
   )
   return config.mcpServers.docs
 }

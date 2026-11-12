@@ -3,6 +3,7 @@ import type {
   VcsChangeRequestDetails,
   VcsChangeRequestFile,
 } from '@shared/types/git'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import { createLogger } from '../../logger'
 import { asObject, asString, MAX_CHANGE_REQUEST_ITEMS } from './change-request-parse-shared'
 import { runCli } from './cli-runner'
@@ -106,10 +107,20 @@ interface DiffFile extends VcsChangeRequestFile {
   readonly omitted: boolean
 }
 
+/** A GitLab merge request diff entry, as the `diffs` API returns it. */
+interface GitlabDiffEntry {
+  readonly new_path: string
+  readonly old_path: string
+  readonly diff: string
+  readonly too_large: boolean
+  readonly collapsed: boolean
+}
+
 function diffFiles(entries: readonly unknown[]): readonly DiffFile[] {
   return entries.flatMap((raw) => {
-    const entry = asObject(raw)
-    if (!entry) return []
+    const object = asObject(raw)
+    if (!object) return []
+    const entry: UncheckedFields<GitlabDiffEntry> = object
     const path = asString(entry.new_path) ?? asString(entry.old_path)
     if (!path) return []
     const diff = asString(entry.diff)

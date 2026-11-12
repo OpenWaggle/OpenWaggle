@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type {
@@ -38,12 +39,10 @@ interface ConflictCatalogRow {
 }
 
 function conflictCursor(request: ConflictRequest) {
-  const cursor = decodeSessionQueryCursor(request.query.cursor)
-  if (cursor === 'invalid') return 'invalid' as const
-  if (!cursor) return null
-  return typeof cursor.createdAt === 'number' && typeof cursor.conflictId === 'string'
-    ? { createdAt: cursor.createdAt, conflictId: cursor.conflictId }
-    : ('invalid' as const)
+  return decodeSessionQueryCursor(
+    request.query.cursor,
+    Schema.Struct({ createdAt: Schema.Number, conflictId: Schema.String }),
+  )
 }
 
 function conflictStatus(row: ConflictCatalogRow): DelegationConflictStatus {

@@ -6,29 +6,25 @@ import {
   type McpRegistryPackageType,
   type McpRegistryServerView,
 } from '@shared/types/mcp-registry'
-import { isRecord } from '@shared/utils/validation'
 import type { McpRegistryEntry } from '../../../ports/mcp-registry-service'
 import { piServerName } from '../import/import-identity'
 import type { RegistryServerRecord } from './registry-client'
 import type { OciImageResolver } from './registry-oci-resolver'
 import { createRegistryPackageLauncher } from './registry-package-launchers'
 import type { RegistryResourceFetcher } from './registry-secure-download'
+import type { RegistryInputList, RegistryPackage } from './registry-server-schema'
 import {
-  arrayValue,
   declaredRegistryValues,
   optionalRegistrySecrets,
   referencedSecrets,
-  stringValue,
 } from './registry-values'
 
 /** Turns a Registry server into an ordinary Pi `mcpServers` entry (ADR 0051). */
 
-type RegistryRecord = Readonly<Record<string, unknown>>
-
 interface RegistryRemote {
   readonly url: string
   readonly type: 'streamable-http' | 'sse'
-  readonly headers: unknown
+  readonly headers: RegistryInputList
 }
 
 export function mcpRegistryPackageType(value: unknown): McpRegistryPackageType | undefined {
@@ -36,29 +32,24 @@ export function mcpRegistryPackageType(value: unknown): McpRegistryPackageType |
 }
 
 function remotes(server: RegistryServerRecord): RegistryRemote[] {
-  return arrayValue(server.raw.remotes).flatMap((candidate: unknown) => {
-    if (!isRecord(candidate)) return []
-    const url = stringValue(candidate.url)
-    const type =
-      candidate.type === 'sse' || candidate.type === 'streamable-http' ? candidate.type : undefined
+  return server.source.remotes.flatMap(({ url, type, headers }) =>
     // A URL with `{variables}` needs values the user types in; it is left to `mcp add`.
-    return url && type && !url.includes('{') ? [{ url, type, headers: candidate.headers }] : []
-  })
+    url && type && !url.includes('{') ? [{ url, type, headers }] : [],
+  )
 }
 
 function stdioPackages(server: RegistryServerRecord) {
-  return arrayValue(server.raw.packages).flatMap((candidate: unknown) => {
-    if (!isRecord(candidate) || !stringValue(candidate.identifier)) return []
+  return server.source.packages.flatMap((candidate) => {
+    if (!candidate.identifier) return []
     const type = mcpRegistryPackageType(candidate.registryType)
-    const stdio = isRecord(candidate.transport) && candidate.transport.type === 'stdio'
+    const stdio = candidate.transport?.type === 'stdio'
     return type && stdio ? [{ type, entry: candidate }] : []
   })
 }
 
-function packageTarget(entry: RegistryRecord) {
-  const identifier = stringValue(entry.identifier) ?? ''
-  const version = stringValue(entry.version)
-  return version ? `${identifier}@${version}` : identifier
+function packageTarget(entry: RegistryPackage) {
+  const identifier = entry.identifier ?? ''
+  return entry.version ? `${identifier}@${entry.version}` : identifier
 }
 
 /** The last segment of the Registry name (`io.github.acme/weather` → `weather`). */

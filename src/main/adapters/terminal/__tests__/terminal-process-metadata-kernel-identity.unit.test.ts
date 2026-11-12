@@ -36,7 +36,7 @@ function installObservations(...observations: readonly TerminalKernelProcessInfo
     return observation === undefined ? [] : [observation]
   })
   const pty = fromPartial<typeof NodePtyModule>({})
-  Reflect.set(pty, 'native', { processInfos })
+  Object.assign(pty, { native: { processInfos } })
   installTerminalProcessKernelApi(pty)
   return processInfos
 }

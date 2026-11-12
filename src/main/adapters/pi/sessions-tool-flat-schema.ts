@@ -1,11 +1,12 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { type TProperties, type TSchema, type TUnsafe, Type } from 'typebox'
 import { Check, Errors, Value } from 'typebox/value'
+import { keywordsOf } from './json-schema-object'
 import { type SessionsToolParameters, sessionsToolParameters } from './sessions-tool-parameters'
 
 /** Loose structural view of a union member for run-time schema surgery. */
 export interface SessionsToolRuntimeVariant {
-  readonly properties: TProperties
+  readonly properties: TProperties & { readonly action?: TSchema }
   readonly required?: readonly string[]
 }
 
@@ -69,16 +70,14 @@ function requiredActionsByProperty(
 function describeRequiredActions(schema: TSchema, actions: readonly string[] | undefined): TSchema {
   if (!actions?.length) return schema
   const note = `Required for ${actions.join(', ')}.`
-  const existing: unknown = Reflect.get(schema, 'description')
+  const existing = keywordsOf(schema).description
   // Copy with descriptors, not a spread: TypeBox keeps `~kind` and `~optional` non-enumerable,
   // and a spread drops them so `Type.Optional` re-adds `~optional` as a visible key that would
   // reach provider payloads.
   const described: TSchema = Object.defineProperties({}, Object.getOwnPropertyDescriptors(schema))
-  Reflect.set(
-    described,
-    'description',
-    typeof existing === 'string' && existing ? `${existing} ${note}` : note,
-  )
+  Object.assign(described, {
+    description: typeof existing === 'string' && existing ? `${existing} ${note}` : note,
+  })
   return described
 }
 
@@ -105,7 +104,7 @@ export function flattenSessionsToolParameters(
   const propertiesByKey = new Map<string, TSchema[]>()
   const requiredBy = requiredActionsByProperty(variants, options.requiredNoteActions)
   for (const variant of variants) {
-    const action = variant.properties.action
+    const { action } = variant.properties
     if (action) actions.push(action)
     for (const [key, schema] of Object.entries(variant.properties)) {
       if (key === 'action') continue
@@ -179,7 +178,7 @@ function dropOptionalNulls(value: unknown, schema: unknown): void {
   }
   if (!isMatching({ properties: P.record(P.string, P._) }, schema)) return
   if (!isMatching(P.record(P.string, P._), value)) return
-  const required: unknown = Reflect.get(schema, 'required')
+  const { required } = keywordsOf(schema)
   const requiredKeys = new Set(Array.isArray(required) ? required : [])
   for (const [key, propertySchema] of Object.entries(schema.properties)) {
     if (!Object.hasOwn(value, key)) continue

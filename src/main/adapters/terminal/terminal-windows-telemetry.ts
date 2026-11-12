@@ -1,6 +1,7 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import type * as NodePtyModule from 'node-pty'
 import type { ProcessProbeOptions, ProcessRow } from './terminal-process-probes'
+import { terminalBackendModule } from './terminal-pty-backend-fields'
 
 const MAX_TELEMETRY_ROWS = 16_384
 const TELEMETRY_TIMEOUT_MS = 1_500
@@ -29,8 +30,8 @@ let processes: NativeQuery | null = null
 let listeners: NativeQuery | null = null
 
 export function installTerminalWindowsTelemetry(pty: typeof NodePtyModule) {
-  const processQuery: unknown = Reflect.get(pty, 'processTable')
-  const listenerQuery: unknown = Reflect.get(pty, 'listeningPorts')
+  const processQuery: unknown = terminalBackendModule(pty).processTable
+  const listenerQuery: unknown = terminalBackendModule(pty).listeningPorts
   processes = isQuery(processQuery)
     ? singleFlight(() => Reflect.apply(processQuery, pty, []))
     : null

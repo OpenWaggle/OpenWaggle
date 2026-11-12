@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import type { RegistryServerRecord } from '../registry-client'
 import { createRegistryEntry } from '../registry-entry'
+import { registryServerSchema } from '../registry-server-schema'
 
 const DIGEST = `sha256:${'a'.repeat(64)}`
 
@@ -19,7 +21,11 @@ function weatherImage(): RegistryServerRecord {
   return {
     name: 'io.github.acme/weather',
     version: '1.0.0',
-    raw: { name: 'io.github.acme/weather', version: '1.0.0', packages: [pkg] },
+    source: decodeUnknownOrThrow(registryServerSchema, {
+      name: 'io.github.acme/weather',
+      version: '1.0.0',
+      packages: [pkg],
+    }),
   }
 }
 

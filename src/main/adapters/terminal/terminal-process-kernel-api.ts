@@ -5,6 +5,8 @@ import type {
   TerminalProcessIdentity,
 } from './terminal-process-identity'
 import { installTerminalWindowsTelemetry } from './terminal-windows-telemetry'
+import { terminalBackendModule, type TerminalBackendNative } from './terminal-pty-backend-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export type TerminalKernelProcessRead =
   | { readonly status: 'found'; readonly info: TerminalKernelProcessInfo }
@@ -35,15 +37,16 @@ function nullableIdentity(value: unknown): value is string | null {
 }
 
 function parseKernelProcessInfo(pid: number, value: unknown): TerminalKernelProcessInfo | null {
-  if (value === null || typeof value !== 'object') return null
-  const observedPid: unknown = Reflect.get(value, 'pid')
-  const startedAt: unknown = Reflect.get(value, 'startedAt')
-  const ppid: unknown = Reflect.get(value, 'ppid')
-  const pgid: unknown = Reflect.get(value, 'pgid')
-  const tpgid: unknown = Reflect.get(value, 'tpgid')
-  const ttyIdentity: unknown = Reflect.get(value, 'ttyIdentity')
-  const zombie: unknown = Reflect.get(value, 'zombie')
-  const name: unknown = Reflect.get(value, 'name')
+  const {
+    pid: observedPid,
+    startedAt,
+    ppid,
+    pgid,
+    tpgid,
+    ttyIdentity,
+    zombie,
+    name,
+  } = uncheckedFields<TerminalKernelProcessInfo>(value)
   if (
     observedPid !== pid ||
     !positiveInteger(observedPid) ||
@@ -66,13 +69,14 @@ function parseKernelProcessInfo(pid: number, value: unknown): TerminalKernelProc
 /** Install the already-loaded node-pty kernel API without defeating lazy native loading. */
 export function installTerminalProcessKernelApi(pty: typeof NodePtyModule) {
   installTerminalWindowsTelemetry(pty)
-  const native: unknown = Reflect.get(pty, 'native')
+  const native: unknown = terminalBackendModule(pty).native
+  const nativeFields = uncheckedFields<TerminalBackendNative>(native)
   if (native === null || typeof native !== 'object') {
     installedApi = null
     return
   }
-  const readMany: unknown = Reflect.get(native, 'processInfos')
-  const signal: unknown = Reflect.get(native, 'signalProcess')
+  const readMany: unknown = nativeFields.processInfos
+  const signal: unknown = nativeFields.signalProcess
   if (typeof readMany !== 'function') {
     installedApi = null
     return
@@ -104,8 +108,7 @@ function addKernelProcessInfo(
   requestedPids: ReadonlySet<number>,
   infos: Map<number, TerminalKernelProcessInfo>,
 ) {
-  const pid: unknown =
-    candidate !== null && typeof candidate === 'object' ? Reflect.get(candidate, 'pid') : undefined
+  const { pid } = uncheckedFields<TerminalKernelProcessInfo>(candidate)
   if (!positiveInteger(pid) || !requestedPids.has(pid) || infos.has(pid)) return false
   const info = parseKernelProcessInfo(pid, candidate)
   if (info === null) return false

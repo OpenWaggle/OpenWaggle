@@ -11,7 +11,7 @@
 
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { Logger } from '@shared/types/logger'
-import { isRecord } from '@shared/utils/validation'
+import { legacyServerFields } from './legacy-entry-fields'
 import type { McpFileSources } from './file-computation'
 import { legacyServerIdentityKey } from './legacy-pi-import'
 import { type LegacyStateFile, legacyServerMap } from './legacy-state'
@@ -167,8 +167,9 @@ async function oauthCandidates(input: {
     if (!file.config) continue
     for (const [name, entry] of Object.entries(legacyServerMap(file.config))) {
       const serverState = input.state.servers[legacyServerIdentityKey(file.path, name)]
-      if (!isRecord(entry) || typeof entry.url !== 'string' || !serverState) continue
-      candidates.push({ name, url: entry.url, instanceId: serverState.instanceId })
+      const url = legacyServerFields(entry)?.url
+      if (typeof url !== 'string' || !serverState) continue
+      candidates.push({ name, url, instanceId: serverState.instanceId })
     }
   }
   return candidates

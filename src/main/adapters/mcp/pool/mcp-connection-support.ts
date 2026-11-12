@@ -7,6 +7,7 @@ import {
   type JsonRpcResponse,
   type McpWireTransport,
 } from './mcp-wire'
+import { mcpMessageFields } from './mcp-message-fields'
 
 export interface McpUpstream {
   readonly transport: McpWireTransport
@@ -110,14 +111,14 @@ export function errorResponse(id: JsonRpcId, code: number, message: string): Jso
 }
 
 export function progressTokenOf(params: unknown): JsonRpcId | undefined {
-  if (!isRecord(params) || !isRecord(params._meta)) return undefined
-  const token = params._meta.progressToken
+  const token = mcpMessageFields(mcpMessageFields(params)?._meta)?.progressToken
   return isJsonRpcId(token) ? token : undefined
 }
 
 export function withProgressToken(params: unknown, token: JsonRpcId) {
-  if (!isRecord(params) || !isRecord(params._meta)) return params
-  return { ...params, _meta: { ...params._meta, progressToken: token } }
+  const meta = mcpMessageFields(params)?._meta
+  if (!isRecord(params) || !isRecord(meta)) return params
+  return { ...params, _meta: { ...meta, progressToken: token } }
 }
 
 /**

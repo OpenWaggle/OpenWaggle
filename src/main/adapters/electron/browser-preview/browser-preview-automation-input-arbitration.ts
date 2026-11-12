@@ -1,4 +1,6 @@
-import type { Input, MouseInputEvent } from 'electron'
+import { uncheckedFields } from '@shared/utils/object-shape'
+import type { Input, MouseInputEvent, MouseWheelInputEvent } from 'electron'
+import type { CdpCommandParams, CdpInputEventParams } from './browser-preview-cdp-input-params'
 
 const EXPECTED_INPUT_TTL_MS = 1_000
 const MAX_EXPECTED_INPUTS = 32
@@ -80,13 +82,14 @@ function modifierMask(input: Input | MouseInputEvent) {
 function expectedSignal(
   id: number,
   method: string,
-  params: Readonly<Record<string, unknown>>,
+  params: CdpCommandParams,
   now: number,
 ): ExpectedInputSignal | null {
+  const fields = uncheckedFields<CdpInputEventParams>(params)
   if (method === 'Input.dispatchKeyEvent') {
-    const phase = keyPhase(params.type)
-    const key = stringValue(params.key)
-    const code = stringValue(params.code)
+    const phase = keyPhase(fields.type)
+    const key = stringValue(fields.key)
+    const code = stringValue(fields.code)
     if (!phase || key === undefined || code === undefined) return null
     return {
       kind: 'keyboard',
@@ -95,14 +98,14 @@ function expectedSignal(
       expiresAt: now + EXPECTED_INPUT_TTL_MS,
       key,
       code,
-      location: finiteNumber(params.location) ?? 0,
-      modifiers: finiteNumber(params.modifiers) ?? 0,
+      location: finiteNumber(fields.location) ?? 0,
+      modifiers: finiteNumber(fields.modifiers) ?? 0,
     }
   }
   if (method !== 'Input.dispatchMouseEvent') return null
-  const phase = stringValue(params.type) ? CDP_MOUSE_PHASES[String(params.type)] : undefined
-  const x = finiteNumber(params.x)
-  const y = finiteNumber(params.y)
+  const phase = stringValue(fields.type) ? CDP_MOUSE_PHASES[String(fields.type)] : undefined
+  const x = finiteNumber(fields.x)
+  const y = finiteNumber(fields.y)
   if (!phase || x === undefined || y === undefined) return null
   return {
     kind: 'mouse',
@@ -111,10 +114,10 @@ function expectedSignal(
     expiresAt: now + EXPECTED_INPUT_TTL_MS,
     x,
     y,
-    button: stringValue(params.button),
-    modifiers: finiteNumber(params.modifiers) ?? 0,
-    deltaX: finiteNumber(params.deltaX),
-    deltaY: finiteNumber(params.deltaY),
+    button: stringValue(fields.button),
+    modifiers: finiteNumber(fields.modifiers) ?? 0,
+    deltaX: finiteNumber(fields.deltaX),
+    deltaY: finiteNumber(fields.deltaY),
   }
 }
 
@@ -141,10 +144,16 @@ function matchesMouse(expected: ExpectedInputSignal, input: MouseInputEvent) {
     return false
   }
   if (expected.button !== undefined && input.button !== expected.button) return false
-  if (expected.deltaX !== undefined && Reflect.get(input, 'deltaX') !== expected.deltaX) {
+  if (
+    expected.deltaX !== undefined &&
+    uncheckedFields<MouseWheelInputEvent>(input).deltaX !== expected.deltaX
+  ) {
     return false
   }
-  if (expected.deltaY !== undefined && Reflect.get(input, 'deltaY') !== expected.deltaY) {
+  if (
+    expected.deltaY !== undefined &&
+    uncheckedFields<MouseWheelInputEvent>(input).deltaY !== expected.deltaY
+  ) {
     return false
   }
   return true
@@ -154,11 +163,7 @@ export class BrowserPreviewAutomationInputArbitrator {
   private readonly expected: ExpectedInputSignal[] = []
   private nextId = 1
 
-  expect(
-    method: string,
-    params: Readonly<Record<string, unknown>> = {},
-    now = Date.now(),
-  ): number | null {
+  expect(method: string, params: CdpCommandParams = {}, now = Date.now()): number | null {
     this.prune(now)
     const signal = expectedSignal(this.nextId, method, params, now)
     if (!signal) return null

@@ -1,16 +1,14 @@
 import type { McpRegistryPackageType } from '@shared/types/mcp-registry'
-import { isRecord } from '@shared/utils/validation'
 import { piLiteralMap } from '../../../domain/mcp/config/mcp-pi-literal'
 import { missingRegistryValue, resolveRegistryInput } from './registry-inputs'
 import { installVerifiedMcpb } from './registry-mcpb'
 import { type OciImageResolver, resolveOciImageWithDocker } from './registry-oci-resolver'
 import type { RegistryResourceFetcher } from './registry-secure-download'
+import type { RegistryInput, RegistryInputList, RegistryPackage } from './registry-server-schema'
 import {
-  arrayValue,
   declaredRegistryValues,
   isOptionalRegistrySecret,
   type RegistryEntryValue,
-  stringValue,
 } from './registry-values'
 
 const MAX_PACKAGE_VERSION_LENGTH = 256
@@ -27,13 +25,13 @@ export interface RegistryPackageLauncher {
   readonly env?: Readonly<Record<string, RegistryEntryValue>>
 }
 
-type PackageEntry = Readonly<Record<string, unknown>>
+type PackageEntry = RegistryPackage
 
 /**
  * Only a `boolean` named argument is a bare flag; any other format, including the default
  * (`string`), takes a value. A secret always does.
  */
-function takesValue(argument: Readonly<Record<string, unknown>>) {
+function takesValue(argument: RegistryInput) {
   return argument.format !== 'boolean' || argument.isSecret === true
 }
 
@@ -45,11 +43,10 @@ function takesValue(argument: Readonly<Record<string, unknown>>) {
  * or a required secret without a value, stops the install: the command line cannot hold a vault
  * secret, and the server would not start without it.
  */
-function commandLineArguments(value: unknown) {
-  return arrayValue(value).flatMap((argument: unknown): string[] => {
-    if (!isRecord(argument)) return []
+function commandLineArguments(list: RegistryInputList) {
+  return list.flatMap((argument): string[] => {
     const named = argument.type === 'named'
-    const name = stringValue(argument.name)
+    const { name } = argument
     const required = argument.isRequired === true
     const resolved = resolveRegistryInput(argument)
     if (isOptionalRegistrySecret(argument, resolved)) return []
@@ -70,8 +67,7 @@ function commandLineArguments(value: unknown) {
 }
 
 /** Ranges and tags would install whatever the package registry serves on the day it starts. */
-function exactPackageVersion(value: unknown) {
-  const version = stringValue(value)
+function exactPackageVersion(version: string | undefined) {
   if (
     !version ||
     version.length > MAX_PACKAGE_VERSION_LENGTH ||
@@ -93,8 +89,7 @@ function hasForbiddenCharacter(value: string) {
   })
 }
 
-function packageIdentifier(value: unknown, type: McpRegistryPackageType) {
-  const identifier = stringValue(value)
+function packageIdentifier(identifier: string | undefined, type: McpRegistryPackageType) {
   if (
     !identifier ||
     identifier.length > MAX_PACKAGE_IDENTIFIER_LENGTH ||
@@ -107,7 +102,7 @@ function packageIdentifier(value: unknown, type: McpRegistryPackageType) {
 }
 
 function assertRuntimeHint(entry: PackageEntry, expected: string) {
-  const hint = stringValue(entry.runtimeHint)
+  const hint = entry.runtimeHint
   if (hint && hint !== expected) {
     throw new Error(`Registry package requested unsupported runtime ${JSON.stringify(hint)}.`)
   }
@@ -126,7 +121,7 @@ function runtimeArguments(entry: PackageEntry, allowed: ReadonlySet<string>) {
 }
 
 function assertPublicPackageRegistry(entry: PackageEntry, expected: string) {
-  const registryBaseUrl = stringValue(entry.registryBaseUrl)
+  const registryBaseUrl = entry.registryBaseUrl
   if (!registryBaseUrl) return
   let requested: URL
   try {
@@ -239,7 +234,7 @@ async function mcpbLauncher(
   }
   const installed = await installVerifiedMcpb({
     identifier,
-    expectedSha256: stringValue(entry.fileSha256) ?? '',
+    expectedSha256: entry.fileSha256 ?? '',
     cacheRoot: input.cacheRoot,
     homeDir: input.homeDir,
     ...(input.fetchResource ? { fetchResource: input.fetchResource } : {}),
