@@ -126,6 +126,8 @@ describe('registerTerminalHandlers', () => {
     ['terminal:detach', ['', 'main'], 'detachTerminal'],
     ['terminal:clear', ['', 'main'], 'clear'],
     ['terminal:close', ['session-1', '', true], 'close'],
+    ['terminal:close', ['session-1', 'main', 'yes'], 'close'],
+    ['terminal:close', ['session-1', 'main', 1], 'close'],
   ] as const)('%s refuses %j before calling %s', async (channel, args, method) => {
     registerTerminalHandlers()
     const handler = getInvokeHandler(channel)

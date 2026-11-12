@@ -13,6 +13,7 @@ import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
 import { TerminalService, type TerminalServiceShape } from '../ports/terminal-service'
 import {
+  terminalCloseSchema,
   terminalInputIdentitySchema,
   terminalInputIntentSchema,
   terminalInputReleaseSchema,
@@ -142,10 +143,10 @@ function registerTerminalLifecycleHandlers() {
     (_event, ownerKey: string, terminalId: string, deleteHistory: boolean) =>
       Effect.gen(function* () {
         const decoded = yield* Effect.try(() =>
-          decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+          decodeUnknownOrThrow(terminalCloseSchema, { ownerKey, terminalId, deleteHistory }),
         )
         const service = yield* TerminalService
-        yield* service.close(decoded.ownerKey, decoded.terminalId, deleteHistory)
+        yield* service.close(decoded.ownerKey, decoded.terminalId, decoded.deleteHistory)
       }),
   )
 }
