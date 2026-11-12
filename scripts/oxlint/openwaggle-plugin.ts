@@ -10,6 +10,7 @@ import { noInlineImportTypesRule } from './rules/no-inline-import-types.ts'
 import { noInlineMagicNumbersRule } from './rules/no-inline-magic-numbers.ts'
 import { noInfiniteForLoopRule } from './rules/no-infinite-for-loop.ts'
 import { noLintDirectiveCommentsRule } from './rules/no-lint-directive-comments.ts'
+import { noLiteralKeyLookupRule } from './rules/no-literal-key-lookup.ts'
 import { noRawRendererButtonsRule } from './rules/no-raw-renderer-buttons.ts'
 import { noReactLegacyPatternsRule } from './rules/no-react-legacy-patterns.ts'
 import { noShoehornOutsideTestsRule } from './rules/no-shoehorn-outside-tests.ts'
@@ -34,6 +35,7 @@ export const openwagglePlugin: Plugin = {
     'no-inline-import-types': noInlineImportTypesRule,
     'no-lint-directive-comments': noLintDirectiveCommentsRule,
     'no-inline-magic-numbers': noInlineMagicNumbersRule,
+    'no-literal-key-lookup': noLiteralKeyLookupRule,
     'no-infinite-for-loop': noInfiniteForLoopRule,
     'no-raw-renderer-buttons': noRawRendererButtonsRule,
     'no-react-legacy-patterns': noReactLegacyPatternsRule,

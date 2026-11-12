@@ -460,6 +460,8 @@ const STRICT_CORRECTNESS_OFF: DummyRuleMap = {
 
 const ROOT_RULES: DummyRuleMap = {
   'openwaggle/no-lint-directive-comments': 'error',
+  // A fixed key is read with dot access; outside data is decoded at the boundary [TS-06].
+  'openwaggle/no-literal-key-lookup': 'error',
   ...STRICT_CORRECTNESS_OFF,
 }
 

@@ -23,6 +23,7 @@ The full set is `oxlint.config.mts`, which also records why each rule that is of
 - Instead of casts, use `satisfies`, explicit annotations, generics, type guards, discriminated unions and Effect Schema (`4bd0325e2`).
 - `@total-typescript/shoehorn` only in tests, for partial mocks or intentionally invalid inputs (`openwaggle/no-shoehorn-outside-tests`).
 - Validate runtime inputs at boundaries with the Effect Schema helpers in `src/shared/schema.ts` and the schemas under `src/shared/schemas/` (`4bd0325e2`).
+- Read a fixed key with dot access, never `x['name']`; decoded outside data has declared fields, and a map keyed by a runtime value takes a variable key (`openwaggle/no-literal-key-lookup`, which fixes it).
 - No silent parse fallbacks: log structured context or surface a visible error (`4bd0325e2`).
 - No inline suppressions of any kind: fix the code, or change the shared config once with the reason there (`openwaggle/no-lint-directive-comments`, `openwaggle/no-architecture-ignore-comments`, `no-cheating/suppression`).
 - Import types at the top of the file, not as inline `import()` types (`openwaggle/no-inline-import-types`).
