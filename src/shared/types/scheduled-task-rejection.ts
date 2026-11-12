@@ -1,6 +1,3 @@
-import type { SchemaType } from '@shared/schema'
-import type { scheduledTasksRejectedOutcomeSchema } from '@shared/schemas/scheduled-task-records'
-
 export const SCHEDULED_TASK_REJECTION_CODES = [
   'task_not_found',
   'invalid_schedule',
@@ -22,5 +19,3 @@ export const SCHEDULED_TASK_REJECTION_CODES = [
   'run_not_scheduled',
 ] as const
 export type ScheduledTaskRejectionCode = (typeof SCHEDULED_TASK_REJECTION_CODES)[number]
-
-export type ScheduledTasksRejectedOutcome = SchemaType<typeof scheduledTasksRejectedOutcomeSchema>

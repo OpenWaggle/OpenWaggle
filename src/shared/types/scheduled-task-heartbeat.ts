@@ -3,7 +3,6 @@ import type {
   heartbeatAutoPauseSchema,
   heartbeatSettingsInputSchema,
   heartbeatSettingsSchema,
-  heartbeatWakeCheckInputSchema,
   heartbeatWakeCheckSchema,
   scheduledTaskRunOutcomeSchema,
   scheduledTaskRunWakeCheckSchema,
@@ -32,24 +31,20 @@ export const HEARTBEAT_RUN_OUTCOMES = ['acted', 'idle', 'done'] as const
 export type HeartbeatRunOutcome = (typeof HEARTBEAT_RUN_OUTCOMES)[number]
 
 export type ScheduledTaskRunOutcome = SchemaType<typeof scheduledTaskRunOutcomeSchema>
-export type HeartbeatRunOutcomeSource = ScheduledTaskRunOutcome['source']
 
 export const HEARTBEAT_WAKE_CHECK_FAILURE_POLICIES = ['wake', 'skip'] as const
 /** What a failed or timed-out Wake check does: start the Run anyway (default) or skip it. */
 export type HeartbeatWakeCheckFailurePolicy = (typeof HEARTBEAT_WAKE_CHECK_FAILURE_POLICIES)[number]
 
-export const HEARTBEAT_WAKE_CHECK_APPROVALS = ['not-required', 'pending', 'approved'] as const
 /**
  * `pending` holds the Heartbeat until the user approves this exact command: its Session asks for
  * approval and someone other than the user set the command. `not-required` runs it now.
  */
-export type HeartbeatWakeCheckApproval = (typeof HEARTBEAT_WAKE_CHECK_APPROVALS)[number]
+export const HEARTBEAT_WAKE_CHECK_APPROVALS = ['not-required', 'pending', 'approved'] as const
 
-export type HeartbeatWakeCheckInput = SchemaType<typeof heartbeatWakeCheckInputSchema>
 export type HeartbeatWakeCheck = SchemaType<typeof heartbeatWakeCheckSchema>
 
 export const HEARTBEAT_AUTO_PAUSE_REASONS = ['done', 'idle'] as const
-export type HeartbeatAutoPauseReason = (typeof HEARTBEAT_AUTO_PAUSE_REASONS)[number]
 
 export type HeartbeatAutoPause = SchemaType<typeof heartbeatAutoPauseSchema>
 export type HeartbeatSettings = SchemaType<typeof heartbeatSettingsSchema>
