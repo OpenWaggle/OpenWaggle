@@ -50,7 +50,7 @@ function jsonObjects(value: string) {
 }
 
 function isAuthenticationHandoff(value: JsonObject) {
-  return value.title === 'Authenticate your account at' && typeof value.url === 'string'
+  return value['title'] === 'Authenticate your account at' && typeof value['url'] === 'string'
 }
 
 export function parseTrustListOutput(value: string): unknown {

@@ -11,7 +11,10 @@ const IDENTITY_PREFIX = 'OPENWAGGLE_PTY_IDENTITY:'
 const IDENTITY_SUFFIX = ':OPENWAGGLE_PTY_IDENTITY_END'
 const PROMPT_OUTPUT = 'OPENWAGGLE_PTY_PROMPT_OK'
 
-type ExitEvent = { readonly exitCode: number; readonly signal?: number }
+interface ExitEvent {
+  readonly exitCode: number
+  readonly signal?: number
+}
 type Listener<T> = (event: T) => void
 
 class FakeDatabase {

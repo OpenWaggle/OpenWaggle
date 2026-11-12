@@ -169,6 +169,13 @@ describe('desktop app release workflow', () => {
     )
   })
 
+  it('installs from the registry, never from a restored Bun package cache', () => {
+    // Bun does not check cached package files against bun.lock, and these jobs sign and publish.
+    expect(WORKFLOW).not.toMatch(/uses:\s*actions\/cache@/u)
+    expect(WORKFLOW).not.toContain('~/.bun/install/cache')
+    expect(WORKFLOW).not.toContain('./.github/actions/bun-install')
+  })
+
   it('pins every referenced action to an immutable commit', () => {
     const actionReferences = [...WORKFLOW.matchAll(/\buses:\s*([^\s#]+)/gu)].map(
       (match) => match[1],
@@ -194,22 +201,23 @@ describe('desktop app release workflow', () => {
     )
     const verifierSteps = parsed.jobs['verify-installers'].steps
     const windowsGuard = "matrix.platform == 'windows'"
-    const pnpmSetupPattern = {
+    const bunSetupPattern = {
       if: windowsGuard,
-      uses: P.regex(/^pnpm\/action-setup@[0-9a-f]{40}$/u),
+      uses: P.regex(/^oven-sh\/setup-bun@[0-9a-f]{40}$/u),
+      with: { 'bun-version-file': 'package.json' },
     }
     const nodeSetupPattern = {
       if: windowsGuard,
       uses: P.regex(/^actions\/setup-node@[0-9a-f]{40}$/u),
       with: {
-        cache: 'pnpm',
+        'package-manager-cache': false,
         'node-version': '24.14.0',
       },
     }
     const installPattern = {
       if: windowsGuard,
       name: 'Install Windows verifier dependencies',
-      run: 'pnpm install --frozen-lockfile --ignore-scripts',
+      run: 'bun install --frozen-lockfile --ignore-scripts',
     }
     const verifierPattern = {
       env: {
@@ -218,12 +226,12 @@ describe('desktop app release workflow', () => {
       },
       if: windowsGuard,
       name: 'Verify Windows installer',
-      run: 'pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+      run: 'bun scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
       shell: 'pwsh',
     }
 
-    const pnpmSetupSteps = verifierSteps.filter((step) =>
-      isMatching({ uses: P.regex(/^pnpm\/action-setup@/u) }, step),
+    const bunSetupSteps = verifierSteps.filter((step) =>
+      isMatching({ uses: P.regex(/^oven-sh\/setup-bun@/u) }, step),
     )
     const nodeSetupSteps = verifierSteps.filter((step) =>
       isMatching({ uses: P.regex(/^actions\/setup-node@/u) }, step),
@@ -235,21 +243,21 @@ describe('desktop app release workflow', () => {
       isMatching({ name: 'Verify Windows installer' }, step),
     )
 
-    expect(pnpmSetupSteps).toHaveLength(1)
+    expect(bunSetupSteps).toHaveLength(1)
     expect(nodeSetupSteps).toHaveLength(1)
     expect(installSteps).toHaveLength(1)
     expect(verifierCommandSteps).toHaveLength(1)
-    expect(isMatching(pnpmSetupPattern, pnpmSetupSteps[0])).toBe(true)
+    expect(isMatching(bunSetupPattern, bunSetupSteps[0])).toBe(true)
     expect(isMatching(nodeSetupPattern, nodeSetupSteps[0])).toBe(true)
     expect(isMatching(installPattern, installSteps[0])).toBe(true)
     expect(isMatching(verifierPattern, verifierCommandSteps[0])).toBe(true)
 
-    const pnpmSetupIndex = verifierSteps.findIndex((step) => isMatching(pnpmSetupPattern, step))
+    const bunSetupIndex = verifierSteps.findIndex((step) => isMatching(bunSetupPattern, step))
     const nodeSetupIndex = verifierSteps.findIndex((step) => isMatching(nodeSetupPattern, step))
     const installIndex = verifierSteps.findIndex((step) => isMatching(installPattern, step))
     const verifierIndex = verifierSteps.findIndex((step) => isMatching(verifierPattern, step))
 
-    expect(pnpmSetupIndex).toBeLessThan(nodeSetupIndex)
+    expect(bunSetupIndex).toBeLessThan(nodeSetupIndex)
     expect(nodeSetupIndex).toBeLessThan(installIndex)
     expect(installIndex).toBeLessThan(verifierIndex)
     expect(WORKFLOW).not.toContain('node scripts/verify-windows-installer.ts')
@@ -258,9 +266,9 @@ describe('desktop app release workflow', () => {
 
   it('runs the semantic packaged PTY smoke after every platform build', () => {
     const buildCommands = [
-      'pnpm exec electron-builder --mac --arm64 --x64 --publish never',
-      'pnpm exec electron-builder --linux --publish never',
-      'pnpm exec electron-builder --win --publish never',
+      'bunx electron-builder --mac --arm64 --x64 --publish never',
+      'bunx electron-builder --linux --publish never',
+      'bunx electron-builder --win --publish never',
     ]
     const smokeStepNames = [
       'Smoke packaged macOS PTY runtime',
@@ -276,7 +284,7 @@ describe('desktop app release workflow', () => {
       expect(smokeIndex).toBeGreaterThan(buildIndex)
       expect(nextUploadIndex).toBeGreaterThan(smokeIndex)
     }
-    expect(WORKFLOW.match(/run: pnpm packaged-app:smoke/gu)).toHaveLength(3)
+    expect(WORKFLOW.match(/run: bun run packaged-app:smoke/gu)).toHaveLength(3)
   })
 
   it('rebuilds macOS at most twice, only for a transient runner failure', () => {

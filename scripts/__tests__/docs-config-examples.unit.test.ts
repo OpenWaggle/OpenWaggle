@@ -8,6 +8,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { ScheduledTask, ScheduledTasksResponse } from '@shared/types/scheduled-task'
+import type { HeartbeatSettingsInput } from '@shared/types/scheduled-task-heartbeat'
 import { fromPartial } from '@total-typescript/shoehorn'
 import JsonSchema from 'typebox/schema'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -28,6 +29,23 @@ import {
   removeScratchDirectories,
   scratchDirectory,
 } from './published-json-schemas.test-harness'
+
+/** The exported Heartbeat of a task created from `input`: omitted settings stay omitted. */
+function exportedHeartbeat(input: HeartbeatSettingsInput) {
+  return {
+    ...(input.stopWhen === undefined ? {} : { stopWhen: input.stopWhen }),
+    ...(input.indefinite === undefined ? {} : { indefinite: input.indefinite }),
+    ...(input.idlePauseAfter === undefined ? {} : { idlePauseAfter: input.idlePauseAfter }),
+    wakeCheck: input.wakeCheck
+      ? {
+          command: input.wakeCheck.command,
+          ...(input.wakeCheck.onFailure === undefined
+            ? {}
+            : { onFailure: input.wakeCheck.onFailure }),
+        }
+      : null,
+  }
+}
 
 afterEach(removeScratchDirectories)
 
@@ -66,7 +84,7 @@ const vscodeSchemaAssociation: ExampleKind = {
 /** A `$schema` an example names must be the published schema for that file. */
 function expectSchemaKey(value: unknown, fileName: string) {
   if (!isRecord(value) || !('$schema' in record(value))) return
-  expect(record(value).$schema).toBe(`https://openwaggle.ai/schemas/${fileName}`)
+  expect(record(value)['$schema']).toBe(`https://openwaggle.ai/schemas/${fileName}`)
 }
 
 const actionsFile: ExampleKind = {
@@ -144,10 +162,10 @@ const piModelsFile: ExampleKind = {
       refreshOnCreate: false,
     })
     expect(runtime.getError()).toBeUndefined()
-    for (const [provider, config] of Object.entries(record(record(value).providers))) {
-      const models = record(config).models
+    for (const [provider, config] of Object.entries(record(record(value)['providers']))) {
+      const models = record(config)['models']
       for (const model of Array.isArray(models) ? models : []) {
-        const id = record(model).id
+        const id = record(model)['id']
         expect(
           runtime.getModelsOfType('chat', provider).some((candidate) => candidate.id === id),
           `${provider}/${String(id)}`,
@@ -160,7 +178,7 @@ const piModelsFile: ExampleKind = {
 /** What `openwaggle schedules export` prints, and what `import` reads back (ADR 0063). */
 const scheduledTasksExport: ExampleKind = {
   name: 'openwaggle schedules export',
-  matches: (value) => record(value).type === 'scheduled-tasks',
+  matches: (value) => record(value)['type'] === 'scheduled-tasks',
   check: async (value) => {
     const filePath = path.join(scratchDirectory('ow-schedules-example-'), 'tasks.json')
     writeFileSync(filePath, JSON.stringify(value))
@@ -172,11 +190,19 @@ const scheduledTasksExport: ExampleKind = {
     // The export of tasks created from these inputs is the example itself.
     const tasks = inputs.map((input) =>
       fromPartial<ScheduledTask>({
-        ...input,
         id: 'task',
-        heartbeat: input.heartbeat
-          ? { ...input.heartbeat, wakeCheck: input.heartbeat.wakeCheck ?? null }
-          : null,
+        name: input.name,
+        prompt: input.prompt,
+        enabled: input.enabled,
+        schedule: input.schedule,
+        target: input.target,
+        ...(input.timeZone === undefined ? {} : { timeZone: input.timeZone }),
+        ...(input.endsAt === undefined ? {} : { endsAt: input.endsAt }),
+        ...(input.maxRuns === undefined ? {} : { maxRuns: input.maxRuns }),
+        ...(input.notificationPolicy === undefined
+          ? {}
+          : { notificationPolicy: input.notificationPolicy }),
+        heartbeat: input.heartbeat ? exportedHeartbeat(input.heartbeat) : null,
       }),
     )
     expect(
@@ -239,7 +265,7 @@ describe('the codemode docs example', () => {
     const tools = {
       // Pi's read tool takes one object; `path` is its only required argument.
       read: async (args: unknown) => {
-        const filePath = record(args).path
+        const filePath = record(args)['path']
         if (typeof filePath !== 'string') throw new Error('read needs { path }.')
         reads.push(filePath)
         return `import x from 'y'\nthrow new Error('${filePath}')\nreturn 1\n`

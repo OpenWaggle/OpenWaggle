@@ -2,12 +2,13 @@ import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import sharp from 'sharp'
 import type { BuildChannel } from '../src/shared/types/build-identity'
 import { MAC_DEV_DOCK_ICON, resolveMacIconPath } from './build-identity'
 import { CHANNEL_BADGES, channelPillSvg } from './generate-channel-icons'
+import { runWhenInvokedDirectly } from './support/direct-invocation'
 
 /**
  * Builds the macOS app icons from the canonical logo mark (build/branding/openwaggle-logo-mark.svg)
@@ -18,7 +19,7 @@ import { CHANNEL_BADGES, channelPillSvg } from './generate-channel-icons'
  * an 824 px continuous-corner square centred on the canvas, with Apple's drop shadow in the margin.
  *
  * Icons are committed, so this runs on a macOS developer machine (it needs `iconutil`), never in CI.
- * Run: `tsx scripts/generate-macos-icons.ts`.
+ * Run: `bun scripts/generate-macos-icons.ts`.
  */
 
 const CANVAS = 1024
@@ -241,15 +242,8 @@ async function generate(buildDir: string) {
   }
 }
 
-const isDirectInvocation =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
-
-if (isDirectInvocation) {
-  const buildDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build')
-  void generate(buildDir).catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-  })
-}
+runWhenInvokedDirectly(import.meta.url, () =>
+  generate(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build')),
+)
 
 export { generate, renderIcon }

@@ -4,7 +4,7 @@
  * format the agent used (OpenAI chat completions, OpenAI responses or Anthropic messages).
  * Writes `results/request-tokens.json`, which parse-results.py merges into results.json.
  *
- *   tsx scripts/benchmark-docker/count-request-tokens.ts scripts/benchmark-docker/results
+ *   bun scripts/benchmark-docker/count-request-tokens.ts scripts/benchmark-docker/results
  */
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'

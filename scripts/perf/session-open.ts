@@ -6,7 +6,7 @@
  * in the sidebar until its last message is on screen, with every main-process IPC response and
  * pushed event counted (bytes are JSON characters). Runs on a generated large profile.
  *
- *   pnpm perf:session-open --app <before.app> --app <after.app> --template <large-profile> --runs 10
+ *   bun run perf:session-open --app <before.app> --app <after.app> --template <large-profile> --runs 10
  *
  * `--mode cross-project` then opens a second large Session, which the generator puts in another
  * project, `--switch-delay` ms after the first one is on screen. The default, 5 s, lands the switch in the
@@ -69,8 +69,9 @@ async function readManifest(template: string): Promise<ProfileManifest> {
     typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'largeSessions') : null
   const listText: unknown =
     typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'sessionListText') : null
-  if (!Array.isArray(large) || typeof listText !== 'string')
+  if (!Array.isArray(large) || typeof listText !== 'string') {
     throw new Error('Not a generated profile.')
+  }
   return {
     largeSessions: large.filter((title): title is string => typeof title === 'string'),
     sessionListText: listText,
@@ -95,9 +96,9 @@ async function openAndWait(page: Page, title: string, lastText: string) {
     const startedAt = performance.now()
     Reflect.set(globalThis, '__owOpen', null)
     const check = () => {
-      if (textNodes().some((node) => !shown.has(node)))
+      if (textNodes().some((node) => !shown.has(node))) {
         Reflect.set(globalThis, '__owOpen', performance.now() - startedAt)
-      else requestAnimationFrame(check)
+      } else requestAnimationFrame(check)
     }
     requestAnimationFrame(check)
   }, lastText)

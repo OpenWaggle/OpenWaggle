@@ -7,9 +7,8 @@
  * renderer main thread's busy share from a Chrome trace, rAF frame times, and the `agent:event`
  * traffic the main process pushed.
  *
- *   pnpm perf:streaming --app <before.app> --app <after.app> --runs 5 --cpu-throttle 4
+ *   bun run perf:streaming --app <before.app> --app <after.app> --runs 5 --cpu-throttle 4
  */
-import path from 'node:path'
 import { parseArgs } from 'node:util'
 import type { CDPSession, Page } from '@playwright/test'
 import {
@@ -21,8 +20,9 @@ import {
 import { summarizeIpc } from './lib/ipc-summary'
 import { IPC_LOG_INSTALL, IPC_LOG_READ, IPC_LOG_RESET } from './lib/main-inspector'
 import { resolvePerfApp } from './lib/perf-app'
-import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
-import { quantile, summarizeRuns } from './lib/perf-stats'
+import { compareApps, reportComparison } from './lib/perf-app-comparison'
+import { exitWhenFlushed } from './lib/perf-results'
+import { quantile } from './lib/perf-stats'
 import { delay, withRunningApp } from './lib/running-app'
 import { streamedAnswerTokens } from './lib/streamed-answer'
 import { rendererMainThreadBusy, traceBounds } from './lib/trace-busy'
@@ -32,13 +32,11 @@ const TIMEOUT_MS = 90_000
 const SETTLE_AFTER_STREAM_MS = 2_000
 const MODEL_SETTLE_MS = 2_000
 const DECIMAL = 10
-const ORDERS = 2
 const LONG_FRAME_MS = 33
 const VERY_LONG_FRAME_MS = 100
 const P50 = 0.5
 const P95 = 0.95
 const P99 = 0.99
-const USAGE_EXIT_CODE = 2
 const TRACE_CATEGORIES = [
   'devtools.timeline',
   'disabled-by-default-devtools.timeline',
@@ -170,9 +168,8 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
           const value: unknown = Reflect.get(globalThis, '__owFrames')
           return value
         })
-        const ipc = summarizeIpc(
-          JSON.parse(String((await inspector?.evaluate(IPC_LOG_READ)) ?? 'null')),
-        )
+        const ipcLog: unknown = await inspector?.evaluate(IPC_LOG_READ)
+        const ipc = summarizeIpc(JSON.parse(typeof ipcLog === 'string' ? ipcLog : 'null'))
         const agentEvents = ipc.pushedChannels['agent:event'] ?? { count: 0, bytes: 0 }
         const bounds = traceBounds(trace)
         return {
@@ -197,46 +194,23 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
 }
 
 async function main() {
-  const apps = values.app ?? []
-  if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) (macOS only)\n')
-    process.exit(USAGE_EXIT_CODE)
-  }
   const runs = Number.parseInt(values.runs ?? String(DEFAULTS.runs), DECIMAL)
   const throttle = Number(values['cpu-throttle'] ?? DEFAULTS.throttle)
-  const indexed = apps.map((appPath, index) => ({
-    appPath,
-    label: values.label?.[index] ?? path.basename(appPath),
-  }))
-  const results: Record<string, object[]> = Object.fromEntries(
-    indexed.map((entry) => [entry.label, []]),
-  )
-  for (let run = 0; run < runs; run += 1) {
-    for (const entry of run % ORDERS === 0 ? indexed : [...indexed].reverse()) {
-      try {
-        const result = await measureStreaming(entry.appPath, entry.label, throttle)
-        results[entry.label]?.push(result)
-        log(`${entry.label} stream ${String(run + 1)}: ${JSON.stringify(result)}`)
-      } catch (error) {
-        results[entry.label]?.push({ error: String(error) })
-        log(`${entry.label} stream ${String(run + 1)} failed: ${String(error)}`)
-      }
-    }
-  }
-  const summary = Object.fromEntries(
-    Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, METRICS)]),
-  )
-  const report = {
-    kind: 'streaming',
-    environment: measurementEnvironment(),
+  const results = await compareApps({
+    appPaths: values.app,
+    labels: values.label,
     runs,
-    throttle,
-    summary,
+    runName: 'stream',
+    measure: (appPath, label) => measureStreaming(appPath, label, throttle),
+  })
+  await reportComparison({
     results,
-  }
-  if (values.out)
-    log(`Wrote ${await writeJsonResult(values.out, `streaming-x${String(throttle)}.json`, report)}`)
-  process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
+    metrics: METRICS,
+    kind: 'streaming',
+    details: { runs, throttle },
+    outDirectory: values.out,
+    fileName: `streaming-x${String(throttle)}.json`,
+  })
 }
 
 main().then(

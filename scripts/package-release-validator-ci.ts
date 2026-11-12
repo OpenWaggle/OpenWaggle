@@ -49,32 +49,35 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
         `${CI_WORKFLOW_PATH} must rehearse the exact Node 24.14.0 runtime for docs and website gates.`,
       ],
       [
-        'pnpm package-release:validate',
+        'bun run package-release:validate',
         `${CI_WORKFLOW_PATH} must validate package release policy before merge.`,
       ],
-      ['pnpm check', `${CI_WORKFLOW_PATH} must run full repository checks before merge.`],
       [
-        'pnpm api:snapshot:check',
+        'bun scripts/check/output-budget.ts check',
+        `${CI_WORKFLOW_PATH} must run full repository checks before merge.`,
+      ],
+      [
+        'bun run api:snapshot:check',
         `${CI_WORKFLOW_PATH} must check package API snapshots before merge.`,
       ],
       [
-        'pnpm package-docs:check',
+        'bun run package-docs:check',
         `${CI_WORKFLOW_PATH} must check generated package documentation before merge.`,
       ],
       [
-        'pnpm --filter @openwaggle/website build',
+        'bun run --filter @openwaggle/website build',
         `${CI_WORKFLOW_PATH} must build versioned package documentation before merge.`,
       ],
       [
-        'pnpm website:test',
+        'bun run website:test',
         `${CI_WORKFLOW_PATH} must test the package documentation website before merge.`,
       ],
       [
-        'pnpm docs:generate',
+        'bun run docs:generate',
         `${CI_WORKFLOW_PATH} must generate installed agent docs before merge.`,
       ],
       [
-        'pnpm exec playwright install chromium',
+        'bunx playwright install chromium',
         `${CI_WORKFLOW_PATH} must install Chromium for browser package rehearsal.`,
       ],
       [
@@ -120,7 +123,11 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
         `${CI_WORKFLOW_PATH} package consumer rehearsal must install pinned Bun.`,
       ],
       [
-        'pnpm package:smoke',
+        'pnpm/action-setup',
+        `${CI_WORKFLOW_PATH} package consumer rehearsal must install pinned pnpm for the pnpm consumer.`,
+      ],
+      [
+        'bun run package:smoke',
         `${CI_WORKFLOW_PATH} package consumer rehearsal must smoke packed tarballs.`,
       ],
     ],
@@ -134,15 +141,15 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
         `${CI_WORKFLOW_PATH} must expose the website and docs rehearsal on the exact Node 24.14.0 runtime.`,
       ],
       [
-        'pnpm website:build',
+        'bun run website:build',
         `${CI_WORKFLOW_PATH} website rehearsal must build the versioned documentation site.`,
       ],
       [
-        'pnpm website:test',
+        'bun run website:test',
         `${CI_WORKFLOW_PATH} website rehearsal must test the documentation site.`,
       ],
       [
-        'pnpm docs:generate',
+        'bun run docs:generate',
         `${CI_WORKFLOW_PATH} website rehearsal must generate installed agent docs.`,
       ],
     ],
@@ -214,11 +221,11 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
         `${CI_WORKFLOW_PATH} must resolve the exact Release Please tree plan.`,
       ],
       [
-        'pnpm exec tsx scripts/package-release-artifacts.ts prepare',
+        'bun scripts/package-release-artifacts.ts prepare',
         `${CI_WORKFLOW_PATH} must build and verify immutable tarballs before merge.`,
       ],
       [
-        'pnpm package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"',
+        'bun run package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"',
         `${CI_WORKFLOW_PATH} must smoke the exact canonical tarballs before attestation.`,
       ],
       [
@@ -232,6 +239,10 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
       [
         'retention-days: 30',
         `${CI_WORKFLOW_PATH} must retain release artifacts long enough for human review.`,
+      ],
+      [
+        "package-cache: 'false'",
+        `${CI_WORKFLOW_PATH} package artifact preparation must install without Bun's package cache, which Bun does not check against bun.lock.`,
       ],
     ],
     violations,

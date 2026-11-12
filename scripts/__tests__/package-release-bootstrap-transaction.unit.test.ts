@@ -17,7 +17,7 @@ describe('package release namespace bootstrap package transaction', () => {
   it('secures and finalizes each new package before publishing the next package', async () => {
     const [firstPackage, secondPackage] = PACKAGE_NAMES
     const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
+      ['bun run check', successful()],
       [
         'npm access list packages maintainer --json',
         successful(

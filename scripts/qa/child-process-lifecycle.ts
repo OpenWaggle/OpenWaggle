@@ -9,7 +9,7 @@ const STOP_TIMEOUT_MS = 3_000
 const PROCESS_TREE_POLL_INTERVAL_MS = 50
 
 export interface StoppableChild {
-  readonly pid?: number
+  readonly pid?: number | undefined
   readonly exitCode: number | null
   readonly signalCode: NodeJS.Signals | null
   kill(signal?: NodeJS.Signals | number): boolean

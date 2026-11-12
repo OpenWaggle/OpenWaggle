@@ -19,17 +19,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function traceEventOf(value: unknown): TraceEvent | null {
-  if (!isRecord(value) || typeof value.name !== 'string' || typeof value.ph !== 'string')
+  if (!isRecord(value) || typeof value['name'] !== 'string' || typeof value['ph'] !== 'string') {
     return null
-  const args = isRecord(value.args) ? value.args : {}
+  }
+  const args = isRecord(value['args']) ? value['args'] : {}
   return {
-    name: value.name,
-    ph: value.ph,
-    pid: typeof value.pid === 'number' ? value.pid : -1,
-    tid: typeof value.tid === 'number' ? value.tid : -1,
-    ts: typeof value.ts === 'number' ? value.ts : 0,
-    dur: typeof value.dur === 'number' ? value.dur : 0,
-    threadName: typeof args.name === 'string' ? args.name : null,
+    name: value['name'],
+    ph: value['ph'],
+    pid: typeof value['pid'] === 'number' ? value['pid'] : -1,
+    tid: typeof value['tid'] === 'number' ? value['tid'] : -1,
+    ts: typeof value['ts'] === 'number' ? value['ts'] : 0,
+    dur: typeof value['dur'] === 'number' ? value['dur'] : 0,
+    threadName: typeof args['name'] === 'string' ? args['name'] : null,
   }
 }
 

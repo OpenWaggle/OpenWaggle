@@ -15,7 +15,7 @@ import { validateCiWorkflow } from './package-release-validator-ci'
 
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
-  '0bff3042da820667bde285cdd0fb7c20f461265d9e9b342415791e24ecb24537'
+  '571a9cd7d235df5ae3c01cfc859d6b4fbbd80a54fda2253f990856cabd0dab23'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
@@ -98,6 +98,10 @@ function validatePackageReleaseWorkflow(
         'skip-github-release: true',
         `${WORKFLOW_PATH} Release Please must create version PRs without tags or GitHub Releases.`,
       ],
+      [
+        'package-cache: "false"',
+        `${WORKFLOW_PATH} Release Please must install without Bun's package cache, which Bun does not check against bun.lock.`,
+      ],
       ['contents: write', `${WORKFLOW_PATH} Release Please must update its coordinated PR.`],
       ['pull-requests: write', `${WORKFLOW_PATH} Release Please must update its coordinated PR.`],
       [
@@ -113,7 +117,7 @@ function validatePackageReleaseWorkflow(
         `${WORKFLOW_PATH} Release Please must expose the guarded release branch output.`,
       ],
       [
-        'pnpm package-docs:update',
+        'bun run package-docs:update',
         `${WORKFLOW_PATH} Release Please must generate the versioned documentation line before validation.`,
       ],
       [
@@ -271,14 +275,18 @@ function validatePackageReleaseWorkflow(
     )
   }
   for (const forbidden of [
+    'bun install',
+    'bun-install',
+    'bunx',
+    'bun x',
+    'bun run',
     'pnpm install',
-    'pnpm check',
     'build:packages',
     'package:smoke',
     'website:',
     'docs:generate',
     'playwright',
-    'tsx ',
+    'bun scripts/',
   ]) {
     addViolation(
       publish.includes(forbidden),

@@ -1,5 +1,5 @@
 /**
- * Client for the official MCP conformance suite (`pnpm test:mcp:conformance`).
+ * Client for the official MCP conformance suite (`bun run test:mcp:conformance`).
  *
  * Drives Pi's MCP client (`@earendil-works/pi-mcp`, the one Pi's MCP extension uses) through
  * OpenWaggle's MCP transport layer: a pooled connection lease over streamable HTTP with
@@ -13,8 +13,9 @@ import { createMcpServerFetch } from '../src/main/adapters/mcp/pool/mcp-server-f
 import { MCP_MAX_MESSAGE_BYTES } from '../src/main/adapters/mcp/runtime/mcp-message-limit'
 
 const SUPPORTED_PROTOCOL_VERSION = '2025-11-25'
-const SCENARIO = process.env.MCP_CONFORMANCE_SCENARIO
-const PROTOCOL_VERSION = process.env.MCP_CONFORMANCE_PROTOCOL_VERSION ?? SUPPORTED_PROTOCOL_VERSION
+const SCENARIO = process.env['MCP_CONFORMANCE_SCENARIO']
+const PROTOCOL_VERSION =
+  process.env['MCP_CONFORMANCE_PROTOCOL_VERSION'] ?? SUPPORTED_PROTOCOL_VERSION
 const SERVER_URL = process.argv[2]
 const CONFORMANCE_ADDEND_A = 2
 const CONFORMANCE_ADDEND_B = 3
@@ -23,7 +24,7 @@ const SESSION_ID = 'conformance'
 function requireServerUrl() {
   if (!SCENARIO || !SERVER_URL) {
     throw new Error(
-      'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> tsx scripts/mcp-conformance-client.mts <server-url>',
+      'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> bun scripts/node-script-bundle.ts --run scripts/mcp-conformance-client.mts <server-url>',
     )
   }
   if (PROTOCOL_VERSION !== SUPPORTED_PROTOCOL_VERSION) {
@@ -81,7 +82,9 @@ async function runScenario() {
     hooks: (sessionId, serverName) => {
       const hooks = openWaggleMcpConnectionHooks(sessionId, serverName)
       return {
-        augmentInitializeParams: hooks.augmentInitializeParams,
+        ...(hooks.augmentInitializeParams
+          ? { augmentInitializeParams: hooks.augmentInitializeParams }
+          : {}),
         ...(hooks.adaptResult ? { adaptResult: hooks.adaptResult } : {}),
       }
     },

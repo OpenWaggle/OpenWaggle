@@ -18,6 +18,10 @@ import { readTrustConfiguration } from './package-release-bootstrap-trust'
 
 const JSON_INDENT_SPACES = 2
 
+function failureMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export async function publishPlaceholder(
   packageName: string,
   dependencies: BootstrapDependencies,
@@ -26,8 +30,8 @@ export async function publishPlaceholder(
   const tempDirectory = await dependencies.files.makeTempDirectory(
     `openwaggle-${packageName.slice('@openwaggle/'.length)}-`,
   )
-  let publishFailure: unknown
-  let restrictionFailure: unknown
+  let publishFailure: { readonly error: unknown } | undefined
+  let restrictionFailure: { readonly error: unknown } | undefined
   try {
     await dependencies.files.writeFile(
       path.join(tempDirectory, 'package.json'),
@@ -41,27 +45,25 @@ export async function publishPlaceholder(
         cwd: tempDirectory,
       })
     } catch (error) {
-      publishFailure = error
+      publishFailure = { error }
     }
     try {
       await restrictPublishing()
     } catch (error) {
-      restrictionFailure = error
+      restrictionFailure = { error }
     }
   } finally {
     await dependencies.files.removeDirectory(tempDirectory)
   }
   if (publishFailure !== undefined && restrictionFailure !== undefined) {
-    const publishMessage =
-      publishFailure instanceof Error ? publishFailure.message : String(publishFailure)
-    const restrictionMessage =
-      restrictionFailure instanceof Error ? restrictionFailure.message : String(restrictionFailure)
+    const publishMessage = failureMessage(publishFailure.error)
+    const restrictionMessage = failureMessage(restrictionFailure.error)
     throw new Error(
       `${publishMessage} Initial restrictive MFA attempt also failed: ${restrictionMessage}`,
     )
   }
-  if (restrictionFailure !== undefined) throw restrictionFailure
-  if (publishFailure !== undefined) throw publishFailure
+  if (restrictionFailure !== undefined) throw restrictionFailure.error
+  if (publishFailure !== undefined) throw publishFailure.error
 }
 
 export async function verifyWriteAccess(

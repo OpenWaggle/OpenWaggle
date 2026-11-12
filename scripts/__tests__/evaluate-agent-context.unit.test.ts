@@ -5,7 +5,7 @@ import { summarizeSessionFile } from '../evaluate-agent-context-transcript'
 import { EMPTY_OUTCOME, type EvalTaskGroup, outcomeWith } from '../evaluate-agent-context-types'
 
 /**
- * The deterministic part of `pnpm evaluate:agent-context` (decision 7 of the v1 performance
+ * The deterministic part of `bun run evaluate:agent-context` (decision 7 of the v1 performance
  * plan): every grader accepts its reference outcome and rejects an empty one, transcripts are read
  * the way Pi writes them, and the acceptance rule compares a candidate with its baseline.
  */

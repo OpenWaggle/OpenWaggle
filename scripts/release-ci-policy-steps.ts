@@ -12,13 +12,13 @@
  */
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
-const PNPM_ACTION_SETUP = 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6'
-export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
+const ACTION_SETUP_BUN = 'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2'
+export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, ACTION_SETUP_BUN, ACTION_SETUP_NODE] as const
 export const REQUIRED_COMMANDS = new Map<string, string>([
-  ['Typecheck & Lint', 'pnpm check'],
-  ['Unit Tests', 'pnpm test:unit'],
-  ['Integration & Component Tests', 'pnpm test:integration && pnpm test:component'],
-  ['MCP Conformance', 'pnpm prepare:native:node && pnpm test:mcp:conformance'],
+  ['Typecheck & Lint', 'bun scripts/check/output-budget.ts check'],
+  ['Unit Tests', 'bun run test:unit'],
+  ['Integration & Component Tests', 'bun run test:integration && bun run test:component'],
+  ['MCP Conformance', 'bun run prepare:native:node && bun run test:mcp:conformance'],
 ])
 export const CONCURRENCY_GROUP =
   'group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
@@ -66,19 +66,21 @@ export const COMMIT_POLICY_CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
         with:
           fetch-depth: 0
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
-const PNPM_SETUP_STEP = `      - uses: ${PNPM_ACTION_SETUP}
+/* Bun's version is the `packageManager` pin of package.json, the one every developer uses. */
+const BUN_SETUP_STEP = `      - uses: ${ACTION_SETUP_BUN}
         with:
-          version: 11.15.1`
+          bun-version-file: package.json`
+/* Node still runs Electron's tooling and the test tiers; Bun's own cache replaces setup-node's. */
 const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
         with:
           node-version: 24.14.0
-          cache: pnpm`
+          package-manager-cache: false`
 /*
- * Install runs through the repo-owned composite action, which retries transient
- * registry/postinstall network failures (for example onnxruntime binary downloads)
- * instead of red a whole run on one timeout.
+ * Install runs through the repo-owned composite action, which restores Bun's package cache (these
+ * jobs ship nothing) and retries transient registry/postinstall network failures (for example
+ * onnxruntime binary downloads) instead of red a whole run on one timeout.
  */
-const INSTALL_COMPOSITE_STEP = '      - uses: ./.github/actions/pnpm-install'
+const INSTALL_COMPOSITE_STEP = '      - uses: ./.github/actions/bun-install'
 /*
  * Jobs that run Electron (the Pi main-bundle smoke and tests that require `electron`) fetch
  * its binary in the install action, with retries. Electron otherwise downloads it lazily on
@@ -102,7 +104,7 @@ const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration
           done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
           /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'`
 /*
- * NSIS is required by `pnpm check:installer`, which compile-checks build/installer.nsh.
+ * NSIS is required by `bun run check:installer`, which compile-checks build/installer.nsh.
  * Pinned here because a broken installer script otherwise only surfaces when the release
  * workflow packages Windows - it silently broke two consecutive releases before this
  * check existed.
@@ -120,7 +122,7 @@ const NSIS_INSTALL_STEP = `      - name: Install NSIS for the installer script c
             sleep 15
           done
           makensis -VERSION`
-const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
+const RELEASE_POLICY_STEP = '      - run: bun scripts/release-ci-policy.ts'
 const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
         env:
           COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
@@ -135,7 +137,23 @@ const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
             git merge-base --is-ancestor "$COMMIT_POLICY_FROM" "$COMMIT_POLICY_TO"
             git merge-base --is-ancestor "$COMMIT_POLICY_FROM" refs/remotes/origin/main
           fi
-          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
+          bun scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
+
+/**
+ * Publishes the check runner's per-step times (.tmp/check/report.json) to the job summary, also
+ * when the check failed.
+ */
+const CHECK_JOB_SUMMARY_STEP = `      - name: Publish check step times
+        if: always()
+        run: bun scripts/check/job-summary.ts`
+
+/*
+ * Every tier runs on Bun (ADR 0064), but the main process, shared code and packages ship on
+ * Electron's Node.js, where the trusted main network guard and the fs and child_process paths
+ * behave differently. This step runs their unit tests again on the job's Node.js 24.
+ */
+const NODE_RUNTIME_UNIT_STEP = `      - name: Unit tests of shipped Node.js code on Node.js
+        run: bun run test:node-runtime:raw`
 
 export const EXPECTED_STEPS = new Map<string, readonly string[]>([
   [
@@ -143,7 +161,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
     [
       DISPATCH_GUARD_STEP,
       COMMIT_POLICY_CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
+      BUN_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
       RELEASE_POLICY_STEP,
@@ -154,12 +172,14 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
     'Typecheck & Lint',
     [
       DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
+      // Full history: the no-cheating and dependency-pins steps compare with origin/main.
+      COMMIT_POLICY_CHECKOUT_STEP,
+      BUN_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
       NSIS_INSTALL_STEP,
-      '      - run: pnpm check',
+      '      - run: bun scripts/check/output-budget.ts check',
+      CHECK_JOB_SUMMARY_STEP,
     ],
   ],
   [
@@ -167,10 +187,11 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
     [
       DISPATCH_GUARD_STEP,
       CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
+      BUN_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
-      '      - run: pnpm test:unit',
+      '      - run: bun run test:unit',
+      NODE_RUNTIME_UNIT_STEP,
     ],
   ],
   [
@@ -178,11 +199,11 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
     [
       DISPATCH_GUARD_STEP,
       CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
+      BUN_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
       TERMINAL_SHELLS_INSTALL_STEP,
-      '      - run: pnpm test:integration && pnpm test:component',
+      '      - run: bun run test:integration && bun run test:component',
     ],
   ],
   [
@@ -190,10 +211,10 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
     [
       DISPATCH_GUARD_STEP,
       CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
+      BUN_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
-      '      - run: pnpm prepare:native:node && pnpm test:mcp:conformance',
+      '      - run: bun run prepare:native:node && bun run test:mcp:conformance',
     ],
   ],
 ])

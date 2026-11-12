@@ -1,7 +1,7 @@
 /** Builds a minimal Electron `app.asar` for the native platform-floor tests. */
 
 interface DirectoryNode {
-  files: { [name: string]: DirectoryNode | FileNode }
+  files: Record<string, DirectoryNode | FileNode>
 }
 
 interface FileNode {

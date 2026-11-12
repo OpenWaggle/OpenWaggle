@@ -55,8 +55,9 @@ async function waitForIdleHost(userData: string, attachedAt: number) {
     const percent = ((current - previous) / NANOSECONDS_PER_MILLISECOND / IDLE_SAMPLE_MS) * PERCENT
     previous = current
     quietSamples = percent < IDLE_CPU_PERCENT ? quietSamples + 1 : 0
-    if (quietSamples >= IDLE_SAMPLES_NEEDED && Date.now() - attachedAt >= MINIMUM_ATTACHED_MS)
+    if (quietSamples >= IDLE_SAMPLES_NEEDED && Date.now() - attachedAt >= MINIMUM_ATTACHED_MS) {
       return true
+    }
   }
   return false
 }

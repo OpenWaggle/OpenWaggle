@@ -3,7 +3,7 @@ import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './session-hos
 
 export interface LiveQaLifecycleState {
   gui: Awaited<ReturnType<typeof launchGui>> | null
-  guiLogs: Array<() => string>
+  guiLogs: (() => string)[]
   passed: boolean
 }
 
@@ -75,7 +75,7 @@ export async function runLiveQaProfileLifecycle(input: {
   readonly userDataRoot: string
   readonly state: LiveQaLifecycleState
   readonly run: () => Promise<void>
-  readonly cleanup?: (input: CompleteLiveQaCleanupInput) => Promise<void>
+  readonly cleanup?: ((input: CompleteLiveQaCleanupInput) => Promise<void>) | undefined
 }) {
   let primaryFailure: { readonly error: unknown } | null = null
   try {

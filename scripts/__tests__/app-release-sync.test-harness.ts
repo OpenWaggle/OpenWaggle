@@ -5,6 +5,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import { assertMatching, isMatching, P } from '@diegogbrisa/ts-match'
 import { parse } from 'yaml'
+import { bunExecutable } from '../support/node-runtime'
 
 const execFile = promisify(execFileCallback)
 export const PROJECT_ROOT = process.cwd()
@@ -23,15 +24,14 @@ const BASE_MANIFEST = {
 }
 
 const GITHUB_MOCK = String.raw`
-pnpm() {
-  test "$1 $2" = 'exec tsx'
-  case "$3" in
+bun() {
+  case "$1" in
     scripts/app-release-state.ts|scripts/app-release-notes.ts) ;;
-    *) echo "Unexpected pnpm command: $*" >&2; return 1 ;;
+    *) echo "Unexpected bun command: $*" >&2; return 1 ;;
   esac
-  local script="$3"
-  shift 3
-  "$TEST_NODE" --import "$TEST_TSX" "$TEST_PROJECT_ROOT/$script" "$@"
+  local script="$1"
+  shift
+  command "$TEST_BUN" "$TEST_PROJECT_ROOT/$script" "$@"
 }
 fixture_advance_main() {
   if [ -n "$TEST_FUTURE_MAIN" ] && [ ! -f "$TEST_ADVANCED" ]; then
@@ -249,8 +249,7 @@ export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
       MACOS_SIGNING_CONFIGURED: 'false',
       MACOS_NOTARIZATION_CONFIGURED: 'false',
       TEST_PROJECT_ROOT: PROJECT_ROOT,
-      TEST_NODE: process.execPath,
-      TEST_TSX: import.meta.resolve('tsx'),
+      TEST_BUN: bunExecutable(),
       TEST_AUTHOR: author,
       TEST_REMOTE: remote,
       TEST_BRANCH: RELEASE_BRANCH,

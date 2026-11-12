@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { bunExecutable } from '../support/node-runtime'
 import {
   BUMP_STEP,
   gitRunner,
@@ -128,8 +129,9 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
       githubReleases.push({ tag_name: `v${entry.version}`, draft: entry.release === 'draft' })
     }
   }
-  for (const tag of options.publishedWithoutTag ?? [])
+  for (const tag of options.publishedWithoutTag ?? []) {
     githubReleases.push({ tag_name: tag, draft: false })
+  }
   await fs.writeFile(
     paths.releases,
     githubReleases.map((release) => `${JSON.stringify(release)}\n`).join(''),
@@ -209,8 +211,7 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
       GITHUB_SHA: mainSha,
       RUNNER_TEMP: directory,
       TEST_PROJECT_ROOT: PROJECT_ROOT,
-      TEST_NODE: process.execPath,
-      TEST_TSX: import.meta.resolve('tsx'),
+      TEST_BUN: bunExecutable(),
       TEST_AUTHOR: paths.author,
       TEST_REMOTE: paths.remote,
       TEST_MERGE_STATUS: 'BLOCKED',

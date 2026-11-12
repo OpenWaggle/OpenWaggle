@@ -6,7 +6,7 @@
  * hidden automation with its first-party extensions, sending the benchmark prompt through the
  * benchmark's logging proxy with the same model as the containerized agents (see run.sh).
  *
- *   tsx scripts/benchmark-docker/openwaggle-row.ts --app <OpenWaggle.app> \
+ *   bun scripts/benchmark-docker/openwaggle-row.ts --app <OpenWaggle.app> \
  *     --proxy http://127.0.0.1:8399 --model z-ai/glm-5.3-flash [--results <dir>]
  *
  * It also writes `<results>/openwaggle.app.json`, the measured build's version and commit, which
@@ -86,7 +86,7 @@ async function main() {
     path.join(values.results, 'openwaggle.app.json'),
     `${JSON.stringify(identity, null, JSON_INDENT)}\n`,
   )
-  const token = process.env.BENCH_PROXY_TOKEN
+  const token = process.env['BENCH_PROXY_TOKEN']
   if (!token) {
     process.stderr.write("Set BENCH_PROXY_TOKEN to the proxy's per-run token (run.sh does).\n")
     process.exit(USAGE_EXIT_CODE)

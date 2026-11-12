@@ -21,6 +21,7 @@ import {
   stopElectronQaSessionHost,
 } from './electron-qa-shutdown'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
+import { bunExecutable } from './support/node-runtime'
 
 const QA_HOST = '127.0.0.1'
 const CDP_TIMEOUT_MS = 60_000
@@ -113,31 +114,31 @@ export function electronEnvironment(
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: lease.metadata.projectPath,
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: lease.metadata.profilePath,
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
+    ...(callerEnvironment['OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS'] === '1'
       ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
       : {}),
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PROJECT_MCP === '1'
+    ...(callerEnvironment['OPENWAGGLE_AUTOMATION_PROJECT_MCP'] === '1'
       ? { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' }
       : {}),
     // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
+    ...(callerEnvironment['OPENWAGGLE_AUTOMATION_PI_EXTENSIONS']
       ? {
           OPENWAGGLE_AUTOMATION_PI_EXTENSIONS:
-            callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS,
+            callerEnvironment['OPENWAGGLE_AUTOMATION_PI_EXTENSIONS'],
         }
       : {}),
   })
 }
 
 /**
- * `pnpm` arguments that start the dev app. Chromium's mock keychain (and Linux's basic password
+ * `bun` arguments that start the dev app. Chromium's mock keychain (and Linux's basic password
  * store) keeps the app, and the Session Host it forwards the switches to, off the user's real
  * credential store: with the profile's HOME, macOS `safeStorage` otherwise blocks looking for a
  * login keychain there.
  */
 export function electronQaLaunchArguments(platform: NodeJS.Platform = process.platform) {
   return [
-    'exec',
+    'x',
     'electron-vite',
     'dev',
     '--',
@@ -148,7 +149,7 @@ export function electronQaLaunchArguments(platform: NodeJS.Platform = process.pl
 }
 
 function startElectron(lease: QaLease) {
-  return spawn('pnpm', electronQaLaunchArguments(), {
+  return spawn(bunExecutable(), electronQaLaunchArguments(), {
     cwd: lease.metadata.projectPath,
     detached: process.platform !== 'win32',
     env: electronEnvironment(lease),
@@ -216,7 +217,8 @@ async function run() {
   const childExitPromise = observeElectronQaChildExit(child)
   let connection: QaConnection | null = null
   let evidenceCaptured = false
-  let shutdownPromise: Promise<void> | null = null
+  // Held in an object because the signal handler, not this function's flow, starts the shutdown.
+  const shutdownState: { promise: Promise<void> | null } = { promise: null }
 
   const captureEvidence = async () => {
     if (evidenceCaptured) return
@@ -226,7 +228,7 @@ async function run() {
     console.info(`[electron-qa] screenshot: ${screenshotPath}`)
   }
   const shutdown = () => {
-    shutdownPromise ??= completeElectronQaShutdown({
+    shutdownState.promise ??= completeElectronQaShutdown({
       captureEvidence: connection === null ? async () => undefined : captureEvidence,
       closeConnection: async () => connection?.browser.close(),
       stopChild: () => stopElectronQaChild(child),
@@ -234,7 +236,7 @@ async function run() {
       // running with the profile's SQLite files open.
       stopSessionHost: () => stopElectronQaSessionHost(lease.metadata.profilePath),
     })
-    return shutdownPromise
+    return shutdownState.promise
   }
 
   const onSignal = () => {
@@ -257,7 +259,7 @@ async function run() {
     console.info(`[electron-qa] ready: http://${QA_HOST}:${QA_CDP_PORT}`)
     console.info(`[electron-qa] screenshots: ${lease.metadata.artifactsPath}`)
     const exitCode = await childExitPromise
-    await shutdownPromise
+    await shutdownState.promise
     if (process.exitCode === undefined) process.exitCode = exitCode
   } finally {
     process.removeListener('SIGINT', onSignal)

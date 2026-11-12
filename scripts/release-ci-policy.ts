@@ -46,9 +46,7 @@ function hasMainBranchTrigger(workflow: string, trigger: string) {
 }
 
 function readSteps(job: ReleaseCiWorkflowJob) {
-  const starts = [...job.block.matchAll(/^ {6}- /gm)].flatMap((match) =>
-    match.index === undefined ? [] : [match.index],
-  )
+  const starts = [...job.block.matchAll(/^ {6}- /gm)].map((match) => match.index)
 
   return starts.map((start, index) =>
     job.block.slice(start, starts[index + 1] ?? job.block.length).trimEnd(),
@@ -205,11 +203,10 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
 }
 
 function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violations: string[]) {
-  const jobNames = new Set(jobs.map((job) => job.name))
   for (const requiredName of REQUIRED_CI_CHECKS) {
     if (ALLOWED_JOB_CONDITIONS.has(requiredName)) continue
     const job = jobs.find((candidate) => candidate.name === requiredName)
-    if (job !== undefined && job.keys.includes('if')) {
+    if (job?.keys.includes('if')) {
       violations.push('CI required jobs must run unconditionally for every configured trigger.')
       break
     }

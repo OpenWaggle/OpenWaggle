@@ -14,7 +14,7 @@ const PLAYWRIGHT_MCP = '@playwright/mcp@0.0.83'
 const JSON_INDENT = 2
 /**
  * Where the fixture `electron-devtools` server would attach: a privileged port nothing listens on.
- * Never 9223, the maintainer's `pnpm dev:debug` CDP port: a measured Run that called the tool
+ * Never 9223, the maintainer's `bun run dev:debug` CDP port: a measured Run that called the tool
  * (`--setup maintainer` runs YOLO) would drive the maintainer's QA window. The server connects only
  * when a tool is called, so starting it, which is what the measurements count, is unaffected.
  */

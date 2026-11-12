@@ -7,7 +7,7 @@ import {
 } from '../electron-builder-pi-assets'
 
 const PI_PACKAGE = path.join(
-  '/repo/node_modules/.pnpm/@earendil-works+pi-coding-agent@1.2.0_patch_hash=abc/node_modules',
+  '/repo/node_modules/.bun/@earendil-works+pi-coding-agent@1.2.0+abc/node_modules',
   '@earendil-works',
   'pi-coding-agent',
 )
@@ -19,7 +19,9 @@ describe("packaging Pi's own documentation", () => {
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'docs'))).toBe(true)
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'dist'))).toBe(false)
     expect(
-      forceIncludePiPackageAsset('/repo/node_modules/.pnpm/x/node_modules/left-pad/README.md'),
+      forceIncludePiPackageAsset(
+        '/repo/node_modules/.bun/left-pad@1.3.0/node_modules/left-pad/README.md',
+      ),
     ).toBe(false)
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'examples', 'README.md'))).toBe(false)
   })

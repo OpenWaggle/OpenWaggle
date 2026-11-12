@@ -24,7 +24,8 @@ describe('canonical package smoke inputs', () => {
       'Package smoke tarball directory must be absolute.',
     )
     expect(() => parsePackageSmokeArgs(['--unknown'])).toThrow(
-      'Usage: package-smoke.ts [--tarball-dir <absolute-directory>].',
+      'Usage: package-smoke.ts [--prebuilt | --tarball-dir <absolute-directory>].',
     )
+    expect(parsePackageSmokeArgs(['--prebuilt'])).toEqual({ prebuilt: true })
   })
 })

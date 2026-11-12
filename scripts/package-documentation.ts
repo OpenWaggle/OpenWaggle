@@ -40,7 +40,7 @@ interface PackageDocumentationResult {
   readonly violations: readonly string[]
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -163,7 +163,7 @@ async function readIfPresent(filePath: string) {
   try {
     return await readFile(filePath, 'utf8')
   } catch (error) {
-    if (isJsonObject(error) && error.code === 'ENOENT') return undefined
+    if (isJsonObject(error) && error['code'] === 'ENOENT') return undefined
     throw error
   }
 }
@@ -209,7 +209,7 @@ export async function checkPackageDocumentation(
     if (!historicalVersions.includes(resolvedVersions.currentVersion)) {
       if (!update) {
         violations.push(
-          `website/src/content/docs/packages/${baseDefinition.slug}/${resolvedVersions.currentVersion} is missing. Run pnpm package-docs:update.`,
+          `website/src/content/docs/packages/${baseDefinition.slug}/${resolvedVersions.currentVersion} is missing. Run bun run package-docs:update.`,
         )
         continue
       }
@@ -261,7 +261,7 @@ export async function checkPackageDocumentation(
       const outputPath = relativePath(projectRoot, generatedFile.path)
       changedFiles.push(outputPath)
       if (!update) {
-        violations.push(`${outputPath} is stale. Run pnpm package-docs:update.`)
+        violations.push(`${outputPath} is stale. Run bun run package-docs:update.`)
         continue
       }
       await mkdir(path.dirname(generatedFile.path), { recursive: true })

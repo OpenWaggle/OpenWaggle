@@ -7,6 +7,7 @@ import type { Readable } from 'node:stream'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium, type Browser, type Page } from '@playwright/test'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
+import { bunExecutable } from './support/node-runtime'
 
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const TEMP_DIR_PREFIX = 'openwaggle-startup-'
@@ -144,9 +145,9 @@ function createElectronEnv(userDataDir: string): NodeJS.ProcessEnv {
 
 function spawnElectronDev(port: number, userDataDir: string) {
   return spawn(
-    'pnpm',
+    bunExecutable(),
     [
-      'exec',
+      'x',
       'electron-vite',
       'dev',
       '--',

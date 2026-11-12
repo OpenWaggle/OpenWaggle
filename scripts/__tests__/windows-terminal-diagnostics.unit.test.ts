@@ -21,7 +21,8 @@ describe('manual Windows terminal diagnostics', () => {
   it('preserves failures and keeps user input out of PowerShell source', () => {
     expect(workflowText).toContain('exit $LASTEXITCODE')
     expect(workflowText).toContain('$env:DISPATCHED_SHA -cne $env:EXPECTED_SHA')
-    expect(workflowText).toContain('scripts/native-load-probe.ts $env:NATIVE_RUNTIME')
+    expect(workflowText).toContain('$probeScript = bun scripts/native-load-probe-bundle.ts')
+    expect(workflowText).toContain('& $probeExecutable $probeScript $env:NATIVE_RUNTIME')
     expect(workflowText).not.toContain('continue-on-error')
     expect(workflowText).not.toContain("'${{ inputs.")
   })

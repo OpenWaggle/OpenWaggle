@@ -55,9 +55,9 @@ describe('managed Electron QA launcher', () => {
   })
 
   it('gives the app a home, Pi agent directory, and user data inside the QA profile', () => {
-    const previous = { HOME: process.env.HOME, PI: process.env.PI_CODING_AGENT_DIR }
-    process.env.HOME = '/Users/maintainer'
-    process.env.PI_CODING_AGENT_DIR = '/Users/maintainer/.pi/agent'
+    const previous = { HOME: process.env['HOME'], PI: process.env['PI_CODING_AGENT_DIR'] }
+    process.env['HOME'] = '/Users/maintainer'
+    process.env['PI_CODING_AGENT_DIR'] = '/Users/maintainer/.pi/agent'
     try {
       expect(electronEnvironment(lease, {})).toMatchObject({
         HOME: path.join('/tmp/profile', 'qa-home'),
@@ -66,9 +66,9 @@ describe('managed Electron QA launcher', () => {
         OPENWAGGLE_USER_DATA_DIR: '/tmp/profile',
       })
     } finally {
-      process.env.HOME = previous.HOME
-      if (previous.PI === undefined) delete process.env.PI_CODING_AGENT_DIR
-      else process.env.PI_CODING_AGENT_DIR = previous.PI
+      process.env['HOME'] = previous.HOME
+      if (previous.PI === undefined) delete process.env['PI_CODING_AGENT_DIR']
+      else process.env['PI_CODING_AGENT_DIR'] = previous.PI
     }
   })
 
@@ -101,7 +101,7 @@ describe('managed Electron QA launcher', () => {
     'starts Electron on %s with the mock credential store and the QA CDP port',
     (platform, credentialSwitches) => {
       expect(electronQaLaunchArguments(platform)).toEqual([
-        'exec',
+        'x',
         'electron-vite',
         'dev',
         '--',

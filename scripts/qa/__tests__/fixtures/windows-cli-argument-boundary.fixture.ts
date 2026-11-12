@@ -4,8 +4,8 @@ import { app } from 'electron'
 import { applicationCliArguments } from '../../../../src/main/application-cli-arguments'
 import { prepareDesktopUi } from '../../../../src/main/desktop-window-policy'
 
-prepareDesktopUi(app)
-const directory = process.env.OPENWAGGLE_QA_CLI_BOUNDARY_DIR
+prepareDesktopUi()
+const directory = process.env['OPENWAGGLE_QA_CLI_BOUNDARY_DIR']
 if (!directory) throw new Error('CLI boundary fixture requires its private directory.')
 app.setPath('userData', path.join(directory, 'profile'))
 

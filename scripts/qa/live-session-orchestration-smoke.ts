@@ -116,8 +116,8 @@ async function runLiveQaScenario(input: {
     workingDirectory: userDataRoot,
   })
   const projectPath = process.cwd()
-  const model = process.env.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
-  const timeoutMs = Number(process.env.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
+  const model = process.env['OPENWAGGLE_LIVE_MODEL']?.trim() || DEFAULT_MODEL
+  const timeoutMs = Number(process.env['OPENWAGGLE_LIVE_TIMEOUT_MS'] ?? DEFAULT_TIMEOUT_MS)
   const expectedPackage = await readPackageIdentity(projectPath)
   await waitForHost(cliExecutable, env)
   await new Promise((resolve) => setTimeout(resolve, DETACHED_HOST_SURVIVAL_DELAY_MS))
@@ -151,7 +151,7 @@ async function runLiveQaScenario(input: {
     '--workspace',
     'current',
   ])
-  const queenSessionId = cliOutcome(launch).sessionId
+  const queenSessionId = cliOutcome(launch)['sessionId']
   if (typeof queenSessionId !== 'string') throw new Error('Launch omitted Queen Session ID.')
   await stopChild(gui.child)
   await waitForHost(cliExecutable, env)
@@ -172,7 +172,7 @@ async function runLiveQaScenario(input: {
     throw new Error('Queen transcript omitted a native sessions spawn tool call.')
   }
   for (const expected of [workerSessionId, expectedPackage.name, expectedPackage.version]) {
-    if (!queenTranscript.includes(String(expected))) {
+    if (!queenTranscript.includes(expected)) {
       throw new Error(`Queen transcript omitted ${JSON.stringify(expected)}.`)
     }
   }

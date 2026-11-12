@@ -17,7 +17,7 @@
  * timeout, a network failure) the job warns and sends the rest. Collecting fails the snapshot only
  * when releases cannot be read, or when GitHub answers in a shape it no longer recognises.
  *
- * Usage: `pnpm exec tsx scripts/usage-stats-snapshot.ts [--dry-run]`
+ * Usage: `bun scripts/usage-stats-snapshot.ts [--dry-run]`
  */
 import { pathToFileURL } from 'node:url'
 import { isMatching, P } from '@diegogbrisa/ts-match'
@@ -81,7 +81,7 @@ function githubHeaders(token: string | undefined): Record<string, string> {
 
 function nextPage(link: string | null) {
   for (const part of link?.split(',') ?? []) {
-    const url = NEXT_PAGE_LINK.exec(part)?.groups?.url
+    const url = NEXT_PAGE_LINK.exec(part)?.groups?.['url']
     if (url !== undefined) return url
   }
   return undefined

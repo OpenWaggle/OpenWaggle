@@ -139,6 +139,6 @@ export async function configureFakeProvider(agentDir: string, baseUrl: string) {
 
 /** Whether a request is OpenWaggle's Session title generation rather than an agent turn. */
 export function isTitleRequest(request: FakeProviderRequest) {
-  const tools = request.body.tools
+  const tools = request.body['tools']
   return !Array.isArray(tools) || tools.length === 0
 }

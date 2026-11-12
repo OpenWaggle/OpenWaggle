@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { WagglePreset } from '@openwaggle/waggle-core'
 import { safeDecodeUnknown } from '@shared/schema'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import JsonSchema from 'typebox/schema'
@@ -113,7 +114,15 @@ function rawPresetCount(value: unknown) {
  * reads the file and skips presets it cannot parse, then the app skips any its own schema
  * rejects. `skipped` counts both.
  */
-export async function readWagglePresetsFileAtRuntime(value: unknown) {
+export interface RuntimeWagglePresetsFile {
+  readonly presets: readonly WagglePreset[]
+  readonly hiddenBuiltInPresetIds: readonly string[]
+  readonly skipped: number
+}
+
+export async function readWagglePresetsFileAtRuntime(
+  value: unknown,
+): Promise<RuntimeWagglePresetsFile> {
   const project = scratchDirectory('ow-waggle-schema-')
   const filePath = path.join(project, '.pi', 'waggle-presets.json')
   writeJson(filePath, value)
@@ -162,16 +171,18 @@ export async function runtimeRejection(read: () => Promise<unknown>): Promise<st
 }
 
 export function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Expected a JSON object.')
+  }
   return Object.fromEntries(Object.entries(value))
 }
 
 export async function patternOf(fileName: string, pointer: readonly string[]) {
   let node: unknown = await readPublishedSchema(fileName)
-  for (const segment of pointer)
+  for (const segment of pointer) {
     node = Array.isArray(node) ? node[Number(segment)] : record(node)[segment]
-  const pattern = record(node).pattern
+  }
+  const pattern = record(node)['pattern']
   if (typeof pattern !== 'string') throw new Error(`No pattern at ${pointer.join('/')}.`)
   return new RegExp(pattern, 'u')
 }

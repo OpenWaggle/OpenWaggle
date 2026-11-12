@@ -64,10 +64,10 @@ describe('pending package documentation guards', () => {
       const result = await checkPackageDocumentation(projectRoot, false, [baseDefinition])
 
       expect(result.violations).toContain(
-        'packages/extension-sdk/README.md is stale. Run pnpm package-docs:update.',
+        'packages/extension-sdk/README.md is stale. Run bun run package-docs:update.',
       )
       expect(result.violations).not.toContain(
-        'website/src/content/docs/packages/extension-sdk/0.1/api-reference.md is stale. Run pnpm package-docs:update.',
+        'website/src/content/docs/packages/extension-sdk/0.1/api-reference.md is stale. Run bun run package-docs:update.',
       )
     } finally {
       await lifecycleFs.rm(projectRoot, { force: true, recursive: true })

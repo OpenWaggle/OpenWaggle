@@ -6,7 +6,7 @@
  * Sessions and 300,000 transcript nodes, most of them archived as in a long-used profile, plus a
  * few multi-megabyte Sessions. Measurements clone it instead of touching anyone's real profile.
  *
- *   pnpm perf:generate-profile --app <OpenWaggle.app> --out <dir>
+ *   bun run perf:generate-profile --app <OpenWaggle.app> --out <dir>
  *
  * The app only creates the empty Session Host database (its schema and migrations); the Sessions
  * are then written with the same fixture writer the QA seeds use, with the Host stopped.
@@ -79,8 +79,9 @@ async function createDatabase(profile: PerfProfile, appPath: string) {
   )
   const code = await Promise.race([exited, timeout])
   await stopProcessGroup(started.child)
-  if (code !== 0)
+  if (code !== 0) {
     throw new Error(`host start failed: ${started.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
+  }
   await stopProfileHost(profile)
 }
 

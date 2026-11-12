@@ -18,7 +18,7 @@ interface RenderApiReferenceInput {
   readonly version: string
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -39,7 +39,7 @@ function declarationSections(snapshot: string) {
 
 function exportTypesPath(target: unknown) {
   if (!isJsonObject(target)) return undefined
-  return typeof target.types === 'string' ? target.types : undefined
+  return typeof target['types'] === 'string' ? target['types'] : undefined
 }
 
 function directExportedSymbols(declaration: string) {
