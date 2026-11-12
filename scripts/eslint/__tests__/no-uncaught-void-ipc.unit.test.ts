@@ -74,7 +74,9 @@ describe('openwaggle/no-uncaught-void-ipc', () => {
   })
 
   it('allows a void api chain that ends in catch', () => {
-    const messages = lint(`${WITH_BRIDGE_IMPORT}void api.closeBrowserPreview(previewId).catch(() => undefined)\n`)
+    const messages = lint(
+      `${WITH_BRIDGE_IMPORT}void api.closeBrowserPreview(previewId).catch(() => undefined)\n`,
+    )
     expect(messages).toHaveLength(0)
   })
 
@@ -93,14 +95,14 @@ describe('openwaggle/no-uncaught-void-ipc', () => {
   })
 
   it('allows void calls that are not rooted at the IPC bridge', () => {
-    const messages = lint(`${WITH_BRIDGE_IMPORT}void session.paste()\nvoid controls.runState(() => api.reloadBrowserPreview(id), 'Could not reload.')\n`)
+    const messages = lint(
+      `${WITH_BRIDGE_IMPORT}void session.paste()\nvoid controls.runState(() => api.reloadBrowserPreview(id), 'Could not reload.')\n`,
+    )
     expect(messages).toHaveLength(0)
   })
 
   it('allows a void api call when api is not the IPC bridge import', () => {
-    const messages = lint(
-      "import { api } from './other-module'\nvoid api.openExternal(url)\n",
-    )
+    const messages = lint("import { api } from './other-module'\nvoid api.openExternal(url)\n")
     expect(messages).toHaveLength(0)
   })
 })

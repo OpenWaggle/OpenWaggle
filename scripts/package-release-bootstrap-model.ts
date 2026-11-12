@@ -4,8 +4,7 @@ export type JsonObject = {
 
 export const BOOTSTRAP_VERSION = '0.0.0-bootstrap.0'
 export const BOOTSTRAP_TAG = 'bootstrap'
-export const DEPRECATION_MESSAGE =
-  'Namespace bootstrap placeholder; use a released version.'
+export const DEPRECATION_MESSAGE = 'Namespace bootstrap placeholder; use a released version.'
 export const NPM_ENVIRONMENT = 'npm'
 export const PACKAGE_RELEASE_WORKFLOW = 'package-release.yml'
 export const REPOSITORY = 'OpenWaggle/OpenWaggle'
@@ -224,11 +223,8 @@ export function isCompatibleBootstrapRecord(value: unknown, packageName: string)
   const distFileCount = isJsonObject(value.dist) ? value.dist.fileCount : undefined
   const hasCompatibleDistMetadata = !hasDistMetadata || distFileCount === 1
   const manifestHasNoFiles =
-    isUnknownArray(value.files) &&
-    value.files.length === 0 &&
-    hasCompatibleDistMetadata
-  const registryMetadataHasOnlyManifest =
-    value.files === undefined && distFileCount === 1
+    isUnknownArray(value.files) && value.files.length === 0 && hasCompatibleDistMetadata
+  const registryMetadataHasOnlyManifest = value.files === undefined && distFileCount === 1
   const hasCompatibleDirectories =
     value.directories === undefined ||
     (isJsonObject(value.directories) && Object.keys(value.directories).length === 0)
@@ -264,8 +260,6 @@ export function hasCompatibleTags(value: unknown) {
 export function isPublicAccess(value: string, packageName: string) {
   const parsed = parseJson(value.trim(), 'npm access get status')
   return (
-    isJsonObject(parsed) &&
-    Object.keys(parsed).length === 1 &&
-    parsed[packageName] === 'public'
+    isJsonObject(parsed) && Object.keys(parsed).length === 1 && parsed[packageName] === 'public'
   )
 }

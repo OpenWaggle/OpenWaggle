@@ -1,4 +1,10 @@
-import { appBundleOf, processRole, processTree, profileHostPids, sampleProcesses } from './perf-processes'
+import {
+  appBundleOf,
+  processRole,
+  processTree,
+  profileHostPids,
+  sampleProcesses,
+} from './perf-processes'
 
 const BYTES_PER_MEGABYTE = 1_048_576
 

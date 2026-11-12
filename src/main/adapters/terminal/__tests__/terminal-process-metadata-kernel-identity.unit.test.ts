@@ -9,9 +9,8 @@ vi.mock('../terminal-process-command', () => ({
   runTerminalProcessCommand: commands.run,
 }))
 
-const { installTerminalProcessKernelApi, resetTerminalProcessKernelApiForTests } = await import(
-  '../terminal-process-kernel-api'
-)
+const { installTerminalProcessKernelApi, resetTerminalProcessKernelApiForTests } =
+  await import('../terminal-process-kernel-api')
 const { readProcessMetadata } = await import('../terminal-process-probes')
 
 const PID = 42

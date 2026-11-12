@@ -47,7 +47,8 @@ patchedDependencies:
   '${packageRef('pi-coding-agent')}@${version}': def456
 `,
     patchContents: {
-      [piAiPatch]: 'diff --git a/dist/providers/compat-schema.d.ts b/dist/providers/compat-schema.d.ts',
+      [piAiPatch]:
+        'diff --git a/dist/providers/compat-schema.d.ts b/dist/providers/compat-schema.d.ts',
       [piCodingAgentPatch]: 'diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js',
     },
     patchFiles: [piAiPatch, piCodingAgentPatch],
@@ -68,4 +69,3 @@ patchedDependencies:
     },
   }
 }
-

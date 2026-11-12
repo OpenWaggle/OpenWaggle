@@ -34,15 +34,14 @@ function singleActionVariants(
     const { action: _sharedAction, ...shared } = variant.properties
     // Copy with descriptors, not a spread: TypeBox keeps `~kind` non-enumerable, and
     // `Value.Convert` only descends into a schema it recognizes as an object.
-    return choices.map(
-      (choice): SessionsToolRuntimeVariant =>
-        Object.defineProperties(
-          { properties: {} },
-          {
-            ...Object.getOwnPropertyDescriptors(variant),
-            properties: { value: { action: choice, ...shared }, enumerable: true },
-          },
-        ),
+    return choices.map((choice): SessionsToolRuntimeVariant =>
+      Object.defineProperties(
+        { properties: {} },
+        {
+          ...Object.getOwnPropertyDescriptors(variant),
+          properties: { value: { action: choice, ...shared }, enumerable: true },
+        },
+      ),
     )
   })
 }

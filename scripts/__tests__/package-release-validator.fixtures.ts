@@ -147,12 +147,27 @@ export async function writeMinimalPackageReleaseProject(
   })
   await writeFile(path.join(projectRoot, '.github/workflows/package-release.yml'), workflowText)
   await writeFile(path.join(projectRoot, '.github/workflows/ci.yml'), ciWorkflowText)
-  await writeFile(path.join(projectRoot, '.github/workflows/session-performance.yml'), validPerformanceWorkflow)
+  await writeFile(
+    path.join(projectRoot, '.github/workflows/session-performance.yml'),
+    validPerformanceWorkflow,
+  )
   await writeFile(path.join(projectRoot, 'scripts/package-release-promote.ts'), validPromoteSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-promotion.ts'), validPromotionSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-artifacts.ts'), validArtifactsSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'), validArtifactContractSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'), validLocatorSource)
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-promotion.ts'),
+    validPromotionSource,
+  )
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-artifacts.ts'),
+    validArtifactsSource,
+  )
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'),
+    validArtifactContractSource,
+  )
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'),
+    validLocatorSource,
+  )
   await writeFile(path.join(projectRoot, 'scripts/package-release-context.ts'), validContextSource)
   await writeFile(path.join(projectRoot, 'scripts/package-release-provenance.ts'), provenanceSource)
 

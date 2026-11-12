@@ -35,8 +35,7 @@ function transcriptHead() {
       snapshotHeadNodeId: SNAPSHOT_HEAD,
       items: Array.from({ length: PAGE_SIZE }, (_, index) => ({
         nodeId: `node-${String(index * 100_000).padStart(8, '0')}`,
-        parentNodeId:
-          index === 0 ? null : `node-${String((index - 1) * 100_000).padStart(8, '0')}`,
+        parentNodeId: index === 0 ? null : `node-${String((index - 1) * 100_000).padStart(8, '0')}`,
         createdOrder: index,
         content: { text: `commonterm transcript head ${String(index)}` },
       })),
@@ -151,9 +150,7 @@ describe('Session discovery benchmark preflight', () => {
       'common lexical rows without evidence',
       {
         ...validPreflight(),
-        commonLexical: [
-          { session_id: 'session-1', matched_fields: 'title', snippet: 'unrelated' },
-        ],
+        commonLexical: [{ session_id: 'session-1', matched_fields: 'title', snippet: 'unrelated' }],
       },
     ],
     [

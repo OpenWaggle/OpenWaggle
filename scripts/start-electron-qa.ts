@@ -48,7 +48,9 @@ export async function assertQaPortAvailable(port = QA_CDP_PORT) {
     })
   }).catch((error: unknown) => {
     if (errorCode(error) === 'EADDRINUSE') {
-      throw new Error(`Reserved Electron QA port ${port} is already occupied; Electron was not launched.`)
+      throw new Error(
+        `Reserved Electron QA port ${port} is already occupied; Electron was not launched.`,
+      )
     }
     throw error
   })
@@ -119,7 +121,10 @@ export function electronEnvironment(
       : {}),
     // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
     ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
-      ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
+      ? {
+          OPENWAGGLE_AUTOMATION_PI_EXTENSIONS:
+            callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS,
+        }
       : {}),
   })
 }
@@ -143,16 +148,12 @@ export function electronQaLaunchArguments(platform: NodeJS.Platform = process.pl
 }
 
 function startElectron(lease: QaLease) {
-  return spawn(
-    'pnpm',
-    electronQaLaunchArguments(),
-    {
-      cwd: lease.metadata.projectPath,
-      detached: process.platform !== 'win32',
-      env: electronEnvironment(lease),
-      stdio: 'inherit',
-    },
-  )
+  return spawn('pnpm', electronQaLaunchArguments(), {
+    cwd: lease.metadata.projectPath,
+    detached: process.platform !== 'win32',
+    env: electronEnvironment(lease),
+    stdio: 'inherit',
+  })
 }
 
 function delay(milliseconds: number) {

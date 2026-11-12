@@ -141,7 +141,10 @@ export function packagedSecondInstanceArguments(
   return [...packagedGuiArguments(platform), ...singleInstanceLockDeniedArguments(markerPath)]
 }
 
-async function assertLegacySessionMigrated(executable: string, environment: Record<string, string>) {
+async function assertLegacySessionMigrated(
+  executable: string,
+  environment: Record<string, string>,
+) {
   const response = await runJsonCli(executable, environment, [
     'hive',
     'list',
@@ -207,7 +210,9 @@ export function assertPackagedSemanticSearch(outcome: Record<string, unknown>) {
         session.sessionId === LEGACY_SESSION_ID,
     )
   ) {
-    throw new Error('The packaged semantic embedding/search smoke did not return the legacy Session.')
+    throw new Error(
+      'The packaged semantic embedding/search smoke did not return the legacy Session.',
+    )
   }
 }
 
@@ -234,12 +239,12 @@ export async function runPackagedSessionHostStartupScenario(
         OPENWAGGLE_AUTOMATION: '1',
         OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
       })
-      const cliExecutable = await (
-        dependencies.prepareCliExecutable ?? prepareLiveQaCliExecutable
-      )({
-        executable: input.executable,
-        workingDirectory: input.userDataRoot,
-      })
+      const cliExecutable = await (dependencies.prepareCliExecutable ?? prepareLiveQaCliExecutable)(
+        {
+          executable: input.executable,
+          workingDirectory: input.userDataRoot,
+        },
+      )
       state.gui = await launchGui(input.executable, environment, packagedGuiArguments())
       state.guiLogs.push(state.gui.logs)
       await waitForHost(cliExecutable, environment)

@@ -111,9 +111,7 @@ describe('package release bootstrap signal recovery', () => {
     )
 
     expect(result.ok).toBe(false)
-    expect(result.blockers).toEqual([
-      expect.stringContaining('ambiguous publish failure'),
-    ])
+    expect(result.blockers).toEqual([expect.stringContaining('ambiguous publish failure')])
     expect(result.blockers[0]).toContain('Restrictive MFA recovery also failed')
   })
 })

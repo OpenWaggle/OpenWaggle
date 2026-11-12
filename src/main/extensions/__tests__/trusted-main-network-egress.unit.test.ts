@@ -61,9 +61,8 @@ describe('trusted main network egress guard', () => {
 
   it('only forces fetch redirect errors while a trusted main policy is active', async () => {
     const fetch = installHostFetchMock()
-    const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } = await import(
-      '../trusted-main-network-egress'
-    )
+    const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } =
+      await import('../trusted-main-network-egress')
     const policy = createTrustedMainNetworkPolicy(policyPackage())
 
     await runWithTrustedMainNetworkPolicy(policy, () =>
@@ -81,9 +80,8 @@ describe('trusted main network egress guard', () => {
 
   it('denies Request inputs because they can preserve custom fetch transports', async () => {
     const fetch = installHostFetchMock()
-    const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } = await import(
-      '../trusted-main-network-egress'
-    )
+    const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } =
+      await import('../trusted-main-network-egress')
     const policy = createTrustedMainNetworkPolicy(policyPackage())
 
     await expect(
@@ -97,9 +95,8 @@ describe('trusted main network egress guard', () => {
   it('only forces Electron net redirect errors while a trusted main policy is active', async () => {
     installHostFetchMock()
     const { net } = await import('electron')
-    const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } = await import(
-      '../trusted-main-network-egress'
-    )
+    const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } =
+      await import('../trusted-main-network-egress')
     const policy = createTrustedMainNetworkPolicy(policyPackage())
 
     await runWithTrustedMainNetworkPolicy(policy, () =>

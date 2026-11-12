@@ -14,9 +14,8 @@ export interface BrowserPreviewAnnotationAttachmentInput {
 export async function prepareBrowserPreviewAnnotationAttachment(
   entry: BrowserPreviewAnnotationAttachmentInput,
 ): Promise<PreparedAttachment> {
-  const { dispatchConfiguredGuiSessionCommand } = await import(
-    './application/gui-session-command-router'
-  )
+  const { dispatchConfiguredGuiSessionCommand } =
+    await import('./application/gui-session-command-router')
   const requestId = randomUUID()
   const remote = dispatchConfiguredGuiSessionCommand({
     caller: { callerId: 'gui:local-user', workingDirectory: path.dirname(entry.path) },

@@ -81,12 +81,10 @@ export function persistedMessages(entry: TruthEntry): Message[] {
   const inline = new Set(inlineToolCallIds(entry.segments ?? []))
   const toolCalls = entry.toolCallIds
     .filter((id) => !inline.has(id))
-    .map(
-      (id): MessagePart => ({
-        type: 'tool-call',
-        toolCall: { id: ToolCallId(id), name: 'bash', args: { command: id } },
-      }),
-    )
+    .map((id): MessagePart => ({
+      type: 'tool-call',
+      toolCall: { id: ToolCallId(id), name: 'bash', args: { command: id } },
+    }))
   const assistant: Message = {
     id: MessageId(entry.piId),
     role: 'assistant',

@@ -95,8 +95,10 @@ async function main() {
       return
     }
     if (meta.commit === null || meta.commit !== headCommit) {
-      const builtAt = meta.commit === null ? 'an unknown commit' : meta.commit.slice(0, SHORT_SHA_LENGTH)
-      const headAt = headCommit === null ? 'an unknown commit' : headCommit.slice(0, SHORT_SHA_LENGTH)
+      const builtAt =
+        meta.commit === null ? 'an unknown commit' : meta.commit.slice(0, SHORT_SHA_LENGTH)
+      const headAt =
+        headCommit === null ? 'an unknown commit' : headCommit.slice(0, SHORT_SHA_LENGTH)
       console.error(
         `out/ was built at ${builtAt} but HEAD is ${headAt}. A packaged run would test a stale build; run \`pnpm build\` to rebuild first.`,
       )

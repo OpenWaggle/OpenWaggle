@@ -3,12 +3,7 @@ import babelParser from '@babel/eslint-parser'
 import { describe, expect, it } from 'vitest'
 import { openwagglePlugin } from '../openwaggle-plugin'
 
-function lint(
-  code: string,
-  ruleName: string,
-  filename: string,
-  options: readonly unknown[] = [],
-) {
+function lint(code: string, ruleName: string, filename: string, options: readonly unknown[] = []) {
   const linter = new Linter({ configType: 'flat' })
   return linter.verify(
     code,
@@ -92,7 +87,8 @@ describe('main-process layer boundaries', () => {
   })
 
   it('reports application, IPC and store code importing the Usage statistics recorder directly', () => {
-    const importer = "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
+    const importer =
+      "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
 
     for (const filename of [
       'src/main/application/example.ts',
@@ -119,7 +115,8 @@ describe('main-process layer boundaries', () => {
   })
 
   it('allows adapters and tests to use Usage statistics infrastructure', () => {
-    const importer = "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
+    const importer =
+      "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
 
     expect(
       lint(importer, 'openwaggle/main-architecture-boundaries', 'src/main/adapters/example.ts'),

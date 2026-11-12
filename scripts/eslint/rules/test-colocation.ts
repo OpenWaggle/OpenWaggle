@@ -1,7 +1,8 @@
 import type { Rule } from 'eslint'
 import { normalizedFilename } from '../ast-helpers'
 
-const TEST_FILE_PATTERN = /\.(unit|integration|component)?\.?test\.[cm]?[jt]sx?$|\.spec\.[cm]?[jt]sx?$/
+const TEST_FILE_PATTERN =
+  /\.(unit|integration|component)?\.?test\.[cm]?[jt]sx?$|\.spec\.[cm]?[jt]sx?$/
 const FILE_START_LOCATION = {
   line: 1,
   column: 0,
@@ -9,7 +10,10 @@ const FILE_START_LOCATION = {
 
 function isSourceTestFile(filename: string) {
   const normalized = normalizedFilename(filename)
-  return (normalized.startsWith('src/') || normalized.includes('/src/')) && TEST_FILE_PATTERN.test(normalized)
+  return (
+    (normalized.startsWith('src/') || normalized.includes('/src/')) &&
+    TEST_FILE_PATTERN.test(normalized)
+  )
 }
 
 export const testColocationRule: Rule.RuleModule = {

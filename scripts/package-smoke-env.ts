@@ -17,7 +17,10 @@ export function packageBrowserSmokeEnabled(value: string | undefined) {
 
 export function packageSmokeRequiredPackageManagers(value: string | undefined) {
   const required: PackageManagerName[] = []
-  for (const name of value?.split(',').map((entry) => entry.trim()).filter(Boolean) ?? []) {
+  for (const name of value
+    ?.split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean) ?? []) {
     if (!isMatching(packageManagerNamePattern, name)) {
       throw new Error(`Unsupported required package manager: ${name}.`)
     }
@@ -35,9 +38,7 @@ export function readPackageSmokeEnvironment(
 
   return {
     browserExecutablePath: executablePath || undefined,
-    browserSmokeEnabled: packageBrowserSmokeEnabled(
-      environment.OPENWAGGLE_PACKAGE_BROWSER_SMOKE,
-    ),
+    browserSmokeEnabled: packageBrowserSmokeEnabled(environment.OPENWAGGLE_PACKAGE_BROWSER_SMOKE),
     requiredPackageManagers: packageSmokeRequiredPackageManagers(
       environment.OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS,
     ),

@@ -72,7 +72,7 @@ function buildProgressively(files: readonly GitFileDiff[], onBuilt: (built: Buil
     if (cancelled) return
     const items: ParsedReviewCodeViewItem[] = []
     try {
-      for (let index = 0; index < files.length; ) {
+      for (let index = 0; index < files.length;) {
         const file = files[index]
         if (file === undefined) break
         if (file.diff.length > MAIN_THREAD_PATCH_UNIT_BUDGET) {

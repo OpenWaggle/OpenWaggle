@@ -35,7 +35,10 @@ export function nativeArtifactRequirements(
   throw new Error(`No exact native artifact contract is defined for ${packageName}.`)
 }
 
-export function materializeNativeArtifactPath(template: string, packageVersion: string | undefined) {
+export function materializeNativeArtifactPath(
+  template: string,
+  packageVersion: string | undefined,
+) {
   if (!template.includes(VERSION_TOKEN)) return template
   if (!packageVersion) {
     throw new Error(`Cannot resolve versioned native artifact path ${template}.`)
@@ -118,9 +121,8 @@ function exactRequirement(
 }
 
 function nativeTarget(runtime: NativeArtifactRuntime) {
-  const platform = runtime.platform === 'linux' && runtime.libc === 'musl'
-    ? 'linuxmusl'
-    : runtime.platform
+  const platform =
+    runtime.platform === 'linux' && runtime.libc === 'musl' ? 'linuxmusl' : runtime.platform
   return `${platform}-${runtime.arch}`
 }
 

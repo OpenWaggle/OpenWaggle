@@ -32,9 +32,8 @@ export function emulateSessionResourceHost(layer: Layer.Layer<SessionResourceHos
   relay = async (channel, args) => {
     if (channel !== 'sessions:resources:host-content' && channel !== 'sessions:resources:thumbnail')
       return { handled: false }
-    const { dispatchHostUiSessionResourceOperation: dispatch } = await import(
-      '../../application/host-ui-session-resource-operation-dispatcher'
-    )
+    const { dispatchHostUiSessionResourceOperation: dispatch } =
+      await import('../../application/host-ui-session-resource-operation-dispatcher')
     const operation = fromAny<
       Effect.Effect<unknown, unknown, SessionResourceHostServices>,
       unknown

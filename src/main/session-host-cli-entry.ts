@@ -241,9 +241,8 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
             externalOwnership: ownership,
             runEffect: runtime.runAppEffect,
             startOwnedServices: async () => {
-              const { createDiscoveredSessionWithLifecycle } = await import(
-                './application/pi-session-discovery-lifecycle'
-              )
+              const { createDiscoveredSessionWithLifecycle } =
+                await import('./application/pi-session-discovery-lifecycle')
               await runtime.startSessionHostOwnedServices({
                 createDiscoveredSession: createDiscoveredSessionWithLifecycle,
               })

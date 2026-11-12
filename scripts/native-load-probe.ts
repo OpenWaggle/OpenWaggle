@@ -102,7 +102,9 @@ export async function assertNativeModulesLoad(
 async function main() {
   const mode = process.argv[MODE_ARG_INDEX]
   if (!isRebuildMode(mode)) {
-    throw new Error('Usage: native-load-probe.ts <node|electron> [module-root] [console-executable] [runtime|all-backends]')
+    throw new Error(
+      'Usage: native-load-probe.ts <node|electron> [module-root] [console-executable] [runtime|all-backends]',
+    )
   }
   await assertNativeModulesLoad(
     mode,

@@ -23,7 +23,10 @@ describe('isolated Tailwind source collection', () => {
   it('collects runtime renderer sources without walking tests, Git metadata, or unrelated roots', () => {
     const projectRoot = temporaryProject()
     writeFileSync(join(projectRoot, 'src/renderer/src/App.tsx'), '<main className="flex" />')
-    writeFileSync(join(projectRoot, 'src/renderer/src/components/helper.ts'), 'export const gap = 2')
+    writeFileSync(
+      join(projectRoot, 'src/renderer/src/components/helper.ts'),
+      'export const gap = 2',
+    )
     writeFileSync(
       join(projectRoot, 'src/renderer/src/components/__tests__/App.test.tsx'),
       '<main className="hidden" />',

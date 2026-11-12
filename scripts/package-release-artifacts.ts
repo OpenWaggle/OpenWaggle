@@ -4,9 +4,7 @@ import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import {
-  verifyReleaseArtifactBundle,
-} from './package-release-artifact-contract'
+import { verifyReleaseArtifactBundle } from './package-release-artifact-contract'
 import type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
@@ -74,10 +72,14 @@ function packedDependency(
 }
 
 function releaseHeadingVersion(line: string) {
-  const plainHeading = /^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?: \([^)]+\))?$/u.exec(line)
+  const plainHeading =
+    /^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?: \([^)]+\))?$/u.exec(line)
   if (plainHeading?.[1] !== undefined) return plainHeading[1]
 
-  const linkedHeading = /^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\]\([^)]+\)(?: \([^)]+\))?$/u.exec(line)
+  const linkedHeading =
+    /^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\]\([^)]+\)(?: \([^)]+\))?$/u.exec(
+      line,
+    )
   return linkedHeading?.[1]
 }
 
@@ -89,9 +91,7 @@ export function extractPackageReleaseNotes(changelog: string, version: string) {
   const nextReleaseOffset = lines
     .slice(releaseLine + 1)
     .findIndex((line) => releaseHeadingVersion(line) !== undefined)
-  const releaseEnd = nextReleaseOffset < 0
-    ? lines.length
-    : releaseLine + 1 + nextReleaseOffset
+  const releaseEnd = nextReleaseOffset < 0 ? lines.length : releaseLine + 1 + nextReleaseOffset
   return lines.slice(releaseLine, releaseEnd).join('\n').trim()
 }
 
@@ -99,7 +99,9 @@ async function packageReleaseNotes(plannedPackage: PackageReleasePlanItem) {
   const changelog = await readFile(path.join(plannedPackage.packagePath, 'CHANGELOG.md'), 'utf8')
   const releaseNotes = extractPackageReleaseNotes(changelog, plannedPackage.version)
   if (releaseNotes === undefined) {
-    throw new Error(`${plannedPackage.name} changelog has no ${plannedPackage.version} release notes.`)
+    throw new Error(
+      `${plannedPackage.name} changelog has no ${plannedPackage.version} release notes.`,
+    )
   }
   return releaseNotes
 }
@@ -147,10 +149,7 @@ async function packPlannedPackage(
   }
 }
 
-export async function prepareReleaseArtifactBundle(
-  plan: PackageReleasePlan,
-  artifactRoot: string,
-) {
+export async function prepareReleaseArtifactBundle(plan: PackageReleasePlan, artifactRoot: string) {
   await mkdir(artifactRoot, { recursive: true })
   if ((await readdir(artifactRoot)).length > 0) {
     throw new Error('Package release artifact directory must start empty.')

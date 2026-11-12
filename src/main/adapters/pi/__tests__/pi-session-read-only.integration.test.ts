@@ -133,9 +133,8 @@ describe('Reading a discovered Pi session', () => {
     const { source, id } = await sourceSession(format)
     const before = await fs.readFile(source, 'utf8')
     const lastNode = (await sessionDetail(id))?.messages.at(-1)?.id
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
-    )
+    const { forkSession } =
+      await import('../../../application/host-ui-session-lifecycle-operations')
 
     const fork = await run(forkSession([id, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
 

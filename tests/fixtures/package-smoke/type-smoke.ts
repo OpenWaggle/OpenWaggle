@@ -15,10 +15,7 @@ import {
   WAGGLE_INHERIT_MODEL,
   type WaggleConfig,
 } from '@openwaggle/waggle-core'
-import {
-  createPiWaggleTurnDetails,
-  PI_WAGGLE_TURN_CUSTOM_TYPE,
-} from '@openwaggle/pi-waggle'
+import { createPiWaggleTurnDetails, PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle'
 import defaultPiWaggleExtension from '@openwaggle/pi-waggle/extension'
 
 const manifest: OpenWaggleExtensionManifest = defineExtensionManifest({

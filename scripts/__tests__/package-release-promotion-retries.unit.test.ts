@@ -7,45 +7,51 @@ import type {
 } from '../package-release-promotion'
 
 const sdkPlan: PackageReleasePlan = {
-  packages: [{
-    key: 'extension-sdk',
-    name: '@openwaggle/extension-sdk',
-    packagePath: 'packages/extension-sdk',
-    tag: 'extension-sdk-v0.1.1',
-    version: '0.1.1',
-  }],
+  packages: [
+    {
+      key: 'extension-sdk',
+      name: '@openwaggle/extension-sdk',
+      packagePath: 'packages/extension-sdk',
+      tag: 'extension-sdk-v0.1.1',
+      version: '0.1.1',
+    },
+  ],
   schemaVersion: 1,
   sourceSha: 'source-sha',
   sourceTree: 'source-tree',
 }
 const sdkManifest: PackageReleaseArtifactManifest = {
-  packages: [{
-    file: 'extension-sdk.tgz',
-    integrity: 'sha512-sdk',
-    key: 'extension-sdk',
-    name: '@openwaggle/extension-sdk',
-    releaseNotes: 'SDK notes',
-    sha256: 'sdk',
-    tag: 'extension-sdk-v0.1.1',
-    version: '0.1.1',
-  }],
+  packages: [
+    {
+      file: 'extension-sdk.tgz',
+      integrity: 'sha512-sdk',
+      key: 'extension-sdk',
+      name: '@openwaggle/extension-sdk',
+      releaseNotes: 'SDK notes',
+      sha256: 'sdk',
+      tag: 'extension-sdk-v0.1.1',
+      version: '0.1.1',
+    },
+  ],
   schemaVersion: 1,
   sourceSha: 'source-sha',
   sourceTree: 'source-tree',
 }
 const reactManifest: PackageReleaseArtifactManifest = {
   ...sdkManifest,
-  packages: [{
-    dependency: { name: '@openwaggle/extension-sdk', version: '0.1.1' },
-    file: 'extension-react.tgz',
-    integrity: 'sha512-react',
-    key: 'extension-react',
-    name: '@openwaggle/extension-react',
-    releaseNotes: 'React notes',
-    sha256: 'react',
-    tag: 'extension-react-v0.1.1',
-    version: '0.1.1',
-  }],
+  packages: [
+    {
+      dependency: { name: '@openwaggle/extension-sdk', version: '0.1.1' },
+      file: 'extension-react.tgz',
+      integrity: 'sha512-react',
+      key: 'extension-react',
+      name: '@openwaggle/extension-react',
+      releaseNotes: 'React notes',
+      sha256: 'react',
+      tag: 'extension-react-v0.1.1',
+      version: '0.1.1',
+    },
+  ],
 }
 
 function registryReader(reads: Array<Error | null | string>) {
@@ -137,7 +143,10 @@ describe('package release promotion registry retries', () => {
 
     expect(promotion.publish).toHaveBeenCalledOnce()
     expect(promotion.ensureTag).toHaveBeenCalledOnce()
-    const waitedMs = promotion.sleep.mock.calls.reduce((total, [durationMs]) => total + durationMs, 0)
+    const waitedMs = promotion.sleep.mock.calls.reduce(
+      (total, [durationMs]) => total + durationMs,
+      0,
+    )
     expect(waitedMs).toBeGreaterThanOrEqual(3 * 60_000)
   })
 
@@ -151,7 +160,10 @@ describe('package release promotion registry retries', () => {
 
     expect(promotion.publish).toHaveBeenCalledOnce()
     expect(promotion.ensureTag).not.toHaveBeenCalled()
-    const waitedMs = promotion.sleep.mock.calls.reduce((total, [durationMs]) => total + durationMs, 0)
+    const waitedMs = promotion.sleep.mock.calls.reduce(
+      (total, [durationMs]) => total + durationMs,
+      0,
+    )
     expect(waitedMs).toBeLessThanOrEqual(15 * 60_000)
   })
 

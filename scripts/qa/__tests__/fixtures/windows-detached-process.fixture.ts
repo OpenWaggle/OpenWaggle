@@ -65,8 +65,7 @@ async function run() {
     environment: {
       ...getSessionHostChildEnv(),
       OPENWAGGLE_AUTOMATION: '1',
-      [WINDOWS_DETACHED_PROCESS_SENTINEL_KEY]:
-        process.env[WINDOWS_DETACHED_PROCESS_SENTINEL_KEY],
+      [WINDOWS_DETACHED_PROCESS_SENTINEL_KEY]: process.env[WINDOWS_DETACHED_PROCESS_SENTINEL_KEY],
     },
   })
   const deadline = Date.now() + READY_TIMEOUT_MS

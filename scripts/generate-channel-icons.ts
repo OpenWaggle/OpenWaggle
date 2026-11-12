@@ -75,7 +75,10 @@ async function generate(buildDir: string): Promise<void> {
     const bottom = height - height * PILL_BOTTOM_MARGIN_RATIO
     const pill = Buffer.from(channelPillSvg({ width, height, pillHeight, bottom, color, label }))
     const out = path.join(buildDir, `icon-${channel}.png`)
-    await sharp(source).composite([{ input: pill, top: 0, left: 0 }]).png().toFile(out)
+    await sharp(source)
+      .composite([{ input: pill, top: 0, left: 0 }])
+      .png()
+      .toFile(out)
     console.log(`wrote ${out}`)
   }
 }

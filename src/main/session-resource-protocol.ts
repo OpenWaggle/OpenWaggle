@@ -231,9 +231,8 @@ async function defaultReadContent(input: {
   readonly sessionId: SessionId
   readonly resourceId: string
 }): Promise<SessionResourceProtocolContent | null> {
-  const { readHostSessionResourceContent } = await import(
-    './application/host-ui-session-resource-content-client'
-  )
+  const { readHostSessionResourceContent } =
+    await import('./application/host-ui-session-resource-content-client')
   // Session resources live in the Session Host's store, never in the window (A-F5).
   const remote = await readHostSessionResourceContent(input.sessionId, input.resourceId)
   if (!remote.handled || !remote.content) return null

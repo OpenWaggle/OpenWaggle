@@ -32,9 +32,8 @@ function textOf(result: Record<string, unknown>) {
 
 describe('website tool rows fixture', () => {
   it("records the edit exactly as Pi's edit tool reports it on the committed source", async () => {
-    const { generateDiffString, generateUnifiedPatch } = await import(
-      '@earendil-works/pi-coding-agent'
-    )
+    const { generateDiffString, generateUnifiedPatch } =
+      await import('@earendil-works/pi-coding-agent')
     const { path, edits, result, details } = editStep()
     let edited = RETRY_SOURCE
     for (const edit of edits) {

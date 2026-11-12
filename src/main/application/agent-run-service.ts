@@ -170,18 +170,17 @@ export function executeAgentRun(input: AgentRunInput) {
       ...persistedResources,
     })
   }).pipe(
-    Effect.catchAll(
-      (error): Effect.Effect<AgentRunResult> =>
-        recoverAgentRunFailure({
-          reachedAgent,
-          error,
-          signal: input.signal,
-          assignedTitle,
-          sessionId: input.sessionId,
-          runId: input.runId,
-          model: input.model,
-          ...(persistedResources ? { resources: persistedResources } : {}),
-        }),
+    Effect.catchAll((error): Effect.Effect<AgentRunResult> =>
+      recoverAgentRunFailure({
+        reachedAgent,
+        error,
+        signal: input.signal,
+        assignedTitle,
+        sessionId: input.sessionId,
+        runId: input.runId,
+        model: input.model,
+        ...(persistedResources ? { resources: persistedResources } : {}),
+      }),
     ),
     Effect.ensuring(clearDurableActiveRun(() => activeRunIdentity)),
   )

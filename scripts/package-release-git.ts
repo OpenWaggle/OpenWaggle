@@ -30,7 +30,9 @@ export async function gitSucceeds(cwd: string, args: readonly string[]) {
 export async function readJsonAt(cwd: string, revision: string, filePath: string) {
   try {
     const parsed: unknown = JSON.parse(await git(cwd, ['show', `${revision}:${filePath}`]))
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : undefined
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? parsed
+      : undefined
   } catch {
     return undefined
   }
@@ -78,19 +80,28 @@ export async function manifestChangeCommit(
   packagePath: string,
   version: string,
 ) {
-  const shas = (await git(cwd, ['log', '--format=%H', to, '--', manifestPath])).split('\n').filter(Boolean)
+  const shas = (await git(cwd, ['log', '--format=%H', to, '--', manifestPath]))
+    .split('\n')
+    .filter(Boolean)
   for (const sha of shas) {
     const before = await readJsonAt(cwd, `${sha}^`, manifestPath)
-    if ((before === undefined ? undefined : stringField(before, packagePath)) !== version) return sha
+    if ((before === undefined ? undefined : stringField(before, packagePath)) !== version)
+      return sha
   }
   return undefined
 }
 
 /** Full messages of the commits in `range` that touch `packagePath`, newest first. */
 export async function commitsTouching(cwd: string, range: string, packagePath: string) {
-  const fields = (await git(cwd, ['log', '--format=%H%x00%B%x00', range, '--', `${packagePath}/`])).split('\0')
+  const fields = (
+    await git(cwd, ['log', '--format=%H%x00%B%x00', range, '--', `${packagePath}/`])
+  ).split('\0')
   const commits: { hash: string; message: string }[] = []
-  for (let index = 0; index + COMMIT_MESSAGE_FIELD_OFFSET < fields.length; index += COMMIT_FIELD_COUNT) {
+  for (
+    let index = 0;
+    index + COMMIT_MESSAGE_FIELD_OFFSET < fields.length;
+    index += COMMIT_FIELD_COUNT
+  ) {
     const hash = fields[index]?.trim() ?? ''
     if (hash.length === 0) continue
     commits.push({ hash, message: (fields[index + COMMIT_MESSAGE_FIELD_OFFSET] ?? '').trim() })

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import { createAndVerifyRuleset } from '../package-release-bootstrap-github'
 import {
   commandKey,
@@ -50,10 +53,7 @@ describe('package release namespace bootstrap GitHub policy', () => {
           }),
         ),
       ],
-      [
-        `gh api --hostname github.com --method PATCH ${repositoryEndpoint} --input -`,
-        successful(),
-      ],
+      [`gh api --hostname github.com --method PATCH ${repositoryEndpoint} --input -`, successful()],
       ...rulesetOverrides(compatibleRuleset()),
     ])
     const sequenceOverrides = new Map<string, BootstrapCommandResult[]>([
@@ -105,10 +105,7 @@ describe('package release namespace bootstrap GitHub policy', () => {
     )
     const overrides = new Map<string, BootstrapCommandResult>([
       [repositoryKey, driftingSettings],
-      [
-        `gh api --hostname github.com --method PATCH ${repositoryEndpoint} --input -`,
-        successful(),
-      ],
+      [`gh api --hostname github.com --method PATCH ${repositoryEndpoint} --input -`, successful()],
       ...rulesetOverrides(compatibleRuleset()),
     ])
     const sequenceOverrides = new Map<string, BootstrapCommandResult[]>([
@@ -116,9 +113,9 @@ describe('package release namespace bootstrap GitHub policy', () => {
     ])
     const { dependencies, requests } = createDependencies(overrides, sequenceOverrides)
 
-    await expect(
-      createAndVerifyRuleset('/workspace/OpenWaggle', dependencies),
-    ).rejects.toThrow('GitHub repository merge policy verification failed.')
+    await expect(createAndVerifyRuleset('/workspace/OpenWaggle', dependencies)).rejects.toThrow(
+      'GitHub repository merge policy verification failed.',
+    )
     expect(requests.filter((request) => request.mutates)).toHaveLength(1)
   })
 
@@ -182,8 +179,7 @@ describe('package release namespace bootstrap GitHub policy', () => {
       { context: 'Typecheck & Lint' },
       { context: 'Unit & Component Tests' },
     ])
-    const detailKey =
-      'gh api --hostname github.com repos/OpenWaggle/OpenWaggle/rulesets/42'
+    const detailKey = 'gh api --hostname github.com repos/OpenWaggle/OpenWaggle/rulesets/42'
     const updateKey =
       'gh api --hostname github.com --method PUT repos/OpenWaggle/OpenWaggle/rulesets/42 --input -'
     const overrides = new Map<string, BootstrapCommandResult>([
@@ -210,9 +206,7 @@ describe('package release namespace bootstrap GitHub policy', () => {
     expect(mutation?.input).toContain('"context":"Unit Tests"')
     expect(mutation?.input).toContain('"context":"Integration & Component Tests"')
     expect(mutation?.input).toContain('"context":"MCP Conformance"')
-    expect(mutation?.input).toContain(
-      '"require_extra_approval_for_unattributed_changes":true',
-    )
+    expect(mutation?.input).toContain('"require_extra_approval_for_unattributed_changes":true')
     expect(mutation?.input).toContain('"automatic_copilot_code_review_enabled":false')
   })
 

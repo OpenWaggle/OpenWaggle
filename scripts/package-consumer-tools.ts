@@ -17,13 +17,15 @@ const PACKAGE_TOOLS = [
     name: 'npm',
     spec: 'npm@11.18.0',
     version: '11.18.0',
-    integrity: 'sha512-T67M4L5wNm0cZ7EBLErcEkY1SmzEW/WJ+SADBzsFUY1UdAPfFHXFQtZ6SEXiK0+vzXysCvAsepbMaBTwnrAD+w==',
+    integrity:
+      'sha512-T67M4L5wNm0cZ7EBLErcEkY1SmzEW/WJ+SADBzsFUY1UdAPfFHXFQtZ6SEXiK0+vzXysCvAsepbMaBTwnrAD+w==',
   },
   {
     name: 'yarn',
     spec: '@yarnpkg/cli-dist@4.17.1',
     version: '4.17.1',
-    integrity: 'sha512-2tiSQuJNl/L3QwTdrq6lKWDpkcnp9MGvCT/rIldHcbu3SWfnLdmehvt3eulX1hT7FFt1Gjfq3CesF+kvhFip6g==',
+    integrity:
+      'sha512-2tiSQuJNl/L3QwTdrq6lKWDpkcnp9MGvCT/rIldHcbu3SWfnLdmehvt3eulX1hT7FFt1Gjfq3CesF+kvhFip6g==',
   },
 ] as const
 const EXISTING_TOOLS = [
@@ -71,7 +73,9 @@ function runCommand(command: string, args: readonly string[]) {
         resolve(stdout.trim())
         return
       }
-      reject(new Error(`${command} ${args.join(' ')} exited with ${String(code)}: ${stderr.trim()}`))
+      reject(
+        new Error(`${command} ${args.join(' ')} exited with ${String(code)}: ${stderr.trim()}`),
+      )
     })
   })
 }
@@ -111,7 +115,9 @@ export async function verifyDownloadedPackageIntegrity(
   filePath: string,
   expectedIntegrity: string,
 ) {
-  const digest = createHash('sha512').update(await readFile(filePath)).digest('base64')
+  const digest = createHash('sha512')
+    .update(await readFile(filePath))
+    .digest('base64')
   const actualIntegrity = `sha512-${digest}`
   if (actualIntegrity !== expectedIntegrity) {
     throw new Error(`${basename(filePath)} integrity mismatch: ${actualIntegrity}`)
@@ -124,8 +130,10 @@ export async function installPackageConsumerTools(
 ) {
   const execute = dependencies.runCommand ?? runCommand
   const appendSearchPath = dependencies.appendSearchPath ?? appendFile
-  const prepareDirectory = dependencies.prepareDirectory ?? ((directoryPath) => mkdir(directoryPath, { recursive: true }))
-  const verifyDownloadedPackage = dependencies.verifyDownloadedPackage ?? verifyDownloadedPackageIntegrity
+  const prepareDirectory =
+    dependencies.prepareDirectory ?? ((directoryPath) => mkdir(directoryPath, { recursive: true }))
+  const verifyDownloadedPackage =
+    dependencies.verifyDownloadedPackage ?? verifyDownloadedPackageIntegrity
   const writeUserConfig = dependencies.writeUserConfig ?? writeFile
   const userConfigPath = join(input.toolRoot, 'empty.npmrc')
   const downloadDirectory = join(input.toolRoot, 'downloads')
@@ -205,7 +213,9 @@ async function main() {
     await verifyPackageConsumerTools(toolRoot)
     return
   }
-  throw new Error(`Usage: package-consumer-tools.ts <${INSTALL_MODE}|${VERIFY_MODE}> ${TOOL_ROOT_FLAG} <path> [${GITHUB_PATH_FLAG} <path>]`)
+  throw new Error(
+    `Usage: package-consumer-tools.ts <${INSTALL_MODE}|${VERIFY_MODE}> ${TOOL_ROOT_FLAG} <path> [${GITHUB_PATH_FLAG} <path>]`,
+  )
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

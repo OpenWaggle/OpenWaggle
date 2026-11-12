@@ -32,7 +32,12 @@ const JSON_INDENT = 2
 const USAGE_EXIT_CODE = 2
 const COST_DECIMALS = 3
 const MILLISECONDS_PER_SECOND = 1_000
-const FORWARDED_ENVIRONMENT = ['AWS_PROFILE', 'AWS_REGION', 'AWS_DEFAULT_REGION', 'OPENROUTER_API_KEY'] as const
+const FORWARDED_ENVIRONMENT = [
+  'AWS_PROFILE',
+  'AWS_REGION',
+  'AWS_DEFAULT_REGION',
+  'OPENROUTER_API_KEY',
+] as const
 
 const { values } = parseArgs({
   options: {
@@ -82,7 +87,11 @@ async function completedRuns(file: string) {
     })
 }
 
-async function runPool<Job>(jobs: readonly Job[], concurrency: number, work: (job: Job) => Promise<void>) {
+async function runPool<Job>(
+  jobs: readonly Job[],
+  concurrency: number,
+  work: (job: Job) => Promise<void>,
+) {
   let next = 0
   const lanes = Array.from({ length: concurrency }, async () => {
     while (next < jobs.length) {
@@ -96,7 +105,9 @@ async function runPool<Job>(jobs: readonly Job[], concurrency: number, work: (jo
 
 async function main() {
   if (!values.app || !values.model || !values.out) {
-    process.stderr.write('Use --app <OpenWaggle.app> --model <provider/model> --out <dir> [--reps 5] [--tasks a,b] [--baseline <dir>] (macOS only)\n')
+    process.stderr.write(
+      'Use --app <OpenWaggle.app> --model <provider/model> --out <dir> [--reps 5] [--tasks a,b] [--baseline <dir>] (macOS only)\n',
+    )
     process.exit(USAGE_EXIT_CODE)
   }
   const app = resolvePerfApp(values.app, values.label)
@@ -108,31 +119,61 @@ async function main() {
   const wanted = values.tasks ? new Set(values.tasks.split(',')) : null
   const tasks = AGENT_CONTEXT_TASKS.filter((task) => !wanted || wanted.has(task.id))
   const done = await completedRuns(runsFile)
-  const jobs = Array.from({ length: reps }, (_, rep) => tasks.map((task) => ({ task, rep }))).flat()
+  const jobs = Array.from({ length: reps }, (_, rep) => tasks.map((task) => ({ task, rep })))
+    .flat()
     .filter((job) => !done.some((run) => run.taskId === job.task.id && run.rep === job.rep))
   log(`${String(jobs.length)} runs to go (${String(done.length)} already recorded) on ${model}`)
-  await runPool(jobs, Number.parseInt(values.concurrency ?? String(DEFAULT_CONCURRENCY), DECIMAL), async ({ task, rep }) => {
-    try {
-      const record = await runEvalTask({ app, task, rep, model, environment: shortLivedAwsEnvironment(forwardedEnvironment()) })
-      await appendFile(runsFile, `${JSON.stringify(record)}\n`)
-      log(`${task.id} #${String(rep)}: ${record.pass ? 'pass' : 'FAIL'} (${record.reason}) ${String(record.totalTokens)} tok $${record.usage.costUsd.toFixed(COST_DECIMALS)} ${String(Math.round(record.wallMs / MILLISECONDS_PER_SECOND))}s`)
-    } catch (error) {
-      log(`${task.id} #${String(rep)} errored: ${String(error)}`)
-    }
-  })
+  await runPool(
+    jobs,
+    Number.parseInt(values.concurrency ?? String(DEFAULT_CONCURRENCY), DECIMAL),
+    async ({ task, rep }) => {
+      try {
+        const record = await runEvalTask({
+          app,
+          task,
+          rep,
+          model,
+          environment: shortLivedAwsEnvironment(forwardedEnvironment()),
+        })
+        await appendFile(runsFile, `${JSON.stringify(record)}\n`)
+        log(
+          `${task.id} #${String(rep)}: ${record.pass ? 'pass' : 'FAIL'} (${record.reason}) ${String(record.totalTokens)} tok $${record.usage.costUsd.toFixed(COST_DECIMALS)} ${String(Math.round(record.wallMs / MILLISECONDS_PER_SECOND))}s`,
+        )
+      } catch (error) {
+        log(`${task.id} #${String(rep)} errored: ${String(error)}`)
+      }
+    },
+  )
   const summary = summarizeEvalRuns(await completedRuns(runsFile))
   const comparison = values.baseline
-    ? compareWithBaseline(summarizeEvalRuns(await completedRuns(path.join(path.resolve(values.baseline), 'runs.jsonl'))), summary)
+    ? compareWithBaseline(
+        summarizeEvalRuns(
+          await completedRuns(path.join(path.resolve(values.baseline), 'runs.jsonl')),
+        ),
+        summary,
+      )
     : null
-  const report = { kind: 'agent-context-eval', environment: measurementEnvironment(), app: app.label, model, reps, summary, comparison }
+  const report = {
+    kind: 'agent-context-eval',
+    environment: measurementEnvironment(),
+    app: app.label,
+    model,
+    reps,
+    summary,
+    comparison,
+  }
   await writeFile(path.join(out, 'summary.json'), `${JSON.stringify(report, null, JSON_INDENT)}\n`)
-  process.stdout.write(`${JSON.stringify({ totals: summary.totals, groups: summary.groups, comparison }, null, JSON_INDENT)}\n`)
+  process.stdout.write(
+    `${JSON.stringify({ totals: summary.totals, groups: summary.groups, comparison }, null, JSON_INDENT)}\n`,
+  )
 }
 
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

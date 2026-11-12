@@ -30,9 +30,8 @@ vi.mock('../terminal-process-kernel-api', () => ({
   signalTerminalProcessIdentity: probes.signalTerminalProcessIdentity,
 }))
 
-const { forceClosePty, forceValidatedTree, refreshAndConfirmExit, signalTree } = await import(
-  '../terminal-process-control'
-)
+const { forceClosePty, forceValidatedTree, refreshAndConfirmExit, signalTree } =
+  await import('../terminal-process-control')
 const { shutdownLiveTerminal } = await import('../terminal-process-shutdown')
 
 describe('terminal forced shutdown proof', () => {

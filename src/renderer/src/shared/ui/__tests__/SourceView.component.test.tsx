@@ -187,8 +187,9 @@ describe('SourceView virtualization', () => {
   })
 
   it('retains compatible tokens while a theme replacement is pending', async () => {
-    let resolveReplacement: (value: Awaited<ReturnType<typeof syntaxMocks.highlight>>) => void =
-      () => undefined
+    let resolveReplacement: (
+      value: Awaited<ReturnType<typeof syntaxMocks.highlight>>,
+    ) => void = () => undefined
     syntaxMocks.highlight
       .mockResolvedValueOnce({
         status: 'highlighted',

@@ -17,21 +17,19 @@ export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SET
 export const REQUIRED_COMMANDS = new Map<string, string>([
   ['Typecheck & Lint', 'pnpm check'],
   ['Unit Tests', 'pnpm test:unit'],
-  [
-    'Integration & Component Tests',
-    'pnpm test:integration && pnpm test:component',
-  ],
+  ['Integration & Component Tests', 'pnpm test:integration && pnpm test:component'],
   ['MCP Conformance', 'pnpm prepare:native:node && pnpm test:mcp:conformance'],
 ])
 export const CONCURRENCY_GROUP =
   'group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
 export const CONCURRENCY_CANCEL_LINE =
-  'cancel-in-progress: ${{ github.event_name != \'merge_group\' }}'
+  "cancel-in-progress: ${{ github.event_name != 'merge_group' }}"
 // Jobs permitted an exact job-level `if`. The three app-test jobs carry only the Release
 // Please skip (source is unchanged on that authenticated version-bump branch, so re-running
 // is redundant); the two rehearsals are dispatch-gated and path-scoped. Asserted exactly, so
 // no job here can carry an arbitrary skip.
-const RELEASE_PR_SKIP = "    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}\n"
+const RELEASE_PR_SKIP =
+  "    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}\n"
 export const ALLOWED_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['Unit Tests', [RELEASE_PR_SKIP]],
   ['Integration & Component Tests', [RELEASE_PR_SKIP]],
@@ -39,7 +37,7 @@ export const ALLOWED_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = ne
   [
     'Package Consumer Rehearsal (Node 22.19.0)',
     [
-      "    if: >-\n",
+      '    if: >-\n',
       "      (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&\n",
       "      (needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')\n",
     ],
@@ -47,7 +45,7 @@ export const ALLOWED_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = ne
   [
     'Website & Docs Rehearsal (Node 24.14.0)',
     [
-      "    if: >-\n",
+      '    if: >-\n',
       "      (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&\n",
       "      (needs.changes.outputs.website-docs == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')\n",
     ],

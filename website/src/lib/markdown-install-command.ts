@@ -1,15 +1,15 @@
-import { substituteInstallPlaceholders } from './install-command';
+import { substituteInstallPlaceholders } from './install-command'
 
 // Only the fields this plugin reads. `@types/mdast` is not a website dependency, so it is not imported.
 interface MdastNode {
-  type: string;
-  value?: string;
-  url?: string;
-  children?: MdastNode[];
+  type: string
+  value?: string
+  url?: string
+  children?: MdastNode[]
 }
 
 interface MarkdownFile {
-  path?: string;
+  path?: string
 }
 
 /**
@@ -20,15 +20,15 @@ interface MarkdownFile {
 export function remarkInstallCommand() {
   return (tree: MdastNode, file: MarkdownFile) => {
     const visit = (node: MdastNode) => {
-      if (typeof node.value === 'string') node.value = substituteInstallPlaceholders(node.value);
-      if (typeof node.url === 'string') node.url = substituteInstallPlaceholders(node.url);
-      for (const child of node.children ?? []) visit(child);
-    };
-    try {
-      visit(tree);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`${file.path ?? 'A Markdown file'}: ${message}`, { cause: error });
+      if (typeof node.value === 'string') node.value = substituteInstallPlaceholders(node.value)
+      if (typeof node.url === 'string') node.url = substituteInstallPlaceholders(node.url)
+      for (const child of node.children ?? []) visit(child)
     }
-  };
+    try {
+      visit(tree)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`${file.path ?? 'A Markdown file'}: ${message}`, { cause: error })
+    }
+  }
 }

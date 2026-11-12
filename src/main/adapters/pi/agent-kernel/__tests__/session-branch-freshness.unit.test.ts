@@ -44,9 +44,8 @@ vi.mock('../../../git/remote-sync', () => ({
   resolveTrackedBranch: resolveTrackedBranchMock,
 }))
 
-const { refreshFirstRunBranch, resolveFreshWorktreeBaseRef } = await import(
-  '../session-branch-freshness'
-)
+const { refreshFirstRunBranch, resolveFreshWorktreeBaseRef } =
+  await import('../session-branch-freshness')
 
 describe('resolveFreshWorktreeBaseRef', () => {
   beforeEach(() => {

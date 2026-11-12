@@ -140,8 +140,8 @@ export function makeRuntime(
   deliveryCount = 1,
   options: Pick<TerminalRuntimeDeps, 'shutdownDetachedProcess'> = {},
 ): RuntimeTestResult {
-  const spawn = vi.fn(
-    async (_request: PtySpawnRequest): Promise<PtySpawnOutcome> => successfulOutcome(fake),
+  const spawn = vi.fn(async (_request: PtySpawnRequest): Promise<PtySpawnOutcome> =>
+    successfulOutcome(fake),
   )
   const runner: PtyRunner = {
     spawn,

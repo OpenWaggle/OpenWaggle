@@ -65,7 +65,8 @@ export function collectSessionSummaryColumnViolations(file: string, contents: st
       file: normalized,
       message:
         'SessionSummaryRow queries must interpolate sessionSummaryColumns(sql), not list columns inline',
-      detail: 'an inline list can omit a column the row type promises, and the type checker cannot see it',
+      detail:
+        'an inline list can omit a column the row type promises, and the type checker cannot see it',
     })
   }
   return violations

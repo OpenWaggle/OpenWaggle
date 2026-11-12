@@ -26,9 +26,9 @@ async function temporaryProject(workflow = validWorkflow, ciWorkflow = validCiWo
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      fs.rm(directory, { force: true, recursive: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => fs.rm(directory, { force: true, recursive: true })),
   )
 })
 
@@ -52,10 +52,12 @@ describe('package release workflow validation', () => {
       .replace('scripts/package-release-context.ts', 'scripts/unsafe-release-context.ts')
     const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
 
-    expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/package-release.yml must expose an explicit package release recovery dispatch.',
-      '.github/workflows/package-release.yml must resolve push and recovery identity through the typed release context.',
-    ]))
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        '.github/workflows/package-release.yml must expose an explicit package release recovery dispatch.',
+        '.github/workflows/package-release.yml must resolve push and recovery identity through the typed release context.',
+      ]),
+    )
   })
 
   it('rejects a recovery resolver that no longer requires origin/main ancestry', async () => {
@@ -92,19 +94,18 @@ describe('package release workflow validation', () => {
       'EXPECTED_HEAD_SHA: ${{ steps.docs.outputs.head_sha }}',
       'EXPECTED_HEAD_SHA: ${{ github.sha }}',
     ],
-    [
-      'generated head enforcement',
-      'test "$HEAD_SHA" = "$EXPECTED_HEAD_SHA"',
-      'echo "$HEAD_SHA"',
-    ],
-  ])('rejects weakened Release Please CI coordination through %s', async (_name, target, replacement) => {
-    const invalidWorkflow = replaceRequired(validWorkflow, target, replacement)
-    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
+    ['generated head enforcement', 'test "$HEAD_SHA" = "$EXPECTED_HEAD_SHA"', 'echo "$HEAD_SHA"'],
+  ])(
+    'rejects weakened Release Please CI coordination through %s',
+    async (_name, target, replacement) => {
+      const invalidWorkflow = replaceRequired(validWorkflow, target, replacement)
+      const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
 
-    expect(result.violations).toContain(
-      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
-    )
-  })
+      expect(result.violations).toContain(
+        '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+      )
+    },
+  )
 
   it('accepts the merged release PR relabel after promotion', async () => {
     const result = await validatePackageReleaseFiles(await temporaryProject())
@@ -116,27 +117,47 @@ describe('package release workflow validation', () => {
   it('rejects a workflow that leaves merged release PRs labelled autorelease: pending', async () => {
     const start = validWorkflow.indexOf('\n  mark-release-tagged:\n')
     expect(start).toBeGreaterThan(0)
-    const result = await validatePackageReleaseFiles(await temporaryProject(`${validWorkflow.slice(0, start)}\n`))
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(`${validWorkflow.slice(0, start)}\n`),
+    )
 
-    expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
-      '.github/workflows/package-release.yml must mark the merged release PR tagged only after promotion creates every tag.',
-      '.github/workflows/package-release.yml must relabel the merged release PR so later Release Please runs do not abort.',
-    ]))
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+        '.github/workflows/package-release.yml must mark the merged release PR tagged only after promotion creates every tag.',
+        '.github/workflows/package-release.yml must relabel the merged release PR so later Release Please runs do not abort.',
+      ]),
+    )
   })
 
   it.each([
-    ['before promotion succeeds', "needs.publish.result == 'success'", "needs.release-plan.result == 'success'"],
-    ['without removing the pending label', 'labels/autorelease%3A%20pending', 'labels/autorelease%3A%20snoozed'],
-    ['without adding the tagged label', 'labels[]=autorelease: tagged', 'labels[]=autorelease: released'],
+    [
+      'before promotion succeeds',
+      "needs.publish.result == 'success'",
+      "needs.release-plan.result == 'success'",
+    ],
+    [
+      'without removing the pending label',
+      'labels/autorelease%3A%20pending',
+      'labels/autorelease%3A%20snoozed',
+    ],
+    [
+      'without adding the tagged label',
+      'labels[]=autorelease: tagged',
+      'labels[]=autorelease: released',
+    ],
   ])('rejects relabelling the merged release PR %s', async (_name, target, replacement) => {
     const invalidWorkflow = replaceRequired(validWorkflow, target, replacement)
     const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
 
-    expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
-    ]))
-    expect(result.violations.some((violation) => violation.includes('merged release PR'))).toBe(true)
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+      ]),
+    )
+    expect(result.violations.some((violation) => violation.includes('merged release PR'))).toBe(
+      true,
+    )
   })
 
   it('rejects release planning without its own exact Node 24.14.0 setup and version guard', async () => {
@@ -202,41 +223,59 @@ describe('package release workflow validation', () => {
       .replace('name: Package Release Gate', 'name: Optional package checks')
       .replace('node-version: 22.19.0', 'node-version: 20')
       .replace('pnpm website:build', 'echo skipped-website')
-      .replace("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'", "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm'")
+      .replace(
+        "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'",
+        "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm'",
+      )
       .replace('if: ${{ always() }}', 'if: ${{ success() }}')
-    const result = await validatePackageReleaseFiles(await temporaryProject(validWorkflow, invalidCi))
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(validWorkflow, invalidCi),
+    )
 
-    expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/ci.yml must expose the always-present Package Release Gate status.',
-      '.github/workflows/ci.yml must rehearse the exact Node 22.19.0 runtime for package consumers.',
-      '.github/workflows/ci.yml Package Release Candidate must always report a conclusion.',
-    ]))
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        '.github/workflows/ci.yml must expose the always-present Package Release Gate status.',
+        '.github/workflows/ci.yml must rehearse the exact Node 22.19.0 runtime for package consumers.',
+        '.github/workflows/ci.yml Package Release Candidate must always report a conclusion.',
+      ]),
+    )
   })
 
   it('rejects dispatched Release Please validation that skips artifact preparation', async () => {
     const invalidCi = validCiWorkflow
       .replace('          REF_NAME: ${{ github.ref_name }}\n', '')
       .replace('${{ github.head_ref || github.ref_name }}', '${{ github.head_ref }}')
-    const result = await validatePackageReleaseFiles(await temporaryProject(validWorkflow, invalidCi))
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(validWorkflow, invalidCi),
+    )
 
-    expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/ci.yml must classify exact-head Release Please dispatches.',
-      '.github/workflows/ci.yml Package Release Candidate must classify pull-request and dispatched branches.',
-    ]))
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        '.github/workflows/ci.yml must classify exact-head Release Please dispatches.',
+        '.github/workflows/ci.yml Package Release Candidate must classify pull-request and dispatched branches.',
+      ]),
+    )
   })
 
   it('rejects release artifacts without tree planning, hash validation, and provenance', async () => {
     const invalidCi = validCiWorkflow
       .replace('scripts/package-release-plan.ts', 'scripts/skipped-plan.ts')
       .replace('scripts/package-release-artifacts.ts prepare', 'scripts/skipped-artifacts.ts')
-      .replace('actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a', 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10')
-    const result = await validatePackageReleaseFiles(await temporaryProject(validWorkflow, invalidCi))
+      .replace(
+        'actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a',
+        'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10',
+      )
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(validWorkflow, invalidCi),
+    )
 
-    expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/ci.yml must resolve the exact Release Please tree plan.',
-      '.github/workflows/ci.yml must build and verify immutable tarballs before merge.',
-      '.github/workflows/ci.yml must attest package tarballs and their manifest.',
-    ]))
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        '.github/workflows/ci.yml must resolve the exact Release Please tree plan.',
+        '.github/workflows/ci.yml must build and verify immutable tarballs before merge.',
+        '.github/workflows/ci.yml must attest package tarballs and their manifest.',
+      ]),
+    )
   })
 
   it('rejects post-merge rebuilding, testing, or docs generation', async () => {
@@ -246,12 +285,14 @@ describe('package release workflow validation', () => {
     )
     const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
 
-    expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/package-release.yml post-merge publication must not execute pnpm install.',
-      '.github/workflows/package-release.yml post-merge publication must not execute pnpm check.',
-      '.github/workflows/package-release.yml post-merge publication must not execute build:packages.',
-      '.github/workflows/package-release.yml post-merge publication must not execute docs:generate.',
-    ]))
+    expect(result.violations).toEqual(
+      expect.arrayContaining([
+        '.github/workflows/package-release.yml post-merge publication must not execute pnpm install.',
+        '.github/workflows/package-release.yml post-merge publication must not execute pnpm check.',
+        '.github/workflows/package-release.yml post-merge publication must not execute build:packages.',
+        '.github/workflows/package-release.yml post-merge publication must not execute docs:generate.',
+      ]),
+    )
   })
 
   it('rejects shallow post-merge release planning', async () => {
@@ -272,8 +313,10 @@ describe('package release workflow validation', () => {
       await temporaryProject(`${validWorkflow}\njobs: [unterminated`),
     )
 
-    expect(result.violations.some((violation) =>
-      violation.startsWith('.github/workflows/package-release.yml must contain valid YAML:'),
-    )).toBe(true)
+    expect(
+      result.violations.some((violation) =>
+        violation.startsWith('.github/workflows/package-release.yml must contain valid YAML:'),
+      ),
+    ).toBe(true)
   })
 })

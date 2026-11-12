@@ -53,7 +53,9 @@ function toolNamesOf(content: unknown) {
     if (!isRecord(block) || block.type !== 'toolCall' || typeof block.name !== 'string') return []
     const args = isRecord(block.arguments) ? block.arguments : {}
     const code = typeof args.code === 'string' ? args.code : ''
-    const nested = [...code.matchAll(CODEMODE_TOOL_PATTERN)].map((match) => `codemode:${match[1] ?? ''}`)
+    const nested = [...code.matchAll(CODEMODE_TOOL_PATTERN)].map(
+      (match) => `codemode:${match[1] ?? ''}`,
+    )
     return [block.name, ...nested]
   })
 }
@@ -61,7 +63,9 @@ function toolNamesOf(content: unknown) {
 function textOf(content: unknown) {
   if (!Array.isArray(content)) return typeof content === 'string' ? content : ''
   return content
-    .map((block: unknown) => (isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? block.text : ''))
+    .map((block: unknown) =>
+      isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? block.text : '',
+    )
     .join('')
 }
 
@@ -86,7 +90,11 @@ export function summarizeSessionFile(file: string, text: string): SessionTranscr
   let isRoot = true
   for (const entry of parseLines(text)) {
     if (entry.type === 'compaction') compactions += 1
-    if (entry.type === 'custom' && entry.customType === 'openwaggle-run-identity' && JSON.stringify(entry).includes('parentSessionTitle')) {
+    if (
+      entry.type === 'custom' &&
+      entry.customType === 'openwaggle-run-identity' &&
+      JSON.stringify(entry).includes('parentSessionTitle')
+    ) {
       isRoot = false
     }
     const message = isRecord(entry.message) ? entry.message : null
@@ -114,5 +122,7 @@ async function sessionFiles(directory: string): Promise<string[]> {
 
 export async function readRunTranscripts(agentDir: string) {
   const files = await sessionFiles(path.join(agentDir, 'sessions'))
-  return Promise.all(files.map(async (file) => summarizeSessionFile(file, await readFile(file, 'utf8'))))
+  return Promise.all(
+    files.map(async (file) => summarizeSessionFile(file, await readFile(file, 'utf8'))),
+  )
 }

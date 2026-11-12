@@ -31,12 +31,10 @@ export interface PiMcpServerRuntimeRoots {
 type ConnectionStates = ReturnType<McpConnectionPool['connectionStates']>
 
 function toolViews(entry: McpServerEntry, known: McpKnownServerState | undefined) {
-  return (known?.tools ?? []).map(
-    (tool): McpServerToolView => ({
-      ...tool,
-      exposure: getMcpToolExposure(entry.config, tool.name),
-    }),
-  )
+  return (known?.tools ?? []).map((tool): McpServerToolView => ({
+    ...tool,
+    exposure: getMcpToolExposure(entry.config, tool.name),
+  }))
 }
 
 /** A Session's warm connection: connected once its handshake is done, connecting before. */

@@ -116,9 +116,11 @@ describe('Follow-up edit holds across replays, Workers, and attachments', () => 
             SELECT state FROM delegation_contracts WHERE id = ${'delegation-1'}
           `.pipe(Effect.map((rows) => rows[0]?.state))
         const whileHeld = yield* delegationState()
-        const settledWhileHeld = yield* runs.settleDeferredWorkerDelegation?.({
-          sessionId: SessionId(SESSION),
-        }) ?? Effect.succeed(undefined)
+        const settledWhileHeld = yield* (
+          runs.settleDeferredWorkerDelegation?.({
+            sessionId: SessionId(SESSION),
+          }) ?? Effect.succeed(undefined)
+        )
         const stillHeld = yield* delegationState()
         // Withdrawing the held Follow-up ends the wait without a Run: the deferred result settles.
         yield* mutateSessionQueue({
@@ -129,13 +131,17 @@ describe('Follow-up edit holds across replays, Workers, and attachments', () => 
             followUpIds: [FOLLOW_UP],
           }),
         })
-        const settled = yield* runs.settleDeferredWorkerDelegation?.({
-          sessionId: SessionId(SESSION),
-        }) ?? Effect.succeed(undefined)
+        const settled = yield* (
+          runs.settleDeferredWorkerDelegation?.({
+            sessionId: SessionId(SESSION),
+          }) ?? Effect.succeed(undefined)
+        )
         const afterWithdraw = yield* delegationState()
-        const again = yield* runs.settleDeferredWorkerDelegation?.({
-          sessionId: SessionId(SESSION),
-        }) ?? Effect.succeed(undefined)
+        const again = yield* (
+          runs.settleDeferredWorkerDelegation?.({
+            sessionId: SessionId(SESSION),
+          }) ?? Effect.succeed(undefined)
+        )
         return { whileHeld, settledWhileHeld, stillHeld, settled, afterWithdraw, again }
       }).pipe(Effect.provide(layer('worker-delegation.sqlite'))),
     )

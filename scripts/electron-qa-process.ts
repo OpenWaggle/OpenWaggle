@@ -18,11 +18,8 @@ export function windowsTaskkillArguments(pid: number) {
 
 function killWindowsProcessTree(pid: number) {
   return new Promise<void>((resolve, reject) => {
-    execFile(
-      'taskkill.exe',
-      windowsTaskkillArguments(pid),
-      { windowsHide: true },
-      (error) => (error ? reject(error) : resolve()),
+    execFile('taskkill.exe', windowsTaskkillArguments(pid), { windowsHide: true }, (error) =>
+      error ? reject(error) : resolve(),
     )
   })
 }

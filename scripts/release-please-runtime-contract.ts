@@ -37,10 +37,7 @@ export async function validateReleasePleaseRuntimeContract(titlePattern: string)
   const violations: string[] = []
   const title = generateReleasePleaseTitle(titlePattern)
   const parsedTitle = PullRequestTitle.parse(title, titlePattern, false, QUIET_LOGGER)
-  if (
-    !hasPackageReleaseIntent(title) ||
-    parsedTitle?.getTargetBranch() !== FIXTURE_BRANCH
-  ) {
+  if (!hasPackageReleaseIntent(title) || parsedTitle?.getTargetBranch() !== FIXTURE_BRANCH) {
     violations.push(`Pinned Release Please generated an incompatible pull request title: ${title}.`)
   }
 
@@ -60,7 +57,9 @@ export async function validateReleasePleaseRuntimeContract(titlePattern: string)
   })
   const changelog = `# Changelog\n\n${generatedNotes}\n\n## 0.1.0\n\nInitial release.\n`
   if (extractPackageReleaseNotes(changelog, FIXTURE_VERSION) !== generatedNotes) {
-    violations.push('Package artifact preparation cannot read pinned Release Please changelog output.')
+    violations.push(
+      'Package artifact preparation cannot read pinned Release Please changelog output.',
+    )
   }
 
   return violations
