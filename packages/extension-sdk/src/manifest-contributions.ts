@@ -246,7 +246,6 @@ export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSch
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>
 export type ExtensionEntryContribution =
   | SchemaType<typeof extensionRouteContributionSchema>
-  | SchemaType<typeof extensionSlotContributionSchema>
   | ExtensionSidePanelContribution
 export type ExtensionSessionSummaryContribution = SchemaType<
   typeof extensionSessionSummaryContributionSchema

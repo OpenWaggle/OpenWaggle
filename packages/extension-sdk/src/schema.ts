@@ -15,7 +15,7 @@ export interface ExtensionSchemaDecodeFailure {
   readonly issues: readonly string[]
 }
 
-function formatIssuePath(path: ReadonlyArray<PropertyKey>) {
+function formatIssuePath(path: readonly PropertyKey[]) {
   const joinedPath = path.map(String).join('.')
   return joinedPath.length > 0 ? joinedPath : '(root)'
 }
@@ -27,7 +27,7 @@ function formatParseError(error: ParseResult.ParseError) {
 }
 
 export function safeDecodeExtensionSchema<TValue, TEncoded>(
-  schema: Schema.Schema<TValue, TEncoded, never>,
+  schema: Schema.Schema<TValue, TEncoded>,
   value: unknown,
 ): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure {
   try {
