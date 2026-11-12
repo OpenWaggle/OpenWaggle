@@ -15,8 +15,7 @@ import { Context } from 'effect'
  * - `appRoot`: the directory holding the app's `package.json`: the source checkout when
  *   unpackaged, the packaged app's resources archive otherwise.
  *
- * Never derive a product directory from a shell default (Electrobun's `Utils.paths.userData`
- * adds an identifier and a channel); resolve it here.
+ * Never derive a product directory from a shell default; resolve it here.
  */
 export interface AppPathsShape {
   /**

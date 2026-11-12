@@ -17,11 +17,11 @@ export interface ShellCommandLineShape {
 /**
  * The app process's identity and lifecycle (ADR 0064).
  *
- * Quitting follows one protocol on every shell: `quit()` asks every `onBeforeQuit` listener
+ * Quitting follows one protocol on every adapter: `quit()` asks every `onBeforeQuit` listener
  * first, and a listener that calls `preventDefault()` holds the quit open while it finishes async
- * shutdown, then calls `quit()` again. `exit()` ends the process at once, without asking. A shell
- * whose own before-quit hook cannot wait (Electrobun's is synchronous) must still honour a held
- * quit by routing its own quit signals through this protocol.
+ * shutdown, then calls `quit()` again. `exit()` ends the process at once, without asking. An
+ * adapter whose own before-quit hook cannot wait must still honour a held quit by routing its
+ * quit signals through this protocol.
  */
 export interface AppLifecycleShape {
   /** The app's version from its `package.json` (`1.0.0-beta.37`). */

@@ -10,8 +10,8 @@ import type { RendererSurface } from './renderer-surfaces'
  * - inline visualization and MCP App frames may only navigate within themselves;
  * - pages of every surface run sandboxed, context-isolated and without Node.
  *
- * Electron applies this through `session.webRequest`, permission handlers and `will-navigate`;
- * Electrobun through loopback-server headers and `navigationRules`.
+ * The Electron adapter applies it through `session.webRequest`, permission handlers and
+ * `will-navigate`.
  */
 /** What pages stored in one web profile; it stays usable after the surface it came from closes. */
 export interface OriginStorage {

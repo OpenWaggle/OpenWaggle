@@ -8,8 +8,7 @@ type ChildEnvironment = Readonly<Record<string, string | undefined>>
  * process, pinned-directory creation and the bound credential and agent-definition mutations.
  *
  * The shell's own executable is the script runtime, so packaged builds need no separate Node.
- * Electron needs `ELECTRON_RUN_AS_NODE=1` for that; Electrobun's `process.execPath` is Bun and
- * runs a script as is.
+ * The Electron adapter sets `ELECTRON_RUN_AS_NODE=1` for that.
  */
 export interface ChildScriptRuntimeShape {
   /** The executable to spawn; arguments are the script (or `-e`, source) and its arguments. */

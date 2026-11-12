@@ -12,13 +12,13 @@ export interface RendererSurfaceNavigationStart {
  * main process sends events to or tracks. Its `id` is stable for the surface's life and unique in
  * the process; IPC requests carry it as the sender.
  *
- * Lifecycle events every shell emits with these meanings:
+ * Lifecycle events every adapter emits with these meanings:
  * - `did-start-navigation`: a navigation began, before it commits;
  * - `did-navigate`: a main-frame navigation committed a new document (a reload included);
  * - `render-process-gone`: the page's renderer crashed or was killed, so its document is gone;
  * - `destroyed`: the surface closed for good; it emits nothing after this.
  *
- * Electron's `WebContents` has this shape as is. Electrobun wraps a `BrowserView`.
+ * Electron's `WebContents` has this shape as is.
  */
 export interface RendererSurface {
   readonly id: number

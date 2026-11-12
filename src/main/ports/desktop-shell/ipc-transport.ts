@@ -14,8 +14,8 @@ export interface IpcInvocation {
 
 /**
  * The main-process end of the typed channel contract in `@shared/types/ipc` (ADR 0064). The
- * contract and its handlers stay the same on every shell; only this transport changes, from
- * Electron's `ipcMain` to Electrobun's typed RPC.
+ * contract and its handlers do not depend on the shell; the Electron adapter carries them over
+ * `ipcMain`.
  *
  * A channel has one `handle` handler; its result (or rejection) answers the page's `invoke`.
  * `on` listeners receive the page's fire-and-forget `send` messages. Arguments arrive as the
