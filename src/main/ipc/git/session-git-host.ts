@@ -1,4 +1,8 @@
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownOrThrow } from '@shared/schema'
+import {
+  sessionGitOutputsRecordingSchema,
+  sessionGitWorkingPathVerificationSchema,
+} from '@shared/schemas/git-session-outputs'
 import type { SessionId } from '@shared/types/brand'
 import { WorkingPath } from '@shared/types/brand'
 import type {
@@ -6,37 +10,10 @@ import type {
   SessionGitOutputOccurrence,
   SessionGitOutputsPayload,
   SessionGitOutputsRecording,
-  SessionGitWorkingPathVerification,
 } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { GuiSessionCommandNotAttachedError } from '../../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../../application/gui-session-command-router'
-
-const verificationSchema = Schema.Union(
-  Schema.Struct({ owned: Schema.Literal(false) }),
-  Schema.Struct({
-    owned: Schema.Literal(true),
-    occurrence: Schema.Struct({
-      nodeId: Schema.NullOr(Schema.String),
-      branchId: Schema.NullOr(Schema.String),
-      createdAt: Schema.Number,
-    }),
-  }),
-)
-
-const outputRecordingSchema = Schema.Union(
-  Schema.Struct({ ok: Schema.Literal(true) }),
-  Schema.Struct({
-    ok: Schema.Literal(false),
-    message: Schema.String,
-    retryPersisted: Schema.Boolean,
-  }),
-)
-
-const recordingSchema = Schema.Struct({
-  commitOutput: Schema.optionalWith(outputRecordingSchema, { exact: true }),
-  changeRequestOutput: Schema.optionalWith(outputRecordingSchema, { exact: true }),
-})
 
 /**
  * Ask the Session Host, which owns Sessions, whether this working path is the Session's. The
@@ -51,10 +28,7 @@ export function verifySessionGitContext(sessionId: SessionId, workingPath: strin
       ]),
     )
     if (!remote.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
-    return decodeUnknownOrThrow(
-      verificationSchema,
-      remote.result,
-    ) satisfies SessionGitWorkingPathVerification
+    return decodeUnknownOrThrow(sessionGitWorkingPathVerificationSchema, remote.result)
   })
 }
 
@@ -87,12 +61,12 @@ export function recordSessionGitOutputsWhereOwned(
       return answer.handled
         ? {
             handled: true as const,
-            recording: decodeUnknownOrThrow(recordingSchema, answer.result),
+            recording: decodeUnknownOrThrow(sessionGitOutputsRecordingSchema, answer.result),
           }
         : { handled: false as const }
     })
     if (!remote.handled) return yield* Effect.fail(new GuiSessionCommandNotAttachedError())
-    return remote.recording satisfies SessionGitOutputsRecording
+    return remote.recording
   }).pipe(Effect.catchAll((error) => Effect.succeed(unrecordedOutputs(payload, error))))
 }
 
