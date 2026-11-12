@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
+import { execFailure } from '../test-support/exec-failure'
 
 const execFileAsync = promisify(execFile)
 const SECTIONS = [
@@ -93,7 +94,7 @@ printf 'installed\\n'`
       'installer-downgrade-exit-test',
       '1.0.0-rc.1',
       'v1.0.0-beta.37',
-    ]).catch((error: { stdout: string; stderr: string; code: number }) => error)
+    ]).catch(execFailure)
 
     expect('code' in result ? result.code : 0).toBe(2)
     expect(result.stdout).toBe('restored\n')
@@ -113,7 +114,7 @@ refuse_downgrade "$1" "$2" "$3"`
       '1.0.1-beta.1',
       'v1.0.0',
       'It is ahead of the stable channel.',
-    ]).catch((error: { stderr: string; code: number }) => error)
+    ]).catch(execFailure)
 
     expect(result.stderr).toContain(
       'OpenWaggle was not changed. It is ahead of the stable channel.\n',

@@ -10,10 +10,13 @@ class FakeChild implements StoppableChild {
   readonly signalCode = null
   readonly kill = vi.fn(() => true)
 
-  constructor(
-    readonly pid: number,
-    readonly exitCode: number | null = null,
-  ) {}
+  readonly pid: number
+  readonly exitCode: number | null
+
+  constructor(pid: number, exitCode: number | null = null) {
+    this.pid = pid
+    this.exitCode = exitCode
+  }
 
   once() {
     return this
@@ -65,7 +68,7 @@ describe('QA child-process lifecycle', () => {
 
     expect(terminateWindowsTree).toHaveBeenCalledWith(44, snapshot, false)
     expect(terminateWindowsTree.mock.invocationCallOrder[0]).toBeLessThan(
-      waitForExit.mock.invocationCallOrder[0],
+      waitForExit.mock.invocationCallOrder[0] ?? 0,
     )
     expect(verifyWindowsTreeExit).toHaveBeenCalledWith(snapshot)
     expect(child.kill).not.toHaveBeenCalled()

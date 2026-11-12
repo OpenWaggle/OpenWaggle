@@ -1,4 +1,3 @@
-import { parse } from 'yaml'
 import { isObject } from './package-smoke-assertions'
 
 const MINIMUM_PACKAGE_SMOKE_NODE_MAJOR = 22
@@ -6,11 +5,11 @@ const MINIMUM_PACKAGE_SMOKE_NODE_MINOR = 19
 
 export function assertReactPeerDependencies(manifest: unknown) {
   const peerDependencies =
-    isObject(manifest) && isObject(manifest.peerDependencies)
-      ? manifest.peerDependencies
+    isObject(manifest) && isObject(manifest['peerDependencies'])
+      ? manifest['peerDependencies']
       : undefined
   const dependencies =
-    isObject(manifest) && isObject(manifest.dependencies) ? manifest.dependencies : undefined
+    isObject(manifest) && isObject(manifest['dependencies']) ? manifest['dependencies'] : undefined
 
   for (const dependencyName of ['react', 'react-dom']) {
     if (peerDependencies?.[dependencyName] !== '^19.0.0') {
@@ -70,18 +69,17 @@ export function assertBrowserRuntimeResult(input: {
   }
 }
 
+/** Workspace catalogs by name, as `parseRootWorkspaceConfig` reads them from package.json. */
+export type WorkspaceCatalogs = Readonly<Record<string, Readonly<Record<string, string>>>>
+
 export function resolvePackageSmokeCatalogVersion(
   specifier: string,
   dependencyName: string,
-  workspaceConfig: string,
+  catalogs: WorkspaceCatalogs,
 ) {
   if (!specifier.startsWith('catalog:')) return specifier
-  const workspace: unknown = parse(workspaceConfig)
-  const catalogName = specifier.slice('catalog:'.length)
-  const catalogs =
-    isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
-  const catalog = catalogs && isObject(catalogs[catalogName]) ? catalogs[catalogName] : undefined
-  const version = catalog?.[dependencyName]
+  const catalogName = specifier.slice('catalog:'.length) || 'default'
+  const version = catalogs[catalogName]?.[dependencyName]
   if (typeof version !== 'string') {
     throw new Error(`Cannot resolve ${dependencyName} from catalog:${catalogName}.`)
   }
@@ -91,7 +89,11 @@ export function resolvePackageSmokeCatalogVersion(
 export function findPackageDependencyVersion(manifest: unknown, dependencyName: string) {
   if (!isObject(manifest)) return undefined
 
-  const scopes = [manifest.dependencies, manifest.devDependencies, manifest.peerDependencies]
+  const scopes = [
+    manifest['dependencies'],
+    manifest['devDependencies'],
+    manifest['peerDependencies'],
+  ]
   for (const scope of scopes) {
     if (isObject(scope) && typeof scope[dependencyName] === 'string') {
       return scope[dependencyName]
@@ -135,16 +137,9 @@ export function assertNoWorkspaceProtocols(packageName: string, manifest: unknow
  * overrides them all, so a newer Pi release (or one still being published) cannot be mixed in
  * through a transitive range.
  */
-export function piRuntimeSmokePins(workspaceConfig: string): Record<string, string> {
-  const workspace: unknown = parse(workspaceConfig)
-  const catalogs =
-    isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
-  const catalog = catalogs && isObject(catalogs['pi-runtime']) ? catalogs['pi-runtime'] : {}
-  const pins: Record<string, string> = {}
-  for (const [name, version] of Object.entries(catalog)) {
-    if (typeof version === 'string' || typeof version === 'number') pins[name] = String(version)
-  }
-  return Object.fromEntries(Object.entries(pins).sort(([a], [b]) => a.localeCompare(b)))
+export function piRuntimeSmokePins(catalogs: WorkspaceCatalogs): Record<string, string> {
+  const catalog = catalogs['pi-runtime'] ?? {}
+  return Object.fromEntries(Object.entries(catalog).sort(([a], [b]) => a.localeCompare(b)))
 }
 
 /** The consumer smoke's pnpm workspace: the Pi release pins plus the packed tarballs. */
@@ -181,18 +176,21 @@ const PI_HOST_PROVIDED_PACKAGES = [
 /** Manifest sections whose packages are installed as physical copies inside the package. */
 const INSTALLED_DEPENDENCY_SECTIONS = ['dependencies', 'optionalDependencies'] as const
 
-function bundledDependencyNames(manifest: { readonly [key: string]: unknown }) {
+function bundledDependencyNames(manifest: Readonly<Record<string, unknown>>) {
   for (const key of ['bundleDependencies', 'bundledDependencies']) {
     const value = manifest[key]
-    if (Array.isArray(value))
+    if (Array.isArray(value)) {
       return value.filter((name): name is string => typeof name === 'string')
+    }
   }
   return []
 }
 
 export function assertPiHostPackagesArePeers(packageName: string, manifest: unknown) {
-  if (!isObject(manifest) || !isObject(manifest.pi)) return
-  const peerDependencies = isObject(manifest.peerDependencies) ? manifest.peerDependencies : {}
+  if (!isObject(manifest) || !isObject(manifest['pi'])) return
+  const peerDependencies = isObject(manifest['peerDependencies'])
+    ? manifest['peerDependencies']
+    : {}
   const bundled = bundledDependencyNames(manifest)
   const problems: string[] = []
   for (const name of PI_HOST_PROVIDED_PACKAGES) {

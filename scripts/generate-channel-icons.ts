@@ -1,7 +1,8 @@
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import type { BuildChannel } from '../src/shared/types/build-identity'
+import { runWhenInvokedDirectly } from './support/direct-invocation'
 
 /**
  * Regenerates the per-channel Build identity icons (docs/adr/0032) from the
@@ -9,7 +10,7 @@ import type { BuildChannel } from '../src/shared/types/build-identity'
  * channel keeps the full-colour brand mark and adds a small, rounded, floating
  * pill near the bottom so builds are distinguishable at a glance without
  * dominating the artwork. Icons are committed, so this runs on a developer
- * machine, never in CI. Run: `tsx scripts/generate-channel-icons.ts`.
+ * machine, never in CI. Run: `bun scripts/generate-channel-icons.ts`.
  */
 
 const PILL_HEIGHT_RATIO = 0.135
@@ -83,15 +84,8 @@ async function generate(buildDir: string): Promise<void> {
   }
 }
 
-const isDirectInvocation =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
-
-if (isDirectInvocation) {
-  const buildDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build')
-  void generate(buildDir).catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-  })
-}
+runWhenInvokedDirectly(import.meta.url, () =>
+  generate(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build')),
+)
 
 export { generate }

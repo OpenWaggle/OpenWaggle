@@ -42,7 +42,7 @@ describe('app release promotion guard', () => {
       promotionGuardViolations({
         changedPaths: [
           'package.json',
-          'pnpm-lock.yaml',
+          'bun.lock',
           'src/main/updater.ts',
           'docs/notes.md',
           'website/src/content/docs/getting-started/installation.md',
@@ -53,7 +53,7 @@ describe('app release promotion guard', () => {
       }),
     ).toEqual([
       'package.json',
-      'pnpm-lock.yaml',
+      'bun.lock',
       'src/main/updater.ts',
       'website/src/content/docs/getting-started/installation.md',
     ])

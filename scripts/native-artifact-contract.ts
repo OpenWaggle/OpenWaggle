@@ -1,15 +1,15 @@
-export type NativeArtifactRuntime = {
+export interface NativeArtifactRuntime {
   readonly platform: NodeJS.Platform
   readonly arch: string
   readonly libc: 'glibc' | 'musl'
 }
 
-export type NativeArtifactCandidate = {
+export interface NativeArtifactCandidate {
   readonly packageName: string
   readonly relativePath: string
 }
 
-export type NativeArtifactRequirement = {
+export interface NativeArtifactRequirement {
   readonly label: string
   readonly candidates: readonly NativeArtifactCandidate[]
   readonly executable?: boolean

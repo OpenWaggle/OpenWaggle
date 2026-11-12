@@ -6,8 +6,9 @@ const SHELL_MINIMUM_BUTTONS = 5
 const SHELL_MINIMUM_TEXT_LENGTH = 20
 const RENDERER_URL_PREFIX = 'openwaggle://app'
 /**
- * tsx compiles this file with esbuild's keepNames, which wraps named functions in `__name(...)`.
- * Functions sent into the page carry those calls, so the page needs the helper too.
+ * A runner that compiles this file with esbuild's keepNames (tsx did, before the scripts moved to
+ * Bun) wraps named functions in `__name(...)`. Functions sent into the page carry those calls, so
+ * the page defines the helper in case it is needed.
  */
 export const PAGE_NAME_HELPER = 'globalThis.__name ??= (target) => target'
 const LOCALHOST_CDP = 'http://127.0.0.1'
@@ -79,7 +80,8 @@ function installBootProbe(conditions: BootProbeConditions) {
   })
   function check() {
     scheduled = false
-    const body = document.body
+    // The DOM types `document.body` as always set; it is null until the parser reaches it.
+    const body = document.querySelector('body')
     if (!body) return
     const text = body.innerText
     const shell =

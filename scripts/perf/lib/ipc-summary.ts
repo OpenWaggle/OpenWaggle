@@ -15,24 +15,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function invokesOf(log: unknown): InvokeRecord[] {
-  const invokes = isRecord(log) ? log.invokes : null
+  const invokes = isRecord(log) ? log['invokes'] : null
   if (!Array.isArray(invokes)) return []
   return invokes.flatMap((entry: unknown) =>
     isRecord(entry) &&
-    typeof entry.channel === 'string' &&
-    typeof entry.bytes === 'number' &&
-    typeof entry.ms === 'number'
-      ? [{ channel: entry.channel, bytes: entry.bytes, ms: entry.ms }]
+    typeof entry['channel'] === 'string' &&
+    typeof entry['bytes'] === 'number' &&
+    typeof entry['ms'] === 'number'
+      ? [{ channel: entry['channel'], bytes: entry['bytes'], ms: entry['ms'] }]
       : [],
   )
 }
 
 function pushedOf(log: unknown) {
-  const sends = isRecord(log) ? log.sends : null
+  const sends = isRecord(log) ? log['sends'] : null
   if (!isRecord(sends)) return []
   return Object.entries(sends).flatMap(([channel, totals]) =>
-    isRecord(totals) && typeof totals.count === 'number' && typeof totals.bytes === 'number'
-      ? [{ channel, count: totals.count, bytes: totals.bytes }]
+    isRecord(totals) && typeof totals['count'] === 'number' && typeof totals['bytes'] === 'number'
+      ? [{ channel, count: totals['count'], bytes: totals['bytes'] }]
       : [],
   )
 }

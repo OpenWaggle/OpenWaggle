@@ -5,7 +5,7 @@ function message(role: 'user' | 'assistant', text: string): SessionTitleContextM
 }
 
 /**
- * Title scenarios for `pnpm evaluate:session-titles`. Adapted from T3 Code
+ * Title scenarios for `bun run evaluate:session-titles`. Adapted from T3 Code
  * (`apps/server/scripts/threadTitleEvaluationCases.ts`, MIT License, Copyright (c) 2026 T3 Tools
  * Inc.) per ADR 0043; repeated text adds context pressure.
  */
@@ -104,10 +104,10 @@ export const SESSION_TITLE_EVALUATION_CASES = [
     messages: [message('user', 'hey')],
     rubric: 'Return a short meaningful title instead of refusing or copying the greeting.',
   },
-] satisfies ReadonlyArray<{
+] satisfies readonly {
   readonly id: string
   readonly request: string
   readonly previousTitle: string
   readonly messages: readonly SessionTitleContextMessage[]
   readonly rubric: string
-}>
+}[]

@@ -1,6 +1,12 @@
 import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { GATES, STEPS } from './check/steps'
+import {
+  CHECK_RUNNER_SCRIPT,
+  runsRunnerLint,
+  validateCheckGate,
+} from './package-release-validator-check-gate'
 import { validatePackageReleasePipelines } from './package-release-validator-pipeline'
 import { validatePackageReleaseProvenance } from './package-release-validator-provenance'
 import {
@@ -12,7 +18,6 @@ import { validateReleasePleaseRuntimeContract } from './release-please-runtime-c
 
 const BOOTSTRAP_SOURCE_VERSION = '0.0.0'
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
-const CLI_ARGUMENT_START_INDEX = 2
 const CONFIG_PATH = 'release-please-config.json'
 const EMPTY_COUNT = 0
 const FAILURE_EXIT_CODE = 1
@@ -22,9 +27,9 @@ const MANIFEST_PATH = '.release-please-manifest.json'
 const ROOT_PACKAGE_PATH = 'package.json'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_DEPENDENCY_BUILD_SCRIPT =
-  'pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build'
-const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'pnpm build:package-dependencies &&'
-const TYPE_AWARE_LINT_PREREQUISITE = 'pnpm build:package-dependencies && oxlint '
+  'bun run --filter @openwaggle/waggle-core build && bun run --filter @openwaggle/extension-sdk build'
+const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'bun run build:package-dependencies &&'
+const TYPE_AWARE_LINT_PREREQUISITE = 'bun run build:package-dependencies && bun scripts/lint.ts'
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 interface ExpectedPackage {
@@ -34,7 +39,7 @@ interface ExpectedPackage {
   readonly path: string
 }
 
-type JsonObject = { readonly [key: string]: unknown }
+type JsonObject = Readonly<Record<string, unknown>>
 
 export interface PackageReleaseValidationResult {
   readonly violations: readonly string[]
@@ -132,7 +137,7 @@ function validateExactPackagePaths(
 
 function pluginType(plugin: unknown) {
   if (typeof plugin === 'string') return plugin
-  return isJsonObject(plugin) && typeof plugin.type === 'string' ? plugin.type : undefined
+  return isJsonObject(plugin) && typeof plugin['type'] === 'string' ? plugin['type'] : undefined
 }
 
 function validateReleasePleaseConfig(config: JsonObject | undefined, violations: string[]) {
@@ -172,7 +177,7 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
     ],
   ]
   for (const [condition, message] of requirements) addViolation(condition, message, violations)
-  const plugins = Array.isArray(config.plugins) ? config.plugins.map(pluginType) : []
+  const plugins = Array.isArray(config['plugins']) ? config['plugins'].map(pluginType) : []
   addViolation(
     !plugins.includes('node-workspace'),
     `${CONFIG_PATH} must enable the node-workspace plugin for dependent bumps.`,
@@ -198,7 +203,7 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
       violations,
     )
     addViolation(
-      packageConfig.component !== expected.component,
+      packageConfig['component'] !== expected.component,
       `${CONFIG_PATH} ${expected.path} must set short component.`,
       violations,
     )
@@ -233,10 +238,10 @@ async function validatePackageMetadata(
     const packageJsonPath = `${expected.path}/package.json`
     const packageJson = await readJsonFile(projectRoot, packageJsonPath, violations)
     if (packageJson === undefined) continue
-    const version = packageJson.version
+    const version = packageJson['version']
     const manifestVersion = manifest?.[expected.path]
     addViolation(
-      packageJson.name !== expected.name,
+      packageJson['name'] !== expected.name,
       `${packageJsonPath} must use package name ${expected.name}.`,
       violations,
     )
@@ -256,12 +261,12 @@ async function validatePackageMetadata(
       violations,
     )
     addViolation(
-      getObject(packageJson, 'publishConfig')?.access !== 'public',
+      getObject(packageJson, 'publishConfig')?.['access'] !== 'public',
       `${packageJsonPath} must declare publishConfig.access public.`,
       violations,
     )
     addViolation(
-      getObject(packageJson, 'engines')?.node !== '>=22.19.0',
+      getObject(packageJson, 'engines')?.['node'] !== '>=22.19.0',
       `${packageJsonPath} must require Node.js >=22.19.0.`,
       violations,
     )
@@ -290,16 +295,17 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   const scripts = packageJson === undefined ? undefined : getObject(packageJson, 'scripts')
   const devDependencies =
     packageJson === undefined ? undefined : getObject(packageJson, 'devDependencies')
-  const checkScript = scripts?.check
+  const checkScript = scripts?.['check']
   if (typeof checkScript !== 'string') {
     violations.push(`${ROOT_PACKAGE_PATH} scripts.check must exist.`)
     return
   }
   addViolation(
-    !checkScript.includes('pnpm package:smoke'),
-    `${ROOT_PACKAGE_PATH} scripts.check must run pnpm package:smoke.`,
+    checkScript !== CHECK_RUNNER_SCRIPT,
+    `${ROOT_PACKAGE_PATH} scripts.check must be ${CHECK_RUNNER_SCRIPT}, whose check gate runs the package smoke.`,
     violations,
   )
+  violations.push(...validateCheckGate(STEPS, GATES))
   addViolation(
     scripts?.['build:package-dependencies'] !== PACKAGE_DEPENDENCY_BUILD_SCRIPT,
     `${ROOT_PACKAGE_PATH} scripts.build:package-dependencies must build waggle-core and extension-sdk before type-aware package analysis.`,
@@ -314,8 +320,9 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   )
   for (const scriptName of ['lint', 'lint:fix']) {
     const script = scripts?.[scriptName]
+    const buildsFirst = typeof script === 'string' && script.includes(TYPE_AWARE_LINT_PREREQUISITE)
     addViolation(
-      typeof script !== 'string' || !script.includes(TYPE_AWARE_LINT_PREREQUISITE),
+      !buildsFirst && !(scriptName === 'lint' && runsRunnerLint(script)),
       `${ROOT_PACKAGE_PATH} scripts.${scriptName} must build package dependencies immediately before clean-checkout type-aware analysis.`,
       violations,
     )

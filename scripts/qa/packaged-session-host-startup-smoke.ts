@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -152,7 +151,7 @@ async function assertLegacySessionMigrated(
     '--limit',
     '10',
   ])
-  const sessions = cliOutcome(response).sessions
+  const sessions = cliOutcome(response)['sessions']
   const sessionRecords: unknown[] = Array.isArray(sessions) ? sessions : []
   if (
     !Array.isArray(sessions) ||
@@ -189,17 +188,17 @@ async function assertLegacySessionMigrated(
 }
 
 export function assertPackagedSemanticSearch(outcome: Record<string, unknown>) {
-  const sessions = outcome.sessions
+  const sessions = outcome['sessions']
   const sessionRecords: unknown[] = Array.isArray(sessions) ? sessions : []
-  const semanticReadiness = outcome.semanticReadiness
+  const semanticReadiness = outcome['semanticReadiness']
   const readinessReady =
     typeof semanticReadiness === 'object' &&
     semanticReadiness !== null &&
     'status' in semanticReadiness &&
     semanticReadiness.status === 'ready'
   if (
-    outcome.operation !== 'search' ||
-    outcome.searchBackend !== 'semantic' ||
+    outcome['operation'] !== 'search' ||
+    outcome['searchBackend'] !== 'semantic' ||
     !readinessReady ||
     !Array.isArray(sessions) ||
     !sessionRecords.some(

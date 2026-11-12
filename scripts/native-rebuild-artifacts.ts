@@ -14,19 +14,23 @@ const EXECUTABLE_MODE_MASK = 0o111
 
 interface NativePackageMetadata {
   readonly name: string
-  readonly version?: string
+  readonly version?: string | undefined
 }
 
-export type NativeArtifactSignature = {
+export interface NativeArtifactSignature {
   readonly packageName: string
   readonly path: string
   readonly size: number
   readonly mtimeMs: number
 }
 
-export type NativeArtifactPaths = {
+export interface NativeArtifactPaths {
   readonly projectRoot: string
-  readonly pnpmPackageDirectory: string
+  /**
+   * Bun's isolated store, `node_modules/.bun`. Its `node_modules` holds a link to every installed
+   * package, so a native package that is not a direct dependency is still found there.
+   */
+  readonly storeDirectory: string
 }
 
 export function isNativeArtifactSignature(value: unknown): value is NativeArtifactSignature {
@@ -192,11 +196,11 @@ function activePackageRootCandidates(paths: NativeArtifactPaths, packageName: st
   const packagePathSegments = packageName.split('/')
   return [
     join(paths.projectRoot, NODE_MODULES_SEGMENT, ...packagePathSegments),
-    join(paths.pnpmPackageDirectory, NODE_MODULES_SEGMENT, ...packagePathSegments),
+    join(paths.storeDirectory, NODE_MODULES_SEGMENT, ...packagePathSegments),
   ]
 }
 
-async function findActivePackageRoots(paths: NativeArtifactPaths, packageName: string) {
+export async function findActivePackageRoots(paths: NativeArtifactPaths, packageName: string) {
   const packageRoots = new Set<string>()
 
   for (const candidateRoot of activePackageRootCandidates(paths, packageName)) {

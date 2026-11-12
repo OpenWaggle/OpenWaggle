@@ -2,9 +2,9 @@
  * Compares Title model output against a rubric, ported from T3 Code's
  * `apps/server/scripts/evaluate-thread-titles.ts` (MIT License) per ADR 0043.
  *
- *   pnpm evaluate:session-titles --model anthropic/claude-haiku-4-5 --out /tmp/title-eval
- *   pnpm evaluate:session-titles --model ... --out /tmp/next --baseline /tmp/title-eval/results.json
- *   pnpm evaluate:session-titles --model ... --out /tmp/first --initial
+ *   bun run evaluate:session-titles --model anthropic/claude-haiku-4-5 --out /tmp/title-eval
+ *   bun run evaluate:session-titles --model ... --out /tmp/next --baseline /tmp/title-eval/results.json
+ *   bun run evaluate:session-titles --model ... --out /tmp/first --initial
  *
  * `--initial` titles each case from its first user message only. Without it, each case is
  * regenerated from its whole history against its previous title, as Title regeneration does.

@@ -24,7 +24,8 @@ export async function copyAwsSsoConfiguration(realHome: string, home: string) {
   await copyReadOnly(path.join(source, 'config'), path.join(target, 'config'))
   const cached = await readdir(path.join(source, cache), { withFileTypes: true }).catch(() => [])
   for (const entry of cached) {
-    if (entry.isFile())
+    if (entry.isFile()) {
       await copyReadOnly(path.join(source, cache, entry.name), path.join(target, cache, entry.name))
+    }
   }
 }

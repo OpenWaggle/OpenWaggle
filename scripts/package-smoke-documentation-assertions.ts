@@ -1,7 +1,7 @@
 const DOCS_VERSION_PART_COUNT = 2
 const MINIMUM_KEYWORD_COUNT = 4
 
-function isObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -20,13 +20,13 @@ export function assertPackedDocumentationMetadata(manifest: unknown, packageDire
 
   if (
     !isObject(manifest) ||
-    !isObject(manifest.bugs) ||
-    manifest.bugs.url !== 'https://github.com/OpenWaggle/OpenWaggle/issues'
+    !isObject(manifest['bugs']) ||
+    manifest['bugs']['url'] !== 'https://github.com/OpenWaggle/OpenWaggle/issues'
   ) {
     throw new Error(`${packageDirectory} packed manifest must link to OpenWaggle issues.`)
   }
 
-  if (!Array.isArray(manifest.keywords) || manifest.keywords.length < MINIMUM_KEYWORD_COUNT) {
+  if (!Array.isArray(manifest['keywords']) || manifest['keywords'].length < MINIMUM_KEYWORD_COUNT) {
     throw new Error(`${packageDirectory} packed manifest must declare package discovery keywords.`)
   }
 }

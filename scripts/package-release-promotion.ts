@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { lstat, readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import type {
@@ -12,7 +11,7 @@ export type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
 } from './package-release-artifact-contract'
-export type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
+export type { PackageReleasePlan } from './package-release-plan'
 
 /*
  * npm can take well over a minute to serve a version it has accepted: the 0.2.0 release
@@ -76,22 +75,30 @@ export interface PackageReleasePromotionDependencies {
 
 interface ArtifactContractModule {
   readonly decodePackageReleaseArtifactManifest: (value: unknown) => PackageReleaseArtifactManifest
+  readonly verifyReleaseArtifactFile: (
+    artifactRoot: string,
+    artifact: PackageReleaseArtifact,
+  ) => Promise<string>
 }
 
 interface PlanModule {
   readonly decodePackageReleasePlan: (value: unknown) => PackageReleasePlan
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
-  return isJsonObject(value) && typeof value.decodePackageReleaseArtifactManifest === 'function'
+  return (
+    isJsonObject(value) &&
+    typeof value['decodePackageReleaseArtifactManifest'] === 'function' &&
+    typeof value['verifyReleaseArtifactFile'] === 'function'
+  )
 }
 
 function isPlanModule(value: unknown): value is PlanModule {
-  return isJsonObject(value) && typeof value.decodePackageReleasePlan === 'function'
+  return isJsonObject(value) && typeof value['decodePackageReleasePlan'] === 'function'
 }
 
 async function loadArtifactContractModule() {
@@ -155,20 +162,7 @@ export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRo
     throw new Error('Package release artifact bundle contains unexpected files.')
   }
   for (const artifact of manifest.packages) {
-    if (path.basename(artifact.file) !== artifact.file || !artifact.file.endsWith('.tgz')) {
-      throw new Error(`${artifact.name} artifact filename is invalid.`)
-    }
-    const tarballPath = path.join(artifactRoot, artifact.file)
-    if (!(await lstat(tarballPath)).isFile()) {
-      throw new Error(`${artifact.name} artifact must be a regular file.`)
-    }
-    const contents = await readFile(tarballPath)
-    if (createHash('sha256').update(contents).digest('hex') !== artifact.sha256) {
-      throw new Error(`${artifact.name} artifact SHA-256 is invalid.`)
-    }
-    if (`sha512-${createHash('sha512').update(contents).digest('base64')}` !== artifact.integrity) {
-      throw new Error(`${artifact.name} artifact npm integrity is invalid.`)
-    }
+    await artifactContract.verifyReleaseArtifactFile(artifactRoot, artifact)
   }
   return manifest
 }

@@ -144,7 +144,7 @@ function createElectronEnv(userDataDir: string): NodeJS.ProcessEnv {
 }
 
 function spawnElectronDev(port: number, userDataDir: string) {
-  // electron-vite dev through this Node: spawning `pnpm` fails on Windows (a `.cmd` shim).
+  // electron-vite dev on Node with no ELECTRON_RUN_AS_NODE, the same way on every OS.
   const invocation = electronDevInvocation(
     'vite',
     ['--', `--remote-debugging-port=${port}`, `--${STARTUP_TIMINGS_SWITCH}`],

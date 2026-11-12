@@ -125,13 +125,13 @@ describe('reusable Session Performance release policy', () => {
     ],
     [
       'callee benchmark suppression',
-      'run: pnpm benchmark:session-release',
-      'run: pnpm benchmark:session-release || true',
+      'run: bun run benchmark:session-release',
+      'run: bun run benchmark:session-release || true',
     ],
     [
       'callee smaller corpus',
-      'run: pnpm benchmark:session-release',
-      'run: pnpm benchmark:session-performance',
+      'run: bun run benchmark:session-release',
+      'run: bun run benchmark:session-performance',
     ],
   ])('rejects %s through the production file validator', async (_name, target, replacement) => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-performance-policy-'))

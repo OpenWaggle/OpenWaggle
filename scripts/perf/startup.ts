@@ -6,12 +6,12 @@
  * with throwaway profiles: cold and warm launch to first paint, Session list and chat, renderer
  * LCP, and `openwaggle --version`. Several `--app` builds are interleaved run by run.
  *
- *   pnpm perf:startup --app <before.app> --app <after.app> --runs 10 --mode cold --out <dir>
- *   pnpm perf:startup --app <OpenWaggle.app> --mode warm --template <large-profile> \
+ *   bun run perf:startup --app <before.app> --app <after.app> --runs 10 --mode cold --out <dir>
+ *   bun run perf:startup --app <OpenWaggle.app> --mode warm --template <large-profile> \
  *     --session-list-text "Perf ·"
- *   pnpm perf:startup --app <OpenWaggle.app> --mode version --runs 10
+ *   bun run perf:startup --app <OpenWaggle.app> --mode version --runs 10
  *
- * `--template` is a generated profile root (`pnpm perf:generate-profile`). Each build first opens
+ * `--template` is a generated profile root (`bun run perf:generate-profile`). Each build first opens
  * its own copy once (`<template>.warm-<label>`); that copy's `user-data` and `home` are then cloned
  * for every launch, so no launch sees another's state.
  */
@@ -158,7 +158,7 @@ async function prepareSeeds(apps: readonly PerfApp[], compileCache: CompileCache
 
 async function main() {
   const apps = resolveApps()
-  const mode = values.mode ?? 'cold'
+  const mode = values.mode
   const runs = numberOption(values.runs, DEFAULT_RUNS)
   const templates = await prepareTemplates(apps, mode)
   const compileCache: CompileCacheMode = values['compile-cache'] === 'warm' ? 'warm' : 'cold'
@@ -194,10 +194,11 @@ async function main() {
     summary,
     results,
   }
-  if (values.out)
+  if (values.out) {
     log(
       `Wrote ${await writeJsonResult(values.out, `startup-${mode}-${compileCache}-cache${loginShell === 'slow' ? '-slow-login-shell' : ''}.json`, report)}`,
     )
+  }
   process.stdout.write(`${JSON.stringify(summary, null, JSON_INDENT)}\n`)
 }
 

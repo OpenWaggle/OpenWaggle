@@ -7,9 +7,8 @@
  * a Run active, with the heavy-user MCP setup (six servers per Session, four through `npx`).
  * A local fake provider scripts the Hive, so no model is called.
  *
- *   pnpm perf:hive-memory --app <before.app> --app <after.app> --runs 3
+ *   bun run perf:hive-memory --app <before.app> --app <after.app> --runs 3
  */
-import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { type AppMemorySample, sampleAppMemory } from './lib/app-memory'
 import { startCliRun } from './lib/cli-run'
@@ -21,8 +20,9 @@ import {
 } from './lib/fake-openai-provider'
 import { HEAVY_USER_MCP_ENVIRONMENT, writeHeavyUserMcpConfig } from './lib/mcp-fixtures'
 import { resolvePerfApp, stopProcessGroup } from './lib/perf-app'
-import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
-import { median, summarizeRuns } from './lib/perf-stats'
+import { compareApps, reportComparison } from './lib/perf-app-comparison'
+import { writeJsonResult, exitWhenFlushed } from './lib/perf-results'
+import { median } from './lib/perf-stats'
 import { delay, withRunningApp } from './lib/running-app'
 import { createScriptedHive } from './lib/scripted-hive'
 
@@ -33,8 +33,6 @@ const SAMPLE_EVERY_MS = 3_000
 const SAMPLE_COUNT = 20
 const DRAIN_GRACE_MS = 120_000
 const DECIMAL = 10
-const ORDERS = 2
-const USAGE_EXIT_CODE = 2
 const METRICS = [
   'peakFootprintMb',
   'medianFootprintMb',
@@ -113,12 +111,13 @@ async function measureHive(appPath: string, label: string | undefined, workers: 
           delay(DRAIN_GRACE_MS).then(() => 'timeout'),
         ])
         if (settled === 'timeout') await stopProcessGroup(run.launched.child)
-        if (values.out)
+        if (values.out) {
           await writeJsonResult(
             values.out,
             `hive-provider-requests-${app.label}.json`,
             provider.requests,
           )
+        }
         const peak = samples.reduce((best, sample) =>
           sample.footprintMb > best.footprintMb ? sample : best,
         )
@@ -149,47 +148,24 @@ async function measureHive(appPath: string, label: string | undefined, workers: 
 }
 
 async function main() {
-  const apps = values.app ?? []
-  if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) (macOS only)\n')
-    process.exit(USAGE_EXIT_CODE)
-  }
   const runs = Number.parseInt(values.runs ?? String(DEFAULTS.runs), DECIMAL)
   const workers = Number.parseInt(values.workers ?? String(DEFAULTS.workers), DECIMAL)
-  const indexed = apps.map((appPath, index) => ({
-    appPath,
-    label: values.label?.[index] ?? path.basename(appPath),
-  }))
-  const results: Record<string, object[]> = Object.fromEntries(
-    indexed.map((entry) => [entry.label, []]),
-  )
-  for (let run = 0; run < runs; run += 1) {
-    for (const entry of run % ORDERS === 0 ? indexed : [...indexed].reverse()) {
-      try {
-        const result = await measureHive(entry.appPath, entry.label, workers)
-        results[entry.label]?.push(result)
-        log(
-          `${entry.label} hive ${String(run + 1)}: ${JSON.stringify({ ...result, samples: undefined })}`,
-        )
-      } catch (error) {
-        results[entry.label]?.push({ error: String(error) })
-        log(`${entry.label} hive ${String(run + 1)} failed: ${String(error)}`)
-      }
-    }
-  }
-  const summary = Object.fromEntries(
-    Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, METRICS)]),
-  )
-  const report = {
-    kind: 'hive-memory',
-    environment: measurementEnvironment(),
+  const results = await compareApps({
+    appPaths: values.app,
+    labels: values.label,
     runs,
-    workers,
-    summary,
+    runName: 'hive',
+    measure: (appPath, label) => measureHive(appPath, label, workers),
+    describe: (result) => ({ ...result, samples: undefined }),
+  })
+  await reportComparison({
     results,
-  }
-  if (values.out) log(`Wrote ${await writeJsonResult(values.out, 'hive-memory.json', report)}`)
-  process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
+    metrics: METRICS,
+    kind: 'hive-memory',
+    details: { runs, workers },
+    outDirectory: values.out,
+    fileName: 'hive-memory.json',
+  })
 }
 
 main().then(

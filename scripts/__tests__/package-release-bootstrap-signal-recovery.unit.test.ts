@@ -12,7 +12,6 @@ import {
   commandKey,
   createDependencies,
   PACKAGE_NAMES,
-  successful,
   successfulFirstPackageTransaction,
 } from './package-release-bootstrap-test-helpers'
 

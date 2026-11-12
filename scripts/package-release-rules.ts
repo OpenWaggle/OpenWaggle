@@ -46,8 +46,9 @@ function changelogSections(value: unknown): readonly ChangelogSectionRule[] | un
       typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'section') : undefined
     const hidden: unknown =
       typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'hidden') : undefined
-    if (typeof type !== 'string' || typeof section !== 'string')
+    if (typeof type !== 'string' || typeof section !== 'string') {
       return 'a changelog-sections entry has no type or section'
+    }
     sections.push(hidden === true ? { type, section, hidden } : { type, section })
   }
   return sections

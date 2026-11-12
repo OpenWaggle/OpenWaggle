@@ -70,9 +70,9 @@ function isVersionAtLeast(version: string, minimum: string) {
 }
 
 function hasWriteProtectedTwoFactorAuthentication(profile: JsonObject) {
-  const tfa = profile.tfa
+  const tfa = profile['tfa']
   return (
-    (isJsonObject(tfa) && tfa.mode === 'auth-and-writes' && tfa.pending !== true) ||
+    (isJsonObject(tfa) && tfa['mode'] === 'auth-and-writes' && tfa['pending'] !== true) ||
     profile['two-factor auth'] === 'auth-and-writes'
   )
 }
@@ -121,7 +121,7 @@ function repositoryBlockers(status: string, branch: string, origin: string, isUp
 
 function npmAccountBlockers(username: string, profile: JsonObject, organization: JsonObject) {
   const blockers: string[] = []
-  const profileName = typeof profile.name === 'string' ? profile.name : '(missing)'
+  const profileName = typeof profile['name'] === 'string' ? profile['name'] : '(missing)'
   if (profileName !== username) {
     blockers.push(
       `npm whoami must match the authenticated profile; found ${username} and ${profileName}.`,

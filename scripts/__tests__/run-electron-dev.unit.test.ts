@@ -22,7 +22,7 @@ function packageScripts(): [string, string][] {
 }
 
 describe('run-electron-dev', () => {
-  it('starts electron-vite dev through this Node, without the run-as-Node switch', () => {
+  it('starts electron-vite dev on Node, without the run-as-Node switch', () => {
     const invocation = electronDevInvocation('vite', ['--', '--remote-debugging-port=9222'], {
       environment: { ELECTRON_RUN_AS_NODE: '1', PATH: '/bin' },
       nodeExecutable: '/usr/bin/node',

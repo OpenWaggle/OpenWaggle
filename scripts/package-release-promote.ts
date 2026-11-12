@@ -94,17 +94,17 @@ function run(command: string, args: readonly string[], allowFailure = false) {
   })
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isPromotionModule(value: unknown): value is PromotionModule {
   return (
     isJsonObject(value) &&
-    typeof value.promoteVerifiedPackageRelease === 'function' &&
-    typeof value.readPackageReleasePlan === 'function' &&
-    typeof value.verifyPromotionBundle === 'function' &&
-    typeof value.verifyPackageReleasePublicationEnvironment === 'function'
+    typeof value['promoteVerifiedPackageRelease'] === 'function' &&
+    typeof value['readPackageReleasePlan'] === 'function' &&
+    typeof value['verifyPromotionBundle'] === 'function' &&
+    typeof value['verifyPackageReleasePublicationEnvironment'] === 'function'
   )
 }
 
@@ -116,7 +116,7 @@ async function loadPromotionModule() {
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
-  return isJsonObject(value) && typeof value.releaseAssetRepairPlan === 'function'
+  return isJsonObject(value) && typeof value['releaseAssetRepairPlan'] === 'function'
 }
 
 async function loadArtifactContractModule() {
@@ -129,7 +129,9 @@ async function loadArtifactContractModule() {
 }
 
 function isProvenanceModule(value: unknown): value is ProvenanceModule {
-  return isJsonObject(value) && typeof value.verifyPackageReleaseArtifactProvenance === 'function'
+  return (
+    isJsonObject(value) && typeof value['verifyPackageReleaseArtifactProvenance'] === 'function'
+  )
 }
 
 async function loadProvenanceModule() {
@@ -166,15 +168,15 @@ async function readRegistryIntegrity(name: string, version: string) {
 }
 
 async function ensureTag(tag: string, sourceSha: string) {
-  const repository = process.env.GITHUB_REPOSITORY
+  const repository = process.env['GITHUB_REPOSITORY']
   if (repository === undefined) throw new Error('GITHUB_REPOSITORY is required.')
   const existing = await run('gh', ['api', `repos/${repository}/git/ref/tags/${tag}`], true)
   if (existing.exitCode === 0) {
     const response: unknown = JSON.parse(existing.stdout)
     if (
       !isJsonObject(response) ||
-      !isJsonObject(response.object) ||
-      response.object.sha !== sourceSha
+      !isJsonObject(response['object']) ||
+      response['object']['sha'] !== sourceSha
     ) {
       throw new Error(`Immutable package tag ${tag} points to a different commit.`)
     }
@@ -294,17 +296,17 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   const promotion = await loadPromotionModule()
   const plan = await promotion.readPackageReleasePlan(planPath)
   promotion.verifyPackageReleasePublicationEnvironment(plan, {
-    actionsIdTokenRequestToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    actionsIdTokenRequestUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
-    eventName: process.env.GITHUB_EVENT_NAME,
-    recoveryReleaseSha: process.env.RECOVERY_RELEASE_SHA,
-    ref: process.env.GITHUB_REF,
-    sha: process.env.GITHUB_SHA,
+    actionsIdTokenRequestToken: process.env['ACTIONS_ID_TOKEN_REQUEST_TOKEN'],
+    actionsIdTokenRequestUrl: process.env['ACTIONS_ID_TOKEN_REQUEST_URL'],
+    eventName: process.env['GITHUB_EVENT_NAME'],
+    recoveryReleaseSha: process.env['RECOVERY_RELEASE_SHA'],
+    ref: process.env['GITHUB_REF'],
+    sha: process.env['GITHUB_SHA'],
   })
   const manifest = await promotion.verifyPromotionBundle(plan, artifactRoot)
-  const repository = process.env.GITHUB_REPOSITORY
-  const selectedRunId = process.env.EXPECTED_ARTIFACT_RUN_ID
-  const selectedSourceSha = process.env.EXPECTED_ARTIFACT_SOURCE_SHA
+  const repository = process.env['GITHUB_REPOSITORY']
+  const selectedRunId = process.env['EXPECTED_ARTIFACT_RUN_ID']
+  const selectedSourceSha = process.env['EXPECTED_ARTIFACT_SOURCE_SHA']
   if (
     repository === undefined ||
     selectedRunId === undefined ||

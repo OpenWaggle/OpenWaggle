@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { nodeRuntime } from './support/node-runtime'
 
 /** External packages the main bundle may load while it starts. Node built-ins always may. */
 export const ALLOWED_STARTUP_EXTERNALS: readonly string[] = ['electron']
@@ -143,23 +144,24 @@ export function probeStartupExternals(
   try {
     return argumentVectors.map((argv) => {
       const output = execFileSync(
-        process.execPath,
+        nodeRuntime().execPath,
         ['-e', PROBE_SOURCE, path.resolve(bundlePath), JSON.stringify(ELECTRON_EXPORTS), ...argv],
         {
           encoding: 'utf8',
-          env: { PATH: process.env.PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
+          env: { PATH: process.env['PATH'] ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
           timeout: PROBE_TIMEOUT_MS,
           maxBuffer: PROBE_MAX_BUFFER_BYTES,
         },
       )
       const line = output.trim().split('\n').at(-1) ?? ''
       const parsed: unknown = JSON.parse(line)
-      if (!isRecord(parsed) || !Array.isArray(parsed.loaded))
+      if (!isRecord(parsed) || !Array.isArray(parsed['loaded'])) {
         throw new Error(`The startup probe printed ${line}.`)
+      }
       return {
         argv,
-        loaded: parsed.loaded.filter((entry): entry is string => typeof entry === 'string'),
-        error: typeof parsed.error === 'string' ? parsed.error : null,
+        loaded: parsed['loaded'].filter((entry): entry is string => typeof entry === 'string'),
+        error: typeof parsed['error'] === 'string' ? parsed['error'] : null,
       }
     })
   } finally {

@@ -274,8 +274,9 @@ async function readMachOSlice(source: ByteSource, base: number): Promise<MachOSl
   const COMMAND = { SIZE: 4, BUILD_PLATFORM: 8, BUILD_MINOS: 12, VERSION_MIN: 8 } as const
   let offset = 0
   for (let index = 0; index < header.readUInt32LE(HEADER.NCMDS); index += 1) {
-    if (offset + MACHO.LOAD_COMMAND_HEADER > commands.length)
+    if (offset + MACHO.LOAD_COMMAND_HEADER > commands.length) {
       throw new Error('Malformed Mach-O load commands.')
+    }
     const command = commands.readUInt32LE(offset)
     const size = commands.readUInt32LE(offset + COMMAND.SIZE)
     if (size < MACHO.LOAD_COMMAND_HEADER) throw new Error('Malformed Mach-O load command size.')

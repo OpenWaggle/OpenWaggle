@@ -53,8 +53,9 @@ export function sessionTitle(index: number) {
 
 function messageText(role: 'user' | 'assistant', index: number, approximateBytes: number) {
   const heading = `[turn ${String(index)}] `
-  if (role === 'user')
+  if (role === 'user') {
     return `${heading}${PROSE_SENTENCE.repeat(Math.max(1, Math.round(approximateBytes / PROSE_SENTENCE.length)))}`
+  }
   const codeLines = Math.max(1, Math.round(approximateBytes / (SHORTER_SHARE * CODE_LINE.length)))
   const proseRepeats = Math.max(
     1,

@@ -90,21 +90,21 @@ function loadExecDmgbuildWithRetry(): ExecDmgbuildWithRetry {
 describe.skipIf(process.platform === 'win32')('dmg-builder transient hdiutil retry patch', () => {
   let execDmgbuildWithRetry: ExecDmgbuildWithRetry
   let lockDirectory = ''
-  const hostTemporaryDirectory = process.env.TMPDIR
+  const hostTemporaryDirectory = process.env['TMPDIR']
 
   // electron-builder's toolset lock lives in os.tmpdir() and is fixed when its module loads.
   // A private TMPDIR keeps these tests off the machine-wide lock that real builds share.
   beforeAll(() => {
     lockDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'macos-build-failure-lock-'))
-    process.env.TMPDIR = lockDirectory
+    process.env['TMPDIR'] = lockDirectory
     execDmgbuildWithRetry = loadExecDmgbuildWithRetry()
   })
 
   afterAll(() => {
     if (hostTemporaryDirectory === undefined) {
-      delete process.env.TMPDIR
+      delete process.env['TMPDIR']
     } else {
-      process.env.TMPDIR = hostTemporaryDirectory
+      process.env['TMPDIR'] = hostTemporaryDirectory
     }
     fs.rmSync(lockDirectory, { recursive: true, force: true })
   })

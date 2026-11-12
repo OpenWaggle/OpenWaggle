@@ -14,12 +14,12 @@ const SILENT_INSTALL_ARGUMENT = '/S'
 const UNINSTALL_PATH_POLL_INTERVAL_MS = 100
 const UNINSTALL_PATH_MAX_ATTEMPTS = 150
 
-type VerifyWindowsInstallerInput = {
+interface VerifyWindowsInstallerInput {
   readonly installerPath: string
   readonly installDirectory: string
 }
 
-type VerifyWindowsInstallerDependencies = {
+interface VerifyWindowsInstallerDependencies {
   readonly runInstaller?: (installerPath: string, args: readonly string[]) => Promise<number | null>
   readonly runUninstaller?: (
     uninstallerPath: string,
@@ -126,10 +126,10 @@ async function verifyInstalledState(input: {
   if (!windowsPathContains(installedUserPath, input.installDirectory)) {
     throw new Error('Windows installer did not add its CLI directory to the user PATH.')
   }
-  const freshPath = [installedUserPath, process.env.PATH ?? ''].filter(Boolean).join(';')
+  const freshPath = [installedUserPath, process.env['PATH'] ?? ''].filter(Boolean).join(';')
   const environmentOverrides = {
     PATH: freshPath,
-    PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD',
+    PATHEXT: process.env['PATHEXT'] ?? '.COM;.EXE;.BAT;.CMD',
   }
   const resolvedCommand = await input.findCommand('openwaggle', environmentOverrides)
   if (!resolvedCommand) throw new Error('Fresh shell did not resolve openwaggle.')
@@ -174,15 +174,18 @@ async function uninstallAndVerify(input: {
   await waitForUninstalledPath(input)
 }
 
-function throwVerificationFailures(primaryFailure: unknown, cleanupFailure: unknown) {
+function throwVerificationFailures(
+  primaryFailure: { readonly error: unknown } | undefined,
+  cleanupFailure: { readonly error: unknown } | undefined,
+) {
   if (primaryFailure !== undefined && cleanupFailure !== undefined) {
     throw new AggregateError(
-      [primaryFailure, cleanupFailure],
+      [primaryFailure.error, cleanupFailure.error],
       'Windows installer verification and uninstall both failed.',
     )
   }
-  if (primaryFailure !== undefined) throw primaryFailure
-  if (cleanupFailure !== undefined) throw cleanupFailure
+  if (primaryFailure !== undefined) throw primaryFailure.error
+  if (cleanupFailure !== undefined) throw cleanupFailure.error
 }
 
 export async function verifyWindowsInstaller(
@@ -213,7 +216,7 @@ export async function verifyWindowsInstaller(
   ])
   if (exitCode !== 0) throw new Error(`Windows installer exited with code ${String(exitCode)}.`)
 
-  let primaryFailure: unknown
+  let primaryFailure: { readonly error: unknown } | undefined
   try {
     await verifyInstalledState({
       installDirectory: input.installDirectory,
@@ -224,10 +227,10 @@ export async function verifyWindowsInstaller(
       canonicalizePath,
     })
   } catch (error) {
-    primaryFailure = error
+    primaryFailure = { error }
   }
 
-  let cleanupFailure: unknown
+  let cleanupFailure: { readonly error: unknown } | undefined
   try {
     await uninstallAndVerify({
       installDirectory: input.installDirectory,
@@ -236,7 +239,7 @@ export async function verifyWindowsInstaller(
       wait,
     })
   } catch (error) {
-    cleanupFailure = error
+    cleanupFailure = { error }
   }
   throwVerificationFailures(primaryFailure, cleanupFailure)
 }
