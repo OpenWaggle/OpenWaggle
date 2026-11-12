@@ -28,9 +28,11 @@ const WEBVIEW2_BOOTSTRAPPER = ['resources', 'webview2', 'MicrosoftEdgeWebview2Se
 const WEBVIEW2_INSTALL_TIMEOUT_MS = 600_000
 
 function webView2Installed() {
+  // Windows' defaults when a caller started the app without these variables: running the
+  // bootstrapper for a runtime that is installed blocks the start for minutes.
   const roots = [
-    process.env['ProgramFiles(x86)'],
-    process.env['ProgramFiles'],
+    process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
+    process.env['ProgramFiles'] ?? 'C:\\Program Files',
     process.env['LOCALAPPDATA'],
   ]
   return roots.some(
