@@ -12,11 +12,14 @@ const local: readonly LocalReleaseAsset[] = [
   { name: 'SHA256SUMS.txt', size: 20, sha256: 'sums' },
 ]
 
-function remote(
-  overrides: Partial<RemoteReleaseAsset> & { readonly name: string },
-): RemoteReleaseAsset {
+function remote(overrides: Partial<RemoteReleaseAsset> & { readonly name: string }) {
   const match = local.find((asset) => asset.name === overrides.name)
-  return { id: 1, size: match?.size ?? 0, state: 'uploaded', ...overrides }
+  return {
+    id: 1,
+    size: match?.size ?? 0,
+    state: 'uploaded',
+    ...overrides,
+  } satisfies RemoteReleaseAsset
 }
 
 describe('compareReleaseAssets', () => {

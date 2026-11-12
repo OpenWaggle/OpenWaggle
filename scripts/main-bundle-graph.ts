@@ -78,7 +78,7 @@ function isMainChunkManifestEntry(value: unknown): value is MainChunkManifestEnt
   return Schema.is(mainChunkManifestEntrySchema)(value)
 }
 
-export function parseMainChunkManifest(value: unknown): readonly MainChunkManifestEntry[] {
+export function parseMainChunkManifest(value: unknown) {
   if (!Array.isArray(value)) throw new Error('The main chunk manifest is not an array.')
   const entries: unknown[] = value
   return entries.map((entry, index) => {

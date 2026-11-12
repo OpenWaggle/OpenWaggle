@@ -58,20 +58,20 @@ interface BenchmarkPreflightInput {
   readonly sparseWorkingPath: string
 }
 
-function benchmarkValidationFailure(message: string): never {
-  throw new Error(`Session discovery benchmark preflight failed: ${message}`)
+function benchmarkValidationFailure(message: string) {
+  return new Error(`Session discovery benchmark preflight failed: ${message}`)
 }
 
 function requireListResult(value: unknown, label: string) {
   if (!isMatching(listResultPattern, value)) {
-    return benchmarkValidationFailure(`${label} returned an invalid or error response.`)
+    throw benchmarkValidationFailure(`${label} returned an invalid or error response.`)
   }
   return value.outcome
 }
 
 function requireLexicalResult(value: unknown, term: string, label: string) {
   if (!isMatching(lexicalResultPattern, value)) {
-    return benchmarkValidationFailure(`${label} returned invalid rows.`)
+    throw benchmarkValidationFailure(`${label} returned invalid rows.`)
   }
   if (
     value.length === 0 ||
@@ -82,13 +82,13 @@ function requireLexicalResult(value: unknown, term: string, label: string) {
         row.snippet.toLowerCase().includes(term),
     )
   ) {
-    return benchmarkValidationFailure(`${label} did not return evidence for ${term}.`)
+    throw benchmarkValidationFailure(`${label} did not return evidence for ${term}.`)
   }
 }
 
 function requireFullTranscriptLexicalResult(value: unknown, label: string) {
   if (!isMatching(fullTranscriptLexicalResultPattern, value)) {
-    return benchmarkValidationFailure(`${label} returned invalid rows.`)
+    throw benchmarkValidationFailure(`${label} returned invalid rows.`)
   }
   if (
     value.length === 0 ||
@@ -99,13 +99,13 @@ function requireFullTranscriptLexicalResult(value: unknown, label: string) {
         typeof row.transcript_created_order === 'number',
     )
   ) {
-    return benchmarkValidationFailure(`${label} did not return attributable transcript evidence.`)
+    throw benchmarkValidationFailure(`${label} did not return attributable transcript evidence.`)
   }
 }
 
 function requireTranscriptResult(value: unknown, label: string) {
   if (!isMatching(transcriptResultPattern, value)) {
-    return benchmarkValidationFailure(`${label} returned an invalid or error response.`)
+    throw benchmarkValidationFailure(`${label} returned an invalid or error response.`)
   }
   return value.outcome
 }
@@ -120,7 +120,7 @@ export function benchmarkTranscriptTerminalCursor(transcriptHead: unknown) {
     !JSON.stringify(first.content).toLowerCase().includes(COMMON_LEXICAL_TERM) ||
     outcome.highWaterMark < 1
   ) {
-    return benchmarkValidationFailure('transcript head query omitted the fixture head evidence.')
+    throw benchmarkValidationFailure('transcript head query omitted the fixture head evidence.')
   }
   return {
     afterCreatedOrder: outcome.highWaterMark - 1,
@@ -131,7 +131,7 @@ export function benchmarkTranscriptTerminalCursor(transcriptHead: unknown) {
 export function validateSessionDiscoveryBenchmarkPreflight(input: BenchmarkPreflightInput) {
   const list = requireListResult(input.list, 'catalog list query')
   if (list.sessions.length !== BENCHMARK_QUERY_PAGE_SIZE || !list.nextCursor) {
-    return benchmarkValidationFailure('catalog list query did not return one complete page.')
+    throw benchmarkValidationFailure('catalog list query did not return one complete page.')
   }
 
   const sparse = requireListResult(input.sparseWorkingPathList, 'sparse working-path query')
@@ -140,12 +140,12 @@ export function validateSessionDiscoveryBenchmarkPreflight(input: BenchmarkPrefl
     sparse.sessions.length > BENCHMARK_QUERY_PAGE_SIZE ||
     sparse.sessions.some((session) => session.projectPath !== input.sparseWorkingPath)
   ) {
-    return benchmarkValidationFailure('sparse working-path query returned the wrong Sessions.')
+    throw benchmarkValidationFailure('sparse working-path query returned the wrong Sessions.')
   }
 
   const missing = requireListResult(input.missingWorkingPathList, 'missing working-path query')
   if (missing.sessions.length !== 0 || missing.nextCursor !== undefined) {
-    return benchmarkValidationFailure('missing working-path query unexpectedly returned Sessions.')
+    throw benchmarkValidationFailure('missing working-path query unexpectedly returned Sessions.')
   }
 
   requireLexicalResult(input.rareLexical, RARE_LEXICAL_TERM, 'rare lexical query')
@@ -173,7 +173,7 @@ export function validateSessionDiscoveryBenchmarkPreflight(input: BenchmarkPrefl
     last.createdOrder !== terminal.highWaterMark ||
     !JSON.stringify(last.content).includes(TERMINAL_TRANSCRIPT_MARKER)
   ) {
-    return benchmarkValidationFailure(
+    throw benchmarkValidationFailure(
       'transcript terminal query omitted the active-branch terminal evidence.',
     )
   }

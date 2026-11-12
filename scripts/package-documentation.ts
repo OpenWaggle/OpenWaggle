@@ -1,15 +1,15 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import type {
+  PackageDocumentationDefinition,
+  VersionedPackageDocumentationDefinition,
+} from './package-documentation-model'
 import {
   packageDocumentationDefinitions,
   packageDocumentationUrl,
   resolvePackageDocumentationVersions,
   versionPackageDocumentation,
-} from './package-documentation-model'
-import type {
-  PackageDocumentationDefinition,
-  VersionedPackageDocumentationDefinition,
 } from './package-documentation-model'
 import {
   availablePackageDocumentationVersions,
@@ -33,11 +33,6 @@ const JSON_INDENT_SPACES = 2
 interface GeneratedFile {
   readonly contents: string
   readonly path: string
-}
-
-interface PackageDocumentationResult {
-  readonly changedFiles: readonly string[]
-  readonly violations: readonly string[]
 }
 
 function normalizeMarkdown(value: string) {
@@ -172,7 +167,7 @@ export async function checkPackageDocumentation(
   projectRoot: string,
   update: boolean,
   definitions: readonly PackageDocumentationDefinition[] = packageDocumentationDefinitions,
-): Promise<PackageDocumentationResult> {
+) {
   const changedFiles: string[] = []
   const violations: string[] = []
 

@@ -150,7 +150,7 @@ export function assertNoWorkspaceProtocols(packageName: string, manifest: unknow
  * overrides them all, so a newer Pi release (or one still being published) cannot be mixed in
  * through a transitive range.
  */
-export function piRuntimeSmokePins(catalogs: WorkspaceCatalogs): Record<string, string> {
+export function piRuntimeSmokePins(catalogs: WorkspaceCatalogs) {
   const catalog = catalogs['pi-runtime'] ?? {}
   return Object.fromEntries(Object.entries(catalog).sort(([a], [b]) => a.localeCompare(b)))
 }

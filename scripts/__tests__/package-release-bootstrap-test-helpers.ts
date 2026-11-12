@@ -80,8 +80,8 @@ export function compatibleRuleset(
     { context: 'Integration & Component Tests' },
     { context: 'MCP Conformance' },
   ],
-): CompatibleRulesetFixture {
-  return {
+) {
+  const fixture: CompatibleRulesetFixture = {
     bypass_actors: [{ actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' }],
     conditions: { ref_name: { exclude: [], include: ['refs/heads/main'] } },
     enforcement: 'active',
@@ -116,6 +116,7 @@ export function compatibleRuleset(
     ],
     target: 'branch',
   }
+  return fixture
 }
 
 export function addCompatibleGithubState(overrides: Map<string, BootstrapCommandResult>) {
@@ -193,12 +194,12 @@ export function commandKey(request: BootstrapCommandRequest) {
   return [request.command, ...request.args].join(' ')
 }
 
-export function successful(stdout = ''): BootstrapCommandResult {
-  return { exitCode: 0, stderr: '', stdout }
+export function successful(stdout = '') {
+  return { exitCode: 0, stderr: '', stdout } satisfies BootstrapCommandResult
 }
 
-function missingPackage(): BootstrapCommandResult {
-  return { exitCode: 1, stderr: 'npm error code E404', stdout: '' }
+function missingPackage() {
+  return { exitCode: 1, stderr: 'npm error code E404', stdout: '' } satisfies BootstrapCommandResult
 }
 
 export function createDependencies(

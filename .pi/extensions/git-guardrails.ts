@@ -41,10 +41,10 @@ interface GuardedToolInput {
   readonly newText?: unknown
 }
 
-function textEdits(input: GuardedToolInput): TextEdit[] {
+function textEdits(input: GuardedToolInput) {
   const { edits, oldText, newText } = input
   if (Array.isArray(edits)) {
-    return edits.flatMap((edit: unknown) =>
+    const result: TextEdit[] = edits.flatMap((edit: unknown) =>
       typeof edit === 'object' &&
       edit !== null &&
       'oldText' in edit &&
@@ -54,17 +54,22 @@ function textEdits(input: GuardedToolInput): TextEdit[] {
         ? [{ oldText: edit.oldText, newText: edit.newText }]
         : [],
     )
+    return result
   }
-  return typeof oldText === 'string' && typeof newText === 'string' ? [{ oldText, newText }] : []
+  const result: TextEdit[] =
+    typeof oldText === 'string' && typeof newText === 'string' ? [{ oldText, newText }] : []
+  return result
 }
 
 /** The guardrail verdict for one tool call, as a Pi `tool_call` result. */
-export function guardToolCall(event: ToolCallEvent, cwd: string): ToolCallEventResult | undefined {
+export function guardToolCall(event: ToolCallEvent, cwd: string) {
   const input: GuardedToolInput = { ...event.input }
   const { command, path, content } = input
   if (event.toolName === 'bash' && typeof command === 'string') {
     const decision = bashCommandDecision(command)
-    return decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
+    const result: ToolCallEventResult | undefined =
+      decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
+    return result
   }
   if ((event.toolName === 'write' || event.toolName === 'edit') && typeof path === 'string') {
     const decision = fileToolDecision({
@@ -73,7 +78,9 @@ export function guardToolCall(event: ToolCallEvent, cwd: string): ToolCallEventR
       edits: event.toolName === 'edit' ? textEdits(input) : [],
       currentText: event.toolName === 'edit' ? readText(cwd, path) : undefined,
     })
-    return decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
+    const result: ToolCallEventResult | undefined =
+      decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
+    return result
   }
   return undefined
 }

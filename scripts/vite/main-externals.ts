@@ -90,7 +90,7 @@ export function isLazyMainExternal(packageName: string) {
   return MAIN_EXTERNAL_PACKAGES.has(packageName) && !EAGER_MAIN_EXTERNALS.includes(packageName)
 }
 
-export function rolldownExternalFixPlugin(): Plugin {
+export function rolldownExternalFixPlugin() {
   return {
     name: 'vite:rolldown-external-fix',
     enforce: 'post',
@@ -111,5 +111,5 @@ export function rolldownExternalFixPlugin(): Plugin {
 
       config.build.rolldownOptions.external = merged
     },
-  }
+  } satisfies Plugin
 }

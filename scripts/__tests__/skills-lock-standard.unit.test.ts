@@ -15,7 +15,7 @@ const UPSTREAM_FILES = new Map([
   ['references/notes.md', 'Notes.\n'],
 ])
 
-function vendored(files: ReadonlyMap<string, string>, localEdits?: string): VendoredSkill {
+function vendored(files: ReadonlyMap<string, string>, localEdits?: string) {
   const skill = {
     upstream: [
       {
@@ -30,8 +30,8 @@ function vendored(files: ReadonlyMap<string, string>, localEdits?: string): Vend
   return localEdits === undefined ? skill : { ...skill, localEdits }
 }
 
-function lockWith(skill: VendoredSkill, firstParty: readonly string[] = ['local']): SkillsLock {
-  return { lockfileVersion: 1, firstParty, skills: { example: skill } }
+function lockWith(skill: VendoredSkill, firstParty: readonly string[] = ['local']) {
+  return { lockfileVersion: 1, firstParty, skills: { example: skill } } satisfies SkillsLock
 }
 
 function skillsOnDisk(example: ReadonlyMap<string, string>) {

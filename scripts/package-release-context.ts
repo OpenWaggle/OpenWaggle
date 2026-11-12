@@ -50,7 +50,7 @@ export async function readPackageReleaseParent(sourceSha: string, runGitCommand:
 export async function resolvePackageReleaseContext(
   input: PackageReleaseContextInput,
   dependencies: PackageReleaseContextDependencies,
-): Promise<PackageReleaseContext> {
+) {
   if (input.ref !== 'refs/heads/main') {
     throw new Error('Package releases must run from main.')
   }
@@ -87,7 +87,7 @@ function runGit(args: readonly string[], allowFailure = false) {
   })
 }
 
-function createDependencies(): PackageReleaseContextDependencies {
+function createDependencies() {
   const runGitCommand: RunGitCommand = async (args) => (await runGit(args)).stdout
   return {
     isAncestorOfMain: async (sha) =>
@@ -97,7 +97,7 @@ function createDependencies(): PackageReleaseContextDependencies {
       const result = await runGit(['rev-parse', `${sha}^{commit}`])
       return result.stdout
     },
-  }
+  } satisfies PackageReleaseContextDependencies
 }
 
 export async function runPackageReleaseContextCli(args: readonly string[]) {

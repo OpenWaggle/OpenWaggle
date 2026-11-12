@@ -90,7 +90,7 @@ async function configureProject(page: Page, projectPath: string) {
  * Runs `step` with a launched app and closes the app if the step throws, so `main()`'s `finally`
  * never stops the Session Host while an Electron it does not know about could start another one.
  */
-async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise<T>): Promise<T> {
+async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise<T>) {
   try {
     return await step()
   } catch (error) {

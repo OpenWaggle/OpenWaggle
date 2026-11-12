@@ -77,7 +77,7 @@ function errorCode(error: unknown) {
   return typeof error.code === 'string' ? error.code : null
 }
 
-export function parseQaLeaseMetadata(value: unknown): QaLeaseMetadata | null {
+export function parseQaLeaseMetadata(value: unknown) {
   if (!isMatching(leaseMetadataPattern, value)) return null
   if (value.launcherPid <= 0) return null
   return value
@@ -175,7 +175,7 @@ export function recoverStaleQaLease(leaseDirectory = QA_LEASE_DIRECTORY) {
   return withLeaseMutationLock(leaseDirectory, () => recoverStaleLeaseUnderLock(leaseDirectory))
 }
 
-export function acquireQaLease(projectPath: string): Promise<QaLease> {
+export function acquireQaLease(projectPath: string) {
   return withLeaseMutationLock(QA_LEASE_DIRECTORY, async () => {
     await recoverStaleLeaseUnderLock(QA_LEASE_DIRECTORY)
     const profilePath = await fs.mkdtemp(

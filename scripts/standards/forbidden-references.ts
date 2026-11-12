@@ -59,9 +59,9 @@ function containsForbiddenReference(contents: string, reference: string) {
   return new RegExp(String.raw`(?<![0-9A-Za-z])` + escaped).test(contents)
 }
 
-export function collectForbiddenReferenceViolations(file: string, contents: string): Violation[] {
+export function collectForbiddenReferenceViolations(file: string, contents: string) {
   if (forbiddenReferenceExemptFiles.includes(file)) {
-    return []
+    return [] satisfies Violation[]
   }
 
   const violations: Violation[] = []

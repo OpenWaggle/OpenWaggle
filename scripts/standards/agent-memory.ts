@@ -26,7 +26,7 @@ function isMemoryTopic(file: string) {
 }
 
 /** A topic opens with a `# Title` line, a blank line, then a 3-6 line summary paragraph. */
-function summaryViolation(file: string, contents: string): Violation[] {
+function summaryViolation(file: string, contents: string) {
   const lines = contents.split('\n')
   const summary: string[] = []
   for (const line of lines.slice(SUMMARY_FIRST_LINE)) {
@@ -39,37 +39,37 @@ function summaryViolation(file: string, contents: string): Violation[] {
     !summary.some((line) => line.startsWith('#')) &&
     summary.length >= SUMMARY_MIN_LINES &&
     summary.length <= SUMMARY_MAX_LINES
-  if (opensWithSummary) return []
+  if (opensWithSummary) return [] satisfies Violation[]
   return [
     {
       file,
       message: `A memory topic opens with a "# Title" line and a ${SUMMARY_MIN_LINES}-${SUMMARY_MAX_LINES} line summary of what it covers and when to load it.`,
     },
-  ]
+  ] satisfies Violation[]
 }
 
-function sizeViolation(file: string, contents: string, cap: number, remedy: string): Violation[] {
+function sizeViolation(file: string, contents: string, cap: number, remedy: string) {
   const tokens = countO200kTokens(contents)
-  if (tokens <= cap) return []
+  if (tokens <= cap) return [] satisfies Violation[]
   return [
     {
       file,
       detail: `${tokens} > ${cap} o200k tokens`,
       message: `Project memory file is over its cap. ${remedy}`,
     },
-  ]
+  ] satisfies Violation[]
 }
 
-export function collectAgentMemoryFileViolations(file: string, contents: string): Violation[] {
+export function collectAgentMemoryFileViolations(file: string, contents: string) {
   if (file === MEMORY_INDEX_FILE) {
     return sizeViolation(
       file,
       contents,
       MEMORY_INDEX_TOKEN_CAP,
       'Keep MEMORY.md to one line per topic; findings belong in .agents/memory/<topic>.md.',
-    )
+    ) satisfies Violation[]
   }
-  if (!isMemoryTopic(file)) return []
+  if (!isMemoryTopic(file)) return [] satisfies Violation[]
   return [
     ...summaryViolation(file, contents),
     ...sizeViolation(
@@ -78,15 +78,13 @@ export function collectAgentMemoryFileViolations(file: string, contents: string)
       MEMORY_TOPIC_TOKEN_CAP,
       'Split the topic into narrower topic files and index each one in MEMORY.md.',
     ),
-  ]
+  ] satisfies Violation[]
 }
 
 /** Every topic file is indexed in MEMORY.md, and every indexed topic exists. */
-export function collectAgentMemoryIndexViolations(
-  contentsByFile: ReadonlyMap<string, string>,
-): Violation[] {
+export function collectAgentMemoryIndexViolations(contentsByFile: ReadonlyMap<string, string>) {
   const index = contentsByFile.get(MEMORY_INDEX_FILE)
-  if (index === undefined) return []
+  if (index === undefined) return [] satisfies Violation[]
   const linked = new Set(
     [...index.matchAll(/\]\((?<target>\.agents\/memory\/[^)\s]+\.md)\)/gu)].flatMap(
       (match) => namedGroups(match, ['target'])?.target ?? [],
@@ -107,5 +105,5 @@ export function collectAgentMemoryIndexViolations(
         detail: target,
         message: 'MEMORY.md links a memory topic that does not exist.',
       })),
-  ]
+  ] satisfies Violation[]
 }

@@ -58,7 +58,7 @@ export async function createGitProject(projectPath: string) {
 /** Profiles not yet disposed, with the call that unregisters each from the interrupt cleanup. */
 const liveProfiles = new Map<string, () => void>()
 
-export async function createPerfProfile(options: PerfProfileOptions): Promise<PerfProfile> {
+export async function createPerfProfile(options: PerfProfileOptions) {
   // The real path: Session authority compares resolved roots, and /tmp is /private/tmp on macOS.
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), `owperf-${options.label}-`)))
   const userData = path.join(root, 'user-data')

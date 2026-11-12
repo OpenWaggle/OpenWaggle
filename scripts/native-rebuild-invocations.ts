@@ -39,13 +39,15 @@ export function shellInvocationForPlatform(
   commandLine: string,
   platform: NodeJS.Platform = process.platform,
   windowsCommandProcessor: string | undefined = windowsComSpec(),
-): CommandInvocation {
-  return platform === 'win32'
-    ? {
-        command: windowsCommandProcessor ?? WINDOWS_COMMAND_PROCESSOR,
-        args: ['/d', '/s', '/c', commandLine],
-      }
-    : { command: '/bin/sh', args: ['-c', commandLine] }
+) {
+  const invocation: CommandInvocation =
+    platform === 'win32'
+      ? {
+          command: windowsCommandProcessor ?? WINDOWS_COMMAND_PROCESSOR,
+          args: ['/d', '/s', '/c', commandLine],
+        }
+      : { command: '/bin/sh', args: ['-c', commandLine] }
+  return invocation
 }
 
 function appendWhitespaceDelimitedOption(existingOptions: string | undefined, option: string) {
@@ -116,7 +118,7 @@ export async function nodeNativeRebuildInvocations(
   projectRoot: string,
   baseEnvironment: NodeJS.ProcessEnv = process.env,
   nodeExecutable: string = nodeRuntime().execPath,
-): Promise<readonly PackageRebuildInvocation[]> {
+) {
   const invocations: PackageRebuildInvocation[] = []
   const paths = { projectRoot, storeDirectory: join(projectRoot, 'node_modules', '.bun') }
   for (const packageName of nativeArtifactPackagesForMode('node')) {

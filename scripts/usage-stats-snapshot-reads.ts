@@ -40,10 +40,12 @@ export async function readOptionalJson(
   options: SnapshotJobOptions,
   url: string,
   headers: Record<string, string>,
-): Promise<JsonRead> {
+) {
+  let read: JsonRead
   try {
-    return await getJson(options, url, headers)
+    read = await getJson(options, url, headers)
   } catch (error) {
-    return { failure: failureReason(error) }
+    read = { failure: failureReason(error) }
   }
+  return read
 }

@@ -61,13 +61,15 @@ function deriveActions(input: {
   readonly running: readonly string[]
   readonly state: PullRequestState
   readonly total: number
-}): WatchAction[] {
+}) {
   const stop = stopReason(input.state)
   if (stop !== undefined) {
-    return [{ reason: stop, type: 'stop' }]
+    return [{ reason: stop, type: 'stop' }] satisfies WatchAction[]
   }
   if (input.total === 0) {
-    return [{ reason: 'no checks reported for the head commit yet', type: 'wait' }]
+    return [
+      { reason: 'no checks reported for the head commit yet', type: 'wait' },
+    ] satisfies WatchAction[]
   }
   const actions: WatchAction[] = []
   if (input.failed.length > 0) {
@@ -82,16 +84,18 @@ function deriveActions(input: {
   if (actions.length > 0) {
     return actions
   }
-  return input.approvals.length > 0
-    ? [{ reason: 'checks_need_approval', type: 'stop' }]
-    : [{ type: 'converged' }]
+  return (
+    input.approvals.length > 0
+      ? [{ reason: 'checks_need_approval', type: 'stop' }]
+      : [{ type: 'converged' }]
+  ) satisfies WatchAction[]
 }
 
 function signatureOf(parts: readonly unknown[]) {
   return createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, SIGNATURE_LENGTH)
 }
 
-export function buildSnapshot(state: PullRequestState, now: number): WatchSnapshot {
+export function buildSnapshot(state: PullRequestState, now: number) {
   const checks = summarizeChecks(state.checkRuns, state.statusContexts)
   const bots = botReviews(state, now)
   const { answeredThreads, openItems } = collectComments(state)
@@ -146,7 +150,7 @@ export function buildSnapshot(state: PullRequestState, now: number): WatchSnapsh
       ),
       ...bots.warnings,
     ],
-  }
+  } satisfies WatchSnapshot
 }
 
 /** `--watch` without `--since` returns once the snapshot asks for anything beyond waiting. */

@@ -72,7 +72,7 @@ export async function dailySalt(
   now: number,
   randomBytes: (length: number) => Uint8Array,
   fallback: IsolateSalts = ISOLATE_SALTS,
-): Promise<string> {
+) {
   const day = utcDay(now)
   const key = `${WEB_SALT_KEY_PREFIX}${day}`
   const create = () => hexEncode(randomBytes(SALT_BYTES))
@@ -98,7 +98,7 @@ export interface VisitorKeyInput {
 }
 
 /** SHA-256 of the salt, address, User-Agent and host. Only the hash leaves this function. */
-export async function visitorKey(input: VisitorKeyInput): Promise<string> {
+export async function visitorKey(input: VisitorKeyInput) {
   const material = [input.salt, input.address, input.userAgent, input.host].join('\n')
   const digest = await crypto.subtle.digest('SHA-256', encodeUtf8(material))
   return hexEncode(new Uint8Array(digest))

@@ -120,14 +120,14 @@ const PE_MACHINES: ReadonlyMap<number, BinaryArchitecture> = new Map([
   [0x14c, 'x86'],
 ])
 
-export function bufferByteSource(buffer: Buffer): ByteSource {
+export function bufferByteSource(buffer: Buffer) {
   return {
     size: buffer.length,
     read: async (offset, length) => buffer.subarray(offset, offset + length),
-  }
+  } satisfies ByteSource
 }
 
-export function fileByteSource(handle: FileHandle, size: number): ByteSource {
+export function fileByteSource(handle: FileHandle, size: number) {
   return {
     size,
     async read(offset, length) {
@@ -135,7 +135,7 @@ export function fileByteSource(handle: FileHandle, size: number): ByteSource {
       if (bytes.length > 0) await handle.read(bytes, 0, bytes.length, offset)
       return bytes
     },
-  }
+  } satisfies ByteSource
 }
 
 /** Compares dotted numeric versions; missing parts count as zero. */
@@ -162,7 +162,7 @@ function readCString(table: Buffer, offset: number) {
   return table.toString('latin1', offset, end)
 }
 
-async function readElf(source: ByteSource): Promise<NativeBinary> {
+async function readElf(source: ByteSource) {
   const ident = await readExactly(
     source,
     0,
@@ -221,7 +221,8 @@ async function readElf(source: ByteSource): Promise<NativeBinary> {
     const needs = await readExactly(source, verneed.offset, verneed.size, 'the ELF version needs')
     versionNeeds.push(...parseVerneed(needs, verneed.info, stringTable, u16, u32))
   }
-  return { format: 'elf', architecture, versionNeeds }
+  const binary: NativeBinary = { format: 'elf', architecture, versionNeeds }
+  return binary
 }
 
 function parseVerneed(
@@ -256,7 +257,7 @@ function formatMachOVersion(encoded: number) {
   return patch === 0 ? `${major}.${minor}` : `${major}.${minor}.${patch}`
 }
 
-async function readMachOSlice(source: ByteSource, base: number): Promise<MachOSliceInfo> {
+async function readMachOSlice(source: ByteSource, base: number) {
   const magic = (await readExactly(source, base, MAGIC_BYTES, 'the Mach-O magic')).readUInt32LE(0)
   if (magic !== MACHO.MAGIC_64 && magic !== MACHO.MAGIC_32) {
     throw new Error('Universal Mach-O slice is not a little-endian Mach-O image.')
@@ -286,18 +287,18 @@ async function readMachOSlice(source: ByteSource, base: number): Promise<MachOSl
         architecture,
         platform: platform === MACHO.PLATFORM_MACOS ? 'macos' : 'other',
         minimumVersion: formatMachOVersion(commands.readUInt32LE(offset + COMMAND.BUILD_MINOS)),
-      }
+      } satisfies MachOSliceInfo
     }
     if (command === MACHO.LC_VERSION_MIN_MACOSX) {
       const minimumVersion = formatMachOVersion(commands.readUInt32LE(offset + COMMAND.VERSION_MIN))
-      return { architecture, platform: 'macos', minimumVersion }
+      return { architecture, platform: 'macos', minimumVersion } satisfies MachOSliceInfo
     }
     offset += size
   }
-  return { architecture, platform: 'unknown', minimumVersion: null }
+  return { architecture, platform: 'unknown', minimumVersion: null } satisfies MachOSliceInfo
 }
 
-async function readFatMachO(source: ByteSource, magic: number): Promise<NativeBinary | null> {
+async function readFatMachO(source: ByteSource, magic: number) {
   const FAT = { COUNT: 4, OFFSET: 8, OFFSET_64: 8 } as const
   const header = await readExactly(source, 0, MACHO.FAT_HEADER, 'the universal Mach-O header')
   const count = header.readUInt32BE(FAT.COUNT)
@@ -319,10 +320,11 @@ async function readFatMachO(source: ByteSource, magic: number): Promise<NativeBi
         : entries.readUInt32BE(at + FAT.OFFSET)
     slices.push(await readMachOSlice(source, offset))
   }
-  return { format: 'mach-o', slices }
+  const binary: NativeBinary | null = { format: 'mach-o', slices }
+  return binary
 }
 
-async function readPe(source: ByteSource): Promise<NativeBinary | null> {
+async function readPe(source: ByteSource) {
   // Shorter than a DOS header: an unrelated file that happens to start with "MZ".
   if (source.size < PE.LFANEW_OFFSET + MAGIC_BYTES) return null
   const dosHeader = await readExactly(source, 0, PE.LFANEW_OFFSET + MAGIC_BYTES, 'the DOS header')
@@ -340,23 +342,28 @@ async function readPe(source: ByteSource): Promise<NativeBinary | null> {
   const optional = PE.OPTIONAL_HEADER
   const osVersion = `${header.readUInt16LE(optional + PE.OS_MAJOR)}.${header.readUInt16LE(optional + PE.OS_MINOR)}`
   const subsystemVersion = `${header.readUInt16LE(optional + PE.SUBSYSTEM_MAJOR)}.${header.readUInt16LE(optional + PE.SUBSYSTEM_MINOR)}`
-  return {
+  const binary: NativeBinary = {
     format: 'pe',
     architecture: PE_MACHINES.get(header.readUInt16LE(PE.COFF_MACHINE)) ?? 'other',
     minimumVersion:
       compareVersions(osVersion, subsystemVersion) >= 0 ? osVersion : subsystemVersion,
   }
+  return binary
 }
 
 /** Returns `null` for anything that is not an ELF, Mach-O or PE image. */
-export async function readNativeBinary(source: ByteSource): Promise<NativeBinary | null> {
+export async function readNativeBinary(source: ByteSource) {
   if (source.size < MAGIC_BYTES) return null
   const magicBytes = await source.read(0, MAGIC_BYTES)
   const bigEndianMagic = magicBytes.readUInt32BE(0)
   const littleEndianMagic = magicBytes.readUInt32LE(0)
   if (bigEndianMagic === ELF_MAGIC) return readElf(source)
   if (littleEndianMagic === MACHO.MAGIC_64 || littleEndianMagic === MACHO.MAGIC_32) {
-    return { format: 'mach-o', slices: [await readMachOSlice(source, 0)] }
+    const binary: NativeBinary = {
+      format: 'mach-o',
+      slices: [await readMachOSlice(source, 0)],
+    }
+    return binary
   }
   if (bigEndianMagic === MACHO.FAT_MAGIC || bigEndianMagic === MACHO.FAT_MAGIC_64) {
     return readFatMachO(source, bigEndianMagic)

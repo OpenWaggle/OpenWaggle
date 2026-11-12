@@ -23,7 +23,7 @@ const PAGE = `
   </dialog>
 `
 
-function element<T extends Element>(id: string, type: new () => T): T {
+function element<T extends Element>(id: string, type: new () => T) {
   const found = document.getElementById(id)
   if (!(found instanceof type)) throw new Error(`#${id} is missing.`)
   return found

@@ -69,7 +69,7 @@ function splitPage(text: string) {
   }
 }
 
-function pages(): DocPage[] {
+function pages() {
   return docsPageFiles()
     .map(({ slug, text }) => {
       const { frontmatter, body, bodyLine } = splitPage(text)

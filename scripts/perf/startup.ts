@@ -68,7 +68,7 @@ function numberOption(raw: string | undefined, fallback: number) {
   return parsed
 }
 
-function resolveApps(): PerfApp[] {
+function resolveApps() {
   const appPaths = values.app ?? []
   if (appPaths.length === 0) {
     process.stderr.write('Use --app <OpenWaggle.app | built checkout> (repeatable) (macOS only).\n')

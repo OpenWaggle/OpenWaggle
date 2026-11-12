@@ -34,16 +34,17 @@ async function readOrNull(read: () => Promise<Buffer | string>) {
 }
 
 /** `appPath` is an `OpenWaggle.app` bundle or a built checkout, as `--app` accepts. */
-export async function readAppIdentity(appPath: string): Promise<AppIdentity> {
+export async function readAppIdentity(appPath: string) {
   const resolved = path.resolve(appPath)
   if (resolved.endsWith('.app')) {
     const archive = await readAsarArchive(path.join(resolved, PACKAGED_ASAR))
-    return {
+    const identity: AppIdentity = {
       appVersion: field(await readOrNull(() => archive.readFile('/package.json')), 'version'),
       commit: field(await readOrNull(() => archive.readFile('/out/build-meta.json')), 'commit'),
     }
+    return identity
   }
-  return {
+  const identity: AppIdentity = {
     appVersion: field(
       await readOrNull(() => readFile(path.join(resolved, 'package.json'), 'utf8')),
       'version',
@@ -53,4 +54,5 @@ export async function readAppIdentity(appPath: string): Promise<AppIdentity> {
       'commit',
     ),
   }
+  return identity
 }

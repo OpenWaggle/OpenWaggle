@@ -37,7 +37,7 @@ function stringField(record: Record<string, unknown>, name: string) {
 /** `aws sts get-session-token` wraps the credentials in `Credentials`; `export-credentials` does not. */
 const credentialsEnvelopeSchema = Schema.Struct({ Credentials: unknownField })
 
-function parseCredentials(raw: string, source: string): ExportedCredentials {
+function parseCredentials(raw: string, source: string) {
   const parsed: unknown = JSON.parse(raw)
   const wrapped = objectFields(credentialsEnvelopeSchema, parsed)?.Credentials
   const record = isRecord(wrapped) ? wrapped : parsed
@@ -45,12 +45,13 @@ function parseCredentials(raw: string, source: string): ExportedCredentials {
   const accessKeyId = stringField(record, 'AccessKeyId')
   const secretAccessKey = stringField(record, 'SecretAccessKey')
   if (!accessKeyId || !secretAccessKey) throw new Error(`${source} printed no access key.`)
-  return {
+  const credentials: ExportedCredentials = {
     accessKeyId,
     secretAccessKey,
     sessionToken: stringField(record, 'SessionToken'),
     expires: stringField(record, 'Expiration') !== null,
   }
+  return credentials
 }
 
 /**
@@ -62,9 +63,12 @@ function parseCredentials(raw: string, source: string): ExportedCredentials {
 export function shortLivedAwsEnvironment(
   environment: Readonly<Record<string, string>>,
   aws: AwsCli = defaultAwsCli,
-): Record<string, string> {
+) {
   const { AWS_PROFILE: profile, ...rest } = environment
-  if (!profile) return { ...environment }
+  if (!profile) {
+    const record: Record<string, string> = { ...environment }
+    return record
+  }
   const exportArgs = [
     'configure',
     'export-credentials',
@@ -91,11 +95,12 @@ export function shortLivedAwsEnvironment(
     scriptEnv(rest).AWS_REGION ??
     scriptEnv(rest).AWS_DEFAULT_REGION ??
     aws(['configure', 'get', 'region', '--profile', profile]).trim()
-  return {
+  const record: Record<string, string> = {
     ...rest,
     AWS_ACCESS_KEY_ID: credentials.accessKeyId,
     AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
     ...(credentials.sessionToken ? { AWS_SESSION_TOKEN: credentials.sessionToken } : {}),
     ...(region ? { AWS_REGION: region } : {}),
   }
+  return record
 }

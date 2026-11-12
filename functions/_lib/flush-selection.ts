@@ -76,7 +76,7 @@ export async function listBufferKeys(
   store: KeyValueStore,
   budget: OperationBudget,
   start: string | undefined,
-): Promise<BufferListing> {
+) {
   const keys: string[] = []
   let cursor = start
   for (let page = 0; page < LIST_MAX_PAGES && budget.allows(1); page += 1) {
@@ -87,15 +87,19 @@ export async function listBufferKeys(
     })
     keys.push(...result.keys.map(({ name }) => name))
     if (result.list_complete || result.cursor === undefined) {
-      return { keys, complete: result.list_complete }
+      return { keys, complete: result.list_complete } satisfies BufferListing
     }
     cursor = result.cursor
   }
-  return { keys, complete: false, ...(cursor === undefined ? {} : { cursor }) }
+  return {
+    keys,
+    complete: false,
+    ...(cursor === undefined ? {} : { cursor }),
+  } satisfies BufferListing
 }
 
 /** Listed buffer keys grouped by day, oldest day first. Keys the endpoint did not write are left. */
-export function dayGroups(keys: readonly string[]): DayGroup[] {
+export function dayGroups(keys: readonly string[]) {
   const groups = new Map<string, string[]>()
   for (const key of keys) {
     const day = bufferKeyDay(key)
@@ -177,7 +181,7 @@ export async function selectEntries(
   keys: readonly string[],
   todayEpochDay: number,
   budget: OperationBudget,
-): Promise<FlushSelection> {
+) {
   let remaining = 0
   let held = 0
   const corrupt: string[] = []

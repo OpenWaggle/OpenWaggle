@@ -72,7 +72,7 @@ type ExecDmgbuildWithRetry = (
 ) => Promise<string>
 
 /** Loads the retry helper from the patched dmg-builder that electron-builder actually uses. */
-function loadExecDmgbuildWithRetry(): ExecDmgbuildWithRetry {
+function loadExecDmgbuildWithRetry() {
   const rootRequire = createRequire(import.meta.url)
   const electronBuilderRequire = createRequire(rootRequire.resolve('electron-builder/package.json'))
   const appBuilderRequire = createRequire(
@@ -86,7 +86,8 @@ function loadExecDmgbuildWithRetry(): ExecDmgbuildWithRetry {
   if (typeof candidate !== 'function') {
     throw new Error('The installed dmg-builder is missing the OpenWaggle retry patch.')
   }
-  return async (...args) => String(await Reflect.apply(candidate, undefined, args))
+  return (async (...args) =>
+    String(await Reflect.apply(candidate, undefined, args))) satisfies ExecDmgbuildWithRetry
 }
 
 // The shim is a POSIX shell script, and the patched helper only runs on macOS release builds.

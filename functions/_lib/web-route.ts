@@ -4,7 +4,6 @@ import type { IncomingRequest } from './cloudflare'
 import { statisticsStore } from './environment'
 import { emptyResponse, HTTP_STATUS, jsonResponse, parseJsonBytes, readLimitedBody } from './http'
 import {
-  type PostHogEvent,
   type PostHogPropertyValue,
   personlessProperties,
   postHogSetting,
@@ -57,7 +56,7 @@ export function webPostHogEvent(
   beacon: WebBeacon,
   input: { readonly visitor: string; readonly country: string; readonly origin: string },
   now: number,
-): PostHogEvent {
+) {
   const host = new URL(input.origin).hostname
   const source = referrerDetails(beacon, host)
   const properties: Record<string, PostHogPropertyValue> = {
@@ -76,12 +75,16 @@ export function webPostHogEvent(
   return { event, timestamp: new Date(now).toISOString(), properties }
 }
 
-function rejectBeacon(status: number, field: string, reason: string): RouteResult {
-  return { response: jsonResponse(status, { error: reason }), outcome: 'rejected', field }
+function rejectBeacon(status: number, field: string, reason: string) {
+  return {
+    response: jsonResponse(status, { error: reason }),
+    outcome: 'rejected',
+    field,
+  } satisfies RouteResult
 }
 
-function skipBeacon(status: number): RouteResult {
-  return { response: emptyResponse(status), outcome: 'skipped' }
+function skipBeacon(status: number) {
+  return { response: emptyResponse(status), outcome: 'skipped' } satisfies RouteResult
 }
 
 async function readBeacon(request: IncomingRequest) {
@@ -103,7 +106,7 @@ async function readBeacon(request: IncomingRequest) {
  * status: 204 for a Do Not Track or Global Privacy Control signal or an automated client, 202
  * without `POSTHOG_PROJECT_KEY`, and 503 for a refused `POSTHOG_HOST` or without `STATS_KV`.
  */
-export async function handleWebRequest(context: RouteContext): Promise<RouteResult> {
+export async function handleWebRequest(context: RouteContext) {
   const { request, environment, dependencies } = context
   if (!isAllowedBeaconOrigin(request)) {
     return rejectBeacon(HTTP_STATUS.forbidden, 'origin', 'not an openwaggle.ai page')
@@ -139,11 +142,15 @@ export async function handleWebRequest(context: RouteContext): Promise<RouteResu
   })
   const forwarded = await sendPostHogEvents([event, accounting], posthog.target, dependencies.fetch)
   if (forwarded.ok) {
-    return { response: emptyResponse(HTTP_STATUS.noContent), outcome: 'accepted', accounted: true }
+    return {
+      response: emptyResponse(HTTP_STATUS.noContent),
+      outcome: 'accepted',
+      accounted: true,
+    } satisfies RouteResult
   }
   return {
     response: jsonResponse(HTTP_STATUS.badGateway, { error: forwarded.reason }),
     outcome: 'forward_failed',
     accounted: true,
-  }
+  } satisfies RouteResult
 }

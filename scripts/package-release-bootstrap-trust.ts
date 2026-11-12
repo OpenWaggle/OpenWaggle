@@ -55,7 +55,7 @@ const isAuthenticationHandoff = Schema.is(
   Schema.Struct({ title: Schema.Literal('Authenticate your account at'), url: Schema.String }),
 )
 
-export function parseTrustListOutput(value: string): unknown {
+export function parseTrustListOutput(value: string) {
   const configurations = jsonObjects(value).filter((item) => !isAuthenticationHandoff(item))
   if (configurations.length === 0) return []
   if (configurations.length === 1) return configurations[0]

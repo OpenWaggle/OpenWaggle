@@ -61,7 +61,7 @@ interface CompilePass {
 function compilePasses(
   installerScriptPath: string,
   placements: ReadonlyMap<string, HookPlacement>,
-): readonly CompilePass[] {
+) {
   const forPass = (pass: CompilePassName, context: HookContext) =>
     [...placements.entries()]
       .filter(([, place]) => place.passes.includes(pass) && place.context === context)
@@ -93,7 +93,7 @@ function compilePasses(
   const callIfDefined = (name: string, macros: readonly string[]) =>
     macros.length === 0 ? [] : [`  Call ${name}`]
 
-  return [
+  const result: readonly CompilePass[] = [
     {
       label: 'installer',
       defines: [],
@@ -125,6 +125,7 @@ function compilePasses(
       ].join('\n'),
     },
   ]
+  return result
 }
 
 function isMissingMakensis(error: unknown) {
@@ -186,7 +187,7 @@ function commandOutput(error: unknown) {
  * from the canonical electron-builder config (docs/adr/0032 moved it to a `.ts`
  * config), or null when it is absent or not a single path.
  */
-async function resolveInstallerScript(): Promise<string | null> {
+async function resolveInstallerScript() {
   const { default: config } = await import('../electron-builder')
   const include = config.nsis.include
   return include.length > 0 ? include : null

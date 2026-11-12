@@ -22,7 +22,7 @@ function isBunRuntime() {
 }
 
 /** The Node.js executable on `PATH` (or this process, when it already is Node) and its version. */
-export function nodeRuntime(): NodeRuntime {
+export function nodeRuntime() {
   if (!isBunRuntime()) return { execPath: process.execPath, version: process.versions.node }
   cachedNodeRuntime ??= readNodeRuntime()
   return cachedNodeRuntime
@@ -57,7 +57,7 @@ export function pathWithoutBunNode(
     .join(delimiter)
 }
 
-function readNodeRuntime(): NodeRuntime {
+function readNodeRuntime() {
   let output: string
   try {
     output = execFileSync(

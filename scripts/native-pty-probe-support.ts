@@ -79,17 +79,20 @@ export interface Backend {
 
 export type PtyProbeProfile = 'runtime' | 'all-backends'
 
-export function parsePtyProbeProfile(value: string | undefined): PtyProbeProfile {
-  if (value === undefined) return 'runtime'
-  if (isMatching(P.union('runtime', 'all-backends'), value)) return value
-  throw new Error(`Unknown PTY probe profile: ${value}`)
-}
-
 export interface PtyIdentity {
   readonly pid: number
   readonly descendantPid: number
   readonly stdinTty: boolean
   readonly stdoutTty: boolean
+}
+
+export function parsePtyProbeProfile(value: string | undefined) {
+  if (value === undefined) return 'runtime' as const
+  if (isMatching(P.union('runtime', 'all-backends'), value)) {
+    const profile: PtyProbeProfile = value
+    return profile
+  }
+  throw new Error(`Unknown PTY probe profile: ${value}`)
 }
 
 function hasFunctionProperties(value: object, propertyNames: readonly string[]) {
@@ -116,11 +119,8 @@ function isProbedPty(value: unknown): value is ProbedPty {
   )
 }
 
-export function backends(
-  platform: NodeJS.Platform,
-  profile: PtyProbeProfile = 'runtime',
-): readonly Backend[] {
-  if (platform !== 'win32') return [{ label: 'Unix PTY', options: {} }]
+export function backends(platform: NodeJS.Platform, profile: PtyProbeProfile = 'runtime') {
+  if (platform !== 'win32') return [{ label: 'Unix PTY', options: {} }] satisfies readonly Backend[]
   if (profile === 'runtime') {
     // Match the app (and T3 Code): let node-pty select the host's backend.
     // Also verify the bundled binary we package. Forced legacy WinPTY stress
@@ -128,13 +128,13 @@ export function backends(
     return [
       { label: 'Windows default PTY', options: {} },
       { label: 'bundled ConPTY', options: { useConpty: true, useConptyDll: true } },
-    ]
+    ] satisfies readonly Backend[]
   }
   return [
     { label: 'system ConPTY', options: { useConpty: true, useConptyDll: false } },
     { label: 'bundled ConPTY', options: { useConpty: true, useConptyDll: true } },
     { label: 'WinPTY', options: { useConpty: false } },
-  ]
+  ] satisfies readonly Backend[]
 }
 
 export function assertPatchedPty(value: unknown, backend: Backend, platform: NodeJS.Platform) {
@@ -159,7 +159,7 @@ export function assertPatchedPty(value: unknown, backend: Backend, platform: Nod
   return value
 }
 
-export function parseIdentity(output: string): PtyIdentity {
+export function parseIdentity(output: string) {
   const prefixIndex = output.indexOf(IDENTITY_PREFIX)
   const lineEnd = output.indexOf(IDENTITY_SUFFIX, prefixIndex)
   if (prefixIndex === -1 || lineEnd === -1) throw new Error('PTY identity record was incomplete.')
@@ -185,7 +185,8 @@ export function parseIdentity(output: string): PtyIdentity {
   ) {
     throw new Error(`PTY identity failed: ${serialized}`)
   }
-  return value
+  const identity: PtyIdentity = value
+  return identity
 }
 
 export function assertExitEvent(label: string, event: ExitEvent) {

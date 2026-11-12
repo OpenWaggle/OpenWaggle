@@ -26,15 +26,13 @@ export interface PreCommitPlan {
 }
 
 /** Which staged files the hook formats. */
-export function planPreCommitFormat(
-  staged: readonly string[],
-  unstaged: readonly string[],
-): PreCommitPlan {
+export function planPreCommitFormat(staged: readonly string[], unstaged: readonly string[]) {
   const unstagedSet = new Set(unstaged)
-  return {
+  const plan: PreCommitPlan = {
     format: staged.filter((file) => !unstagedSet.has(file)),
     partiallyStaged: staged.filter((file) => unstagedSet.has(file)),
   }
+  return plan
 }
 
 /** Splits `git ... -z` output into paths. */

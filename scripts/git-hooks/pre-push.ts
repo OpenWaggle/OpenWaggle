@@ -32,7 +32,7 @@ const MAIN_REF = 'refs/heads/main'
 const REF_UPDATE_FIELDS = 4
 const GIT_ENVIRONMENT = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']
 
-export function parseRefUpdates(stdin: string): RefUpdate[] {
+export function parseRefUpdates(stdin: string) {
   return stdin.split('\n').flatMap((line) => {
     const fields = line.trim().split(/\s+/)
     if (fields.length !== REF_UPDATE_FIELDS) {
@@ -44,7 +44,7 @@ export function parseRefUpdates(stdin: string): RefUpdate[] {
 }
 
 /** What the hook does for these ref updates. */
-export function planPrePush(updates: readonly RefUpdate[], git: PushGit): PrePushPlan {
+export function planPrePush(updates: readonly RefUpdate[], git: PushGit) {
   const pushes = updates.filter((update) => !ZERO_SHA.test(update.localSha))
   const unknown = pushes.filter(
     (update) => !ZERO_SHA.test(update.remoteSha) && !git.commitExists(update.remoteSha),
@@ -59,21 +59,21 @@ export function planPrePush(updates: readonly RefUpdate[], git: PushGit): PrePus
     return {
       kind: 'reject',
       message: `pre-push: refusing a force push to ${refList(rewrites)}: it drops commits from the remote. Push new commits on top instead (merge the base branch, or revert).`,
-    }
+    } satisfies PrePushPlan
   }
   if (unknown.length > 0) {
     return {
       kind: 'reject',
       message: `pre-push: the remote ${refList(unknown)} has commits this clone has not fetched. Fetch and merge them, then push again.`,
-    }
+    } satisfies PrePushPlan
   }
   if (pushes.length === 0) {
-    return { kind: 'skip' }
+    return { kind: 'skip' } satisfies PrePushPlan
   }
   return {
     kind: 'run',
     script: pushes.some((update) => update.remoteRef === MAIN_REF) ? 'prepush:main' : 'verify',
-  }
+  } satisfies PrePushPlan
 }
 
 function refList(updates: readonly RefUpdate[]) {
@@ -81,14 +81,14 @@ function refList(updates: readonly RefUpdate[]) {
 }
 
 /** The real repository at `cwd`. */
-export function localPushGit(cwd = process.cwd()): PushGit {
+export function localPushGit(cwd = process.cwd()) {
   const succeeds = (args: readonly string[]) =>
     spawnSync('git', args, { cwd, stdio: 'ignore' }).status === 0
   return {
     commitExists: (sha) => succeeds(['cat-file', '-e', `${sha}^{commit}`]),
     isAncestor: (ancestor, descendant) =>
       succeeds(['merge-base', '--is-ancestor', ancestor, descendant]),
-  }
+  } satisfies PushGit
 }
 
 async function readStdin() {

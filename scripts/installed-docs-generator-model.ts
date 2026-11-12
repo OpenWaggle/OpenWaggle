@@ -28,11 +28,6 @@ const HASH_ALGORITHM = 'sha256'
 const HASH_ENCODING = 'hex'
 const FRONTMATTER_MAX_SPLIT_PARTS = 2
 
-interface FrontmatterResult {
-  readonly fields: ReadonlyMap<string, string>
-  readonly body: string
-}
-
 export interface InstalledDocTopic {
   readonly topic: string
   readonly source: typeof OPENWAGGLE_GROUP.id | typeof PI_GROUP.id
@@ -89,16 +84,16 @@ function parseFrontmatterFields(frontmatter: string) {
   return fields
 }
 
-export function parseFrontmatter(content: string): FrontmatterResult {
+export function parseFrontmatter(content: string) {
   const normalized = content.replaceAll('\r\n', '\n')
   if (!normalized.startsWith(`${FRONTMATTER_DELIMITER}\n`)) {
-    return { fields: new Map(), body: normalized }
+    return { fields: new Map<string, string>(), body: normalized }
   }
 
   const closing = `\n${FRONTMATTER_DELIMITER}\n`
   const closingIndex = normalized.indexOf(closing, FRONTMATTER_DELIMITER.length)
   if (closingIndex === -1) {
-    return { fields: new Map(), body: normalized }
+    return { fields: new Map<string, string>(), body: normalized }
   }
 
   const frontmatter = normalized.slice(FRONTMATTER_DELIMITER.length + 1, closingIndex)

@@ -88,7 +88,7 @@ function compareStableVersions(left: string, right: string) {
 export async function resolvePackageReleasePlan(
   source: Readonly<{ beforeSha: string; sourceSha: string; sourceTree: string }>,
   readPackageVersion: ReadPackageVersion,
-): Promise<PackageReleasePlan> {
+) {
   const resolvedVersions = await Promise.all(
     PACKAGE_RELEASE_DEFINITIONS.map(async (definition) => {
       const [beforeVersion, version] = await Promise.all([
@@ -110,12 +110,13 @@ export async function resolvePackageReleasePlan(
     packages.push({ ...definition, tag: `${definition.key}-v${version}`, version })
   }
   assertRequiredDependentReleases(packages)
-  return {
+  const plan: PackageReleasePlan = {
     packages,
     schemaVersion: 1,
     sourceSha: source.sourceSha,
     sourceTree: source.sourceTree,
   }
+  return plan
 }
 
 function run(command: string, args: readonly string[]) {
@@ -148,8 +149,8 @@ interface PlanPackageRecord {
   readonly dependency?: unknown
 }
 
-function planPackageRecord(value: object): PlanPackageRecord {
-  return {
+function planPackageRecord(value: object) {
+  const record: PlanPackageRecord = {
     key: 'key' in value ? value.key : undefined,
     name: 'name' in value ? value.name : undefined,
     packagePath: 'packagePath' in value ? value.packagePath : undefined,
@@ -157,9 +158,10 @@ function planPackageRecord(value: object): PlanPackageRecord {
     tag: 'tag' in value ? value.tag : undefined,
     dependency: 'dependency' in value ? value.dependency : undefined,
   }
+  return record
 }
 
-function decodePlanPackage(value: unknown): PackageReleasePlanItem {
+function decodePlanPackage(value: unknown) {
   if (!isJsonObject(value)) throw new Error('Package release plan contains a non-object package.')
   const planned = planPackageRecord(value)
   const definition = PACKAGE_RELEASE_DEFINITIONS.find(({ key }) => key === planned.key)
@@ -177,7 +179,12 @@ function decodePlanPackage(value: unknown): PackageReleasePlanItem {
     throw new Error('Package release plan contains an invalid package contract.')
   }
   stableSemverParts(version)
-  return { ...definition, tag: `${definition.key}-v${version}`, version }
+  const item: PackageReleasePlanItem = {
+    ...definition,
+    tag: `${definition.key}-v${version}`,
+    version,
+  }
+  return item
 }
 
 interface PlanRecord {
@@ -201,7 +208,7 @@ function isPlanRecord(value: unknown): value is PlanRecord {
   )
 }
 
-export function decodePackageReleasePlan(value: unknown): PackageReleasePlan {
+export function decodePackageReleasePlan(value: unknown) {
   if (!isPlanRecord(value)) {
     throw new Error('Package release plan is invalid.')
   }
@@ -211,12 +218,13 @@ export function decodePackageReleasePlan(value: unknown): PackageReleasePlan {
     throw new Error('Package release plan contains duplicate packages.')
   }
   assertRequiredDependentReleases(packages)
-  return {
+  const plan: PackageReleasePlan = {
     packages,
     schemaVersion: 1,
     sourceSha: value.sourceSha,
     sourceTree: value.sourceTree,
   }
+  return plan
 }
 
 async function readPackageVersionAtRevision(revision: string, packagePath: string) {

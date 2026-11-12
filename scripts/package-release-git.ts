@@ -111,9 +111,10 @@ export async function commitsTouching(cwd: string, range: string, packagePath: s
   return commits
 }
 
-function lineOrder(line: string): readonly [number, number] {
+function lineOrder(line: string) {
   const { major, minor } = namedGroups(DOCS_LINE_PATTERN.exec(line), ['major', 'minor']) ?? {}
-  return [Number(major), Number(minor)]
+  const result: readonly [number, number] = [Number(major), Number(minor)]
+  return result
 }
 
 /** The published `<major>.<minor>` docs directories at `to`, oldest first by number (0.9 before 0.10). */

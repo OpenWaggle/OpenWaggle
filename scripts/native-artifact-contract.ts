@@ -17,7 +17,7 @@ export interface NativeArtifactRequirement {
 
 const VERSION_TOKEN = '{version}'
 
-export function currentNativeArtifactRuntime(): NativeArtifactRuntime {
+export function currentNativeArtifactRuntime() {
   return {
     platform: process.platform,
     arch: process.arch,
@@ -25,10 +25,7 @@ export function currentNativeArtifactRuntime(): NativeArtifactRuntime {
   }
 }
 
-export function nativeArtifactRequirements(
-  packageName: string,
-  runtime: NativeArtifactRuntime,
-): readonly NativeArtifactRequirement[] {
+export function nativeArtifactRequirements(packageName: string, runtime: NativeArtifactRuntime) {
   if (packageName === 'node-pty') return nodePtyRequirements(runtime)
   if (packageName === 'better-sqlite3') return betterSqliteRequirements(runtime)
   if (packageName === 'sharp') return sharpRequirements(runtime)
@@ -46,7 +43,7 @@ export function materializeNativeArtifactPath(
   return template.replaceAll(VERSION_TOKEN, packageVersion)
 }
 
-function nodePtyRequirements(runtime: NativeArtifactRuntime): readonly NativeArtifactRequirement[] {
+function nodePtyRequirements(runtime: NativeArtifactRuntime) {
   const requirements: NativeArtifactRequirement[] = [
     exactRequirement('patched PTY addon', 'node-pty', 'build/Release/pty.node'),
   ]
@@ -76,11 +73,9 @@ function nodePtyRequirements(runtime: NativeArtifactRuntime): readonly NativeArt
   return requirements
 }
 
-function betterSqliteRequirements(
-  runtime: NativeArtifactRuntime,
-): readonly NativeArtifactRequirement[] {
+function betterSqliteRequirements(runtime: NativeArtifactRuntime) {
   const target = nativeTarget(runtime)
-  return [
+  const requirement: readonly NativeArtifactRequirement[] = [
     {
       label: 'SQLite addon selected by better-sqlite3',
       candidates: [
@@ -90,11 +85,12 @@ function betterSqliteRequirements(
       ],
     },
   ]
+  return requirement
 }
 
-function sharpRequirements(runtime: NativeArtifactRuntime): readonly NativeArtifactRequirement[] {
+function sharpRequirements(runtime: NativeArtifactRuntime) {
   const target = nativeTarget(runtime)
-  return [
+  const requirement: readonly NativeArtifactRequirement[] = [
     {
       label: 'Sharp addon selected for the active platform',
       candidates: [
@@ -109,6 +105,7 @@ function sharpRequirements(runtime: NativeArtifactRuntime): readonly NativeArtif
       ],
     },
   ]
+  return requirement
 }
 
 function exactRequirement(
@@ -116,8 +113,12 @@ function exactRequirement(
   packageName: string,
   relativePath: string,
   executable = false,
-): NativeArtifactRequirement {
-  return { label, candidates: [{ packageName, relativePath }], executable }
+) {
+  return {
+    label,
+    candidates: [{ packageName, relativePath }],
+    executable,
+  } satisfies NativeArtifactRequirement
 }
 
 function nativeTarget(runtime: NativeArtifactRuntime) {
@@ -126,15 +127,15 @@ function nativeTarget(runtime: NativeArtifactRuntime) {
   return `${platform}-${runtime.arch}`
 }
 
-function currentLinuxLibc(): NativeArtifactRuntime['libc'] {
-  if (process.platform !== 'linux') return 'glibc'
+function currentLinuxLibc() {
+  if (process.platform !== 'linux') return 'glibc' as const
   const report: unknown = process.report.getReport()
-  if (typeof report !== 'object' || report === null || !('header' in report)) return 'musl'
+  if (typeof report !== 'object' || report === null || !('header' in report)) return 'musl' as const
   const { header } = report
   return typeof header === 'object' &&
     header !== null &&
     'glibcVersionRuntime' in header &&
     typeof header.glibcVersionRuntime === 'string'
-    ? 'glibc'
-    : 'musl'
+    ? ('glibc' as const)
+    : ('musl' as const)
 }

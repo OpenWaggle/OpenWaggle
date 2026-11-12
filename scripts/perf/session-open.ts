@@ -70,17 +70,18 @@ const profileManifestSchema = Schema.Struct({
   sessionListText: Schema.String,
 })
 
-async function readManifest(template: string): Promise<ProfileManifest> {
+async function readManifest(template: string) {
   const parsed: unknown = JSON.parse(await readFile(path.join(template, 'profile.json'), 'utf8'))
   if (!Schema.is(profileManifestSchema)(parsed)) {
     throw new Error('Not a generated profile.')
   }
-  return {
+  const manifest: ProfileManifest = {
     largeSessions: parsed.largeSessions.filter(
       (title): title is string => typeof title === 'string',
     ),
     sessionListText: parsed.sessionListText,
   }
+  return manifest
 }
 
 /**
@@ -192,7 +193,7 @@ async function measureOpen(
   )
 }
 
-function openOptions(): OpenOptions {
+function openOptions() {
   const mode: OpenMode = values.mode === 'cross-project' ? 'cross-project' : 'first'
   if (values.mode !== undefined && values.mode !== mode) {
     process.stderr.write('--mode is first (default) or cross-project\n')
@@ -202,7 +203,8 @@ function openOptions(): OpenOptions {
     values['switch-delay'] ?? String(DEFAULT_SWITCH_DELAY_MS),
     DECIMAL,
   )
-  return { mode, switchDelayMs }
+  const options: OpenOptions = { mode, switchDelayMs }
+  return options
 }
 
 async function main() {

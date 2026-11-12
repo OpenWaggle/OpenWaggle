@@ -73,7 +73,7 @@ function hasNativeRebuildMarkerScalars(
   )
 }
 
-export function parseNativeRebuildMarker(value: unknown): NativeRebuildMarker | null {
+export function parseNativeRebuildMarker(value: unknown) {
   if (
     !(
       typeof value === 'object' &&

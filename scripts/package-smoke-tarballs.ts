@@ -71,10 +71,7 @@ async function listTarballPackageFiles(tarballPath: string) {
     .filter((entry) => entry.length > 0)
 }
 
-export async function validatePackedPackage(
-  spec: PackageSpec,
-  tarballPath: string,
-): Promise<PackedPackage> {
+export async function validatePackedPackage(spec: PackageSpec, tarballPath: string) {
   const manifest = await readPackedManifest(tarballPath)
   const readme = await readPackedTextFile(tarballPath, 'README.md')
   const files = await listTarballPackageFiles(tarballPath)

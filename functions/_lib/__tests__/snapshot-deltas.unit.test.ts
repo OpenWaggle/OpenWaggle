@@ -3,7 +3,7 @@ import type { UsageStatsSnapshot } from '../snapshot-contract'
 import { computeSnapshotDeltas, parseSnapshotState, type SnapshotState } from '../snapshot-deltas'
 import { NOW } from './test-support'
 
-function snapshot(overrides: Partial<UsageStatsSnapshot> = {}): UsageStatsSnapshot {
+function snapshot(overrides: Partial<UsageStatsSnapshot> = {}) {
   return {
     schema: 1,
     releases: [
@@ -24,7 +24,7 @@ function snapshot(overrides: Partial<UsageStatsSnapshot> = {}): UsageStatsSnapsh
     },
     npm: [{ name: '@openwaggle/extension-sdk', days: [{ day: '2026-09-30', downloads: 3 }] }],
     ...overrides,
-  }
+  } satisfies UsageStatsSnapshot
 }
 
 const DAY = 86_400_000

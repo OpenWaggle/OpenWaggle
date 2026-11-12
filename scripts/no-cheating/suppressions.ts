@@ -28,27 +28,27 @@ export function isSuppressionCandidate(file: string) {
   return CODE_FILE.test(file) && !EXEMPT_FILE.test(file)
 }
 
-export function suppressions(text: string): Suppression[] {
-  return text.split('\n').flatMap((line, index) => {
+export function suppressions(text: string) {
+  const suppression: Suppression[] = text.split('\n').flatMap((line, index) => {
     const match = DIRECTIVE.exec(line)
     const directive = namedGroups(match, ['directive'])?.directive
     if (match === null || directive === undefined) return []
     return [{ line: index + 1, column: match.index + 1, directive, text: line.trim() }]
   })
+  return suppression
 }
 
 /** Suppressions in `after` beyond those `before` had, matched by their line text. */
-export function newSuppressions(
-  file: string,
-  before: string | undefined,
-  after: string,
-): Finding[] {
-  if (!isSuppressionCandidate(file)) return []
+export function newSuppressions(file: string, before: string | undefined, after: string) {
+  if (!isSuppressionCandidate(file)) {
+    const finding: Finding[] = []
+    return finding
+  }
   const remaining = new Map<string, number>()
   for (const existing of suppressions(before ?? '')) {
     remaining.set(existing.text, (remaining.get(existing.text) ?? 0) + 1)
   }
-  const directives = suppressions(after).flatMap((suppression): Finding[] => {
+  const directives = suppressions(after).flatMap<Finding>((suppression) => {
     const left = remaining.get(suppression.text) ?? 0
     if (left > 0) {
       remaining.set(suppression.text, left - 1)
@@ -63,13 +63,17 @@ export function newSuppressions(
       },
     ]
   })
-  return [...directives, ...silencingCasts(file, before, after)]
+  const finding: Finding[] = [...directives, ...silencingCasts(file, before, after)]
+  return finding
 }
 
 /** Casts that turn the type checker off for a value, added since `before`. */
-function silencingCasts(file: string, before: string | undefined, after: string): Finding[] {
-  if (!TYPESCRIPT_FILE.test(file)) return []
-  return addedLines(before, after).flatMap((added) => {
+function silencingCasts(file: string, before: string | undefined, after: string) {
+  if (!TYPESCRIPT_FILE.test(file)) {
+    const finding: Finding[] = []
+    return finding
+  }
+  return addedLines(before, after).flatMap<Finding>((added) => {
     const match = SILENCING_CAST.exec(added.text)
     const cast = namedGroups(match, ['cast'])?.cast
     if (match === null || cast === undefined) return []

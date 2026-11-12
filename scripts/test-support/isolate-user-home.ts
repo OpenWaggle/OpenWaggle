@@ -17,7 +17,7 @@ import path from 'node:path'
 import { afterAll, beforeEach, expect, inject } from 'vitest'
 import { scriptEnv } from '../support/env'
 import { createTestTemporaryDirectory } from './temporary-directory-guard'
-import { assertTestUserLocationsIsolated, type TestUserLocations } from './user-home-guard'
+import { assertTestUserLocationsIsolated } from './user-home-guard'
 
 const realHome = os.userInfo().homedir
 const runRoot = inject('openwaggleTestTemporaryRoot')
@@ -50,7 +50,7 @@ const UNSET_VARIABLES = [
 ] as const
 for (const name of UNSET_VARIABLES) delete environment[name]
 
-function currentLocations(): TestUserLocations {
+function currentLocations() {
   const currentHome = os.homedir()
   const env = scriptEnv(environment)
   return {

@@ -137,8 +137,8 @@ function exportedSymbols(
   sections: ReadonlyMap<string, string>,
   declarationPath: string,
   visiting: ReadonlySet<string> = new Set(),
-): readonly ApiSymbol[] {
-  if (visiting.has(declarationPath)) return []
+) {
+  if (visiting.has(declarationPath)) return [] satisfies readonly ApiSymbol[]
   const declaration = sections.get(declarationPath)
   if (declaration === undefined) {
     throw new Error(`Missing ${declarationPath} in the package API snapshot.`)
@@ -150,7 +150,9 @@ function exportedSymbols(
   mergeStarExports(symbols, sections, declarationPath, declaration, nextVisiting)
   mergeNamedExports(symbols, sections, declarationPath, declaration, nextVisiting)
 
-  return [...symbols.values()].sort((left, right) => left.name.localeCompare(right.name))
+  return [...symbols.values()].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  ) satisfies readonly ApiSymbol[]
 }
 
 const PACKAGE_MODULE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {

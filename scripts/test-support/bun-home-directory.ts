@@ -7,14 +7,12 @@
  */
 
 /** Node's own order: HOME on POSIX; USERPROFILE on Windows, which ignores HOME. */
-export function homeFromEnvironment(
-  environment: NodeJS.ProcessEnv,
-  platform: NodeJS.Platform,
-): string | undefined {
+export function homeFromEnvironment(environment: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
   // Destructured, not `scriptEnv`: this module backs the `node:os` alias, so it imports nothing.
   const { USERPROFILE: userProfile, HOME: home } = environment
   const value = platform === 'win32' ? userProfile : home
-  return value === undefined || value === '' ? undefined : value
+  const result: string | undefined = value === undefined || value === '' ? undefined : value
+  return result
 }
 
 interface HomedirOwner {

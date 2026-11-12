@@ -90,7 +90,7 @@ async function removeEntriesExcept(root: string, preservedPaths: readonly string
 export async function prepareQaProfileRemoval(
   userDataRoot: string,
   ownership: SessionHostOwnership,
-): Promise<AfterOwnershipReleased> {
+) {
   const profileRoot = path.resolve(userDataRoot)
   const lockPath = path.resolve(`${ownership.targetPath}${OWNERSHIP_DATABASE_SUFFIX}`)
   if (lockPath === profileRoot || !containsPath(profileRoot, lockPath)) {

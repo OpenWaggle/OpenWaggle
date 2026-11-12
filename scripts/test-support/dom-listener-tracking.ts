@@ -5,15 +5,19 @@
 /** The global, read as an object: a worker without jsdom has no `document` or `EventTarget`. */
 const scope: object = globalThis
 
-function persistentDomTargets(): unknown[] {
+function persistentDomTargets() {
   const document = 'document' in scope ? scope.document : undefined
-  if (typeof document !== 'object' || document === null) return []
-  return [
+  if (typeof document !== 'object' || document === null) {
+    const result: unknown[] = []
+    return result
+  }
+  const result: unknown[] = [
     document,
     'documentElement' in document ? document.documentElement : undefined,
     'body' in document ? document.body : undefined,
     'head' in document ? document.head : undefined,
   ]
+  return result
 }
 
 /** Whether listener options ask for the capture phase, which is part of a listener's identity. */
@@ -70,8 +74,10 @@ function wrapListenerMethods(
   const key = (target: unknown, [type, listener, options]: readonly unknown[]) =>
     `${tag}:${id(target)}:${String(type)}:${id(listener)}:${String(captures(options))}`
   const tracks = (target: unknown) => (targets.length === 0 ? true : targets.includes(target))
-  const removeFrom = (target: unknown, ...args: unknown[]): unknown =>
-    Reflect.apply(remove, target, args)
+  const removeFrom = (target: unknown, ...args: unknown[]) => {
+    const result: unknown = Reflect.apply(remove, target, args)
+    return result
+  }
   Object.assign(holder, {
     addEventListener: function trackedAdd(this: unknown, ...args: unknown[]) {
       if (tracks(this) && !addedByExternalDependency(new Error('listener').stack)) {

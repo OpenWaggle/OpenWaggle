@@ -25,7 +25,7 @@ export const INSTALL_PLACEHOLDERS: ReadonlyMap<string, string> = new Map([
 const PLACEHOLDER = /\{\{install-[^{}]*\}\}/gu
 
 /** Replaces every install placeholder in `text`. An unknown `{{install-…}}` placeholder throws. */
-export function substituteInstallPlaceholders(text: string): string {
+export function substituteInstallPlaceholders(text: string) {
   return text.replaceAll(PLACEHOLDER, (placeholder) => {
     const value = INSTALL_PLACEHOLDERS.get(placeholder)
     if (value === undefined) throw new Error(`Unknown install placeholder ${placeholder}.`)

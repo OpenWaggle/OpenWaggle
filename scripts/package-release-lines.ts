@@ -66,12 +66,6 @@ async function pullRequestTitleCommit(
   return touched ? [{ hash: PULL_REQUEST_TITLE_HASH, message: prTitle }] : []
 }
 
-interface ReleasedState {
-  readonly releasedVersion: string | undefined
-  /** Where the package's unreleased history starts: its release tag or the release commit; none if never released. */
-  readonly since: string | undefined
-}
-
 /**
  * The package's released version and where its unreleased commits start. Release Please treats the
  * manifest as the released version and finds that version's tag. Tags are only created after npm
@@ -83,7 +77,7 @@ async function releasedState(
   packagePath: string,
   component: string,
   manifestVersion: string | undefined,
-): Promise<ReleasedState | string> {
+) {
   const tags = await releasedTagVersions(options.cwd, component, options.to)
   const newestTag = tags.at(-1)?.toString()
   if (manifestVersion === undefined) {
@@ -125,9 +119,7 @@ async function readPackageState(
   packageConfig: object,
   config: object,
   manifestVersion: string | undefined,
-): Promise<
-  PackageReleaseLineState | { readonly problem: string; readonly kind: 'history' | 'config' }
-> {
+) {
   const slug = packagePath.replace(/^packages\//u, '')
   const component = stringField(packageConfig, 'component') ?? slug
   const rules = packageReleaseRules(packageConfig, config)
@@ -135,10 +127,16 @@ async function readPackageState(
     return {
       kind: 'config',
       problem: `${CONFIG_PATH} gives ${packagePath} ${rules}, so its next version cannot be predicted. Teach scripts/package-release-rules.ts that setting first.`,
-    }
+    } satisfies
+      | PackageReleaseLineState
+      | { readonly problem: string; readonly kind: 'history' | 'config' }
   }
   const released = await releasedState(options, packagePath, component, manifestVersion)
-  if (typeof released === 'string') return { kind: 'history', problem: released }
+  if (typeof released === 'string') {
+    return { kind: 'history', problem: released } satisfies
+      | PackageReleaseLineState
+      | { readonly problem: string; readonly kind: 'history' | 'config' }
+  }
   const range = released.since === undefined ? options.to : `${released.since}..${options.to}`
   const history: ReleaseCommit[] = await commitsTouching(options.cwd, range, packagePath)
   return {
@@ -158,13 +156,13 @@ async function readPackageState(
       '-e',
       `${options.to}:${PENDING_DOCS_ROOT}/${slug}/index.md`,
     ]),
-  }
+  } satisfies
+    | PackageReleaseLineState
+    | { readonly problem: string; readonly kind: 'history' | 'config' }
 }
 
 /** Reads Release Please's config, tags, commits and the docs tree at `to`, then applies the version rules. */
-export async function checkPackageReleaseLines(
-  options: PackageReleaseLineCheckOptions,
-): Promise<PackageReleaseLineCheckResult> {
+export async function checkPackageReleaseLines(options: PackageReleaseLineCheckOptions) {
   const config = await readJsonAt(options.cwd, options.to, CONFIG_PATH)
   const configuredPackages = config === undefined ? undefined : objectField(config, 'packages')
   if (config === undefined || configuredPackages === undefined) {
@@ -180,7 +178,8 @@ export async function checkPackageReleaseLines(
           `Cannot predict package documentation lines: ${CONFIG_PATH} is not valid JSON with a packages object.`,
         ]
       : []
-    return { packages: [], skipped: [], violations }
+    const result: PackageReleaseLineCheckResult = { packages: [], skipped: [], violations }
+    return result
   }
   const manifest = await readJsonAt(options.cwd, options.to, MANIFEST_PATH)
   const shallow =
@@ -216,9 +215,19 @@ export async function checkPackageReleaseLines(
     ...configProblems.map((problem) => `Cannot predict package documentation lines: ${problem}`),
     ...(await packageReleaseLineViolations(packages)),
   ]
-  if (historyProblems.length === 0) return { packages, skipped: [], violations }
-  if (options.missingHistory === 'skip') return { packages, skipped: historyProblems, violations }
-  return {
+  if (historyProblems.length === 0) {
+    const result: PackageReleaseLineCheckResult = { packages, skipped: [], violations }
+    return result
+  }
+  if (options.missingHistory === 'skip') {
+    const result: PackageReleaseLineCheckResult = {
+      packages,
+      skipped: historyProblems,
+      violations,
+    }
+    return result
+  }
+  const result: PackageReleaseLineCheckResult = {
     packages,
     skipped: [],
     violations: [
@@ -226,4 +235,5 @@ export async function checkPackageReleaseLines(
       ...violations,
     ],
   }
+  return result
 }

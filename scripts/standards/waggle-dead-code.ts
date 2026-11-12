@@ -65,11 +65,12 @@ function findingName(issue: Readonly<Record<string, unknown>>) {
 const fallowReportSchema = Schema.Struct({ schema_version: unknownField })
 const fallowIssueSchema = Schema.Struct({ path: Schema.String })
 
-function issueFinding(kind: WaggleDeadCodeFinding['kind'], issue: unknown): WaggleDeadCodeFinding {
+function issueFinding(kind: WaggleDeadCodeFinding['kind'], issue: unknown) {
   const path = objectFields(fallowIssueSchema, issue)?.path
   if (!isRecord(issue) || path === undefined) throw new Error(`fallow ${kind} entry has no path.`)
   const name = findingName(issue)
-  return { kind, path, ...(name ? { name } : {}) }
+  const finding: WaggleDeadCodeFinding = { kind, path, ...(name ? { name } : {}) }
+  return finding
 }
 
 /** A Waggle-named symbol in production source is a finding wherever it lives. */

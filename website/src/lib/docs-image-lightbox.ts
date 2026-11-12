@@ -19,7 +19,7 @@ const PRIMARY_BUTTON = 0
  * link a plain link to its file, when the dialog is missing or the browser cannot open a modal
  * dialog.
  */
-export function enhanceDocsImageLightbox(root: Document): (() => void) | null {
+export function enhanceDocsImageLightbox(root: Document) {
   const dialog = root.getElementById(LIGHTBOX_IDS.dialog)
   const image = root.getElementById(LIGHTBOX_IDS.image)
   const original = root.getElementById(LIGHTBOX_IDS.original)

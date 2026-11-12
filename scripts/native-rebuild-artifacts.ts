@@ -12,11 +12,6 @@ const PACKAGE_JSON_FILE = 'package.json'
 const ELECTRON_REBUILD_METADATA_FILE = '.forge-meta'
 const EXECUTABLE_MODE_MASK = 0o111
 
-interface NativePackageMetadata {
-  readonly name: string
-  readonly version?: string
-}
-
 export interface NativeArtifactSignature {
   readonly packageName: string
   readonly path: string
@@ -163,7 +158,7 @@ function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
-async function readPackageMetadata(packageRoot: string): Promise<NativePackageMetadata | null> {
+async function readPackageMetadata(packageRoot: string) {
   let packageJson: unknown
   try {
     packageJson = JSON.parse(await readFile(join(packageRoot, PACKAGE_JSON_FILE), 'utf8'))

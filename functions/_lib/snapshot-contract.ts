@@ -101,36 +101,40 @@ function mapped<T>(value: unknown, max: number, parse: (item: unknown) => T | un
   return parsed
 }
 
-function asset(value: unknown): SnapshotAsset | undefined {
+function asset(value: unknown) {
   if (!isRecord(value)) return undefined
   const { id, name, download_count } = value
   if (!isCount(id) || !isName(name) || !isCount(download_count)) return undefined
-  return { id, name, download_count }
+  const result: SnapshotAsset | undefined = { id, name, download_count }
+  return result
 }
 
-function release(value: unknown): SnapshotRelease | undefined {
+function release(value: unknown) {
   if (!isRecord(value)) return undefined
   const { tag, assets: assetList } = value
   if (!isName(tag)) return undefined
   const assets = mapped(assetList, MAX_ASSETS_PER_RELEASE, asset)
-  return assets === undefined ? undefined : { tag, assets }
+  const result: SnapshotRelease | undefined = assets === undefined ? undefined : { tag, assets }
+  return result
 }
 
-function dailyCount(value: unknown): SnapshotDailyCount | undefined {
+function dailyCount(value: unknown) {
   if (!isRecord(value)) return undefined
   const { day, count, uniques } = value
-  return isSnapshotDay(day) && isCount(count) && isCount(uniques)
-    ? { day, count, uniques }
-    : undefined
+  const result: SnapshotDailyCount | undefined =
+    isSnapshotDay(day) && isCount(count) && isCount(uniques) ? { day, count, uniques } : undefined
+  return result
 }
 
-function popularEntry(value: unknown): SnapshotPopularEntry | undefined {
+function popularEntry(value: unknown) {
   if (!isRecord(value)) return undefined
   const { name, count, uniques } = value
-  return isName(name) && isCount(count) && isCount(uniques) ? { name, count, uniques } : undefined
+  const entry: SnapshotPopularEntry | undefined =
+    isName(name) && isCount(count) && isCount(uniques) ? { name, count, uniques } : undefined
+  return entry
 }
 
-function traffic(value: unknown): SnapshotTraffic | null | undefined {
+function traffic(value: unknown) {
   if (value === null) return null
   if (!isRecord(value)) return undefined
   const { views: viewList, clones: cloneList, referrers: referrerList, paths: pathList } = value
@@ -139,21 +143,25 @@ function traffic(value: unknown): SnapshotTraffic | null | undefined {
   const referrers = mapped(referrerList, MAX_POPULAR_ENTRIES, popularEntry)
   const paths = mapped(pathList, MAX_POPULAR_ENTRIES, popularEntry)
   if (!views || !clones || !referrers || !paths) return undefined
-  return { views, clones, referrers, paths }
+  const result: SnapshotTraffic | null | undefined = { views, clones, referrers, paths }
+  return result
 }
 
-function npmDay(value: unknown): SnapshotNpmDay | undefined {
+function npmDay(value: unknown) {
   if (!isRecord(value)) return undefined
   const { day, downloads } = value
-  return isSnapshotDay(day) && isCount(downloads) ? { day, downloads } : undefined
+  const result: SnapshotNpmDay | undefined =
+    isSnapshotDay(day) && isCount(downloads) ? { day, downloads } : undefined
+  return result
 }
 
-function npmPackage(value: unknown): SnapshotNpmPackage | undefined {
+function npmPackage(value: unknown) {
   if (!isRecord(value)) return undefined
   const { name, days: dayList } = value
   if (typeof name !== 'string' || !NPM_PACKAGE_NAME.test(name)) return undefined
   const days = mapped(dayList, MAX_NPM_DAYS, npmDay)
-  return days === undefined ? undefined : { name, days }
+  const result: SnapshotNpmPackage | undefined = days === undefined ? undefined : { name, days }
+  return result
 }
 
 function failure(field: string, reason: string) {
@@ -161,21 +169,47 @@ function failure(field: string, reason: string) {
 }
 
 /** Validates a snapshot body, rebuilding it from known fields only. */
-export function validateUsageStatsSnapshot(
-  value: unknown,
-): UsageStatisticsValidation<UsageStatsSnapshot> {
-  if (!isRecord(value)) return failure('snapshot', 'expected an object')
+export function validateUsageStatsSnapshot(value: unknown) {
+  if (!isRecord(value)) {
+    const validation: UsageStatisticsValidation<UsageStatsSnapshot> = failure(
+      'snapshot',
+      'expected an object',
+    )
+    return validation
+  }
   const { schema, releases: releaseList, traffic: trafficValue, npm: npmList } = value
   if (schema !== USAGE_STATS_SNAPSHOT_SCHEMA_VERSION) {
-    return failure('schema', 'unsupported schema version')
+    const validation: UsageStatisticsValidation<UsageStatsSnapshot> = failure(
+      'schema',
+      'unsupported schema version',
+    )
+    return validation
   }
   const releases = mapped(releaseList, MAX_RELEASES, release)
-  if (releases === undefined) return failure('releases', 'expected GitHub releases')
+  if (releases === undefined) {
+    const validation: UsageStatisticsValidation<UsageStatsSnapshot> = failure(
+      'releases',
+      'expected GitHub releases',
+    )
+    return validation
+  }
   const repositoryTraffic = traffic(trafficValue)
-  if (repositoryTraffic === undefined) return failure('traffic', 'expected repository traffic')
+  if (repositoryTraffic === undefined) {
+    const validation: UsageStatisticsValidation<UsageStatsSnapshot> = failure(
+      'traffic',
+      'expected repository traffic',
+    )
+    return validation
+  }
   const npm = mapped(npmList, MAX_NPM_PACKAGES, npmPackage)
-  if (npm === undefined) return failure('npm', 'expected npm downloads')
-  return {
+  if (npm === undefined) {
+    const validation: UsageStatisticsValidation<UsageStatsSnapshot> = failure(
+      'npm',
+      'expected npm downloads',
+    )
+    return validation
+  }
+  const validation: UsageStatisticsValidation<UsageStatsSnapshot> = {
     ok: true,
     value: {
       schema: USAGE_STATS_SNAPSHOT_SCHEMA_VERSION,
@@ -184,4 +218,5 @@ export function validateUsageStatsSnapshot(
       npm,
     },
   }
+  return validation
 }

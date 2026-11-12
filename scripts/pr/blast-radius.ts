@@ -31,11 +31,17 @@ export interface BlastRadiusInput {
   readonly range: string
 }
 
-function assess(file: ChangedFile, input: BlastRadiusInput): Assessment {
+function assess(file: ChangedFile, input: BlastRadiusInput) {
   if (file.path === 'package.json') {
     const fields = changedPackageFields(input.packageJson.previous, input.packageJson.current)
     const { reason, risk } = classifyPackageJsonChange(fields)
-    return { file, key: 'package-json', label: 'Root package manifest', reason, risk }
+    return {
+      file,
+      key: 'package-json',
+      label: 'Root package manifest',
+      reason,
+      risk,
+    } satisfies Assessment
   }
   const area = classifyArea(file.path)
   return {
@@ -44,7 +50,7 @@ function assess(file: ChangedFile, input: BlastRadiusInput): Assessment {
     label: area.label,
     reason: `${area.label} changed.`,
     risk: area.risk,
-  }
+  } satisfies Assessment
 }
 
 function highestRisk(assessments: readonly Assessment[]) {
@@ -159,7 +165,7 @@ export function renderBlastRadius(input: BlastRadiusInput) {
 }
 
 /** Parses `git diff --name-status --find-renames` output. */
-export function parseNameStatus(output: string): ChangedFile[] {
+export function parseNameStatus(output: string) {
   return output
     .split('\n')
     .filter((line) => line.trim().length > 0)

@@ -6,7 +6,7 @@ import Hero from '../Hero.astro'
 
 const STAGE_BADGE = /<span\b[^>]*\bdata-release-stage\b[^>]*>([^<]*)<\/span>/u
 
-function stageBadge(html: string): string | undefined {
+function stageBadge(html: string) {
   return html.match(STAGE_BADGE)?.[1]?.trim()
 }
 

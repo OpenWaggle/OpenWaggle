@@ -1,7 +1,8 @@
 import type { SessionTitleContextMessage } from '../src/main/domain/session-title/session-title-context'
 
-function message(role: 'user' | 'assistant', text: string): SessionTitleContextMessage {
-  return { role, text, attachments: [] }
+function message(role: 'user' | 'assistant', text: string) {
+  const result: SessionTitleContextMessage = { role, text, attachments: [] }
+  return result
 }
 
 /**

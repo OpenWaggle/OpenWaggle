@@ -45,13 +45,13 @@ function isNodePtyModule(value: unknown): value is NodePtyModule {
   )
 }
 
-function moduleLoader(moduleRoot: string | undefined): NativeModuleLoader {
+function moduleLoader(moduleRoot: string | undefined) {
   if (!moduleRoot) return localRequire
   const rootRequire = createRequire(path.join(path.resolve(moduleRoot), 'package.json'))
-  return (moduleName) => {
+  return ((moduleName) => {
     const loaded: unknown = rootRequire(moduleName)
     return loaded
-  }
+  }) satisfies NativeModuleLoader
 }
 
 function assertUnixNativeContract(native: unknown) {

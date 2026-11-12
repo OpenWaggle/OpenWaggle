@@ -76,7 +76,7 @@ function parseWindowsJobStates(contents: string) {
   return states
 }
 
-export function parseWindowsJobStatus(contents: string): WindowsJobState | null {
+export function parseWindowsJobStatus(contents: string) {
   return parseWindowsJobStates(contents).at(-1) ?? null
 }
 
@@ -162,7 +162,7 @@ function jobController(input: {
   readonly rootPid: number
   readonly statusPath: string
   readonly stopPath: string
-}): WindowsJobObjectProcess {
+}) {
   const waitForState = (expected: 'assigned' | 'empty' | 'normal-exit', timeoutMs: number) =>
     waitForWindowsJobState(expected, timeoutMs, {
       childExited: () => childExited(input.child),
@@ -175,7 +175,7 @@ function jobController(input: {
       throw new Error(`Windows Job Object owner would not exit: ${input.controlRoot}`)
     }
   }
-  return {
+  const process: WindowsJobObjectProcess = {
     logs: input.logs,
     rootPid: input.rootPid,
     waitForNormalExit: async () => {
@@ -204,6 +204,7 @@ function jobController(input: {
       await fs.rm(input.controlRoot, { recursive: true, force: true })
     },
   }
+  return process
 }
 
 export async function launchInWindowsJobObject(

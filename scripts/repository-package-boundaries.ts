@@ -178,7 +178,7 @@ function externalBoundaryViolation(input: {
   readonly file: string
   readonly rule: PackageBoundaryRule
   readonly specifier: string
-}): RepositoryViolation | null {
+}) {
   if (builtinSpecifiers.has(input.specifier) && !input.rule.allowNodeBuiltins) {
     return {
       detail: input.specifier,

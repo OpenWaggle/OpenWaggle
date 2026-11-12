@@ -35,7 +35,7 @@ function read(path: string) {
  * and style rules first: a pending page that breaks them fails the release PR after merge, when
  * only a new pull request can fix it.
  */
-export function docsPageFiles(): DocsPageFile[] {
+export function docsPageFiles() {
   const published = markdownFiles(DOCS_ROOT).map((file) => ({
     slug: file.replace(/\.mdx?$/u, ''),
     path: join(DOCS_ROOT, file),
@@ -51,5 +51,5 @@ export function docsPageFiles(): DocsPageFile[] {
       pending: true,
     }
   })
-  return [...published, ...pending]
+  return [...published, ...pending] satisfies DocsPageFile[]
 }

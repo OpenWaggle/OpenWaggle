@@ -24,11 +24,12 @@ const FIXTURES = path.join(import.meta.dirname, 'fixtures/provenance-downgrade')
 const NOW = new Date('2026-11-10T00:00:00.000Z')
 const WINDOW_DAYS = 30
 
-function readFixture(name: string): unknown {
-  return JSON.parse(readFileSync(path.join(FIXTURES, name), 'utf8'))
+function readFixture(name: string) {
+  const parsed: unknown = JSON.parse(readFileSync(path.join(FIXTURES, name), 'utf8'))
+  return parsed
 }
 
-function fixtureRegistry(): Map<string, { readonly abbreviated: unknown; readonly full: unknown }> {
+function fixtureRegistry() {
   const synthetic = readFixture('synthetic-registry.json')
   if (typeof synthetic !== 'object' || synthetic === null) {
     throw new Error('Invalid registry fixture.')

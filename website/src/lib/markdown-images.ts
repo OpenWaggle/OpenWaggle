@@ -23,7 +23,7 @@ export const ZOOMABLE_IMAGE_CLASS = 'docs-image-link'
 // Markdown image (`./shot.png`) after rehype runs, so a link to its source path would 404.
 const FINAL_IMAGE_ADDRESS = /^(?:\/|https?:\/\/)/u
 
-function zoomLink(image: HastNode, href: string): HastNode {
+function zoomLink(image: HastNode, href: string) {
   return {
     type: 'element',
     tagName: 'a',
@@ -37,7 +37,7 @@ function zoomLink(image: HastNode, href: string): HastNode {
         children: [{ type: 'text', value: ' (open full size)' }],
       },
     ],
-  }
+  } satisfies HastNode
 }
 
 function visit(node: HastNode) {

@@ -19,11 +19,12 @@ const windowsProcessRecordSchema = Schema.Struct({
   creationDate: Schema.String.pipe(Schema.minLength(1)),
 })
 
-function parseWindowsProcessRecord(value: unknown): WindowsProcessRecord | null {
+function parseWindowsProcessRecord(value: unknown) {
   if (!Schema.is(windowsProcessRecordSchema)(value) || Array.isArray(value)) return null
   const { processId, parentProcessId, creationDate } = value
   if (!Number.isSafeInteger(processId) || !Number.isSafeInteger(parentProcessId)) return null
-  return { processId, parentProcessId, creationDate }
+  const record: WindowsProcessRecord | null = { processId, parentProcessId, creationDate }
+  return record
 }
 
 class WindowsProcessInventoryError extends Error {

@@ -110,7 +110,7 @@ export const packageDocumentationDefinitions = [
 export function versionPackageDocumentation(
   definition: PackageDocumentationDefinition,
   versions: readonly string[],
-): VersionedPackageDocumentationDefinition {
+) {
   const sortedVersions = [...new Set(versions)].sort((left, right) => {
     const leftParts = documentationVersionParts(left)
     const rightParts = documentationVersionParts(right)
