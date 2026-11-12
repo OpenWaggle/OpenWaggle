@@ -5,10 +5,10 @@ import { describe, expect, it } from 'vitest'
 import { registerPiWaggleRenderers } from '../renderers.js'
 
 function registerHarness() {
-  const renderers = new Map<string, MessageRenderer<unknown>>()
+  const renderers = new Map<string, MessageRenderer>()
   registerPiWaggleRenderers({
     registerMessageRenderer: (customType, renderer) => {
-      renderers.set(customType, fromPartial<MessageRenderer<unknown>>(renderer))
+      renderers.set(customType, fromPartial<MessageRenderer>(renderer))
     },
   })
   return renderers
@@ -32,6 +32,31 @@ describe('pi-waggle renderers', () => {
     }
 
     expect(requestComponent.render(120)).toEqual(['🐝 Waggle request: Review this migration'])
+  })
+
+  it('renders the text parts of array content and skips the others', () => {
+    const requestRenderer = registerHarness().get('pi-waggle.user-request')
+    if (!requestRenderer) {
+      throw new Error('Expected Waggle request renderer to be registered')
+    }
+
+    const requestComponent = requestRenderer(
+      fromPartial({
+        content: [
+          { type: 'text', text: 'Review ' },
+          { type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' },
+          { type: 'text' },
+          { type: 'text', text: 'this diff' },
+        ],
+      }),
+      fromPartial({}),
+      fromPartial({}),
+    )
+    if (!requestComponent) {
+      throw new Error('Expected Waggle request renderer component')
+    }
+
+    expect(requestComponent.render(120)).toEqual(['🐝 Waggle request: Review this diff'])
   })
 
   it('truncates renderer output by terminal-visible width', () => {

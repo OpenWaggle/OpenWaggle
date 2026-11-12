@@ -57,4 +57,5 @@ export function createPiWaggleTurnErrorClassifier(load: () => Promise<TurnErrorR
   }
 }
 
-export const piWaggleTurnErrorClassifier = createPiWaggleTurnErrorClassifier()
+export const piWaggleTurnErrorClassifier: () => Promise<TurnErrorClassifier | undefined> =
+  createPiWaggleTurnErrorClassifier()

@@ -13,7 +13,7 @@ export interface PiWagglePresetsFileData {
   readonly hiddenBuiltInPresetIds: readonly string[]
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -22,20 +22,20 @@ function uniqueStrings(values: readonly string[]): string[] {
 }
 
 function rawPresetValues(value: unknown): readonly unknown[] {
-  if (!isRecord(value) || !Array.isArray(value.wagglePresets)) {
+  if (!isRecord(value) || !Array.isArray(value['wagglePresets'])) {
     return []
   }
 
-  return value.wagglePresets
+  return value['wagglePresets']
 }
 
 function rawHiddenBuiltInIds(value: unknown): readonly string[] {
-  if (!isRecord(value) || !Array.isArray(value.hiddenBuiltInPresetIds)) {
+  if (!isRecord(value) || !Array.isArray(value['hiddenBuiltInPresetIds'])) {
     return []
   }
 
   const ids: string[] = []
-  for (const id of value.hiddenBuiltInPresetIds) {
+  for (const id of value['hiddenBuiltInPresetIds']) {
     if (typeof id === 'string' && id.trim().length > 0) ids.push(id)
   }
   return ids
@@ -53,7 +53,7 @@ function parsePresetValues(rawPresets: readonly unknown[]): WagglePreset[] {
 }
 
 export function getPiWaggleUserPresetsPath(
-  agentDir = join(homedir(), PI_CONFIG_DIR, PI_AGENT_DIR),
+  agentDir: string = join(homedir(), PI_CONFIG_DIR, PI_AGENT_DIR),
 ): string {
   return join(agentDir, WAGGLE_PRESETS_FILE)
 }

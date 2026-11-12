@@ -23,7 +23,7 @@ function modelReference(provider: string, id: string) {
   return `${provider}/${id}`
 }
 
-export function modelReferenceForCurrentModel(ctx: ExtensionContext) {
+export function modelReferenceForCurrentModel(ctx: ExtensionContext): string | null {
   return ctx.model ? modelReference(ctx.model.provider, ctx.model.id) : null
 }
 
@@ -70,7 +70,11 @@ export function createModelPickerComponent(input: {
   readonly requestRender: () => void
   /** Terminal rows, so the picker fits a short screen; Pi's fullscreen TUI clips taller overlays. */
   readonly availableRows?: () => number
-}) {
+}): {
+  invalidate(): undefined
+  render(width: number): string[]
+  handleInput(data: string): void
+} {
   let selectedIndex = 0
   let query = ''
   let filteredItems = filterModelItems(input.items, query)
@@ -166,7 +170,7 @@ export function createModelPickerComponent(input: {
 export async function selectConcreteModelReference(input: {
   readonly ctx: ExtensionCommandContext
   readonly currentModelReference: string | null
-}) {
+}): Promise<string | null | undefined> {
   if (!input.ctx.hasUI) return null
 
   const items = modelPickerItems(input.ctx)
