@@ -3,6 +3,11 @@ import { EventEmitter } from 'node:events'
 /** Electron's pages (`WebContents`), their web profiles and their windows. */
 export class FakeSession {
   readonly clearedOrigins: string[] = []
+  /** The request filter a guard installed, if any. */
+  beforeRequest: unknown = null
+  readonly webRequest = {
+    onBeforeRequest: (listener: unknown) => void (this.beforeRequest = listener),
+  }
   clearStorageData(input: { readonly origin?: string } = {}) {
     if (input.origin) this.clearedOrigins.push(input.origin)
     return Promise.resolve()
@@ -15,6 +20,7 @@ export class FakeWebContents extends EventEmitter {
   readonly id = nextWebContentsId++
   readonly sent: { readonly channel: string; readonly args: readonly unknown[] }[] = []
   readonly session = new FakeSession()
+  readonly mainFrame = { framesInSubtree: [] }
   destroyed = false
   url = 'openwaggle://app/index.html'
   focused = 0
