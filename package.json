@@ -18,6 +18,7 @@
     "perf:first-turn-prefix:packaged": "bun scripts/perf/first-turn-prefix-packaged.ts",
     "perf:generate-profile": "bun scripts/perf/generate-profile.ts",
     "perf:hive-memory": "bun scripts/perf/hive-memory.ts",
+    "perf:budgets:update": "bun scripts/perf-gate/budgets.ts update",
     "perf:startup": "bun scripts/perf/startup.ts",
     "perf:streaming": "bun scripts/perf/streaming.ts",
     "perf:idle-host": "bun scripts/perf/idle-host.ts",

@@ -1,6 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { lazySurfaceChunkFiles, parseRendererManifest } from './renderer-chunk-graph'
+import {
+  CHAT_SURFACE_SOURCES,
+  lazySurfaceChunkFiles,
+  OPTIONAL_CHAT_SURFACE_SOURCES,
+  parseRendererManifest,
+} from './renderer-chunk-graph'
 import { namedGroups } from '@shared/utils/regex-named-groups'
 
 const KIBIBYTE = 1024
@@ -23,14 +28,6 @@ const MAX_INITIAL_RENDERER_GRAPH_BYTES = 1_712 * KIBIBYTE
  * before. The budget keeps about 30% headroom over the last measurement.
  */
 const MAX_CHAT_SURFACE_GRAPH_BYTES = 960 * KIBIBYTE
-const CHAT_SURFACE_SOURCES: readonly RegExp[] = [
-  /^src\/routes\/_chat\.index\.tsx\?tsr-split=component$/u,
-  /^src\/routes\/sessions\.\$sessionId\.tsx\?tsr-split=component$/u,
-]
-/** A chunk of its own before B1 moved the surface into the route chunks; counted if it is one again. */
-const OPTIONAL_CHAT_SURFACE_SOURCES: readonly RegExp[] = [
-  /^src\/routes\/-chat-route-surface\.tsx$/u,
-]
 // Minified (B4); unminified they were 391, 408 and 428 KiB.
 const MAX_SYNTAX_WORKER_BYTES = 320 * KIBIBYTE
 const MAX_FOCUSED_EDITOR_BYTES = 320 * KIBIBYTE

@@ -3,14 +3,26 @@ import { Schema } from '@shared/schema'
 export interface RendererManifestChunk {
   readonly file: string
   readonly imports?: readonly string[]
+  readonly css?: readonly string[]
 }
+
+/** The chat surface: the welcome and Session route chunks the shell loads before the composer. */
+export const CHAT_SURFACE_SOURCES: readonly RegExp[] = [
+  /^src\/routes\/_chat\.index\.tsx\?tsr-split=component$/u,
+  /^src\/routes\/sessions\.\$sessionId\.tsx\?tsr-split=component$/u,
+]
+/** A chunk of its own before B1 moved the surface into the route chunks; counted if it is one again. */
+export const OPTIONAL_CHAT_SURFACE_SOURCES: readonly RegExp[] = [
+  /^src\/routes\/-chat-route-surface\.tsx$/u,
+]
 
 export type RendererManifest = Readonly<Record<string, RendererManifestChunk>>
 
-/** A Vite manifest chunk: its file and, when it has any, the chunks it imports. */
+/** A Vite manifest chunk: its file and, when it has any, the chunks and stylesheets it imports. */
 const manifestChunkSchema = Schema.Struct({
   file: Schema.String,
   imports: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  css: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
 })
 
 function isManifestChunk(value: unknown): value is RendererManifestChunk {
