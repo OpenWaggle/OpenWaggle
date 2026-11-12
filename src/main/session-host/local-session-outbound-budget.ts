@@ -51,10 +51,10 @@ export interface LocalSessionOutboundLease {
 }
 
 export interface LocalSessionOutboundByteBudgetOptions {
-  readonly capacityWaitMs?: number | undefined
-  readonly evictionReleaseWaitMs?: number | undefined
+  readonly capacityWaitMs?: number
+  readonly evictionReleaseWaitMs?: number
   /** The wall-clock limit on one wait; `MAX_OUTBOUND_CAPACITY_WAIT_MS` unless a test sets it. */
-  readonly maxWaitMs?: number | undefined
+  readonly maxWaitMs?: number
   /** A monotonic wall clock in milliseconds; stalls are measured against it. */
   readonly now?: () => number
 }

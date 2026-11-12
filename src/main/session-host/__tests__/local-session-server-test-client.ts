@@ -41,14 +41,14 @@ const testCursorSchema: Schema.Schema<SessionHostEventCursor> = Schema.Struct({
 /** The members of a Local Session server frame the tests read; values decode where they are used. */
 const testServerFrameSchema = Schema.Struct({
   kind: Schema.String,
-  requestId: Schema.optional(Schema.Unknown),
-  subscriptionId: Schema.optional(Schema.Unknown),
-  code: Schema.optional(Schema.Unknown),
-  message: Schema.optional(Schema.Unknown),
-  reason: Schema.optional(Schema.Unknown),
-  cursor: Schema.optional(Schema.Unknown),
-  payload: Schema.optional(Schema.Unknown),
-  event: Schema.optional(Schema.Unknown),
+  requestId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  subscriptionId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  code: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  message: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  reason: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  cursor: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  payload: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  event: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export function decodeTestServerFrame(value: unknown) {

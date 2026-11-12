@@ -156,8 +156,12 @@ function close(server: Server) {
 
 function outboundBudgetFor(dependencies: LocalSessionServerDependencies) {
   return new LocalSessionOutboundByteBudget(dependencies.maxPendingOutboundBytesGlobal, {
-    capacityWaitMs: dependencies.outboundCapacityWaitMs,
-    maxWaitMs: dependencies.outboundMaxWaitMs,
+    ...(dependencies.outboundCapacityWaitMs === undefined
+      ? {}
+      : { capacityWaitMs: dependencies.outboundCapacityWaitMs }),
+    ...(dependencies.outboundMaxWaitMs === undefined
+      ? {}
+      : { maxWaitMs: dependencies.outboundMaxWaitMs }),
   })
 }
 

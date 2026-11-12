@@ -24,9 +24,9 @@ function decodes(schema: Schema.Schema.AnyNoContext, value: unknown) {
 }
 
 const transportEventFieldsSchema = Schema.Struct({
-  type: Schema.optional(Schema.Unknown),
-  role: Schema.optional(Schema.Unknown),
-  userMessage: Schema.optional(Schema.Unknown),
+  type: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  role: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  userMessage: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 /** A JSON object: not null and not an array, which `Schema.Object` would also accept. */
