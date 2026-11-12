@@ -122,6 +122,7 @@ describe('mermaid diagrams', () => {
     '../../../dist/docs/extending/openwaggle-extensions/index.html',
     import.meta.url,
   )
+  // Checks the built site, so it runs after `bun run website:build`, as the website rehearsal does.
   it.skipIf(!existsSync(BUILT_PAGE))(
     'renders the extension docs diagrams in the built site',
     () => {
@@ -154,8 +155,9 @@ describe('the diagrams in the docs', () => {
       const html = await render(markdown, new URL(`file:///docs/${file}`))
       const figures = html.match(FIGURE) ?? []
       expect(figures).toHaveLength(markdown.match(MERMAID_FENCE)?.length ?? 0)
-      for (const figure of figures)
+      for (const figure of figures) {
         expect(figure).toMatch(/<svg class="mermaid-svg" role="img" aria-label="[^"]+"/u)
+      }
       expect(html).not.toContain('data-language="mermaid"')
     },
   )

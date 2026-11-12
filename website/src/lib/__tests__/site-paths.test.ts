@@ -70,7 +70,9 @@ describe('markdown link rewriting', () => {
   it('stays wired into the Astro Markdown pipeline', async () => {
     const { readFileSync } = await import('node:fs')
     const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8')
-    expect(config).toContain("import { rehypeTrailingSlashLinks } from './src/lib/site-paths';")
+    expect(config).toMatch(
+      /^import \{ rehypeTrailingSlashLinks \} from '\.\/src\/lib\/site-paths';?$/mu,
+    )
     expect(config).toMatch(/rehypePlugins: \[[\s\S]*\brehypeTrailingSlashLinks\b[\s\S]*\]/u)
   })
 })
