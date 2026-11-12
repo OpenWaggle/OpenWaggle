@@ -1,3 +1,5 @@
+import type { SchemaType } from '@shared/schema'
+import type { sessionTreeSearchCursorSchema } from '@shared/schemas/session-data-requests'
 import type { SessionNodeId } from './brand'
 
 /**
@@ -5,10 +7,7 @@ import type { SessionNodeId } from './brand'
  * revision. While the revision holds, no node it read has changed, so the next search for the same
  * query reads only the nodes appended after it (review V2 P3-1).
  */
-export interface SessionTreeSearchCursor {
-  readonly throughCreatedOrder: number
-  readonly nodeMutationRevision: number
-}
+export type SessionTreeSearchCursor = SchemaType<typeof sessionTreeSearchCursorSchema>
 
 /** One tree search's matches (`sessions:search-tree`). */
 export interface SessionTreeSearchPage {
