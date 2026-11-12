@@ -2,6 +2,7 @@ import {
   createPlainExtensionSyntaxResult,
   OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
+  type OpenWaggleExtensionSyntaxHighlightResult,
   type OpenWaggleExtensionSyntaxSdk,
   type OpenWaggleExtensionUiButtonVariant,
   type OpenWaggleExtensionUiTone,
@@ -12,6 +13,7 @@ import type {
   CSSProperties,
   HTMLAttributes,
   InputHTMLAttributes,
+  JSX,
   ReactNode,
   Ref,
   SelectHTMLAttributes,
@@ -42,12 +44,12 @@ function syntaxTokenStyle(token: {
 export interface SyntaxBlockProps {
   readonly syntax: OpenWaggleExtensionSyntaxSdk
   readonly source: string
-  readonly language?: string
-  readonly path?: string
-  readonly className?: string
-  readonly wrap?: boolean
-  readonly showLineNumbers?: boolean
-  readonly ariaLabel?: string
+  readonly language?: string | undefined
+  readonly path?: string | undefined
+  readonly className?: string | undefined
+  readonly wrap?: boolean | undefined
+  readonly showLineNumbers?: boolean | undefined
+  readonly ariaLabel?: string | undefined
 }
 
 function useExtensionSyntaxResult({
@@ -59,36 +61,47 @@ function useExtensionSyntaxResult({
 }: Pick<SyntaxBlockProps, 'syntax' | 'source' | 'language' | 'path'> & {
   readonly enabled?: boolean
 }) {
-  const [result, setResult] = useState(() =>
-    enabled ? createPlainExtensionSyntaxResult({ source, language }) : undefined,
+  // Not built when disabled: large sources stay plain without a tokenized copy.
+  const plain = useMemo(
+    () => (enabled ? createPlainExtensionSyntaxResult({ source, language }) : undefined),
+    [enabled, source, language],
   )
+  // Keyed by its inputs, so a changed input shows plain text until its own highlight lands.
+  const [highlighted, setHighlighted] = useState<
+    | {
+        readonly syntax: OpenWaggleExtensionSyntaxSdk
+        readonly source: string
+        readonly language: string | undefined
+        readonly path: string | undefined
+        readonly result: OpenWaggleExtensionSyntaxHighlightResult
+      }
+    | undefined
+  >(undefined)
 
   useEffect(() => {
+    if (!enabled) return undefined
     let active = true
     const controller = new AbortController()
-    if (!enabled) {
-      return () => {
-        active = false
-        controller.abort()
-      }
+    const settle = (result: OpenWaggleExtensionSyntaxHighlightResult) => {
+      if (active) setHighlighted({ syntax, source, language, path, result })
     }
-    setResult(createPlainExtensionSyntaxResult({ source, language }))
     void syntax
       .highlight({ source, language, path, priority: 'visible' }, { signal: controller.signal })
-      .then(
-        (next) => {
-          if (active) setResult(next)
-        },
-        () => {
-          if (active) setResult(createPlainExtensionSyntaxResult({ source, language }))
-        },
-      )
+      .then(settle, () => {
+        settle(createPlainExtensionSyntaxResult({ source, language }))
+      })
     return () => {
       active = false
       controller.abort()
     }
   }, [enabled, language, path, source, syntax])
-  return enabled ? result : undefined
+  if (!plain) return undefined
+  const current =
+    highlighted?.syntax === syntax &&
+    highlighted.source === source &&
+    highlighted.language === language &&
+    highlighted.path === path
+  return current ? highlighted.result : plain
 }
 
 export function SyntaxBlock({
@@ -100,7 +113,7 @@ export function SyntaxBlock({
   wrap = false,
   showLineNumbers = false,
   ariaLabel,
-}: SyntaxBlockProps) {
+}: SyntaxBlockProps): JSX.Element {
   const result =
     useExtensionSyntaxResult({ syntax, source, language, path }) ??
     createPlainExtensionSyntaxResult({ source, language })
@@ -190,7 +203,7 @@ export function SourceView({
   className,
   showLineNumbers = true,
   ariaLabel,
-}: SourceViewProps) {
+}: SourceViewProps): JSX.Element {
   const sourceLineStarts = useMemo(() => indexSourceLines(source), [source])
   const sourceLineCount = sourceLineStarts.length
   const highlightEnabled =
@@ -290,7 +303,7 @@ export interface StackProps {
   readonly style?: CSSProperties
 }
 
-export function Stack({ children, className, gap, ref, style }: StackProps) {
+export function Stack({ children, className, gap, ref, style }: StackProps): JSX.Element {
   return (
     <div
       ref={ref}
@@ -309,7 +322,7 @@ export interface PanelProps {
   readonly style?: CSSProperties
 }
 
-export function Panel({ children, className, ref, style }: PanelProps) {
+export function Panel({ children, className, ref, style }: PanelProps): JSX.Element {
   return (
     <section
       ref={ref}
@@ -326,7 +339,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly variant?: OpenWaggleExtensionUiButtonVariant
 }
 
-export function Button({ children, className, ref, variant = 'secondary', ...props }: ButtonProps) {
+export function Button({
+  children,
+  className,
+  ref,
+  variant = 'secondary',
+  ...props
+}: ButtonProps): JSX.Element {
   return (
     <button
       {...props}
@@ -346,7 +365,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   readonly ref?: Ref<HTMLInputElement>
 }
 
-export function Input({ className, ref, ...props }: InputProps) {
+export function Input({ className, ref, ...props }: InputProps): JSX.Element {
   return (
     <input
       {...props}
@@ -360,7 +379,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
   readonly ref?: Ref<HTMLTextAreaElement>
 }
 
-export function Textarea({ className, ref, ...props }: TextareaProps) {
+export function Textarea({ className, ref, ...props }: TextareaProps): JSX.Element {
   return (
     <textarea
       {...props}
@@ -377,7 +396,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   readonly ref?: Ref<HTMLSelectElement>
 }
 
-export function Select({ children, className, ref, ...props }: SelectProps) {
+export function Select({ children, className, ref, ...props }: SelectProps): JSX.Element {
   return (
     <select
       {...props}
@@ -396,7 +415,7 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   readonly ref?: Ref<HTMLInputElement>
 }
 
-export function Checkbox({ className, ref, ...props }: CheckboxProps) {
+export function Checkbox({ className, ref, ...props }: CheckboxProps): JSX.Element {
   return (
     <input
       {...props}
@@ -417,7 +436,7 @@ export interface BadgeProps {
   readonly tone?: OpenWaggleExtensionUiTone
 }
 
-export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps) {
+export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps): JSX.Element {
   return (
     <span
       ref={ref}
@@ -437,7 +456,13 @@ export interface AlertProps {
   readonly tone?: OpenWaggleExtensionUiTone
 }
 
-export function Alert({ children, className, ref, role = 'status', tone = 'neutral' }: AlertProps) {
+export function Alert({
+  children,
+  className,
+  ref,
+  role = 'status',
+  tone = 'neutral',
+}: AlertProps): JSX.Element {
   return (
     <div
       ref={ref}
@@ -467,7 +492,7 @@ export function Field({
   label,
   ref,
   ...props
-}: FieldProps) {
+}: FieldProps): JSX.Element {
   return (
     <div
       {...props}
