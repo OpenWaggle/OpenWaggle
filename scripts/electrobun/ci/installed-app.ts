@@ -14,6 +14,9 @@ const EXECUTABLE_MODE = 0o755
 const EXEC_BUFFER_BYTES = 64 * 1024 * 1024
 /** Time for an app the installer started to show up, so it can be stopped. */
 const INSTALLER_LAUNCH_MS = 15_000
+const STDERR_FD = 2
+/** The installers' output goes to stderr: stdout carries the smoke command's JSON result. */
+const INSTALLER_STDIO: ['ignore', number, number] = ['ignore', STDERR_FD, STDERR_FD]
 
 export interface InstalledApp {
   readonly launcher: string
@@ -148,7 +151,7 @@ function installMacos(release: string) {
 
 function installWindows(release: string) {
   const installer = single(release, /^openwaggle-.+-x64\.exe$/u)
-  execFileSync(installer, ['/S'], { stdio: 'inherit', env: installerEnvironment() })
+  execFileSync(installer, ['/S'], { stdio: INSTALLER_STDIO, env: installerEnvironment() })
   const local = process.env['LOCALAPPDATA'] ?? path.join(os.homedir(), 'AppData', 'Local')
   return path.join(local, ...ELECTROBUN_INSTALL, 'launcher.exe')
 }
@@ -159,7 +162,7 @@ function installLinux(release: string) {
   // The hosted runners have no FUSE; the AppImage runtime then extracts itself and runs AppRun,
   // which runs Electrobun's installer.
   execFileSync(appImage, [], {
-    stdio: 'inherit',
+    stdio: INSTALLER_STDIO,
     env: { ...installerEnvironment(), APPIMAGE_EXTRACT_AND_RUN: '1' },
   })
   const data = process.env['XDG_DATA_HOME'] ?? path.join(os.homedir(), '.local', 'share')
