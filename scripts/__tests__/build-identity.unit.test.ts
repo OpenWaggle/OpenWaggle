@@ -150,10 +150,9 @@ describe('Session link scheme', () => {
 })
 
 describe('packaged runtime resources', () => {
-  it('includes the prepared semantic model used by packaged Session search', () => {
-    expect(electronBuilderConfig.extraResources).toContainEqual({
-      from: 'build/session-embedding-model',
-      to: 'session-embedding-model',
-    })
+  it('leaves out the Session embedding model, which the Host fetches on first use', () => {
+    expect(electronBuilderConfig.extraResources).not.toContainEqual(
+      expect.objectContaining({ to: 'session-embedding-model' }),
+    )
   })
 })

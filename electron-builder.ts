@@ -132,7 +132,6 @@ const config = {
     // (docs/adr/0032). Packaged macOS builds take their Dock icon from the bundle.
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
-    { from: 'build/session-embedding-model', to: 'session-embedding-model' },
     { from: 'scripts/install.sh', to: 'openwaggle-install.sh' },
     // MIT notices for code adapted from other projects (generated Session titles, ADR 0043).
     { from: 'THIRD_PARTY_NOTICES.md', to: 'THIRD_PARTY_NOTICES.md' },

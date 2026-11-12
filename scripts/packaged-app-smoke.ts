@@ -17,7 +17,11 @@ const APP_NAME = 'OpenWaggle.app'
 const RESOURCES_PATH = ['Contents', 'Resources'] as const
 const ASAR_FILE = 'app.asar'
 const DOCS_DIR = 'openwaggle-docs'
-const SESSION_EMBEDDING_MODEL_DIR = 'session-embedding-model'
+/**
+ * Resources the app fetches on first use instead of shipping: the Session embedding model (about
+ * 135 MB, src/main/adapters/session-embedding-model-files.ts).
+ */
+const UNSHIPPED_RESOURCES = ['session-embedding-model']
 const PACKAGE_JSON = 'package.json'
 const NODE_MODULES_DIR = 'node_modules'
 const OUT_DIR = 'out'
@@ -34,14 +38,6 @@ const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
 /** Resources shipped at the top level of the app's resources directory. */
 const REQUIRED_RESOURCE_FILES = ['THIRD_PARTY_NOTICES.md']
-const REQUIRED_SESSION_EMBEDDING_MODEL_FILES = [
-  'Xenova/multilingual-e5-small/config.json',
-  'Xenova/multilingual-e5-small/tokenizer_config.json',
-  'Xenova/multilingual-e5-small/tokenizer.json',
-  'Xenova/multilingual-e5-small/onnx/model_quantized.onnx',
-  'Xenova/multilingual-e5-small/openwaggle-model-manifest.json',
-  'Xenova/multilingual-e5-small/THIRD_PARTY_NOTICE.md',
-]
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
@@ -235,6 +231,16 @@ async function assertRequiredFiles(rootPath: string, relativeFiles: readonly str
   }
 }
 
+async function assertUnshipped(rootPath: string, relativePaths: readonly string[]) {
+  const shipped: string[] = []
+  for (const relativePath of relativePaths) {
+    if (await pathExists(path.join(rootPath, relativePath))) shipped.push(relativePath)
+  }
+  if (shipped.length > 0) {
+    throw new Error(`${rootPath} ships what the app fetches on first use: ${shipped.join(', ')}.`)
+  }
+}
+
 export function packagedPtyProbeInvocation(
   appPath: string,
   asarPath: string,
@@ -287,10 +293,7 @@ async function smokePackagedApp(appPath: string) {
   assertRuntimeTrim(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
   await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
-  await assertRequiredFiles(
-    path.join(resourcesPath, SESSION_EMBEDDING_MODEL_DIR),
-    REQUIRED_SESSION_EMBEDDING_MODEL_FILES,
-  )
+  await assertUnshipped(resourcesPath, UNSHIPPED_RESOURCES)
 
   if (packagedAppMatchesHostArchitecture(appPath)) {
     await runPackagedPtyProbe(appPath, asarPath)
