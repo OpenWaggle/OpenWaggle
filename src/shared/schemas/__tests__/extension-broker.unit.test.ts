@@ -60,6 +60,21 @@ describe('extension broker schemas', () => {
     expect(result.success).toBe(true)
   })
 
+  it('reads a missing failure audit, code or issue list as an absent key, never as undefined', () => {
+    const failure = {
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
+        message: 'Outside scope.',
+      },
+    }
+    const decodes = (value: object) => safeDecodeUnknown(extensionInvokeResultSchema, value).success
+
+    expect(decodes(failure)).toBe(true)
+    expect(decodes({ ...failure, audit: undefined })).toBe(false)
+    expect(decodes({ ...failure, error: { ...failure.error, issues: undefined } })).toBe(false)
+  })
+
   it('accepts audited extension storage invocation results', () => {
     const result = safeDecodeUnknown(extensionInvokeResultSchema, {
       ok: true,

@@ -3,8 +3,8 @@ import { jsonValueSchema } from './validation'
 
 const activityEventBase = {
   timestamp: Schema.Number,
-  model: Schema.optional(Schema.String),
-  rawEvent: Schema.optional(jsonValueSchema),
+  model: Schema.optionalWith(Schema.String, { exact: true }),
+  rawEvent: Schema.optionalWith(jsonValueSchema, { exact: true }),
 }
 const compactionReason = Schema.Literal('manual', 'threshold', 'overflow')
 
@@ -64,7 +64,7 @@ export const backgroundRunActivityEventsSchema = Schema.Array(
       result: jsonValueSchema,
       aborted: Schema.Boolean,
       willRetry: Schema.Boolean,
-      errorMessage: Schema.optional(Schema.String),
+      errorMessage: Schema.optionalWith(Schema.String, { exact: true }),
     }),
     Schema.Struct({
       ...activityEventBase,
@@ -79,7 +79,7 @@ export const backgroundRunActivityEventsSchema = Schema.Array(
       type: Schema.Literal('auto_retry_end'),
       success: Schema.Boolean,
       attempt: Schema.Number,
-      finalError: Schema.optional(Schema.String),
+      finalError: Schema.optionalWith(Schema.String, { exact: true }),
     }),
   ),
 )

@@ -62,32 +62,32 @@ export interface SessionSummary {
   readonly id: SessionId
   readonly title: string
   readonly projectPath: string | null
-  readonly messageCount?: number
-  readonly archived?: boolean
+  readonly messageCount?: number | undefined
+  readonly archived?: boolean | undefined
   readonly createdAt: number
   readonly updatedAt: number
-  readonly lastActiveNodeId?: SessionNodeId | null
-  readonly lastActiveBranchId?: SessionBranchId | null
-  readonly branches?: readonly SessionBranch[]
-  readonly treeUiState?: SessionTreeUiState | null
+  readonly lastActiveNodeId?: SessionNodeId | null | undefined
+  readonly lastActiveBranchId?: SessionBranchId | null | undefined
+  readonly branches?: readonly SessionBranch[] | undefined
+  readonly treeUiState?: SessionTreeUiState | null | undefined
   /** Resolves this session's working path, so per-session git state can be shown in lists. */
-  readonly environmentMode?: SessionEnvironmentMode
-  readonly worktreePath?: string | null
-  readonly lineage?: SessionLineageSummary
-  readonly derivation?: SessionDerivationSummary
+  readonly environmentMode?: SessionEnvironmentMode | undefined
+  readonly worktreePath?: string | null | undefined
+  readonly lineage?: SessionLineageSummary | undefined
+  readonly derivation?: SessionDerivationSummary | undefined
   /** Persisted Run settlement used to rebuild renderer status after reconnect. */
-  readonly latestRun?: SessionLatestRunSummary
+  readonly latestRun?: SessionLatestRunSummary | undefined
   /** Creation time of the oldest outstanding non-notify agent interaction. */
-  readonly pendingInteractionAt?: number
+  readonly pendingInteractionAt?: number | undefined
   /** What they ask of the person; an approval outranks a question. */
-  readonly pendingInteractionKind?: HivePendingRequest
+  readonly pendingInteractionKind?: HivePendingRequest | undefined
   /** Host time when the pending-interaction set was sampled, including when it was empty. */
-  readonly pendingInteractionSnapshotAt?: number
+  readonly pendingInteractionSnapshotAt?: number | undefined
   /**
    * Acquisition time of the earliest live Follow-up edit hold: the queue is waiting on the user's
    * edit (sidebar: "Waiting on your edit"). Sampled with the pending-interaction set.
    */
-  readonly followUpEditHeldAt?: number
+  readonly followUpEditHeldAt?: number | undefined
 }
 
 /** Opaque keyset page used by the GUI Session catalog. */
@@ -148,7 +148,7 @@ export interface SessionDetail extends SessionDetailReadWindow {
    * its Pi entry ids under this prefix, because such a file may share entry ids with another
    * Session's (a `pi` CLI fork copies them) and OpenWaggle never rewrites it.
    */
-  readonly piEntryNodeIdPrefix?: string
+  readonly piEntryNodeIdPrefix?: string | undefined
   /**
    * The working directory a discovered Pi session ran in, when it is a folder inside the project.
    * Runs continue there, as `pi --resume` would; the Workspace is still the project (ADR 0051).
@@ -276,21 +276,21 @@ export interface SessionContentTree extends SessionTree {
 }
 
 export interface SessionWorkspaceSelection {
-  readonly branchId?: SessionBranchId | null
-  readonly nodeId?: SessionNodeId | null
+  readonly branchId?: SessionBranchId | null | undefined
+  readonly nodeId?: SessionNodeId | null | undefined
 }
 
 /** How the desktop user deletes a Session. */
 export interface SessionDeleteOptions {
   /** As part of removing its project: a discovered Pi file stays listable (ADR 0051). */
-  readonly removingProject?: boolean
+  readonly removingProject?: boolean | undefined
   /** Only while still archived (Settings > Archived items); see `SESSION_NOT_ARCHIVED_MESSAGE`. */
-  readonly requireArchived?: boolean
+  readonly requireArchived?: boolean | undefined
 }
 
 export interface SessionNavigateTreeOptions {
-  readonly summarize?: boolean
-  readonly customInstructions?: string
+  readonly summarize?: boolean | undefined
+  readonly customInstructions?: string | undefined
 }
 
 export interface SessionCopyToNewResult {
@@ -301,10 +301,10 @@ export interface SessionCopyToNewResult {
 
 export interface SessionTranscriptEntry {
   readonly node: SessionTranscriptNode
-  readonly branchId?: SessionBranchId | null
+  readonly branchId?: SessionBranchId | null | undefined
   readonly isActive: boolean
   /** Message left out: the caller holds it at this revision (`SessionWorkspaceRequest`). */
-  readonly contentOmitted?: true
+  readonly contentOmitted?: true | undefined
 }
 
 export interface SessionWorkspace {

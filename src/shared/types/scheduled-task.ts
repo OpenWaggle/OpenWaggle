@@ -44,7 +44,7 @@ export type TaskSchedule =
       /** Local wall-clock time `HH:MM` in the task's time zone. */
       readonly at: string
       /** Omitted means every day. */
-      readonly weekdays?: readonly IsoWeekday[]
+      readonly weekdays?: readonly IsoWeekday[] | undefined
     }
   | {
       readonly kind: 'rrule'
@@ -56,8 +56,8 @@ export type LaunchScheduleWorkspace = 'new-worktree' | 'local'
 
 /** A model and thinking level for this task's Runs only; omitted uses the Session's or project's. */
 interface ScheduledTaskModelChoice {
-  readonly modelId?: string
-  readonly thinkingLevel?: ThinkingLevel
+  readonly modelId?: string | undefined
+  readonly thinkingLevel?: ThinkingLevel | undefined
 }
 
 export type ScheduledTaskTarget =
@@ -66,7 +66,7 @@ export type ScheduledTaskTarget =
       readonly kind: 'launch'
       readonly projectPath: string
       readonly workspace: LaunchScheduleWorkspace
-      readonly agentDefinitionName?: string
+      readonly agentDefinitionName?: string | undefined
       /** Archive a launched Session once it finished, nothing needs attention, and no one touched it. */
       readonly archiveFinishedSessions: boolean
     } & ScheduledTaskModelChoice)
@@ -96,7 +96,7 @@ export interface ScheduledTaskAttention {
 export interface ScheduledTaskCreator {
   readonly kind: 'local-user' | 'profile' | 'session-agent'
   readonly label: string
-  readonly sessionId?: string
+  readonly sessionId?: string | undefined
 }
 
 export const SCHEDULED_TASK_RUN_STATUSES = ['started', 'skipped', 'failed'] as const
@@ -135,15 +135,15 @@ export interface ScheduledTaskRun {
   /** Firings missed while the Host was down or the machine slept, covered by this one run. */
   readonly missedCount: number
   readonly status: ScheduledTaskRunStatus
-  readonly reason?: ScheduledTaskRunReason
-  readonly message?: string
+  readonly reason?: ScheduledTaskRunReason | undefined
+  readonly message?: string | undefined
   /** The Session the run delivered into (Heartbeat) or launched (Launch schedule). */
-  readonly sessionId?: string
-  readonly runId?: string
+  readonly sessionId?: string | undefined
+  readonly runId?: string | undefined
   /** What a Heartbeat's Wake check decided for this firing. */
-  readonly wakeCheck?: ScheduledTaskRunWakeCheck
+  readonly wakeCheck?: ScheduledTaskRunWakeCheck | undefined
   /** A Heartbeat Run's Run outcome, once reported or inferred. */
-  readonly outcome?: ScheduledTaskRunOutcome
+  readonly outcome?: ScheduledTaskRunOutcome | undefined
 }
 
 export interface ScheduledTask {
@@ -185,43 +185,43 @@ export interface ScheduledTaskInput {
   readonly enabled: boolean
   readonly schedule: TaskSchedule
   /** Omitted: the machine's time zone. */
-  readonly timeZone?: string
-  readonly endsAt?: number | null
-  readonly maxRuns?: number | null
+  readonly timeZone?: string | undefined
+  readonly endsAt?: number | null | undefined
+  readonly maxRuns?: number | null | undefined
   readonly target: ScheduledTaskTarget
   /** Omitted: failures only for a Heartbeat, every run for a Launch schedule. */
-  readonly notificationPolicy?: ScheduledTaskNotificationPolicy
+  readonly notificationPolicy?: ScheduledTaskNotificationPolicy | undefined
   /** A Heartbeat needs `stopWhen`, `indefinite`, `endsAt` or `maxRuns` (#388). */
-  readonly heartbeat?: HeartbeatSettingsInput
+  readonly heartbeat?: HeartbeatSettingsInput | undefined
 }
 
 /** A partial update; the kind and Heartbeat target Session cannot change. */
 export interface ScheduledTaskPatch {
-  readonly name?: string
-  readonly prompt?: string
-  readonly enabled?: boolean
-  readonly schedule?: TaskSchedule
-  readonly timeZone?: string
-  readonly endsAt?: number | null
-  readonly maxRuns?: number | null
-  readonly target?: ScheduledTaskTarget
-  readonly notificationPolicy?: ScheduledTaskNotificationPolicy
-  readonly heartbeat?: HeartbeatSettingsInput
+  readonly name?: string | undefined
+  readonly prompt?: string | undefined
+  readonly enabled?: boolean | undefined
+  readonly schedule?: TaskSchedule | undefined
+  readonly timeZone?: string | undefined
+  readonly endsAt?: number | null | undefined
+  readonly maxRuns?: number | null | undefined
+  readonly target?: ScheduledTaskTarget | undefined
+  readonly notificationPolicy?: ScheduledTaskNotificationPolicy | undefined
+  readonly heartbeat?: HeartbeatSettingsInput | undefined
 }
 
 export type ScheduledTasksCommand =
   | {
       readonly operation: 'list'
-      readonly projectPath?: string
-      readonly sessionId?: string
+      readonly projectPath?: string | undefined
+      readonly sessionId?: string | undefined
     }
   | { readonly operation: 'read'; readonly taskId: string }
   | {
       readonly operation: 'runs'
       readonly taskId: string
-      readonly limit?: number
+      readonly limit?: number | undefined
       /** Runs fired before this time. */
-      readonly before?: number
+      readonly before?: number | undefined
     }
   | { readonly operation: 'create'; readonly input: ScheduledTaskInput }
   | { readonly operation: 'update'; readonly taskId: string; readonly patch: ScheduledTaskPatch }
@@ -234,7 +234,7 @@ export type ScheduledTasksCommand =
       readonly operation: 'report-outcome'
       readonly runId: string
       readonly outcome: HeartbeatRunOutcome
-      readonly note?: string
+      readonly note?: string | undefined
     }
 
 export const SCHEDULED_TASKS_OPERATIONS = [
@@ -253,7 +253,7 @@ export type ScheduledTasksOperation = (typeof SCHEDULED_TASKS_OPERATIONS)[number
 export interface ScheduledTasksRequest {
   readonly contractVersion: typeof SCHEDULED_TASKS_CONTRACT_VERSION
   readonly requestId: string
-  readonly idempotencyKey?: string
+  readonly idempotencyKey?: string | undefined
   readonly command: ScheduledTasksCommand
 }
 
@@ -289,12 +289,12 @@ export interface ScheduledTasksResponse {
   readonly outcome: ScheduledTasksOutcome
 }
 
-export type LocalScheduledTasksCommandPayload = {
+export interface LocalScheduledTasksCommandPayload {
   readonly contract: 'scheduled-tasks-v1'
   readonly request: ScheduledTasksRequest
 }
 
-export type LocalScheduledTasksCommandResult = {
+export interface LocalScheduledTasksCommandResult {
   readonly contract: 'scheduled-tasks-v1'
   readonly response: ScheduledTasksResponse
 }

@@ -87,28 +87,32 @@ const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.nonNega
 
 /** Runtime contract shared by IPC patches and persisted settings decoding. */
 export const settingsUpdateSchema = Schema.Struct({
-  selectedModel: Schema.optional(Schema.String),
-  favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
-  usageStatisticsEnabled: Schema.optional(Schema.Boolean),
-  automaticWorktreeRemoval: Schema.optional(automaticWorktreeRemovalSettingsSchema),
-  desktopNotifications: Schema.optional(desktopNotificationSettingsSchema),
-  codemodeEnabled: Schema.optional(Schema.Boolean),
-  cacheWarming: Schema.optional(Schema.Literal(...PI_CACHE_WARMING_MODES)),
-  compactionThresholdPercent: Schema.optional(
+  selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
+  favoriteModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
+  enabledModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
+  projectPath: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
+  updateChannel: Schema.optionalWith(Schema.Literal(...UPDATE_CHANNELS), { exact: true }),
+  usageStatisticsEnabled: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  automaticWorktreeRemoval: Schema.optionalWith(automaticWorktreeRemovalSettingsSchema, {
+    exact: true,
+  }),
+  desktopNotifications: Schema.optionalWith(desktopNotificationSettingsSchema, { exact: true }),
+  codemodeEnabled: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  cacheWarming: Schema.optionalWith(Schema.Literal(...PI_CACHE_WARMING_MODES), { exact: true }),
+  compactionThresholdPercent: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),
+    { exact: true },
   ),
-  sessionTitleModel: Schema.optional(
+  sessionTitleModel: Schema.optionalWith(
     Schema.String.pipe(
       Schema.filter((value) => parseSessionTitleModelSetting(value) !== null, {
         message: () => 'Title model must be automatic, off, or a provider/model reference.',
       }),
     ),
+    { exact: true },
   ),
-  recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  skillTogglesByProject: Schema.optional(
+  recentProjects: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
+  skillTogglesByProject: Schema.optionalWith(
     Schema.mutable(
       Schema.Record({
         key: Schema.String,
@@ -120,83 +124,101 @@ export const settingsUpdateSchema = Schema.Struct({
         ),
       }),
     ),
+    { exact: true },
   ),
-  agentDefinitionTogglesByProject: Schema.optional(
+  agentDefinitionTogglesByProject: Schema.optionalWith(
     Schema.mutable(
       Schema.Record({
         key: Schema.String,
         value: Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Boolean })),
       }),
     ),
+    { exact: true },
   ),
-  projectDisplayNames: Schema.optional(
+  projectDisplayNames: Schema.optionalWith(
     Schema.mutable(
       Schema.Record({
         key: Schema.String,
         value: Schema.String,
       }),
     ),
+    { exact: true },
   ),
-  selectedModelsByProject: Schema.optional(
+  selectedModelsByProject: Schema.optionalWith(
     Schema.mutable(
       Schema.Record({
         key: Schema.String,
         value: Schema.String,
       }),
     ),
+    { exact: true },
   ),
-  projectPathAliases: Schema.optional(
+  projectPathAliases: Schema.optionalWith(
     Schema.mutable(
       Schema.Record({
         key: Schema.String,
         value: Schema.String,
       }),
     ),
+    { exact: true },
   ),
-  defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  defaultSessionEnvironmentMode: Schema.optional(Schema.Literal(...SESSION_ENVIRONMENT_MODES)),
-  diffSyntaxTheme: Schema.optional(Schema.Literal(...DIFF_SYNTAX_THEMES)),
-  syntaxThemeSelections: Schema.optional(
+  defaultAuthorizationMode: Schema.optionalWith(Schema.Literal(...AGENT_AUTHORIZATION_MODES), {
+    exact: true,
+  }),
+  defaultSessionEnvironmentMode: Schema.optionalWith(Schema.Literal(...SESSION_ENVIRONMENT_MODES), {
+    exact: true,
+  }),
+  diffSyntaxTheme: Schema.optionalWith(Schema.Literal(...DIFF_SYNTAX_THEMES), { exact: true }),
+  syntaxThemeSelections: Schema.optionalWith(
     Schema.Struct({
       light: Schema.String,
       dark: Schema.String,
       'high-contrast-light': Schema.String,
       'high-contrast-dark': Schema.String,
     }),
+    { exact: true },
   ),
-  diffView: Schema.optional(Schema.Literal(...DIFF_VIEWS)),
-  diffWrapLines: Schema.optional(Schema.Boolean),
-  rightPanelRailVisibleWhenClosed: Schema.optional(Schema.Boolean),
-  sessionHostParentConcurrencyLimit: Schema.optional(positiveIntegerSchema),
-  sessionHostParentConcurrencyLimitsByProject: Schema.optional(
+  diffView: Schema.optionalWith(Schema.Literal(...DIFF_VIEWS), { exact: true }),
+  diffWrapLines: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  rightPanelRailVisibleWhenClosed: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  sessionHostParentConcurrencyLimit: Schema.optionalWith(positiveIntegerSchema, { exact: true }),
+  sessionHostParentConcurrencyLimitsByProject: Schema.optionalWith(
     Schema.mutable(Schema.Record({ key: Schema.String, value: positiveIntegerSchema })),
+    { exact: true },
   ),
-  sessionHostRunCeiling: Schema.optional(positiveIntegerSchema),
-  sessionHostIdleGracePeriodMs: Schema.optional(nonNegativeIntegerSchema),
-  multiAgentEnabled: Schema.optional(Schema.Boolean),
-  multiAgentEnabledByProject: Schema.optional(
+  sessionHostRunCeiling: Schema.optionalWith(positiveIntegerSchema, { exact: true }),
+  sessionHostIdleGracePeriodMs: Schema.optionalWith(nonNegativeIntegerSchema, { exact: true }),
+  multiAgentEnabled: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  multiAgentEnabledByProject: Schema.optionalWith(
     Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Boolean })),
+    { exact: true },
   ),
-  piSessionContinuationByProject: Schema.optional(
+  piSessionContinuationByProject: Schema.optionalWith(
     Schema.mutable(
       Schema.Record({
         key: Schema.String,
         value: Schema.Literal(...PI_SESSION_CONTINUATION_CHOICES),
       }),
     ),
+    { exact: true },
   ),
-  browserLinkTarget: Schema.optional(Schema.Literal(...BROWSER_LINK_TARGETS)),
-  browserProfiles: Schema.optional(Schema.mutable(browserProfilesSchema)),
-  browserDefaultProfileId: Schema.optional(browserProfileIdSchema),
-  browserDefaultViewport: Schema.optional(browserPreviewViewportSchema),
-  browserDefaultZoomFactor: Schema.optional(browserPreviewZoomFactorSchema),
-  browserDefaultAppearance: Schema.optional(browserPreviewAppearanceSchema),
-  browserRecordingFrameRate: Schema.optional(browserPreviewRecordingFrameRateSchema),
-  browserAutoShowFloatingPreview: Schema.optional(Schema.Boolean),
-  enableAgentBrowserAccess: Schema.optional(Schema.Boolean),
-  appearancePreferences: Schema.optional(appearancePreferencesSchema),
-  changeRequestOpenDestination: Schema.optional(Schema.NullOr(changeRequestOpenDestinationSchema)),
-  changeRequestOpenDestinationByProject: Schema.optional(
+  browserLinkTarget: Schema.optionalWith(Schema.Literal(...BROWSER_LINK_TARGETS), { exact: true }),
+  browserProfiles: Schema.optionalWith(Schema.mutable(browserProfilesSchema), { exact: true }),
+  browserDefaultProfileId: Schema.optionalWith(browserProfileIdSchema, { exact: true }),
+  browserDefaultViewport: Schema.optionalWith(browserPreviewViewportSchema, { exact: true }),
+  browserDefaultZoomFactor: Schema.optionalWith(browserPreviewZoomFactorSchema, { exact: true }),
+  browserDefaultAppearance: Schema.optionalWith(browserPreviewAppearanceSchema, { exact: true }),
+  browserRecordingFrameRate: Schema.optionalWith(browserPreviewRecordingFrameRateSchema, {
+    exact: true,
+  }),
+  browserAutoShowFloatingPreview: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  enableAgentBrowserAccess: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  appearancePreferences: Schema.optionalWith(appearancePreferencesSchema, { exact: true }),
+  changeRequestOpenDestination: Schema.optionalWith(
+    Schema.NullOr(changeRequestOpenDestinationSchema),
+    { exact: true },
+  ),
+  changeRequestOpenDestinationByProject: Schema.optionalWith(
     Schema.mutable(
       boundedRecordSchema(
         changeRequestOpenDestinationSchema,
@@ -204,8 +226,9 @@ export const settingsUpdateSchema = Schema.Struct({
         'Change request open destinations',
       ),
     ),
+    { exact: true },
   ),
-  sourceControlHostProviders: Schema.optional(
+  sourceControlHostProviders: Schema.optionalWith(
     Schema.mutable(
       boundedRecordSchema(
         Schema.Literal('github', 'gitlab', 'unsupported'),
@@ -213,11 +236,13 @@ export const settingsUpdateSchema = Schema.Struct({
         'Source control host choices',
       ),
     ),
+    { exact: true },
   ),
-  sourceControlDetectedHostProviders: Schema.optional(
+  sourceControlDetectedHostProviders: Schema.optionalWith(
     Schema.mutable(sourceControlHostProvidersSchema),
+    { exact: true },
   ),
-  sourceControlRepositoryAccounts: Schema.optional(
+  sourceControlRepositoryAccounts: Schema.optionalWith(
     Schema.mutable(
       boundedRecordSchema(
         Schema.String.pipe(
@@ -228,8 +253,9 @@ export const settingsUpdateSchema = Schema.Struct({
         'Source control repository accounts',
       ),
     ),
+    { exact: true },
   ),
-  sourceControlChangeRequestRepositories: Schema.optional(
+  sourceControlChangeRequestRepositories: Schema.optionalWith(
     Schema.mutable(
       boundedRecordSchema(
         Schema.String.pipe(
@@ -240,8 +266,9 @@ export const settingsUpdateSchema = Schema.Struct({
         'Source control change request repositories',
       ),
     ),
+    { exact: true },
   ),
-  sourceControlProjectDeclarations: Schema.optional(
+  sourceControlProjectDeclarations: Schema.optionalWith(
     Schema.mutable(
       boundedRecordSchema(
         sourceControlProjectDeclarationSchema,
@@ -249,27 +276,31 @@ export const settingsUpdateSchema = Schema.Struct({
         'Source control project declarations',
       ),
     ),
+    { exact: true },
   ),
-  shortcutBindings: Schema.optional(
+  shortcutBindings: Schema.optionalWith(
     Schema.mutable(
       Schema.Record({
         key: Schema.Literal(...SHORTCUT_COMMANDS),
         value: Schema.Union(shortcutBindingSchema, Schema.Null),
       }),
     ),
+    { exact: true },
   ),
-  extensionPanelShortcutBindings: Schema.optional(
+  extensionPanelShortcutBindings: Schema.optionalWith(
     Schema.mutable(extensionPanelShortcutBindingsSchema),
+    { exact: true },
   ),
-  shortcutRules: Schema.optional(
+  shortcutRules: Schema.optionalWith(
     Schema.mutable(
       Schema.Array(
         Schema.Struct({
           command: Schema.Literal(...SHORTCUT_COMMANDS),
           shortcut: shortcutBindingSchema,
-          when: Schema.optional(shortcutWhenSchema),
+          when: Schema.optionalWith(shortcutWhenSchema, { exact: true }),
         }),
       ).pipe(Schema.maxItems(SHORTCUT_RULE_LIMITS.RULES)),
     ),
+    { exact: true },
   ),
 })

@@ -18,13 +18,13 @@ export interface NestedToolCallRecord {
   readonly id: string
   readonly name: string
   /** Omitted when over Pi's size limits; `argsBytes` then gives their size. */
-  readonly args?: Readonly<JsonObject>
-  readonly argsBytes?: number
+  readonly args?: Readonly<JsonObject> | undefined
+  readonly argsBytes?: number | undefined
   /** `unfinished`: the call was still running when the calling tool finished. */
   readonly status: 'ok' | 'error' | 'unfinished'
-  readonly durationMs?: number
+  readonly durationMs?: number | undefined
   /** Error text, truncated by Pi. */
-  readonly error?: string
+  readonly error?: string | undefined
 }
 
 /** Pi's bounded record of the nested calls a tool made. */
@@ -36,7 +36,7 @@ export interface NestedToolCalls {
    * Calls left out past the maximum, counted by OpenWaggle's live record. Pi's own record does
    * not count them: it is only marked incomplete.
    */
-  readonly droppedCalls?: number
+  readonly droppedCalls?: number | undefined
 }
 
 export interface ToolCallResult {

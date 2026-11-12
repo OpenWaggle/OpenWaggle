@@ -99,9 +99,9 @@ export interface SessionControlFollowUpEditInput {
   readonly text: string
   readonly attachmentIds: readonly string[]
   /** Present to keep or add a Waggle invocation; omitted to remove it. */
-  readonly waggle?: WaggleInvocationInput
+  readonly waggle?: WaggleInvocationInput | undefined
   /** Present to keep or set a visualization context; omitted to remove it. */
-  readonly visualizationContext?: InlineVisualizationContext
+  readonly visualizationContext?: InlineVisualizationContext | undefined
 }
 
 /** Asks the Host to hold one Follow-up for a Follow-up edit (desktop user only). */
@@ -137,9 +137,9 @@ export type SessionControlQueueEditCommand =
 /** A Follow-up edit hold as one queue-list caller sees it. */
 export interface SessionFollowUpEditHoldSummary {
   /** Only the caller holding the edit learns the hold id it saves or cancels with. */
-  readonly holdId?: string
+  readonly holdId?: string | undefined
   /** For the holder: the queue revision the edit began at, which a save names. */
-  readonly baseQueueRevision?: number
+  readonly baseQueueRevision?: number | undefined
   readonly holderIsCaller: boolean
   readonly acquiredAt: number
   readonly leaseExpiresAt: number
@@ -153,33 +153,33 @@ export interface SessionFollowUpEditHoldSummary {
  */
 export interface SessionFollowUpSource {
   readonly callerId: string
-  readonly sessionId?: string
+  readonly sessionId?: string | undefined
   /**
    * The title of the agent Session in `sessionId`, resolved by the Host when the listing caller
    * may see that Session, including an archived one or one in another project. Absent when the
    * Session is gone or out of the caller's reach.
    */
-  readonly sessionTitle?: string
-  readonly profileName?: string
+  readonly sessionTitle?: string | undefined
+  readonly profileName?: string | undefined
 }
 
 /** What a queue-list tells its caller about one listed Follow-up beyond its queue fields. */
 export interface SessionFollowUpListing {
   /** Who queued this Follow-up (its Message provenance), resolved for display. */
-  readonly source?: SessionFollowUpSource
+  readonly source?: SessionFollowUpSource | undefined
   /** The calling user queued this Follow-up and may begin a Follow-up edit on it. */
   readonly editable: boolean
   /** Present while a Follow-up edit holds this item (and stops delivery here). */
-  readonly editHold?: SessionFollowUpEditHoldSummary
+  readonly editHold?: SessionFollowUpEditHoldSummary | undefined
   /** With bodies: descriptors of the intent's attachments, in intent order. Never binary. */
-  readonly attachments?: readonly SessionFollowUpAttachmentDescriptor[]
+  readonly attachments?: readonly SessionFollowUpAttachmentDescriptor[] | undefined
 }
 
 /** What a composer needs to show a queued attachment again: no path, text, or bytes. */
 export interface SessionFollowUpAttachmentDescriptor {
   readonly id: string
   readonly kind: AttachmentKind
-  readonly origin?: AttachmentOrigin
+  readonly origin?: AttachmentOrigin | undefined
   readonly name: string
   readonly mimeType: string
   readonly sizeBytes: number
@@ -199,7 +199,7 @@ export type SessionControlQueueOutcome =
       /** The Follow-ups still queued after the change, in delivery order. */
       readonly remainingFollowUpIds: readonly string[]
       /** `queue-withdraw` only: the Follow-ups this call removed. */
-      readonly withdrawnFollowUpIds?: readonly string[]
+      readonly withdrawnFollowUpIds?: readonly string[] | undefined
       readonly stateRevision: number
     }
   | {
@@ -219,7 +219,7 @@ export type SessionControlQueueOutcome =
       readonly runId: string
       readonly followUpId: string
       /** `queue-withdraw` only: the Follow-ups this call removed. */
-      readonly withdrawnFollowUpIds?: readonly string[]
+      readonly withdrawnFollowUpIds?: readonly string[] | undefined
       readonly queueRevision: number
       readonly stateRevision: number
     }

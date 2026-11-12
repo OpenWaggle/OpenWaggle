@@ -27,7 +27,7 @@ export interface ScheduledTaskRunOutcome {
   readonly value: HeartbeatRunOutcome
   readonly source: HeartbeatRunOutcomeSource
   /** Why, in the agent's words, when it reported one. */
-  readonly note?: string
+  readonly note?: string | undefined
 }
 
 export const HEARTBEAT_WAKE_CHECK_FAILURE_POLICIES = ['wake', 'skip'] as const
@@ -46,7 +46,7 @@ export interface HeartbeatWakeCheckInput {
   /** A shell command run in the Heartbeat's Session workspace before each firing. */
   readonly command: string
   /** Omitted: `wake`. */
-  readonly onFailure?: HeartbeatWakeCheckFailurePolicy
+  readonly onFailure?: HeartbeatWakeCheckFailurePolicy | undefined
 }
 
 export interface HeartbeatWakeCheck {
@@ -83,11 +83,11 @@ export interface HeartbeatSettings {
 
 /** The Heartbeat settings a caller sets; an omitted field keeps its value (or its default). */
 export interface HeartbeatSettingsInput {
-  readonly stopWhen?: string | null
-  readonly indefinite?: boolean
-  readonly idlePauseAfter?: number
+  readonly stopWhen?: string | null | undefined
+  readonly indefinite?: boolean | undefined
+  readonly idlePauseAfter?: number | undefined
   /** null removes the Wake check. */
-  readonly wakeCheck?: HeartbeatWakeCheckInput | null
+  readonly wakeCheck?: HeartbeatWakeCheckInput | null | undefined
 }
 
 /** What the Wake check decided for one firing, recorded on its run. */

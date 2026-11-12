@@ -22,11 +22,11 @@ function isPair(value: unknown): value is SyntaxLanguagePair {
 function isAutoClosingPair(value: unknown): value is SyntaxLanguageAutoClosingPair {
   return (
     isRecord(value) &&
-    typeof value.open === 'string' &&
-    typeof value.close === 'string' &&
-    (value.notIn === undefined ||
-      (Array.isArray(value.notIn) &&
-        value.notIn.every(
+    typeof value['open'] === 'string' &&
+    typeof value['close'] === 'string' &&
+    (value['notIn'] === undefined ||
+      (Array.isArray(value['notIn']) &&
+        value['notIn'].every(
           (entry) => entry === 'string' || entry === 'comment' || entry === 'regex',
         )))
   )
@@ -44,8 +44,8 @@ function isOptionalComments(value: unknown) {
   if (value === undefined) return true
   return (
     isRecord(value) &&
-    (value.lineComment === undefined || typeof value.lineComment === 'string') &&
-    (value.blockComment === undefined || isPair(value.blockComment))
+    (value['lineComment'] === undefined || typeof value['lineComment'] === 'string') &&
+    (value['blockComment'] === undefined || isPair(value['blockComment']))
   )
 }
 
@@ -54,11 +54,11 @@ export function isSyntaxLanguageConfiguration(
 ): value is SyntaxLanguageConfiguration {
   if (!isRecord(value)) return false
   return (
-    isOptionalComments(value.comments) &&
-    isOptionalPairList(value.brackets) &&
-    isOptionalAutoClosingPairList(value.autoClosingPairs) &&
-    isOptionalAutoClosingPairList(value.surroundingPairs) &&
-    isOptionalPairList(value.colorizedBracketPairs) &&
-    (value.autoCloseBefore === undefined || typeof value.autoCloseBefore === 'string')
+    isOptionalComments(value['comments']) &&
+    isOptionalPairList(value['brackets']) &&
+    isOptionalAutoClosingPairList(value['autoClosingPairs']) &&
+    isOptionalAutoClosingPairList(value['surroundingPairs']) &&
+    isOptionalPairList(value['colorizedBracketPairs']) &&
+    (value['autoCloseBefore'] === undefined || typeof value['autoCloseBefore'] === 'string')
   )
 }

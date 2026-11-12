@@ -1,6 +1,5 @@
 import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentAuthorizationMode } from './agent-authorization'
-import type { ResolvedAgentDefinitionSnapshot } from './agent-definition'
 import type { SessionCapability } from './session-capability'
 import type { ThinkingLevel } from './settings'
 
@@ -12,8 +11,8 @@ export type LaunchWorkspaceSelection =
   | { readonly mode: 'local' }
   | {
       readonly mode: 'new-worktree'
-      readonly baseRef?: string
-      readonly startFromOrigin?: boolean
+      readonly baseRef?: string | undefined
+      readonly startFromOrigin?: boolean | undefined
     }
   | { readonly mode: 'existing'; readonly workspaceId: string }
 
@@ -22,8 +21,8 @@ export type SpawnWorkspaceSelection =
   | { readonly mode: 'local' }
   | {
       readonly mode: 'new-worktree'
-      readonly baseRef?: string
-      readonly startFromOrigin?: boolean
+      readonly baseRef?: string | undefined
+      readonly startFromOrigin?: boolean | undefined
     }
 
 export type ForkWorkspaceSelection =
@@ -31,15 +30,15 @@ export type ForkWorkspaceSelection =
   | { readonly mode: 'local' }
   | {
       readonly mode: 'new-worktree'
-      readonly baseRef?: string
-      readonly startFromOrigin?: boolean
+      readonly baseRef?: string | undefined
+      readonly startFromOrigin?: boolean | undefined
     }
   | { readonly mode: 'existing'; readonly workspaceId: string }
 
 export interface SessionExecutionSpecialization {
-  readonly modelId?: string
-  readonly thinkingLevel?: ThinkingLevel
-  readonly agentDefinitionName?: string
+  readonly modelId?: string | undefined
+  readonly thinkingLevel?: ThinkingLevel | undefined
+  readonly agentDefinitionName?: string | undefined
 }
 
 export interface ResolvedSessionExecutionProfile {
@@ -52,12 +51,6 @@ export interface ResolvedSessionExecutionProfile {
   readonly sessionCapabilities?: readonly SessionCapability[]
 }
 
-export interface SessionExecutionProfileSnapshot {
-  readonly profile: ResolvedSessionExecutionProfile
-  readonly resolvedAgentSnapshot?: ResolvedAgentDefinitionSnapshot
-  readonly authorizationCeiling: AgentAuthorizationMode
-}
-
 export interface DelegationSpecificationInput {
   readonly objective: string
   readonly deliverables: readonly string[]
@@ -66,28 +59,28 @@ export interface DelegationSpecificationInput {
     readonly delegationId: string
     readonly requiredState: 'ready_for_review' | 'accepted'
   }[]
-  readonly handoffContext?: string
+  readonly handoffContext?: string | undefined
   readonly resourceReferences: readonly string[]
 }
 
 export interface CreateRootSessionCommand {
   readonly operation: 'create'
   readonly projectPath: string
-  readonly title?: string
-  readonly workspace?: LaunchWorkspaceSelection
-  readonly specialization?: SessionExecutionSpecialization
+  readonly title?: string | undefined
+  readonly workspace?: LaunchWorkspaceSelection | undefined
+  readonly specialization?: SessionExecutionSpecialization | undefined
 }
 
 export interface LaunchRootSessionCommand {
   readonly operation: 'launch'
   readonly projectPath: string
-  readonly title?: string
-  readonly workspace?: LaunchWorkspaceSelection
-  readonly specialization?: SessionExecutionSpecialization
-  readonly runAuthorizationOverride?: AgentAuthorizationMode
+  readonly title?: string | undefined
+  readonly workspace?: LaunchWorkspaceSelection | undefined
+  readonly specialization?: SessionExecutionSpecialization | undefined
+  readonly runAuthorizationOverride?: AgentAuthorizationMode | undefined
   readonly objective: string
   readonly attachmentIds: readonly string[]
-  readonly interactionTimeoutMs?: number
+  readonly interactionTimeoutMs?: number | undefined
 }
 
 export interface SpawnWorkerSessionCommand {
@@ -95,22 +88,22 @@ export interface SpawnWorkerSessionCommand {
   readonly parentSessionId: string
   readonly expectedParentRunId: string
   /** A manual title; without one the Worker is titled from its objective. */
-  readonly title?: string
-  readonly workspace?: SpawnWorkspaceSelection
-  readonly specialization?: SessionExecutionSpecialization
-  readonly runAuthorizationOverride?: AgentAuthorizationMode
-  readonly interactionTimeoutMs?: number
-  readonly attachmentIds?: readonly string[]
+  readonly title?: string | undefined
+  readonly workspace?: SpawnWorkspaceSelection | undefined
+  readonly specialization?: SessionExecutionSpecialization | undefined
+  readonly runAuthorizationOverride?: AgentAuthorizationMode | undefined
+  readonly interactionTimeoutMs?: number | undefined
+  readonly attachmentIds?: readonly string[] | undefined
   readonly delegation: DelegationSpecificationInput
 }
 
 export interface ForkSessionCommand {
   readonly operation: 'fork'
   readonly sourceSessionId: string
-  readonly targetNodeId?: string
-  readonly position?: 'before' | 'at'
-  readonly title?: string
-  readonly workspace?: ForkWorkspaceSelection
+  readonly targetNodeId?: string | undefined
+  readonly position?: 'before' | 'at' | undefined
+  readonly title?: string | undefined
+  readonly workspace?: ForkWorkspaceSelection | undefined
 }
 
 export type SessionLifecycleCommand =
@@ -141,7 +134,7 @@ export type SessionLifecycleOutcome =
       readonly sourceNodeId: string
       readonly position: 'before' | 'at'
       readonly workspaceId: string
-      readonly editorText?: string
+      readonly editorText?: string | undefined
     }
   | {
       readonly operation: 'launch'
@@ -170,12 +163,12 @@ export type SessionLifecycleOutcome =
       /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
       readonly kind: SessionHostErrorKind
       readonly retryable: boolean
-      readonly parentConcurrencyLimit?: number
-      readonly parentRunningChildren?: number
+      readonly parentConcurrencyLimit?: number | undefined
+      readonly parentRunningChildren?: number | undefined
       /** The Host's ceiling on Runs of agents' work; it never refuses a Run the person starts. */
-      readonly hostRunCeiling?: number
+      readonly hostRunCeiling?: number | undefined
       /** Active Runs of agents' work across the Host when the request was refused. */
-      readonly hostActiveRuns?: number
+      readonly hostActiveRuns?: number | undefined
     }
 
 export interface SessionLifecycleResponse {

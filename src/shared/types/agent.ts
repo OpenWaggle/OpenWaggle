@@ -36,26 +36,26 @@ export interface BrowserPreviewAttachmentMetadata {
   readonly role: string | null
   readonly elementText: string
   readonly comment: string
-  readonly elementCount?: number
-  readonly regionCount?: number
-  readonly drawingCount?: number
-  readonly styleChangeCount?: number
-  readonly componentName?: string | null
-  readonly sourceFile?: string | null
-  readonly sourceLine?: number | null
+  readonly elementCount?: number | undefined
+  readonly regionCount?: number | undefined
+  readonly drawingCount?: number | undefined
+  readonly styleChangeCount?: number | undefined
+  readonly componentName?: string | null | undefined
+  readonly sourceFile?: string | null | undefined
+  readonly sourceLine?: number | null | undefined
 }
 
 export interface AttachmentRecord {
   readonly id: string
   readonly kind: AttachmentKind
-  readonly origin?: AttachmentOrigin
+  readonly origin?: AttachmentOrigin | undefined
   readonly name: string
   readonly path: string
   readonly mimeType: string
   readonly sizeBytes: number
-  readonly contentSha256?: string
+  readonly contentSha256?: string | undefined
   readonly extractedText: string
-  readonly browserPreview?: BrowserPreviewAttachmentMetadata
+  readonly browserPreview?: BrowserPreviewAttachmentMetadata | undefined
 }
 
 export interface AttachmentPart {
@@ -190,7 +190,7 @@ export interface Message {
   readonly role: MessageRole
   readonly parts: readonly MessagePart[]
   readonly model?: SupportedModelId
-  readonly metadata?: MessageMetadata
+  readonly metadata?: MessageMetadata | undefined
   readonly createdAt: number
 }
 
@@ -231,8 +231,8 @@ export type AgentSendOutcome = 'delivered' | 'refused' | 'cancelled' | 'queued'
 
 export interface AgentSendReport {
   readonly outcome: AgentSendOutcome
-  readonly message?: string
-  readonly code?: string
+  readonly message?: string | undefined
+  readonly code?: string | undefined
   /** The Run a `delivered` send started, when the Host reported it. */
-  readonly runId?: string
+  readonly runId?: string | undefined
 }

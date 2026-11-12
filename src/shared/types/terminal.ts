@@ -33,13 +33,13 @@ export interface TerminalOpenInput {
    * environment. Omission preserves a terminal record's current overrides;
    * an object, including `{}`, is a new launch context.
    */
-  readonly env?: Readonly<Record<string, string>>
+  readonly env?: Readonly<Record<string, string>> | undefined
   /**
    * Renderer-runtime nonce for the ordered input stream. Re-attaches with a
    * new nonce revoke late writes from an older renderer while restarts keep
    * the same nonce and therefore preserve accepted startup input.
    */
-  readonly inputGeneration?: string
+  readonly inputGeneration?: string | undefined
 }
 
 /** Idempotency identity for one ordered renderer-to-terminal input chunk. */
@@ -47,11 +47,11 @@ export interface TerminalInputIdentity {
   readonly generation: string
   readonly sequence: number
   /** Native record identity from attach; prevents late writes reaching a recreated terminal. */
-  readonly incarnation?: string
+  readonly incarnation?: string | undefined
 }
 
 /** Semantic intent carried with an ordered input item when it needs main-process arbitration. */
-export type TerminalInputIntent = {
+export interface TerminalInputIntent {
   readonly kind: 'project-action'
   /** Unique logical execution id; retries must retain this exact value. */
   readonly executionId: string
@@ -76,7 +76,7 @@ export interface TerminalReadinessSnapshot {
 
 export interface TerminalAttachResult {
   /** Stable while the native record survives, including shell Restart; new after deletion. */
-  readonly inputIncarnation?: string
+  readonly inputIncarnation?: string | undefined
   /**
    * Persisted scrollback replay for the terminal, already sanitized so replay
    * never re-triggers terminal query sequences. Empty for a brand-new terminal.
@@ -93,19 +93,19 @@ export interface TerminalAttachResult {
   /** Null when no shell exists for the requested Working path. */
   readonly readiness: TerminalReadinessSnapshot | null
   /** Bytes already accepted by main but still held behind prompt readiness. */
-  readonly pendingInputBytes?: number
+  readonly pendingInputBytes?: number | undefined
   /** Whether a live shell process is running or a spawn was just requested. */
   readonly running: boolean
   /** Present when no shell is running and the Working path no longer exists. */
-  readonly cwdMissing?: boolean
+  readonly cwdMissing?: boolean | undefined
   /** Exit code of the last dead shell, when `running` is false and cwd exists. */
-  readonly exitCode?: number
+  readonly exitCode?: number | undefined
   /** Current foreground child process, resynchronized on every attach. */
   readonly processName: string | null
   /** Current listening ports, resynchronized on every attach. */
   readonly ports: readonly number[]
   /** Browser-loadable endpoints verified from those listeners. */
-  readonly portPreviews?: readonly TerminalPortPreview[]
+  readonly portPreviews?: readonly TerminalPortPreview[] | undefined
   /** Main has accepted a Project Action that has not yet returned to idle. */
   readonly projectActionPending: boolean
 }
@@ -128,7 +128,7 @@ export type TerminalRuntimeEvent =
       readonly type: 'readiness'
       readonly readiness: TerminalReadinessSnapshot
       /** Correlates readiness that races attach with the native record that emitted it. */
-      readonly inputIncarnation?: string
+      readonly inputIncarnation?: string | undefined
     }
   | { readonly type: 'activity'; readonly processName: string | null }
   | { readonly type: 'ports'; readonly ports: readonly number[] }
@@ -154,7 +154,7 @@ export interface TerminalActivitySummary {
   /** Listening ports owned by the shell process tree. */
   readonly ports: readonly number[]
   /** Browser-loadable endpoints owned by the shell process tree. */
-  readonly portPreviews?: readonly TerminalPortPreview[]
+  readonly portPreviews?: readonly TerminalPortPreview[] | undefined
   /** Prevents stale-idle snapshots from reusing a terminal for another action. */
   readonly projectActionPending: boolean
 }
@@ -178,7 +178,7 @@ export type TerminalWriteResult =
       readonly status: 'written' | 'queued'
       readonly acceptedBytes: number
       /** Echoes the idempotency identity supplied with this write. */
-      readonly identity?: TerminalInputIdentity
+      readonly identity?: TerminalInputIdentity | undefined
     }
   | {
       readonly status: 'rejected'
@@ -194,7 +194,7 @@ export type TerminalWriteResult =
         | 'sequence-conflict'
         | 'project-action-pending'
       /** Echoes the idempotency identity supplied with this write. */
-      readonly identity?: TerminalInputIdentity
+      readonly identity?: TerminalInputIdentity | undefined
     }
 
 export type TerminalInputReleaseResult =

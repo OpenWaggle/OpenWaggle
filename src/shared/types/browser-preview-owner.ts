@@ -20,7 +20,7 @@ export interface BrowserPreviewOpenRequestAck {
   readonly ownerKey: string
   readonly previewId: string
   readonly success: boolean
-  readonly error?: string
+  readonly error?: string | undefined
 }
 
 export interface BrowserPreviewOpenRequestCancellation {

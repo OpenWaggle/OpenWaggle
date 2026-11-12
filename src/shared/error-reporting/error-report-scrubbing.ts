@@ -78,9 +78,9 @@ export interface ErrorReportEvent {
   exception?: { values?: ErrorReportException[] }
   threads?: { values?: { stacktrace?: ErrorReportStackTrace }[] }
   stacktrace?: ErrorReportStackTrace
-  tags?: { [key: string]: unknown }
-  extra?: { [key: string]: unknown }
-  contexts?: { [key: string]: { [key: string]: unknown } | undefined }
+  tags?: Record<string, unknown>
+  extra?: Record<string, unknown>
+  contexts?: Record<string, Record<string, unknown> | undefined>
   user?: unknown
   request?: unknown
   server_name?: string

@@ -95,8 +95,6 @@ export type SourceControlAttention =
       readonly accounts: readonly string[]
     }
 
-export type SourceControlAttentionKind = SourceControlAttention['kind']
-
 /** One Provider account a CLI holds for a host. */
 export interface SourceControlProviderAccount {
   readonly login: string
@@ -231,7 +229,7 @@ export type SourceControlConfigureRequest =
       readonly kind: 'declare-project-host'
       readonly projectPath: string
       /** Checkout whose settings file is written; defaults to the project root. */
-      readonly workingPath?: string
+      readonly workingPath?: string | undefined
       readonly host: string
       readonly provider: SourceControlProviderId | null
     }
@@ -245,9 +243,9 @@ export type SourceControlConfigureRequest =
       readonly kind: 'set-open-destination'
       readonly scope: ChangeRequestOpenDestinationScope
       /** Required for the project scopes. */
-      readonly projectPath?: string
+      readonly projectPath?: string | undefined
       /** Checkout whose settings file a shared destination is written to; defaults to the project. */
-      readonly workingPath?: string
+      readonly workingPath?: string | undefined
       /** null clears the override at that scope. */
       readonly destination: ChangeRequestOpenDestination | null
     }

@@ -16,10 +16,6 @@ export type UsageCostOriginFilter = (typeof USAGE_COST_ORIGIN_FILTERS)[number]
 export const USAGE_COST_SESSION_ORIGINS = ['openwaggle', 'other-pi-clients'] as const
 export type UsageCostSessionOrigin = (typeof USAGE_COST_SESSION_ORIGINS)[number]
 
-/** How a cost number was obtained (CONTEXT.md: Cost tier). */
-export const USAGE_COST_TIERS = ['recorded', 'estimated', 'unpriced'] as const
-export type UsageCostTier = (typeof USAGE_COST_TIERS)[number]
-
 export interface UsageCostQuery {
   readonly preset: UsageCostRangePreset
   readonly origin: UsageCostOriginFilter
@@ -27,11 +23,11 @@ export interface UsageCostQuery {
 
 export interface UsageCostSessionQuery extends UsageCostQuery {
   /** Local-timezone day bucket, `YYYY-MM-DD`, from a drill-down selection. */
-  readonly day?: string
-  readonly provider?: string
-  readonly modelId?: string
+  readonly day?: string | undefined
+  readonly provider?: string | undefined
+  readonly modelId?: string | undefined
   /** Resolved project path group key; `null` selects sessions recorded without a working directory. */
-  readonly projectPath?: string | null
+  readonly projectPath?: string | null | undefined
 }
 
 export interface UsageCostTokens {

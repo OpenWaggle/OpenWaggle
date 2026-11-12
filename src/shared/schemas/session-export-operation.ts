@@ -1,9 +1,6 @@
 import { Schema } from '@shared/schema'
 import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
-import type {
-  SessionExportBundleManifest,
-  SessionExportManifest,
-} from '@shared/types/session-export'
+import type { SessionExportManifest } from '@shared/types/session-export'
 import type { SessionExportResourceInput } from '@shared/types/session-export-operation'
 import {
   SESSION_EXPORT_FORMATS,
@@ -65,21 +62,6 @@ export const sessionExportManifestSchema: Schema.Schema<SessionExportManifest> =
     ),
   }),
 })
-
-export const sessionExportBundleManifestSchema: Schema.Schema<SessionExportBundleManifest> =
-  Schema.Struct({
-    schemaVersion: Schema.Literal(1),
-    kind: Schema.Literal('openwaggle-session-export-bundle'),
-    export: sessionExportManifestSchema,
-    entries: Schema.Array(
-      Schema.Struct({
-        path: boundedPath,
-        mediaType: Schema.String,
-        size: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-        sha256: Schema.String,
-      }),
-    ),
-  })
 
 export const exportCreateCommandSchema = Schema.Struct({
   operation: Schema.Literal('export-create'),

@@ -21,10 +21,10 @@ export interface DesktopTerminalInputs {
   readonly restart: TerminalOpenInput
   readonly write: TerminalTarget & {
     readonly data: string
-    readonly identity?: TerminalInputIdentity
-    readonly intent?: TerminalInputIntent
+    readonly identity?: TerminalInputIdentity | undefined
+    readonly intent?: TerminalInputIntent | undefined
   }
-  readonly sendInputNow: TerminalTarget & { readonly incarnation?: string }
+  readonly sendInputNow: TerminalTarget & { readonly incarnation?: string | undefined }
   readonly acknowledgeOutput: TerminalTarget & {
     readonly outputGeneration: number
     readonly endOffset: number

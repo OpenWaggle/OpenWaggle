@@ -4,7 +4,7 @@ import type {
   AgentLoopInteractionStatus,
 } from './agent-loop-interaction'
 
-export type SessionInteractionResponseCommand = {
+export interface SessionInteractionResponseCommand {
   readonly operation: 'request-respond' | 'approval-respond'
   readonly sessionId: string
   readonly runId: string

@@ -85,7 +85,7 @@ export const preparationDefinitionSchema = Schema.Struct({
   phase: Schema.Literal('setup', 'cleanup'),
   invocation: actionInvocationSchema,
 })
-const uniqueIds = <T extends { readonly id: string }>(entries: readonly T[]) =>
+const uniqueIds = (entries: readonly { readonly id: string }[]) =>
   new Set(entries.map((entry) => entry.id)).size === entries.length
 export const actionManifestSchema = Schema.Struct({
   version: Schema.Literal(1),
@@ -121,8 +121,8 @@ export const preparationReviewSchema = Schema.Struct({
   fingerprint: Schema.String,
   invocation: actionInvocationSchema,
   enabled: Schema.Boolean,
-  profileId: Schema.optional(actionDefinitionIdSchema),
-  profileName: Schema.optional(Schema.String),
+  profileId: Schema.optionalWith(actionDefinitionIdSchema, { exact: true }),
+  profileName: Schema.optionalWith(Schema.String, { exact: true }),
 })
 const storage = Schema.Literal('local', 'project')
 export const actionCatalogEditSchema = Schema.Union(

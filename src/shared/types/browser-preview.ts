@@ -20,7 +20,7 @@ export interface BrowserPreviewBounds {
   readonly width: number
   readonly height: number
   /** Presentation-only CSS viewport retained while a fill-mode page floats over chat. */
-  readonly sourceViewport?: { readonly width: number; readonly height: number }
+  readonly sourceViewport?: { readonly width: number; readonly height: number } | undefined
 }
 
 export interface BrowserPreviewOpenInput {
@@ -33,9 +33,9 @@ export interface BrowserPreviewOpenInput {
   readonly bounds: BrowserPreviewBounds
   readonly visible: boolean
   /** Per-tab user intent, carried across profile-bound native-view replacement. */
-  readonly audioMuted?: boolean
+  readonly audioMuted?: boolean | undefined
   /** Starting controls applied before the guest loads, avoiding a wrong-size first frame. */
-  readonly initialControls?: BrowserPreviewInitialControls
+  readonly initialControls?: BrowserPreviewInitialControls | undefined
 }
 
 export interface BrowserPreviewFavicon {

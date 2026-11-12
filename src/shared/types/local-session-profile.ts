@@ -2,7 +2,6 @@ import type { AgentAuthorizationMode } from './agent-authorization'
 import type { SessionCapability } from './session-capability'
 
 export const LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH = 128
-export const LOCAL_SESSION_PROFILE_CREDENTIAL_LENGTH = 43
 export const LOCAL_SESSION_PROFILE_SCOPE_ENTRY_LIMIT = 128
 export const LOCAL_SESSION_PROFILE_SCOPE_VALUE_MAX_LENGTH = 4096
 const LOCAL_SESSION_PROFILE_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/
@@ -12,16 +11,16 @@ export function isLocalSessionProfileCredential(value: string) {
 }
 
 export interface LocalSessionProfileScope {
-  readonly all?: boolean
+  readonly all?: boolean | undefined
   /** Canonical directory roots used only by machine-authenticated transient authorities. */
-  readonly workspaceRoots?: readonly string[]
+  readonly workspaceRoots?: readonly string[] | undefined
   /** Explicit roots within which Session exports may read resources and create artifacts. */
-  readonly exportRoots?: readonly string[]
+  readonly exportRoots?: readonly string[] | undefined
   /** Explicit roots from which Session commands may snapshot attachment files. */
-  readonly attachmentRoots?: readonly string[]
-  readonly projectPaths?: readonly string[]
-  readonly sessionIds?: readonly string[]
-  readonly hiveRootSessionIds?: readonly string[]
+  readonly attachmentRoots?: readonly string[] | undefined
+  readonly projectPaths?: readonly string[] | undefined
+  readonly sessionIds?: readonly string[] | undefined
+  readonly hiveRootSessionIds?: readonly string[] | undefined
 }
 
 export interface LocalSessionProfileAuthority {
@@ -30,7 +29,7 @@ export interface LocalSessionProfileAuthority {
   readonly capabilities: readonly SessionCapability[]
   readonly scope: LocalSessionProfileScope
   readonly authorizationCeiling: AgentAuthorizationMode
-  readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
+  readonly managementEnvelope?: LocalSessionProfileManagementEnvelope | undefined
 }
 
 export interface LocalSessionProfileManagementEnvelope {

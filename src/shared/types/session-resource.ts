@@ -71,9 +71,9 @@ export interface SessionResourceRouteSelection {
 
 export interface SessionResourceCatalogPageRequest {
   readonly view: SessionResourceCatalogView
-  readonly cursor?: string | null
+  readonly cursor?: string | null | undefined
   readonly limit: number
-  readonly selection?: SessionResourceRouteSelection | null
+  readonly selection?: SessionResourceRouteSelection | null | undefined
 }
 
 export interface SessionResourceCatalogPage {
@@ -98,7 +98,7 @@ export interface SessionResourceImageLocation {
 export interface SessionResourceNodePageRequest {
   readonly nodeIds: readonly string[]
   readonly kind: SessionResourceKind | null
-  readonly cursor?: string | null
+  readonly cursor?: string | null | undefined
   readonly limit: number
 }
 

@@ -80,19 +80,6 @@ const projectActionEditableFields = {
   shortcut: Schema.optional(Schema.NullOr(projectActionShortcutSchema)),
 }
 
-export const projectActionInputSchema = Schema.Struct(projectActionEditableFields)
-
-export const projectActionUpdateSchema = Schema.Struct({
-  name: Schema.optional(projectActionEditableFields.name),
-  command: Schema.optional(projectActionEditableFields.command),
-  icon: projectActionEditableFields.icon,
-  runOnWorktreeCreate: projectActionEditableFields.runOnWorktreeCreate,
-  previewUrl: projectActionEditableFields.previewUrl,
-  autoOpenPreview: projectActionEditableFields.autoOpenPreview,
-  shortcutRules: projectActionEditableFields.shortcutRules,
-  shortcut: projectActionEditableFields.shortcut,
-})
-
 export const storedProjectActionSchema = Schema.Struct(
   {
     id: projectActionIdSchema,

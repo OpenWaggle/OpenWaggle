@@ -9,8 +9,8 @@ export type LocalSessionClientFrame =
   | {
       readonly kind: 'subscribe'
       readonly requestId: string
-      readonly after?: SessionHostEventCursor
-      readonly sessionIds?: readonly string[]
+      readonly after?: SessionHostEventCursor | undefined
+      readonly sessionIds?: readonly string[] | undefined
     }
   | {
       readonly kind: 'unsubscribe'
