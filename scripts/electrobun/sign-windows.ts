@@ -65,9 +65,68 @@ export async function windowsSigningTargets(targets: readonly string[]) {
   return files.sort((left, right) => left.localeCompare(right))
 }
 
+const PE_HEADER_OFFSET = 0x3c
+const PE_SIGNATURE = 0x00004550
+const COFF_SECTION_COUNT = 6
+const COFF_OPTIONAL_HEADER_SIZE = 20
+const OPTIONAL_HEADER = 24
+const PE32_PLUS_MAGIC = 0x20b
+const DATA_DIRECTORIES = { pe32: 96, pe32Plus: 112 }
+const CERTIFICATE_TABLE_ENTRY = 4
+const DATA_DIRECTORY_SIZE = 8
+const UINT32_BYTES = 4
+const SECTION_HEADER_SIZE = 40
+const SECTION_RAW_SIZE = 16
+const SECTION_RAW_POINTER = 20
+
+/**
+ * Where the certificate table entry of a PE image sits, and whether the table it names is stale:
+ * not after every section or past the end of the file. Resource editors (Hutch sets `bun.exe`'s icon)
+ * rewrite the sections of Bun's signed `bun.exe` but keep the old entry, and signtool then rejects
+ * the file as a bad executable (0x800700C1).
+ */
+export function staleCertificateTable(image: Buffer) {
+  if (image.length < PE_HEADER_OFFSET + UINT32_BYTES) return null
+  const pe = image.readUInt32LE(PE_HEADER_OFFSET)
+  const headersEnd =
+    pe +
+    OPTIONAL_HEADER +
+    DATA_DIRECTORIES.pe32Plus +
+    (CERTIFICATE_TABLE_ENTRY + 1) * DATA_DIRECTORY_SIZE
+  if (headersEnd > image.length || image.readUInt32LE(pe) !== PE_SIGNATURE) return null
+  const sections = image.readUInt16LE(pe + COFF_SECTION_COUNT)
+  const optional = pe + OPTIONAL_HEADER
+  const pe32Plus = image.readUInt16LE(optional) === PE32_PLUS_MAGIC
+  const directories = optional + (pe32Plus ? DATA_DIRECTORIES.pe32Plus : DATA_DIRECTORIES.pe32)
+  const entry = directories + CERTIFICATE_TABLE_ENTRY * DATA_DIRECTORY_SIZE
+  const offset = image.readUInt32LE(entry)
+  const size = image.readUInt32LE(entry + UINT32_BYTES)
+  if (offset === 0 && size === 0) return null
+  let endOfSections = 0
+  const table = optional + image.readUInt16LE(pe + COFF_OPTIONAL_HEADER_SIZE)
+  for (let index = 0; index < sections; index += 1) {
+    const header = table + index * SECTION_HEADER_SIZE
+    const end =
+      image.readUInt32LE(header + SECTION_RAW_POINTER) +
+      image.readUInt32LE(header + SECTION_RAW_SIZE)
+    endOfSections = Math.max(endOfSections, end)
+  }
+  return offset < endOfSections || offset + size > image.length ? entry : null
+}
+
+/** Clears a stale certificate table entry so signtool signs the image afresh. */
+async function dropStaleCertificateTable(file: string) {
+  const image = await fs.readFile(file)
+  const entry = staleCertificateTable(image)
+  if (entry === null) return
+  image.fill(0, entry, entry + DATA_DIRECTORY_SIZE)
+  await fs.writeFile(file, image)
+}
+
 export async function signWindowsBinaries(options: WindowsSigningOptions) {
   const signtool = options.signtool ?? (await findSigntool())
   const files = await windowsSigningTargets(options.targets)
+  for (const file of files) await dropStaleCertificateTable(file)
   const timestamp =
     options.timestampUrl === null ? [] : ['/tr', options.timestampUrl, '/td', 'sha256']
   for (let index = 0; index < files.length; index += FILES_PER_CALL) {
