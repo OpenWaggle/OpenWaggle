@@ -13,10 +13,10 @@
 import { pathToFileURL } from 'node:url'
 import { compareReleaseVersions } from '../../src/main/update-feed'
 import { isRecord } from '../../src/shared/utils/validation'
+import { RELEASE_DOWNLOAD_BASE } from './app-config'
 
 const FIRST_CLI_ARGUMENT = 2
 const RELEASES_URL = 'https://api.github.com/repos/OpenWaggle/OpenWaggle/releases?per_page=100'
-const DOWNLOAD_BASE = 'https://github.com/OpenWaggle/OpenWaggle/releases/download'
 
 export interface ListedRelease {
   readonly tag: string
@@ -70,7 +70,7 @@ async function main(argv: readonly string[]) {
     return release === null ? [] : [release]
   })
   const base = patchBaseRelease(releases, version, `${os}-${arch}`)
-  if (base !== null) console.log(`${DOWNLOAD_BASE}/${encodeURIComponent(base.tag)}`)
+  if (base !== null) console.log(`${RELEASE_DOWNLOAD_BASE}/${encodeURIComponent(base.tag)}`)
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

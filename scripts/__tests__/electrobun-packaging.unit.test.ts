@@ -4,10 +4,10 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveBuildIdentity } from '../build-identity'
 import {
-  DEFAULT_RELEASE_BASE_URL,
   electrobunAppConfig,
   PACKAGED_APP_LAYOUT,
   PATCH_BASE_URL_ENV,
+  RELEASE_BASE_URL_ENV,
   packageVersion,
 } from '../electrobun/app-config'
 import { patchBaseRelease } from '../electrobun/patch-base-url'
@@ -74,9 +74,12 @@ describe('electrobunAppConfig', () => {
 
   it('generates delta patches only against a given earlier release', () => {
     expect(configFor('beta').release).toEqual({
-      baseUrl: DEFAULT_RELEASE_BASE_URL,
+      baseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.2.3-beta.4',
       generatePatch: false,
     })
+    expect(
+      configFor('beta', { [RELEASE_BASE_URL_ENV]: 'http://127.0.0.1:8765/current' }).release,
+    ).toEqual({ baseUrl: 'http://127.0.0.1:8765/current', generatePatch: false })
     const earlier = 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.2.3-beta.3'
     expect(configFor('beta', { [PATCH_BASE_URL_ENV]: earlier }).release).toEqual({
       baseUrl: earlier,

@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Thu, 12 Nov 2026 05:27:13 +0100
+Subject: [PATCH] prepare: accept an update from a sibling of the installed
+ release directory
+
+Native prepare required the request's base URL to equal the baseUrl
+baked into the installed bundle. A release feed that names each release
+by its own directory (GitHub's releases/download/<tag>) then refused
+every update, because the selected release is never the directory the
+installed app was built for.
+
+The request's base URL is now accepted when it is the baked directory
+or a sibling of it: the same parent directory and one more path segment,
+with no separators, dot segments or encoded slashes. Identifier, channel
+and base hash still have to match.
+---
+ package/src/extractor/prepare_update.zig | 39 +++++++++++++++++++++++-
+ 1 file changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/package/src/extractor/prepare_update.zig b/package/src/extractor/prepare_update.zig
+index 74f079a..2699b05 100644
+--- a/package/src/extractor/prepare_update.zig
++++ b/package/src/extractor/prepare_update.zig
+@@ -214,6 +214,43 @@ fn identifierRoot(a: A, env: *const std.process.Environ.Map, identifier: []const
+     return std.fs.path.resolve(a, &.{ home, ".local", "share", identifier });
+ }
+ 
++/// Whether `requested` is the installed app's release directory or a sibling of it: the same
++/// parent directory and one more path segment, such as another tag's download directory beside the
++/// one the app was built for. A release feed names each release by its own directory, so an update
++/// is never served from the exact directory baked into the installed bundle.
++fn withinReleaseDirectory(installed_url: []const u8, requested_url: []const u8) bool {
++    const installed = std.mem.trimEnd(u8, installed_url, "/");
++    const requested = std.mem.trimEnd(u8, requested_url, "/");
++    if (std.mem.eql(u8, installed, requested)) return true;
++    const origin_end = (std.mem.indexOf(u8, installed, "://") orelse return false) + "://".len;
++    const cut = std.mem.lastIndexOfScalar(u8, installed, '/') orelse return false;
++    // The installed directory must have a path: a bare origin has no parent directory.
++    if (cut < origin_end) return false;
++    const parent = installed[0 .. cut + 1];
++    if (!std.mem.startsWith(u8, requested, parent)) return false;
++    const sibling = requested[parent.len..];
++    if (sibling.len == 0 or std.mem.eql(u8, sibling, ".") or std.mem.eql(u8, sibling, "..")) return false;
++    if (std.mem.indexOfAny(u8, sibling, "/\\?#") != null) return false;
++    if (std.ascii.findIgnoreCase(sibling, "%2f") != null or std.ascii.findIgnoreCase(sibling, "%5c") != null) return false;
++    return true;
++}
++
++test "an update comes from the installed release directory or a sibling of it" {
++    const installed = "https://github.com/OwnerName/Repo/releases/download/v1.0.0";
++    try std.testing.expect(withinReleaseDirectory(installed, "https://github.com/OwnerName/Repo/releases/download/v1.0.0/"));
++    try std.testing.expect(withinReleaseDirectory(installed, "https://github.com/OwnerName/Repo/releases/download/v1.1.0-beta.2/"));
++    try std.testing.expect(withinReleaseDirectory("http://127.0.0.1:8765/current", "http://127.0.0.1:8765/next/"));
++    try std.testing.expect(!withinReleaseDirectory(installed, "https://github.com/Other/Repo/releases/download/v1.1.0/"));
++    try std.testing.expect(!withinReleaseDirectory(installed, "https://github.com/OwnerName/Repo/releases/download/v1.1.0/nested"));
++    try std.testing.expect(!withinReleaseDirectory(installed, "https://github.com/OwnerName/Repo/releases/download/.."));
++    try std.testing.expect(!withinReleaseDirectory(installed, "https://github.com/OwnerName/Repo/releases/download/a%2Fb"));
++    try std.testing.expect(!withinReleaseDirectory(installed, "https://github.com/OwnerName/Repo/releases/download/"));
++    try std.testing.expect(!withinReleaseDirectory(installed, "http://github.com/OwnerName/Repo/releases/download/v1.1.0"));
++    try std.testing.expect(!withinReleaseDirectory("https://example.test", "https://example.test/v2"));
++    try std.testing.expect(!withinReleaseDirectory("http://127.0.0.1:8765/current", "http://127.0.0.1:9999/next/"));
++    try std.testing.expect(!withinReleaseDirectory("not a url", "https://example.test/v2"));
++}
++
+ fn validateRequest(a: A, io: Io, env: *const std.process.Environ.Map, request_path: []const u8, request: Request) !void {
+     if (request.schema_version != 1 or request.transaction_id.len != 32 or !validComponent(request.identifier) or
+         !validVersion(request.version) or !validHash(request.hash) or !validHash(request.base_hash) or
+@@ -249,7 +286,7 @@ fn validateRequest(a: A, io: Io, env: *const std.process.Environ.Map, request_pa
+     var identity = try readIdentity(a, io, app);
+     defer identity.deinit();
+     if (!std.mem.eql(u8, identity.value.identifier, request.identifier) or !std.mem.eql(u8, identity.value.channel, request.channel) or !std.mem.eql(u8, identity.value.hash, request.base_hash) or
+-        !std.mem.eql(u8, std.mem.trimEnd(u8, identity.value.baseUrl orelse return error.InvalidUpdateIdentity, "/"), std.mem.trimEnd(u8, request.base_url, "/"))) return error.InvalidUpdateIdentity;
++        !withinReleaseDirectory(identity.value.baseUrl orelse return error.InvalidUpdateIdentity, request.base_url)) return error.InvalidUpdateIdentity;
+     const root_name = std.fs.path.basename(request.channel_root);
+     var root_matches = std.mem.eql(u8, root_name, request.channel);
+     if (identity.value.name) |name| root_matches = root_matches or (validComponent(name) and std.mem.eql(u8, root_name, name));
+-- 
+2.54.0 (Apple Git-157)
+

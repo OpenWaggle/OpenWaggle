@@ -66,14 +66,25 @@ export const PACKAGED_APP_LAYOUT = {
   packageJson: 'package.json',
 } as const
 
+/** Where GitHub serves each release's files, one directory per tag. */
+export const RELEASE_DOWNLOAD_BASE = 'https://github.com/OpenWaggle/OpenWaggle/releases/download'
+
 /**
- * The feed an install reads when OpenWaggle has not chosen a release yet. OpenWaggle's updater
- * always points the Electrobun updater at the release it selected before it checks
- * (src/main/adapters/electrobun/electrobun-update-engine.ts), so this only names a sane default:
- * the newest Stable release, which GitHub redirects `latest/download` to.
+ * The release directory baked into the bundle (`Resources/version.json` `baseUrl`). OpenWaggle's
+ * updater points the Electrobun updater at the release it selected before every check
+ * (src/main/adapters/electrobun/electrobun-update-engine.ts), and Electrobun's native prepare
+ * accepts that release only from this directory or a sibling of it (vendor patch 0011): another
+ * tag's directory beside it. By default it is this version's own release directory.
  */
-export const DEFAULT_RELEASE_BASE_URL =
-  'https://github.com/OpenWaggle/OpenWaggle/releases/latest/download'
+export function ownReleaseBaseUrl(version: string) {
+  return `${RELEASE_DOWNLOAD_BASE}/${encodeURIComponent(`v${version}`)}`
+}
+
+/**
+ * This build's release directory when it is not served from GitHub, such as a loopback feed in a
+ * CI update proof (`http://127.0.0.1:<port>/current`); its updates come from sibling directories.
+ */
+export const RELEASE_BASE_URL_ENV = 'OPENWAGGLE_ELECTROBUN_RELEASE_BASE_URL'
 
 /**
  * The previous release's download directory, from which Hutch builds the delta patch to this one
@@ -95,6 +106,8 @@ function channelIconPng(identity: ResolvedBuildIdentity) {
 export function electrobunAppConfig(input: ElectrobunConfigInput) {
   const { identity, environment } = input
   const patchBaseUrl = environment[PATCH_BASE_URL_ENV]?.trim() ?? ''
+  const releaseBaseUrl =
+    environment[RELEASE_BASE_URL_ENV]?.trim() || ownReleaseBaseUrl(input.version)
   const stage = ELECTROBUN_STAGE_DIR
   return {
     app: {
@@ -154,7 +167,8 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
     // The desktop shell decides when the app quits (macOS keeps running without windows).
     runtime: { exitOnLastWindowClosed: false },
     release: {
-      baseUrl: patchBaseUrl === '' ? DEFAULT_RELEASE_BASE_URL : patchBaseUrl,
+      // The earlier release a patch is built against is a sibling directory too.
+      baseUrl: patchBaseUrl === '' ? releaseBaseUrl : patchBaseUrl,
       generatePatch: patchBaseUrl !== '',
     },
   } satisfies ElectrobunConfig

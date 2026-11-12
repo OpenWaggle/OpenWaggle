@@ -215,8 +215,11 @@ UpdateEngine (`src/main/adapters/electrobun/electrobun-update-engine.ts`) is han
 the manifest the engine names, `UpdateEngine.metadataAssetName`, prereleases included for Beta and
 Alpha) and, through `UpdateEngine.setFeed({ releaseUrl })`, points Electrobun's updater at
 `https://github.com/OpenWaggle/OpenWaggle/releases/download/<tag>/`, where it reads
-`stable-<os>-<arch>-update-v2.json`, the archive and the patch. The baked `release.baseUrl`
-(`releases/latest/download`) is only a fallback.
+`stable-<os>-<arch>-update-v2.json`, the archive and the patch. The baked `release.baseUrl` is
+the build's own release directory (`releases/download/v<version>`, or the earlier release a delta
+patch is built against). It is the trust root of Electrobun's native prepare: vendor patch 0011
+accepts an update only from that directory or a sibling tag directory, because upstream's
+equality check refused every release but the one the app was built for (`InvalidUpdateIdentity`).
 
 | Option | Cost | Risk |
 | --- | --- | --- |
