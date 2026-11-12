@@ -113,9 +113,24 @@ function isInvoke(value: unknown): value is { channel: string; at: number } {
   )
 }
 
+const IPC_READ_ATTEMPTS = 3
+
+/** The recorder's JSON; hosted macOS once answered an evaluate with no value mid-launch. */
+async function readIpcLog(inspector: CdpClient) {
+  for (let attempt = 0; attempt < IPC_READ_ATTEMPTS; attempt += 1) {
+    const value = await inspector.evaluate(IPC_READ).catch(() => undefined)
+    if (typeof value === 'string') return value
+    await new Promise((resolve) => setTimeout(resolve, MARK_POLL_MS))
+  }
+  return null
+}
+
 async function ipcCallsUntil(inspector: CdpClient, chatReadyAt: number | null) {
   if (chatReadyAt === null) return null
-  const parsed: unknown = JSON.parse(String(await inspector.evaluate(IPC_READ)))
+  const raw = await readIpcLog(inspector)
+  // A read the inspector never answered leaves this launch's count unknown, not the run failed.
+  if (raw === null) return null
+  const parsed: unknown = JSON.parse(raw)
   const invokes = (Array.isArray(parsed) ? parsed.filter(isInvoke) : []).filter(
     (invoke) => invoke.at <= chatReadyAt,
   )

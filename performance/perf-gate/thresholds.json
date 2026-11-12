@@ -1,9 +1,21 @@
 {
-  "about": "Performance Gate timing thresholds (scripts/perf-gate/ab-verdict.ts), set from six base-vs-base runs of 10 pairs on GitHub's ubuntu-24.04 runners, November 2026 (.agents/memory/performance.md). The worst base-vs-base paired median was 2.6% (43 ms) for a timing, 0.6% (3.7 MiB) for memory, 2 IPC calls and 0 processes. A head is slower or heavier when the median of its paired differences from the base exceeds the larger of the relative and the absolute limit. The gate reads main's copy; a pull request that loosens one is named in the report.",
+  "about": "Performance Gate timing thresholds (scripts/perf-gate/ab-verdict.ts), set from six base-vs-base runs of 10 pairs on GitHub's ubuntu-24.04 runners, November 2026 (.agents/memory/performance.md). The worst base-vs-base paired median was 2.6% (43 ms) for a timing, 0.6% (3.7 MiB) for memory, 1.5 IPC calls on a cold launch and 0 processes. A head is slower or heavier when the median of its paired differences from the base exceeds the larger of the relative and the absolute limit. The gate reads main's copy; a pull request that loosens one is named in the report.",
   "pairs": 10,
   "idleMs": 5000,
-  "timing": { "relative": 0.06, "absolute": 60 },
-  "memory": { "relative": 0.03, "absolute": 8388608 },
-  "count": { "relative": 0, "absolute": 0 },
-  "calls": { "relative": 0.1, "absolute": 4 }
+  "timing": {
+    "relative": 0.06,
+    "absolute": 60
+  },
+  "memory": {
+    "relative": 0.03,
+    "absolute": 8388608
+  },
+  "count": {
+    "relative": 0,
+    "absolute": 0
+  },
+  "calls": {
+    "relative": 0.1,
+    "absolute": 3
+  }
 }

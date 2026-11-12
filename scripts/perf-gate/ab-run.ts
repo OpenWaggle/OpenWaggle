@@ -61,6 +61,25 @@ function describe(sample: AbSample) {
   return `${sample.build} #${String(sample.order)}: cold window ${String(cold.windowReadyMs)} backend ${String(cold.backendReadyMs)} chat ${String(cold.chatReadyMs)} ms (ipc ${String(cold.ipcCallsUntilChatReady)}), warm chat ${String(warm.chatReadyMs)} ms, idle ${String(Math.round(sample.idle.rssBytes / MEBIBYTE))} MiB, after turn ${String(Math.round(sample.afterTurn.rssBytes / MEBIBYTE))} MiB`
 }
 
+const SAMPLE_ATTEMPTS = 2
+
+/**
+ * One sample, retried once with a fresh profile: a launch that hangs or loses its inspector is a
+ * runner hiccup, and a required check should not fail on one. A second failure ends the run.
+ */
+async function measureWithRetry(input: Parameters<typeof measureSample>[0]) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await measureSample(input)
+    } catch (error) {
+      if (attempt >= SAMPLE_ATTEMPTS) throw error
+      log(
+        `${input.build} #${String(input.order)} failed, measuring it again: ${String(error).split('\n')[0]}`,
+      )
+    }
+  }
+}
+
 export async function runAb(options: {
   readonly base: string
   readonly head: string
@@ -73,7 +92,7 @@ export async function runAb(options: {
   const builds = ['base', 'head'] as const
   const samples: AbSample[] = []
   for (const build of builds) {
-    const warmUp = await measureSample({
+    const warmUp = await measureWithRetry({
       app: apps[build],
       build,
       order: WARM_UP_ORDER,
@@ -84,7 +103,7 @@ export async function runAb(options: {
   }
   for (let pair = 1; pair <= options.pairs; pair += 1) {
     for (const build of builds) {
-      const sample = await measureSample({
+      const sample = await measureWithRetry({
         app: apps[build],
         build,
         order: pair,

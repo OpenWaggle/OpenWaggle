@@ -92,11 +92,14 @@ export function abMetrics(samples: readonly AbSample[]): [string, MetricKind, Re
     [`${launch}.window-ready`, 'timing', (sample: AbSample) => sample[launch].windowReadyMs],
     [`${launch}.backend-ready`, 'timing', (sample: AbSample) => sample[launch].backendReadyMs],
     [`${launch}.chat-ready`, 'timing', (sample: AbSample) => sample[launch].chatReadyMs],
-    [
-      `${launch}.ipc-until-chat-ready`,
-      'calls',
-      (sample: AbSample) => sample[launch].ipcCallsUntilChatReady,
-    ],
+  ])
+  // Only the cold count is judged. A warm launch's count is bimodal (17 or 25-33 on the gate's
+  // runner) by whether git, skills and project-config calls land before chat ready, so it stays in
+  // the artifact (ipcCallsUntilChatReady) and out of the verdict.
+  launches.push([
+    'cold.ipc-until-chat-ready',
+    'calls',
+    (sample: AbSample) => sample.cold.ipcCallsUntilChatReady,
   ])
   return [...launches, ...memoryReaders(samples, 'idle'), ...memoryReaders(samples, 'afterTurn')]
 }
