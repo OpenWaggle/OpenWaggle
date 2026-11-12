@@ -66,7 +66,7 @@ function findHeader(lines: readonly string[]): HeaderSearch {
   for (const [index, line] of lines.entries()) {
     const entry = parseLine(line)
     if (entry === null) continue
-    if (isRecord(entry) && entry['type'] === 'session' && typeof entry['id'] === 'string') {
+    if (isRecord(entry) && entry.type === 'session' && typeof entry.id === 'string') {
       return { kind: 'header', header: entry, index }
     }
     return { kind: 'not-a-session' }
@@ -75,24 +75,21 @@ function findHeader(lines: readonly string[]): HeaderSearch {
 }
 
 function isUserMessage(entry: Readonly<Record<string, unknown>>) {
-  return (
-    entry['type'] === 'message' && isRecord(entry['message']) && entry['message']['role'] === 'user'
-  )
+  return entry.type === 'message' && isRecord(entry.message) && entry.message.role === 'user'
 }
 
 /** When the user message was sent: Pi's message time, else the entry's. */
 function messageTime(entry: Readonly<Record<string, unknown>>) {
-  const message = isRecord(entry['message']) ? entry['message'] : undefined
-  if (typeof message?.['timestamp'] === 'number' && Number.isFinite(message['timestamp'])) {
-    return message['timestamp']
+  const message = isRecord(entry.message) ? entry.message : undefined
+  if (typeof message?.timestamp === 'number' && Number.isFinite(message.timestamp)) {
+    return message.timestamp
   }
-  const parsed =
-    typeof entry['timestamp'] === 'string' ? Date.parse(entry['timestamp']) : Number.NaN
+  const parsed = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : Number.NaN
   return Number.isFinite(parsed) ? parsed : null
 }
 
 function modelChange(entry: Readonly<Record<string, unknown>>) {
-  if (entry['type'] !== 'model_change') return null
+  if (entry.type !== 'model_change') return null
   const { provider, modelId } = entry
   return typeof provider === 'string' && provider && typeof modelId === 'string' && modelId
     ? `${provider}/${modelId}`
@@ -100,16 +97,14 @@ function modelChange(entry: Readonly<Record<string, unknown>>) {
 }
 
 function userMessageText(entry: Readonly<Record<string, unknown>>) {
-  if (entry['type'] !== 'message' || !isRecord(entry['message'])) return null
-  const message = entry['message']
-  if (message['role'] !== 'user') return null
-  if (typeof message['content'] === 'string') return message['content'].trim() || null
-  if (!Array.isArray(message['content'])) return null
-  const text = message['content']
+  if (entry.type !== 'message' || !isRecord(entry.message)) return null
+  const message = entry.message
+  if (message.role !== 'user') return null
+  if (typeof message.content === 'string') return message.content.trim() || null
+  if (!Array.isArray(message.content)) return null
+  const text = message.content
     .flatMap((part: unknown) =>
-      isRecord(part) && part['type'] === 'text' && typeof part['text'] === 'string'
-        ? [part['text']]
-        : [],
+      isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
     )
     .join(' ')
     .trim()
@@ -131,11 +126,11 @@ interface PrefixEntries {
 }
 
 function sessionName(entry: Readonly<Record<string, unknown>>) {
-  return typeof entry['name'] === 'string' && entry['name'].trim() ? entry['name'].trim() : null
+  return typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : null
 }
 
 function readEntry(read: PrefixEntries, entry: Readonly<Record<string, unknown>>): PrefixEntries {
-  const named = entry['type'] === 'session_info' ? { ...read, name: sessionName(entry) } : read
+  const named = entry.type === 'session_info' ? { ...read, name: sessionName(entry) } : read
   if (named.firstUserMessage !== null) return named
   // The model the session had when its first message was sent, which titles it.
   const withModel = { ...named, model: modelChange(entry) ?? named.model }
@@ -148,8 +143,8 @@ function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
   const search = findHeader(lines)
   if (search.kind !== 'header') return null
   const header = search.header
-  if (typeof header['id'] !== 'string' || !header['id']) return null
-  if (typeof header['cwd'] !== 'string' || !header['cwd']) return null
+  if (typeof header.id !== 'string' || !header.id) return null
+  if (typeof header.cwd !== 'string' || !header.cwd) return null
   let read: PrefixEntries = {
     name: null,
     firstUserMessage: null,
@@ -161,9 +156,9 @@ function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
     if (isRecord(entry)) read = readEntry(read, entry)
   }
   return {
-    id: header['id'],
-    cwd: header['cwd'],
-    timestamp: typeof header['timestamp'] === 'string' ? header['timestamp'] : null,
+    id: header.id,
+    cwd: header.cwd,
+    timestamp: typeof header.timestamp === 'string' ? header.timestamp : null,
     ...read,
     model: read.firstUserMessage === null ? null : read.model,
   }

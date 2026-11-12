@@ -266,7 +266,7 @@ interface ResolvedThemeDeclaration {
 }
 
 function themeRules(raw: Readonly<Record<string, unknown>>) {
-  const normalized = toJsonValue(raw['tokenColors'] ?? raw['settings'])
+  const normalized = toJsonValue(raw.tokenColors ?? raw.settings)
   return Array.isArray(normalized) ? normalized : []
 }
 
@@ -277,7 +277,7 @@ function mergeThemeDeclarations(
   return {
     ...base,
     ...child,
-    colors: { ...stringRecord(base['colors']), ...stringRecord(child['colors']) },
+    colors: { ...stringRecord(base.colors), ...stringRecord(child.colors) },
     tokenColors: [...themeRules(base), ...themeRules(child)],
   }
 }
@@ -296,7 +296,7 @@ export async function resolveThemeDeclaration(
   nextVisited.add(entryPath)
   const parsed = await load(entryPath)
   if (!isRecord(parsed)) throw new Error('VS Code theme declaration must contain an object.')
-  const includePath = parsed['include']
+  const includePath = parsed.include
   if (typeof includePath !== 'string') return { raw: parsed, original: parsed }
   const includedPath = await resolveInclude(entryPath, includePath)
   const base = await resolveThemeDeclaration(includedPath, load, resolveInclude, nextVisited)

@@ -24,12 +24,12 @@ function secretReference(name: string): RegistryEntryValue {
 type RegistryInput = Readonly<Record<string, unknown>>
 
 function isRequiredInput(candidate: RegistryInput, resolved: RegistryInputResolution) {
-  return candidate['isRequired'] === true || (resolved.kind === 'unfilled' && resolved.required)
+  return candidate.isRequired === true || (resolved.kind === 'unfilled' && resolved.required)
 }
 
 function isSecretInput(candidate: RegistryInput, resolved: RegistryInputResolution) {
   return (
-    candidate['isSecret'] === true ||
+    candidate.isSecret === true ||
     (resolved.kind === 'value' && resolved.usesSecret) ||
     (resolved.kind === 'unfilled' && resolved.secret)
   )
@@ -67,8 +67,8 @@ export function optionalRegistrySecrets(...lists: unknown[]) {
     arrayValue(list).flatMap((candidate) =>
       isRecord(candidate) && isOptionalRegistrySecret(candidate)
         ? [
-            stringValue(candidate['name']) ??
-              stringValue(candidate['valueHint']) ??
+            stringValue(candidate.name) ??
+              stringValue(candidate.valueHint) ??
               'a positional argument',
           ]
         : [],
@@ -82,7 +82,7 @@ export function declaredRegistryValues(value: unknown, kind: 'env' | 'header') {
   const result: Record<string, RegistryEntryValue> = {}
   for (const candidate of arrayValue(value)) {
     if (!isRecord(candidate)) continue
-    const name = stringValue(candidate['name'])
+    const name = stringValue(candidate.name)
     if (!name || !pattern.test(name)) continue
     const declared = declaredValue(name, candidate)
     if (declared !== undefined) result[name] = declared

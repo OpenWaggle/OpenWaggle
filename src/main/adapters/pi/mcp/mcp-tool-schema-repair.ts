@@ -15,11 +15,11 @@ const logger = createLogger('mcp-tool-schema')
 
 function repairTool(serverName: string, tool: unknown) {
   if (!isRecord(tool)) return tool
-  const { schema, repairs } = providerToolParameters(tool['inputSchema'])
+  const { schema, repairs } = providerToolParameters(tool.inputSchema)
   if (repairs.length === 0) return tool
   logger.debug('Repaired an MCP tool input schema for providers', {
     server: serverName,
-    tool: typeof tool['name'] === 'string' ? tool['name'] : undefined,
+    tool: typeof tool.name === 'string' ? tool.name : undefined,
     repairs,
   })
   return { ...tool, inputSchema: schema }
@@ -27,6 +27,6 @@ function repairTool(serverName: string, tool: unknown) {
 
 /** A `tools/list` result whose tools have provider-safe input schemas; other results unchanged. */
 export function repairMcpToolListResult(serverName: string, method: string, result: unknown) {
-  if (method !== 'tools/list' || !isRecord(result) || !Array.isArray(result['tools'])) return result
-  return { ...result, tools: result['tools'].map((tool) => repairTool(serverName, tool)) }
+  if (method !== 'tools/list' || !isRecord(result) || !Array.isArray(result.tools)) return result
+  return { ...result, tools: result.tools.map((tool) => repairTool(serverName, tool)) }
 }

@@ -34,7 +34,7 @@ function parseFile(filePath: string, text: string | undefined): JsonRecord {
   const parsed: unknown = !text?.trim() ? {} : JSON.parse(text)
   if (
     !isJsonRecord(parsed) ||
-    (parsed['mcpServers'] !== undefined && !isJsonRecord(parsed['mcpServers']))
+    (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))
   ) {
     throw new Error(`${filePath}: expected an object with an "mcpServers" object`)
   }
@@ -122,7 +122,7 @@ export function editMcpServers(filePath: string, edit: (servers: JsonRecord) => 
   const [duplicate] = text ? duplicateMcpConfigKeys(text) : []
   if (duplicate !== undefined) throw new Error(duplicateMcpKeyMessage(filePath, duplicate))
   const parsed = parseFile(filePath, text)
-  const before = isJsonRecord(parsed['mcpServers']) ? parsed['mcpServers'] : undefined
+  const before = isJsonRecord(parsed.mcpServers) ? parsed.mcpServers : undefined
   const servers: JsonRecord = before ? structuredClone(before) : {}
   if (!edit(servers)) return false
   writeAtomically(filePath, editedText(text ?? '', before, servers))

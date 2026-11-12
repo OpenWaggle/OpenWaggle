@@ -13,8 +13,8 @@ export function discoveryCursor(request: DiscoverySearchRequest) {
   const cursor = decodeSessionQueryCursor(request.query.cursor)
   if (cursor === 'invalid') return 'invalid' as const
   if (!cursor) return null
-  return typeof cursor['windowId'] === 'string' && typeof cursor['offset'] === 'number'
-    ? { windowId: cursor['windowId'], offset: cursor['offset'] }
+  return typeof cursor.windowId === 'string' && typeof cursor.offset === 'number'
+    ? { windowId: cursor.windowId, offset: cursor.offset }
     : ('invalid' as const)
 }
 

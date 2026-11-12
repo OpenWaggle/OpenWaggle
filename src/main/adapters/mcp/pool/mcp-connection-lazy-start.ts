@@ -137,9 +137,7 @@ export async function listToolsForCatalog(
     const result = await sendInternal('tools/list', params)
     observeResult?.('tools/list', params, result)
     cursor =
-      isRecord(result) && typeof result['nextCursor'] === 'string'
-        ? result['nextCursor']
-        : undefined
+      isRecord(result) && typeof result.nextCursor === 'string' ? result.nextCursor : undefined
   } while (cursor !== undefined)
 }
 

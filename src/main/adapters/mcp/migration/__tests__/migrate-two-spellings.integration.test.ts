@@ -52,7 +52,7 @@ async function docsEntry(projectFile: string) {
   const config: { mcpServers: Record<string, Record<string, unknown>> } = JSON.parse(
     await readFile(projectFile, 'utf8'),
   )
-  return config.mcpServers['docs']
+  return config.mcpServers.docs
 }
 
 afterEach(async () => {

@@ -62,7 +62,7 @@ describe('credentials in other command-line forms', () => {
   ])('drops a credential header written with %s', (_, args) => {
     const result = imported({ command: 'npx', args })
 
-    expect(result.entry['args']).toEqual(args.slice(0, 2))
+    expect(result.entry.args).toEqual(args.slice(0, 2))
     expect(result.warnings).toHaveLength(1)
     expectNoValue(result, 'sk-h1')
   })
@@ -105,7 +105,7 @@ describe('credentials in other command-line forms', () => {
   it('says a vault secret replaces a header, and that it holds the full value', () => {
     const result = imported({ url: 'https://x/mcp', headers: { Authorization: 'Bearer sk-hdr' } })
 
-    expect(result.entry['headers']).toEqual({ Authorization: { secret: 'Authorization' } })
+    expect(result.entry.headers).toEqual({ Authorization: { secret: 'Authorization' } })
     expect(result.warnings).toEqual([
       expect.stringContaining('was replaced by a reference to vault secret SVC_AUTHORIZATION'),
     ])

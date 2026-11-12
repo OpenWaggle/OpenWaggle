@@ -65,7 +65,7 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
         })
         expect(assigned.exitCode).toBe(0)
         expect(output.join('')).toContain('passed')
-        expect(assigned.environment['OW_EXEC_TEMP']).toBeUndefined()
+        expect(assigned.environment.OW_EXEC_TEMP).toBeUndefined()
 
         const failed = await execute({
           ...input,
@@ -159,7 +159,7 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
         })
         expect(assigned.exitCode).toBe(0)
         expect(output.join('')).toContain('passed')
-        expect(assigned.environment['OW_COMMAND_TEMP']).toBeUndefined()
+        expect(assigned.environment.OW_COMMAND_TEMP).toBeUndefined()
       } finally {
         await execute.shutdown()
       }

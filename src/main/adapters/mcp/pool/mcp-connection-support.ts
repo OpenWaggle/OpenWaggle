@@ -110,14 +110,14 @@ export function errorResponse(id: JsonRpcId, code: number, message: string): Jso
 }
 
 export function progressTokenOf(params: unknown): JsonRpcId | undefined {
-  if (!isRecord(params) || !isRecord(params['_meta'])) return undefined
-  const token = params['_meta']['progressToken']
+  if (!isRecord(params) || !isRecord(params._meta)) return undefined
+  const token = params._meta.progressToken
   return isJsonRpcId(token) ? token : undefined
 }
 
 export function withProgressToken(params: unknown, token: JsonRpcId) {
-  if (!isRecord(params) || !isRecord(params['_meta'])) return params
-  return { ...params, _meta: { ...params['_meta'], progressToken: token } }
+  if (!isRecord(params) || !isRecord(params._meta)) return params
+  return { ...params, _meta: { ...params._meta, progressToken: token } }
 }
 
 /**

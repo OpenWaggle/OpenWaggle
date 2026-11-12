@@ -200,7 +200,7 @@ async function readResource(
 ) {
   if (!input.uri.startsWith('ui://')) throw new Error('MCP Apps may only read ui:// resources.')
   const result = await appRequest(pool, input, 'resources/read', { uri: input.uri })
-  return json(isRecord(result) ? result['contents'] : [])
+  return json(isRecord(result) ? result.contents : [])
 }
 
 /** A list the server may not offer at all; a server without the method lists nothing. */
@@ -215,7 +215,7 @@ async function optionalList(
     const result = await requestOver(pool, connection, input, method, {})
     return json(isRecord(result) ? (result[key] ?? []) : [])
   } catch (error) {
-    if (isRecord(error) && error['code'] === METHOD_NOT_FOUND) return json([])
+    if (isRecord(error) && error.code === METHOD_NOT_FOUND) return json([])
     throw error
   }
 }
@@ -248,11 +248,11 @@ async function callTool(
   })
   const value = isRecord(result) ? result : {}
   return {
-    content: json(value['content'] ?? []),
-    ...(value['structuredContent'] === undefined
+    content: json(value.content ?? []),
+    ...(value.structuredContent === undefined
       ? {}
-      : { structuredContent: json(value['structuredContent']) }),
-    isError: value['isError'] === true,
+      : { structuredContent: json(value.structuredContent) }),
+    isError: value.isError === true,
   }
 }
 

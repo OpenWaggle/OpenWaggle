@@ -24,7 +24,7 @@ const {
 type CommandHandler = (method: string, params?: Readonly<Record<string, unknown>>) => unknown
 
 function evaluatedExpression(params: Readonly<Record<string, unknown>> | undefined) {
-  const expression = params?.['expression']
+  const expression = params?.expression
   return typeof expression === 'string' ? expression : ''
 }
 
@@ -165,7 +165,7 @@ describe('browser preview automation page actions', () => {
       if (method === 'Runtime.evaluate') {
         return evaluated({ width: 800, height: 600 })
       }
-      if (method === 'Input.dispatchMouseEvent' && params?.['type'] === 'mousePressed') {
+      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mousePressed') {
         throw new Error('mouse dispatch failed')
       }
       return {}
@@ -249,7 +249,7 @@ describe('browser preview automation page actions', () => {
       fromPartial<WebContents>({ id: 2, focus: previousFocus, isDestroyed: () => false }),
     )
     const { focus, page, sendCommand } = createPage((method, params) => {
-      if (method === 'Input.dispatchKeyEvent' && params?.['type'] !== 'keyUp') {
+      if (method === 'Input.dispatchKeyEvent' && params?.type !== 'keyUp') {
         throw new Error('key dispatch failed')
       }
       return {}

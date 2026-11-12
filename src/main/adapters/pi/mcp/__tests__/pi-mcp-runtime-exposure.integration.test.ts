@@ -195,10 +195,10 @@ describe('MCP exposure as OpenWaggle runs it', () => {
     // Reached through codemode, which Pi activates for codemode servers.
     expect(active).toContain('codemode')
     expect(active).not.toContain('mcp__fixture__search')
-    expect(exposures['mcp__fixture__search']).toBe('deferred')
+    expect(exposures.mcp__fixture__search).toBe('deferred')
     // The App tool is declared to the model, so the model calls it and the App shows.
     expect(active).toContain('mcp__fixture__show')
-    expect(exposures['mcp__fixture__show']).toBe('direct')
+    expect(exposures.mcp__fixture__show).toBe('direct')
   }, 60_000)
 
   it('declares an App tool known from an earlier Run in the first request', async () => {
@@ -266,7 +266,7 @@ describe('MCP exposure in a Run without codemode (review R5 P2-3)', () => {
 
     expect(active).not.toContain('codemode')
     expect(active).toContain('mcp__fixture__search')
-    expect(exposures['mcp__fixture__search']).toBe('direct')
+    expect(exposures.mcp__fixture__search).toBe('direct')
     expect(notices.some((notice) => notice.includes('cannot be called'))).toBe(false)
   }, 60_000)
 })

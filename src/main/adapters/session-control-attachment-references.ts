@@ -14,7 +14,7 @@ function attachmentIdsOf(intentJson: string) {
   if (!isRecord(intent) || !('attachmentIds' in intent)) {
     throw new Error('A retained Session intent has no attachment capability list.')
   }
-  const attachmentIds = intent['attachmentIds']
+  const attachmentIds = intent.attachmentIds
   if (!Array.isArray(attachmentIds) || !attachmentIds.every((id) => typeof id === 'string')) {
     throw new Error('A retained Session intent has an invalid attachment capability list.')
   }

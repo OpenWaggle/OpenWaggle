@@ -19,8 +19,8 @@ function assistantLine(
 ) {
   const message: Record<string, unknown> = {
     role: 'assistant',
-    provider: model['provider'],
-    model: model['modelId'],
+    provider: model.provider,
+    model: model.modelId,
     usage,
   }
   return `${JSON.stringify({ type: 'message', id: 'a1', parentId: null, timestamp, message })}\n`

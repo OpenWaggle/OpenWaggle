@@ -15,16 +15,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function withStoredRefusalKind(value: unknown): unknown {
   if (
     !isRecord(value) ||
-    value['effect'] !== 'rejected' ||
+    value.effect !== 'rejected' ||
     'kind' in value ||
-    typeof value['code'] !== 'string'
+    typeof value.code !== 'string'
   ) {
     return value
   }
   return {
     ...value,
-    kind: isSessionHostRefusalCode(value['code'])
-      ? SESSION_HOST_REFUSAL_KINDS[value['code']]
+    kind: isSessionHostRefusalCode(value.code)
+      ? SESSION_HOST_REFUSAL_KINDS[value.code]
       : 'conflict',
   }
 }

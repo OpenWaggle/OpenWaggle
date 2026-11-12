@@ -48,7 +48,7 @@ function serversIn(
   const text = reader.readText(filePath)
   if (!text?.trim()) return {}
   const parsed: unknown = JSON.parse(text)
-  return isRecord(parsed) && isRecord(parsed['mcpServers']) ? parsed['mcpServers'] : {}
+  return isRecord(parsed) && isRecord(parsed.mcpServers) ? parsed.mcpServers : {}
 }
 
 /** Servers already in OpenWaggle's files, so earlier imports and taken names are recognised. */
@@ -65,11 +65,11 @@ function targetServers(
 }
 
 function displayTarget(entry: Readonly<Record<string, unknown>>) {
-  if (typeof entry['url'] === 'string') return entry['url']
-  const args = Array.isArray(entry['args'])
-    ? entry['args'].filter((arg): arg is string => typeof arg === 'string')
+  if (typeof entry.url === 'string') return entry.url
+  const args = Array.isArray(entry.args)
+    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
     : []
-  return typeof entry['command'] === 'string' ? [entry['command'], ...args].join(' ') : ''
+  return typeof entry.command === 'string' ? [entry.command, ...args].join(' ') : ''
 }
 
 function candidateView(candidate: ExternalMcpImportCandidate): McpImportCandidateView {

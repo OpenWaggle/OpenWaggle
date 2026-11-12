@@ -169,7 +169,7 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     await persist(sessionId, manager, { ...kept, nodes })
 
     const rows = await readRows(sessionId)
-    expect(rows.find((row) => row['id'] === firstAnswer)?.['metadata_json']).toBe(owned)
+    expect(rows.find((row) => row.id === firstAnswer)?.metadata_json).toBe(owned)
   })
 
   it('keeps the tree up to date for kept entries when a branch is added', async () => {
@@ -220,7 +220,7 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     )
     await persist(sessionId, manager, snapshot)
     const rows = await readRows(sessionId)
-    expect(rows.find((row) => row['id'] === firstAnswer)?.['metadata_json']).toBe(
+    expect(rows.find((row) => row.id === firstAnswer)?.metadata_json).toBe(
       projectPiSessionSnapshot({ sessionManager: manager }).nodes.find(
         (node) => node.id === firstAnswer,
       )?.metadataJson,
@@ -302,7 +302,7 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     )
     const rows = await readRows(sessionId)
     const full = projectPiSessionSnapshot({ sessionManager: manager })
-    expect(rows.find((row) => row['id'] === firstNodeId)?.['content_json']).toBe(
+    expect(rows.find((row) => row.id === firstNodeId)?.content_json).toBe(
       full.nodes.find((node) => node.id === firstNodeId)?.contentJson,
     )
   })

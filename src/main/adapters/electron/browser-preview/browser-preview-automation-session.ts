@@ -135,8 +135,8 @@ export function updateBrowserPreviewAutomationPointer(
   params: Readonly<Record<string, unknown>> | undefined,
 ) {
   if (session.controller.kind !== 'agent') return
-  const x = params?.['x']
-  const y = params?.['y']
+  const x = params?.x
+  const y = params?.y
   if (
     typeof x !== 'number' ||
     !Number.isFinite(x) ||

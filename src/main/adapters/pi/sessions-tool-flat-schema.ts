@@ -17,7 +17,7 @@ export function actionChoices(action: unknown): { const: string }[] {
 }
 
 export function variantActionName(variant: SessionsToolRuntimeVariant): string | undefined {
-  return actionChoices(variant.properties['action'])[0]?.const
+  return actionChoices(variant.properties.action)[0]?.const
 }
 
 /**
@@ -29,7 +29,7 @@ function singleActionVariants(
   variants: readonly SessionsToolRuntimeVariant[],
 ): SessionsToolRuntimeVariant[] {
   return variants.flatMap((variant) => {
-    const choices = actionChoices(variant.properties['action'])
+    const choices = actionChoices(variant.properties.action)
     if (choices.length <= 1) return [variant]
     const { action: _sharedAction, ...shared } = variant.properties
     // Copy with descriptors, not a spread: TypeBox keeps `~kind` non-enumerable, and
@@ -105,7 +105,7 @@ export function flattenSessionsToolParameters(
   const propertiesByKey = new Map<string, TSchema[]>()
   const requiredBy = requiredActionsByProperty(variants, options.requiredNoteActions)
   for (const variant of variants) {
-    const action = variant.properties['action']
+    const action = variant.properties.action
     if (action) actions.push(action)
     for (const [key, schema] of Object.entries(variant.properties)) {
       if (key === 'action') continue

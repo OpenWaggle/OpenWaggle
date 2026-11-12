@@ -8,7 +8,7 @@ const PI_WAGGLE_PACKAGE_NAME = '@openwaggle/pi-waggle'
 function packageName(directory: string) {
   try {
     const manifest: unknown = JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8'))
-    return isRecord(manifest) && typeof manifest['name'] === 'string' ? manifest['name'] : undefined
+    return isRecord(manifest) && typeof manifest.name === 'string' ? manifest.name : undefined
   } catch {
     return undefined
   }

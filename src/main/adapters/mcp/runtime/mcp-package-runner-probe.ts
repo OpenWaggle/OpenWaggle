@@ -25,7 +25,7 @@ export function probeSpawnOf(
   // `npx.cmd` needs `cmd.exe` (Node refuses to spawn a `.cmd` without it), which gets one line
   // escaped for it.
   return {
-    file: input.env['ComSpec'] ?? input.env['COMSPEC'] ?? 'cmd.exe',
+    file: input.env.ComSpec ?? input.env.COMSPEC ?? 'cmd.exe',
     args: ['/d', '/s', '/c', windowsCommandLine(input.command, input.args)],
     windowsVerbatimArguments: true,
   }

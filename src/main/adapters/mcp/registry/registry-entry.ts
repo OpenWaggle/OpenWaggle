@@ -36,30 +36,28 @@ export function mcpRegistryPackageType(value: unknown): McpRegistryPackageType |
 }
 
 function remotes(server: RegistryServerRecord): RegistryRemote[] {
-  return arrayValue(server.raw['remotes']).flatMap((candidate: unknown) => {
+  return arrayValue(server.raw.remotes).flatMap((candidate: unknown) => {
     if (!isRecord(candidate)) return []
-    const url = stringValue(candidate['url'])
+    const url = stringValue(candidate.url)
     const type =
-      candidate['type'] === 'sse' || candidate['type'] === 'streamable-http'
-        ? candidate['type']
-        : undefined
+      candidate.type === 'sse' || candidate.type === 'streamable-http' ? candidate.type : undefined
     // A URL with `{variables}` needs values the user types in; it is left to `mcp add`.
-    return url && type && !url.includes('{') ? [{ url, type, headers: candidate['headers'] }] : []
+    return url && type && !url.includes('{') ? [{ url, type, headers: candidate.headers }] : []
   })
 }
 
 function stdioPackages(server: RegistryServerRecord) {
-  return arrayValue(server.raw['packages']).flatMap((candidate: unknown) => {
-    if (!isRecord(candidate) || !stringValue(candidate['identifier'])) return []
-    const type = mcpRegistryPackageType(candidate['registryType'])
-    const stdio = isRecord(candidate['transport']) && candidate['transport']['type'] === 'stdio'
+  return arrayValue(server.raw.packages).flatMap((candidate: unknown) => {
+    if (!isRecord(candidate) || !stringValue(candidate.identifier)) return []
+    const type = mcpRegistryPackageType(candidate.registryType)
+    const stdio = isRecord(candidate.transport) && candidate.transport.type === 'stdio'
     return type && stdio ? [{ type, entry: candidate }] : []
   })
 }
 
 function packageTarget(entry: RegistryRecord) {
-  const identifier = stringValue(entry['identifier']) ?? ''
-  const version = stringValue(entry['version'])
+  const identifier = stringValue(entry.identifier) ?? ''
+  const version = stringValue(entry.version)
   return version ? `${identifier}@${version}` : identifier
 }
 
@@ -140,11 +138,11 @@ async function packageEntry(server: RegistryServerRecord, options: RegistryEntry
       ...(launcher.env ? { env: { ...launcher.env } } : {}),
     },
     secrets: referencedSecrets(launcher.env),
-    optionalSecrets: optionalRegistrySecrets(selected.entry['environmentVariables']),
+    optionalSecrets: optionalRegistrySecrets(selected.entry.environmentVariables),
     // A command line cannot read a vault secret, so these need a literal value to be used.
     optionalSecretArguments: optionalRegistrySecrets(
-      selected.entry['runtimeArguments'],
-      selected.entry['packageArguments'],
+      selected.entry.runtimeArguments,
+      selected.entry.packageArguments,
     ),
     // Docker passes a variable into the container only with `-e NAME` in its arguments.
     optionalSecretsNeedContainerEnv: selected.type === 'oci',

@@ -178,17 +178,15 @@ export function observePiToolUseForUsageStatistics(toolName: string, args: unkno
     recordUsageStatistics({ kind: 'feature', flag: 'browser_agent_driven' })
     return
   }
-  if (toolName !== READ_TOOL_NAME || !isRecord(args) || typeof args['path'] !== 'string') return
-  const skill = piSkillReadIdentifier(args['path'])
+  if (toolName !== READ_TOOL_NAME || !isRecord(args) || typeof args.path !== 'string') return
+  const skill = piSkillReadIdentifier(args.path)
   if (skill) recordUsageStatistics({ kind: 'skill', identifier: skill })
 }
 
 function assistantText(content: unknown) {
   if (!Array.isArray(content)) return ''
   return content
-    .map((part: unknown) =>
-      isRecord(part) && typeof part['text'] === 'string' ? part['text'] : '',
-    )
+    .map((part: unknown) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
     .join('\n')
 }
 
@@ -240,7 +238,7 @@ export function observePiCompactionForUsageStatistics(event: {
   if (event.aborted || !isUsageStatisticsEnabled()) return
   const details = event.result?.details
   if (!isRecord(details)) return
-  const mechanism = match(details['mechanism'])
+  const mechanism = match(details.mechanism)
     .with('native', () => 'native' as const)
     .with('portable', () => 'fallback' as const)
     .otherwise(() => undefined)
