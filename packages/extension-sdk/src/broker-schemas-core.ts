@@ -42,7 +42,7 @@ export const extensionInvokeInputSchema = Schema.Struct({
   capability: extensionContributionIdSchema,
   method: extensionContributionIdSchema,
   scope: extensionInvokeScopeSchema,
-  payload: Schema.optional(Schema.Unknown),
+  payload: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export const extensionInvocationBindingSchema = Schema.String.pipe(

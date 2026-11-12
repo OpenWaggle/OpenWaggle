@@ -44,12 +44,12 @@ function syntaxTokenStyle(token: {
 export interface SyntaxBlockProps {
   readonly syntax: OpenWaggleExtensionSyntaxSdk
   readonly source: string
-  readonly language?: string | undefined
-  readonly path?: string | undefined
-  readonly className?: string | undefined
-  readonly wrap?: boolean | undefined
-  readonly showLineNumbers?: boolean | undefined
-  readonly ariaLabel?: string | undefined
+  readonly language?: string
+  readonly path?: string
+  readonly className?: string
+  readonly wrap?: boolean
+  readonly showLineNumbers?: boolean
+  readonly ariaLabel?: string
 }
 
 function useExtensionSyntaxResult({
@@ -63,7 +63,13 @@ function useExtensionSyntaxResult({
 }) {
   // Not built when disabled: large sources stay plain without a tokenized copy.
   const plain = useMemo(
-    () => (enabled ? createPlainExtensionSyntaxResult({ source, language }) : undefined),
+    () =>
+      enabled
+        ? createPlainExtensionSyntaxResult({
+            source,
+            ...(language === undefined ? {} : { language }),
+          })
+        : undefined,
     [enabled, source, language],
   )
   // Keyed by its inputs, so a changed input shows plain text until its own highlight lands.
@@ -86,9 +92,22 @@ function useExtensionSyntaxResult({
       if (active) setHighlighted({ syntax, source, language, path, result })
     }
     void syntax
-      .highlight({ source, language, path, priority: 'visible' }, { signal: controller.signal })
+      .highlight(
+        {
+          source,
+          ...(language === undefined ? {} : { language }),
+          ...(path === undefined ? {} : { path }),
+          priority: 'visible',
+        },
+        { signal: controller.signal },
+      )
       .then(settle, () => {
-        settle(createPlainExtensionSyntaxResult({ source, language }))
+        settle(
+          createPlainExtensionSyntaxResult({
+            source,
+            ...(language === undefined ? {} : { language }),
+          }),
+        )
       })
     return () => {
       active = false
@@ -115,8 +134,13 @@ export function SyntaxBlock({
   ariaLabel,
 }: SyntaxBlockProps): JSX.Element {
   const result =
-    useExtensionSyntaxResult({ syntax, source, language, path }) ??
-    createPlainExtensionSyntaxResult({ source, language })
+    useExtensionSyntaxResult({
+      syntax,
+      source,
+      ...(language === undefined ? {} : { language }),
+      ...(path === undefined ? {} : { path }),
+    }) ??
+    createPlainExtensionSyntaxResult({ source, ...(language === undefined ? {} : { language }) })
 
   return (
     <section aria-label={ariaLabel}>
@@ -212,8 +236,8 @@ export function SourceView({
   const result = useExtensionSyntaxResult({
     syntax,
     source,
-    language,
-    path,
+    ...(language === undefined ? {} : { language }),
+    ...(path === undefined ? {} : { path }),
     enabled: highlightEnabled,
   })
   const [scrollTop, setScrollTop] = useState(0)
