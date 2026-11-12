@@ -1,7 +1,8 @@
 // VCS status, source control, and stacked git action types (WS2-WS4, ADR 0012).
 // Split out of git.ts to keep each module focused.
 
-import type { SessionId } from './brand'
+import type { SchemaType } from '@shared/schema'
+import type { gitRunStackedActionOptionsSchema } from '@shared/schemas/git-requests'
 import type { SourceControlProviderInfo, VcsChangeRequest } from './change-request'
 import type { SourceControlAttention, SourceControlHostState } from './source-control'
 
@@ -121,32 +122,7 @@ export interface GitActionProgressEvent {
   readonly total: number
 }
 
-export interface GitRunStackedActionOptions {
-  readonly action: GitStackedAction
-  /** Renderer-generated id used to scope progress and cancellation to this invocation. */
-  readonly operationId?: string | undefined
-  /** Session that initiated the action, used only to project created outputs. */
-  readonly sessionId?: SessionId | undefined
-  readonly commitMessage?: string | undefined
-  readonly createFeatureBranch?: boolean | undefined
-  readonly featureBranchName?: string | undefined
-  /** Preserve a validated user-entered ref verbatim instead of auto-sanitizing or suffixing it. */
-  readonly exactFeatureBranchName?: boolean | undefined
-  readonly baseRef?: string | undefined
-  readonly changeRequestTitle?: string | undefined
-  readonly changeRequestBody?: string | undefined
-  readonly draft?: boolean | undefined
-  /**
-   * Repo-relative paths to stage for the commit phase.
-   *
-   * Required in practice: an empty or omitted selection reports `nothing-to-commit` rather than
-   * staging the whole repository. `git add --all` has no pathspec, so the old fallback reached
-   * past the opened directory and swept the user's unrelated in-flight work into the commit.
-   */
-  readonly paths?: readonly string[] | undefined
-  /** False commits only the existing index and leaves unstaged changes untouched. */
-  readonly includeUnstaged?: boolean | undefined
-}
+export type GitRunStackedActionOptions = SchemaType<typeof gitRunStackedActionOptionsSchema>
 
 export const GIT_STACKED_ACTION_ERROR_CODES = [
   'not-git-repo',
