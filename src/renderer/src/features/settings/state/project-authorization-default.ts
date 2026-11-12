@@ -71,9 +71,7 @@ export function invalidateProjectAuthorizationDefault(projectPath: string | null
  * `null` means "this project sets no override", which is not the same as full access: the caller
  * continues down the precedence chain to the global default.
  */
-export function useProjectAuthorizationDefault(
-  projectPath: string | null,
-): AgentAuthorizationMode | null {
+export function useProjectAuthorizationDefault(projectPath: string | null) {
   const entry = useSyncExternalStore(
     subscribe,
     () => (projectPath ? cache.get(projectPath) : undefined),

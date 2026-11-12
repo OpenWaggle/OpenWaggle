@@ -70,7 +70,7 @@ function countLabel(
   hits: number,
   queryActive: boolean,
   enabledSet: ReadonlySet<string>,
-): ReactNode {
+) {
   if (queryActive) return <span className={cn(hits > 0 && 'text-accent')}>{hits}</span>
   const selected = models.filter((model) => enabledSet.has(model.id)).length
   return `${String(selected)}/${String(models.length)}`

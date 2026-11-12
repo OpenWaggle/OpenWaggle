@@ -104,7 +104,7 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
   }
 })
 
-export function getWorkspaceLifecycleMocks(): WorkspaceLifecycleMocks {
+export function getWorkspaceLifecycleMocks() {
   return lifecycleMocks
 }
 

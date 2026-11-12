@@ -17,7 +17,7 @@ const EDITOR_OVERSCROLL_PX = 600
 const EDITOR_OBSERVER_MARGIN_PX = 1_200
 const EDITOR_OPTIONS: EditorOptions<'file', undefined, undefined> = {}
 
-function toWorkspaceChange(change: EditorChange): WorkspaceDocumentChange {
+function toWorkspaceChange(change: EditorChange) {
   return {
     rangeOffset: change.start,
     rangeLength: change.end - change.start,

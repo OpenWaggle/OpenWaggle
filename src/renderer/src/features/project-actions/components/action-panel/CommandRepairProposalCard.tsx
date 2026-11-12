@@ -11,7 +11,7 @@ import { Button } from '@/shared/ui/Button'
 import { useActionPanelStore } from '../../state/action-panel-store'
 
 /** The Command repair proposal in a project_actions tool result, live or projected, if any. */
-export function commandRepairProposalFrom(content: unknown): CommandRepairProposal | null {
+export function commandRepairProposalFrom(content: unknown) {
   const payload = normalizeToolResultPayload(content)
   const details =
     payload !== null && typeof payload === 'object' && 'details' in payload

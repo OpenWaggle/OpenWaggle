@@ -40,8 +40,8 @@ export function handleStoreError(
   setError(`Failed to ${action}: ${message}`)
 }
 
-export function toSummary(session: SessionDetail): SessionSummary {
-  return {
+export function toSummary(session: SessionDetail) {
+  const summary: SessionSummary = {
     id: session.id,
     title: session.title,
     projectPath: session.projectPath,
@@ -51,6 +51,7 @@ export function toSummary(session: SessionDetail): SessionSummary {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
   }
+  return summary
 }
 
 function shouldShowSummary(summary: SessionSummary) {

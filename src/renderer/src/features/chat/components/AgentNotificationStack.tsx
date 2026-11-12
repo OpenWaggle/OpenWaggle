@@ -35,7 +35,7 @@ interface VisibleNotification {
 function toVisibleNotifications(
   events: readonly AgentInteractionEvent[],
   dismissedIds: ReadonlySet<string>,
-): readonly VisibleNotification[] {
+) {
   const byId = new Map<string, VisibleNotification>()
 
   for (const event of events) {

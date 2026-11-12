@@ -6,7 +6,7 @@ const LIST: ScheduledTasksView = { kind: 'list' }
 /** Task id → its project, the one fact a container needs to tell whether it can show a task. */
 export type ScheduledTaskProjects = Readonly<Record<string, string | null>>
 
-export function scheduledTaskProjects(tasks: readonly ScheduledTask[]): ScheduledTaskProjects {
+export function scheduledTaskProjects(tasks: readonly ScheduledTask[]) {
   return Object.fromEntries(tasks.map((task) => [task.id, task.projectPath]))
 }
 
@@ -19,7 +19,7 @@ export function shownScheduledTasksView(
   view: ScheduledTasksView,
   projects: ScheduledTaskProjects | null | undefined,
   scope: { readonly projectPath: string | null; readonly sessionId?: string | null } | null,
-): ScheduledTasksView {
+) {
   if (view.kind === 'list' || !projects) return view
   if (view.kind === 'new') {
     if (scope === null) return view

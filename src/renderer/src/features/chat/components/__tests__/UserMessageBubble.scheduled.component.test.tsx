@@ -16,14 +16,15 @@ import { UserMessageBubble } from '../UserMessageBubble'
 
 const CREATED_AT = new Date(Date.UTC(2026, 9, 22, 7, 3))
 
-function scheduledMessage(metadata: UIMessage['metadata']): UIMessage {
-  return {
+function scheduledMessage(metadata: UIMessage['metadata']) {
+  const message: UIMessage = {
     id: 'u-scheduled',
     role: 'user',
     parts: [{ type: 'text', content: 'Check the overnight CI runs' }],
     createdAt: CREATED_AT,
     ...(metadata === undefined ? {} : { metadata }),
   }
+  return message
 }
 
 describe('UserMessageBubble Scheduled task provenance', () => {

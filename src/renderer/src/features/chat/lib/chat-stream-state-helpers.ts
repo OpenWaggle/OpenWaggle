@@ -1,13 +1,14 @@
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
 import { lenientJsonStringify } from '@/shared/lib/lenient-json'
 
-function createAssistantMessage(messageId: string, startedAt?: number): UIMessage {
-  return {
+function createAssistantMessage(messageId: string, startedAt?: number) {
+  const message: UIMessage = {
     id: messageId,
     role: 'assistant',
     parts: [],
     createdAt: new Date(startedAt ?? Date.now()),
   }
+  return message
 }
 
 /**

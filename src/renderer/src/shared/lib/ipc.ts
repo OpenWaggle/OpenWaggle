@@ -49,7 +49,7 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
  * an error flowed through keeps it: a reader wrapping an already-wrapped call must not rename
  * it, and a report later in a chain names the call that first failed.
  */
-function reportingApiMethod(method: string, call: ApiMethod): ApiMethod {
+function reportingApiMethod(method: string, call: ApiMethod) {
   return (...args: never[]) => {
     const result = call(...args)
     if (!isThenable(result)) return result
@@ -63,7 +63,7 @@ function reportingApiMethod(method: string, call: ApiMethod): ApiMethod {
 }
 
 /** Wrap `value`, the bridge's `method`, so its rejections are attributable. */
-function reportingApiMethodValue(method: string, value: unknown): unknown {
+function reportingApiMethodValue(method: string, value: unknown) {
   if (!isApiMethod(value)) return value
   const wrapped = apiMethodWrappers.get(method)
   if (wrapped) return wrapped
@@ -77,7 +77,7 @@ function reportingApiMethodValue(method: string, value: unknown): unknown {
  * this bridge. Error reports read it to tag the event, so a stackless unhandled rejection from
  * an IPC call still names the method that failed.
  */
-export function rejectedApiMethodOf(error: unknown): string | undefined {
+export function rejectedApiMethodOf(error: unknown) {
   return typeof error === 'object' && error !== null ? rejectedApiMethods.get(error) : undefined
 }
 

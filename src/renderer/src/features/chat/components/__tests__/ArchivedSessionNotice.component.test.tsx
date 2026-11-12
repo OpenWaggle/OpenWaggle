@@ -9,8 +9,8 @@ import { ArchivedSessionNotice } from '../ArchivedSessionNotice'
 const { unarchiveSession } = vi.hoisted(() => ({ unarchiveSession: vi.fn(async () => undefined) }))
 vi.mock('@/shared/lib/ipc', () => ({ api: { unarchiveSession } }))
 
-function session(archived: boolean): SessionDetail {
-  return {
+function session(archived: boolean) {
+  const detail: SessionDetail = {
     id: SessionId('worker'),
     title: 'Worker',
     projectPath: '/repo',
@@ -19,6 +19,7 @@ function session(archived: boolean): SessionDetail {
     updatedAt: 1,
     ...(archived ? { archived: true } : {}),
   }
+  return detail
 }
 
 function renderNotice() {

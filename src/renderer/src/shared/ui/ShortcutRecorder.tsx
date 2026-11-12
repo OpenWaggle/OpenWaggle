@@ -19,7 +19,7 @@ function normalizedShortcutKey(event: KeyboardEvent<HTMLButtonElement>) {
 function shortcutBindingWithModifiers(
   event: KeyboardEvent<HTMLButtonElement>,
   applePlatform: boolean,
-): ShortcutBinding {
+) {
   return {
     key: normalizedShortcutKey(event),
     ...((applePlatform ? event.metaKey : event.ctrlKey) ? { mod: true } : {}),
@@ -27,16 +27,14 @@ function shortcutBindingWithModifiers(
     ...(!applePlatform && event.metaKey ? { meta: true } : {}),
     ...(event.altKey ? { alt: true } : {}),
     ...(event.shiftKey ? { shift: true } : {}),
-  }
+  } satisfies ShortcutBinding
 }
 
 function hasShortcutModifier(binding: ShortcutBinding) {
   return Boolean(binding.mod || binding.ctrl || binding.alt || binding.shift || binding.meta)
 }
 
-export function shortcutBindingFromEvent(
-  event: KeyboardEvent<HTMLButtonElement>,
-): ShortcutBinding | null {
+export function shortcutBindingFromEvent(event: KeyboardEvent<HTMLButtonElement>) {
   if (isShortcutModifierKey(event.key)) return null
   const binding = shortcutBindingWithModifiers(event, usesAppleShortcuts())
   return hasShortcutModifier(binding) ? binding : null

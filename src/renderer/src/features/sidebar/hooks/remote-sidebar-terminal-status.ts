@@ -16,8 +16,9 @@ export interface HydratedTerminalIds {
   readonly error: ReadonlySet<string>
 }
 
-export function emptyHydratedTerminalIds(): HydratedTerminalIds {
-  return { completed: new Set<string>(), error: new Set<string>() }
+export function emptyHydratedTerminalIds() {
+  const ids: HydratedTerminalIds = { completed: new Set<string>(), error: new Set<string>() }
+  return ids
 }
 
 /** `current` with `ids` added under `state`, or `current` itself when it holds them all. */
@@ -25,9 +26,10 @@ export function withHydratedTerminalIds(
   current: HydratedTerminalIds,
   state: SidebarTerminalState,
   ids: readonly string[],
-): HydratedTerminalIds {
+) {
   if (ids.every((id) => current[state].has(id))) return current
-  return { ...current, [state]: new Set([...current[state], ...ids]) }
+  const result: HydratedTerminalIds = { ...current, [state]: new Set([...current[state], ...ids]) }
+  return result
 }
 
 export function sidebarRemoteStatusIds(
@@ -77,7 +79,7 @@ export function pruneHydratedTerminalIds(
   rawStatuses: ReadonlyMap<SessionId, SessionStatus>,
   stateBySessionId: ReadonlyMap<string, SidebarRowState>,
   resolvedIds: ReadonlySet<string>,
-): HydratedTerminalIds {
+) {
   const holds = (id: string, state: SidebarTerminalState) => {
     const raw = rawStatuses.get(SessionId(id))
     // Not yet resolved with its lineage, but a Run it started since then ends its state.
@@ -93,5 +95,6 @@ export function pruneHydratedTerminalIds(
   ) {
     return hydratedTerminalIds
   }
-  return { completed: new Set(completed), error: new Set(error) }
+  const ids: HydratedTerminalIds = { completed: new Set(completed), error: new Set(error) }
+  return ids
 }

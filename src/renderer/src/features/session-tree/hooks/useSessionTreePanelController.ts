@@ -7,10 +7,10 @@ import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 import { isSessionTreeFilterMode } from '../constants'
 import type {
-  SessionTreePanelController,
   SessionTreePanelProps,
   SessionTreeRow,
   SessionTreeRowActions,
+  SessionTreePanelController,
 } from '../model'
 import { buildSessionTreePanelRows } from './session-tree-panel-rows'
 import {
@@ -28,9 +28,7 @@ function isExpandedNode(node: SessionTreeNode, expandedNodeIds: readonly Session
   return expandedNodeIds.some((expandedNodeId) => String(expandedNodeId) === String(node.id))
 }
 
-export function useSessionTreePanelController(
-  onClose: SessionTreePanelProps['onClose'],
-): SessionTreePanelController {
+export function useSessionTreePanelController(onClose: SessionTreePanelProps['onClose']) {
   const [searchQuery, setSearchQuery] = useState('')
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const [panelState, dispatchPanelState] = useReducer(
@@ -125,7 +123,7 @@ export function useSessionTreePanelController(
     onToggleNodeExpanded: toggleNodeExpanded,
   })
 
-  return {
+  const controller: SessionTreePanelController = {
     content: {
       rowActions,
       rowRefs,
@@ -160,4 +158,5 @@ export function useSessionTreePanelController(
     },
     header: { onClose },
   }
+  return controller
 }

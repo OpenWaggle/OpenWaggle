@@ -6,7 +6,6 @@ import {
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { BrowserPreviewAdvancedControls } from '../../hooks/useBrowserPreviewAdvancedControls'
 import { BrowserPreviewCaptureControls } from '../BrowserPreviewCaptureControls'
 import { BrowserPreviewDeviceToolbar } from '../BrowserPreviewDeviceToolbar'
 import { BrowserPreviewMoreMenu } from '../BrowserPreviewMoreMenu'
@@ -39,9 +38,7 @@ function DeviceToolbarHarness({
   )
 }
 
-function advancedControls(
-  controlState: BrowserPreviewControlState,
-): BrowserPreviewAdvancedControls {
+function advancedControls(controlState: BrowserPreviewControlState) {
   return {
     busy: null,
     recording: controlState.recording,

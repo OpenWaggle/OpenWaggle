@@ -9,7 +9,7 @@ function node(input: {
   readonly role?: SessionTreeNode['role']
   readonly parentId?: string | null
   readonly contentText?: string
-}): SessionTreeNode {
+}) {
   return {
     id: SessionNodeId(input.id),
     sessionId: SessionId('session-1'),
@@ -21,7 +21,7 @@ function node(input: {
     createdOrder: 1,
     pathDepth: 0,
     ...(input.role ? { hasMessage: true, preview: input.contentText ?? input.id } : {}),
-  }
+  } satisfies SessionTreeNode
 }
 
 describe('filterSessionTreeNodes', () => {

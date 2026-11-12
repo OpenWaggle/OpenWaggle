@@ -37,7 +37,7 @@ function accountLabel(entry: SourceControlHostEntry) {
   return `${String(entry.accounts.length)} accounts`
 }
 
-function hostChoice(value: string): SourceControlHostChoice | null {
+function hostChoice(value: string) {
   return SOURCE_CONTROL_HOST_CHOICES.find((option) => option.id === value)?.id ?? null
 }
 

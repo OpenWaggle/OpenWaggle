@@ -17,8 +17,8 @@ import {
 import { testHexColor as hex } from '@/test-utils/test-color'
 import { observeTerminalAppearance, readTerminalAppearance } from '../terminal-appearance'
 
-function importedTheme(id: string, terminalBackground: string): SyntaxThemeResource {
-  return {
+function importedTheme(id: string, terminalBackground: string) {
+  const resource: SyntaxThemeResource = {
     id,
     packageId: 'palette-test',
     revision: `${id}-revision`,
@@ -44,6 +44,7 @@ function importedTheme(id: string, terminalBackground: string): SyntaxThemeResou
     },
     original: {},
   }
+  return resource
 }
 
 const FIRST_THEME = importedTheme('theme:first:dark', hex('191919'))

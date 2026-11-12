@@ -45,7 +45,7 @@ export function useOptimisticSteeredTurn(
   buildClientUserMessage: (payload: AgentSendPayload) => string,
   messagesRef: React.RefObject<UIMessage[]>,
   isSessionIdle: boolean,
-): OptimisticSteeredTurnReturn {
+) {
   const optimisticSteeredUserTurns = useOptimisticSteerStore(
     selectOptimisticSteerPreviews(sessionId),
   )
@@ -154,7 +154,7 @@ export function useOptimisticSteeredTurn(
         },
       }
     },
-  }
+  } satisfies OptimisticSteeredTurnReturn
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -168,12 +168,12 @@ function createOptimisticUserMessage(
   content: string,
   id: string,
   deliveryState: SteerDeliveryState,
-): UIMessage {
+) {
   return {
     id: `optimistic-steer-${id}`,
     role: 'user',
     parts: [{ type: 'text', content }],
     createdAt: new Date(),
     metadata: { steerDelivery: deliveryState },
-  }
+  } satisfies UIMessage
 }

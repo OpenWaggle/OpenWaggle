@@ -10,7 +10,7 @@ export interface ProjectGroup {
 export function groupSessionsByProject(
   sessions: SessionSummary[],
   displayNameOverrides: Record<string, string> = {},
-): ProjectGroup[] {
+) {
   const groups = new Map<string, SessionSummary[]>()
 
   for (const session of sessions) {

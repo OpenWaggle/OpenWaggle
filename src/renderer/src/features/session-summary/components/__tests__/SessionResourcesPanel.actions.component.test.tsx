@@ -38,8 +38,8 @@ function imageResource(
   available = true,
   managed = locator.startsWith('session-resource://'),
   canonicalKey = `resource:${id}`,
-): SessionResource {
-  return {
+) {
+  const resource: SessionResource = {
     id,
     sessionId: SessionId('session-one'),
     canonicalKey,
@@ -55,6 +55,7 @@ function imageResource(
     createdAt: 1,
     updatedAt: 1,
   }
+  return resource
 }
 
 describe('SessionResourcesPanel source actions', () => {

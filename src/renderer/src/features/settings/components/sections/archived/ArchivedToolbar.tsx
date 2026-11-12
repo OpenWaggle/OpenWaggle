@@ -39,7 +39,7 @@ function projectValue(projectPath: string | null | undefined) {
   return projectPath ?? NO_PROJECT
 }
 
-function projectFromValue(value: string): string | null | undefined {
+function projectFromValue(value: string) {
   if (value === ALL_PROJECTS) return undefined
   return value === NO_PROJECT ? null : value
 }

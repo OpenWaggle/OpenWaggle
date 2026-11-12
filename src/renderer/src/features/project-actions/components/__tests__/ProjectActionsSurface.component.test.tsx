@@ -28,13 +28,15 @@ import { actionCatalog, TEST_ACTION } from './native-action-fixtures'
  * action panel, workspace panel and terminal stores are the real ones. The fake Host answers
  * each action-management operation from the catalog and runs below.
  */
-const host = vi.hoisted(() => ({
-  catalog: ((): ActionCatalog | null => null)(),
-  catalogError: ((): Error | null => null)(),
-  runs: ((): ActionRun[] => [])(),
-  manage: vi.fn(),
-  navigate: vi.fn(),
-}))
+const host = vi.hoisted(() => {
+  // Declared property types are not narrowed, so a test can set a catalog, an error and runs.
+  const initial: {
+    readonly catalog: ActionCatalog | null
+    readonly catalogError: Error | null
+    readonly runs: ActionRun[]
+  } = { catalog: null, catalogError: null, runs: [] }
+  return { ...initial, manage: vi.fn(), navigate: vi.fn() }
+})
 vi.mock('@/shared/lib/ipc', async () => ({
   api: (await import('@/test-utils/preload-api')).preloadApi({
     manageProjectActions: host.manage,
@@ -69,7 +71,7 @@ const DEV = {
   shortcutRules: [{ shortcut: { key: 'd', mod: true, shift: true, alt: false } }],
 }
 
-function devRun(overrides: Partial<ActionRun> = {}): ActionRun {
+function devRun(overrides: Partial<ActionRun> = {}) {
   return {
     id: 'run-1',
     requestId: 'request',
@@ -87,15 +89,18 @@ function devRun(overrides: Partial<ActionRun> = {}): ActionRun {
     ready: false,
     outputBytes: 12,
     ...overrides,
-  }
+  } satisfies ActionRun
 }
 
-async function answer({ operation }: ActionManagementRequest): Promise<ActionManagementResult> {
+async function answer({ operation }: ActionManagementRequest) {
   const { type } = operation
   if (type === 'catalog') {
     if (host.catalogError) throw host.catalogError
     // No catalog yet: the read stays in flight.
-    return host.catalog ? { type, catalog: host.catalog } : new Promise(() => {})
+    const result: ActionManagementResult | Promise<never> = host.catalog
+      ? { type, catalog: host.catalog }
+      : new Promise<never>(() => {})
+    return result
   }
   if (type === 'runs') return { type, runs: host.runs }
   if (type === 'discover') return { type: 'discovery', discovery: { tasks: [], diagnostics: [] } }

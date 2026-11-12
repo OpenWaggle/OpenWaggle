@@ -28,7 +28,7 @@ import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
 import { remoteTranscriptHistory, workspacePathNodeIds } from '../lib/transcript-remote-history'
 import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
-import type { ChatTranscriptSectionState, PendingSend } from '../model'
+import type { PendingSend } from '../model'
 import type { AgentCompactionStatus } from './useAgentChat.types'
 import { useChatRows } from './useChatRows'
 import { useReplacedTranscriptRefresh } from './useReplacedTranscriptRefresh'
@@ -105,7 +105,7 @@ function isTranscriptLoading(flags: {
   return flags.isLoading && !flags.isFinishing
 }
 
-export function useTranscriptSection(params: TranscriptSectionParams): ChatTranscriptSectionState {
+export function useTranscriptSection(params: TranscriptSectionParams) {
   const {
     messages,
     customMessages,

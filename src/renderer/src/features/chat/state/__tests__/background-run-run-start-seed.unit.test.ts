@@ -18,18 +18,23 @@ vi.mock('@/shared/lib/ipc', () => ({
 const SESSION_A = SessionId('session-a')
 const SESSION_B = SessionId('session-b')
 
-function userMessage(id: string, content: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content }], createdAt: new Date(1) }
+function userMessage(id: string, content: string) {
+  return {
+    id,
+    role: 'user',
+    parts: [{ type: 'text', content }],
+    createdAt: new Date(1),
+  } satisfies UIMessage
 }
 
-function assistantTextEvent(messageId: string, delta: string): AgentTransportEvent {
+function assistantTextEvent(messageId: string, delta: string) {
   return {
     type: 'message_update',
     messageId,
     role: 'assistant',
     assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta },
     timestamp: Date.now(),
-  }
+  } satisfies AgentTransportEvent
 }
 
 describe('background run render snapshots seeded by a Run start', () => {

@@ -92,6 +92,6 @@ const PROVIDER_ICON_COMPONENTS: Partial<Record<Provider, ProviderIconComponent>>
   zai: createSvgIcon(ZaiSvg),
 }
 
-export function getProviderIcon(provider: Provider): ProviderIconComponent {
+export function getProviderIcon(provider: Provider) {
   return PROVIDER_ICON_COMPONENTS[provider] ?? FallbackProviderIcon
 }

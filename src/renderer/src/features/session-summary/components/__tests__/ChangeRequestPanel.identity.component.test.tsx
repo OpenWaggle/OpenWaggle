@@ -18,9 +18,9 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function details(url: string): VcsChangeRequestDetails {
+function details(url: string) {
   const reference = url.endsWith('/8') ? '8' : '7'
-  return {
+  const result: VcsChangeRequestDetails = {
     title: `Request ${reference}`,
     url,
     baseRef: 'main',
@@ -42,6 +42,7 @@ function details(url: string): VcsChangeRequestDetails {
     unresolvedReviewThreadsCount: 0,
     merge: { allowed: true, reason: null, methods: ['merge', 'squash'] },
   }
+  return result
 }
 
 function panel(url: string) {

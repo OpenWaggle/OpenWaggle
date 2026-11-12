@@ -12,10 +12,8 @@ import {
 } from '../extension-command-items'
 import { omitKey } from '@/test-utils/omit-key'
 
-function commandEntry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function commandEntry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample.extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -46,6 +44,7 @@ function commandEntry(
     diagnostics: [],
     ...overrides,
   }
+  return entry
 }
 
 describe('resolveExtensionCommandInvocationScope', () => {

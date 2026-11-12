@@ -25,7 +25,7 @@ export function placeCurrentOnlyMessages(input: {
   /** Messages only the reconnect holds that precede the current transcript's own; unknown if undefined. */
   readonly earlierMessageIds: ReadonlySet<string> | undefined
   readonly isRepresented: (message: UIMessage) => boolean
-}): UIMessage[] {
+}) {
   const { mergedMessages, currentMessages, reconnectMessageIds } = input
   const leading: UIMessage[] = []
   const followersByAnchorId = new Map<string, UIMessage[]>()
@@ -101,8 +101,8 @@ export function placeAnchoredReconnectMessages(
   messages: readonly UIMessage[],
   anchors: ReadonlyMap<string, string>,
   currentMessageIds: ReadonlySet<string>,
-): UIMessage[] {
-  if (anchors.size === 0) return [...messages]
+) {
+  if (anchors.size === 0) return [...messages] satisfies UIMessage[]
   const shownIds = new Set(messages.map((message) => message.id))
   const anchorIds = new Map([...anchors].filter(([, anchorId]) => shownIds.has(anchorId)))
   const unanchoredIds = new Set(
@@ -171,7 +171,7 @@ function placeUnanchoredReconnectMessages(
   messages: readonly UIMessage[],
   unanchoredIds: ReadonlySet<string>,
   currentMessageIds: ReadonlySet<string>,
-): UIMessage[] {
+) {
   const placed = [...messages]
   for (const messageId of unanchoredIds) {
     const index = placed.findIndex((message) => message.id === messageId)

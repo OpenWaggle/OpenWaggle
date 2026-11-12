@@ -35,7 +35,7 @@ import {
 
 const OWNER_KEY = 'replacement-session'
 
-function nativeState(previewId: string, url: string): BrowserPreviewState {
+function nativeState(previewId: string, url: string) {
   return {
     previewId,
     ownerKey: OWNER_KEY,
@@ -58,7 +58,7 @@ function nativeState(previewId: string, url: string): BrowserPreviewState {
       picking: false,
       recording: false,
     },
-  }
+  } satisfies BrowserPreviewState
 }
 
 function populateCapacity(options?: {

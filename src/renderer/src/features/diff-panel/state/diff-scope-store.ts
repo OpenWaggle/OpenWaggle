@@ -35,13 +35,13 @@ interface DiffScopeState {
   removeThread: (threadKey: string) => void
 }
 
-function normalizeBaseRef(baseRef: string | null): string | null {
+function normalizeBaseRef(baseRef: string | null) {
   const normalized = baseRef?.trim()
   return normalized ? normalized : null
 }
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
-function resolveStorage(): StateStorage {
+function resolveStorage() {
   if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
@@ -52,7 +52,7 @@ function resolveStorage(): StateStorage {
     removeItem: (key) => {
       memory.delete(key)
     },
-  }
+  } satisfies StateStorage
 }
 
 export const useDiffScopeStore = create<DiffScopeState>()(
@@ -157,7 +157,7 @@ export const useDiffScopeStore = create<DiffScopeState>()(
 export function selectThreadDiffScopeSelection(
   byThreadKey: Record<string, DiffScopeSelection>,
   threadKey: string | null | undefined,
-): DiffScopeSelection {
+) {
   /*
    * One default: the working tree.
    *

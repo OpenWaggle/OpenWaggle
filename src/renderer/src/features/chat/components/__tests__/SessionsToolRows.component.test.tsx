@@ -46,14 +46,14 @@ function hivePage() {
   }
 }
 
-function call(args: object, id = 'tc-1'): ToolCallPart {
+function call(args: object, id = 'tc-1') {
   return {
     type: 'tool-call',
     id,
     name: 'hive',
     arguments: JSON.stringify(args),
     state: 'input-complete',
-  }
+  } satisfies ToolCallPart
 }
 
 function resultFor(id: string, outcome: object) {

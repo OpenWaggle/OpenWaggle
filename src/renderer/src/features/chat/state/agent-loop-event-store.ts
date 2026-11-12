@@ -49,10 +49,7 @@ function boundedSessions(
   return next
 }
 
-function applySessionEvent(
-  current: AgentLoopSessionState,
-  event: AgentTransportEvent,
-): AgentLoopSessionState | null {
+function applySessionEvent(current: AgentLoopSessionState, event: AgentTransportEvent) {
   if (event.type === 'agent_interaction_request') {
     const interactions =
       event.interaction.kind === 'notify'

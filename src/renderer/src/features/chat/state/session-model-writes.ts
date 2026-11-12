@@ -29,7 +29,7 @@ const writes: SessionModelWriteState = {
 }
 
 /** Lays a pending pick over an incoming Session detail so a stale read cannot undo it. */
-export function withPendingSessionModel(session: SessionDetail): SessionDetail {
+export function withPendingSessionModel(session: SessionDetail) {
   const pending = writes.pending.get(session.id)
   return pending && session.executionModel !== pending
     ? { ...session, executionModel: pending }
@@ -37,7 +37,7 @@ export function withPendingSessionModel(session: SessionDetail): SessionDetail {
 }
 
 /** Resolves once every model write already requested for the Session has settled. */
-export function settledSessionModelWrites(sessionId: SessionId): Promise<void> {
+export function settledSessionModelWrites(sessionId: SessionId) {
   return writes.chains.get(sessionId) ?? Promise.resolve()
 }
 
@@ -52,7 +52,7 @@ interface SessionModelWriteInput {
   readonly onError: (error: unknown) => void
 }
 
-export function writeSessionModel(input: SessionModelWriteInput): Promise<void> {
+export function writeSessionModel(input: SessionModelWriteInput) {
   const { sessionId, model } = input
   if (!writes.pending.has(sessionId) && input.previousModel !== undefined) {
     writes.committed.set(sessionId, input.previousModel)

@@ -42,7 +42,7 @@ export function isAuthorizationRequest(
  * Built from the declared grant key rather than parsed out of the message, so it names exactly what
  * a kept approval would cover.
  */
-export function ribbonTargetLine(scopeKey: AgentAuthorizationScopeKey): string {
+export function ribbonTargetLine(scopeKey: AgentAuthorizationScopeKey) {
   const capability = AGENT_AUTHORIZATION_CAPABILITY_LABELS[scopeKey.capability]
   return [scopeKey.resource ?? scopeKey.requester, capability].join(' · ')
 }
@@ -54,7 +54,7 @@ export function ribbonTargetLine(scopeKey: AgentAuthorizationScopeKey): string {
  * excluded custom interactions even though they occupy the same composer area, so it understated
  * how much was actually blocking the run.
  */
-export function queuedRequestCount(interactions: readonly AgentLoopInteraction[]): number {
+export function queuedRequestCount(interactions: readonly AgentLoopInteraction[]) {
   const blocking = interactions.filter((interaction) => interaction.kind !== 'notify')
   return Math.max(0, blocking.length - 1)
 }
@@ -68,7 +68,7 @@ export interface AllowScopeChoice {
 export function allowScopeChoices(
   scopeKey: AgentAuthorizationScopeKey,
   projectName: string | null,
-): readonly AllowScopeChoice[] {
+) {
   const target = scopeKey.resource ?? scopeKey.requester
   return [
     { scope: 'session', label: 'Allow for this session' },
@@ -80,5 +80,5 @@ export function allowScopeChoices(
         ? `Always allow ${target} for ${scopeKey.requester} in ${projectName}`
         : `Always allow ${target} for ${scopeKey.requester} in this project`,
     },
-  ]
+  ] satisfies readonly AllowScopeChoice[]
 }

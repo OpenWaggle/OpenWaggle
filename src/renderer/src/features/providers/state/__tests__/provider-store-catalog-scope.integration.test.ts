@@ -18,7 +18,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const SETTINGS = { ...DEFAULT_SETTINGS, projectPath: '/repo/demo' }
 
-function providerGroup(provider: string, modelId: string): ProviderInfo {
+function providerGroup(provider: string, modelId: string) {
   return {
     provider,
     displayName: provider,
@@ -41,7 +41,7 @@ function providerGroup(provider: string, modelId: string): ProviderInfo {
         availableThinkingLevels: ['off'],
       },
     ],
-  }
+  } satisfies ProviderInfo
 }
 
 /*

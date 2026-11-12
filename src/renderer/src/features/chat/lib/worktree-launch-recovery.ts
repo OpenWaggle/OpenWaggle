@@ -15,9 +15,7 @@ function recoveryFor(sessionId: SessionId) {
   return useBackgroundRunStore.getState().firstSendRecoveryBySessionId.get(sessionId) ?? null
 }
 
-function presetFromRecovery(
-  recovery: NonNullable<ReturnType<typeof recoveryFor>>,
-): WagglePreset | null {
+function presetFromRecovery(recovery: NonNullable<ReturnType<typeof recoveryFor>>) {
   const invocation = recovery.payload.waggle
   if (!invocation) return null
   return {
@@ -28,7 +26,7 @@ function presetFromRecovery(
     isBuiltIn: false,
     createdAt: 0,
     updatedAt: 0,
-  }
+  } satisfies WagglePreset
 }
 
 function restoreFailedLaunch(

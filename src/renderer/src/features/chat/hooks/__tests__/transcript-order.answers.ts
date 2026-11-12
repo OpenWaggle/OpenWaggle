@@ -19,11 +19,12 @@ export interface AnswerSegment {
 }
 
 export function answerSegments(text: string, shape: AnswerShape, toolCallId: string) {
-  const around = (between: AnswerSegment): AnswerSegment[] => [
-    { kind: 'text', content: `${text} then report back` },
-    between,
-    { kind: 'text', content: 'report back' },
-  ]
+  const around = (between: AnswerSegment) =>
+    [
+      { kind: 'text', content: `${text} then report back` },
+      between,
+      { kind: 'text', content: 'report back' },
+    ] satisfies AnswerSegment[]
   const segments: Record<AnswerShape, () => AnswerSegment[]> = {
     plain: () => [{ kind: 'text', content: text }],
     reasoning: () => [
@@ -57,24 +58,29 @@ export function segmentKey(segment: AnswerSegment) {
 
 const TOOL = { toolName: 'bash' }
 
-function segmentEvents(segment: AnswerSegment, contentIndex: number): AgentAssistantMessageEvent[] {
+function segmentEvents(segment: AnswerSegment, contentIndex: number) {
   if (segment.kind === 'tool') {
     const call = { contentIndex, toolCallId: segment.content, ...TOOL }
     const input = { command: segment.content }
-    return [
+    const event: AgentAssistantMessageEvent[] = [
       { type: 'toolcall_start', ...call, input },
       { type: 'toolcall_end', ...call, input },
     ]
+    return event
   }
   const deltas = segment.content === '' ? [] : segment.content.split(/(?= )/)
   const type = segment.kind === 'thinking' ? 'thinking_delta' : 'text_delta'
   const streamed = deltas.map((delta) => ({ type, contentIndex, delta }) as const)
-  if (segment.kind === 'text') return streamed
-  return [
+  if (segment.kind === 'text') {
+    const event: AgentAssistantMessageEvent[] = streamed
+    return event
+  }
+  const event: AgentAssistantMessageEvent[] = [
     { type: 'thinking_start', contentIndex },
     ...streamed,
     { type: 'thinking_end', contentIndex, content: segment.content },
   ]
+  return event
 }
 
 /** The answer's events as the model streams them: each segment, its text word by word. */
@@ -83,16 +89,21 @@ export function answerEvents(segments: readonly AnswerSegment[]) {
 }
 
 /** The persisted parts of the answer's segments. */
-export function segmentParts(segments: readonly AnswerSegment[]): MessagePart[] {
-  return segments.map((segment): MessagePart => {
+export function segmentParts(segments: readonly AnswerSegment[]) {
+  return segments.map((segment) => {
     if (segment.kind === 'tool') {
       const id = ToolCallId(segment.content)
-      return {
+      const part: MessagePart = {
         type: 'tool-call',
         toolCall: { id, name: TOOL.toolName, args: { command: segment.content } },
       }
+      return part
     }
-    return { type: segment.kind === 'thinking' ? 'reasoning' : 'text', text: segment.content }
+    const part: MessagePart = {
+      type: segment.kind === 'thinking' ? 'reasoning' : 'text',
+      text: segment.content,
+    }
+    return part
   })
 }
 
@@ -136,7 +147,7 @@ export function streamAnswer(
     readonly holdLast?: number
     readonly open?: boolean
   },
-): (() => void) | undefined {
+) {
   const streamFrom = (from: number, to: number) => {
     for (const [index, event] of events.slice(from, to).entries()) {
       stream.beforeDelta?.(from + index, events.length)

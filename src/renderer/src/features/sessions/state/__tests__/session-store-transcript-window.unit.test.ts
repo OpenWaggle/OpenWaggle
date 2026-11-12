@@ -1,12 +1,12 @@
 import { MessageId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTranscriptEntry, SessionTree, SessionWorkspace } from '@shared/types/session'
-import type { SessionWorkspaceRequest } from '@shared/types/session-transcript-window'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearTranscriptNodeCaches,
   TRANSCRIPT_WINDOW_PAGE_ENTRIES,
 } from '../../lib/session-workspace-window'
 import { useSessionStore } from '../session-store'
+import type { SessionWorkspaceRequest } from '@shared/types/session-transcript-window'
 
 const mockApi = {
   getSessionTree: vi.fn(),
@@ -20,17 +20,18 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function tree(sessionId: SessionId): SessionTree {
-  return {
+function tree(sessionId: SessionId) {
+  const result: SessionTree = {
     session: { id: sessionId, title: 'S', projectPath: null, createdAt: 1, updatedAt: 2 },
     nodes: [],
     branches: [],
     branchStates: [],
     uiState: null,
   }
+  return result
 }
 
-function entry(sessionId: SessionId, id: string, omitted = false): SessionTranscriptEntry {
+function entry(sessionId: SessionId, id: string, omitted = false) {
   const node = {
     id: SessionNodeId(id),
     sessionId,
@@ -42,7 +43,7 @@ function entry(sessionId: SessionId, id: string, omitted = false): SessionTransc
     pathDepth: 0,
     hasMessage: true,
   }
-  return omitted
+  const result: SessionTranscriptEntry = omitted
     ? { node, isActive: false, contentOmitted: true }
     : {
         node: {
@@ -51,6 +52,7 @@ function entry(sessionId: SessionId, id: string, omitted = false): SessionTransc
         },
         isActive: false,
       }
+  return result
 }
 
 function workspace(
@@ -58,7 +60,7 @@ function workspace(
   entries: readonly SessionTranscriptEntry[],
   window: { readonly startIndex: number; readonly pathLength: number },
   nodeMutationRevision = 5,
-): SessionWorkspace {
+) {
   return {
     tree: tree(sessionId),
     activeBranchId: null,
@@ -66,12 +68,13 @@ function workspace(
     transcriptPath: entries,
     transcriptWindow: window,
     nodeMutationRevision,
-  }
+  } satisfies SessionWorkspace
 }
 
-function requestOf(call: number): SessionWorkspaceRequest | undefined {
+function requestOf(call: number) {
   const request = mockApi.getSessionWorkspace.mock.calls[call]?.[2]
-  return request
+  const result: SessionWorkspaceRequest | undefined = request
+  return result
 }
 
 describe('session store transcript window (ADR 0036, B5)', () => {

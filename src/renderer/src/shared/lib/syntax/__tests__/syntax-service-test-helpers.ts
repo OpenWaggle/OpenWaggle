@@ -59,7 +59,7 @@ export const IMPORTED_LANGUAGE = {
   original: {},
 } satisfies SyntaxLanguageResource
 
-export function highlightedResponse(requestId: number): SyntaxWorkerSuccessMessage {
+export function highlightedResponse(requestId: number) {
   return {
     type: 'highlighted',
     requestId,
@@ -70,7 +70,7 @@ export function highlightedResponse(requestId: number): SyntaxWorkerSuccessMessa
       lines: [[{ content: 'const', color: 'var(--color-text-primary)' }]],
       elapsedMs: 1,
     },
-  }
+  } satisfies SyntaxWorkerSuccessMessage
 }
 
 export function highlightMessages(worker: MockWorker) {

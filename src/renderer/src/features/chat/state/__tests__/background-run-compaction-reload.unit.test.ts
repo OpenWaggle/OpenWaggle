@@ -20,8 +20,8 @@ vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 const SESSION_ID = SessionId('session-compaction-reload')
 const MODEL = SupportedModelId('openai/gpt-5')
 
-function userMessage(id: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content: id }] }
+function userMessage(id: string) {
+  return { id, role: 'user', parts: [{ type: 'text', content: id }] } satisfies UIMessage
 }
 
 function resetStore() {

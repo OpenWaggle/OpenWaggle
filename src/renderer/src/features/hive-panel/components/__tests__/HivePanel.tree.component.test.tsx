@@ -29,7 +29,7 @@ function child(
   parent: string,
   createdAt: number,
   overrides: Partial<SessionSummary> & { readonly state?: string } = {},
-): SessionSummary {
+) {
   const { state, ...rest } = overrides
   return summary(id, {
     createdAt,

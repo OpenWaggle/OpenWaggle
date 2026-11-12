@@ -17,7 +17,7 @@ interface KeyboardPluginProps {
   onEscape?: () => void
 }
 
-export function KeyboardPlugin({ onSubmit, onEscape }: KeyboardPluginProps): null {
+export function KeyboardPlugin({ onSubmit, onEscape }: KeyboardPluginProps) {
   const [editor] = useLexicalComposerContext()
   const submit = useEffectEvent(onSubmit)
   const hasEscape = onEscape !== undefined

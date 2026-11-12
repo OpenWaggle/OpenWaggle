@@ -28,7 +28,7 @@ function delay(milliseconds: number) {
 export function createSessionSnapshotRefresh(input: SessionSnapshotRefreshInput) {
   const retryDelayMs = input.retryDelayMs ?? SNAPSHOT_RETRY_DELAY_MS
 
-  async function read(targetSessionId: SessionId): Promise<SessionDetail | null | undefined> {
+  async function read(targetSessionId: SessionId) {
     try {
       return await api.getSessionDetail(targetSessionId)
     } catch (error) {

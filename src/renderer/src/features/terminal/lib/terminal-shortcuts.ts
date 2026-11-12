@@ -63,7 +63,7 @@ export function resolveTerminalShortcut(
   event: TerminalShortcutEvent,
   bindings: ShortcutBindings,
   applePlatform: boolean,
-): TerminalShortcutCommand | null {
+) {
   for (const command of TERMINAL_SHORTCUT_COMMANDS) {
     if (matchesTerminalShortcutBinding(event, bindings[command], applePlatform)) return command
   }

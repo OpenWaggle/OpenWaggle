@@ -21,20 +21,20 @@ type RetryPlan =
   | { readonly kind: 'done' }
   | { readonly kind: 'refused'; readonly message: string }
 
-function planQueueStateRetry(fresh: SessionFollowUpQueueSnapshot, paused: boolean): RetryPlan {
-  if (fresh.state === (paused ? 'paused' : 'running')) return { kind: 'done' }
+function planQueueStateRetry(fresh: SessionFollowUpQueueSnapshot, paused: boolean) {
+  if (fresh.state === (paused ? 'paused' : 'running')) return { kind: 'done' } satisfies RetryPlan
   if (!paused && fresh.items[0]?.deliveryState === 'needs_attention') {
-    return { kind: 'refused', message: QUEUE_CONTROL_COPY.resumeBlocked }
+    return { kind: 'refused', message: QUEUE_CONTROL_COPY.resumeBlocked } satisfies RetryPlan
   }
-  return { kind: 'retry' }
+  return { kind: 'retry' } satisfies RetryPlan
 }
 
-function planSendAsMeRetry(fresh: SessionFollowUpQueueSnapshot, followUpId: string): RetryPlan {
+function planSendAsMeRetry(fresh: SessionFollowUpQueueSnapshot, followUpId: string) {
   const item = fresh.items.find((candidate) => candidate.id === followUpId)
-  if (!item) return { kind: 'refused', message: QUEUE_CONTROL_COPY.messageGone }
+  if (!item) return { kind: 'refused', message: QUEUE_CONTROL_COPY.messageGone } satisfies RetryPlan
   // Someone else already sent it, or its access came back: it no longer waits on the user.
-  if (item.deliveryState !== 'needs_attention') return { kind: 'done' }
-  return { kind: 'retry' }
+  if (item.deliveryState !== 'needs_attention') return { kind: 'done' } satisfies RetryPlan
+  return { kind: 'retry' } satisfies RetryPlan
 }
 
 /**

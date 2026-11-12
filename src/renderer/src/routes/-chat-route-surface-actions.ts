@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import type { useChatPanelSections } from '@/features/chat/hooks'
 import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { useUIStore } from '@/shell'
-import type { ChatRightSidebarRouteActions, ChatRouteSurfaceHandlers } from './-chat-route-surface'
+import type { ChatRightSidebarRouteActions } from './-chat-route-surface'
 import {
   coordinateChangeRequestPanel,
   coordinateDiffPanel,
@@ -17,7 +17,7 @@ import type { ChatExtensionSidePanelTarget } from './-route-search'
 export function useChatRouteSurfaceActions(
   sections: ReturnType<typeof useChatPanelSections>,
   rightSidebarActions: ChatRightSidebarRouteActions,
-): ChatRouteSurfaceHandlers {
+) {
   const setLastRightSidebarPanel = useUIStore((state) => state.setLastRightSidebarPanel)
   const chatCommandRequest = useUIStore((state) => state.chatCommandRequest)
   const clearChatCommandRequest = useUIStore((state) => state.clearChatCommandRequest)

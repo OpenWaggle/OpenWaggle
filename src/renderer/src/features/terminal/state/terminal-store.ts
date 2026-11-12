@@ -13,10 +13,8 @@ import type { TerminalState } from './terminal-store-types'
 export type {
   TerminalGroupState,
   TerminalPaneState,
-  TerminalSplitDirection,
   TerminalTabState,
 } from './terminal-store-types'
-
 const TERMINAL_PERSISTENCE_VERSION = 2
 
 export const useTerminalStore = create<TerminalState>()(

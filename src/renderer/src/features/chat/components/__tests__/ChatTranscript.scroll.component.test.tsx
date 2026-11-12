@@ -44,30 +44,28 @@ vi.mock('@/shared/lib/ipc', () => ({
 import type { ChatRow, MessageChatRow } from '../../lib/types-chat-row'
 import { ChatTranscript } from '../ChatTranscript'
 
-function createTextMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
+function createTextMessage(id: string, role: UIMessage['role'], content: string) {
   return {
     id,
     role,
     parts: [{ type: 'text', content }],
-  }
+  } satisfies UIMessage
 }
 
-function createMessageChatRow(message: UIMessage): MessageChatRow {
+function createMessageChatRow(message: UIMessage) {
   return {
     type: 'message',
     message,
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-  }
+  } satisfies MessageChatRow
 }
 
-function createSection(
-  overrides: Partial<ChatTranscriptSectionState> = {},
-): ChatTranscriptSectionState {
+function createSection(overrides: Partial<ChatTranscriptSectionState> = {}) {
   const defaultMessage = createTextMessage('msg-1', 'user', 'hello')
 
-  return {
+  const state: ChatTranscriptSectionState = {
     messages: [defaultMessage],
     isLoading: false,
     projectPath: PROJECT_PATH,
@@ -98,6 +96,7 @@ function createSection(
     turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
+  return state
 }
 
 function configureScrollableElement(scroller: HTMLElement) {

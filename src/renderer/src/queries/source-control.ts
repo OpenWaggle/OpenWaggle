@@ -1,21 +1,10 @@
-import type {
-  ChangeRequestOpenDestinationResolution,
-  SourceControlConfigureRequest,
-  SourceControlConfigureResult,
-  SourceControlHostsOverview,
-} from '@shared/types/git'
+import type { SourceControlConfigureRequest } from '@shared/types/git'
 import { type QueryClient, queryOptions, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { queryKeys } from './query-keys'
-import type { OpenWaggleQueryOptions } from './query-options'
 
-export function sourceControlHostsQueryOptions(): OpenWaggleQueryOptions<
-  SourceControlHostsOverview,
-  Error,
-  SourceControlHostsOverview,
-  typeof queryKeys.sourceControlHosts
-> {
+export function sourceControlHostsQueryOptions() {
   return queryOptions({
     queryKey: queryKeys.sourceControlHosts,
     queryFn: () => api.getSourceControlHosts(),
@@ -23,14 +12,7 @@ export function sourceControlHostsQueryOptions(): OpenWaggleQueryOptions<
 }
 
 /** The effective Change request open destination; the Session Host resolves every level. */
-export function changeRequestOpenDestinationQueryOptions(
-  projectPath: string | null,
-): OpenWaggleQueryOptions<
-  ChangeRequestOpenDestinationResolution,
-  Error,
-  ChangeRequestOpenDestinationResolution,
-  ReturnType<typeof queryKeys.changeRequestOpenDestination>
-> {
+export function changeRequestOpenDestinationQueryOptions(projectPath: string | null) {
   return queryOptions({
     queryKey: queryKeys.changeRequestOpenDestination(projectPath),
     queryFn: () => api.getChangeRequestOpenDestination(projectPath),
@@ -45,7 +27,7 @@ export function changeRequestOpenDestinationQueryOptions(
 export async function configureSourceControl(
   queryClient: QueryClient,
   request: SourceControlConfigureRequest,
-): Promise<SourceControlConfigureResult> {
+) {
   const result = await api.configureSourceControl(request)
   if (result.ok) {
     await Promise.all([

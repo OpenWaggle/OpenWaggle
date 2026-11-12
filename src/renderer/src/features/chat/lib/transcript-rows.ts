@@ -14,10 +14,7 @@ export function turnHasWork(rows: readonly ChatRow[], keys: readonly string[], s
 }
 
 /** The rows as the viewport controller reads them after a commit; `keys` align with `rows`. */
-export function transcriptRowIndex(
-  rows: readonly ChatRow[],
-  keys: readonly string[],
-): TranscriptRowIndex {
+export function transcriptRowIndex(rows: readonly ChatRow[], keys: readonly string[]) {
   return {
     keys,
     isUserRow: (key) => {
@@ -25,7 +22,7 @@ export function transcriptRowIndex(
       return row?.type === 'message' && row.message.role === 'user'
     },
     hasWorkAfter: (key) => turnHasWork(rows, keys, key),
-  }
+  } satisfies TranscriptRowIndex
 }
 
 /** Session-node ids of the mounted message rows, for resource discovery. */

@@ -26,7 +26,7 @@ import type { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 
 const logger = createRendererLogger('chat-send-workflow')
 
-interface ChatSendWorkflowParams {
+export interface ChatSendWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly branchSummary: ReturnType<typeof useBranchSummaryWorkflow>
   readonly clearDraftBranchForSession: (sessionId: SessionId) => void
@@ -76,20 +76,23 @@ async function compactSession(params: ChatSendWorkflowParams, customInstructions
   }
 }
 
-function extensionSlashCommandScope(params: ChatSendWorkflowParams): ExtensionInvokeScope | null {
+function extensionSlashCommandScope(params: ChatSendWorkflowParams) {
   if (!params.projectPath) {
     return null
   }
 
   if (!params.activeSessionId) {
-    return { kind: 'project', projectPath: params.projectPath }
+    return {
+      kind: 'project',
+      projectPath: params.projectPath,
+    } satisfies ExtensionInvokeScope
   }
 
   return {
     kind: 'session',
     projectPath: params.projectPath,
     sessionId: params.activeSessionId,
-  }
+  } satisfies ExtensionInvokeScope
 }
 
 async function invokeExtensionSlashCommand(

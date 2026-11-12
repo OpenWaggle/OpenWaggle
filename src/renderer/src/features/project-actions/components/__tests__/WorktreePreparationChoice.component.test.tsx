@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { snapshotDraftWorktreePlan } from '@/features/git'
 import { actionCatalog } from './native-action-fixtures'
 
-const mocks = vi.hoisted(() => ({
-  catalog: ((): ActionCatalog | null => null)(),
-}))
+const mocks = vi.hoisted(() => {
+  // A property's declared type is not narrowed, so a test can set a catalog.
+  const initial: { readonly catalog: ActionCatalog | null } = { catalog: null }
+  return { catalog: initial.catalog }
+})
 vi.mock('../../hooks/useNativeActions', () => ({
   useActionScope: (projectPath: string) => ({ projectPath }),
   useNativeActions: () => ({ data: mocks.catalog }),

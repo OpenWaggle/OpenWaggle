@@ -1,7 +1,6 @@
 import {
   $applyNodeReplacement,
   DecoratorNode,
-  type DOMExportOutput,
   type EditorConfig,
   type NodeKey,
   type SerializedLexicalNode,
@@ -44,7 +43,7 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  override exportDOM(): DOMExportOutput {
+  override exportDOM() {
     const element = document.createElement('span')
     element.textContent = `/${this.__skillId}`
     return { element }
@@ -76,14 +75,15 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
     return true
   }
 
-  override decorate(): ReactNode {
-    return createElement(SkillMentionChip, {
+  override decorate() {
+    const node: ReactNode = createElement(SkillMentionChip, {
       skillId: this.__skillId,
       skillName: this.__skillName,
     })
+    return node
   }
 }
 
-export function $createSkillMentionNode(skillId: string, skillName: string): SkillMentionNode {
+export function $createSkillMentionNode(skillId: string, skillName: string) {
   return $applyNodeReplacement(new SkillMentionNode(skillId, skillName))
 }

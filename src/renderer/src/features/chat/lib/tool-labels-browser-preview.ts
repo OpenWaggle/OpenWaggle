@@ -1,12 +1,5 @@
 import type { JsonObject } from '@shared/types/json'
-import {
-  label,
-  numberArg,
-  objectArg,
-  stringArg,
-  type ToolLabel,
-  type Verbs,
-} from './tool-label-parts'
+import { label, numberArg, objectArg, stringArg, type Verbs } from './tool-label-parts'
 import { uncheckedFields } from '@shared/utils/object-shape'
 
 const BROWSER_TITLE = 'browser preview'
@@ -69,8 +62,8 @@ interface PreviewLabel {
   readonly bare?: Verbs
 }
 
-function previewLabels(): ReadonlyMap<string, PreviewLabel> {
-  const fixed = (running: string, done: string): PreviewLabel => ({
+function previewLabels() {
+  const fixed = (running: string, done: string) => ({
     verbs: { running, done },
     detail: () => null,
   })
@@ -144,7 +137,7 @@ function previewLabels(): ReadonlyMap<string, PreviewLabel> {
 const PREVIEW_LABELS = previewLabels()
 
 /** The `preview_*` tools that drive the Session's browser preview. */
-export function previewLabel(name: string, args: JsonObject): ToolLabel | null {
+export function previewLabel(name: string, args: JsonObject) {
   const entry = PREVIEW_LABELS.get(name)
   if (!entry) return null
   const target = entry.detail(args)

@@ -78,7 +78,7 @@ function bundledLanguageClaims() {
   return claims
 }
 
-function bundledExtensionClaims(): Map<string, SyntaxLanguageClaim> {
+function bundledExtensionClaims() {
   return new Map<string, SyntaxLanguageClaim>(
     [...BUNDLED_FILE_EXTENSIONS].map((extension) => [
       extension,
@@ -90,7 +90,7 @@ function bundledExtensionClaims(): Map<string, SyntaxLanguageClaim> {
   )
 }
 
-function bundledFileNameClaims(): Map<string, SyntaxLanguageClaim> {
+function bundledFileNameClaims() {
   return new Map<string, SyntaxLanguageClaim>(
     [...BUNDLED_FILE_NAMES].map((fileName) => [
       fileName,
@@ -122,9 +122,7 @@ function collisionDiagnosticFor(
   return null
 }
 
-export function syntaxLanguageResourceActivations(
-  resources: readonly SyntaxLanguageResource[],
-): readonly SyntaxLanguageResourceActivation[] {
+export function syntaxLanguageResourceActivations(resources: readonly SyntaxLanguageResource[]) {
   const claimedIdentities = bundledLanguageClaims()
   const claimedExtensions = bundledExtensionClaims()
   const claimedFileNames = bundledFileNameClaims()

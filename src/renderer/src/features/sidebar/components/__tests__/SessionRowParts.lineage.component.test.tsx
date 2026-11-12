@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SessionLineageIndicator } from '../SessionRowSecondLine'
 
-function session(lineage: SessionSummary['lineage']): SessionSummary {
+function session(lineage: SessionSummary['lineage']) {
   return {
     id: SessionId('session-target'),
     title: 'Target Session',
@@ -12,7 +12,7 @@ function session(lineage: SessionSummary['lineage']): SessionSummary {
     createdAt: 1,
     updatedAt: 1,
     ...(lineage ? { lineage } : {}),
-  }
+  } satisfies SessionSummary
 }
 
 function renderIndicator(target: SessionSummary) {

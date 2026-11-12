@@ -1,5 +1,4 @@
 import { RepositoryPath } from '@shared/types/brand'
-import type { GitWorktreeMutationResult } from '@shared/types/git'
 import type { WorktreeInventory } from '@shared/types/worktree-inventory'
 import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
@@ -40,7 +39,7 @@ function forceFlags(request: WorktreeRemovalRequest) {
     : { force: true }
 }
 
-function sendRemoval(request: WorktreeRemovalRequest): Promise<GitWorktreeMutationResult> {
+function sendRemoval(request: WorktreeRemovalRequest) {
   const repositoryPath = RepositoryPath(request.projectPath)
   const force = forceFlags(request)
   if (request.archiveSessions) {

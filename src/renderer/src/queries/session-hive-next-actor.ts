@@ -21,19 +21,17 @@ export const HIVE_NEEDS_YOU_LABEL = 'Needs you'
  * request and answer as it happens, while the Host's catalog is read again only on a state change.
  * The catalog says whether it is an approval.
  */
-function pendingRequestOf(
-  session: HiveSession,
-  liveStatus: SessionStatus | undefined,
-): HivePendingRequest | null {
-  if (liveStatus === undefined) return session.pendingInteractionKind ?? null
-  return liveStatus === 'awaiting-input' ? (session.pendingInteractionKind ?? 'question') : null
+function pendingRequestOf(session: HiveSession, liveStatus: SessionStatus | undefined) {
+  if (liveStatus === undefined) {
+    return (session.pendingInteractionKind ?? null) satisfies HivePendingRequest | null
+  }
+  return (
+    liveStatus === 'awaiting-input' ? (session.pendingInteractionKind ?? 'question') : null
+  ) satisfies HivePendingRequest | null
 }
 
 /** Who acts next on a Hive member, by the one shared rule (`hiveNextActor`). */
-export function hiveMemberNextActor(
-  session: HiveSession,
-  liveStatus?: SessionStatus,
-): HiveNextActorResult | null {
+export function hiveMemberNextActor(session: HiveSession, liveStatus?: SessionStatus) {
   const lineage = session.lineage
   return hiveNextActor({
     delegationState: lineage?.delegationState ?? null,
@@ -45,7 +43,7 @@ export function hiveMemberNextActor(
 }
 
 /** A member with no next actor yet (a Worker before its Delegation) works on. */
-export function hiveNextActorGroup(next: HiveNextActorResult | null): HiveNextActorGroup {
+export function hiveNextActorGroup(next: HiveNextActorResult | null) {
   return match(next?.nextActor ?? 'worker')
     .with('user', () => 'needs-you' as const)
     .with('parent', () => 'waiting' as const)
@@ -65,10 +63,7 @@ export function hiveWaitingGroupLabel(parentTitle: string) {
 }
 
 /** Each reason's row label and its plain-language explanation (ADR 0059). */
-export function hiveNextActorLabel(
-  reason: HiveNextActorReason,
-  parent: string,
-): { readonly label: string; readonly hint: string } {
+export function hiveNextActorLabel(reason: HiveNextActorReason, parent: string) {
   return match(reason)
     .with('awaiting-approval', () => ({
       label: 'Waiting for your approval',

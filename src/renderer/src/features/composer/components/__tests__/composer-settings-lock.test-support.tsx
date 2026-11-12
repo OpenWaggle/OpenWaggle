@@ -60,8 +60,8 @@ const PROVIDER_MODELS: ProviderInfo[] = [
 
 let queryClient = new QueryClient()
 
-function sessionDetail(): SessionDetail {
-  return {
+function sessionDetail() {
+  const detail: SessionDetail = {
     id: SESSION,
     title: 'Settings lock',
     projectPath: '/project',
@@ -71,6 +71,7 @@ function sessionDetail(): SessionDetail {
     executionModel: MODEL,
     executionThinkingLevel: 'medium',
   }
+  return detail
 }
 
 export function openSession() {
@@ -82,10 +83,8 @@ export function openSession() {
   })
 }
 
-export function queuedItem(
-  overrides: Partial<SessionFollowUpQueueItem> = {},
-): SessionFollowUpQueueItem {
-  return {
+export function queuedItem(overrides: Partial<SessionFollowUpQueueItem> = {}) {
+  const item: SessionFollowUpQueueItem = {
     id: 'follow-up-1',
     text: 'next',
     attachmentCount: 0,
@@ -95,6 +94,7 @@ export function queuedItem(
     editable: true,
     ...overrides,
   }
+  return item
 }
 
 export function seedQueue(snapshot: Partial<SessionFollowUpQueueSnapshot>) {
@@ -108,14 +108,15 @@ export function seedQueue(snapshot: Partial<SessionFollowUpQueueSnapshot>) {
   })
 }
 
-export function renderPickers(extra?: ReactNode): RenderResult {
-  return render(
+export function renderPickers(extra?: ReactNode) {
+  const result: RenderResult = render(
     <QueryClientProvider client={queryClient}>
       {extra}
       <ComposerModelPicker />
       <ThinkingLevelMenu />
     </QueryClientProvider>,
   )
+  return result
 }
 
 export function pickers() {

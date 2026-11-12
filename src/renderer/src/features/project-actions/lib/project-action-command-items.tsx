@@ -1,5 +1,4 @@
 import type { ProjectAction } from '@shared/types/project-actions'
-import type { CommandPaletteItem } from '@/features/command-palette/model'
 import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import { ProjectActionGlyph } from '../components/ProjectActionGlyph'
 import {
@@ -12,7 +11,7 @@ export function createProjectActionCommandItems(
   actions: readonly ProjectAction[],
   builtInBindings: BuiltInShortcutSource,
   onRun: (action: ProjectAction) => void,
-): CommandPaletteItem[] {
+) {
   return actions.map((action) => {
     const shortcut = projectActionShortcutSummary(action)
     const hasConflict = projectActionHasShortcutConflicts(action, actions, builtInBindings)

@@ -15,14 +15,15 @@ const FIRST_PAYLOAD: AgentSendPayload = {
   attachments: [],
 }
 
-function userMessage(id: string, content: string, createdOrder?: number): UIMessage {
-  return {
+function userMessage(id: string, content: string, createdOrder?: number) {
+  const message: UIMessage = {
     id,
     role: 'user',
     parts: [{ type: 'text', content }],
     createdAt: new Date(),
     ...(createdOrder !== undefined ? { metadata: { sessionNodeCreatedOrder: createdOrder } } : {}),
   }
+  return message
 }
 
 /** Steer previews meet the user row the Run published the moment it incorporated the steer. */

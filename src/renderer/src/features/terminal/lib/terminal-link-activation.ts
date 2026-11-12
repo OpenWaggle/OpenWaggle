@@ -14,7 +14,7 @@ export interface TerminalLinkRoutes {
 export function activateTerminalLinkTarget(
   target: TerminalLinkActivationTarget,
   routes: TerminalLinkRoutes,
-): Promise<void> | void {
+) {
   if (target.kind === 'url') return routes.openUrl(target.url)
   if (target.route === 'workspace-preview' && target.projectRelativePath !== null) {
     routes.openWorkspaceFile(target.projectRelativePath, target.line)

@@ -40,18 +40,21 @@ import {
 const { apiMock } = getWorkerTranscriptMocks()
 
 /** A long Session compacted every 500 entries, each compaction keeping its last 40. */
-function longCompactedLog(entryCount: number): LogEntry[] {
-  return Array.from({ length: entryCount }, (_, index): LogEntry => {
+function longCompactedLog(entryCount: number) {
+  return Array.from({ length: entryCount }, (_, index) => {
     if (index > 0 && index % 500 === 0) {
       return {
         id: `compaction-${String(index)}`,
         kind: 'compaction',
         firstKeptEntryId: `entry-${String(index - 40)}`,
         reason: 'threshold',
-      }
+      } satisfies LogEntry
     }
-    return { id: `entry-${String(index)}`, kind: index % 2 === 0 ? 'user' : 'assistant' }
-  })
+    return {
+      id: `entry-${String(index)}`,
+      kind: index % 2 === 0 ? 'user' : 'assistant',
+    } satisfies LogEntry
+  }) satisfies LogEntry[]
 }
 
 describe('long compacted Session', () => {

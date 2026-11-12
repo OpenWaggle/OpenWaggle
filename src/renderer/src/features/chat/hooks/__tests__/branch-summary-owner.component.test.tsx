@@ -51,9 +51,13 @@ function BranchActions({ params }: { readonly params: ReturnType<typeof workflow
   )
 }
 
-function ownedWorkspace(projectPath: string | null): SessionWorkspace {
+function ownedWorkspace(projectPath: string | null) {
   const source = workspace()
-  return { ...source, tree: { ...source.tree, session: { ...source.tree.session, projectPath } } }
+  const result: SessionWorkspace = {
+    ...source,
+    tree: { ...source.tree, session: { ...source.tree.session, projectPath } },
+  }
+  return result
 }
 
 function sourceDraftKey(projectPath: string | null) {

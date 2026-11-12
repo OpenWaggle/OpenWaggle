@@ -55,16 +55,14 @@ async function reconcileProjectIdentity(
   const remapPath = (path: string) => (path === requestedPath ? canonicalPath : path)
   // The aliased path is the identity the user just interacted through, so its entry wins on
   // conflict; entries that only existed under the canonical key are preserved by the merge.
-  function rekeyFlat<V>(record: Record<string, V>): Record<string, V> {
+  function rekeyFlat<V>(record: Record<string, V>) {
     const value = record[requestedPath]
     if (value === undefined) return record
     const next = { ...record, [canonicalPath]: value }
     delete next[requestedPath]
     return next
   }
-  function rekeyNested(
-    record: Record<string, Readonly<Record<string, boolean>>>,
-  ): Record<string, Record<string, boolean>> {
+  function rekeyNested(record: Record<string, Readonly<Record<string, boolean>>>) {
     if (!(requestedPath in record)) return record
     const merged = { ...record[canonicalPath], ...record[requestedPath] }
     const next = { ...record, [canonicalPath]: merged }
@@ -119,7 +117,7 @@ export function persistProjectPreference(
   },
   set?: PreferencesSet,
   get?: PreferencesGet,
-): Promise<void> {
+) {
   if (!projectPath) return Promise.resolve()
   if (removingProjectPaths.has(projectPath)) {
     // The project is being removed; a new write would recreate the supposedly deleted entry.
@@ -189,7 +187,7 @@ function clearRemovalMarkerCopies(originalPath: string) {
 export function removeProjectModelTracked<T extends string | { readonly canonicalPath: string }>(
   projectPath: string,
   perform: () => Promise<T>,
-): Promise<T> {
+) {
   removingProjectPaths.add(projectPath)
   const pending = pendingProjectPreferenceWrites.get(projectPath) ?? Promise.resolve()
   return pending
@@ -213,7 +211,7 @@ export function removeProjectModelTracked<T extends string | { readonly canonica
 }
 
 /** Resolves once every in-flight preference write for the given project path has settled. A failed write persisted nothing, so its rejection does not block removal. */
-export function awaitPendingProjectPreferenceWrites(projectPath: string): Promise<void> {
+export function awaitPendingProjectPreferenceWrites(projectPath: string) {
   const pending = pendingProjectPreferenceWrites.get(projectPath) ?? Promise.resolve()
   return pending.catch(() => undefined)
 }
@@ -224,17 +222,13 @@ type ProjectReferences = Pick<
   'projectPath' | 'recentProjects' | 'projectDisplayNames' | 'skillTogglesByProject'
 >
 
-function withoutKey<V>(record: Readonly<Record<string, V>>, key: string): Record<string, V> {
+function withoutKey<V>(record: Readonly<Record<string, V>>, key: string) {
   const { [key]: _removed, ...rest } = record
   return rest
 }
 
 /** Re-inserts one removed project's reference entries into the Host's current reference state. */
-function restoredReferences(
-  path: string,
-  before: ProjectReferences,
-  current: ProjectReferences,
-): ProjectReferences {
+function restoredReferences(path: string, before: ProjectReferences, current: ProjectReferences) {
   const recentProjects = [...current.recentProjects]
   const originalIndex = before.recentProjects.indexOf(path)
   if (originalIndex >= 0 && !recentProjects.includes(path)) {
@@ -269,9 +263,7 @@ function restoredReferences(
  * gone). If the Host removal fails, the references are put back and the project stays visible for
  * a retry.
  */
-export async function removeModelAndReferences(
-  path: string,
-): Promise<{ canonicalPath: string; references: ProjectReferences }> {
+export async function removeModelAndReferences(path: string) {
   const before = await api.getSettings()
   const references: ProjectReferences = {
     projectPath: before.projectPath === path ? null : before.projectPath,

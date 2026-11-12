@@ -35,15 +35,14 @@ vi.mock('@/shared/lib/ipc', async () => ({
       return mocks.unsubscribe
     },
     // Selecting a Session reads its detail, as the sidebar does.
-    getSessionDetail: async (id: string): Promise<SessionDetail | null> =>
-      mocks.known.has(id) ? sessionDetail(id) : null,
+    getSessionDetail: async (id: string) => (mocks.known.has(id) ? sessionDetail(id) : null),
   }),
 }))
 
 const { useOpenSessionLinkRequests } = await import('../useOpenSessionLinkRequests')
 
-function sessionDetail(id: string): SessionDetail {
-  return {
+function sessionDetail(id: string) {
+  const detail: SessionDetail = {
     id: SessionId(id),
     title: id,
     projectPath: '/repo',
@@ -51,6 +50,7 @@ function sessionDetail(id: string): SessionDetail {
     createdAt: 1,
     updatedAt: 1,
   }
+  return detail
 }
 
 const navigatedSessions = () =>

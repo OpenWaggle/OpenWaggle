@@ -53,15 +53,15 @@ vi.mock('../MessageBubble', () => ({
 
 import { ChatRowRenderer } from '../ChatRowRenderer'
 
-function assistantMessage(id: string): UIMessage {
+function assistantMessage(id: string) {
   return {
     id,
     role: 'assistant',
     parts: [{ type: 'text', content: id }],
-  }
+  } satisfies UIMessage
 }
 
-function messageRow(message: UIMessage): MessageChatRow {
+function messageRow(message: UIMessage) {
   return {
     type: 'message',
     message,
@@ -78,7 +78,7 @@ function messageRow(message: UIMessage): MessageChatRow {
       turnNumber: 0,
       sessionId: 'session-1',
     },
-  }
+  } satisfies MessageChatRow
 }
 
 describe('ChatRowRenderer', () => {

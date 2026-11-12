@@ -55,7 +55,7 @@ const detailsRejectedPattern = {
 }
 const textRejectedPattern = { effect: 'rejected', message: P.string }
 
-export function sessionsToolScheduleAction(args: JsonObject): SessionsToolScheduleAction | null {
+export function sessionsToolScheduleAction(args: JsonObject) {
   const action = stringArg(args, 'action')
   return SCHEDULE_ACTIONS.find((candidate) => candidate === action) ?? null
 }
@@ -98,10 +98,7 @@ function resultTask(resultContent: unknown) {
  * name (a create names only the task's name, every other action its id). A call still running,
  * refused, or made inside a script falls back to its arguments.
  */
-export function sessionsToolScheduledTask(
-  args: JsonObject,
-  resultContent: unknown,
-): SessionsToolScheduledTask | null {
+export function sessionsToolScheduledTask(args: JsonObject, resultContent: unknown) {
   const action = sessionsToolScheduleAction(args)
   if (action === null) return null
   const fromResult = resultTask(resultContent)

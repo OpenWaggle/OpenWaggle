@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SessionRowSecondLine } from '../SessionRowSecondLine'
 
-function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
+function session(overrides: Partial<SessionSummary> = {}) {
   return {
     id: SessionId('session-target'),
     title: 'Target Session',
@@ -12,7 +12,7 @@ function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
-  }
+  } satisfies SessionSummary
 }
 
 function renderLine(target: SessionSummary) {

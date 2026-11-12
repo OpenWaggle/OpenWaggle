@@ -75,13 +75,13 @@ function extensionFrameId(frame: HTMLIFrameElement) {
   return frameId
 }
 
-function equivalentEntry(): ExtensionContributionRegistryEntry {
+function equivalentEntry() {
   return {
     ...ENTRY,
     diagnostics: [...ENTRY.diagnostics],
     eligibility: { ...ENTRY.eligibility },
     projectPaths: [...ENTRY.projectPaths],
-  }
+  } satisfies ExtensionContributionRegistryEntry
 }
 
 function dispatchResizeFromWindow(frameId: string, height: number) {

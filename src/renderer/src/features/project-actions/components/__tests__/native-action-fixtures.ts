@@ -24,11 +24,12 @@ export const TEST_TASK: DiscoveredProjectTask = {
   description: 'vitest run',
   runner: 'pnpm',
 }
-export function actionCatalog(): ActionCatalog {
-  return {
+export function actionCatalog() {
+  const catalog: ActionCatalog = {
     revision: 'catalog-1',
     actions: [{ source: 'local', definition: TEST_ACTION }],
     profiles: [{ source: 'local', definition: { id: 'default', name: 'Default' } }],
     preparation: [],
   }
+  return catalog
 }

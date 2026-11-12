@@ -1,5 +1,5 @@
-import type { SupportedModelId } from '@shared/types/brand'
-import { type SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SupportedModelId, SessionId } from '@shared/types/brand'
+import { SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
@@ -60,7 +60,7 @@ export function adjacentSessionId(
   visibleSessionIds: readonly SessionId[],
   removedSessionId: SessionId,
   isListed: (sessionId: SessionId) => boolean = () => true,
-): SessionId | null {
+) {
   const index = visibleSessionIds.findIndex((id) => String(id) === String(removedSessionId))
   const candidate = (id: SessionId | undefined) =>
     id !== undefined && String(id) !== String(removedSessionId) && isListed(id)
@@ -76,7 +76,7 @@ interface RemovalStart {
 }
 
 /** Captured before the mutation: deletion clears the active session before it resolves. */
-function startRemoval(navigation: SidebarRemovalNavigation, sessionId: SessionId): RemovalStart {
+function startRemoval(navigation: SidebarRemovalNavigation, sessionId: SessionId) {
   return {
     order: navigation.getVisibleSessionIds(),
     wasActive: String(navigation.getActiveSessionId()) === String(sessionId),

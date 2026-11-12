@@ -10,7 +10,7 @@ function message(id: string) {
   return { id: MessageId(id), role: 'assistant' as const, parts: [], createdAt: 1 }
 }
 
-function detail(ids: readonly string[], extra: Partial<SessionDetail> = {}): SessionDetail {
+function detail(ids: readonly string[], extra: Partial<SessionDetail> = {}) {
   return {
     id: SESSION,
     title: 'S',
@@ -19,7 +19,7 @@ function detail(ids: readonly string[], extra: Partial<SessionDetail> = {}): Ses
     createdAt: 1,
     updatedAt: 2,
     ...extra,
-  }
+  } satisfies SessionDetail
 }
 
 describe('createSessionDetailReader (D5)', () => {

@@ -59,7 +59,7 @@ function setActiveTree(sessionId: string, branchName: string) {
   })
 }
 
-function resource(kind: 'file' | 'image'): SessionResource {
+function resource(kind: 'file' | 'image') {
   return {
     id: `resource-${kind}`,
     sessionId: SessionId('session-one'),
@@ -86,7 +86,7 @@ function resource(kind: 'file' | 'image'): SessionResource {
     ],
     createdAt: 1,
     updatedAt: 2,
-  }
+  } satisfies SessionResource
 }
 
 describe('session resource friendly branch provenance', () => {

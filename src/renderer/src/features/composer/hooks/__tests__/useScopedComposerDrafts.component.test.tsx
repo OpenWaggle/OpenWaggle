@@ -19,11 +19,7 @@ vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: null }),
 }))
 
-function workspace(
-  sessionId: SessionId,
-  branch = 'main',
-  projectPath: string | null = null,
-): SessionWorkspace {
+function workspace(sessionId: SessionId, branch = 'main', projectPath: string | null = null) {
   return fromPartial<SessionWorkspace>({
     tree: { session: { id: sessionId, projectPath } },
     activeBranchId: SessionBranchId(`${sessionId}:${branch}`),

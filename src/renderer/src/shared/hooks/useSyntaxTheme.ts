@@ -1,12 +1,12 @@
-import { bundledShikiTheme, type SyntaxAppearanceVariant } from '@shared/types/syntax'
+import { bundledShikiTheme } from '@shared/types/syntax'
 import { useSyntaxThemeRuntimeStore } from '@/shared/lib/syntax/syntax-theme-runtime'
 import { useAppearanceName } from './useAppearanceName'
 
-export function syntaxAppearanceVariant(appearance: string): SyntaxAppearanceVariant {
-  if (appearance === 'light') return 'light'
-  if (appearance === 'high-contrast-light') return 'high-contrast-light'
-  if (appearance === 'high-contrast-dark') return 'high-contrast-dark'
-  return 'dark'
+export function syntaxAppearanceVariant(appearance: string) {
+  if (appearance === 'light') return 'light' as const
+  if (appearance === 'high-contrast-light') return 'high-contrast-light' as const
+  if (appearance === 'high-contrast-dark') return 'high-contrast-dark' as const
+  return 'dark' as const
 }
 
 export function useSyntaxTheme() {

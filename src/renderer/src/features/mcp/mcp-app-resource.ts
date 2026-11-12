@@ -36,8 +36,9 @@ interface McpAppResourceContent {
 }
 
 /** The fields of `T` an object holds, unchecked; nothing for a value that is not an object. */
-function fieldsOf<T>(value: unknown): UncheckedFields<T> {
-  return isObjectValue(value) ? value : {}
+function fieldsOf<T>(value: unknown) {
+  const fields: UncheckedFields<T> = isObjectValue(value) ? value : {}
+  return fields
 }
 
 function strings(value: unknown) {
@@ -63,7 +64,7 @@ function permissionNames(value: unknown) {
  * declares; it runs in a sandboxed, opaque-origin frame with no Electron, Node, storage, or
  * device access, and reaches nothing it did not declare.
  */
-export function parseMcpAppResource(result: McpResourceResult): ParsedMcpAppResource {
+export function parseMcpAppResource(result: McpResourceResult) {
   if (!Array.isArray(result.contents)) throw new Error('MCP App resource has no content list.')
   const content = result.contents.find(
     (entry) => typeof fieldsOf<McpAppResourceContent>(entry).text === 'string',
@@ -76,7 +77,7 @@ export function parseMcpAppResource(result: McpResourceResult): ParsedMcpAppReso
   const csp = fieldsOf<McpAppCspDeclaration>(
     isObjectValue(metadata.csp) ? metadata.csp : metadata['ui/csp'],
   )
-  return {
+  const resource: ParsedMcpAppResource = {
     html: fields.text,
     csp: sanitizedMcpAppCsp({
       connectDomains: strings(csp.connectDomains),
@@ -86,4 +87,5 @@ export function parseMcpAppResource(result: McpResourceResult): ParsedMcpAppReso
     }),
     requestedPermissions: permissionNames(metadata.permissions ?? metadata['ui/permissions']),
   }
+  return resource
 }

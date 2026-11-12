@@ -40,8 +40,8 @@ import { useProviderCatalogRetry, useSettingsSetup } from '../useSettings'
 const CURRENT_MODEL = SupportedModelId('openai-codex/gpt-5.4')
 const RETIRED_MODEL = SupportedModelId('openai-codex/gpt-4')
 
-function provider(name: string, supportsOAuth: boolean): ProviderInfo {
-  return {
+function provider(name: string, supportsOAuth: boolean) {
+  const info: ProviderInfo = {
     provider: name,
     displayName: name,
     auth: {
@@ -64,6 +64,7 @@ function provider(name: string, supportsOAuth: boolean): ProviderInfo {
         availableThinkingLevels: ['off'],
       })),
   }
+  return info
 }
 
 const EMPTY_SYNTAX_CATALOG = { themes: [], languages: [], appearances: [] }

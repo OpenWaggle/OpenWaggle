@@ -3,7 +3,7 @@ import type { StateStorage } from 'zustand/middleware'
 const memoryStorage = new Map<string, string>()
 
 /** Local storage for private panel state, with an in-memory fallback outside the browser. */
-export function resolveActionPanelStorage(): StateStorage {
+export function resolveActionPanelStorage() {
   if (typeof window !== 'undefined') return window.localStorage
   return {
     getItem: (key) => memoryStorage.get(key) ?? null,
@@ -13,5 +13,5 @@ export function resolveActionPanelStorage(): StateStorage {
     removeItem: (key) => {
       memoryStorage.delete(key)
     },
-  }
+  } satisfies StateStorage
 }

@@ -61,7 +61,7 @@ const OUTPUT_CATEGORY_ORDER: readonly SessionResourceCategory[] = [
   WEB_SEARCHES,
 ]
 
-function sourceCategory(kind: SessionResourceKind): SessionResourceCategory {
+function sourceCategory(kind: SessionResourceKind) {
   return match(kind)
     .with('image', () => IMAGES)
     .with('file', () => FILES)
@@ -73,7 +73,7 @@ function sourceCategory(kind: SessionResourceKind): SessionResourceCategory {
     .exhaustive()
 }
 
-function outputCategory(kind: SessionResourceKind): SessionResourceCategory {
+function outputCategory(kind: SessionResourceKind) {
   return match(kind)
     .with('image', () => IMAGES)
     .with('file', () => FILES)
@@ -89,7 +89,7 @@ function outputCategory(kind: SessionResourceKind): SessionResourceCategory {
 export function groupSessionResources(
   resources: readonly SessionResource[],
   view: SessionResourceBrowserView,
-): readonly SessionResourceGroup[] {
+) {
   const order = view === 'sources' ? SOURCE_CATEGORY_ORDER : OUTPUT_CATEGORY_ORDER
   const resourcesByCategory = new Map<string, SessionResource[]>()
   for (const resource of resources) {
@@ -128,7 +128,7 @@ export function preferredResourceOccurrence(
   resource: SessionResource,
   activePathNodeIds: ReadonlySet<string>,
   view: SessionResourceBrowserView | null,
-): SessionResourceOccurrence | null {
+) {
   let latest: SessionResourceOccurrence | null = null
   let latestOnActivePath: SessionResourceOccurrence | null = null
   for (const occurrence of resource.occurrences) {

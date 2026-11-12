@@ -16,14 +16,15 @@ import { useSidebarState } from './useSidebarState'
  * is pinned, otherwise its project group. A neighbour is picked inside that section so removing a
  * session never jumps the reader into another project.
  */
-function visibleSectionSessionIds(state: ReturnType<typeof useSidebarState>): readonly SessionId[] {
+function visibleSectionSessionIds(state: ReturnType<typeof useSidebarState>) {
   const activeId = String(useChatStore.getState().activeSessionId ?? '')
   const pinned = state.pinnedRows.map((row) => row.session.id)
   if (pinned.some((id) => String(id) === activeId)) return pinned
   const group = state.sessionGroups.projects.find((candidate) =>
     candidate.sessions.some((session) => String(session.id) === activeId),
   )
-  return group ? group.sessions.map((session) => session.id) : []
+  const result: readonly SessionId[] = group ? group.sessions.map((session) => session.id) : []
+  return result
 }
 
 function createDomainActions(

@@ -41,7 +41,7 @@ function extractProtocol(rawUrl: string) {
   return match[0].toLowerCase()
 }
 
-export function isAllowedMarkdownUrl(rawUrl: string): boolean {
+export function isAllowedMarkdownUrl(rawUrl: string) {
   const protocol = extractProtocol(rawUrl)
   if (!protocol) return false
   // A Session link opens its Session in this app; the main process handles the click.

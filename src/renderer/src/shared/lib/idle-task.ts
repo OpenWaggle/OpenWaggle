@@ -7,8 +7,8 @@
 export const IDLE_TASK_TIMEOUT_MS = 2_000
 
 /** Resolves in the next idle period, or after `timeoutMs` when the renderer never goes idle. */
-export function whenRendererIdle(timeoutMs = IDLE_TASK_TIMEOUT_MS): Promise<void> {
-  return new Promise((resolve) => {
+export function whenRendererIdle(timeoutMs = IDLE_TASK_TIMEOUT_MS) {
+  return new Promise<void>((resolve) => {
     if (typeof requestIdleCallback === 'function') {
       requestIdleCallback(() => resolve(), { timeout: timeoutMs })
       return

@@ -36,10 +36,7 @@ function ownersAvailableForMutation(...owners: readonly string[]) {
   return false
 }
 
-export function createLifecycleActions(
-  set: TerminalStateSetter,
-  get: TerminalStateGetter,
-): LifecycleActions {
+export function createLifecycleActions(set: TerminalStateSetter, get: TerminalStateGetter) {
   return {
     createTerminal: (ownerKey, cwd, launchEnv) =>
       !ownersAvailableForMutation(ownerKey)
@@ -112,5 +109,5 @@ export function createLifecycleActions(
         }
       })
     },
-  }
+  } satisfies LifecycleActions
 }

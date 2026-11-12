@@ -8,7 +8,7 @@ import {
 const WEEKDAYS = [1, 2, 3, 4, 5] as const
 const HEARTBEAT_EVERY_MINUTES = 30
 
-export function scheduledTaskRun(patch: Partial<ScheduledTaskRun> = {}): ScheduledTaskRun {
+export function scheduledTaskRun(patch: Partial<ScheduledTaskRun> = {}) {
   return {
     id: 'run-1',
     taskId: 'task-1',
@@ -18,11 +18,11 @@ export function scheduledTaskRun(patch: Partial<ScheduledTaskRun> = {}): Schedul
     missedCount: 0,
     status: 'started',
     ...patch,
-  }
+  } satisfies ScheduledTaskRun
 }
 
-export function scheduledTask(patch: Partial<ScheduledTask> = {}): ScheduledTask {
-  return {
+export function scheduledTask(patch: Partial<ScheduledTask> = {}) {
+  const task: ScheduledTask = {
     id: 'task-1',
     name: 'Morning triage',
     prompt: 'Triage new issues.',
@@ -53,9 +53,10 @@ export function scheduledTask(patch: Partial<ScheduledTask> = {}): ScheduledTask
     updatedAt: Date.parse('2026-03-01T09:00:00Z'),
     ...patch,
   }
+  return task
 }
 
-export function heartbeatSettings(patch: Partial<HeartbeatSettings> = {}): HeartbeatSettings {
+export function heartbeatSettings(patch: Partial<HeartbeatSettings> = {}) {
   return {
     stopWhen: 'CI is green on main',
     indefinite: false,
@@ -64,10 +65,10 @@ export function heartbeatSettings(patch: Partial<HeartbeatSettings> = {}): Heart
     consecutiveIdleRuns: 0,
     autoPause: null,
     ...patch,
-  }
+  } satisfies HeartbeatSettings
 }
 
-export function heartbeatTask(patch: Partial<ScheduledTask> = {}): ScheduledTask {
+export function heartbeatTask(patch: Partial<ScheduledTask> = {}) {
   return scheduledTask({
     heartbeat: heartbeatSettings(),
     id: 'heartbeat-1',

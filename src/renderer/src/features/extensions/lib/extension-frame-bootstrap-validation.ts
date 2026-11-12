@@ -21,8 +21,9 @@ export type ExtensionFrameParentMessage =
       readonly result: OpenWaggleExtensionSyntaxHighlightResult
     }
 
-function moduleMountExport(value: object): unknown {
-  return Object.getOwnPropertyDescriptor(value, 'mount')?.value
+function moduleMountExport(value: object) {
+  const result: unknown = Object.getOwnPropertyDescriptor(value, 'mount')?.value
+  return result
 }
 
 export function isFederatedModule(value: unknown): value is OpenWaggleFederatedModule {
@@ -79,12 +80,10 @@ const parentMessageSchema = Schema.Union(
 )
 
 /** A message from the parent window for this frame, or `null` for anything else. */
-export function decodedParentMessage(
-  value: unknown,
-  frameId: string,
-): ExtensionFrameParentMessage | null {
+export function decodedParentMessage(value: unknown, frameId: string) {
   const decoded = safeDecodeUnknown(parentMessageSchema, value)
   if (!decoded.success || decoded.data.frameId !== frameId) return null
   const { channel: _channel, frameId: _frameId, ...message } = decoded.data
-  return message
+  const result: ExtensionFrameParentMessage | null = message
+  return result
 }

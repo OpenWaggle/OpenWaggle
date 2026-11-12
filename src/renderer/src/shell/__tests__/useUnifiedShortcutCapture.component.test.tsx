@@ -4,10 +4,7 @@ import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { DEFAULT_SHORTCUT_RULES } from '@shared/types/shortcuts'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  type BuiltInShortcutHandlers,
-  useUnifiedShortcutCapture,
-} from '../useUnifiedShortcutCapture'
+import { useUnifiedShortcutCapture } from '../useUnifiedShortcutCapture'
 
 const ipcMocks = vi.hoisted(() => {
   const listeners = new Set<(event: BrowserPreviewKeyEvent) => void>()
@@ -31,7 +28,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function handlers(): BuiltInShortcutHandlers {
+function handlers() {
   return {
     'commandPalette.toggle': vi.fn(),
     'filePicker.toggle': vi.fn(),

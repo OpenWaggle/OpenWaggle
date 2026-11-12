@@ -70,11 +70,12 @@ export function partialAssistantOf(snapshot: BackgroundRunSnapshot) {
 }
 
 /** The answers the buffer's Run finished before the one it streams, dated by when they started. */
-export function earlierAnswersOf(snapshot: BackgroundRunSnapshot): UIMessage[] {
-  return (snapshot.assistantMessages ?? []).flatMap((answer) => {
+export function earlierAnswersOf(snapshot: BackgroundRunSnapshot) {
+  const result: UIMessage[] = (snapshot.assistantMessages ?? []).flatMap((answer) => {
     const message = buildPartialAssistantMessage(answer.parts, answer.messageId)
     return message ? [{ ...message, createdAt: new Date(answer.timestamp) }] : []
   })
+  return result
 }
 
 /**

@@ -11,7 +11,7 @@ export const actionSourceLabels: Record<ActionDefinitionSource, string> = {
   project: 'Everyone on the project',
   override: 'Locally overridden',
 }
-export function actionInvocationLabel(invocation: ActionInvocation): string {
+export function actionInvocationLabel(invocation: ActionInvocation) {
   return invocation.type === 'command'
     ? invocation.command
     : `${invocation.task.task} · ${invocation.task.source}`
@@ -19,7 +19,7 @@ export function actionInvocationLabel(invocation: ActionInvocation): string {
 export function resolvedActionCommand(
   invocation: ResolvedActionInvocation,
   platform = typeof navigator === 'undefined' ? '' : navigator.userAgent,
-): string {
+) {
   if (invocation.type === 'command') return invocation.command
   const words = [invocation.executable, ...invocation.args]
   if (/Windows|Win32|Win64/i.test(platform)) {
@@ -33,7 +33,7 @@ export function resolvedActionCommand(
     )
     .join(' ')
 }
-export function actionRunLabel(run: ActionRun): string {
+export function actionRunLabel(run: ActionRun) {
   if (run.ready && run.status === 'running') return 'Ready'
   return {
     starting: 'Starting',

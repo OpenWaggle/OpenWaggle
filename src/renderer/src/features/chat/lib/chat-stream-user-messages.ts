@@ -42,14 +42,15 @@ function isUnrecordedUserMessage(message: UIMessage) {
 /** The transcript row of a user message the Run has started incorporating. */
 export function incorporatedUserRow(
   event: AgentTransportMessageStartEvent & { readonly userMessage: AgentTransportUserMessage },
-): UIMessage {
-  return {
+) {
+  const message: UIMessage = {
     id: event.messageId,
     role: 'user',
     parts: event.userMessage.parts.flatMap(messagePartToUIParts),
     createdAt: new Date(event.timestamp),
     metadata: { ...incorporatedUserMetadata(event.userMessage), liveIncorporated: true },
   }
+  return message
 }
 
 /**
@@ -60,7 +61,7 @@ export function incorporatedUserRow(
 export function applyIncorporatedUserMessage(
   messages: readonly UIMessage[],
   event: AgentTransportMessageStartEvent & { readonly userMessage: AgentTransportUserMessage },
-): UIMessage[] {
+) {
   const { userMessage } = event
   const incorporated = incorporatedUserRow(event)
   const alreadyShown = messages.some(
@@ -68,7 +69,7 @@ export function applyIncorporatedUserMessage(
       message.id === event.messageId ||
       isSameIncorporatedMessage(message, incorporated, userMessage),
   )
-  if (alreadyShown) return [...messages]
+  if (alreadyShown) return [...messages] satisfies UIMessage[]
 
   const text = getUIMessageText(incorporated)
   const optimisticIndex = text
@@ -77,9 +78,9 @@ export function applyIncorporatedUserMessage(
       )
     : -1
   const optimistic = messages[optimisticIndex]
-  if (!optimistic) return [...messages, incorporated]
+  if (!optimistic) return [...messages, incorporated] satisfies UIMessage[]
 
-  const next = [...messages]
+  const next: UIMessage[] = [...messages]
   next[optimisticIndex] = {
     ...optimistic,
     metadata: { ...optimistic.metadata, ...incorporatedUserMetadata(userMessage) },
@@ -90,7 +91,7 @@ export function applyIncorporatedUserMessage(
 function applyRetainedUserMessages(
   messages: readonly UIMessage[],
   userMessages: readonly BackgroundRunUserMessage[],
-): UIMessage[] {
+) {
   return userMessages.reduce<UIMessage[]>(
     (current, { messageId, timestamp, afterAssistantMessageId: _after, ...userMessage }) =>
       applyIncorporatedUserMessage(current, {
@@ -114,7 +115,7 @@ export function placeReconnectedRunMessages(
   snapshot: Pick<BackgroundRunSnapshot, 'messageId' | 'userMessages'>,
   partialAssistant: UIMessage | null,
   earlierAnswers: readonly UIMessage[] = [],
-): UIMessage[] {
+) {
   const userMessages = snapshot.userMessages ?? []
   const followsPartial = (userMessage: BackgroundRunUserMessage) =>
     partialAssistant !== null &&

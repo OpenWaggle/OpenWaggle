@@ -27,7 +27,7 @@ interface LoadedBaseRefChoices {
 }
 
 /** Load the repository's branches and shape them into base-ref combobox choices (WS6b). */
-export function useBaseRefChoices(repositoryPath: RepositoryPath | null): BaseRefChoices {
+export function useBaseRefChoices(repositoryPath: RepositoryPath | null) {
   const [state, setState] = useState<LoadedBaseRefChoices | null>(null)
 
   useEffect(() => {

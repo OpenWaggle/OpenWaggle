@@ -145,11 +145,12 @@ interface AssistantMessageBubbleProps {
 function agentLabelProps(
   assistantModel: SupportedModelId | undefined,
   waggle: WaggleInfo | undefined,
-): ComponentProps<typeof AgentLabel> {
-  return {
+) {
+  const props: ComponentProps<typeof AgentLabel> = {
     ...(assistantModel === undefined ? {} : { assistantModel }),
     ...(waggle === undefined ? {} : { waggle }),
   }
+  return props
 }
 
 export function AssistantMessageBubble({

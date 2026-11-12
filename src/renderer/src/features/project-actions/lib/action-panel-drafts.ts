@@ -12,7 +12,6 @@ import {
 import type {
   ActionCatalog,
   ActionDefinition,
-  ActionStorage,
   CommandRepairProposal,
   EffectiveDefinition,
   PreparationDefinition,
@@ -88,12 +87,12 @@ export type DraftActionDefinition = ActionDraft['definition']
 export type DraftPreparationDefinition = PreparationDraft['definition']
 export type ActionPanelSource = ActionDraft['source']
 
-const storageFor = (source: EffectiveDefinition<unknown>['source']): ActionStorage =>
-  source === 'project' ? 'project' : 'local'
+const storageFor = (source: EffectiveDefinition<unknown>['source']) =>
+  source === 'project' ? ('project' as const) : ('local' as const)
 const sourceFor = (definition: { readonly invocation: { readonly type: string } }) =>
   definition.invocation.type === 'task' ? ('script' as const) : ('command' as const)
 
-export function newActionDraft(hasScripts: boolean): ActionDraft {
+export function newActionDraft(hasScripts: boolean) {
   return {
     kind: 'action',
     actionId: null,
@@ -113,10 +112,10 @@ export function newActionDraft(hasScripts: boolean): ActionDraft {
     suggestedName: null,
     proposalReason: null,
     proposalKey: null,
-  }
+  } satisfies ActionDraft
 }
 
-export function editActionDraft(entry: EffectiveDefinition<ActionDefinition>): ActionDraft {
+export function editActionDraft(entry: EffectiveDefinition<ActionDefinition>) {
   return {
     kind: 'action',
     actionId: entry.definition.id,
@@ -128,7 +127,7 @@ export function editActionDraft(entry: EffectiveDefinition<ActionDefinition>): A
     suggestedName: null,
     proposalReason: null,
     proposalKey: null,
-  }
+  } satisfies ActionDraft
 }
 
 /** Two proposals with the same reason but a different command are different proposals. */
@@ -140,7 +139,7 @@ export function proposalKey(proposal: CommandRepairProposal) {
 export function proposalActionDraft(
   entry: EffectiveDefinition<ActionDefinition>,
   proposal: CommandRepairProposal,
-): ActionDraft {
+) {
   return {
     ...editActionDraft(entry),
     definition: {
@@ -154,14 +153,14 @@ export function proposalActionDraft(
     source: 'command',
     proposalReason: proposal.reason,
     proposalKey: proposalKey(proposal),
-  }
+  } satisfies ActionDraft
 }
 
 export function newPreparationDraft(
   phase: PreparationDefinition['phase'],
   profileId: string,
   hasScripts: boolean,
-): PreparationDraft {
+) {
   return {
     kind: 'preparation',
     base: null,
@@ -174,12 +173,10 @@ export function newPreparationDraft(
     },
     storage: 'local',
     source: hasScripts ? 'script' : 'command',
-  }
+  } satisfies PreparationDraft
 }
 
-export function editPreparationDraft(
-  entry: EffectiveDefinition<PreparationDefinition>,
-): PreparationDraft {
+export function editPreparationDraft(entry: EffectiveDefinition<PreparationDefinition>) {
   return {
     kind: 'preparation',
     base: entry.definition,
@@ -187,7 +184,7 @@ export function editPreparationDraft(
     definition: entry.definition,
     storage: storageFor(entry.source),
     source: sourceFor(entry.definition),
-  }
+  } satisfies PreparationDraft
 }
 
 /** Which saved thing a draft is for; a project holds one draft at a time (ADR 0038). */
@@ -256,28 +253,32 @@ export type DraftBaseState =
  * is found by id; preparation by its profile/phase slot, because peers may create independent ids
  * for the same slot and a save replaces the slot.
  */
-export function draftBaseState(draft: ActionPanelDraft, catalog: ActionCatalog): DraftBaseState {
+export function draftBaseState(draft: ActionPanelDraft, catalog: ActionCatalog) {
   if (draft.kind === 'action') {
-    if (draft.base === null) return { kind: 'current' }
+    if (draft.base === null) return { kind: 'current' } satisfies DraftBaseState
     const baseId = draft.base.id
     return compareBase(
       draft.base,
       catalog.actions.find(({ definition }) => definition.id === baseId)?.definition,
-    )
+    ) satisfies DraftBaseState
   }
   const slot = draft.base ?? draft.definition
   const current = catalog.preparation.find(
     ({ definition }) => definition.profileId === slot.profileId && definition.phase === slot.phase,
   )?.definition
   // A new setup only conflicts when someone filled the slot meanwhile.
-  if (draft.base === null) return current ? { kind: 'changed', current } : { kind: 'current' }
-  return compareBase(draft.base, current)
+  if (draft.base === null) {
+    return (current ? { kind: 'changed', current } : { kind: 'current' }) satisfies DraftBaseState
+  }
+  return compareBase(draft.base, current) satisfies DraftBaseState
 }
 
 function compareBase(
   base: ActionDefinition | PreparationDefinition,
   current: ActionDefinition | PreparationDefinition | undefined,
-): DraftBaseState {
-  if (!current) return { kind: 'removed' }
-  return sameDefinition(current, base) ? { kind: 'current' } : { kind: 'changed', current }
+) {
+  if (!current) return { kind: 'removed' } satisfies DraftBaseState
+  return (
+    sameDefinition(current, base) ? { kind: 'current' } : { kind: 'changed', current }
+  ) satisfies DraftBaseState
 }

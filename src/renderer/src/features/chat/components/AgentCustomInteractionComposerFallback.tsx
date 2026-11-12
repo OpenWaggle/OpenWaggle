@@ -13,9 +13,7 @@ type SubmitInteractionResponse = (
   response: AgentLoopInteractionResponse,
 ) => Promise<void>
 
-function customInteractions(
-  interactions: readonly AgentLoopInteraction[],
-): readonly AgentLoopCustomInteraction[] {
+function customInteractions(interactions: readonly AgentLoopInteraction[]) {
   return interactions.filter(
     (interaction): interaction is AgentLoopCustomInteraction => interaction.kind === 'custom',
   )

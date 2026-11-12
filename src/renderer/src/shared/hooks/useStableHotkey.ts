@@ -34,7 +34,7 @@ export function useStableHotkey(
   hotkey: Hotkey,
   callback: HotkeyCallback,
   options: StableHotkeyOptions,
-): void {
+) {
   const callbackRef = useRef(callback)
   const handleRef = useRef<ReturnType<ReturnType<typeof getHotkeyManager>['register']> | null>(null)
   const optionsRef = useRef(options)

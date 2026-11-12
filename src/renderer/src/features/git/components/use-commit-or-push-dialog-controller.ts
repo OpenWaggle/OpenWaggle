@@ -45,10 +45,10 @@ function currentBranchName(
   return preparedBranch?.name ?? repositoryBranchName(repository)
 }
 
-function initialTarget(repository: CommitOrPushRepositoryContext): CommitBranchTarget {
+function initialTarget(repository: CommitOrPushRepositoryContext) {
   return repository.vcsStatus?.isDefaultRef || repositoryBranchName(repository) === null
-    ? 'new'
-    : 'current'
+    ? ('new' as const)
+    : ('current' as const)
 }
 
 function initialBranchName(repository: CommitOrPushRepositoryContext) {
@@ -62,22 +62,30 @@ function initialBranchName(repository: CommitOrPushRepositoryContext) {
 function localBranchValidation(
   branches: CommitOrPushRepositoryContext['branches'],
   requested: string,
-): GitBranchValidationResult | null {
-  if (!requested) return { ok: false, code: 'required', message: 'Branch name is required.' }
+) {
+  if (!requested) {
+    const result: GitBranchValidationResult = {
+      ok: false,
+      code: 'required',
+      message: 'Branch name is required.',
+    }
+    return result
+  }
   const localConflict = findBranchRefConflict(branches, requested)
   if (!localConflict) return null
-  return {
+  const result: GitBranchValidationResult = {
     ok: false,
     code: 'branch-exists',
     message: `Branch "${requested}" conflicts with existing ref "${localConflict}".`,
   }
+  return result
 }
 
 function useBranchValidation(
   repository: CommitOrPushRepositoryContext,
   target: CommitBranchTarget,
   branchName: string,
-): BranchValidation {
+) {
   const requested = branchName.trim()
   const local = target === 'current' ? null : localBranchValidation(repository.branches, requested)
   const asksGit = target !== 'current' && local === null
@@ -113,13 +121,21 @@ function useBranchValidation(
     }
   }, [asksGit, requested, workingPath, repository.branches])
 
-  if (target === 'current') return { status: 'idle' }
-  if (local !== null) return { status: 'settled', result: local }
+  if (target === 'current') {
+    const validation: BranchValidation = { status: 'idle' }
+    return validation
+  }
+  if (local !== null) {
+    const validation: BranchValidation = { status: 'settled', result: local }
+    return validation
+  }
   // Only the answer for the name and repository on screen counts; until it arrives git is asked.
   if (checked?.workingPath !== workingPath || checked.requested !== requested) {
-    return { status: 'checking' }
+    const validation: BranchValidation = { status: 'checking' }
+    return validation
   }
-  return { status: 'settled', result: checked.result }
+  const validation: BranchValidation = { status: 'settled', result: checked.result }
+  return validation
 }
 
 function resolveBranchReadiness(
@@ -155,7 +171,7 @@ function buildRunOptions(input: {
   readonly branchName: string
   readonly message: string
   readonly includeUnstaged: boolean
-}): Partial<GitRunStackedActionOptions> {
+}) {
   const commitOptions =
     input.action === 'push'
       ? {}
@@ -172,12 +188,10 @@ function buildRunOptions(input: {
     // Main re-resolves live HEAD while holding the mutation lock. Never derive a new branch from
     // this dialog's eventually-consistent status snapshot.
     baseRef: 'HEAD',
-  }
+  } satisfies Partial<GitRunStackedActionOptions>
 }
 
-export function useCommitOrPushDialogController(
-  props: CommitOrPushDialogProps,
-): CommitOrPushDialogController {
+export function useCommitOrPushDialogController(props: CommitOrPushDialogProps) {
   const { repository, operation } = props
   const [target, setTarget] = useState<CommitBranchTarget>(() => initialTarget(repository))
   const [branchName, setBranchName] = useState(() => initialBranchName(repository))
@@ -272,5 +286,5 @@ export function useCommitOrPushDialogController(
     run,
     stop,
     onKeyDown,
-  }
+  } satisfies CommitOrPushDialogController
 }

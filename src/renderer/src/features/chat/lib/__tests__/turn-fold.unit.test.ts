@@ -5,36 +5,41 @@ import { describe, expect, it } from 'vitest'
 import { applyTurnFolds } from '../turn-fold'
 import type { ChatRow, MessageChatRow } from '../types-chat-row'
 
-function userMessage(id: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content: 'Add rate limiting' }] }
+type MessagePart = UIMessage['parts'][number]
+
+function userMessage(id: string) {
+  const message: UIMessage = { id, role: 'user', parts: [textPart('Add rate limiting')] }
+  return message
 }
 
-function assistantMessage(id: string, parts: UIMessage['parts']): UIMessage {
-  return { id, role: 'assistant', parts }
+function assistantMessage(id: string, parts: UIMessage['parts']) {
+  const message: UIMessage = { id, role: 'assistant', parts }
+  return message
 }
 
-function messageRow(message: UIMessage): MessageChatRow {
-  return {
+function messageRow(message: UIMessage) {
+  const row: MessageChatRow = {
     type: 'message',
     message,
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
   }
+  return row
 }
 
-function toolCallPart(id: string): UIMessage['parts'][number] {
-  return { type: 'tool-call', id, name: 'edit', arguments: '{}', state: 'done' }
+function toolCallPart(id: string) {
+  const part: MessagePart = { type: 'tool-call', id, name: 'edit', arguments: '{}', state: 'done' }
+  return part
 }
 
-function textPart(content: string): UIMessage['parts'][number] {
-  return { type: 'text', content }
+function textPart(content: string) {
+  const part: MessagePart = { type: 'text', content }
+  return part
 }
 
-function settledInput(
-  overrides: Partial<Parameters<typeof applyTurnFolds>[1]> = {},
-): Parameters<typeof applyTurnFolds>[1] {
-  return {
+function settledInput(overrides: Partial<Parameters<typeof applyTurnFolds>[1]> = {}) {
+  const parameters: Parameters<typeof applyTurnFolds>[1] = {
     isLoading: false,
     settledRunDurationMs: 12_000,
     turnDurationsByAnchorMessageId: new Map(),
@@ -42,6 +47,7 @@ function settledInput(
     expandedTurnKeys: new Set<string>(),
     ...overrides,
   }
+  return parameters
 }
 
 describe('applyTurnFolds', () => {

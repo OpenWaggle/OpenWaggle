@@ -43,11 +43,7 @@ const draftJournalSchema = Schema.Struct({
   conflicted: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
-export function readDraftJournal(
-  storage: Storage,
-  projectPath: string,
-  path: string,
-): PersistedDraftJournal | null {
+export function readDraftJournal(storage: Storage, projectPath: string, path: string) {
   try {
     const stored = storage.getItem(draftStorageKey(projectPath, path))
     if (!stored) return null

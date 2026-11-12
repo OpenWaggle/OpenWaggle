@@ -29,10 +29,8 @@ export interface BrowserPreviewMaterializationOperation {
 
 type IsLatestMaterialization = (operation: BrowserPreviewMaterializationOperation) => boolean
 
-export function createBrowserPreviewMaterializationOperation(
-  request: BrowserPreviewOpenRequest,
-): BrowserPreviewMaterializationOperation {
-  return {
+export function createBrowserPreviewMaterializationOperation(request: BrowserPreviewOpenRequest) {
+  const operation: BrowserPreviewMaterializationOperation = {
     request,
     previousGroup: useWorkspacePanelStore.getState().groups[request.ownerKey],
     previousFloating: useBrowserPreviewFloatingStore.getState().byOwnerKey[request.ownerKey],
@@ -41,6 +39,7 @@ export function createBrowserPreviewMaterializationOperation(
     canceled: false,
     mutatedRendererState: false,
   }
+  return operation
 }
 
 export function shouldRollbackBrowserPreviewMaterialization(

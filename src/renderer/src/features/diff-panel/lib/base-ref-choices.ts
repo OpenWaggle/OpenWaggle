@@ -12,15 +12,13 @@ export interface BaseRefChoice {
   readonly label: string
 }
 
-function splitRemoteName(
-  name: string,
-): { readonly remoteName: string; readonly branch: string } | null {
+function splitRemoteName(name: string) {
   const slash = name.indexOf('/')
   if (slash <= 0) return null
   return { remoteName: name.slice(0, slash), branch: name.slice(slash + 1) }
 }
 
-export function buildBaseRefChoices(branches: readonly GitBranchInfo[]): readonly BaseRefChoice[] {
+export function buildBaseRefChoices(branches: readonly GitBranchInfo[]) {
   const locals = branches.filter((branch) => !branch.isRemote)
   const remotes = branches.filter((branch) => branch.isRemote)
   const usedRemotes = new Set<string>()
@@ -42,5 +40,5 @@ export function buildBaseRefChoices(branches: readonly GitBranchInfo[]): readonl
     usedRemotes.has(remote.name) ? [] : [{ id: `remote:${remote.name}`, label: remote.name }],
   )
 
-  return [...pairedChoices, ...remoteOnlyChoices]
+  return [...pairedChoices, ...remoteOnlyChoices] satisfies readonly BaseRefChoice[]
 }

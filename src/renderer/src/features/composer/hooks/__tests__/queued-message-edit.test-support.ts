@@ -42,7 +42,7 @@ export const REVIEW_WAGGLE: WaggleInvocation = {
   config: REVIEW_PRESET.config,
 }
 
-export function preparedAttachment(id: string): PreparedAttachment {
+export function preparedAttachment(id: string) {
   return {
     id,
     kind: 'text',
@@ -51,13 +51,13 @@ export function preparedAttachment(id: string): PreparedAttachment {
     mimeType: 'text/plain',
     sizeBytes: 100,
     extractedText: 'content',
-  }
+  } satisfies PreparedAttachment
 }
 
 export function queueItem(
   overrides: Partial<SessionFollowUpQueueItem> & Pick<SessionFollowUpQueueItem, 'id'>,
-): SessionFollowUpQueueItem {
-  return {
+) {
+  const item: SessionFollowUpQueueItem = {
     text: `queued ${overrides.id}`,
     attachmentCount: overrides.attachments?.length ?? 0,
     createdAt: 1,
@@ -66,31 +66,29 @@ export function queueItem(
     editable: true,
     ...overrides,
   }
+  return item
 }
 
-export function snapshotOf(
-  items: readonly SessionFollowUpQueueItem[],
-  revision = 1,
-): SessionFollowUpQueueSnapshot {
+export function snapshotOf(items: readonly SessionFollowUpQueueItem[], revision = 1) {
   return {
     state: 'running',
     revision,
     activeRunId: 'run-1',
     items,
     waitingOnEdit: items.some((item) => item.editHold !== undefined),
-  }
+  } satisfies SessionFollowUpQueueSnapshot
 }
 
 export const BASE_QUEUE_REVISION = 7
 
-export function openedEdit(item: SessionFollowUpQueueItem, holdId = 'hold-1'): SessionFollowUpEdit {
+export function openedEdit(item: SessionFollowUpQueueItem, holdId = 'hold-1') {
   return {
     followUpId: item.id,
     holdId,
     queueRevision: BASE_QUEUE_REVISION,
     leaseExpiresAt: 30_000,
     item,
-  }
+  } satisfies SessionFollowUpEdit
 }
 
 /** The held form of an item, as the queue shows it to the user who holds it. */

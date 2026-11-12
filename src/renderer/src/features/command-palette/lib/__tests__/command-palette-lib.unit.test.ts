@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CommandPaletteItem } from '../../model'
 import { buildCommandPaletteEntries } from '../command-palette-entries'
 import { createBuiltInCommandItems, createSkillItems } from '../command-palette-items'
 import { normalizeCommandQuery, truncateCommandDescription } from '../command-palette-text'
@@ -30,7 +29,7 @@ vi.mock('@/shell/ui-store', () => ({
 const { createOptionalCommandPaletteAction, openFeedbackModal } =
   await import('../command-palette-actions')
 
-function item(id: string, section?: string): CommandPaletteItem {
+function item(id: string, section?: string) {
   return {
     id,
     label: id,

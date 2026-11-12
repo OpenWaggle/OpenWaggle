@@ -28,7 +28,7 @@ import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
 import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
 
-export function useChatPanelSections(): ChatPanelSections {
+export function useChatPanelSections() {
   const env = useChatPanelEnvironment()
   const router = useRouter()
   const {
@@ -268,7 +268,7 @@ export function useChatPanelSections(): ChatPanelSections {
       }),
   })
 
-  return {
+  const sections: ChatPanelSections = {
     transcript,
     composer,
     agentInteractions,
@@ -284,4 +284,5 @@ export function useChatPanelSections(): ChatPanelSections {
       onSendMessage: handleSendText,
     }),
   }
+  return sections
 }

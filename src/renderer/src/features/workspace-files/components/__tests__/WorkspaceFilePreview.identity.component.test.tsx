@@ -37,7 +37,7 @@ vi.mock('../WorkspaceFileEditor', async () => {
 
 const SHARED_PATH = 'src/shared.ts'
 
-function textFile(projectPath: string): WorkspaceTextFileReadResult {
+function textFile(projectPath: string) {
   return {
     path: SHARED_PATH,
     basename: 'shared.ts',
@@ -57,7 +57,7 @@ function textFile(projectPath: string): WorkspaceTextFileReadResult {
       indentSize: 2,
       editorConfigApplied: false,
     },
-  }
+  } satisfies WorkspaceTextFileReadResult
 }
 
 const oversizedFile: WorkspaceUnavailableFileReadResult = {
@@ -72,7 +72,7 @@ const oversizedFile: WorkspaceUnavailableFileReadResult = {
   language: 'typescript',
 }
 
-function page(content: string, offset: number, nextOffset: number | null): WorkspaceFilePage {
+function page(content: string, offset: number, nextOffset: number | null) {
   return {
     path: SHARED_PATH,
     size: 2_000_000,
@@ -82,7 +82,7 @@ function page(content: string, offset: number, nextOffset: number | null): Works
     content,
     encoding: 'utf-8',
     language: 'typescript',
-  }
+  } satisfies WorkspaceFilePage
 }
 
 function deferred<T>() {

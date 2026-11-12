@@ -17,7 +17,7 @@ export function buildDiffSection(input: {
   readonly projectPath: string | null
   readonly sessionId: ChatDiffSectionState['sessionId']
   readonly onSendMessage: ChatDiffSectionState['onSendMessage']
-}): ChatDiffSectionState {
+}) {
   return {
     session: input.activeSession,
     workingPath: resolveSessionWorkingDir(input.activeSession, input.projectPath),

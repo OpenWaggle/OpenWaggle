@@ -1,7 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
-import { queryOptions, type UseQueryOptions } from '@tanstack/react-query'
+import { queryOptions } from '@tanstack/react-query'
 import { readQueue } from './session-follow-up-queue-client'
-import { EMPTY_SNAPSHOT, type SessionFollowUpQueueSnapshot } from './session-follow-up-queue-model'
+import { EMPTY_SNAPSHOT } from './session-follow-up-queue-model'
 import {
   FOLLOW_UP_QUEUE_READ_RETRIES,
   followUpQueueRecoveryInterval,
@@ -14,14 +14,7 @@ function sessionFollowUpQueueKey(sessionId: SessionId | string) {
 
 type SessionFollowUpQueueKey = readonly ['session-control', 'queue', string | null]
 
-export function sessionFollowUpQueueOptions(
-  sessionId: SessionId | null,
-): UseQueryOptions<
-  SessionFollowUpQueueSnapshot,
-  Error,
-  SessionFollowUpQueueSnapshot,
-  SessionFollowUpQueueKey
-> {
+export function sessionFollowUpQueueOptions(sessionId: SessionId | null) {
   return queryOptions({
     queryKey: sessionId
       ? (sessionFollowUpQueueKey(sessionId) satisfies SessionFollowUpQueueKey)

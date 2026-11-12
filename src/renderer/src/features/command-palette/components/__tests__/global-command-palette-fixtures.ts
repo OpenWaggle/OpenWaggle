@@ -26,12 +26,9 @@ const SERVE: ActionDefinition = {
 }
 
 /** The Host's Project Actions: only `/session-project` has one, and it starts. */
-export async function answerProjectActions({
-  scope,
-  operation,
-}: ActionManagementRequest): Promise<ActionManagementResult> {
+export async function answerProjectActions({ scope, operation }: ActionManagementRequest) {
   if (operation.type === 'catalog') {
-    return {
+    const result: ActionManagementResult = {
       type: 'catalog',
       catalog: {
         revision: 'catalog-1',
@@ -41,16 +38,21 @@ export async function answerProjectActions({
         preparation: [],
       },
     }
+    return result
   }
   if (operation.type === 'start') {
-    return { type: 'run', run: fromPartial<ActionRun>({ id: 'run-1', action: SERVE }) }
+    const result: ActionManagementResult = {
+      type: 'run',
+      run: fromPartial<ActionRun>({ id: 'run-1', action: SERVE }),
+    }
+    return result
   }
   throw new Error(`Unexpected operation ${operation.type}`)
 }
 
 /** An enabled, trusted global side panel contributed by the Acme Notes extension. */
-export function sidePanelEntry(): ExtensionContributionRegistryEntry {
-  return {
+export function sidePanelEntry() {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'acme.notes',
     extensionName: 'Acme Notes',
     extensionVersion: '1.0.0',
@@ -78,4 +80,5 @@ export function sidePanelEntry(): ExtensionContributionRegistryEntry {
     },
     diagnostics: [],
   }
+  return entry
 }

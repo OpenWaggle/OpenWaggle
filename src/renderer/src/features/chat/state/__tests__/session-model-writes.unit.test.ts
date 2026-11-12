@@ -17,8 +17,8 @@ const MODEL_A = SupportedModelId('openai/gpt-5')
 const MODEL_B = SupportedModelId('anthropic/claude-sonnet-4-5')
 const MODEL_C = SupportedModelId('google/gemini-3-pro')
 
-function detail(executionModel: SupportedModelId): SessionDetail {
-  return {
+function detail(executionModel: SupportedModelId) {
+  const result: SessionDetail = {
     id: SESSION_ID,
     title: 'Model writes',
     projectPath: '/repo',
@@ -27,6 +27,7 @@ function detail(executionModel: SupportedModelId): SessionDetail {
     updatedAt: 1,
     executionModel,
   }
+  return result
 }
 
 function currentModel() {

@@ -23,9 +23,7 @@ function generatedDescription(session: SessionDetail, status: GitStatusSummary |
   return lines.join('\n')
 }
 
-export function changeRequestPreflightPayload(
-  input: ChangeRequestActionInput,
-): ChangeRequestPreflightPayload {
+export function changeRequestPreflightPayload(input: ChangeRequestActionInput) {
   return {
     headRef: input.createFeatureBranch
       ? input.branchName.trim()
@@ -37,7 +35,7 @@ export function changeRequestPreflightPayload(
       generatedDescription(input.session, input.commitAndPush ? input.gitStatus : null),
     draft: input.draft,
     createFeatureBranch: input.createFeatureBranch,
-  }
+  } satisfies ChangeRequestPreflightPayload
 }
 
 export function wouldCreateEmptyFeatureBranch(
@@ -84,14 +82,12 @@ export function changeRequestStatusReadinessMessage(
   return null
 }
 
-export function changeRequestActionInput(
-  input: ChangeRequestActionInput,
-): GitRunStackedActionOptions {
+export function changeRequestActionInput(input: ChangeRequestActionInput) {
   if (wouldCreateEmptyFeatureBranch(input)) {
     throw new Error('A new branch needs at least one committed change before creating a request.')
   }
   const title = input.title.trim() || input.session.title
-  return {
+  const options: GitRunStackedActionOptions = {
     // `create_pr` is OpenWaggle's push-and-create workflow. It pushes even when the tree is
     // clean, so a local branch without an upstream is published before provider creation.
     action: input.commitAndPush ? 'commit_push_pr' : 'create_pr',
@@ -115,6 +111,7 @@ export function changeRequestActionInput(
       : {}),
     ...defaultBaseRef(input),
   }
+  return options
 }
 
 /** The repository's default ref as the base, when the provider status reported one. */

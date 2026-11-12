@@ -11,6 +11,7 @@ import {
   federatedModuleMountKey,
   federatedModuleSurfacePayloadJson,
   initialMountStatus,
+  type MountStatus,
   mountExtensionFrame,
   type ReportedMountStatus,
   supportsExtensionExecutionPlacement,
@@ -102,10 +103,7 @@ function useAppearanceMountKey(mountKey: string) {
   return JSON.stringify([mountKey, appearance, syntaxTheme.themeId, appearancePreferences])
 }
 
-function sameMountStatus(
-  left: ReturnType<typeof initialMountStatus>,
-  right: ReturnType<typeof initialMountStatus>,
-) {
+function sameMountStatus(left: MountStatus, right: MountStatus) {
   if (left.kind !== right.kind) {
     return false
   }
@@ -121,7 +119,7 @@ function MountStatusBanner({
   status,
   displayRoots,
 }: {
-  readonly status: ReturnType<typeof initialMountStatus>
+  readonly status: MountStatus
   readonly displayRoots: readonly string[]
 }) {
   if (status.kind === 'loading') {

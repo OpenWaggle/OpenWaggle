@@ -33,72 +33,64 @@ type ExtensionApi = Pick<
 const extensionApi: ExtensionApi = api
 const EXTENSION_CONTRIBUTIONS_QUERY_KEY = 'extensionContributions'
 
-function extensionPackagesQueryKey(
-  projectPaths: readonly string[],
-): readonly ['extensionPackages', ...string[]] {
-  return ['extensionPackages', ...projectPaths]
+function extensionPackagesQueryKey(projectPaths: readonly string[]) {
+  const result: readonly ['extensionPackages', ...string[]] = ['extensionPackages', ...projectPaths]
+  return result
 }
 
-function extensionContributionsKey(
-  projectPaths: readonly string[],
-  sessionId?: string,
-): readonly ['extensionContributions', ...string[]] {
-  return [
+function extensionContributionsKey(projectPaths: readonly string[], sessionId?: string) {
+  const result: readonly ['extensionContributions', ...string[]] = [
     EXTENSION_CONTRIBUTIONS_QUERY_KEY,
     ...projectPaths,
     ...(sessionId !== undefined ? [`session:${sessionId}`] : []),
   ]
+  return result
 }
 
-function listExtensionPackages(input: ExtensionListPackagesInput): Promise<ExtensionManagerView> {
+function listExtensionPackages(input: ExtensionListPackagesInput) {
   return extensionApi.listExtensionPackages(input)
 }
 
-function listExtensionContributions(
-  input: ExtensionListContributionsInput,
-): Promise<ExtensionContributionRegistryView> {
+function listExtensionContributions(input: ExtensionListContributionsInput) {
   return extensionApi.listExtensionContributions(input)
 }
 
 function extensionContributionsInput(input: {
   readonly projectPaths: readonly string[]
   readonly sessionId?: string
-}): ExtensionListContributionsInput {
-  return {
+}) {
+  const result: ExtensionListContributionsInput = {
     projectPaths: input.projectPaths,
     ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
   }
+  return result
 }
 
-function setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView> {
+function setExtensionTrusted(input: ExtensionSetTrustedInput) {
   return extensionApi.setExtensionTrusted(input)
 }
 
-function setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView> {
+function setExtensionEnabled(input: ExtensionSetEnabledInput) {
   return extensionApi.setExtensionEnabled(input)
 }
 
-function setExtensionProjectDisabled(
-  input: ExtensionSetProjectDisabledInput,
-): Promise<ExtensionManagerView> {
+function setExtensionProjectDisabled(input: ExtensionSetProjectDisabledInput) {
   return extensionApi.setExtensionProjectDisabled(input)
 }
 
-function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView> {
+function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput) {
   return extensionApi.acceptExtensionUpdate(input)
 }
 
-function approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<ExtensionManagerView> {
+function approveExtensionBuild(input: ExtensionApproveBuildInput) {
   return extensionApi.approveExtensionBuild(input)
 }
 
-function reloadExtension(input: ExtensionReloadInput): Promise<ExtensionManagerView> {
+function reloadExtension(input: ExtensionReloadInput) {
   return extensionApi.reloadExtension(input)
 }
 
-function applyExtensionPackageRemove(
-  input: ExtensionApplyPackageRemoveInput,
-): Promise<ExtensionManagerView> {
+function applyExtensionPackageRemove(input: ExtensionApplyPackageRemoveInput) {
   return extensionApi.applyExtensionPackageRemove(input)
 }
 
@@ -119,35 +111,34 @@ export function invalidateExtensionContributionsQueries(
   })
 }
 
-export function extensionPackagesQueryOptions(
-  projectPaths: readonly string[],
-): OpenWaggleQueryOptions<
-  ExtensionManagerView,
-  Error,
-  ExtensionManagerView,
-  ReturnType<typeof extensionPackagesQueryKey>
-> {
+export function extensionPackagesQueryOptions(projectPaths: readonly string[]) {
   const queryKey = extensionPackagesQueryKey(projectPaths)
 
-  return queryOptions({
+  const options: OpenWaggleQueryOptions<
+    ExtensionManagerView,
+    Error,
+    ExtensionManagerView,
+    ReturnType<typeof extensionPackagesQueryKey>
+  > = queryOptions({
     queryKey,
     queryFn: () => listExtensionPackages({ projectPaths }),
   })
+  return options
 }
 
 export function extensionContributionsQueryOptions(
   projectPaths: readonly string[],
   options: { readonly sessionId?: string | null } = {},
-): OpenWaggleQueryOptions<
-  ExtensionContributionRegistryView,
-  Error,
-  ExtensionContributionRegistryView,
-  ReturnType<typeof extensionContributionsKey>
-> {
+) {
   const sessionId = options.sessionId ?? undefined
   const queryKey = extensionContributionsKey(projectPaths, sessionId)
 
-  return queryOptions({
+  const result: OpenWaggleQueryOptions<
+    ExtensionContributionRegistryView,
+    Error,
+    ExtensionContributionRegistryView,
+    ReturnType<typeof extensionContributionsKey>
+  > = queryOptions({
     queryKey,
     queryFn: () =>
       listExtensionContributions(
@@ -157,6 +148,7 @@ export function extensionContributionsQueryOptions(
         }),
       ),
   })
+  return result
 }
 
 export function useSetExtensionTrustedMutation(projectPaths: readonly string[]) {

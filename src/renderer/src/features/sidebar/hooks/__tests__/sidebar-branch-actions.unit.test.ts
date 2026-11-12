@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const apiMock = vi.hoisted(() => ({
   navigateSessionTree: vi.fn(async () => undefined),
-  getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
+  getSessionDetail: vi.fn<() => Promise<SessionDetail | null>>(async () => null),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))

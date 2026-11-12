@@ -94,7 +94,7 @@ export class TranscriptViewportController {
   }
 
   /** The reading position worth saving: `null` while following the live end. */
-  readingPosition(): ReadingPosition | null {
+  readingPosition() {
     // The bottom of a capped window is not the live end: that reader is still in history.
     const atLiveEnd = !this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX
     const mode = this.currentMode

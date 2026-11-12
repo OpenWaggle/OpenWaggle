@@ -1,4 +1,4 @@
-import type { SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionWorkspace } from '@shared/types/session'
 import { findAssistantMessageNode, findUserMessageNode } from './branch-from-message'
@@ -23,7 +23,7 @@ async function findPersistedNode(
   sessionId: SessionId,
   messageId: string,
   find: FindNode,
-): Promise<SessionNodeId | null> {
+) {
   const loaded =
     source.activeWorkspace?.tree.session.id === sessionId ? source.activeWorkspace : null
   const node = find({ messages: source.messages, workspace: loaded, messageId })

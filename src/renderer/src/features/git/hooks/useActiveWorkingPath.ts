@@ -1,4 +1,4 @@
-import { RepositoryPath, type WorkingPath } from '@shared/types/brand'
+import { RepositoryPath } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useChatStore } from '@/features/chat/state'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -15,7 +15,7 @@ import { usePreferencesStore } from '@/features/settings/state'
  * `useRepositoryPath` instead: a linked worktree shares `refs/` with the primary
  * checkout, so that data is per-repository, not per session.
  */
-export function useActiveWorkingPath(): WorkingPath | null {
+export function useActiveWorkingPath() {
   const projectPath = usePreferencesStore((s) => s.settings.projectPath)
   const environmentMode = useChatStore((s) => s.activeSession?.environmentMode)
   const worktreePath = useChatStore((s) => s.activeSession?.worktreePath ?? null)
@@ -27,7 +27,7 @@ export function useActiveWorkingPath(): WorkingPath | null {
 }
 
 /** The repository a session belongs to. Keys branch lists, worktree lists and remotes. */
-export function useRepositoryPath(): RepositoryPath | null {
+export function useRepositoryPath() {
   const projectPath = usePreferencesStore((s) => s.settings.projectPath)
   return projectPath === null ? null : RepositoryPath(projectPath)
 }

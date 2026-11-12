@@ -120,8 +120,8 @@ export function decodeExtensionFrameMessage(value: unknown, frameId: string) {
   return decoded.data
 }
 
-function invalidInvokeFailure(issues: readonly string[]): ExtensionInvokeResult {
-  return {
+function invalidInvokeFailure(issues: readonly string[]) {
+  const result: ExtensionInvokeResult = {
     ok: false,
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_INPUT,
@@ -129,15 +129,19 @@ function invalidInvokeFailure(issues: readonly string[]): ExtensionInvokeResult 
       issues,
     },
   }
+  return result
 }
 
 export function extensionInvokeInputFromFrame(
   entry: ExtensionContributionRegistryEntry,
   input: unknown,
-): ExtensionInvokeInput | ExtensionInvokeResult {
+) {
   const decoded = safeDecodeUnknown(extensionMountInvokeInputSchema, input)
   if (!decoded.success) {
-    return invalidInvokeFailure(decoded.issues)
+    const result: ExtensionInvokeInput | ExtensionInvokeResult = invalidInvokeFailure(
+      decoded.issues,
+    )
+    return result
   }
 
   const scope = decoded.data.scope
@@ -147,20 +151,22 @@ export function extensionInvokeInputFromFrame(
       scope.sessionId !== entry.sessionId ||
       !entry.projectPaths.includes(scope.projectPath))
   ) {
-    return {
+    const result: ExtensionInvokeInput | ExtensionInvokeResult = {
       ok: false,
       error: {
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
         message: 'Extension session scope does not match the mounted surface.',
       },
     }
+    return result
   }
 
-  return {
+  const result: ExtensionInvokeInput | ExtensionInvokeResult = {
     ...decoded.data,
     extensionId: entry.extensionId,
     contributionId: entry.contributionId,
   } satisfies ExtensionInvokeInput
+  return result
 }
 
 export function postFrameMessage(

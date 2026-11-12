@@ -11,7 +11,7 @@ export function createSessionControlQueryReader(
   query: (request: SessionQueryRequest) => Promise<SessionQueryResponse>,
 ) {
   const inFlight = new Map<string, Promise<SessionQueryResponse>>()
-  return (request: SessionQueryRequest): Promise<SessionQueryResponse> => {
+  return (request: SessionQueryRequest) => {
     const key = JSON.stringify([request.contractVersion, request.query])
     const shared = inFlight.get(key)
     if (shared) return shared

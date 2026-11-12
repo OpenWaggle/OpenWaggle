@@ -44,9 +44,9 @@ export function previewSchedule(input: {
   readonly now: number
   /** The saved task being edited: an unchanged schedule keeps its own occurrences. */
   readonly stored?: ScheduledTask | null
-}): SchedulePreview {
+}) {
   const validation = validateTaskSchedule(input)
-  if (!validation.ok) return { ok: false, error: validation.message }
+  if (!validation.ok) return { ok: false, error: validation.message } satisfies SchedulePreview
   const next = unchangedNextRun(input)
   const definition: ScheduleDefinition = {
     taskId: PREVIEW_ID,
@@ -59,5 +59,5 @@ export function previewSchedule(input: {
     next === null
       ? upcomingNominalTimes(definition, input.now, PREVIEW_COUNT)
       : [next, ...upcomingNominalTimes(definition, next, PREVIEW_COUNT - 1)]
-  return { ok: true, times, jittered: isScheduleJittered(definition) }
+  return { ok: true, times, jittered: isScheduleJittered(definition) } satisfies SchedulePreview
 }

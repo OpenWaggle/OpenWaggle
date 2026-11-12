@@ -25,7 +25,7 @@ export function useExtensionSidePanelContributions({
   enabled,
   projectPath,
   sessionId,
-}: UseExtensionSidePanelContributionsInput): ExtensionSidePanelContributionsResult {
+}: UseExtensionSidePanelContributionsInput) {
   const projectPaths = activeProjectPaths(projectPath)
   const queryOptions = extensionContributionsQueryOptions(projectPaths, {
     ...(sessionId === undefined ? {} : { sessionId }),
@@ -35,11 +35,12 @@ export function useExtensionSidePanelContributions({
     enabled,
   })
 
-  return {
+  const result: ExtensionSidePanelContributionsResult = {
     error: query.error,
     loading: query.isPending,
     projectPaths,
     refetch: query.refetch,
     registry: query.data ?? null,
   }
+  return result
 }

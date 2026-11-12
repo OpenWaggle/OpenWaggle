@@ -8,13 +8,13 @@ const SESSION_ID = SessionId('session-1')
 const SESSION_DETAIL_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
 
-function uiMessage(id: string, role: 'user' | 'assistant', content: string): UIMessage {
+function uiMessage(id: string, role: 'user' | 'assistant', content: string) {
   return {
     id,
     role,
     parts: [{ type: 'text', content }],
     createdAt: new Date(1),
-  }
+  } satisfies UIMessage
 }
 
 function sessionNode(
@@ -24,7 +24,7 @@ function sessionNode(
   content: string,
   createdOrder: number,
   options: { readonly messageId?: string; readonly branchId?: SessionBranchId } = {},
-): SessionNode {
+) {
   const messageId = options.messageId ?? id
   const branchId = options.branchId ?? MAIN_BRANCH_ID
   return {
@@ -47,7 +47,7 @@ function sessionNode(
     },
     contentJson: JSON.stringify({ parts: [{ type: 'text', text: content }], model: null }),
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 function workspaceWithPath(

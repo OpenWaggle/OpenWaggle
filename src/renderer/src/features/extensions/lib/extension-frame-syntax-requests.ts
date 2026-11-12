@@ -18,7 +18,7 @@ interface FrameSyntaxHighlightInput {
 }
 
 /** Drops the fields a frame sent as undefined, so the SDK input only holds set fields. */
-function sdkSyntaxInput(input: FrameSyntaxHighlightInput): OpenWaggleExtensionSyntaxHighlightInput {
+function sdkSyntaxInput(input: FrameSyntaxHighlightInput) {
   const { source, language, path, priority } = input
   return {
     source,

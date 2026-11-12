@@ -20,7 +20,7 @@ export function logShownSendFailure(cause: unknown) {
   })
 }
 
-export function consumeSendResult(result: unknown): void {
+export function consumeSendResult(result: unknown) {
   if (!isPromiseResult(result)) {
     return
   }

@@ -41,8 +41,8 @@ const routeMock = vi.hoisted(() => {
       activeSessionId = nextSessionId
     },
     routerState: () => state,
-    chatState: (): ChatState => ({ activeSessionId }),
-    shellState: (): ShellState => ({ setLastRightSidebarPanel }),
+    chatState: () => ({ activeSessionId }),
+    shellState: () => ({ setLastRightSidebarPanel }),
     setLastRightSidebarPanel,
   }
 })

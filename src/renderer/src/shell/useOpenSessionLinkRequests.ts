@@ -40,7 +40,7 @@ async function openLinkedSession(navigate: ReturnType<typeof useNavigate>, sessi
  * window loaded is still waiting, and a reload cannot repeat it. The settings gate keeps a link
  * from selecting a project before recent projects are known.
  */
-export function useOpenSessionLinkRequests(): void {
+export function useOpenSessionLinkRequests() {
   const navigate = useNavigate()
   const settingsLoaded = usePreferencesStore((state) => state.isLoaded)
 

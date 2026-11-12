@@ -10,14 +10,14 @@ import {
   validateProjectActionDraft,
 } from '../project-action-model'
 
-function action(id: string, setup = false): ProjectAction {
+function action(id: string, setup = false) {
   return {
     id,
     name: id,
     command: `pnpm ${id}`,
     icon: 'play',
     runOnWorktreeCreate: setup,
-  }
+  } satisfies ProjectAction
 }
 
 describe('project action model', () => {

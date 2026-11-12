@@ -29,34 +29,37 @@ export function isWorktreeCreatedEvent(event: AgentTransportCustomEvent) {
   return event.name === WORKTREE_CREATED_CUSTOM_EVENT
 }
 
-export function worktreeLaunchFromCustomEvent(
-  event: AgentTransportCustomEvent,
-): WorktreeLaunchSnapshot | null {
+export function worktreeLaunchFromCustomEvent(event: AgentTransportCustomEvent) {
   if (!isWorktreeCreatedEvent(event) || !isObjectValue(event.value)) return null
   const value = decodeWorktreeCreatedValue(event.value)
   if (Option.isNone(value)) return null
-  return {
+  const snapshot: WorktreeLaunchSnapshot | null = {
     status: 'complete',
     stage: 'starting-task',
     startedAt: event.timestamp,
     updatedAt: event.timestamp,
     ...value.value,
   }
+  return snapshot
 }
 
 export function createWorktreeLaunchRows(input: {
   readonly sessionId: string | null
   readonly liveLaunch?: WorktreeLaunchSnapshot | null
   readonly customMessages: readonly AgentTransportCustomEvent[]
-}): ChatRow[] {
+}) {
   const sessionId = input.sessionId
-  if (!sessionId) return []
+  if (!sessionId) {
+    const row: ChatRow[] = []
+    return row
+  }
   if (input.liveLaunch) {
     // A finished local launch has nothing left to say; the run it started takes over.
     if (input.liveLaunch.environment === 'local' && input.liveLaunch.status === 'complete') {
-      return []
+      const row: ChatRow[] = []
+      return row
     }
-    return [
+    const row: ChatRow[] = [
       {
         type: 'worktree-launch',
         id: `active:${sessionId}`,
@@ -64,8 +67,9 @@ export function createWorktreeLaunchRows(input: {
         launch: input.liveLaunch,
       },
     ]
+    return row
   }
-  return input.customMessages.flatMap((event) => {
+  const row: ChatRow[] = input.customMessages.flatMap((event) => {
     const launch = worktreeLaunchFromCustomEvent(event)
     return launch
       ? [
@@ -78,4 +82,5 @@ export function createWorktreeLaunchRows(input: {
         ]
       : []
   })
+  return row
 }

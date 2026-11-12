@@ -76,7 +76,7 @@ const INITIAL_DIALOG_STATE: ComposerExtensionDialogState = {
 function reduceComposerExtensionDialogState(
   state: ComposerExtensionDialogState,
   action: ComposerExtensionDialogAction,
-): ComposerExtensionDialogState {
+) {
   if (action.type === 'open') {
     return { activeSurface: action.surface, error: null }
   }
@@ -104,16 +104,14 @@ interface ChatComposerExtensionDialogsProps {
 
 function noOp() {}
 
-function pendingInteractionInputs(
-  interactions: readonly AgentLoopInteraction[],
-): readonly PendingInteractionDialogInput[] {
+function pendingInteractionInputs(interactions: readonly AgentLoopInteraction[]) {
   return interactions.map((interaction) => ({
     interaction,
     surfaceInput: {
       surface: 'interaction',
       interaction: toExtensionInteractionView(interaction),
     },
-  }))
+  })) satisfies readonly PendingInteractionDialogInput[]
 }
 
 function buildExtensionDialogLaunchers({
@@ -126,9 +124,9 @@ function buildExtensionDialogLaunchers({
   readonly projectPaths: readonly string[]
   readonly inputs: readonly PendingInteractionDialogInput[]
   readonly onOpenSurface: (surface: ActiveComposerExtensionSurface) => void
-}): readonly ComposerExtensionActionLauncher[] {
+}) {
   if (registry === null) {
-    return []
+    return [] satisfies readonly ComposerExtensionActionLauncher[]
   }
 
   const launchers: ComposerExtensionActionLauncher[] = []

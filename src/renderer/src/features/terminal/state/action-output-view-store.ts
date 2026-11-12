@@ -57,7 +57,7 @@ const storedViewSchema = Schema.Struct({
   runIds: Schema.Array(Schema.String.pipe(Schema.minLength(1))).pipe(Schema.minItems(1)),
 })
 
-function sanitizeStoredViews(value: unknown): Record<string, readonly ActionOutputView[]> {
+function sanitizeStoredViews(value: unknown) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   const views: Record<string, readonly ActionOutputView[]> = {}
   for (const [ownerKey, candidates] of Object.entries(value).slice(
@@ -101,10 +101,7 @@ function withOwnerViews(
   return next
 }
 
-function withoutActive(
-  active: Readonly<Record<string, ActiveActionOutputView>>,
-  ownerKey: string,
-): Record<string, ActiveActionOutputView> {
+function withoutActive(active: Readonly<Record<string, ActiveActionOutputView>>, ownerKey: string) {
   const next = { ...active }
   delete next[ownerKey]
   return next
@@ -215,7 +212,7 @@ export function shownActionOutputView(
   state: Pick<ActionOutputViewState, 'views' | 'active'>,
   ownerKey: string,
   activeTabId: string | null,
-): ActionOutputView | null {
+) {
   const active = state.active[ownerKey]
   if (active === undefined || active.coveredTabId !== activeTabId) return null
   return state.views[ownerKey]?.find((view) => view.actionId === active.actionId) ?? null

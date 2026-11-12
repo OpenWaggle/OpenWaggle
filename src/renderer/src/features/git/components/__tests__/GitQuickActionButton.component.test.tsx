@@ -3,8 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { GitQuickActionButton } from '../GitQuickActionButton'
 
-function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
-  return {
+function status(overrides: Partial<VcsStatus> = {}) {
+  const result: VcsStatus = {
     isRepo: true,
     sourceControlProvider: { id: 'github', host: 'github.com' },
     sourceControlHost: null,
@@ -26,6 +26,7 @@ function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
     changeRequestAccount: null,
     ...overrides,
   }
+  return result
 }
 
 function callbacks() {

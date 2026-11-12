@@ -1,15 +1,12 @@
 import { sourceViewLineAt } from '@shared/syntax-highlighting-performance'
 import { cn } from '@/shared/lib/cn'
-import type { SyntaxHighlightResult, SyntaxToken } from '@/shared/lib/syntax/protocol'
+import type { SyntaxHighlightResult } from '@/shared/lib/syntax/protocol'
 import { syntaxTokenStyle } from '@/shared/lib/syntax/token-style'
 
 const MIN_SKELETON_WIDTH_CH = 6
 const MAX_SKELETON_WIDTH_CH = 72
 
-function tokensForLine(
-  result: SyntaxHighlightResult | null,
-  lineIndex: number,
-): readonly SyntaxToken[] | null {
+function tokensForLine(result: SyntaxHighlightResult | null, lineIndex: number) {
   if (result?.status !== 'highlighted') return null
   return result.lines[lineIndex - (result.lineOffset ?? 0)] ?? null
 }

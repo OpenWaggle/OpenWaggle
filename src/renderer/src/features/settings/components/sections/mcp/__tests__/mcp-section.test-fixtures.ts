@@ -1,9 +1,7 @@
 import type {
   McpConfigFileView,
-  McpConfigurationView,
   McpConfiguredServerView,
   McpServerInspection,
-  McpServerStatusView,
 } from '@shared/types/mcp-configuration'
 
 export const PROJECT = '/tmp/mcp-project'
@@ -46,10 +44,7 @@ export const FILES: readonly McpConfigFileView[] = [
   },
 ]
 
-export function mcpServer(
-  name: string,
-  overrides: Partial<McpConfiguredServerView> = {},
-): McpConfiguredServerView {
+export function mcpServer(name: string, overrides: Partial<McpConfiguredServerView> = {}) {
   return {
     name,
     transport: 'stdio',
@@ -61,21 +56,18 @@ export function mcpServer(
     toolExposure: {},
     usesOAuth: false,
     ...overrides,
-  }
+  } satisfies McpConfiguredServerView
 }
 
 export function mcpView(
   servers: readonly McpConfiguredServerView[],
   errors: readonly string[] = [],
-): McpConfigurationView {
+) {
   return { projectPath: PROJECT, files: FILES, servers, errors }
 }
 
 /** Servers whose last check found these states, as the Host reports them on open. */
-export function lastChecked(
-  inspections: readonly McpServerInspection[],
-  checkedAt = Date.now(),
-): McpServerStatusView[] {
+export function lastChecked(inspections: readonly McpServerInspection[], checkedAt = Date.now()) {
   return inspections.map((inspection) => ({
     name: inspection.name,
     source: 'last-check',

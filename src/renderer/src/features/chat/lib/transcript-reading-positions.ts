@@ -18,30 +18,33 @@ export type SavedReadingPosition = ReadingPosition | null
 
 const entryPattern = P.tuple([P.string, P.union(P.null, { key: P.string, top: P.finite })])
 
-function readEntry(entry: unknown): [string, SavedReadingPosition] | null {
+function readEntry(entry: unknown) {
   if (!isMatching(entryPattern, entry)) return null
   const [key, position] = entry
-  return [key, position === null ? null : { key: position.key, top: position.top }]
+  return [key, position === null ? null : { key: position.key, top: position.top }] satisfies [
+    string,
+    SavedReadingPosition,
+  ]
 }
 
 export function readingPositionKey(sessionId: string, branchId: string | null) {
   return `${sessionId}:${branchId ?? 'main'}`
 }
 
-export function loadReadingPositions(): Map<string, SavedReadingPosition> {
+export function loadReadingPositions() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return new Map()
+    if (!raw) return new Map<string, SavedReadingPosition>()
     const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return new Map()
+    if (!Array.isArray(parsed)) return new Map<string, SavedReadingPosition>()
     const entries: [string, SavedReadingPosition][] = []
     for (const candidate of parsed) {
       const entry = readEntry(candidate)
       if (entry) entries.push(entry)
     }
-    return new Map(entries)
+    return new Map<string, SavedReadingPosition>(entries)
   } catch {
-    return new Map()
+    return new Map<string, SavedReadingPosition>()
   }
 }
 

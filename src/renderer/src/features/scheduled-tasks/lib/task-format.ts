@@ -72,10 +72,8 @@ export function runOutcomeText(run: Pick<ScheduledTaskRun, 'outcome'>) {
   return outcome.note ? `${label}: ${outcome.note}` : label
 }
 
-export function defaultNotificationPolicy(
-  kind: ScheduledTaskKind,
-): ScheduledTaskNotificationPolicy {
-  return kind === 'heartbeat' ? 'failures-only' : 'every-run'
+export function defaultNotificationPolicy(kind: ScheduledTaskKind) {
+  return kind === 'heartbeat' ? ('failures-only' as const) : ('every-run' as const)
 }
 
 /** Why a run was skipped or failed, with the Host's message when it adds something. */
@@ -176,7 +174,7 @@ const previewFormatters = new Map<string, Intl.DateTimeFormat>()
 function previewFormatter(
   shape: 'day' | 'time' | 'date-time',
   timeZone: string | null | undefined,
-): Intl.DateTimeFormat {
+) {
   const key = `${shape}:${timeZone ?? ''}`
   const cached = previewFormatters.get(key)
   if (cached) return cached

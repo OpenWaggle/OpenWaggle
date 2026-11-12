@@ -38,7 +38,7 @@ const SESSION_ID = SessionId('session-1')
 const PROJECT = '/projects/gosafe'
 const PI_FILE = '/home/me/.pi/agent/sessions/--projects-gosafe--/s.jsonl'
 
-function session(overrides: Partial<SessionDetail> = {}): SessionDetail {
+function session(overrides: Partial<SessionDetail> = {}) {
   return fromPartial<SessionDetail>({
     id: SESSION_ID,
     title: 'Hooks QA',

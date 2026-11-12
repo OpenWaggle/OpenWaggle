@@ -2,14 +2,14 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import type { useRemoteSidebarSessions } from '../useRemoteSidebarSessions'
 
-export function summary(id: string, title: string, projectPath = '/repo/project'): SessionSummary {
+export function summary(id: string, title: string, projectPath = '/repo/project') {
   return {
     id: SessionId(id),
     title,
     projectPath,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies SessionSummary
 }
 
 function querySummary(session: SessionSummary) {
@@ -42,8 +42,8 @@ export function listResponse(
 
 type HookInput = Parameters<typeof useRemoteSidebarSessions>[0]
 
-export function hookInput(overrides: Partial<HookInput>): HookInput {
-  return {
+export function hookInput(overrides: Partial<HookInput>) {
+  const input: HookInput = {
     query: overrides.query ?? '',
     filterState: overrides.filterState ?? null,
     stateBySessionId: overrides.stateBySessionId ?? new Map(),
@@ -51,4 +51,5 @@ export function hookInput(overrides: Partial<HookInput>): HookInput {
     projectPaths: overrides.projectPaths ?? [],
     projectDisplayNames: overrides.projectDisplayNames ?? {},
   }
+  return input
 }

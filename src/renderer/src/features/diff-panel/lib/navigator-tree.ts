@@ -28,14 +28,26 @@ export const NAVIGATOR_ROOT_ID = ''
  * Git reports add/delete through the patch's mode header rather than a status
  * field, so derive the status from the patch we already have.
  */
-export function fileChangeStats(file: GitFileDiff): FileChangeStats {
+export function fileChangeStats(file: GitFileDiff) {
   if (file.diff.includes('\nnew file mode ')) {
-    return { status: 'added', additions: file.additions, deletions: file.deletions }
+    return {
+      status: 'added',
+      additions: file.additions,
+      deletions: file.deletions,
+    } satisfies FileChangeStats
   }
   if (file.diff.includes('\ndeleted file mode ')) {
-    return { status: 'deleted', additions: file.additions, deletions: file.deletions }
+    return {
+      status: 'deleted',
+      additions: file.additions,
+      deletions: file.deletions,
+    } satisfies FileChangeStats
   }
-  return { status: 'modified', additions: file.additions, deletions: file.deletions }
+  return {
+    status: 'modified',
+    additions: file.additions,
+    deletions: file.deletions,
+  } satisfies FileChangeStats
 }
 
 /**
@@ -44,7 +56,7 @@ export function fileChangeStats(file: GitFileDiff): FileChangeStats {
  * Kept pure and separate from the component so the grouping is testable without
  * a tree library, and so swapping the rendering layer cannot change the shape.
  */
-export function buildNavigatorTree(files: readonly GitFileDiff[]): NavigatorTree {
+export function buildNavigatorTree(files: readonly GitFileDiff[]) {
   const nodes = new Map<string, NavigatorNode>()
   const children = new Map<string, string[]>()
 
@@ -88,5 +100,6 @@ export function buildNavigatorTree(files: readonly GitFileDiff[]): NavigatorTree
     })
   }
 
-  return { nodes, childrenByPath: children, rootId: NAVIGATOR_ROOT_ID }
+  const tree: NavigatorTree = { nodes, childrenByPath: children, rootId: NAVIGATOR_ROOT_ID }
+  return tree
 }
