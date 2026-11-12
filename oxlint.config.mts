@@ -177,6 +177,7 @@ const TYPE_AWARE_RULES: DummyRuleMap = {
   'typescript/prefer-as-const': 'error',
   'typescript/prefer-namespace-keyword': 'error',
   'typescript/triple-slash-reference': 'error',
+  'openwaggle/no-unneeded-return-type': 'error',
 }
 
 const ESLINT_RULES: DummyRuleMap = {
@@ -243,7 +244,6 @@ const ESLINT_RULES: DummyRuleMap = {
   'openwaggle/no-raw-renderer-buttons': 'error',
   'openwaggle/no-react-legacy-patterns': 'error',
   'openwaggle/no-shoehorn-outside-tests': 'error',
-  'openwaggle/prefer-inferred-internal-return-types': 'error',
   'openwaggle/jsx-max-props': ['error', { maximum: 8 }],
   'openwaggle/renderer-import-boundaries': 'error',
   'openwaggle/test-colocation': 'error',
@@ -652,7 +652,6 @@ export default defineConfig({
         'max-lines-per-function': 'off',
         complexity: 'off',
         'openwaggle/no-inline-magic-numbers': 'off',
-        'openwaggle/prefer-inferred-internal-return-types': 'off',
       },
     },
     {

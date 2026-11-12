@@ -1,18 +1,7 @@
 import type { ESTree } from '@oxlint/plugins'
 
-interface SourceRange {
-  readonly start: number
-  readonly end: number
-}
-
 export function isUnknownArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value)
-}
-
-export function rangeFrom(node: ESTree.Node | null | undefined): SourceRange | null {
-  if (!node) return null
-  const [start, end] = node.range
-  return { start, end }
 }
 
 /** The string a declaration's `source` names; `import()` and others name no literal here. */

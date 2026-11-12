@@ -15,8 +15,8 @@ import { noOptionalUndefinedRule } from './rules/no-optional-undefined.ts'
 import { noRawRendererButtonsRule } from './rules/no-raw-renderer-buttons.ts'
 import { noReactLegacyPatternsRule } from './rules/no-react-legacy-patterns.ts'
 import { noShoehornOutsideTestsRule } from './rules/no-shoehorn-outside-tests.ts'
+import { noUnneededReturnTypeRule } from './rules/no-unneeded-return-type.ts'
 import { noUncaughtVoidIpcRule } from './rules/no-uncaught-void-ipc.ts'
-import { preferInferredInternalReturnTypesRule } from './rules/prefer-inferred-internal-return-types.ts'
 import { rendererImportBoundariesRule } from './rules/renderer-import-boundaries-rule.ts'
 import { rendererDesignTokenGuardrailsRule } from './rules/renderer-design-token-guardrails.ts'
 import { testColocationRule } from './rules/test-colocation.ts'
@@ -43,7 +43,7 @@ export const openwagglePlugin: Plugin = {
     'no-react-legacy-patterns': noReactLegacyPatternsRule,
     'no-shoehorn-outside-tests': noShoehornOutsideTestsRule,
     'no-uncaught-void-ipc': noUncaughtVoidIpcRule,
-    'prefer-inferred-internal-return-types': preferInferredInternalReturnTypesRule,
+    'no-unneeded-return-type': noUnneededReturnTypeRule,
     'renderer-import-boundaries': rendererImportBoundariesRule,
     'renderer-design-token-guardrails': rendererDesignTokenGuardrailsRule,
     'test-colocation': testColocationRule,
