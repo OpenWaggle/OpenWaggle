@@ -12,6 +12,7 @@ import {
   SESSION,
   setupChatPanelSessionSummaryHarness,
 } from './chat-panel-session-summary.test-harness'
+import * as Struct from 'effect/Struct'
 
 describe('ChatPanel session summary', () => {
   preloadSessionSummaryOverlay()
@@ -74,7 +75,7 @@ describe('ChatPanel session summary', () => {
     }
     useSessionStore.setState({
       activeSessionTree: {
-        session: { ...worker, lineage: undefined },
+        session: Struct.omit(worker, 'lineage'),
         nodes: [],
         branches: [],
         branchStates: [],

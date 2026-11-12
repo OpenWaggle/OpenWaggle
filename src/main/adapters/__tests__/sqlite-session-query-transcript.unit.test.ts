@@ -140,10 +140,14 @@ describe('SQLite Session transcript queries', () => {
       operation: 'items',
       sessionId: 'worker',
       branchScope: 'active-branch',
-      branchId: first.outcome.selectedBranchId ?? undefined,
-      snapshotHeadNodeId: first.outcome.snapshotHeadNodeId ?? undefined,
+      ...(first.outcome.selectedBranchId ? { branchId: first.outcome.selectedBranchId } : {}),
+      ...(first.outcome.snapshotHeadNodeId
+        ? { snapshotHeadNodeId: first.outcome.snapshotHeadNodeId }
+        : {}),
       throughCreatedOrder: first.outcome.highWaterMark,
-      afterCreatedOrder: first.outcome.nextCreatedOrder,
+      ...(first.outcome.nextCreatedOrder === undefined
+        ? {}
+        : { afterCreatedOrder: first.outcome.nextCreatedOrder }),
       limit: 10,
     })
     expect(second.outcome).toMatchObject({

@@ -96,10 +96,7 @@ describe('Pi entry node ids', () => {
   it('keeps entry ids for Sessions OpenWaggle created', () => {
     const { sessionManager, first } = piSession()
 
-    const snapshot = projectPiSessionSnapshot(
-      { sessionManager },
-      piEntryNodeIds(discoveredSession({ piEntryNodeIdPrefix: undefined })),
-    )
+    const snapshot = projectPiSessionSnapshot({ sessionManager }, piEntryNodeIds({}))
 
     expect(snapshot.nodes[0]?.id).toBe(first)
   })

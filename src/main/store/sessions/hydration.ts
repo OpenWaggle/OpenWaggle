@@ -149,7 +149,7 @@ export function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
     id: SessionId(row.id),
     title: row.title,
     projectPath: row.project_path,
-    archived: row.archived === 1 ? true : undefined,
+    ...(row.archived === 1 ? { archived: true } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastActiveNodeId: row.last_active_node_id ? SessionNodeId(row.last_active_node_id) : null,

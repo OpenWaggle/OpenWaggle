@@ -29,6 +29,10 @@ export const exportResourcesSchema = Schema.Array(exportResourceInputSchema).pip
 
 export const sessionExportBranchScopeSchema = Schema.Literal('active-branch', 'tree')
 
+/**
+ * The manifest keeps `Schema.optional` (an explicit undefined is accepted) because the Hive MCP
+ * tool's zod input schema decodes it too, and zod's output types an optional key as `T | undefined`.
+ */
 export const sessionExportManifestSchema = Schema.Struct({
   schemaVersion: Schema.Literal(SESSION_EXPORT_SCHEMA_VERSION),
   sessionId: sessionInputIdSchema,
@@ -78,12 +82,12 @@ export const exportCreateCommandSchema = Schema.Struct({
   format: Schema.Literal(...SESSION_EXPORT_FORMATS),
   destinationPath: boundedPath,
   /** Canonical root injected by a scoped adapter; never populated from user-facing CLI flags. */
-  destinationRoot: Schema.optional(boundedPath),
-  overwriteExisting: Schema.optional(Schema.Boolean),
-  branchScope: Schema.optional(sessionExportBranchScopeSchema),
-  branchId: Schema.optional(sessionInputIdSchema),
-  includeQueueBodies: Schema.optional(Schema.Boolean),
-  resources: Schema.optional(exportResourcesSchema),
+  destinationRoot: Schema.optionalWith(boundedPath, { exact: true }),
+  overwriteExisting: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  branchScope: Schema.optionalWith(sessionExportBranchScopeSchema, { exact: true }),
+  branchId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  resources: Schema.optionalWith(exportResourcesSchema, { exact: true }),
 }).pipe(
   Schema.filter(
     (command) =>
@@ -125,21 +129,22 @@ export const exportListQuerySchema = Schema.Struct({
   operation: Schema.Literal('exports-list'),
   sessionId: sessionInputIdSchema,
   limit: Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_EXPORT_OPERATION_QUERY_LIMIT)),
-  cursor: Schema.optional(boundedCursor),
-  statuses: Schema.optional(
+  cursor: Schema.optionalWith(boundedCursor, { exact: true }),
+  statuses: Schema.optionalWith(
     Schema.Array(exportOperationStatusSchema).pipe(
       Schema.minItems(1),
       Schema.maxItems(SESSION_EXPORT_OPERATION_STATUSES.length),
     ),
+    { exact: true },
   ),
-  includeQueueBodies: Schema.optional(Schema.Boolean),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const exportReadQuerySchema = Schema.Struct({
   operation: Schema.Literal('exports-read'),
   sessionId: sessionInputIdSchema,
   exportOperationId: sessionInputIdSchema,
-  includeQueueBodies: Schema.optional(Schema.Boolean),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const exportWaitQuerySchema = Schema.Struct({
@@ -147,6 +152,6 @@ export const exportWaitQuerySchema = Schema.Struct({
   sessionId: sessionInputIdSchema,
   exportOperationId: sessionInputIdSchema,
   timeoutMs: Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
-  after: Schema.optional(sessionHostEventCursorSchema),
-  includeQueueBodies: Schema.optional(Schema.Boolean),
+  after: Schema.optionalWith(sessionHostEventCursorSchema, { exact: true }),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })

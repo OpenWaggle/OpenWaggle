@@ -10,6 +10,7 @@ import { PiSessionContinuationPrompt } from '../../components/PiSessionContinuat
 import { PiSessionContinuationHeld } from '../../lib/pi-session-continuation'
 import { composerSendFailureDisposition } from '../composer-send-failure'
 import { usePiSessionContinuationGate } from '../usePiSessionContinuationGate'
+import * as Struct from 'effect/Struct'
 
 const mocks = vi.hoisted(() => ({
   getSessionDetail: vi.fn(),
@@ -164,7 +165,7 @@ describe('usePiSessionContinuationGate', () => {
   })
 
   it('never asks in a Session OpenWaggle created and wrote last', async () => {
-    const created = session({ piEntryNodeIdPrefix: undefined })
+    const created = Struct.omit(session(), 'piEntryNodeIdPrefix')
     const { send } = renderGate(created)
 
     await waitFor(() => expect(send).toHaveBeenCalledWith(PAYLOAD))

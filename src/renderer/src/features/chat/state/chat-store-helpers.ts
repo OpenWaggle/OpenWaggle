@@ -40,14 +40,14 @@ export function handleStoreError(
   setError(`Failed to ${action}: ${message}`)
 }
 
-export function toSummary(session: SessionDetail) {
+export function toSummary(session: SessionDetail): SessionSummary {
   return {
     id: session.id,
     title: session.title,
     projectPath: session.projectPath,
     // A long Session's detail holds only its newest messages (ADR 0036); count them all.
     messageCount: session.messagesWindow?.pathLength ?? session.messages.length,
-    archived: session.archived,
+    ...(session.archived === undefined ? {} : { archived: session.archived }),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
   }

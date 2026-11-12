@@ -16,6 +16,7 @@ import {
   required,
   requiredSessionId,
   watchCursor,
+  optionEntry,
 } from './sessions-cli-arguments'
 import { buildSessionsCliControlPayload } from './sessions-cli-control-payload'
 import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
@@ -62,7 +63,7 @@ function listPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         // Like search, list leaves archived Sessions out; --archived lists only those.
         archived: hasFlag(arguments_, 'archived'),
         ...catalogPathScope(arguments_, workingDirectory),
@@ -90,7 +91,7 @@ function searchPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : DEFAULT_SEARCH_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         ...catalogPathScope(arguments_, workingDirectory),
         ...(hasFlag(arguments_, 'include-archived') ? { includeArchived: true } : {}),
         ...(hasFlag(arguments_, 'full-transcript')
@@ -179,7 +180,7 @@ function detailsPayload(command: string, arguments_: ParsedArguments): LocalSess
           limit: option(arguments_, 'limit')
             ? positiveInteger(option(arguments_, 'limit'), '--limit')
             : SESSION_QUERY_DISCOVERY_LIMIT,
-          ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+          ...optionEntry(arguments_, 'cursor', 'cursor'),
         },
       },
     }

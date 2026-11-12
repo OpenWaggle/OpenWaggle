@@ -45,14 +45,15 @@ export const localUiResponseSchema = Schema.Struct({
   requestId: Schema.String,
   effect: Schema.Literal(...LOCAL_UI_EFFECTS),
   sessionId: Schema.String,
-  navigation: Schema.optional(
+  navigation: Schema.optionalWith(
     Schema.Struct({
       editorText: Schema.optionalWith(Schema.String, { exact: true }),
       cancelled: Schema.Boolean,
     }),
+    { exact: true },
   ),
   /** For a renewed Follow-up edit hold: its new expiry (Host clock). */
-  leaseExpiresAt: Schema.optional(Schema.Number),
+  leaseExpiresAt: Schema.optionalWith(Schema.Number, { exact: true }),
 })
 
 const sessionQueryOutcomeHeaderSchema = Schema.Struct({ operation: Schema.String })
@@ -70,7 +71,7 @@ const sessionQueryOutcomeSchema = Schema.declare(
 export const sessionQueryResponseSchema = Schema.Struct({
   contractVersion: Schema.Literal(SESSION_QUERY_CONTRACT_VERSION),
   requestId: Schema.String,
-  eventCursor: Schema.optional(sessionHostEventCursorSchema),
+  eventCursor: Schema.optionalWith(sessionHostEventCursorSchema, { exact: true }),
   outcome: sessionQueryOutcomeSchema,
 })
 
