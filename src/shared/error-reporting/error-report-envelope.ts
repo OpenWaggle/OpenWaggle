@@ -18,7 +18,7 @@ function isErrorEventItem(item: unknown, keepEvent: (event: unknown) => boolean)
   const itemHeaders = item[0]
   return (
     isRecord(itemHeaders) &&
-    itemHeaders['type'] === ERROR_REPORT_ENVELOPE_ITEM_TYPE &&
+    itemHeaders.type === ERROR_REPORT_ENVELOPE_ITEM_TYPE &&
     keepEvent(item[1])
   )
 }

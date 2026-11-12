@@ -8,6 +8,6 @@ export function sessionExportMarkdownHeading(record: {
   readonly role?: unknown
   readonly metadata?: unknown
 }) {
-  if (isRecord(record.metadata) && record.metadata['hiveWake'] === true) return 'hive'
+  if (isRecord(record.metadata) && record.metadata.hiveWake === true) return 'hive'
   return typeof record.role === 'string' ? record.role : 'event'
 }

@@ -75,9 +75,9 @@ export function createProjectActionTerminalEnvironment(input: {
       environment[name] = value
     }
   }
-  environment['OPENWAGGLE_PROJECT_ROOT'] = input.projectRoot
+  environment.OPENWAGGLE_PROJECT_ROOT = input.projectRoot
   if (input.worktreePath !== undefined) {
-    environment['OPENWAGGLE_WORKTREE_PATH'] = input.worktreePath
+    environment.OPENWAGGLE_WORKTREE_PATH = input.worktreePath
   }
   return normalizeTerminalEnvironment(environment)
 }

@@ -21,7 +21,7 @@ export function isAgentLoopAuditNode(node: {
   try {
     const content = parseJsonUnknown(node.contentJson)
     return (
-      isRecord(content) && content['customType'] === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+      isRecord(content) && content.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
     )
   } catch {
     return false

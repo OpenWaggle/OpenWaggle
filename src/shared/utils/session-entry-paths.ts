@@ -71,7 +71,7 @@ function compactionFirstKeptEntryId<TEntry>(
   if (accessors.getKind(entry) !== COMPACTION_KIND) return null
   const content = parseJsonUnknown(accessors.getContentJson(entry))
   if (!isRecord(content)) return null
-  const firstKeptEntryId = content['firstKeptEntryId']
+  const firstKeptEntryId = content.firstKeptEntryId
   return typeof firstKeptEntryId === 'string' && firstKeptEntryId.trim().length > 0
     ? firstKeptEntryId
     : null
