@@ -1,4 +1,5 @@
-import type { SessionHostErrorKind } from '../domain/session-host-refusals'
+import type { SchemaType } from '@shared/schema'
+import type { scheduledTasksRejectedOutcomeSchema } from '@shared/schemas/scheduled-task-records'
 
 export const SCHEDULED_TASK_REJECTION_CODES = [
   'task_not_found',
@@ -22,11 +23,4 @@ export const SCHEDULED_TASK_REJECTION_CODES = [
 ] as const
 export type ScheduledTaskRejectionCode = (typeof SCHEDULED_TASK_REJECTION_CODES)[number]
 
-/** A Scheduled task operation the Session Host refused. */
-export interface ScheduledTasksRejectedOutcome {
-  readonly effect: 'rejected'
-  readonly code: ScheduledTaskRejectionCode
-  /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
-  readonly kind: SessionHostErrorKind
-  readonly message: string
-}
+export type ScheduledTasksRejectedOutcome = SchemaType<typeof scheduledTasksRejectedOutcomeSchema>
