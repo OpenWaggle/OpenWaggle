@@ -74,30 +74,30 @@ function hasTypography(value: unknown) {
     }
   }
 
-  return hasTypeScale(value.typeScale)
+  return hasTypeScale(value['typeScale'])
 }
 
 function hasThemeTokenGroups(value: unknown) {
   return (
     hasExactKeys(value, THEME_TOKEN_GROUP_KEYS) &&
     isRecord(value) &&
-    hasExactStringKeys(value.color, EXTENSION_THEME_COLOR_KEYS) &&
-    hasTypography(value.typography) &&
-    hasExactStringKeys(value.spacing, EXTENSION_THEME_SPACING_KEYS) &&
-    hasExactStringKeys(value.radius, EXTENSION_THEME_RADIUS_KEYS) &&
-    hasExactStringKeys(value.shadow, EXTENSION_THEME_SHADOW_KEYS) &&
-    hasExactStringKeys(value.focus, EXTENSION_THEME_FOCUS_KEYS)
+    hasExactStringKeys(value['color'], EXTENSION_THEME_COLOR_KEYS) &&
+    hasTypography(value['typography']) &&
+    hasExactStringKeys(value['spacing'], EXTENSION_THEME_SPACING_KEYS) &&
+    hasExactStringKeys(value['radius'], EXTENSION_THEME_RADIUS_KEYS) &&
+    hasExactStringKeys(value['shadow'], EXTENSION_THEME_SHADOW_KEYS) &&
+    hasExactStringKeys(value['focus'], EXTENSION_THEME_FOCUS_KEYS)
   )
 }
 
 export function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme {
   return (
     isRecord(value) &&
-    (value.colorScheme === 'dark' ||
-      value.colorScheme === 'light' ||
-      value.colorScheme === 'high-contrast-dark' ||
-      value.colorScheme === 'high-contrast-light') &&
-    hasThemeTokenGroups(value.tokens) &&
-    hasThemeTokenGroups(value.cssVariables)
+    (value['colorScheme'] === 'dark' ||
+      value['colorScheme'] === 'light' ||
+      value['colorScheme'] === 'high-contrast-dark' ||
+      value['colorScheme'] === 'high-contrast-light') &&
+    hasThemeTokenGroups(value['tokens']) &&
+    hasThemeTokenGroups(value['cssVariables'])
   )
 }
