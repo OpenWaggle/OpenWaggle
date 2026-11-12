@@ -10,15 +10,20 @@ Types: `dist/index.d.ts`
 
 ```ts
 export * from './agent-loop.js';
+export * from './broker-schemas-core.js';
+export * from './broker-schemas-openwaggle.js';
+export * from './broker-schemas-resources.js';
+export * from './broker-schemas-result.js';
+export * from './broker-schemas-storage.js';
 export type * from './broker.js';
-export { createExtensionBrokerSdk, createExtensionBrokerSdkFromInvoke, extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeFailureSchema, extensionInvokeInputSchema, extensionInvokeResultSchema, extensionInvokeScopeSchema, extensionInvokeSuccessSchema, toInvokeInput, } from './broker.js';
+export { createExtensionBrokerSdk, createExtensionBrokerSdkFromInvoke, toInvokeInput, } from './broker.js';
 export { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
 export type * from './context.js';
 export { createNoopExtensionSurfaceSdk, createOpenWaggleExtensionSharedModules, createOpenWaggleExtensionSurfaceContext, } from './context.js';
 export * from './docs.js';
 export { type JsonArray, type JsonObject, type JsonPrimitive, type JsonValue, jsonPrimitiveSchema, jsonValueSchema, } from './json.js';
 export * from './manifest.js';
-export { createRuntimeContributionSdk, extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema, } from './runtime.js';
+export { createRuntimeContributionSdk } from './runtime.js';
 export * from './syntax.js';
 export type * from './theme.js';
 export { createOpenWaggleExtensionTheme, extensionThemeCssVariableEntries, isOpenWaggleExtensionTheme, OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES, } from './theme.js';
@@ -174,14 +179,30 @@ export declare const jsonPrimitiveSchema: Schema.Union<[typeof Schema.String, ty
 export declare const jsonValueSchema: Schema.Schema<JsonValue>;
 ```
 
-### Declarations from `dist/broker.d.ts`
+### Declarations from `dist/broker-schemas-core.d.ts`
 
 ```ts
 import * as Schema from 'effect/Schema';
-import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTransport, ExtensionSdkIdentity, ExtensionSdkInvoke, ExtensionSdkInvokeRequest } from './sdk-types.js';
-import type { ExtensionInvokeInput } from './types.js';
-export type * from './core-types.js';
-export type * from './sdk-types.js';
+/** A string with at least one character that is not whitespace. */
+export declare const nonEmptyStringSchema: Schema.filter<typeof Schema.String>;
+export declare const extensionInvokeAppScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>;
+export declare const extensionInvokeProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeSessionScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeBranchScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>;
 export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
     kind: Schema.Literal<["app"]>;
 }>, Schema.Struct<{
@@ -197,30 +218,6 @@ export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
     sessionId: Schema.filter<typeof Schema.String>;
     branchId: Schema.filter<typeof Schema.String>;
 }>]>;
-export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-    method: Schema.filter<Schema.filter<typeof Schema.String>>;
-    scope: Schema.Union<[Schema.Struct<{
-        kind: Schema.Literal<["app"]>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["project"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["session"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["branch"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-        branchId: Schema.filter<typeof Schema.String>;
-    }>]>;
-    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-    timestamp: typeof Schema.Number;
-    failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-}>;
 export declare const extensionInvokeInputSchema: Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -243,14 +240,1635 @@ export declare const extensionInvokeInputSchema: Schema.Struct<{
     }>]>;
     payload: Schema.optional<typeof Schema.Unknown>;
 }>;
+export declare const extensionInvocationBindingSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionInvokeFailureCodeSchema: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+export declare const extensionInvokeOutcomeSchema: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+export declare const extensionBrokerMethodSchema: Schema.SchemaClass<"delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", "delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", never>;
+export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+    timestamp: typeof Schema.Number;
+    failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+        exact: true;
+    }>;
+}>;
 export declare const extensionInvokeErrorSchema: Schema.Struct<{
     code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
     message: Schema.filter<typeof Schema.String>;
-    issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
+    issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+        exact: true;
+    }>;
 }>;
+export declare const extensionHostContextResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-openwaggle.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionModelPrefsSchema: Schema.Struct<{
+    selectedModel: typeof Schema.String;
+    favoriteModels: Schema.Array$<typeof Schema.String>;
+    enabledModels: Schema.Array$<typeof Schema.String>;
+    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+}>;
+export declare const extensionProjectViewSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+    displayName: Schema.NullOr<typeof Schema.String>;
+    active: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionViewSchema: Schema.Struct<{
+    sessionId: Schema.filter<typeof Schema.String>;
+    title: typeof Schema.String;
+    projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionBranchViewSchema: Schema.Struct<{
+    branchId: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    name: typeof Schema.String;
+    main: typeof Schema.Boolean;
+    archived: typeof Schema.Boolean;
+}>;
+export declare const extensionStateSelectorSchema: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+export declare const extensionStateReadPayloadSchema: Schema.Struct<{
+    selector: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+}>;
+export declare const extensionStateReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentSessionReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentBranchReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>;
+export declare const extensionStateRecentProjectsReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>;
+export declare const extensionStateModelPreferencesReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>;
+export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>;
+export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionActionSelectProjectResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSettingsViewSchema: Schema.Struct<{
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+    projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+}>;
+export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+}>;
+export declare const extensionSettingsGetModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>;
+export declare const extensionSettingsGetProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionSettingsGetPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    projectDisplayNames: Schema.optional<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>>;
+}>;
+export declare const extensionSettingsGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-resources.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceRoleSchema: Schema.Literal<["source", "output"]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "link"]>;
+    role: Schema.Literal<["source", "output"]>;
+    locator: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcesListPayloadSchema: Schema.Struct<{
+    cursor: Schema.optional<Schema.NullOr<Schema.filter<typeof Schema.String>>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    isSource: typeof Schema.Boolean;
+    isOutput: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionResourcesListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-result.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["discover-docs"]>;
+    docs: Schema.Struct<{
+        generatedAt: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        firstPartyTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+        extensionTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<typeof Schema.String>;
+            localTopic: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            path: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            provenance: Schema.Struct<{
+                extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                scope: Schema.Struct<{
+                    kind: Schema.Literal<["global", "project"]>;
+                    label: Schema.filter<typeof Schema.String>;
+                    projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>;
+                packagePath: Schema.filter<typeof Schema.String>;
+                manifestPath: Schema.filter<typeof Schema.String>;
+                path: Schema.filter<typeof Schema.String>;
+                packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+            }>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+        diagnostics: Schema.Array$<Schema.Struct<{
+            severity: Schema.Literal<["warning", "error"]>;
+            code: Schema.filter<typeof Schema.String>;
+            message: Schema.filter<typeof Schema.String>;
+            path: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["resolve-docs-topic"]>;
+    resolvedTopic: Schema.NullOr<Schema.Struct<{
+        topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+        source: Schema.Literal<["openwaggle", "pi"]>;
+        group: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        section: Schema.optional<Schema.filter<typeof Schema.String>>;
+        order: typeof Schema.Number;
+        path: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        sourcePath: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.filter<typeof Schema.String>;
+    }>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>]>;
 export declare const extensionInvokeSuccessSchema: Schema.Struct<{
     ok: Schema.Literal<[true]>;
-    value: typeof Schema.Unknown;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
     audit: Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -273,7 +1891,9 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
         }>]>;
         outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
     }>;
 }>;
 export declare const extensionInvokeFailureSchema: Schema.Struct<{
@@ -281,9 +1901,11 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
     error: Schema.Struct<{
         code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
-        issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
     }>;
-    audit: Schema.optional<Schema.Struct<{
+    audit: Schema.optionalWith<Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         capability: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -305,12 +1927,488 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
         }>]>;
         outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>>;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
     ok: Schema.Literal<[true]>;
-    value: typeof Schema.Unknown;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
     audit: Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -333,16 +2431,20 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
         }>]>;
         outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
     }>;
 }>, Schema.Struct<{
     ok: Schema.Literal<[false]>;
     error: Schema.Struct<{
         code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
-        issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
     }>;
-    audit: Schema.optional<Schema.Struct<{
+    audit: Schema.optionalWith<Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         capability: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -364,9 +2466,263 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
         }>]>;
         outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>>;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
 }>]>;
+```
+
+### Declarations from `dist/broker-schemas-storage.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionStorageScopeSelectorSchema: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+export declare const extensionStorageKindSchema: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+export declare const extensionStorageGetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageSetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+}>;
+export declare const extensionStorageDeletePayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageListPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+}>;
+export declare const extensionStorageGlobalScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>;
+export declare const extensionStorageProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionStorageScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionStorageGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>;
+export declare const extensionStorageSetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionStorageDeleteResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>;
+export declare const extensionStorageListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionRuntimeRegisterContributionPayloadSchema: Schema.Union<[Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands"]>;
+    contribution: Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["routes"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>>;
+    }>;
+}>]>;
+export declare const extensionRuntimeUnregisterContributionPayloadSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeRegisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>;
+```
+
+### Declarations from `dist/broker.d.ts`
+
+```ts
+import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTransport, ExtensionSdkIdentity, ExtensionSdkInvoke, ExtensionSdkInvokeRequest } from './sdk-types.js';
+import type { ExtensionInvokeInput } from './types.js';
+export type * from './core-types.js';
+export type * from './sdk-types.js';
 export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
@@ -612,6 +2968,8 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+    /** The thinking levels a model preference names, as the app's settings define them. */
+    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -1756,7 +4114,10 @@ export declare const extensionSlotContributionFamilySchema: Schema.Literal<["set
 ### Declarations from `dist/core-types.d.ts`
 
 ```ts
+import type { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema } from './broker-schemas-core.js';
+import type { extensionInvokeFailureSchema, extensionInvokeSuccessSchema, extensionInvokeSuccessValueSchema } from './broker-schemas-result.js';
 import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { SchemaType } from './schema.js';
 type ConstantValue<TObject> = TObject[keyof TObject];
 export type ExtensionBrokerCapability = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY>;
 export type ExtensionBrokerMethod = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.METHOD>;
@@ -1764,54 +4125,20 @@ export type ExtensionInvokeFailureCode = ConstantValue<typeof OPENWAGGLE_EXTENSI
 export type ExtensionInvokeOutcome = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.OUTCOME>;
 export type ExtensionStateSelector = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR>;
 export type ExtensionSettingsKey = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY>;
-export type ExtensionInvokeScope = {
-    readonly kind: 'app';
-} | {
-    readonly kind: 'project';
-    readonly projectPath: string;
-} | {
-    readonly kind: 'session';
-    readonly projectPath: string;
-    readonly sessionId: string;
-} | {
-    readonly kind: 'branch';
-    readonly projectPath: string;
-    readonly sessionId: string;
-    readonly branchId: string;
-};
-export interface ExtensionCapabilityAuditEntry {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly outcome: ExtensionInvokeOutcome;
-    readonly timestamp: number;
-    readonly failureCode?: ExtensionInvokeFailureCode;
-}
-export interface ExtensionInvokeInput {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly payload?: unknown;
-}
-export interface ExtensionInvokeError {
-    readonly code: ExtensionInvokeFailureCode;
-    readonly message: string;
-    readonly issues?: readonly string[];
-}
-export interface ExtensionInvokeSuccess<TValue = unknown> {
-    readonly ok: true;
+export type ExtensionInvokeScope = SchemaType<typeof extensionInvokeScopeSchema>;
+export type ExtensionCapabilityAuditEntry = SchemaType<typeof extensionCapabilityAuditEntrySchema>;
+export type ExtensionInvokeInput = SchemaType<typeof extensionInvokeInputSchema>;
+export type ExtensionInvokeError = SchemaType<typeof extensionInvokeErrorSchema>;
+export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>;
+/** Every result value the broker returns, one per capability method. */
+export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>;
+/**
+ * A broker success whose value one operation's decoder has narrowed. It is the decoded success
+ * (`extensionInvokeSuccessSchema`) with `value` replaced; the default is a value not decoded yet.
+ */
+export type ExtensionInvokeSuccess<TValue = unknown> = Omit<SchemaType<typeof extensionInvokeSuccessSchema>, 'value'> & {
     readonly value: TValue;
-    readonly audit: ExtensionCapabilityAuditEntry;
-}
-export interface ExtensionInvokeFailure {
-    readonly ok: false;
-    readonly error: ExtensionInvokeError;
-    readonly audit?: ExtensionCapabilityAuditEntry;
-}
+};
 export type ExtensionInvokeResult<TValue = unknown> = ExtensionInvokeSuccess<TValue> | ExtensionInvokeFailure;
 export {};
 ```
@@ -1819,158 +4146,36 @@ export {};
 ### Declarations from `dist/openwaggle-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
+import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
+import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
-export interface ExtensionModelPrefs {
-    readonly selectedModel: string;
-    readonly favoriteModels: readonly string[];
-    readonly enabledModels: readonly string[];
-    readonly thinkingLevel: string;
-}
-export interface ExtensionProjectView {
-    readonly projectPath: string;
-    readonly displayName: string | null;
-    readonly active: boolean;
-}
-export interface ExtensionSessionView {
-    readonly sessionId: string;
-    readonly title: string;
-    readonly projectPath: string | null;
-}
-export interface ExtensionBranchView {
-    readonly branchId: string;
-    readonly sessionId: string;
-    readonly name: string;
-    readonly main: boolean;
-    readonly archived: boolean;
-}
-export interface ExtensionStateReadResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly activeProjectPath: string | null;
-    readonly currentProject: ExtensionProjectView | null;
-    readonly currentSession: ExtensionSessionView | null;
-    readonly currentBranch: ExtensionBranchView | null;
-    readonly recentProjects: readonly string[];
-    readonly modelPreferences: ExtensionModelPrefs;
-}
-export interface ExtensionSelectedStateReadResult<TValue> {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly selector: ExtensionStateSelector;
-    readonly value: TValue;
-}
-export type ExtensionStateCurrentProjectReadResult = ExtensionSelectedStateReadResult<ExtensionProjectView | null>;
-export type ExtensionStateCurrentSessionReadResult = ExtensionSelectedStateReadResult<ExtensionSessionView | null>;
-export type ExtensionStateCurrentBranchReadResult = ExtensionSelectedStateReadResult<ExtensionBranchView | null>;
-export type ExtensionStateRecentProjectsReadResult = ExtensionSelectedStateReadResult<readonly string[]>;
-export type ExtensionStateModelPreferencesReadResult = ExtensionSelectedStateReadResult<ExtensionModelPrefs>;
-export interface ExtensionActionSelectProjectResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT;
-    readonly previousProjectPath: string | null;
-    readonly projectPath: string;
-    readonly recentProjects: readonly string[];
-}
-export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
-export type ExtensionSessionResourceRole = 'source' | 'output';
-export interface ExtensionSessionResourceView {
-    readonly id: string;
-    readonly title: string;
-    readonly kind: ExtensionSessionResourceKind;
-    readonly mimeType: string | null;
-    readonly available: boolean;
-    readonly isSource: boolean;
-    readonly isOutput: boolean;
-}
-export interface ExtensionSessionResourcePublishPayload {
-    readonly key: string;
-    readonly title: string;
-    readonly kind: 'image' | 'link';
-    readonly role: ExtensionSessionResourceRole;
-    /** A credential-free HTTPS locator is required and retained only by the host. */
-    readonly locator: string;
-}
-export interface ExtensionSessionResourcesListPayload {
-    readonly cursor?: string | null;
-    readonly limit?: number;
-}
-export interface ExtensionSessionResourcesListResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
-    readonly sessionId: string;
-    readonly resources: readonly ExtensionSessionResourceView[];
-    readonly total: number;
-    readonly nextCursor: string | null;
-}
-export interface ExtensionSessionResourcePublishResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
-    readonly sessionId: string;
-    readonly resource: ExtensionSessionResourceView;
-}
-export interface ExtensionSettingsView {
-    readonly modelPreferences: ExtensionModelPrefs;
-    readonly projectDisplayNames: Readonly<Record<string, string>>;
-}
-export interface ExtensionModelPreferencesSettingsPatch {
-    readonly selectedModel?: string;
-    readonly favoriteModels?: readonly string[];
-    readonly enabledModels?: readonly string[];
-    readonly thinkingLevel?: string;
-}
-export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {
-    readonly projectDisplayNames?: Readonly<Record<string, string>>;
-};
-export interface ExtensionSettingsGetResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export interface ExtensionSettingsUpdateResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export type ExtensionSettingsSelectedValue = {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES;
-    readonly value: ExtensionModelPrefs;
-} | {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME;
-    readonly projectPath: string;
-    readonly value: string | null;
-};
-export interface ExtensionSettingsGetSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
-export interface ExtensionSettingsUpdateSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
+export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
+export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>;
+export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
+export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
+export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
+export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
+export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
+export type ExtensionStateRecentProjectsReadResult = SchemaType<typeof extensionStateRecentProjectsReadResultSchema>;
+export type ExtensionStateModelPreferencesReadResult = SchemaType<typeof extensionStateModelPreferencesReadResultSchema>;
+export type ExtensionActionSelectProjectResult = SchemaType<typeof extensionActionSelectProjectResultSchema>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceRole = SchemaType<typeof extensionSessionResourceRoleSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourcesListPayload = SchemaType<typeof extensionSessionResourcesListPayloadSchema>;
+export type ExtensionSessionResourcesListResult = SchemaType<typeof extensionSessionResourcesListResultSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSettingsView = SchemaType<typeof extensionSettingsViewSchema>;
+export type ExtensionModelPreferencesSettingsPatch = SchemaType<typeof extensionModelPreferencesSettingsPatchSchema>;
+export type ExtensionSettingsUpdatePayload = SchemaType<typeof extensionSettingsUpdatePayloadSchema>;
+export type ExtensionSettingsGetResult = SchemaType<typeof extensionSettingsGetResultSchema>;
+export type ExtensionSettingsUpdateResult = SchemaType<typeof extensionSettingsUpdateResultSchema>;
+export type ExtensionSettingsSelectedValue = SchemaType<typeof extensionSettingsSelectedValueSchema>;
+export type ExtensionSettingsGetSettingResult = SchemaType<typeof extensionSettingsGetSettingResultSchema>;
+export type ExtensionSettingsUpdateSettingResult = SchemaType<typeof extensionSettingsUpdateSettingResultSchema>;
 ```
 
 ### Declarations from `dist/docs.d.ts`
@@ -2280,70 +4485,26 @@ export interface ExtensionContributionRegistryEntry {
 ### Declarations from `dist/runtime-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionContributionFamily } from './contribution-types.js';
-export interface ExtensionRuntimeRegisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly registeredContributionId: string;
-}
-export interface ExtensionRuntimeUnregisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly unregisteredContributionId: string;
-    readonly unregistered: boolean;
-}
+import type { extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionRuntimeRegisterContributionResult = SchemaType<typeof extensionRuntimeRegisterContributionResultSchema>;
+export type ExtensionRuntimeUnregisterContributionResult = SchemaType<typeof extensionRuntimeUnregisterContributionResultSchema>;
 ```
 
 ### Declarations from `dist/storage-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { JsonValue } from './json.js';
-type ConstantValue<TObject> = TObject[keyof TObject];
-export type ExtensionStorageKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.STORAGE.KIND>;
-export type ExtensionStorageScopeSelector = (typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE_KINDS)[number];
-export type ExtensionStorageScope = {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND;
-} | {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND;
-    readonly projectPath: string;
-};
-export interface ExtensionStorageResultBase {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE;
-    readonly storageKind: ExtensionStorageKind;
-    readonly storageScope: ExtensionStorageScope;
-}
-export interface ExtensionStorageGetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET;
-    readonly key: string;
-    readonly value: JsonValue | null;
-}
-export interface ExtensionStorageSetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SET;
-    readonly key: string;
-    readonly value: JsonValue;
-    readonly createdAt: number;
-    readonly updatedAt: number;
-}
-export interface ExtensionStorageDeleteResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE;
-    readonly key: string;
-    readonly deleted: true;
-}
-export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST;
-    readonly keys: readonly string[];
-}
-export {};
+import type { extensionStorageDeleteResultSchema, extensionStorageGetResultSchema, extensionStorageKindSchema, extensionStorageListResultSchema, extensionStorageScopeSchema, extensionStorageScopeSelectorSchema, extensionStorageSetResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionStorageKind = SchemaType<typeof extensionStorageKindSchema>;
+export type ExtensionStorageScopeSelector = SchemaType<typeof extensionStorageScopeSelectorSchema>;
+export type ExtensionStorageScope = SchemaType<typeof extensionStorageScopeSchema>;
+export type ExtensionStorageGetResult = SchemaType<typeof extensionStorageGetResultSchema>;
+export type ExtensionStorageSetResult = SchemaType<typeof extensionStorageSetResultSchema>;
+export type ExtensionStorageDeleteResult = SchemaType<typeof extensionStorageDeleteResultSchema>;
+export type ExtensionStorageListResult = SchemaType<typeof extensionStorageListResultSchema>;
+/** The fields every storage result carries. */
+export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extensionId' | 'contributionId' | 'capability' | 'storageKind' | 'storageScope'>;
 ```
 
 ### Declarations from `dist/context.d.ts`
@@ -2885,28 +5046,11 @@ export declare function createOpenWaggleExtensionUiStylesheet(options?: CreateOp
 ### Declarations from `dist/runtime.d.ts`
 
 ```ts
-import * as Schema from 'effect/Schema';
 export type { ExtensionContributionRegistration, ExtensionContributionUnregistration, } from './manifest.js';
 export { extensionContributionRegistrationSchema, extensionContributionUnregistrationSchema, } from './manifest.js';
 export { createRuntimeContributionSdk } from './runtime-sdk.js';
 export type * from './runtime-types.js';
-export declare const extensionRuntimeRegisterContributionResultSchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.Literal<["openwaggle.runtime"]>;
-    method: Schema.Literal<["register-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
-    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-}>;
-export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.Literal<["openwaggle.runtime"]>;
-    method: Schema.Literal<["unregister-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
-    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    unregistered: typeof Schema.Boolean;
-}>;
+export { extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema, } from './broker-schemas-storage.js';
 ```
 
 ### Declarations from `dist/runtime-sdk.d.ts`
@@ -3074,196 +5218,10 @@ Types: `dist/broker.d.ts`
 ### Declarations from `dist/broker.d.ts`
 
 ```ts
-import * as Schema from 'effect/Schema';
 import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTransport, ExtensionSdkIdentity, ExtensionSdkInvoke, ExtensionSdkInvokeRequest } from './sdk-types.js';
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
-export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
-    kind: Schema.Literal<["app"]>;
-}>, Schema.Struct<{
-    kind: Schema.Literal<["project"]>;
-    projectPath: Schema.filter<typeof Schema.String>;
-}>, Schema.Struct<{
-    kind: Schema.Literal<["session"]>;
-    projectPath: Schema.filter<typeof Schema.String>;
-    sessionId: Schema.filter<typeof Schema.String>;
-}>, Schema.Struct<{
-    kind: Schema.Literal<["branch"]>;
-    projectPath: Schema.filter<typeof Schema.String>;
-    sessionId: Schema.filter<typeof Schema.String>;
-    branchId: Schema.filter<typeof Schema.String>;
-}>]>;
-export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-    method: Schema.filter<Schema.filter<typeof Schema.String>>;
-    scope: Schema.Union<[Schema.Struct<{
-        kind: Schema.Literal<["app"]>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["project"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["session"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["branch"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-        branchId: Schema.filter<typeof Schema.String>;
-    }>]>;
-    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-    timestamp: typeof Schema.Number;
-    failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-}>;
-export declare const extensionInvokeInputSchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-    method: Schema.filter<Schema.filter<typeof Schema.String>>;
-    scope: Schema.Union<[Schema.Struct<{
-        kind: Schema.Literal<["app"]>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["project"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["session"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["branch"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-        branchId: Schema.filter<typeof Schema.String>;
-    }>]>;
-    payload: Schema.optional<typeof Schema.Unknown>;
-}>;
-export declare const extensionInvokeErrorSchema: Schema.Struct<{
-    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
-    message: Schema.filter<typeof Schema.String>;
-    issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
-}>;
-export declare const extensionInvokeSuccessSchema: Schema.Struct<{
-    ok: Schema.Literal<[true]>;
-    value: typeof Schema.Unknown;
-    audit: Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>;
-}>;
-export declare const extensionInvokeFailureSchema: Schema.Struct<{
-    ok: Schema.Literal<[false]>;
-    error: Schema.Struct<{
-        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
-        message: Schema.filter<typeof Schema.String>;
-        issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
-    }>;
-    audit: Schema.optional<Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>>;
-}>;
-export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
-    ok: Schema.Literal<[true]>;
-    value: typeof Schema.Unknown;
-    audit: Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>;
-}>, Schema.Struct<{
-    ok: Schema.Literal<[false]>;
-    error: Schema.Struct<{
-        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
-        message: Schema.filter<typeof Schema.String>;
-        issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
-    }>;
-    audit: Schema.optional<Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>>;
-}>]>;
 export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
@@ -3523,6 +5481,8 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+    /** The thinking levels a model preference names, as the app's settings define them. */
+    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -4667,7 +6627,10 @@ export declare const extensionSlotContributionFamilySchema: Schema.Literal<["set
 ### Declarations from `dist/core-types.d.ts`
 
 ```ts
+import type { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema } from './broker-schemas-core.js';
+import type { extensionInvokeFailureSchema, extensionInvokeSuccessSchema, extensionInvokeSuccessValueSchema } from './broker-schemas-result.js';
 import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { SchemaType } from './schema.js';
 type ConstantValue<TObject> = TObject[keyof TObject];
 export type ExtensionBrokerCapability = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY>;
 export type ExtensionBrokerMethod = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.METHOD>;
@@ -4675,213 +6638,2353 @@ export type ExtensionInvokeFailureCode = ConstantValue<typeof OPENWAGGLE_EXTENSI
 export type ExtensionInvokeOutcome = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.OUTCOME>;
 export type ExtensionStateSelector = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR>;
 export type ExtensionSettingsKey = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY>;
-export type ExtensionInvokeScope = {
-    readonly kind: 'app';
-} | {
-    readonly kind: 'project';
-    readonly projectPath: string;
-} | {
-    readonly kind: 'session';
-    readonly projectPath: string;
-    readonly sessionId: string;
-} | {
-    readonly kind: 'branch';
-    readonly projectPath: string;
-    readonly sessionId: string;
-    readonly branchId: string;
-};
-export interface ExtensionCapabilityAuditEntry {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly outcome: ExtensionInvokeOutcome;
-    readonly timestamp: number;
-    readonly failureCode?: ExtensionInvokeFailureCode;
-}
-export interface ExtensionInvokeInput {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly payload?: unknown;
-}
-export interface ExtensionInvokeError {
-    readonly code: ExtensionInvokeFailureCode;
-    readonly message: string;
-    readonly issues?: readonly string[];
-}
-export interface ExtensionInvokeSuccess<TValue = unknown> {
-    readonly ok: true;
+export type ExtensionInvokeScope = SchemaType<typeof extensionInvokeScopeSchema>;
+export type ExtensionCapabilityAuditEntry = SchemaType<typeof extensionCapabilityAuditEntrySchema>;
+export type ExtensionInvokeInput = SchemaType<typeof extensionInvokeInputSchema>;
+export type ExtensionInvokeError = SchemaType<typeof extensionInvokeErrorSchema>;
+export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>;
+/** Every result value the broker returns, one per capability method. */
+export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>;
+/**
+ * A broker success whose value one operation's decoder has narrowed. It is the decoded success
+ * (`extensionInvokeSuccessSchema`) with `value` replaced; the default is a value not decoded yet.
+ */
+export type ExtensionInvokeSuccess<TValue = unknown> = Omit<SchemaType<typeof extensionInvokeSuccessSchema>, 'value'> & {
     readonly value: TValue;
-    readonly audit: ExtensionCapabilityAuditEntry;
-}
-export interface ExtensionInvokeFailure {
-    readonly ok: false;
-    readonly error: ExtensionInvokeError;
-    readonly audit?: ExtensionCapabilityAuditEntry;
-}
+};
 export type ExtensionInvokeResult<TValue = unknown> = ExtensionInvokeSuccess<TValue> | ExtensionInvokeFailure;
 export {};
+```
+
+### Declarations from `dist/broker-schemas-core.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+/** A string with at least one character that is not whitespace. */
+export declare const nonEmptyStringSchema: Schema.filter<typeof Schema.String>;
+export declare const extensionInvokeAppScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>;
+export declare const extensionInvokeProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeSessionScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeBranchScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionInvokeInputSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    payload: Schema.optional<typeof Schema.Unknown>;
+}>;
+export declare const extensionInvocationBindingSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionInvokeFailureCodeSchema: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+export declare const extensionInvokeOutcomeSchema: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+export declare const extensionBrokerMethodSchema: Schema.SchemaClass<"delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", "delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", never>;
+export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+    timestamp: typeof Schema.Number;
+    failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeErrorSchema: Schema.Struct<{
+    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+    message: Schema.filter<typeof Schema.String>;
+    issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionHostContextResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-result.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["discover-docs"]>;
+    docs: Schema.Struct<{
+        generatedAt: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        firstPartyTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+        extensionTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<typeof Schema.String>;
+            localTopic: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            path: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            provenance: Schema.Struct<{
+                extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                scope: Schema.Struct<{
+                    kind: Schema.Literal<["global", "project"]>;
+                    label: Schema.filter<typeof Schema.String>;
+                    projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>;
+                packagePath: Schema.filter<typeof Schema.String>;
+                manifestPath: Schema.filter<typeof Schema.String>;
+                path: Schema.filter<typeof Schema.String>;
+                packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+            }>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+        diagnostics: Schema.Array$<Schema.Struct<{
+            severity: Schema.Literal<["warning", "error"]>;
+            code: Schema.filter<typeof Schema.String>;
+            message: Schema.filter<typeof Schema.String>;
+            path: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["resolve-docs-topic"]>;
+    resolvedTopic: Schema.NullOr<Schema.Struct<{
+        topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+        source: Schema.Literal<["openwaggle", "pi"]>;
+        group: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        section: Schema.optional<Schema.filter<typeof Schema.String>>;
+        order: typeof Schema.Number;
+        path: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        sourcePath: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.filter<typeof Schema.String>;
+    }>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>]>;
+export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+export declare const extensionInvokeFailureSchema: Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
 ```
 
 ### Declarations from `dist/openwaggle-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
+import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
+import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
-export interface ExtensionModelPrefs {
-    readonly selectedModel: string;
-    readonly favoriteModels: readonly string[];
-    readonly enabledModels: readonly string[];
-    readonly thinkingLevel: string;
-}
-export interface ExtensionProjectView {
-    readonly projectPath: string;
-    readonly displayName: string | null;
-    readonly active: boolean;
-}
-export interface ExtensionSessionView {
-    readonly sessionId: string;
-    readonly title: string;
-    readonly projectPath: string | null;
-}
-export interface ExtensionBranchView {
-    readonly branchId: string;
-    readonly sessionId: string;
-    readonly name: string;
-    readonly main: boolean;
-    readonly archived: boolean;
-}
-export interface ExtensionStateReadResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly activeProjectPath: string | null;
-    readonly currentProject: ExtensionProjectView | null;
-    readonly currentSession: ExtensionSessionView | null;
-    readonly currentBranch: ExtensionBranchView | null;
-    readonly recentProjects: readonly string[];
-    readonly modelPreferences: ExtensionModelPrefs;
-}
-export interface ExtensionSelectedStateReadResult<TValue> {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly selector: ExtensionStateSelector;
-    readonly value: TValue;
-}
-export type ExtensionStateCurrentProjectReadResult = ExtensionSelectedStateReadResult<ExtensionProjectView | null>;
-export type ExtensionStateCurrentSessionReadResult = ExtensionSelectedStateReadResult<ExtensionSessionView | null>;
-export type ExtensionStateCurrentBranchReadResult = ExtensionSelectedStateReadResult<ExtensionBranchView | null>;
-export type ExtensionStateRecentProjectsReadResult = ExtensionSelectedStateReadResult<readonly string[]>;
-export type ExtensionStateModelPreferencesReadResult = ExtensionSelectedStateReadResult<ExtensionModelPrefs>;
-export interface ExtensionActionSelectProjectResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT;
-    readonly previousProjectPath: string | null;
-    readonly projectPath: string;
-    readonly recentProjects: readonly string[];
-}
-export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
-export type ExtensionSessionResourceRole = 'source' | 'output';
-export interface ExtensionSessionResourceView {
-    readonly id: string;
-    readonly title: string;
-    readonly kind: ExtensionSessionResourceKind;
-    readonly mimeType: string | null;
-    readonly available: boolean;
-    readonly isSource: boolean;
-    readonly isOutput: boolean;
-}
-export interface ExtensionSessionResourcePublishPayload {
-    readonly key: string;
-    readonly title: string;
-    readonly kind: 'image' | 'link';
-    readonly role: ExtensionSessionResourceRole;
-    /** A credential-free HTTPS locator is required and retained only by the host. */
-    readonly locator: string;
-}
-export interface ExtensionSessionResourcesListPayload {
-    readonly cursor?: string | null;
-    readonly limit?: number;
-}
-export interface ExtensionSessionResourcesListResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
-    readonly sessionId: string;
-    readonly resources: readonly ExtensionSessionResourceView[];
-    readonly total: number;
-    readonly nextCursor: string | null;
-}
-export interface ExtensionSessionResourcePublishResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
-    readonly sessionId: string;
-    readonly resource: ExtensionSessionResourceView;
-}
-export interface ExtensionSettingsView {
-    readonly modelPreferences: ExtensionModelPrefs;
-    readonly projectDisplayNames: Readonly<Record<string, string>>;
-}
-export interface ExtensionModelPreferencesSettingsPatch {
-    readonly selectedModel?: string;
-    readonly favoriteModels?: readonly string[];
-    readonly enabledModels?: readonly string[];
-    readonly thinkingLevel?: string;
-}
-export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {
-    readonly projectDisplayNames?: Readonly<Record<string, string>>;
-};
-export interface ExtensionSettingsGetResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export interface ExtensionSettingsUpdateResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export type ExtensionSettingsSelectedValue = {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES;
-    readonly value: ExtensionModelPrefs;
-} | {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME;
-    readonly projectPath: string;
-    readonly value: string | null;
-};
-export interface ExtensionSettingsGetSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
-export interface ExtensionSettingsUpdateSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
+export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
+export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>;
+export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
+export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
+export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
+export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
+export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
+export type ExtensionStateRecentProjectsReadResult = SchemaType<typeof extensionStateRecentProjectsReadResultSchema>;
+export type ExtensionStateModelPreferencesReadResult = SchemaType<typeof extensionStateModelPreferencesReadResultSchema>;
+export type ExtensionActionSelectProjectResult = SchemaType<typeof extensionActionSelectProjectResultSchema>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceRole = SchemaType<typeof extensionSessionResourceRoleSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourcesListPayload = SchemaType<typeof extensionSessionResourcesListPayloadSchema>;
+export type ExtensionSessionResourcesListResult = SchemaType<typeof extensionSessionResourcesListResultSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSettingsView = SchemaType<typeof extensionSettingsViewSchema>;
+export type ExtensionModelPreferencesSettingsPatch = SchemaType<typeof extensionModelPreferencesSettingsPatchSchema>;
+export type ExtensionSettingsUpdatePayload = SchemaType<typeof extensionSettingsUpdatePayloadSchema>;
+export type ExtensionSettingsGetResult = SchemaType<typeof extensionSettingsGetResultSchema>;
+export type ExtensionSettingsUpdateResult = SchemaType<typeof extensionSettingsUpdateResultSchema>;
+export type ExtensionSettingsSelectedValue = SchemaType<typeof extensionSettingsSelectedValueSchema>;
+export type ExtensionSettingsGetSettingResult = SchemaType<typeof extensionSettingsGetSettingResultSchema>;
+export type ExtensionSettingsUpdateSettingResult = SchemaType<typeof extensionSettingsUpdateSettingResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-openwaggle.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionModelPrefsSchema: Schema.Struct<{
+    selectedModel: typeof Schema.String;
+    favoriteModels: Schema.Array$<typeof Schema.String>;
+    enabledModels: Schema.Array$<typeof Schema.String>;
+    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+}>;
+export declare const extensionProjectViewSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+    displayName: Schema.NullOr<typeof Schema.String>;
+    active: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionViewSchema: Schema.Struct<{
+    sessionId: Schema.filter<typeof Schema.String>;
+    title: typeof Schema.String;
+    projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionBranchViewSchema: Schema.Struct<{
+    branchId: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    name: typeof Schema.String;
+    main: typeof Schema.Boolean;
+    archived: typeof Schema.Boolean;
+}>;
+export declare const extensionStateSelectorSchema: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+export declare const extensionStateReadPayloadSchema: Schema.Struct<{
+    selector: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+}>;
+export declare const extensionStateReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentSessionReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentBranchReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>;
+export declare const extensionStateRecentProjectsReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>;
+export declare const extensionStateModelPreferencesReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>;
+export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>;
+export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionActionSelectProjectResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSettingsViewSchema: Schema.Struct<{
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+    projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+}>;
+export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+}>;
+export declare const extensionSettingsGetModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>;
+export declare const extensionSettingsGetProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionSettingsGetPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    projectDisplayNames: Schema.optional<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>>;
+}>;
+export declare const extensionSettingsGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-resources.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceRoleSchema: Schema.Literal<["source", "output"]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "link"]>;
+    role: Schema.Literal<["source", "output"]>;
+    locator: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcesListPayloadSchema: Schema.Struct<{
+    cursor: Schema.optional<Schema.NullOr<Schema.filter<typeof Schema.String>>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    isSource: typeof Schema.Boolean;
+    isOutput: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionResourcesListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>;
 ```
 
 ### Declarations from `dist/docs.d.ts`
@@ -5191,70 +9294,267 @@ export interface ExtensionContributionRegistryEntry {
 ### Declarations from `dist/runtime-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionContributionFamily } from './contribution-types.js';
-export interface ExtensionRuntimeRegisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly registeredContributionId: string;
-}
-export interface ExtensionRuntimeUnregisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly unregisteredContributionId: string;
-    readonly unregistered: boolean;
-}
+import type { extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionRuntimeRegisterContributionResult = SchemaType<typeof extensionRuntimeRegisterContributionResultSchema>;
+export type ExtensionRuntimeUnregisterContributionResult = SchemaType<typeof extensionRuntimeUnregisterContributionResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-storage.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionStorageScopeSelectorSchema: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+export declare const extensionStorageKindSchema: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+export declare const extensionStorageGetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageSetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+}>;
+export declare const extensionStorageDeletePayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageListPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+}>;
+export declare const extensionStorageGlobalScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>;
+export declare const extensionStorageProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionStorageScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionStorageGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>;
+export declare const extensionStorageSetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionStorageDeleteResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>;
+export declare const extensionStorageListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionRuntimeRegisterContributionPayloadSchema: Schema.Union<[Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands"]>;
+    contribution: Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["routes"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>>;
+    }>;
+}>]>;
+export declare const extensionRuntimeUnregisterContributionPayloadSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeRegisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>;
 ```
 
 ### Declarations from `dist/storage-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { JsonValue } from './json.js';
-type ConstantValue<TObject> = TObject[keyof TObject];
-export type ExtensionStorageKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.STORAGE.KIND>;
-export type ExtensionStorageScopeSelector = (typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE_KINDS)[number];
-export type ExtensionStorageScope = {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND;
-} | {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND;
-    readonly projectPath: string;
-};
-export interface ExtensionStorageResultBase {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE;
-    readonly storageKind: ExtensionStorageKind;
-    readonly storageScope: ExtensionStorageScope;
-}
-export interface ExtensionStorageGetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET;
-    readonly key: string;
-    readonly value: JsonValue | null;
-}
-export interface ExtensionStorageSetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SET;
-    readonly key: string;
-    readonly value: JsonValue;
-    readonly createdAt: number;
-    readonly updatedAt: number;
-}
-export interface ExtensionStorageDeleteResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE;
-    readonly key: string;
-    readonly deleted: true;
-}
-export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST;
-    readonly keys: readonly string[];
-}
-export {};
+import type { extensionStorageDeleteResultSchema, extensionStorageGetResultSchema, extensionStorageKindSchema, extensionStorageListResultSchema, extensionStorageScopeSchema, extensionStorageScopeSelectorSchema, extensionStorageSetResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionStorageKind = SchemaType<typeof extensionStorageKindSchema>;
+export type ExtensionStorageScopeSelector = SchemaType<typeof extensionStorageScopeSelectorSchema>;
+export type ExtensionStorageScope = SchemaType<typeof extensionStorageScopeSchema>;
+export type ExtensionStorageGetResult = SchemaType<typeof extensionStorageGetResultSchema>;
+export type ExtensionStorageSetResult = SchemaType<typeof extensionStorageSetResultSchema>;
+export type ExtensionStorageDeleteResult = SchemaType<typeof extensionStorageDeleteResultSchema>;
+export type ExtensionStorageListResult = SchemaType<typeof extensionStorageListResultSchema>;
+/** The fields every storage result carries. */
+export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extensionId' | 'contributionId' | 'capability' | 'storageKind' | 'storageScope'>;
 ```
 
 ## Export `./constants`
@@ -5355,6 +9655,8 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+    /** The thinking levels a model preference names, as the app's settings define them. */
+    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -5538,196 +9840,10 @@ export declare function createOpenWaggleExtensionSurfaceContext(input: CreateOpe
 ### Declarations from `dist/broker.d.ts`
 
 ```ts
-import * as Schema from 'effect/Schema';
 import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTransport, ExtensionSdkIdentity, ExtensionSdkInvoke, ExtensionSdkInvokeRequest } from './sdk-types.js';
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
-export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
-    kind: Schema.Literal<["app"]>;
-}>, Schema.Struct<{
-    kind: Schema.Literal<["project"]>;
-    projectPath: Schema.filter<typeof Schema.String>;
-}>, Schema.Struct<{
-    kind: Schema.Literal<["session"]>;
-    projectPath: Schema.filter<typeof Schema.String>;
-    sessionId: Schema.filter<typeof Schema.String>;
-}>, Schema.Struct<{
-    kind: Schema.Literal<["branch"]>;
-    projectPath: Schema.filter<typeof Schema.String>;
-    sessionId: Schema.filter<typeof Schema.String>;
-    branchId: Schema.filter<typeof Schema.String>;
-}>]>;
-export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-    method: Schema.filter<Schema.filter<typeof Schema.String>>;
-    scope: Schema.Union<[Schema.Struct<{
-        kind: Schema.Literal<["app"]>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["project"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["session"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["branch"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-        branchId: Schema.filter<typeof Schema.String>;
-    }>]>;
-    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-    timestamp: typeof Schema.Number;
-    failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-}>;
-export declare const extensionInvokeInputSchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-    method: Schema.filter<Schema.filter<typeof Schema.String>>;
-    scope: Schema.Union<[Schema.Struct<{
-        kind: Schema.Literal<["app"]>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["project"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["session"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-    }>, Schema.Struct<{
-        kind: Schema.Literal<["branch"]>;
-        projectPath: Schema.filter<typeof Schema.String>;
-        sessionId: Schema.filter<typeof Schema.String>;
-        branchId: Schema.filter<typeof Schema.String>;
-    }>]>;
-    payload: Schema.optional<typeof Schema.Unknown>;
-}>;
-export declare const extensionInvokeErrorSchema: Schema.Struct<{
-    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
-    message: Schema.filter<typeof Schema.String>;
-    issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
-}>;
-export declare const extensionInvokeSuccessSchema: Schema.Struct<{
-    ok: Schema.Literal<[true]>;
-    value: typeof Schema.Unknown;
-    audit: Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>;
-}>;
-export declare const extensionInvokeFailureSchema: Schema.Struct<{
-    ok: Schema.Literal<[false]>;
-    error: Schema.Struct<{
-        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
-        message: Schema.filter<typeof Schema.String>;
-        issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
-    }>;
-    audit: Schema.optional<Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>>;
-}>;
-export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
-    ok: Schema.Literal<[true]>;
-    value: typeof Schema.Unknown;
-    audit: Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>;
-}>, Schema.Struct<{
-    ok: Schema.Literal<[false]>;
-    error: Schema.Struct<{
-        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
-        message: Schema.filter<typeof Schema.String>;
-        issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
-    }>;
-    audit: Schema.optional<Schema.Struct<{
-        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
-        method: Schema.filter<Schema.filter<typeof Schema.String>>;
-        scope: Schema.Union<[Schema.Struct<{
-            kind: Schema.Literal<["app"]>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["project"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["session"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-        }>, Schema.Struct<{
-            kind: Schema.Literal<["branch"]>;
-            projectPath: Schema.filter<typeof Schema.String>;
-            sessionId: Schema.filter<typeof Schema.String>;
-            branchId: Schema.filter<typeof Schema.String>;
-        }>]>;
-        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
-        timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
-    }>>;
-}>]>;
 export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
@@ -5987,6 +10103,8 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+    /** The thinking levels a model preference names, as the app's settings define them. */
+    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -7131,7 +11249,10 @@ export declare const extensionSlotContributionFamilySchema: Schema.Literal<["set
 ### Declarations from `dist/core-types.d.ts`
 
 ```ts
+import type { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema } from './broker-schemas-core.js';
+import type { extensionInvokeFailureSchema, extensionInvokeSuccessSchema, extensionInvokeSuccessValueSchema } from './broker-schemas-result.js';
 import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { SchemaType } from './schema.js';
 type ConstantValue<TObject> = TObject[keyof TObject];
 export type ExtensionBrokerCapability = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY>;
 export type ExtensionBrokerMethod = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.METHOD>;
@@ -7139,213 +11260,2353 @@ export type ExtensionInvokeFailureCode = ConstantValue<typeof OPENWAGGLE_EXTENSI
 export type ExtensionInvokeOutcome = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.OUTCOME>;
 export type ExtensionStateSelector = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR>;
 export type ExtensionSettingsKey = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY>;
-export type ExtensionInvokeScope = {
-    readonly kind: 'app';
-} | {
-    readonly kind: 'project';
-    readonly projectPath: string;
-} | {
-    readonly kind: 'session';
-    readonly projectPath: string;
-    readonly sessionId: string;
-} | {
-    readonly kind: 'branch';
-    readonly projectPath: string;
-    readonly sessionId: string;
-    readonly branchId: string;
-};
-export interface ExtensionCapabilityAuditEntry {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly outcome: ExtensionInvokeOutcome;
-    readonly timestamp: number;
-    readonly failureCode?: ExtensionInvokeFailureCode;
-}
-export interface ExtensionInvokeInput {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly payload?: unknown;
-}
-export interface ExtensionInvokeError {
-    readonly code: ExtensionInvokeFailureCode;
-    readonly message: string;
-    readonly issues?: readonly string[];
-}
-export interface ExtensionInvokeSuccess<TValue = unknown> {
-    readonly ok: true;
+export type ExtensionInvokeScope = SchemaType<typeof extensionInvokeScopeSchema>;
+export type ExtensionCapabilityAuditEntry = SchemaType<typeof extensionCapabilityAuditEntrySchema>;
+export type ExtensionInvokeInput = SchemaType<typeof extensionInvokeInputSchema>;
+export type ExtensionInvokeError = SchemaType<typeof extensionInvokeErrorSchema>;
+export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>;
+/** Every result value the broker returns, one per capability method. */
+export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>;
+/**
+ * A broker success whose value one operation's decoder has narrowed. It is the decoded success
+ * (`extensionInvokeSuccessSchema`) with `value` replaced; the default is a value not decoded yet.
+ */
+export type ExtensionInvokeSuccess<TValue = unknown> = Omit<SchemaType<typeof extensionInvokeSuccessSchema>, 'value'> & {
     readonly value: TValue;
-    readonly audit: ExtensionCapabilityAuditEntry;
-}
-export interface ExtensionInvokeFailure {
-    readonly ok: false;
-    readonly error: ExtensionInvokeError;
-    readonly audit?: ExtensionCapabilityAuditEntry;
-}
+};
 export type ExtensionInvokeResult<TValue = unknown> = ExtensionInvokeSuccess<TValue> | ExtensionInvokeFailure;
 export {};
+```
+
+### Declarations from `dist/broker-schemas-core.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+/** A string with at least one character that is not whitespace. */
+export declare const nonEmptyStringSchema: Schema.filter<typeof Schema.String>;
+export declare const extensionInvokeAppScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>;
+export declare const extensionInvokeProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeSessionScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeBranchScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionInvokeInputSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    payload: Schema.optional<typeof Schema.Unknown>;
+}>;
+export declare const extensionInvocationBindingSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionInvokeFailureCodeSchema: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+export declare const extensionInvokeOutcomeSchema: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+export declare const extensionBrokerMethodSchema: Schema.SchemaClass<"delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", "delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", never>;
+export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+    timestamp: typeof Schema.Number;
+    failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeErrorSchema: Schema.Struct<{
+    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+    message: Schema.filter<typeof Schema.String>;
+    issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionHostContextResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-result.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["discover-docs"]>;
+    docs: Schema.Struct<{
+        generatedAt: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        firstPartyTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+        extensionTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<typeof Schema.String>;
+            localTopic: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            path: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            provenance: Schema.Struct<{
+                extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                scope: Schema.Struct<{
+                    kind: Schema.Literal<["global", "project"]>;
+                    label: Schema.filter<typeof Schema.String>;
+                    projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>;
+                packagePath: Schema.filter<typeof Schema.String>;
+                manifestPath: Schema.filter<typeof Schema.String>;
+                path: Schema.filter<typeof Schema.String>;
+                packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+            }>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+        diagnostics: Schema.Array$<Schema.Struct<{
+            severity: Schema.Literal<["warning", "error"]>;
+            code: Schema.filter<typeof Schema.String>;
+            message: Schema.filter<typeof Schema.String>;
+            path: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["resolve-docs-topic"]>;
+    resolvedTopic: Schema.NullOr<Schema.Struct<{
+        topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+        source: Schema.Literal<["openwaggle", "pi"]>;
+        group: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        section: Schema.optional<Schema.filter<typeof Schema.String>>;
+        order: typeof Schema.Number;
+        path: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        sourcePath: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.filter<typeof Schema.String>;
+    }>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>]>;
+export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+export declare const extensionInvokeFailureSchema: Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
 ```
 
 ### Declarations from `dist/openwaggle-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
+import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
+import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
-export interface ExtensionModelPrefs {
-    readonly selectedModel: string;
-    readonly favoriteModels: readonly string[];
-    readonly enabledModels: readonly string[];
-    readonly thinkingLevel: string;
-}
-export interface ExtensionProjectView {
-    readonly projectPath: string;
-    readonly displayName: string | null;
-    readonly active: boolean;
-}
-export interface ExtensionSessionView {
-    readonly sessionId: string;
-    readonly title: string;
-    readonly projectPath: string | null;
-}
-export interface ExtensionBranchView {
-    readonly branchId: string;
-    readonly sessionId: string;
-    readonly name: string;
-    readonly main: boolean;
-    readonly archived: boolean;
-}
-export interface ExtensionStateReadResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly activeProjectPath: string | null;
-    readonly currentProject: ExtensionProjectView | null;
-    readonly currentSession: ExtensionSessionView | null;
-    readonly currentBranch: ExtensionBranchView | null;
-    readonly recentProjects: readonly string[];
-    readonly modelPreferences: ExtensionModelPrefs;
-}
-export interface ExtensionSelectedStateReadResult<TValue> {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly selector: ExtensionStateSelector;
-    readonly value: TValue;
-}
-export type ExtensionStateCurrentProjectReadResult = ExtensionSelectedStateReadResult<ExtensionProjectView | null>;
-export type ExtensionStateCurrentSessionReadResult = ExtensionSelectedStateReadResult<ExtensionSessionView | null>;
-export type ExtensionStateCurrentBranchReadResult = ExtensionSelectedStateReadResult<ExtensionBranchView | null>;
-export type ExtensionStateRecentProjectsReadResult = ExtensionSelectedStateReadResult<readonly string[]>;
-export type ExtensionStateModelPreferencesReadResult = ExtensionSelectedStateReadResult<ExtensionModelPrefs>;
-export interface ExtensionActionSelectProjectResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT;
-    readonly previousProjectPath: string | null;
-    readonly projectPath: string;
-    readonly recentProjects: readonly string[];
-}
-export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
-export type ExtensionSessionResourceRole = 'source' | 'output';
-export interface ExtensionSessionResourceView {
-    readonly id: string;
-    readonly title: string;
-    readonly kind: ExtensionSessionResourceKind;
-    readonly mimeType: string | null;
-    readonly available: boolean;
-    readonly isSource: boolean;
-    readonly isOutput: boolean;
-}
-export interface ExtensionSessionResourcePublishPayload {
-    readonly key: string;
-    readonly title: string;
-    readonly kind: 'image' | 'link';
-    readonly role: ExtensionSessionResourceRole;
-    /** A credential-free HTTPS locator is required and retained only by the host. */
-    readonly locator: string;
-}
-export interface ExtensionSessionResourcesListPayload {
-    readonly cursor?: string | null;
-    readonly limit?: number;
-}
-export interface ExtensionSessionResourcesListResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
-    readonly sessionId: string;
-    readonly resources: readonly ExtensionSessionResourceView[];
-    readonly total: number;
-    readonly nextCursor: string | null;
-}
-export interface ExtensionSessionResourcePublishResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
-    readonly sessionId: string;
-    readonly resource: ExtensionSessionResourceView;
-}
-export interface ExtensionSettingsView {
-    readonly modelPreferences: ExtensionModelPrefs;
-    readonly projectDisplayNames: Readonly<Record<string, string>>;
-}
-export interface ExtensionModelPreferencesSettingsPatch {
-    readonly selectedModel?: string;
-    readonly favoriteModels?: readonly string[];
-    readonly enabledModels?: readonly string[];
-    readonly thinkingLevel?: string;
-}
-export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {
-    readonly projectDisplayNames?: Readonly<Record<string, string>>;
-};
-export interface ExtensionSettingsGetResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export interface ExtensionSettingsUpdateResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export type ExtensionSettingsSelectedValue = {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES;
-    readonly value: ExtensionModelPrefs;
-} | {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME;
-    readonly projectPath: string;
-    readonly value: string | null;
-};
-export interface ExtensionSettingsGetSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
-export interface ExtensionSettingsUpdateSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
+export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
+export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>;
+export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
+export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
+export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
+export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
+export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
+export type ExtensionStateRecentProjectsReadResult = SchemaType<typeof extensionStateRecentProjectsReadResultSchema>;
+export type ExtensionStateModelPreferencesReadResult = SchemaType<typeof extensionStateModelPreferencesReadResultSchema>;
+export type ExtensionActionSelectProjectResult = SchemaType<typeof extensionActionSelectProjectResultSchema>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceRole = SchemaType<typeof extensionSessionResourceRoleSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourcesListPayload = SchemaType<typeof extensionSessionResourcesListPayloadSchema>;
+export type ExtensionSessionResourcesListResult = SchemaType<typeof extensionSessionResourcesListResultSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSettingsView = SchemaType<typeof extensionSettingsViewSchema>;
+export type ExtensionModelPreferencesSettingsPatch = SchemaType<typeof extensionModelPreferencesSettingsPatchSchema>;
+export type ExtensionSettingsUpdatePayload = SchemaType<typeof extensionSettingsUpdatePayloadSchema>;
+export type ExtensionSettingsGetResult = SchemaType<typeof extensionSettingsGetResultSchema>;
+export type ExtensionSettingsUpdateResult = SchemaType<typeof extensionSettingsUpdateResultSchema>;
+export type ExtensionSettingsSelectedValue = SchemaType<typeof extensionSettingsSelectedValueSchema>;
+export type ExtensionSettingsGetSettingResult = SchemaType<typeof extensionSettingsGetSettingResultSchema>;
+export type ExtensionSettingsUpdateSettingResult = SchemaType<typeof extensionSettingsUpdateSettingResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-openwaggle.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionModelPrefsSchema: Schema.Struct<{
+    selectedModel: typeof Schema.String;
+    favoriteModels: Schema.Array$<typeof Schema.String>;
+    enabledModels: Schema.Array$<typeof Schema.String>;
+    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+}>;
+export declare const extensionProjectViewSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+    displayName: Schema.NullOr<typeof Schema.String>;
+    active: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionViewSchema: Schema.Struct<{
+    sessionId: Schema.filter<typeof Schema.String>;
+    title: typeof Schema.String;
+    projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionBranchViewSchema: Schema.Struct<{
+    branchId: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    name: typeof Schema.String;
+    main: typeof Schema.Boolean;
+    archived: typeof Schema.Boolean;
+}>;
+export declare const extensionStateSelectorSchema: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+export declare const extensionStateReadPayloadSchema: Schema.Struct<{
+    selector: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+}>;
+export declare const extensionStateReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentSessionReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentBranchReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>;
+export declare const extensionStateRecentProjectsReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>;
+export declare const extensionStateModelPreferencesReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>;
+export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>;
+export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionActionSelectProjectResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSettingsViewSchema: Schema.Struct<{
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+    projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+}>;
+export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+}>;
+export declare const extensionSettingsGetModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>;
+export declare const extensionSettingsGetProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionSettingsGetPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    projectDisplayNames: Schema.optional<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>>;
+}>;
+export declare const extensionSettingsGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-resources.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceRoleSchema: Schema.Literal<["source", "output"]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "link"]>;
+    role: Schema.Literal<["source", "output"]>;
+    locator: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcesListPayloadSchema: Schema.Struct<{
+    cursor: Schema.optional<Schema.NullOr<Schema.filter<typeof Schema.String>>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    isSource: typeof Schema.Boolean;
+    isOutput: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionResourcesListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>;
 ```
 
 ### Declarations from `dist/docs.d.ts`
@@ -7655,70 +13916,267 @@ export interface ExtensionContributionRegistryEntry {
 ### Declarations from `dist/runtime-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionContributionFamily } from './contribution-types.js';
-export interface ExtensionRuntimeRegisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly registeredContributionId: string;
-}
-export interface ExtensionRuntimeUnregisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly unregisteredContributionId: string;
-    readonly unregistered: boolean;
-}
+import type { extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionRuntimeRegisterContributionResult = SchemaType<typeof extensionRuntimeRegisterContributionResultSchema>;
+export type ExtensionRuntimeUnregisterContributionResult = SchemaType<typeof extensionRuntimeUnregisterContributionResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-storage.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionStorageScopeSelectorSchema: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+export declare const extensionStorageKindSchema: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+export declare const extensionStorageGetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageSetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+}>;
+export declare const extensionStorageDeletePayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageListPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+}>;
+export declare const extensionStorageGlobalScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>;
+export declare const extensionStorageProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionStorageScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionStorageGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>;
+export declare const extensionStorageSetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionStorageDeleteResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>;
+export declare const extensionStorageListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionRuntimeRegisterContributionPayloadSchema: Schema.Union<[Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands"]>;
+    contribution: Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["routes"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>>;
+    }>;
+}>]>;
+export declare const extensionRuntimeUnregisterContributionPayloadSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeRegisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>;
 ```
 
 ### Declarations from `dist/storage-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { JsonValue } from './json.js';
-type ConstantValue<TObject> = TObject[keyof TObject];
-export type ExtensionStorageKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.STORAGE.KIND>;
-export type ExtensionStorageScopeSelector = (typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE_KINDS)[number];
-export type ExtensionStorageScope = {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND;
-} | {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND;
-    readonly projectPath: string;
-};
-export interface ExtensionStorageResultBase {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE;
-    readonly storageKind: ExtensionStorageKind;
-    readonly storageScope: ExtensionStorageScope;
-}
-export interface ExtensionStorageGetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET;
-    readonly key: string;
-    readonly value: JsonValue | null;
-}
-export interface ExtensionStorageSetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SET;
-    readonly key: string;
-    readonly value: JsonValue;
-    readonly createdAt: number;
-    readonly updatedAt: number;
-}
-export interface ExtensionStorageDeleteResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE;
-    readonly key: string;
-    readonly deleted: true;
-}
-export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST;
-    readonly keys: readonly string[];
-}
-export {};
+import type { extensionStorageDeleteResultSchema, extensionStorageGetResultSchema, extensionStorageKindSchema, extensionStorageListResultSchema, extensionStorageScopeSchema, extensionStorageScopeSelectorSchema, extensionStorageSetResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionStorageKind = SchemaType<typeof extensionStorageKindSchema>;
+export type ExtensionStorageScopeSelector = SchemaType<typeof extensionStorageScopeSelectorSchema>;
+export type ExtensionStorageScope = SchemaType<typeof extensionStorageScopeSchema>;
+export type ExtensionStorageGetResult = SchemaType<typeof extensionStorageGetResultSchema>;
+export type ExtensionStorageSetResult = SchemaType<typeof extensionStorageSetResultSchema>;
+export type ExtensionStorageDeleteResult = SchemaType<typeof extensionStorageDeleteResultSchema>;
+export type ExtensionStorageListResult = SchemaType<typeof extensionStorageListResultSchema>;
+/** The fields every storage result carries. */
+export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extensionId' | 'contributionId' | 'capability' | 'storageKind' | 'storageScope'>;
 ```
 
 ### Declarations from `dist/syntax.d.ts`
@@ -8902,6 +15360,8 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+    /** The thinking levels a model preference names, as the app's settings define them. */
+    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -9704,28 +16164,11 @@ Types: `dist/runtime.d.ts`
 ### Declarations from `dist/runtime.d.ts`
 
 ```ts
-import * as Schema from 'effect/Schema';
 export type { ExtensionContributionRegistration, ExtensionContributionUnregistration, } from './manifest.js';
 export { extensionContributionRegistrationSchema, extensionContributionUnregistrationSchema, } from './manifest.js';
 export { createRuntimeContributionSdk } from './runtime-sdk.js';
 export type * from './runtime-types.js';
-export declare const extensionRuntimeRegisterContributionResultSchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.Literal<["openwaggle.runtime"]>;
-    method: Schema.Literal<["register-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
-    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-}>;
-export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
-    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    capability: Schema.Literal<["openwaggle.runtime"]>;
-    method: Schema.Literal<["unregister-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
-    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
-    unregistered: typeof Schema.Boolean;
-}>;
+export { extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema, } from './broker-schemas-storage.js';
 ```
 
 ### Declarations from `dist/manifest.d.ts`
@@ -10168,6 +16611,8 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+    /** The thinking levels a model preference names, as the app's settings define them. */
+    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -11133,7 +17578,10 @@ export {};
 ### Declarations from `dist/core-types.d.ts`
 
 ```ts
+import type { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema } from './broker-schemas-core.js';
+import type { extensionInvokeFailureSchema, extensionInvokeSuccessSchema, extensionInvokeSuccessValueSchema } from './broker-schemas-result.js';
 import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { SchemaType } from './schema.js';
 type ConstantValue<TObject> = TObject[keyof TObject];
 export type ExtensionBrokerCapability = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY>;
 export type ExtensionBrokerMethod = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.METHOD>;
@@ -11141,213 +17589,2353 @@ export type ExtensionInvokeFailureCode = ConstantValue<typeof OPENWAGGLE_EXTENSI
 export type ExtensionInvokeOutcome = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.OUTCOME>;
 export type ExtensionStateSelector = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR>;
 export type ExtensionSettingsKey = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY>;
-export type ExtensionInvokeScope = {
-    readonly kind: 'app';
-} | {
-    readonly kind: 'project';
-    readonly projectPath: string;
-} | {
-    readonly kind: 'session';
-    readonly projectPath: string;
-    readonly sessionId: string;
-} | {
-    readonly kind: 'branch';
-    readonly projectPath: string;
-    readonly sessionId: string;
-    readonly branchId: string;
-};
-export interface ExtensionCapabilityAuditEntry {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly outcome: ExtensionInvokeOutcome;
-    readonly timestamp: number;
-    readonly failureCode?: ExtensionInvokeFailureCode;
-}
-export interface ExtensionInvokeInput {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly payload?: unknown;
-}
-export interface ExtensionInvokeError {
-    readonly code: ExtensionInvokeFailureCode;
-    readonly message: string;
-    readonly issues?: readonly string[];
-}
-export interface ExtensionInvokeSuccess<TValue = unknown> {
-    readonly ok: true;
+export type ExtensionInvokeScope = SchemaType<typeof extensionInvokeScopeSchema>;
+export type ExtensionCapabilityAuditEntry = SchemaType<typeof extensionCapabilityAuditEntrySchema>;
+export type ExtensionInvokeInput = SchemaType<typeof extensionInvokeInputSchema>;
+export type ExtensionInvokeError = SchemaType<typeof extensionInvokeErrorSchema>;
+export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>;
+/** Every result value the broker returns, one per capability method. */
+export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>;
+/**
+ * A broker success whose value one operation's decoder has narrowed. It is the decoded success
+ * (`extensionInvokeSuccessSchema`) with `value` replaced; the default is a value not decoded yet.
+ */
+export type ExtensionInvokeSuccess<TValue = unknown> = Omit<SchemaType<typeof extensionInvokeSuccessSchema>, 'value'> & {
     readonly value: TValue;
-    readonly audit: ExtensionCapabilityAuditEntry;
-}
-export interface ExtensionInvokeFailure {
-    readonly ok: false;
-    readonly error: ExtensionInvokeError;
-    readonly audit?: ExtensionCapabilityAuditEntry;
-}
+};
 export type ExtensionInvokeResult<TValue = unknown> = ExtensionInvokeSuccess<TValue> | ExtensionInvokeFailure;
 export {};
+```
+
+### Declarations from `dist/broker-schemas-core.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+/** A string with at least one character that is not whitespace. */
+export declare const nonEmptyStringSchema: Schema.filter<typeof Schema.String>;
+export declare const extensionInvokeAppScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>;
+export declare const extensionInvokeProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeSessionScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeBranchScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionInvokeInputSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    payload: Schema.optional<typeof Schema.Unknown>;
+}>;
+export declare const extensionInvocationBindingSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionInvokeFailureCodeSchema: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+export declare const extensionInvokeOutcomeSchema: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+export declare const extensionBrokerMethodSchema: Schema.SchemaClass<"delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", "delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", never>;
+export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+    timestamp: typeof Schema.Number;
+    failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeErrorSchema: Schema.Struct<{
+    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+    message: Schema.filter<typeof Schema.String>;
+    issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionHostContextResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-result.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["discover-docs"]>;
+    docs: Schema.Struct<{
+        generatedAt: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        firstPartyTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+        extensionTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<typeof Schema.String>;
+            localTopic: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            path: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            provenance: Schema.Struct<{
+                extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                scope: Schema.Struct<{
+                    kind: Schema.Literal<["global", "project"]>;
+                    label: Schema.filter<typeof Schema.String>;
+                    projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>;
+                packagePath: Schema.filter<typeof Schema.String>;
+                manifestPath: Schema.filter<typeof Schema.String>;
+                path: Schema.filter<typeof Schema.String>;
+                packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+            }>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+        diagnostics: Schema.Array$<Schema.Struct<{
+            severity: Schema.Literal<["warning", "error"]>;
+            code: Schema.filter<typeof Schema.String>;
+            message: Schema.filter<typeof Schema.String>;
+            path: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["resolve-docs-topic"]>;
+    resolvedTopic: Schema.NullOr<Schema.Struct<{
+        topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+        source: Schema.Literal<["openwaggle", "pi"]>;
+        group: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        section: Schema.optional<Schema.filter<typeof Schema.String>>;
+        order: typeof Schema.Number;
+        path: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        sourcePath: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.filter<typeof Schema.String>;
+    }>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>]>;
+export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+export declare const extensionInvokeFailureSchema: Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
 ```
 
 ### Declarations from `dist/openwaggle-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
+import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
+import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
-export interface ExtensionModelPrefs {
-    readonly selectedModel: string;
-    readonly favoriteModels: readonly string[];
-    readonly enabledModels: readonly string[];
-    readonly thinkingLevel: string;
-}
-export interface ExtensionProjectView {
-    readonly projectPath: string;
-    readonly displayName: string | null;
-    readonly active: boolean;
-}
-export interface ExtensionSessionView {
-    readonly sessionId: string;
-    readonly title: string;
-    readonly projectPath: string | null;
-}
-export interface ExtensionBranchView {
-    readonly branchId: string;
-    readonly sessionId: string;
-    readonly name: string;
-    readonly main: boolean;
-    readonly archived: boolean;
-}
-export interface ExtensionStateReadResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly activeProjectPath: string | null;
-    readonly currentProject: ExtensionProjectView | null;
-    readonly currentSession: ExtensionSessionView | null;
-    readonly currentBranch: ExtensionBranchView | null;
-    readonly recentProjects: readonly string[];
-    readonly modelPreferences: ExtensionModelPrefs;
-}
-export interface ExtensionSelectedStateReadResult<TValue> {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly selector: ExtensionStateSelector;
-    readonly value: TValue;
-}
-export type ExtensionStateCurrentProjectReadResult = ExtensionSelectedStateReadResult<ExtensionProjectView | null>;
-export type ExtensionStateCurrentSessionReadResult = ExtensionSelectedStateReadResult<ExtensionSessionView | null>;
-export type ExtensionStateCurrentBranchReadResult = ExtensionSelectedStateReadResult<ExtensionBranchView | null>;
-export type ExtensionStateRecentProjectsReadResult = ExtensionSelectedStateReadResult<readonly string[]>;
-export type ExtensionStateModelPreferencesReadResult = ExtensionSelectedStateReadResult<ExtensionModelPrefs>;
-export interface ExtensionActionSelectProjectResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT;
-    readonly previousProjectPath: string | null;
-    readonly projectPath: string;
-    readonly recentProjects: readonly string[];
-}
-export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
-export type ExtensionSessionResourceRole = 'source' | 'output';
-export interface ExtensionSessionResourceView {
-    readonly id: string;
-    readonly title: string;
-    readonly kind: ExtensionSessionResourceKind;
-    readonly mimeType: string | null;
-    readonly available: boolean;
-    readonly isSource: boolean;
-    readonly isOutput: boolean;
-}
-export interface ExtensionSessionResourcePublishPayload {
-    readonly key: string;
-    readonly title: string;
-    readonly kind: 'image' | 'link';
-    readonly role: ExtensionSessionResourceRole;
-    /** A credential-free HTTPS locator is required and retained only by the host. */
-    readonly locator: string;
-}
-export interface ExtensionSessionResourcesListPayload {
-    readonly cursor?: string | null;
-    readonly limit?: number;
-}
-export interface ExtensionSessionResourcesListResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
-    readonly sessionId: string;
-    readonly resources: readonly ExtensionSessionResourceView[];
-    readonly total: number;
-    readonly nextCursor: string | null;
-}
-export interface ExtensionSessionResourcePublishResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
-    readonly sessionId: string;
-    readonly resource: ExtensionSessionResourceView;
-}
-export interface ExtensionSettingsView {
-    readonly modelPreferences: ExtensionModelPrefs;
-    readonly projectDisplayNames: Readonly<Record<string, string>>;
-}
-export interface ExtensionModelPreferencesSettingsPatch {
-    readonly selectedModel?: string;
-    readonly favoriteModels?: readonly string[];
-    readonly enabledModels?: readonly string[];
-    readonly thinkingLevel?: string;
-}
-export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {
-    readonly projectDisplayNames?: Readonly<Record<string, string>>;
-};
-export interface ExtensionSettingsGetResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export interface ExtensionSettingsUpdateResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export type ExtensionSettingsSelectedValue = {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES;
-    readonly value: ExtensionModelPrefs;
-} | {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME;
-    readonly projectPath: string;
-    readonly value: string | null;
-};
-export interface ExtensionSettingsGetSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
-export interface ExtensionSettingsUpdateSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
+export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
+export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>;
+export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
+export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
+export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
+export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
+export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
+export type ExtensionStateRecentProjectsReadResult = SchemaType<typeof extensionStateRecentProjectsReadResultSchema>;
+export type ExtensionStateModelPreferencesReadResult = SchemaType<typeof extensionStateModelPreferencesReadResultSchema>;
+export type ExtensionActionSelectProjectResult = SchemaType<typeof extensionActionSelectProjectResultSchema>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceRole = SchemaType<typeof extensionSessionResourceRoleSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourcesListPayload = SchemaType<typeof extensionSessionResourcesListPayloadSchema>;
+export type ExtensionSessionResourcesListResult = SchemaType<typeof extensionSessionResourcesListResultSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSettingsView = SchemaType<typeof extensionSettingsViewSchema>;
+export type ExtensionModelPreferencesSettingsPatch = SchemaType<typeof extensionModelPreferencesSettingsPatchSchema>;
+export type ExtensionSettingsUpdatePayload = SchemaType<typeof extensionSettingsUpdatePayloadSchema>;
+export type ExtensionSettingsGetResult = SchemaType<typeof extensionSettingsGetResultSchema>;
+export type ExtensionSettingsUpdateResult = SchemaType<typeof extensionSettingsUpdateResultSchema>;
+export type ExtensionSettingsSelectedValue = SchemaType<typeof extensionSettingsSelectedValueSchema>;
+export type ExtensionSettingsGetSettingResult = SchemaType<typeof extensionSettingsGetSettingResultSchema>;
+export type ExtensionSettingsUpdateSettingResult = SchemaType<typeof extensionSettingsUpdateSettingResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-openwaggle.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionModelPrefsSchema: Schema.Struct<{
+    selectedModel: typeof Schema.String;
+    favoriteModels: Schema.Array$<typeof Schema.String>;
+    enabledModels: Schema.Array$<typeof Schema.String>;
+    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+}>;
+export declare const extensionProjectViewSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+    displayName: Schema.NullOr<typeof Schema.String>;
+    active: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionViewSchema: Schema.Struct<{
+    sessionId: Schema.filter<typeof Schema.String>;
+    title: typeof Schema.String;
+    projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionBranchViewSchema: Schema.Struct<{
+    branchId: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    name: typeof Schema.String;
+    main: typeof Schema.Boolean;
+    archived: typeof Schema.Boolean;
+}>;
+export declare const extensionStateSelectorSchema: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+export declare const extensionStateReadPayloadSchema: Schema.Struct<{
+    selector: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+}>;
+export declare const extensionStateReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentSessionReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentBranchReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>;
+export declare const extensionStateRecentProjectsReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>;
+export declare const extensionStateModelPreferencesReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>;
+export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>;
+export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionActionSelectProjectResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSettingsViewSchema: Schema.Struct<{
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+    projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+}>;
+export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+}>;
+export declare const extensionSettingsGetModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>;
+export declare const extensionSettingsGetProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionSettingsGetPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    projectDisplayNames: Schema.optional<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>>;
+}>;
+export declare const extensionSettingsGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-resources.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceRoleSchema: Schema.Literal<["source", "output"]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "link"]>;
+    role: Schema.Literal<["source", "output"]>;
+    locator: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcesListPayloadSchema: Schema.Struct<{
+    cursor: Schema.optional<Schema.NullOr<Schema.filter<typeof Schema.String>>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    isSource: typeof Schema.Boolean;
+    isOutput: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionResourcesListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>;
 ```
 
 ### Declarations from `dist/docs.d.ts`
@@ -11657,70 +20245,267 @@ export interface ExtensionContributionRegistryEntry {
 ### Declarations from `dist/runtime-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionContributionFamily } from './contribution-types.js';
-export interface ExtensionRuntimeRegisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly registeredContributionId: string;
-}
-export interface ExtensionRuntimeUnregisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly unregisteredContributionId: string;
-    readonly unregistered: boolean;
-}
+import type { extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionRuntimeRegisterContributionResult = SchemaType<typeof extensionRuntimeRegisterContributionResultSchema>;
+export type ExtensionRuntimeUnregisterContributionResult = SchemaType<typeof extensionRuntimeUnregisterContributionResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-storage.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionStorageScopeSelectorSchema: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+export declare const extensionStorageKindSchema: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+export declare const extensionStorageGetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageSetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+}>;
+export declare const extensionStorageDeletePayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageListPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+}>;
+export declare const extensionStorageGlobalScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>;
+export declare const extensionStorageProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionStorageScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionStorageGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>;
+export declare const extensionStorageSetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionStorageDeleteResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>;
+export declare const extensionStorageListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionRuntimeRegisterContributionPayloadSchema: Schema.Union<[Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands"]>;
+    contribution: Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["routes"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>>;
+    }>;
+}>]>;
+export declare const extensionRuntimeUnregisterContributionPayloadSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeRegisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>;
 ```
 
 ### Declarations from `dist/storage-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { JsonValue } from './json.js';
-type ConstantValue<TObject> = TObject[keyof TObject];
-export type ExtensionStorageKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.STORAGE.KIND>;
-export type ExtensionStorageScopeSelector = (typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE_KINDS)[number];
-export type ExtensionStorageScope = {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND;
-} | {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND;
-    readonly projectPath: string;
-};
-export interface ExtensionStorageResultBase {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE;
-    readonly storageKind: ExtensionStorageKind;
-    readonly storageScope: ExtensionStorageScope;
-}
-export interface ExtensionStorageGetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET;
-    readonly key: string;
-    readonly value: JsonValue | null;
-}
-export interface ExtensionStorageSetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SET;
-    readonly key: string;
-    readonly value: JsonValue;
-    readonly createdAt: number;
-    readonly updatedAt: number;
-}
-export interface ExtensionStorageDeleteResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE;
-    readonly key: string;
-    readonly deleted: true;
-}
-export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST;
-    readonly keys: readonly string[];
-}
-export {};
+import type { extensionStorageDeleteResultSchema, extensionStorageGetResultSchema, extensionStorageKindSchema, extensionStorageListResultSchema, extensionStorageScopeSchema, extensionStorageScopeSelectorSchema, extensionStorageSetResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionStorageKind = SchemaType<typeof extensionStorageKindSchema>;
+export type ExtensionStorageScopeSelector = SchemaType<typeof extensionStorageScopeSelectorSchema>;
+export type ExtensionStorageScope = SchemaType<typeof extensionStorageScopeSchema>;
+export type ExtensionStorageGetResult = SchemaType<typeof extensionStorageGetResultSchema>;
+export type ExtensionStorageSetResult = SchemaType<typeof extensionStorageSetResultSchema>;
+export type ExtensionStorageDeleteResult = SchemaType<typeof extensionStorageDeleteResultSchema>;
+export type ExtensionStorageListResult = SchemaType<typeof extensionStorageListResultSchema>;
+/** The fields every storage result carries. */
+export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extensionId' | 'contributionId' | 'capability' | 'storageKind' | 'storageScope'>;
 ```
 
 ## Export `./syntax`
@@ -12272,6 +21057,8 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+    /** The thinking levels a model preference names, as the app's settings define them. */
+    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -13416,7 +22203,10 @@ export declare const extensionSlotContributionFamilySchema: Schema.Literal<["set
 ### Declarations from `dist/core-types.d.ts`
 
 ```ts
+import type { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema } from './broker-schemas-core.js';
+import type { extensionInvokeFailureSchema, extensionInvokeSuccessSchema, extensionInvokeSuccessValueSchema } from './broker-schemas-result.js';
 import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { SchemaType } from './schema.js';
 type ConstantValue<TObject> = TObject[keyof TObject];
 export type ExtensionBrokerCapability = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY>;
 export type ExtensionBrokerMethod = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.METHOD>;
@@ -13424,213 +22214,2367 @@ export type ExtensionInvokeFailureCode = ConstantValue<typeof OPENWAGGLE_EXTENSI
 export type ExtensionInvokeOutcome = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.OUTCOME>;
 export type ExtensionStateSelector = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR>;
 export type ExtensionSettingsKey = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY>;
-export type ExtensionInvokeScope = {
-    readonly kind: 'app';
-} | {
-    readonly kind: 'project';
-    readonly projectPath: string;
-} | {
-    readonly kind: 'session';
-    readonly projectPath: string;
-    readonly sessionId: string;
-} | {
-    readonly kind: 'branch';
-    readonly projectPath: string;
-    readonly sessionId: string;
-    readonly branchId: string;
-};
-export interface ExtensionCapabilityAuditEntry {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly outcome: ExtensionInvokeOutcome;
-    readonly timestamp: number;
-    readonly failureCode?: ExtensionInvokeFailureCode;
-}
-export interface ExtensionInvokeInput {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: string;
-    readonly method: string;
-    readonly scope: ExtensionInvokeScope;
-    readonly payload?: unknown;
-}
-export interface ExtensionInvokeError {
-    readonly code: ExtensionInvokeFailureCode;
-    readonly message: string;
-    readonly issues?: readonly string[];
-}
-export interface ExtensionInvokeSuccess<TValue = unknown> {
-    readonly ok: true;
+export type ExtensionInvokeScope = SchemaType<typeof extensionInvokeScopeSchema>;
+export type ExtensionCapabilityAuditEntry = SchemaType<typeof extensionCapabilityAuditEntrySchema>;
+export type ExtensionInvokeInput = SchemaType<typeof extensionInvokeInputSchema>;
+export type ExtensionInvokeError = SchemaType<typeof extensionInvokeErrorSchema>;
+export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>;
+/** Every result value the broker returns, one per capability method. */
+export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>;
+/**
+ * A broker success whose value one operation's decoder has narrowed. It is the decoded success
+ * (`extensionInvokeSuccessSchema`) with `value` replaced; the default is a value not decoded yet.
+ */
+export type ExtensionInvokeSuccess<TValue = unknown> = Omit<SchemaType<typeof extensionInvokeSuccessSchema>, 'value'> & {
     readonly value: TValue;
-    readonly audit: ExtensionCapabilityAuditEntry;
-}
-export interface ExtensionInvokeFailure {
-    readonly ok: false;
-    readonly error: ExtensionInvokeError;
-    readonly audit?: ExtensionCapabilityAuditEntry;
-}
+};
 export type ExtensionInvokeResult<TValue = unknown> = ExtensionInvokeSuccess<TValue> | ExtensionInvokeFailure;
 export {};
+```
+
+### Declarations from `dist/broker-schemas-core.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+/** A string with at least one character that is not whitespace. */
+export declare const nonEmptyStringSchema: Schema.filter<typeof Schema.String>;
+export declare const extensionInvokeAppScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>;
+export declare const extensionInvokeProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeSessionScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeBranchScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionInvokeScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["app"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["session"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["branch"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    branchId: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionInvokeInputSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    payload: Schema.optional<typeof Schema.Unknown>;
+}>;
+export declare const extensionInvocationBindingSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionInvokeFailureCodeSchema: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+export declare const extensionInvokeOutcomeSchema: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+export declare const extensionBrokerMethodSchema: Schema.SchemaClass<"delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", "delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings", never>;
+export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.filter<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+    timestamp: typeof Schema.Number;
+    failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeErrorSchema: Schema.Struct<{
+    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+    message: Schema.filter<typeof Schema.String>;
+    issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionHostContextResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-result.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.host.context"]>;
+    method: Schema.Literal<["get-scope"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["discover-docs"]>;
+    docs: Schema.Struct<{
+        generatedAt: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        firstPartyTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+        extensionTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<typeof Schema.String>;
+            localTopic: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            path: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            provenance: Schema.Struct<{
+                extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                scope: Schema.Struct<{
+                    kind: Schema.Literal<["global", "project"]>;
+                    label: Schema.filter<typeof Schema.String>;
+                    projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>;
+                packagePath: Schema.filter<typeof Schema.String>;
+                manifestPath: Schema.filter<typeof Schema.String>;
+                path: Schema.filter<typeof Schema.String>;
+                packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+            }>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+        diagnostics: Schema.Array$<Schema.Struct<{
+            severity: Schema.Literal<["warning", "error"]>;
+            code: Schema.filter<typeof Schema.String>;
+            message: Schema.filter<typeof Schema.String>;
+            path: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["resolve-docs-topic"]>;
+    resolvedTopic: Schema.NullOr<Schema.Struct<{
+        topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+        source: Schema.Literal<["openwaggle", "pi"]>;
+        group: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        section: Schema.optional<Schema.filter<typeof Schema.String>>;
+        order: typeof Schema.Number;
+        path: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        sourcePath: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.filter<typeof Schema.String>;
+    }>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>]>;
+export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+export declare const extensionInvokeFailureSchema: Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>;
+export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.host.context"]>;
+        method: Schema.Literal<["get-scope"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        declaredScopes: Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["get"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["set"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["delete"]>;
+        key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        deleted: Schema.Literal<[true]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.storage"]>;
+        storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+        storageScope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["global"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>]>;
+        method: Schema.Literal<["list"]>;
+        keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["get-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        currentProject: Schema.NullOr<Schema.Struct<{
+            projectPath: Schema.filter<typeof Schema.String>;
+            displayName: Schema.NullOr<typeof Schema.String>;
+            active: typeof Schema.Boolean;
+        }>>;
+        currentSession: Schema.NullOr<Schema.Struct<{
+            sessionId: Schema.filter<typeof Schema.String>;
+            title: typeof Schema.String;
+            projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        }>>;
+        currentBranch: Schema.NullOr<Schema.Struct<{
+            branchId: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            name: typeof Schema.String;
+            main: typeof Schema.Boolean;
+            archived: typeof Schema.Boolean;
+        }>>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Union<[Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, {
+            readonly active: boolean;
+            readonly displayName: string | null;
+            readonly projectPath: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, {
+            readonly projectPath: string | null;
+            readonly sessionId: string;
+            readonly title: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, {
+            readonly archived: boolean;
+            readonly branchId: string;
+            readonly main: boolean;
+            readonly name: string;
+            readonly sessionId: string;
+        } | null, never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<readonly string[], readonly string[], never>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.state"]>;
+        method: Schema.Literal<["read-state"]>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+        value: Schema.Schema<{
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, {
+            readonly enabledModels: readonly string[];
+            readonly favoriteModels: readonly string[];
+            readonly selectedModel: string;
+            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        }, never>;
+    }>]>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.actions"]>;
+        method: Schema.Literal<["select-project"]>;
+        previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-settings"]>;
+        settings: Schema.Struct<{
+            modelPreferences: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+            projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["get-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.settings"]>;
+        method: Schema.Literal<["update-setting"]>;
+        setting: Schema.Union<[Schema.Struct<{
+            key: Schema.Literal<["model-preferences"]>;
+            value: Schema.Struct<{
+                selectedModel: typeof Schema.String;
+                favoriteModels: Schema.Array$<typeof Schema.String>;
+                enabledModels: Schema.Array$<typeof Schema.String>;
+                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            }>;
+        }>, Schema.Struct<{
+            key: Schema.Literal<["project-display-name"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            value: Schema.NullOr<typeof Schema.String>;
+        }>]>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["discover-docs"]>;
+        docs: Schema.Struct<{
+            generatedAt: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            firstPartyTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+                source: Schema.Literal<["openwaggle", "pi"]>;
+                group: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                section: Schema.optional<Schema.filter<typeof Schema.String>>;
+                order: typeof Schema.Number;
+                path: Schema.filter<typeof Schema.String>;
+                bundlePath: Schema.filter<typeof Schema.String>;
+                sourcePath: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.filter<typeof Schema.String>;
+            }>>;
+            extensionTopics: Schema.Array$<Schema.Struct<{
+                topic: Schema.filter<typeof Schema.String>;
+                localTopic: Schema.filter<typeof Schema.String>;
+                title: Schema.filter<typeof Schema.String>;
+                description: Schema.optional<Schema.filter<typeof Schema.String>>;
+                path: Schema.filter<typeof Schema.String>;
+                aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+                contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                provenance: Schema.Struct<{
+                    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    scope: Schema.Struct<{
+                        kind: Schema.Literal<["global", "project"]>;
+                        label: Schema.filter<typeof Schema.String>;
+                        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                    }>;
+                    packagePath: Schema.filter<typeof Schema.String>;
+                    manifestPath: Schema.filter<typeof Schema.String>;
+                    path: Schema.filter<typeof Schema.String>;
+                    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+                }>;
+                diagnostics: Schema.Array$<Schema.Struct<{
+                    severity: Schema.Literal<["warning", "error"]>;
+                    code: Schema.filter<typeof Schema.String>;
+                    message: Schema.filter<typeof Schema.String>;
+                    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.docs"]>;
+        method: Schema.Literal<["resolve-docs-topic"]>;
+        resolvedTopic: Schema.NullOr<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["register-contribution"]>;
+        registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.runtime"]>;
+        family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+        method: Schema.Literal<["unregister-contribution"]>;
+        unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        unregistered: typeof Schema.Boolean;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["list-resources"]>;
+        resources: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>>;
+        total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+        nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>, Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.Literal<["openwaggle.resources"]>;
+        sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.Literal<["publish-resource"]>;
+        resource: Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<typeof Schema.String>>;
+            kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+            mimeType: Schema.NullOr<typeof Schema.String>;
+            available: typeof Schema.Boolean;
+            isSource: typeof Schema.Boolean;
+            isOutput: typeof Schema.Boolean;
+        }>;
+    }>]>;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
+```
+
+### Declarations from `dist/json.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
+export interface JsonObject {
+    [key: string]: JsonValue;
+}
+export type JsonArray = JsonValue[];
+export declare const jsonPrimitiveSchema: Schema.Union<[typeof Schema.String, typeof Schema.Number, typeof Schema.Boolean, typeof Schema.Null]>;
+export declare const jsonValueSchema: Schema.Schema<JsonValue>;
 ```
 
 ### Declarations from `dist/openwaggle-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
+import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
+import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
-export interface ExtensionModelPrefs {
-    readonly selectedModel: string;
-    readonly favoriteModels: readonly string[];
-    readonly enabledModels: readonly string[];
-    readonly thinkingLevel: string;
-}
-export interface ExtensionProjectView {
-    readonly projectPath: string;
-    readonly displayName: string | null;
-    readonly active: boolean;
-}
-export interface ExtensionSessionView {
-    readonly sessionId: string;
-    readonly title: string;
-    readonly projectPath: string | null;
-}
-export interface ExtensionBranchView {
-    readonly branchId: string;
-    readonly sessionId: string;
-    readonly name: string;
-    readonly main: boolean;
-    readonly archived: boolean;
-}
-export interface ExtensionStateReadResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly activeProjectPath: string | null;
-    readonly currentProject: ExtensionProjectView | null;
-    readonly currentSession: ExtensionSessionView | null;
-    readonly currentBranch: ExtensionBranchView | null;
-    readonly recentProjects: readonly string[];
-    readonly modelPreferences: ExtensionModelPrefs;
-}
-export interface ExtensionSelectedStateReadResult<TValue> {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
-    readonly scope: ExtensionInvokeScope;
-    readonly selector: ExtensionStateSelector;
-    readonly value: TValue;
-}
-export type ExtensionStateCurrentProjectReadResult = ExtensionSelectedStateReadResult<ExtensionProjectView | null>;
-export type ExtensionStateCurrentSessionReadResult = ExtensionSelectedStateReadResult<ExtensionSessionView | null>;
-export type ExtensionStateCurrentBranchReadResult = ExtensionSelectedStateReadResult<ExtensionBranchView | null>;
-export type ExtensionStateRecentProjectsReadResult = ExtensionSelectedStateReadResult<readonly string[]>;
-export type ExtensionStateModelPreferencesReadResult = ExtensionSelectedStateReadResult<ExtensionModelPrefs>;
-export interface ExtensionActionSelectProjectResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT;
-    readonly previousProjectPath: string | null;
-    readonly projectPath: string;
-    readonly recentProjects: readonly string[];
-}
-export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
-export type ExtensionSessionResourceRole = 'source' | 'output';
-export interface ExtensionSessionResourceView {
-    readonly id: string;
-    readonly title: string;
-    readonly kind: ExtensionSessionResourceKind;
-    readonly mimeType: string | null;
-    readonly available: boolean;
-    readonly isSource: boolean;
-    readonly isOutput: boolean;
-}
-export interface ExtensionSessionResourcePublishPayload {
-    readonly key: string;
-    readonly title: string;
-    readonly kind: 'image' | 'link';
-    readonly role: ExtensionSessionResourceRole;
-    /** A credential-free HTTPS locator is required and retained only by the host. */
-    readonly locator: string;
-}
-export interface ExtensionSessionResourcesListPayload {
-    readonly cursor?: string | null;
-    readonly limit?: number;
-}
-export interface ExtensionSessionResourcesListResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
-    readonly sessionId: string;
-    readonly resources: readonly ExtensionSessionResourceView[];
-    readonly total: number;
-    readonly nextCursor: string | null;
-}
-export interface ExtensionSessionResourcePublishResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
-    readonly sessionId: string;
-    readonly resource: ExtensionSessionResourceView;
-}
-export interface ExtensionSettingsView {
-    readonly modelPreferences: ExtensionModelPrefs;
-    readonly projectDisplayNames: Readonly<Record<string, string>>;
-}
-export interface ExtensionModelPreferencesSettingsPatch {
-    readonly selectedModel?: string;
-    readonly favoriteModels?: readonly string[];
-    readonly enabledModels?: readonly string[];
-    readonly thinkingLevel?: string;
-}
-export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {
-    readonly projectDisplayNames?: Readonly<Record<string, string>>;
-};
-export interface ExtensionSettingsGetResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export interface ExtensionSettingsUpdateResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS;
-    readonly settings: ExtensionSettingsView;
-}
-export type ExtensionSettingsSelectedValue = {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES;
-    readonly value: ExtensionModelPrefs;
-} | {
-    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME;
-    readonly projectPath: string;
-    readonly value: string | null;
-};
-export interface ExtensionSettingsGetSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
-export interface ExtensionSettingsUpdateSettingResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING;
-    readonly setting: ExtensionSettingsSelectedValue;
-}
+export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
+export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>;
+export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
+export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
+export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
+export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
+export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
+export type ExtensionStateRecentProjectsReadResult = SchemaType<typeof extensionStateRecentProjectsReadResultSchema>;
+export type ExtensionStateModelPreferencesReadResult = SchemaType<typeof extensionStateModelPreferencesReadResultSchema>;
+export type ExtensionActionSelectProjectResult = SchemaType<typeof extensionActionSelectProjectResultSchema>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceRole = SchemaType<typeof extensionSessionResourceRoleSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourcesListPayload = SchemaType<typeof extensionSessionResourcesListPayloadSchema>;
+export type ExtensionSessionResourcesListResult = SchemaType<typeof extensionSessionResourcesListResultSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSettingsView = SchemaType<typeof extensionSettingsViewSchema>;
+export type ExtensionModelPreferencesSettingsPatch = SchemaType<typeof extensionModelPreferencesSettingsPatchSchema>;
+export type ExtensionSettingsUpdatePayload = SchemaType<typeof extensionSettingsUpdatePayloadSchema>;
+export type ExtensionSettingsGetResult = SchemaType<typeof extensionSettingsGetResultSchema>;
+export type ExtensionSettingsUpdateResult = SchemaType<typeof extensionSettingsUpdateResultSchema>;
+export type ExtensionSettingsSelectedValue = SchemaType<typeof extensionSettingsSelectedValueSchema>;
+export type ExtensionSettingsGetSettingResult = SchemaType<typeof extensionSettingsGetSettingResultSchema>;
+export type ExtensionSettingsUpdateSettingResult = SchemaType<typeof extensionSettingsUpdateSettingResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-openwaggle.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionModelPrefsSchema: Schema.Struct<{
+    selectedModel: typeof Schema.String;
+    favoriteModels: Schema.Array$<typeof Schema.String>;
+    enabledModels: Schema.Array$<typeof Schema.String>;
+    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+}>;
+export declare const extensionProjectViewSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+    displayName: Schema.NullOr<typeof Schema.String>;
+    active: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionViewSchema: Schema.Struct<{
+    sessionId: Schema.filter<typeof Schema.String>;
+    title: typeof Schema.String;
+    projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionBranchViewSchema: Schema.Struct<{
+    branchId: Schema.filter<typeof Schema.String>;
+    sessionId: Schema.filter<typeof Schema.String>;
+    name: typeof Schema.String;
+    main: typeof Schema.Boolean;
+    archived: typeof Schema.Boolean;
+}>;
+export declare const extensionStateSelectorSchema: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+export declare const extensionStateReadPayloadSchema: Schema.Struct<{
+    selector: Schema.SchemaClass<"current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", "current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects", never>;
+}>;
+export declare const extensionStateReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["get-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    activeProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    currentProject: Schema.NullOr<Schema.Struct<{
+        projectPath: Schema.filter<typeof Schema.String>;
+        displayName: Schema.NullOr<typeof Schema.String>;
+        active: typeof Schema.Boolean;
+    }>>;
+    currentSession: Schema.NullOr<Schema.Struct<{
+        sessionId: Schema.filter<typeof Schema.String>;
+        title: typeof Schema.String;
+        projectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    }>>;
+    currentBranch: Schema.NullOr<Schema.Struct<{
+        branchId: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        name: typeof Schema.String;
+        main: typeof Schema.Boolean;
+        archived: typeof Schema.Boolean;
+    }>>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentSessionReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>;
+export declare const extensionStateCurrentBranchReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>;
+export declare const extensionStateRecentProjectsReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>;
+export declare const extensionStateModelPreferencesReadResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>;
+export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, {
+        readonly active: boolean;
+        readonly displayName: string | null;
+        readonly projectPath: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, {
+        readonly projectPath: string | null;
+        readonly sessionId: string;
+        readonly title: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, {
+        readonly archived: boolean;
+        readonly branchId: string;
+        readonly main: boolean;
+        readonly name: string;
+        readonly sessionId: string;
+    } | null, never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<readonly string[], readonly string[], never>;
+}>, Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.state"]>;
+    method: Schema.Literal<["read-state"]>;
+    scope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["app"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["session"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["branch"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        sessionId: Schema.filter<typeof Schema.String>;
+        branchId: Schema.filter<typeof Schema.String>;
+    }>]>;
+    selector: Schema.Literal<["current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects"]>;
+    value: Schema.Schema<{
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, {
+        readonly enabledModels: readonly string[];
+        readonly favoriteModels: readonly string[];
+        readonly selectedModel: string;
+        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+    }, never>;
+}>]>;
+export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionActionSelectProjectResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.actions"]>;
+    method: Schema.Literal<["select-project"]>;
+    previousProjectPath: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    recentProjects: Schema.Array$<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSettingsViewSchema: Schema.Struct<{
+    modelPreferences: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+    projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+}>;
+export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+}>;
+export declare const extensionSettingsGetModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>;
+export declare const extensionSettingsGetProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionSettingsGetPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateProjectDisplayNamePayloadSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: Schema.optional<typeof Schema.String>;
+        favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+        /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+        thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
+    selectedModel: Schema.optional<typeof Schema.String>;
+    favoriteModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    enabledModels: Schema.optional<Schema.mutable<Schema.Array$<typeof Schema.String>>>;
+    /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+    thinkingLevel: Schema.optional<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>>;
+    projectDisplayNames: Schema.optional<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>>;
+}>;
+export declare const extensionSettingsGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-settings"]>;
+    settings: Schema.Struct<{
+        modelPreferences: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+        projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
+    }>;
+}>;
+export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>;
+export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>;
+export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.Struct<{
+    key: Schema.Literal<["model-preferences"]>;
+    value: Schema.Struct<{
+        selectedModel: typeof Schema.String;
+        favoriteModels: Schema.Array$<typeof Schema.String>;
+        enabledModels: Schema.Array$<typeof Schema.String>;
+        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    }>;
+}>, Schema.Struct<{
+    key: Schema.Literal<["project-display-name"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+    value: Schema.NullOr<typeof Schema.String>;
+}>]>;
+export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["get-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.settings"]>;
+    method: Schema.Literal<["update-setting"]>;
+    setting: Schema.Union<[Schema.Struct<{
+        key: Schema.Literal<["model-preferences"]>;
+        value: Schema.Struct<{
+            selectedModel: typeof Schema.String;
+            favoriteModels: Schema.Array$<typeof Schema.String>;
+            enabledModels: Schema.Array$<typeof Schema.String>;
+            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        }>;
+    }>, Schema.Struct<{
+        key: Schema.Literal<["project-display-name"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+        value: Schema.NullOr<typeof Schema.String>;
+    }>]>;
+}>;
+```
+
+### Declarations from `dist/broker-schemas-resources.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceRoleSchema: Schema.Literal<["source", "output"]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "link"]>;
+    role: Schema.Literal<["source", "output"]>;
+    locator: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcesListPayloadSchema: Schema.Struct<{
+    cursor: Schema.optional<Schema.NullOr<Schema.filter<typeof Schema.String>>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    isSource: typeof Schema.Boolean;
+    isOutput: typeof Schema.Boolean;
+}>;
+export declare const extensionSessionResourcesListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-resources"]>;
+    resources: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    nextCursor: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-resource"]>;
+    resource: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        isSource: typeof Schema.Boolean;
+        isOutput: typeof Schema.Boolean;
+    }>;
+}>;
 ```
 
 ### Declarations from `dist/docs.d.ts`
@@ -13940,84 +24884,267 @@ export interface ExtensionContributionRegistryEntry {
 ### Declarations from `dist/runtime-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { ExtensionContributionFamily } from './contribution-types.js';
-export interface ExtensionRuntimeRegisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly registeredContributionId: string;
-}
-export interface ExtensionRuntimeUnregisterContributionResult {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION;
-    readonly family: ExtensionContributionFamily;
-    readonly unregisteredContributionId: string;
-    readonly unregistered: boolean;
-}
+import type { extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionRuntimeRegisterContributionResult = SchemaType<typeof extensionRuntimeRegisterContributionResultSchema>;
+export type ExtensionRuntimeUnregisterContributionResult = SchemaType<typeof extensionRuntimeUnregisterContributionResultSchema>;
+```
+
+### Declarations from `dist/broker-schemas-storage.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionStorageScopeSelectorSchema: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+export declare const extensionStorageKindSchema: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+export declare const extensionStorageGetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageSetPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+}>;
+export declare const extensionStorageDeletePayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>;
+export declare const extensionStorageListPayloadSchema: Schema.Struct<{
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.SchemaClass<"global" | "project", "global" | "project", never>;
+}>;
+export declare const extensionStorageGlobalScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>;
+export declare const extensionStorageProjectScopeSchema: Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionStorageScopeSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["global"]>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project"]>;
+    projectPath: Schema.filter<typeof Schema.String>;
+}>]>;
+export declare const extensionStorageGetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["get"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.NullOr<Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>>;
+}>;
+export declare const extensionStorageSetResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["set"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.Schema<import("./json.js").JsonValue, import("./json.js").JsonValue, never>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionStorageDeleteResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["delete"]>;
+    key: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    deleted: Schema.Literal<[true]>;
+}>;
+export declare const extensionStorageListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.storage"]>;
+    storageKind: Schema.SchemaClass<"config" | "state", "config" | "state", never>;
+    storageScope: Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["global"]>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project"]>;
+        projectPath: Schema.filter<typeof Schema.String>;
+    }>]>;
+    method: Schema.Literal<["list"]>;
+    keys: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionRuntimeRegisterContributionPayloadSchema: Schema.Union<[Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands"]>;
+    contribution: Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["routes"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>>;
+    }>;
+}>]>;
+export declare const extensionRuntimeUnregisterContributionPayloadSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeRegisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["register-contribution"]>;
+    registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.runtime"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    method: Schema.Literal<["unregister-contribution"]>;
+    unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    unregistered: typeof Schema.Boolean;
+}>;
 ```
 
 ### Declarations from `dist/storage-types.d.ts`
 
 ```ts
-import type { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
-import type { JsonValue } from './json.js';
-type ConstantValue<TObject> = TObject[keyof TObject];
-export type ExtensionStorageKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.STORAGE.KIND>;
-export type ExtensionStorageScopeSelector = (typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE_KINDS)[number];
-export type ExtensionStorageScope = {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND;
-} | {
-    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND;
-    readonly projectPath: string;
-};
-export interface ExtensionStorageResultBase {
-    readonly extensionId: string;
-    readonly contributionId: string;
-    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE;
-    readonly storageKind: ExtensionStorageKind;
-    readonly storageScope: ExtensionStorageScope;
-}
-export interface ExtensionStorageGetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET;
-    readonly key: string;
-    readonly value: JsonValue | null;
-}
-export interface ExtensionStorageSetResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SET;
-    readonly key: string;
-    readonly value: JsonValue;
-    readonly createdAt: number;
-    readonly updatedAt: number;
-}
-export interface ExtensionStorageDeleteResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE;
-    readonly key: string;
-    readonly deleted: true;
-}
-export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
-    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST;
-    readonly keys: readonly string[];
-}
-export {};
-```
-
-### Declarations from `dist/json.d.ts`
-
-```ts
-import * as Schema from 'effect/Schema';
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
-export interface JsonObject {
-    [key: string]: JsonValue;
-}
-export type JsonArray = JsonValue[];
-export declare const jsonPrimitiveSchema: Schema.Union<[typeof Schema.String, typeof Schema.Number, typeof Schema.Boolean, typeof Schema.Null]>;
-export declare const jsonValueSchema: Schema.Schema<JsonValue>;
+import type { extensionStorageDeleteResultSchema, extensionStorageGetResultSchema, extensionStorageKindSchema, extensionStorageListResultSchema, extensionStorageScopeSchema, extensionStorageScopeSelectorSchema, extensionStorageSetResultSchema } from './broker-schemas-storage.js';
+import type { SchemaType } from './schema.js';
+export type ExtensionStorageKind = SchemaType<typeof extensionStorageKindSchema>;
+export type ExtensionStorageScopeSelector = SchemaType<typeof extensionStorageScopeSelectorSchema>;
+export type ExtensionStorageScope = SchemaType<typeof extensionStorageScopeSchema>;
+export type ExtensionStorageGetResult = SchemaType<typeof extensionStorageGetResultSchema>;
+export type ExtensionStorageSetResult = SchemaType<typeof extensionStorageSetResultSchema>;
+export type ExtensionStorageDeleteResult = SchemaType<typeof extensionStorageDeleteResultSchema>;
+export type ExtensionStorageListResult = SchemaType<typeof extensionStorageListResultSchema>;
+/** The fields every storage result carries. */
+export type ExtensionStorageResultBase = Pick<ExtensionStorageGetResult, 'extensionId' | 'contributionId' | 'capability' | 'storageKind' | 'storageScope'>;
 ```
 
 ## Export `./ui`

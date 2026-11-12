@@ -18,16 +18,12 @@ export type {
   ExtensionSidePanelIcon,
 } from './extension-contributions'
 export {
-  extensionContributionFamilySchema,
   extensionContributionIdSchema,
   extensionContributionRegistrationSchema,
   extensionContributionUnregistrationSchema,
 } from './extension-contributions'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
-
-// The manifest's id rule is the public SDK's.
-export { extensionIdSchema }
 
 const extensionProposalHashSchema = Schema.String.pipe(
   Schema.length(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH),

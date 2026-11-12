@@ -1,7 +1,7 @@
 import * as Schema from 'effect/Schema'
 import { describe, expect, it } from 'vitest'
 import { openWaggleAgentLoopSurfaceInputSchema } from '../agent-loop'
-import { extensionInvokeInputSchema } from '../broker'
+import { extensionInvokeInputSchema } from '../broker-schemas-core'
 import { OPENWAGGLE_EXTENSION_BROKER } from '../constants'
 import { extensionDocsDiscoverPayloadSchema } from '../docs'
 import {
