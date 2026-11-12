@@ -37,9 +37,9 @@ function sanitizeTab(value: unknown, ownerKey: string): BrowserPreviewTabState |
   if (!isUnknownRecord(value)) return null
   const { id, url, title } = value
   if (typeof id !== 'string' || id.length === 0) return null
-  const decodedProfile = safeDecodeUnknown(browserProfileIdSchema, value['profileId'])
+  const decodedProfile = safeDecodeUnknown(browserProfileIdSchema, value.profileId)
   const profileId = decodedProfile.success ? decodedProfile.data : DEFAULT_BROWSER_PROFILE_ID
-  if (value['kind'] === 'launcher') {
+  if (value.kind === 'launcher') {
     return {
       id,
       ownerKey,
@@ -51,7 +51,7 @@ function sanitizeTab(value: unknown, ownerKey: string): BrowserPreviewTabState |
       canGoBack: false,
       canGoForward: false,
       error: null,
-      audioMuted: value['audioMuted'] === true,
+      audioMuted: value.audioMuted === true,
       audible: false,
       favicon: null,
       controller: { kind: 'human' },
@@ -72,7 +72,7 @@ function sanitizeTab(value: unknown, ownerKey: string): BrowserPreviewTabState |
     canGoBack: false,
     canGoForward: false,
     error: null,
-    audioMuted: value['audioMuted'] === true,
+    audioMuted: value.audioMuted === true,
     audible: false,
     favicon: null,
     controller: { kind: 'human' },
@@ -93,7 +93,7 @@ function browserSurface(
   rawActive: Readonly<Record<string, unknown>>,
   browserTabs: readonly BrowserPreviewTabState[],
 ): WorkspacePanelSurface {
-  if (rawActive['kind'] !== 'browser') return null
+  if (rawActive.kind !== 'browser') return null
   const { previewId } = rawActive
   if (typeof previewId !== 'string') return null
   return browserTabs.some((tab) => tab.id === previewId) ? { kind: 'browser', previewId } : null
@@ -105,17 +105,17 @@ function sanitizeActiveSurface(
 ): WorkspacePanelSurface {
   if (isUnknownRecord(value)) {
     if (
-      value['kind'] === 'action' &&
-      typeof value['projectPath'] === 'string' &&
-      typeof value['runId'] === 'string' &&
-      value['runId'].length > 0
+      value.kind === 'action' &&
+      typeof value.projectPath === 'string' &&
+      typeof value.runId === 'string' &&
+      value.runId.length > 0
     ) {
-      return { kind: 'action', projectPath: value['projectPath'], runId: value['runId'] }
+      return { kind: 'action', projectPath: value.projectPath, runId: value.runId }
     }
-    if (value['kind'] === 'terminal') return { kind: 'terminal' }
-    if (value['kind'] === 'project-actions') return { kind: 'project-actions' }
-    if (value['kind'] === 'scheduled-tasks') return { kind: 'scheduled-tasks' }
-    if (value['kind'] === 'all-panels') return { kind: 'all-panels' }
+    if (value.kind === 'terminal') return { kind: 'terminal' }
+    if (value.kind === 'project-actions') return { kind: 'project-actions' }
+    if (value.kind === 'scheduled-tasks') return { kind: 'scheduled-tasks' }
+    if (value.kind === 'all-panels') return { kind: 'all-panels' }
     const activeBrowser = browserSurface(value, browserTabs)
     if (activeBrowser !== null) return activeBrowser
   }
@@ -124,12 +124,12 @@ function sanitizeActiveSurface(
 
 function sanitizeGroup(value: unknown, ownerKey: string): WorkspacePanelGroupState | null {
   if (!isUnknownRecord(value)) return null
-  const browserTabs = sanitizeTabs(value['browserTabs'], ownerKey)
-  const activeSurface = sanitizeActiveSurface(value['activeSurface'], browserTabs)
-  const maximized = value['maximized'] === true
+  const browserTabs = sanitizeTabs(value.browserTabs, ownerKey)
+  const activeSurface = sanitizeActiveSurface(value.activeSurface, browserTabs)
+  const maximized = value.maximized === true
   // A group may exist only to remember that the Session's Right panel is maximized.
   if (browserTabs.length === 0 && activeSurface === null && !maximized) return null
-  const rawPanelOpen = value['panelOpen']
+  const rawPanelOpen = value.panelOpen
   return {
     browserTabs,
     activeSurface,

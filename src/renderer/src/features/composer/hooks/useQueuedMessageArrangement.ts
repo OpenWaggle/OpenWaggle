@@ -39,7 +39,7 @@ function focusStillInDock(list: HTMLElement | null) {
 function focusWhenPlaced(list: HTMLElement | null, pending: PendingFocus) {
   const rows = [...(list?.querySelectorAll<HTMLElement>(ROW_SELECTOR) ?? [])]
   const row = rows[pending.index]
-  if (row?.dataset['followUpId'] !== pending.followUpId) return false
+  if (row?.dataset.followUpId !== pending.followUpId) return false
   row.querySelector<HTMLElement>(GRIP_SELECTOR)?.focus()
   return true
 }
@@ -122,7 +122,7 @@ export function useQueuedMessageArrangement(
     const list = listRef.current
     const row = queuedRowAt(list, event.target)
     if (!draggedId || !list || !row) return
-    const anchor = dropAnchor(visibleIds, draggedId, row.dataset['followUpId'] ?? '')
+    const anchor = dropAnchor(visibleIds, draggedId, row.dataset.followUpId ?? '')
     dropRef.current = anchor
     if (anchor) showDropLine(list, row, anchor.position)
     else clearDropLine(list)

@@ -51,7 +51,7 @@ const SECOND_THEME = importedTheme('theme:second:dark', hex('292929'))
 
 function installAppearanceTokens() {
   const root = document.documentElement
-  root.dataset['theme'] = 'dark'
+  root.dataset.theme = 'dark'
   root.style.setProperty('--color-bg', hex('101010'))
   root.style.setProperty('--color-text-primary', hex('eeeeee'))
   root.style.setProperty('--color-text-secondary', hex('cccccc'))

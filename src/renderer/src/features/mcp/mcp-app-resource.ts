@@ -21,9 +21,9 @@ function list(value: McpJsonValue | undefined) {
 }
 
 function uiMetadata(content: Record<string, McpJsonValue>) {
-  if (!isObject(content['_meta'])) return {}
-  if (isObject(content['_meta']['ui'])) return content['_meta']['ui']
-  return content['_meta']
+  if (!isObject(content._meta)) return {}
+  if (isObject(content._meta.ui)) return content._meta.ui
+  return content._meta
 }
 
 function permissionNames(value: McpJsonValue | undefined) {
@@ -39,26 +39,24 @@ function permissionNames(value: McpJsonValue | undefined) {
  */
 export function parseMcpAppResource(result: McpResourceResult): ParsedMcpAppResource {
   if (!Array.isArray(result.contents)) throw new Error('MCP App resource has no content list.')
-  const content = result.contents.find(
-    (entry) => isObject(entry) && typeof entry['text'] === 'string',
-  )
-  if (!isObject(content) || typeof content['text'] !== 'string') {
+  const content = result.contents.find((entry) => isObject(entry) && typeof entry.text === 'string')
+  if (!isObject(content) || typeof content.text !== 'string') {
     throw new Error('MCP App resource must contain an HTML text document.')
   }
   const metadata = uiMetadata(content)
-  const cspValue = isObject(metadata['csp'])
-    ? metadata['csp']
+  const cspValue = isObject(metadata.csp)
+    ? metadata.csp
     : isObject(metadata['ui/csp'])
       ? metadata['ui/csp']
       : {}
-  const permissions = metadata['permissions'] ?? metadata['ui/permissions']
+  const permissions = metadata.permissions ?? metadata['ui/permissions']
   return {
-    html: content['text'],
+    html: content.text,
     csp: sanitizedMcpAppCsp({
-      connectDomains: list(cspValue['connectDomains']).filter((v) => typeof v === 'string'),
-      resourceDomains: list(cspValue['resourceDomains']).filter((v) => typeof v === 'string'),
-      frameDomains: list(cspValue['frameDomains']).filter((v) => typeof v === 'string'),
-      baseUriDomains: list(cspValue['baseUriDomains']).filter((v) => typeof v === 'string'),
+      connectDomains: list(cspValue.connectDomains).filter((v) => typeof v === 'string'),
+      resourceDomains: list(cspValue.resourceDomains).filter((v) => typeof v === 'string'),
+      frameDomains: list(cspValue.frameDomains).filter((v) => typeof v === 'string'),
+      baseUriDomains: list(cspValue.baseUriDomains).filter((v) => typeof v === 'string'),
     }),
     requestedPermissions: permissionNames(permissions),
   }

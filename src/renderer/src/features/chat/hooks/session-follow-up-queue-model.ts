@@ -177,19 +177,19 @@ function queueIntent(value: unknown): SessionFollowUpQueueIntent {
     return { text: '', attachmentCount: 0 }
   }
   const record = value
-  const waggle = isRecord(record['waggle']) ? record['waggle'] : undefined
+  const waggle = isRecord(record.waggle) ? record.waggle : undefined
   return {
-    text: typeof record['text'] === 'string' ? record['text'] : '',
-    attachmentCount: Array.isArray(record['attachmentIds']) ? record['attachmentIds'].length : 0,
-    ...(waggle && typeof waggle['presetName'] === 'string'
-      ? { wagglePresetName: waggle['presetName'] }
+    text: typeof record.text === 'string' ? record.text : '',
+    attachmentCount: Array.isArray(record.attachmentIds) ? record.attachmentIds.length : 0,
+    ...(waggle && typeof waggle.presetName === 'string'
+      ? { wagglePresetName: waggle.presetName }
       : {}),
-    ...(waggle && (waggle['source'] === 'user' || waggle['source'] === 'agent')
-      ? { waggleSource: waggle['source'] }
+    ...(waggle && (waggle.source === 'user' || waggle.source === 'agent')
+      ? { waggleSource: waggle.source }
       : {}),
-    ...(typeof record['callerId'] === 'string' ? { callerId: record['callerId'] } : {}),
-    ...queuedWaggle(record['waggle']),
-    ...queuedVisualizationContext(record['visualizationContext']),
+    ...(typeof record.callerId === 'string' ? { callerId: record.callerId } : {}),
+    ...queuedWaggle(record.waggle),
+    ...queuedVisualizationContext(record.visualizationContext),
   }
 }
 

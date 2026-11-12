@@ -54,7 +54,7 @@ function SessionTargetToolCallBlock({
     callerSessionId === null ? null : String(callerSessionId),
   )
   const session = findHiveSession(targetId, hive)
-  const spawned = parsedArgs['action'] === 'spawn' && session !== null ? session : null
+  const spawned = parsedArgs.action === 'spawn' && session !== null ? session : null
   return (
     <ToolCallBlock
       {...props}

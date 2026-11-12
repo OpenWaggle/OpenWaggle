@@ -147,7 +147,7 @@ function focusTerminalSurface(panel: HTMLElement | null, paneId: string | null) 
     paneId === null
       ? panel?.querySelector<HTMLElement>('[data-action-output-view]')
       : [...(panel?.querySelectorAll<HTMLElement>('[data-terminal-pane]') ?? [])].find(
-          (candidate) => candidate.dataset['terminalPane'] === paneId,
+          (candidate) => candidate.dataset.terminalPane === paneId,
         )
   surface?.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea')?.focus()
 }

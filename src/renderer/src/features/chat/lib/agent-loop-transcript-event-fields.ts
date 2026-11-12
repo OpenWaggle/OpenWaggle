@@ -49,7 +49,7 @@ export function baseEventFields(event: UnknownObject): AgentLoopBaseEventFields 
   }
 
   const model = stringField(event, 'model')
-  const rawEvent = optionalJsonValue(event['rawEvent'])
+  const rawEvent = optionalJsonValue(event.rawEvent)
   return {
     timestamp,
     ...(model !== null ? { model } : {}),

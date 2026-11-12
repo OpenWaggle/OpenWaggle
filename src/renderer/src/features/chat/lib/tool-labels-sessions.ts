@@ -156,12 +156,12 @@ function requestedTarget(action: string, args: JsonObject): SessionsToolTarget |
 
 /** Who an unresolved report went to; a reported Session the Hive does not know is a Worker. */
 function reportTargetPhrase(args: JsonObject) {
-  const target = args['target']
+  const target = args.target
   if (target === null || typeof target !== 'object' || Array.isArray(target)) return 'Worker'
-  if (target['type'] === 'queen') return 'the Queen'
-  if (target['type'] === 'upstream') return 'its parent'
-  if (target['type'] === 'sessions' && Array.isArray(target['sessionIds'])) {
-    return plural(target['sessionIds'].length, 'Worker')
+  if (target.type === 'queen') return 'the Queen'
+  if (target.type === 'upstream') return 'its parent'
+  if (target.type === 'sessions' && Array.isArray(target.sessionIds)) {
+    return plural(target.sessionIds.length, 'Worker')
   }
   return 'Worker'
 }
