@@ -1,6 +1,7 @@
 import type { JsonObject, JsonValue } from '../types/json'
 import type { AgentTransportEvent } from '../types/stream'
 import type { NestedToolCallRecord, NestedToolCalls } from '../types/tools'
+import { uncheckedFields } from './object-shape'
 
 /**
  * The limits Pi puts on the nested-call record of a tool result (`NESTED_CALL_LIMITS` in Pi's
@@ -28,9 +29,13 @@ function isJsonObject(value: JsonValue | undefined): value is JsonObject {
 
 function resultText(result: JsonValue) {
   if (typeof result === 'string') return result
-  if (isJsonObject(result) && Array.isArray(result.content)) {
-    return result.content
-      .map((block) => (isJsonObject(block) && typeof block.text === 'string' ? block.text : ''))
+  const { content } = uncheckedFields<{ readonly content: readonly unknown[] }>(result)
+  if (Array.isArray(content)) {
+    return content
+      .map((block: unknown) => {
+        const { text } = uncheckedFields<{ readonly text: string }>(block)
+        return typeof text === 'string' ? text : ''
+      })
       .join('\n')
   }
   return JSON.stringify(result)

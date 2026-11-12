@@ -44,6 +44,12 @@ function compareEnvironmentNames(
 }
 
 /** Canonical key ordering keeps launch-context equality independent of insertion order. */
+/** The variables OpenWaggle sets in a Project Action terminal's environment. */
+export interface ProjectActionContextEnvironment {
+  readonly OPENWAGGLE_PROJECT_ROOT: string
+  readonly OPENWAGGLE_WORKTREE_PATH?: string
+}
+
 export function normalizeTerminalEnvironment(
   environment: Readonly<Record<string, string>> = {},
 ): Readonly<Record<string, string>> {
@@ -69,15 +75,12 @@ export function createProjectActionTerminalEnvironment(input: {
   readonly worktreePath?: string
   readonly overrides?: Readonly<Record<string, string>>
 }) {
-  const environment: Record<string, string> = {}
-  for (const [name, value] of Object.entries(input.overrides ?? {})) {
-    if (!PROJECT_ACTION_CONTEXT_ENVIRONMENT_NAMES.has(name.toUpperCase())) {
-      environment[name] = value
-    }
-  }
-  environment.OPENWAGGLE_PROJECT_ROOT = input.projectRoot
-  if (input.worktreePath !== undefined) {
-    environment.OPENWAGGLE_WORKTREE_PATH = input.worktreePath
-  }
-  return normalizeTerminalEnvironment(environment)
+  const overrides = Object.entries(input.overrides ?? {}).filter(
+    ([name]) => !PROJECT_ACTION_CONTEXT_ENVIRONMENT_NAMES.has(name.toUpperCase()),
+  )
+  return normalizeTerminalEnvironment({
+    ...Object.fromEntries(overrides),
+    OPENWAGGLE_PROJECT_ROOT: input.projectRoot,
+    ...(input.worktreePath === undefined ? {} : { OPENWAGGLE_WORKTREE_PATH: input.worktreePath }),
+  })
 }

@@ -1,5 +1,5 @@
 import { match, P } from '@diegogbrisa/ts-match'
-import { isRecord } from './validation'
+import { isObjectValue, uncheckedFields } from './object-shape'
 
 export function parseSerializedToolPayload(value: unknown): unknown {
   if (typeof value !== 'string') {
@@ -26,11 +26,8 @@ export function normalizeToolResultPayload(value: unknown): unknown {
 
 export function hasConcreteToolOutput(value: unknown): boolean {
   const normalized = normalizeToolResultPayload(value)
-  return !(
-    normalized === undefined ||
-    (isRecord(normalized) &&
-      Array.isArray(normalized.content) &&
-      normalized.content.length === 0 &&
-      'details' in normalized)
-  )
+  if (normalized === undefined) return false
+  if (!isObjectValue(normalized) || !('details' in normalized)) return true
+  const { content } = uncheckedFields<{ readonly content: readonly unknown[] }>(normalized)
+  return !(Array.isArray(content) && content.length === 0)
 }

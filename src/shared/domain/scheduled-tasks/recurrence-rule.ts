@@ -5,6 +5,7 @@ import {
   type RecurrenceRuleParse,
   type RecurrenceWeekday,
 } from './recurrence-types'
+import { namedGroups } from '../../utils/regex-named-groups'
 
 /** RFC 5545 weekday codes and their ISO weekday numbers. */
 const WEEKDAY_NUMBERS: ReadonlyMap<string, number> = new Map(
@@ -40,9 +41,10 @@ function parseWeekdays(value: string) {
   const parsed: RecurrenceWeekday[] = []
   for (const item of items) {
     const match = /^(?<ordinal>[+-]?\d)?(?<code>MO|TU|WE|TH|FR|SA|SU)$/.exec(item)
-    const weekday = WEEKDAY_NUMBERS.get(match?.groups?.code ?? '')
+    const groups = namedGroups(match, ['ordinal', 'code'])
+    const weekday = WEEKDAY_NUMBERS.get(groups?.code ?? '')
     if (weekday === undefined) return null
-    const ordinalText = match?.groups?.ordinal
+    const ordinalText = groups?.ordinal
     if (ordinalText === undefined) {
       parsed.push({ weekday })
       continue

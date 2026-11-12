@@ -1,4 +1,5 @@
 import type { HeartbeatRunOutcome } from '@shared/types/scheduled-task-heartbeat'
+import { uncheckedFields } from '../../utils/object-shape'
 
 /**
  * Every Heartbeat needs a way to finish (#388): a Stop condition, an end date, a run limit, or an
@@ -62,13 +63,14 @@ const READ_ONLY_TOOL_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
 
 export interface HeartbeatToolUse {
   readonly name: string
-  readonly args: Readonly<Record<string, unknown>>
+  readonly args: object
 }
 
 function isReadOnlyToolUse(use: HeartbeatToolUse) {
   if (HEARTBEAT_READ_ONLY_TOOLS.has(use.name)) return true
   const actions = READ_ONLY_TOOL_ACTIONS[use.name]
-  const action = use.args.action
+  // A read-only query names its `action` among the tool's arguments.
+  const { action } = uncheckedFields<{ readonly action: string }>(use.args)
   return actions !== undefined && typeof action === 'string' && actions.has(action)
 }
 

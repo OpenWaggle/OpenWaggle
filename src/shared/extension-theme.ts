@@ -7,5 +7,4 @@ export type {
 export {
   createOpenWaggleExtensionTheme,
   extensionThemeCssVariableEntries,
-  isOpenWaggleExtensionTheme,
 } from '@openwaggle/extension-sdk'
