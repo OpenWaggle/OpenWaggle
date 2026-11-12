@@ -5,6 +5,7 @@ import {
   resolveMacIconPath,
   resolveUrlSchemeProtocols,
 } from './scripts/build-identity'
+import { removeUnusedChromiumFiles } from './scripts/electron-builder-after-pack'
 import {
   forceIncludePiPackageAsset,
   PI_PACKAGE_ASSET_FILE_PATTERNS,
@@ -60,6 +61,11 @@ const config = {
   directories: {
     buildResources: buildResourcesDir,
   },
+  // zip at 7-Zip's highest level, an LZMA DMG (ULMO, patches/dmg-builder) and an xz AppImage. The Windows
+  // installer keeps electron-builder's differential-update payload (1 MB LZMA blocks) either way.
+  compression: 'maximum',
+  // SwiftShader, which Chromium no longer falls back to (scripts/electron-builder-after-pack.ts).
+  afterPack: removeUnusedChromiumFiles,
   // Session links (`openwaggle://sessions/<id>`, ADR 0056). Release channels only.
   protocols: resolveUrlSchemeProtocols(identity.channel),
   publish: {
