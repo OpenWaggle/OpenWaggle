@@ -12,7 +12,9 @@ import {
 import { bufferExpiry, MemoryKeyValueStore, YESTERDAY } from './test-support'
 
 function uuidsOf(records: readonly PublishedRecord[]) {
-  return records.map((record) => record.uuid).sort()
+  return records
+    .map((record) => record.uuid ?? '')
+    .toSorted((left, right) => left.localeCompare(right))
 }
 
 describe('flush manifest', () => {
@@ -34,7 +36,10 @@ describe('flush manifest', () => {
       options: { expiration: bufferExpiry(YESTERDAY) },
     })
     const manifest = JSON.parse(duringSend?.value ?? '{}')
-    expect({ ...manifest, keys: [...manifest.keys].sort() }).toEqual({ v: 1, day: YESTERDAY, keys })
+    expect({
+      ...manifest,
+      keys: [...manifest.keys].toSorted((left: string, right: string) => left.localeCompare(right)),
+    }).toEqual({ v: 1, day: YESTERDAY, keys })
     expect(store.entries.has(FLUSH_MANIFEST_KEY)).toBe(false)
   })
 

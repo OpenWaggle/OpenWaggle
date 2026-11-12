@@ -42,14 +42,18 @@ export function stackFrames(stack: string | undefined): StackFrame[] {
   const frames: StackFrame[] = []
   for (const line of (stack ?? '').split('\n')) {
     const groups = STACK_FRAME.exec(line)?.groups
-    if (groups?.file === undefined || groups.line === undefined || groups.column === undefined) {
+    if (
+      groups?.['file'] === undefined ||
+      groups['line'] === undefined ||
+      groups['column'] === undefined
+    ) {
       continue
     }
     frames.push({
-      function: groups.fn ?? '<anonymous>',
-      filename: endpointCodeLocation(groups.file),
-      lineno: Number(groups.line),
-      colno: Number(groups.column),
+      function: groups['fn'] ?? '<anonymous>',
+      filename: endpointCodeLocation(groups['file']),
+      lineno: Number(groups['line']),
+      colno: Number(groups['column']),
       in_app: true,
     })
   }

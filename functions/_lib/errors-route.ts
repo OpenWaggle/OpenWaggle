@@ -65,7 +65,7 @@ function decodedBody(request: IncomingRequest) {
 function forwardedItems(envelope: SentryEnvelope) {
   const items: OutgoingEnvelopeItem[] = []
   for (const item of envelope.items) {
-    if (item.header.type !== FORWARDED_ITEM_TYPE) continue
+    if (item.header['type'] !== FORWARDED_ITEM_TYPE) continue
     const parsed = parseJsonBytes(item.payload)
     const payload = parsed.ok && isRecord(parsed.value) ? scrubSentryEvent(parsed.value) : undefined
     if (payload !== undefined) items.push({ type: FORWARDED_ITEM_TYPE, payload })
