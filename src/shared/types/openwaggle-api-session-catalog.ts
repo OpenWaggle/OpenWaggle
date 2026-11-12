@@ -1,40 +1,13 @@
-import type {
-  ArchivedItemRefsPage,
-  ArchivedItemsChange,
-  ArchivedItemsChangeResult,
-  ArchivedItemsPage,
-  ArchivedItemsQuery,
-  ArchivedItemsRefsQuery,
-  ArchivedSessionsDeletionResult,
-} from './archived-items'
-import type { SessionId } from './brand'
-import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from './session'
-import type { HiveSessionCatalogPage, HiveTreeSessionCatalogPage } from './session-hive-catalog'
+import type { IpcInvokeMethod } from './ipc-api-methods'
 
 export interface OpenWaggleSessionCatalogApi {
-  listSessionsByIds(sessionIds: SessionId[]): Promise<SessionSummary[]>
-  listSessionCatalogPage(
-    archived: boolean,
-    limit: number,
-    cursor?: string,
-  ): Promise<SessionCatalogPage>
-  listSessionProjectPage(
-    limit: number,
-    cursor?: string,
-    search?: string,
-  ): Promise<SessionProjectPage>
-  listHiveSessionCatalogPage(
-    sessionId: SessionId,
-    limit: number,
-    cursor?: string,
-  ): Promise<HiveSessionCatalogPage>
-  listHiveTreeSessionCatalogPage(
-    sessionId: SessionId,
-    limit: number,
-    cursor?: string,
-  ): Promise<HiveTreeSessionCatalogPage>
-  queryArchivedItems(query: ArchivedItemsQuery): Promise<ArchivedItemsPage>
-  listArchivedItemRefs(query: ArchivedItemsRefsQuery): Promise<ArchivedItemRefsPage>
-  setArchivedItems(change: ArchivedItemsChange): Promise<ArchivedItemsChangeResult>
-  deleteArchivedSessions(sessionIds: SessionId[]): Promise<ArchivedSessionsDeletionResult>
+  listSessionsByIds: IpcInvokeMethod<'sessions:list-by-ids'>
+  listSessionCatalogPage: IpcInvokeMethod<'sessions:list-page'>
+  listSessionProjectPage: IpcInvokeMethod<'sessions:list-projects'>
+  listHiveSessionCatalogPage: IpcInvokeMethod<'sessions:list-hive-page'>
+  listHiveTreeSessionCatalogPage: IpcInvokeMethod<'sessions:list-hive-tree-page'>
+  queryArchivedItems: IpcInvokeMethod<'sessions:query-archived-items'>
+  listArchivedItemRefs: IpcInvokeMethod<'sessions:list-archived-item-refs'>
+  setArchivedItems: IpcInvokeMethod<'sessions:set-archived-items'>
+  deleteArchivedSessions: IpcInvokeMethod<'sessions:delete-archived-sessions'>
 }

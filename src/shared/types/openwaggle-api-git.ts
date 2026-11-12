@@ -1,112 +1,38 @@
-import type { RepositoryPath, SessionId, WorkingPath } from './brand'
-import type {
-  ChangeRequestCheckoutResult,
-  ChangeRequestListResult,
-  ChangeRequestPanelResult,
-  ChangeRequestPreflightPayload,
-  ChangeRequestPreflightResult,
-  GitBranchCheckoutPayload,
-  GitBranchCreatePayload,
-  GitBranchListResult,
-  GitBranchMutationResult,
-  GitBranchValidationResult,
-  GitCommitPayload,
-  GitCommitResult,
-  GitDiffResult,
-  GitRunStackedActionOptions,
-  GitRunStackedActionResult,
-  GitStatusSummary,
-  GitWorkingTreeMutationResult,
-  GitWorktreeCreatePayload,
-  GitWorktreeListResult,
-  GitWorktreeMutationResult,
-  GitWorktreeRemovePayload,
-  LocalVcsStatusResult,
-  MergeChangeRequestPayload,
-  MergeChangeRequestResult,
-  RemoteVcsStatusResult,
-  SessionWorktreeCheck,
-} from './git'
-import type { IpcEventPayload } from './ipc'
-import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { OpenWaggleWorktreesApi } from './openwaggle-api-worktrees'
-import type {
-  ChangeRequestOpenDestinationResolution,
-  SourceControlConfigureRequest,
-  SourceControlConfigureResult,
-  SourceControlHostsOverview,
-} from './source-control'
+import type { IpcEventMethod, IpcInvokeMethod } from './ipc-api-methods'
 
 /** Git, source control, and the worktrees Settings manages (OpenWaggleWorktreesApi). */
 export interface OpenWaggleGitApi extends OpenWaggleWorktreesApi {
-  onGitWorkingTreeChanged(
-    callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
-  ): () => void
-  onGitStackedActionProgress(
-    callback: (payload: IpcEventPayload<'git:stacked-action:progress'>) => void,
-  ): () => void
-  getGitStatus(workingPath: WorkingPath): Promise<GitStatusSummary>
-  commitGit(workingPath: WorkingPath, payload: GitCommitPayload): Promise<GitCommitResult>
-  getGitDiff(workingPath: WorkingPath): Promise<GitDiffResult>
-  getGitBranchDiff(workingPath: WorkingPath, baseRef: string): Promise<GitDiffResult>
-  stageAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
-  revertAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
-  listGitBranches(repositoryPath: RepositoryPath): Promise<GitBranchListResult>
-  checkoutGitBranch(
-    workingPath: WorkingPath,
-    payload: GitBranchCheckoutPayload,
-  ): Promise<GitBranchMutationResult>
-  createGitBranch(
-    workingPath: WorkingPath,
-    payload: GitBranchCreatePayload,
-  ): Promise<GitBranchMutationResult>
-  validateGitBranchName(workingPath: WorkingPath, name: string): Promise<GitBranchValidationResult>
-  checkSessionWorktree(worktreePath: string | null): Promise<SessionWorktreeCheck>
-  listGitWorktrees(repositoryPath: RepositoryPath): Promise<GitWorktreeListResult>
-  createGitWorktree(
-    repositoryPath: RepositoryPath,
-    payload: GitWorktreeCreatePayload,
-  ): Promise<GitWorktreeMutationResult>
-  removeGitWorktree(
-    repositoryPath: RepositoryPath,
-    payload: GitWorktreeRemovePayload,
-  ): Promise<GitWorktreeMutationResult>
-  getLocalVcsStatus(workingPath: WorkingPath): Promise<LocalVcsStatusResult>
-  getRemoteVcsStatus(workingPath: WorkingPath): Promise<RemoteVcsStatusResult>
-  runStackedGitAction(
-    workingPath: WorkingPath,
-    options: GitRunStackedActionOptions,
-  ): Promise<GitRunStackedActionResult>
-  cancelStackedGitAction(operationId: string): Promise<boolean>
-  preflightChangeRequest(
-    workingPath: WorkingPath,
-    payload: ChangeRequestPreflightPayload,
-  ): Promise<ChangeRequestPreflightResult>
-  listChangeRequests(repositoryPath: RepositoryPath): Promise<ChangeRequestListResult>
-  checkoutChangeRequest(
-    repositoryPath: RepositoryPath,
-    reference: string,
-    adoption: ChangeRequestAdoption,
-  ): Promise<ChangeRequestCheckoutResult>
-  getChangeRequestPanel(
-    sessionId: SessionId,
-    workingPath: WorkingPath,
-    requestUrl: string,
-  ): Promise<ChangeRequestPanelResult>
-  mergeChangeRequest(
-    sessionId: SessionId,
-    workingPath: WorkingPath,
-    payload: MergeChangeRequestPayload,
-  ): Promise<MergeChangeRequestResult>
+  onGitWorkingTreeChanged: IpcEventMethod<'git:working-tree-changed'>
+  onGitStackedActionProgress: IpcEventMethod<'git:stacked-action:progress'>
+  getGitStatus: IpcInvokeMethod<'git:status'>
+  commitGit: IpcInvokeMethod<'git:commit'>
+  getGitDiff: IpcInvokeMethod<'git:diff'>
+  getGitBranchDiff: IpcInvokeMethod<'git:branch-diff'>
+  stageAllGitChanges: IpcInvokeMethod<'git:working-tree:stage-all'>
+  revertAllGitChanges: IpcInvokeMethod<'git:working-tree:revert-all'>
+  listGitBranches: IpcInvokeMethod<'git:branches:list'>
+  checkoutGitBranch: IpcInvokeMethod<'git:branches:checkout'>
+  createGitBranch: IpcInvokeMethod<'git:branches:create'>
+  validateGitBranchName: IpcInvokeMethod<'git:branches:validate-name'>
+  checkSessionWorktree: IpcInvokeMethod<'git:worktrees:check'>
+  listGitWorktrees: IpcInvokeMethod<'git:worktrees:list'>
+  createGitWorktree: IpcInvokeMethod<'git:worktrees:create'>
+  removeGitWorktree: IpcInvokeMethod<'git:worktrees:remove'>
+  getLocalVcsStatus: IpcInvokeMethod<'git:vcs-status:local'>
+  getRemoteVcsStatus: IpcInvokeMethod<'git:vcs-status:remote'>
+  runStackedGitAction: IpcInvokeMethod<'git:stacked-action:run'>
+  cancelStackedGitAction: IpcInvokeMethod<'git:stacked-action:cancel'>
+  preflightChangeRequest: IpcInvokeMethod<'git:change-request:preflight'>
+  listChangeRequests: IpcInvokeMethod<'git:change-request:list'>
+  checkoutChangeRequest: IpcInvokeMethod<'git:change-request:checkout'>
+  getChangeRequestPanel: IpcInvokeMethod<'git:change-request:panel'>
+  mergeChangeRequest: IpcInvokeMethod<'git:change-request:merge'>
   /** Source control hosts OpenWaggle knows, with CLI install and Provider account state. */
-  getSourceControlHosts(): Promise<SourceControlHostsOverview>
+  getSourceControlHosts: IpcInvokeMethod<'source-control:hosts'>
   /** The effective Change request open destination for a project (or user-wide for null). */
-  getChangeRequestOpenDestination(
-    projectPath: string | null,
-  ): Promise<ChangeRequestOpenDestinationResolution>
-  configureSourceControl(
-    request: SourceControlConfigureRequest,
-  ): Promise<SourceControlConfigureResult>
+  getChangeRequestOpenDestination: IpcInvokeMethod<'source-control:open-destination'>
+  configureSourceControl: IpcInvokeMethod<'source-control:configure'>
   /** Forget cached VCS status for a working path, e.g. after a CLI sign-in finishes. */
-  refreshSourceControlStatus(workingPath: string): Promise<void>
+  refreshSourceControlStatus: IpcInvokeMethod<'source-control:refresh-status'>
 }

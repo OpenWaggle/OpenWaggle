@@ -1,23 +1,14 @@
-import type { AgentSendPayload, AgentSendReport } from './agent'
-import type { SessionId, WagglePresetId } from './brand'
-import type { IpcEventPayload } from './ipc'
-import type { SupportedModelId } from './llm'
-import type { WaggleConfig, WagglePreset } from './waggle'
+import type { IpcEventMethod, IpcInvokeMethod, IpcSendMethod } from './ipc-api-methods'
 
 /** The Waggle-mode surface of the preload API, split out to keep the main interface within its size budget. */
 export interface OpenWaggleWaggleApi {
   // Waggle mode
-  sendWaggleMessage(
-    sessionId: SessionId,
-    payload: AgentSendPayload,
-    model: SupportedModelId,
-    config: WaggleConfig,
-  ): Promise<AgentSendReport>
-  cancelWaggle(sessionId: SessionId): void
-  onWaggleEvent(callback: (payload: IpcEventPayload<'waggle:event'>) => void): () => void
-  onWaggleTurnEvent(callback: (payload: IpcEventPayload<'waggle:turn-event'>) => void): () => void
+  sendWaggleMessage: IpcInvokeMethod<'agent:send-waggle-message'>
+  cancelWaggle: IpcSendMethod<'agent:cancel-waggle'>
+  onWaggleEvent: IpcEventMethod<'waggle:event'>
+  onWaggleTurnEvent: IpcEventMethod<'waggle:turn-event'>
   // Waggle presets
-  listWagglePresets(projectPath?: string | null): Promise<WagglePreset[]>
-  saveWagglePreset(preset: WagglePreset, projectPath?: string | null): Promise<WagglePreset>
-  deleteWagglePreset(id: WagglePresetId, projectPath?: string | null): Promise<void>
+  listWagglePresets: IpcInvokeMethod<'waggle-presets:list'>
+  saveWagglePreset: IpcInvokeMethod<'waggle-presets:save'>
+  deleteWagglePreset: IpcInvokeMethod<'waggle-presets:delete'>
 }

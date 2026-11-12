@@ -1,43 +1,22 @@
-import type { AgentDefinitionDisplayItem } from './agent-definition'
-import type {
-  AgentDefinitionManagementCommand,
-  AgentDefinitionManagementOutcome,
-} from './agent-definition-management'
-import type { CliShimMutationResult, CliShimStatus } from './cli-shim'
-import type {
-  LocalSessionProfileManagementResponse,
-  LocalSessionProfileUiCommand,
-} from './local-session-profile-management'
-import type {
-  SessionControlMutationRequest,
-  SessionControlMutationResponse,
-} from './session-control'
-import type { FollowUpEditHoldReference } from './session-control-queue'
-import type { SessionQueryRequest, SessionQueryResponse } from './session-query'
+import type { IpcInvokeMethod } from './ipc-api-methods'
 
 export interface OpenWaggleSessionControlApi {
-  getCliShimStatus(): Promise<CliShimStatus | null>
-  installCliShim(): Promise<CliShimMutationResult>
-  removeCliShim(): Promise<CliShimMutationResult>
-  selectAgentDefinitionSource(): Promise<string | null>
-  manageAgentDefinitions(
-    command: AgentDefinitionManagementCommand,
-  ): Promise<AgentDefinitionManagementOutcome>
-  listAgentDefinitionDisplay(projectPath: string): Promise<readonly AgentDefinitionDisplayItem[]>
-  getAgentDefinitionPreview(projectPath: string, name: string): Promise<{ markdown: string }>
-  setAgentDefinitionEnabled(projectPath: string, name: string, enabled: boolean): Promise<void>
-  manageAccessProfiles(
-    command: LocalSessionProfileUiCommand,
-  ): Promise<LocalSessionProfileManagementResponse>
+  getCliShimStatus: IpcInvokeMethod<'cli-shim:get-status'>
+  installCliShim: IpcInvokeMethod<'cli-shim:install'>
+  removeCliShim: IpcInvokeMethod<'cli-shim:remove'>
+  selectAgentDefinitionSource: IpcInvokeMethod<'agent-definitions:select-source'>
+  manageAgentDefinitions: IpcInvokeMethod<'agent-definitions:manage'>
+  listAgentDefinitionDisplay: IpcInvokeMethod<'agent-definitions:list-display'>
+  getAgentDefinitionPreview: IpcInvokeMethod<'agent-definitions:get-preview'>
+  setAgentDefinitionEnabled: IpcInvokeMethod<'agent-definitions:set-enabled'>
+  manageAccessProfiles: IpcInvokeMethod<'access-profiles:manage'>
   /** Execute a GUI-authored mutation through the same durable Session Control used by CLI/MCP. */
-  mutateSessionControl(
-    request: SessionControlMutationRequest,
-  ): Promise<SessionControlMutationResponse>
+  mutateSessionControl: IpcInvokeMethod<'session-control:mutate'>
   /** Read the canonical Session Host projection used by GUI/CLI/MCP. */
-  querySessionControl(request: SessionQueryRequest): Promise<SessionQueryResponse>
+  querySessionControl: IpcInvokeMethod<'session-control:query'>
   /**
    * Binds a Follow-up edit hold this user already holds to the calling window, so that window
    * renews it and releases it when it closes (ADR 0044). `false` when the hold is gone.
    */
-  adoptFollowUpEdit(hold: FollowUpEditHoldReference): Promise<boolean>
+  adoptFollowUpEdit: IpcInvokeMethod<'session-control:adopt-follow-up-edit'>
 }

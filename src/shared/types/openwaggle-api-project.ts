@@ -6,8 +6,8 @@
  * writing them where `null` clears a key.
  */
 
-import type { ActionManagementRequest, ActionManagementResult } from './action-management'
 import type { AgentAuthorizationMode } from './agent-authorization'
+import type { IpcEventMethod, IpcInvokeMethod } from './ipc-api-methods'
 
 /** Wire shape of the per-project agent overrides carried over IPC. */
 export interface ProjectPreferencesPayload {
@@ -27,23 +27,17 @@ export interface ProjectPreferencesUpdatePayload {
 }
 
 export interface OpenWaggleProjectConfigApi {
-  manageProjectActions(request: ActionManagementRequest): Promise<ActionManagementResult>
-  selectProjectFolder(): Promise<string | null>
+  manageProjectActions: IpcInvokeMethod<'project-actions:manage'>
+  selectProjectFolder: IpcInvokeMethod<'project:select-folder'>
   /** Consume the project an `openwaggle <path>` launch asked to open, if any. */
-  takeOpenProjectRequest(): Promise<string | null>
-  onOpenProjectRequested(callback: () => void): () => void
+  takeOpenProjectRequest: IpcInvokeMethod<'project:take-open-request'>
+  onOpenProjectRequested: IpcEventMethod<'app:open-project-requested'>
   /** Consume the Session identity of the oldest opened Session link, if any (ADR 0056). */
-  takeOpenSessionLinkRequest(): Promise<string | null>
-  onOpenSessionLinkRequested(callback: () => void): () => void
-  getProjectPreferences(projectPath: string): Promise<ProjectPreferencesPayload | null>
+  takeOpenSessionLinkRequest: IpcInvokeMethod<'app:take-open-session-link-request'>
+  onOpenSessionLinkRequested: IpcEventMethod<'app:open-session-link-requested'>
+  getProjectPreferences: IpcInvokeMethod<'project-config:get-preferences'>
   /** Resolves to the canonical (realpath) project path the write was stored under. */
-  setProjectPreferences(
-    projectPath: string,
-    preferences: ProjectPreferencesUpdatePayload,
-  ): Promise<string>
+  setProjectPreferences: IpcInvokeMethod<'project-config:set-preferences'>
   /** Deletes a removed project's stored model entry; resolves to the canonical path removed. The remaining project references let the backend keep the entry while an equivalent reference survives. */
-  removeProjectModel(
-    projectPath: string,
-    remainingProjectPaths?: readonly string[],
-  ): Promise<string>
+  removeProjectModel: IpcInvokeMethod<'project-config:remove-project-model'>
 }
