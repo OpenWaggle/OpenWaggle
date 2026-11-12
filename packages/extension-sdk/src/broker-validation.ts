@@ -1,5 +1,7 @@
+import * as Schema from 'effect/Schema'
 import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { isJsonValue, isNonEmptyString, isRecord, isStringArray } from './internal-validation.js'
+import { jsonValueSchema } from './json.js'
+import { safeDecodeExtensionSchema } from './schema.js'
 import type {
   ExtensionRuntimeRegisterContributionResult,
   ExtensionRuntimeUnregisterContributionResult,
@@ -15,8 +17,6 @@ import type {
   ExtensionInvokeFailure,
   ExtensionInvokeResult,
 } from './types.js'
-
-type OperationResultGuard<TValue> = (value: unknown) => value is TValue
 
 export function invalidOperationResult(input: {
   readonly audit: ExtensionCapabilityAuditEntry
@@ -34,134 +34,102 @@ export function invalidOperationResult(input: {
   }
 }
 
-export function toDecodedOperationResult<TValue>(
+/**
+ * The broker's result for one operation, decoded with the operation's result schema. A result that
+ * does not decode becomes an invalid-payload failure whose issues name the fields that failed.
+ */
+export function toDecodedOperationResult<TValue, TEncoded>(
   result: ExtensionInvokeResult,
-  guard: OperationResultGuard<TValue>,
+  schema: Schema.Schema<TValue, TEncoded>,
   message: string,
 ): ExtensionInvokeResult<TValue> {
   if (!result.ok) {
     return result
   }
 
-  return guard(result.value)
-    ? { ok: true, value: result.value, audit: result.audit }
-    : invalidOperationResult({
-        audit: result.audit,
-        issues: ['Broker response payload did not match the expected operation result.'],
-        message,
-      })
+  const decoded = safeDecodeExtensionSchema(schema, result.value)
+  return decoded.success
+    ? { ok: true, value: decoded.data, audit: result.audit }
+    : invalidOperationResult({ audit: result.audit, issues: decoded.issues, message })
 }
 
-function isKnownString<TValue extends string>(
-  values: readonly TValue[],
-  value: unknown,
-): value is TValue {
-  return typeof value === 'string' && values.some((candidate) => candidate === value)
+const nonEmptyString = Schema.String.pipe(
+  Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.'),
+)
+
+const storageScopeSchema = Schema.Union(
+  Schema.Struct({ kind: Schema.Literal(OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND) }),
+  Schema.Struct({
+    kind: Schema.Literal(OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND),
+    projectPath: nonEmptyString,
+  }),
+)
+
+const storageKeySchema = nonEmptyString.pipe(
+  Schema.filter((value) => value === value.trim() || 'Must not start or end with whitespace.'),
+  Schema.maxLength(OPENWAGGLE_EXTENSION.STORAGE.KEY_MAX_LENGTH),
+)
+
+const storageResultBase = {
+  extensionId: nonEmptyString,
+  contributionId: nonEmptyString,
+  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE),
+  storageKind: Schema.Literal(
+    OPENWAGGLE_EXTENSION.STORAGE.KIND.STATE,
+    OPENWAGGLE_EXTENSION.STORAGE.KIND.CONFIG,
+  ),
+  storageScope: storageScopeSchema,
 }
 
-function isStorageScope(value: unknown) {
-  if (!isRecord(value)) {
-    return false
-  }
+export const storageGetResultSchema: Schema.Schema<ExtensionStorageGetResult> = Schema.Struct({
+  ...storageResultBase,
+  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.GET),
+  key: storageKeySchema,
+  value: Schema.NullOr(jsonValueSchema),
+})
 
-  if (value.kind === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND) {
-    return true
-  }
+export const storageSetResultSchema: Schema.Schema<ExtensionStorageSetResult> = Schema.Struct({
+  ...storageResultBase,
+  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.SET),
+  key: storageKeySchema,
+  value: jsonValueSchema,
+  createdAt: Schema.Number,
+  updatedAt: Schema.Number,
+})
 
-  return (
-    value.kind === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND &&
-    isNonEmptyString(value.projectPath)
-  )
+export const storageDeleteResultSchema: Schema.Schema<ExtensionStorageDeleteResult> = Schema.Struct(
+  {
+    ...storageResultBase,
+    method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE),
+    key: storageKeySchema,
+    deleted: Schema.Literal(true),
+  },
+)
+
+export const storageListResultSchema: Schema.Schema<ExtensionStorageListResult> = Schema.Struct({
+  ...storageResultBase,
+  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST),
+  keys: Schema.Array(storageKeySchema),
+})
+
+const runtimeContributionResultBase = {
+  extensionId: nonEmptyString,
+  contributionId: nonEmptyString,
+  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME),
+  family: Schema.Literal(...OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES),
 }
 
-function isStorageKey(value: unknown) {
-  return (
-    isNonEmptyString(value) &&
-    value === value.trim() &&
-    value.length <= OPENWAGGLE_EXTENSION.STORAGE.KEY_MAX_LENGTH
-  )
-}
+export const runtimeRegisterContributionResultSchema: Schema.Schema<ExtensionRuntimeRegisterContributionResult> =
+  Schema.Struct({
+    ...runtimeContributionResultBase,
+    method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION),
+    registeredContributionId: nonEmptyString,
+  })
 
-function hasStorageResultBase(value: Readonly<Record<string, unknown>>) {
-  return (
-    isNonEmptyString(value.extensionId) &&
-    isNonEmptyString(value.contributionId) &&
-    value.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE &&
-    isKnownString(OPENWAGGLE_EXTENSION.STORAGE.KINDS, value.storageKind) &&
-    isStorageScope(value.storageScope)
-  )
-}
-
-export function isStorageGetResult(value: unknown): value is ExtensionStorageGetResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.GET &&
-    isStorageKey(value.key) &&
-    (value.value === null || isJsonValue(value.value))
-  )
-}
-
-export function isStorageSetResult(value: unknown): value is ExtensionStorageSetResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.SET &&
-    isStorageKey(value.key) &&
-    isJsonValue(value.value) &&
-    typeof value.createdAt === 'number' &&
-    typeof value.updatedAt === 'number'
-  )
-}
-
-export function isStorageDeleteResult(value: unknown): value is ExtensionStorageDeleteResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE &&
-    isStorageKey(value.key) &&
-    value.deleted === true
-  )
-}
-
-export function isStorageListResult(value: unknown): value is ExtensionStorageListResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST &&
-    isStringArray(value.keys) &&
-    value.keys.every(isStorageKey)
-  )
-}
-
-function hasRuntimeContributionResultBase(value: Readonly<Record<string, unknown>>) {
-  return (
-    isNonEmptyString(value.extensionId) &&
-    isNonEmptyString(value.contributionId) &&
-    value.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME &&
-    isKnownString(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES, value.family)
-  )
-}
-
-export function isRuntimeRegisterContributionResult(
-  value: unknown,
-): value is ExtensionRuntimeRegisterContributionResult {
-  return (
-    isRecord(value) &&
-    hasRuntimeContributionResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION &&
-    isNonEmptyString(value.registeredContributionId)
-  )
-}
-
-export function isRuntimeUnregisterContributionResult(
-  value: unknown,
-): value is ExtensionRuntimeUnregisterContributionResult {
-  return (
-    isRecord(value) &&
-    hasRuntimeContributionResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION &&
-    isNonEmptyString(value.unregisteredContributionId) &&
-    typeof value.unregistered === 'boolean'
-  )
-}
+export const runtimeUnregisterContributionResultSchema: Schema.Schema<ExtensionRuntimeUnregisterContributionResult> =
+  Schema.Struct({
+    ...runtimeContributionResultBase,
+    method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION),
+    unregisteredContributionId: nonEmptyString,
+    unregistered: Schema.Boolean,
+  })

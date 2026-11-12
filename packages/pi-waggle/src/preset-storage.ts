@@ -13,8 +13,14 @@ export interface PiWagglePresetsFileData {
   readonly hiddenBuiltInPresetIds: readonly string[]
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/** The presets file's fields, each still unchecked. */
+interface UncheckedPresetsFile {
+  readonly wagglePresets?: unknown
+  readonly hiddenBuiltInPresetIds?: unknown
+}
+
+function presetsFileFields(value: unknown): UncheckedPresetsFile {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : {}
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
@@ -22,20 +28,18 @@ function uniqueStrings(values: readonly string[]): string[] {
 }
 
 function rawPresetValues(value: unknown): readonly unknown[] {
-  if (!isRecord(value) || !Array.isArray(value.wagglePresets)) {
-    return []
-  }
-
-  return value.wagglePresets
+  const { wagglePresets } = presetsFileFields(value)
+  return Array.isArray(wagglePresets) ? wagglePresets : []
 }
 
 function rawHiddenBuiltInIds(value: unknown): readonly string[] {
-  if (!isRecord(value) || !Array.isArray(value.hiddenBuiltInPresetIds)) {
+  const { hiddenBuiltInPresetIds } = presetsFileFields(value)
+  if (!Array.isArray(hiddenBuiltInPresetIds)) {
     return []
   }
 
   const ids: string[] = []
-  for (const id of value.hiddenBuiltInPresetIds) {
+  for (const id of hiddenBuiltInPresetIds) {
     if (typeof id === 'string' && id.trim().length > 0) ids.push(id)
   }
   return ids

@@ -28,7 +28,10 @@ export interface PiWaggleModeState {
   readonly updatedAt: number
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+/** The declared fields of `T`, each still unchecked: what a parser reads before it validates. */
+type UncheckedFields<T> = { readonly [K in keyof T]?: unknown }
+
+function isObjectValue(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -67,16 +70,17 @@ export function createPiWaggleTurnDetails(input: PiWaggleTurnDetails): PiWaggleT
 }
 
 export function parsePiWaggleTurnDetails(value: unknown): PiWaggleTurnDetails | null {
-  if (!isRecord(value)) {
+  if (!isObjectValue(value)) {
     return null
   }
 
-  const runId = optionalString(value.runId)
-  const turnNumber = nonNegativeInteger(value.turnNumber)
-  const agentIndex = nonNegativeInteger(value.agentIndex)
-  const agentLabel = optionalString(value.agentLabel)
-  const agentModel = optionalString(value.agentModel)
-  const agentColor = parseAgentColor(value.agentColor)
+  const fields: UncheckedFields<PiWaggleTurnDetails> = value
+  const runId = optionalString(fields.runId)
+  const turnNumber = nonNegativeInteger(fields.turnNumber)
+  const agentIndex = nonNegativeInteger(fields.agentIndex)
+  const agentLabel = optionalString(fields.agentLabel)
+  const agentModel = optionalString(fields.agentModel)
+  const agentColor = parseAgentColor(fields.agentColor)
 
   if (
     !runId ||
@@ -97,27 +101,28 @@ export function createPiWaggleModeState(input: PiWaggleModeState): PiWaggleModeS
 }
 
 export function parsePiWaggleModeState(value: unknown): PiWaggleModeState | null {
-  if (!isRecord(value)) {
+  if (!isObjectValue(value)) {
     return null
   }
 
-  if (typeof value.enabled !== 'boolean') {
+  const fields: UncheckedFields<PiWaggleModeState> = value
+  if (typeof fields.enabled !== 'boolean') {
     return null
   }
 
-  const updatedAt = nonNegativeTimestamp(value.updatedAt)
+  const updatedAt = nonNegativeTimestamp(fields.updatedAt)
   if (updatedAt === undefined) {
     return null
   }
 
-  const presetId = optionalString(value.presetId)
-  const configResult = value.config === undefined ? undefined : parseWaggleConfig(value.config)
+  const presetId = optionalString(fields.presetId)
+  const configResult = fields.config === undefined ? undefined : parseWaggleConfig(fields.config)
   if (configResult && !configResult.success) {
     return null
   }
 
   return {
-    enabled: value.enabled,
+    enabled: fields.enabled,
     ...(presetId ? { presetId } : {}),
     ...(configResult?.success ? { config: configResult.value } : {}),
     updatedAt,
