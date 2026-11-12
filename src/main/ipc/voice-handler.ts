@@ -1,10 +1,11 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { assertMatching, P } from '@diegogbrisa/ts-match'
-import { AUDIO_RECORDING, AUDIO_SAMPLE_RATE, LANGUAGE_CODE } from '@shared/constants/audio-config'
+import { AUDIO_RECORDING } from '@shared/constants/audio-config'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { VOICE_TIMEOUT } from '@shared/constants/time'
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownOrThrow } from '@shared/schema'
+import { voiceTranscriptionRequestSchema } from '@shared/schemas/voice'
 import {
   VOICE_MODEL_BASE,
   VOICE_MODEL_TINY,
@@ -32,31 +33,6 @@ const VOICE_MODEL_CONFIG: Record<
     dtype: 'fp32',
   },
 }
-
-const modernTranscribePayloadSchema = Schema.Struct({
-  pcm16: Schema.Uint8ArrayFromSelf.pipe(
-    Schema.filter((value) => {
-      if (value.byteLength <= 0) {
-        return 'pcm16 payload is invalid.'
-      }
-      return value.byteLength <= AUDIO_RECORDING.MAX_PCM16_BYTES || 'pcm16 payload is invalid.'
-    }),
-  ),
-  sampleRate: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(AUDIO_SAMPLE_RATE.MIN_HZ),
-    Schema.lessThanOrEqualTo(AUDIO_SAMPLE_RATE.MAX_HZ),
-  ),
-  language: Schema.optional(
-    Schema.String.pipe(
-      Schema.trimmed(),
-      Schema.minLength(LANGUAGE_CODE.MIN_LENGTH),
-      Schema.maxLength(LANGUAGE_CODE.MAX_LENGTH),
-    ),
-  ),
-  model: Schema.optional(Schema.Literal(VOICE_MODEL_TINY, VOICE_MODEL_BASE)),
-})
-const transcribePayloadSchema = modernTranscribePayloadSchema
 
 type WhisperTranscriber = (
   audio: Float32Array,
@@ -232,7 +208,7 @@ export function resetVoiceHandlerForTests(): void {
 export function registerVoiceHandlers(): void {
   typedHandle('voice:transcribe-local', (_event, rawPayload: unknown) =>
     Effect.gen(function* () {
-      const payload = decodeUnknownOrThrow(transcribePayloadSchema, rawPayload)
+      const payload = decodeUnknownOrThrow(voiceTranscriptionRequestSchema, rawPayload)
       const model = payload.model ?? VOICE_MODEL_BASE
       const sampleCount = Math.floor(payload.pcm16.byteLength / DOUBLE_FACTOR)
       if (sampleCount <= 0) {

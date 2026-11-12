@@ -118,3 +118,18 @@ export const gitWorktreeRemovePayloadSchema = Schema.Struct({
    */
   lockOnly: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
+
+/**
+ * A Change request the window asks to open. The fork-safe head identity
+ * (`OpenChangeRequestPayload.headOwner` and `headRepository`) is main's to resolve, so the
+ * window cannot send it.
+ */
+export const changeRequestPreflightPayloadSchema = Schema.Struct({
+  headRef: Schema.String,
+  /** Omitted when the provider should use its configured default branch. */
+  baseRef: Schema.optional(Schema.String),
+  title: Schema.String,
+  body: Schema.optional(Schema.String),
+  draft: Schema.optional(Schema.Boolean),
+  createFeatureBranch: Schema.optional(Schema.Boolean),
+})
