@@ -86,7 +86,7 @@ async function main() {
     path.join(values.results, 'openwaggle.app.json'),
     `${JSON.stringify(identity, null, JSON_INDENT)}\n`,
   )
-  const token = process.env['BENCH_PROXY_TOKEN']
+  const token = process.env.BENCH_PROXY_TOKEN
   if (!token) {
     process.stderr.write("Set BENCH_PROXY_TOKEN to the proxy's per-run token (run.sh does).\n")
     process.exit(USAGE_EXIT_CODE)

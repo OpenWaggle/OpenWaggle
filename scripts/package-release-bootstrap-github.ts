@@ -124,21 +124,21 @@ async function readManagedRuleset(
     ),
   )
   const managed = rulesets.filter(
-    (ruleset) => isJsonObject(ruleset) && ruleset['name'] === MANAGED_RULESET_NAME,
+    (ruleset) => isJsonObject(ruleset) && ruleset.name === MANAGED_RULESET_NAME,
   )
   if (managed.length === 0) return { state: 'pending' }
   if (managed.length !== 1) return { state: 'conflict' }
   const summary: unknown = managed[0]
-  if (!isJsonObject(summary) || typeof summary['id'] !== 'number') return { state: 'conflict' }
+  if (!isJsonObject(summary) || typeof summary.id !== 'number') return { state: 'conflict' }
   const ruleset = parseJson(
     await runRequired(dependencies, {
-      args: [...GH_API_ARGS, `${RULESETS_ENDPOINT}/${String(summary['id'])}`],
+      args: [...GH_API_ARGS, `${RULESETS_ENDPOINT}/${String(summary.id)}`],
       command: 'gh',
       cwd: projectRoot,
     }),
     'GitHub managed ruleset',
   )
-  return { id: summary['id'], ruleset, state: 'found' }
+  return { id: summary.id, ruleset, state: 'found' }
 }
 
 async function inspectRuleset(
@@ -246,12 +246,12 @@ export async function createAndVerifyRuleset(
       }),
       'GitHub ruleset creation',
     )
-    if (typeof created['id'] !== 'number') {
+    if (typeof created.id !== 'number') {
       throw new Error('GitHub ruleset creation did not return a numeric id.')
     }
     const ruleset = parseJson(
       await runRequired(dependencies, {
-        args: [...GH_API_ARGS, `${RULESETS_ENDPOINT}/${String(created['id'])}`],
+        args: [...GH_API_ARGS, `${RULESETS_ENDPOINT}/${String(created.id)}`],
         command: 'gh',
         cwd: projectRoot,
       }),

@@ -39,8 +39,8 @@ export function parseBuildMeta(raw: string): BuildMeta | null {
     return null
   }
   if (!isObjectRecord(parsed)) return null
-  const commit = parsed['commit']
-  const builtAt = parsed['builtAt']
+  const commit = parsed.commit
+  const builtAt = parsed.builtAt
   return {
     commit: typeof commit === 'string' && commit.length > 0 ? commit : null,
     builtAt: typeof builtAt === 'string' ? builtAt : '',

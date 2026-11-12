@@ -45,8 +45,8 @@ function field(value: unknown, key: PropertyKey): unknown {
 }
 
 function vitestInternals() {
-  const state = scope['__vitest_worker__']
-  const mocker = scope['__vitest_mocker__']
+  const state = scope.__vitest_worker__
+  const mocker = scope.__vitest_mocker__
   const evaluated = field(state, 'evaluatedModules')
   const graph = {
     byId: field(evaluated, 'idToModuleMap'),

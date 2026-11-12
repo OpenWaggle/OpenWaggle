@@ -53,9 +53,9 @@ function manifestViolations(file: string, contents: string) {
 /** The default `workspaces.catalog` and every named catalog under `workspaces.catalogs`. */
 function catalogEntries(workspace: Readonly<Record<string, unknown>>) {
   const catalogs: [string, Readonly<Record<string, unknown>>][] = []
-  if (isRecord(workspace['catalog'])) catalogs.push(['catalog', workspace['catalog']])
-  if (isRecord(workspace['catalogs'])) {
-    for (const [name, catalog] of Object.entries(workspace['catalogs'])) {
+  if (isRecord(workspace.catalog)) catalogs.push(['catalog', workspace.catalog])
+  if (isRecord(workspace.catalogs)) {
+    for (const [name, catalog] of Object.entries(workspace.catalogs)) {
       if (isRecord(catalog)) catalogs.push([`catalogs.${name}`, catalog])
     }
   }
@@ -64,7 +64,7 @@ function catalogEntries(workspace: Readonly<Record<string, unknown>>) {
 
 function catalogViolations(file: string, contents: string) {
   const manifest: unknown = JSON.parse(contents)
-  const workspace = isRecord(manifest) ? manifest['workspaces'] : undefined
+  const workspace = isRecord(manifest) ? manifest.workspaces : undefined
   if (!isRecord(workspace)) return []
 
   const violations: Violation[] = []

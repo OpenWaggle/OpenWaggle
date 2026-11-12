@@ -53,7 +53,7 @@ function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
 function parseAsarNode(value: unknown): AsarNode | null {
   if (!isObject(value)) return null
 
-  const files = value['files']
+  const files = value.files
   if (files === undefined) return {}
   if (!isObject(files)) return null
 

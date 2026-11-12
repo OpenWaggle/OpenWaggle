@@ -113,7 +113,7 @@ function numberingViolations(names: readonly string[]): Violation[] {
   const violations: Violation[] = []
   const byNumber = new Map<string, string[]>()
   for (const name of names) {
-    const number = ADR_FILE.exec(name)?.groups?.['number']
+    const number = ADR_FILE.exec(name)?.groups?.number
     if (number === undefined) {
       violations.push({
         file: adrFile(name),
@@ -163,7 +163,7 @@ function indexViolations(names: readonly string[], indexes: ReadonlyMap<string, 
         ...contents.matchAll(
           new RegExp(`${escapeRegExp(prefix)}(?<name>\\d{${NUMBER_WIDTH}}-[a-z0-9-]+\\.md)`, 'gu'),
         ),
-      ].flatMap((match) => match.groups?.['name'] ?? []),
+      ].flatMap((match) => match.groups?.name ?? []),
     )
     for (const name of names) {
       if (!listed.has(name)) {

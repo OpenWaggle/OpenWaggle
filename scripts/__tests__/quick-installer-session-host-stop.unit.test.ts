@@ -62,7 +62,7 @@ QUIT_MAC_APP="1"
 ${source.slice(start + SECTION_START.length, end)}
 ${command} "$@"`
   const child = execFileAsync('bash', ['-c', script, 'installer-host-stop-test', ...args], {
-    env: { PATH: process.env['PATH'] ?? '', TMPDIR: directory },
+    env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
   })
   // The rest of a piped install script must never reach the CLI. The section can exit before it
   // reads stdin, so the write may hit a closed pipe; that EPIPE is expected, not a failure.

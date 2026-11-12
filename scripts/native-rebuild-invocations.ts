@@ -31,7 +31,7 @@ export interface PackageRebuildInvocation {
 export function shellInvocationForPlatform(
   commandLine: string,
   platform: NodeJS.Platform = process.platform,
-  windowsCommandProcessor: string | undefined = process.env['ComSpec'],
+  windowsCommandProcessor: string | undefined = process.env.ComSpec,
 ): CommandInvocation {
   return platform === 'win32'
     ? {
@@ -58,7 +58,7 @@ export function suppressDependencyDeprecationWarnings(
   return {
     ...extraEnvironment,
     NODE_OPTIONS: appendWhitespaceDelimitedOption(
-      extraEnvironment['NODE_OPTIONS'] ?? baseEnvironment['NODE_OPTIONS'],
+      extraEnvironment.NODE_OPTIONS ?? baseEnvironment.NODE_OPTIONS,
       SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION,
     ),
   }

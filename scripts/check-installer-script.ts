@@ -141,7 +141,7 @@ function reportMissingMakensis() {
    * rather than a silent pass. Locally it degrades to a notice, because most contributors
    * never touch the Windows installer.
    */
-  if (process.env['REQUIRE_NSIS'] === '1') {
+  if (process.env.REQUIRE_NSIS === '1') {
     console.error(
       'makensis is required but was not found. Install NSIS (ubuntu: `apt-get install -y nsis`, macOS: `brew install makensis`).',
     )

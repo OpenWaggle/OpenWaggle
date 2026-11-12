@@ -17,9 +17,9 @@ import { PREFIX_SESSION_ROLES } from '../session-identity-rows'
  * budget applies), and `OPENWAGGLE_PERF_PREFIX_SECOND_REQUEST_MS` captures a second request after
  * MCP servers had that long to connect.
  */
-const reportDirectory = process.env['OPENWAGGLE_PERF_PREFIX_OUT']
-const measuredProject = process.env['OPENWAGGLE_PERF_PREFIX_PROJECT']
-const secondRequestAfterMs = process.env['OPENWAGGLE_PERF_PREFIX_SECOND_REQUEST_MS']
+const reportDirectory = process.env.OPENWAGGLE_PERF_PREFIX_OUT
+const measuredProject = process.env.OPENWAGGLE_PERF_PREFIX_PROJECT
+const secondRequestAfterMs = process.env.OPENWAGGLE_PERF_PREFIX_SECOND_REQUEST_MS
 const MEASUREMENT_TIMEOUT_MS = 120_000
 const JSON_INDENT = 2
 
@@ -27,7 +27,7 @@ const cleanups: string[] = []
 
 // The Run's MCP extension keeps its sign-in state under Electron's user data, as in the Host.
 vi.mock('electron', () => ({
-  app: { getPath: () => process.env['OPENWAGGLE_USER_DATA_DIR'] ?? tmpdir() },
+  app: { getPath: () => process.env.OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
   safeStorage: { isEncryptionAvailable: () => false },
   shell: {},
 }))

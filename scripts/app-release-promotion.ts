@@ -51,8 +51,8 @@ export function latestReleaseCandidateTag(tags: readonly string[], targetVersion
   let selected: { readonly tag: string; readonly sequence: number } | null = null
   for (const tag of tags) {
     const groups = RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups
-    if (!groups || groups['core'] !== targetVersion) continue
-    const sequence = Number(groups['sequence'])
+    if (!groups || groups.core !== targetVersion) continue
+    const sequence = Number(groups.sequence)
     if (!selected || sequence > selected.sequence) selected = { tag, sequence }
   }
   return selected?.tag ?? null
@@ -107,7 +107,7 @@ export type PromotionBase =
 
 function releaseCandidateTagsFor(tags: readonly string[], targetVersion: string) {
   return tags.filter(
-    (tag) => RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups?.['core'] === targetVersion,
+    (tag) => RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups?.core === targetVersion,
   )
 }
 

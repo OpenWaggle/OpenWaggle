@@ -33,8 +33,7 @@ function stringField(record: Record<string, unknown>, name: string) {
 
 function parseCredentials(raw: string, source: string): ExportedCredentials {
   const parsed: unknown = JSON.parse(raw)
-  const record =
-    isRecord(parsed) && isRecord(parsed['Credentials']) ? parsed['Credentials'] : parsed
+  const record = isRecord(parsed) && isRecord(parsed.Credentials) ? parsed.Credentials : parsed
   if (!isRecord(record)) throw new Error(`${source} printed no credentials.`)
   const accessKeyId = stringField(record, 'AccessKeyId')
   const secretAccessKey = stringField(record, 'SecretAccessKey')
@@ -82,8 +81,8 @@ export function shortLivedAwsEnvironment(
     credentials = parseCredentials(aws(tokenArgs), 'aws sts get-session-token')
   }
   const region =
-    rest['AWS_REGION'] ??
-    rest['AWS_DEFAULT_REGION'] ??
+    rest.AWS_REGION ??
+    rest.AWS_DEFAULT_REGION ??
     aws(['configure', 'get', 'region', '--profile', profile]).trim()
   return {
     ...rest,

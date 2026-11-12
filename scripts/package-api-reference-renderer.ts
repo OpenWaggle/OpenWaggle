@@ -39,7 +39,7 @@ function declarationSections(snapshot: string) {
 
 function exportTypesPath(target: unknown) {
   if (!isJsonObject(target)) return undefined
-  return typeof target['types'] === 'string' ? target['types'] : undefined
+  return typeof target.types === 'string' ? target.types : undefined
 }
 
 function directExportedSymbols(declaration: string) {

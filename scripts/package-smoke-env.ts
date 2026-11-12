@@ -34,15 +34,13 @@ export function packageSmokeRequiredPackageManagers(value: string | undefined) {
 export function readPackageSmokeEnvironment(
   environment: NodeJS.ProcessEnv = process.env,
 ): PackageSmokeEnvironment {
-  const executablePath = environment['OPENWAGGLE_PACKAGE_BROWSER_EXECUTABLE']?.trim()
+  const executablePath = environment.OPENWAGGLE_PACKAGE_BROWSER_EXECUTABLE?.trim()
 
   return {
     browserExecutablePath: executablePath || undefined,
-    browserSmokeEnabled: packageBrowserSmokeEnabled(
-      environment['OPENWAGGLE_PACKAGE_BROWSER_SMOKE'],
-    ),
+    browserSmokeEnabled: packageBrowserSmokeEnabled(environment.OPENWAGGLE_PACKAGE_BROWSER_SMOKE),
     requiredPackageManagers: packageSmokeRequiredPackageManagers(
-      environment['OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS'],
+      environment.OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS,
     ),
   }
 }

@@ -36,24 +36,23 @@ function stringArray(value: unknown) {
 
 export function packageManifest(value: unknown): PackageManifest {
   if (!isJsonObject(value)) return {}
-  const repository = isJsonObject(value['repository']) ? value['repository'] : undefined
-  const bugs = isJsonObject(value['bugs']) ? value['bugs'] : undefined
+  const repository = isJsonObject(value.repository) ? value.repository : undefined
+  const bugs = isJsonObject(value.bugs) ? value.bugs : undefined
   return {
-    bugs: bugs && typeof bugs['url'] === 'string' ? { url: bugs['url'] } : undefined,
-    description: typeof value['description'] === 'string' ? value['description'] : undefined,
-    exports: isJsonObject(value['exports']) ? value['exports'] : undefined,
-    homepage: typeof value['homepage'] === 'string' ? value['homepage'] : undefined,
-    keywords: stringArray(value['keywords']),
-    name: typeof value['name'] === 'string' ? value['name'] : undefined,
+    bugs: bugs && typeof bugs.url === 'string' ? { url: bugs.url } : undefined,
+    description: typeof value.description === 'string' ? value.description : undefined,
+    exports: isJsonObject(value.exports) ? value.exports : undefined,
+    homepage: typeof value.homepage === 'string' ? value.homepage : undefined,
+    keywords: stringArray(value.keywords),
+    name: typeof value.name === 'string' ? value.name : undefined,
     repository: repository
       ? {
-          directory:
-            typeof repository['directory'] === 'string' ? repository['directory'] : undefined,
-          type: typeof repository['type'] === 'string' ? repository['type'] : undefined,
-          url: typeof repository['url'] === 'string' ? repository['url'] : undefined,
+          directory: typeof repository.directory === 'string' ? repository.directory : undefined,
+          type: typeof repository.type === 'string' ? repository.type : undefined,
+          url: typeof repository.url === 'string' ? repository.url : undefined,
         }
       : undefined,
-    version: typeof value['version'] === 'string' ? value['version'] : undefined,
+    version: typeof value.version === 'string' ? value.version : undefined,
   }
 }
 
@@ -103,13 +102,13 @@ export function withPackageDocumentationMetadata(
     keywords: definition.keywords,
     homepage: docsUrl,
     repository: {
-      ...(isJsonObject(value['repository']) ? value['repository'] : {}),
+      ...(isJsonObject(value.repository) ? value.repository : {}),
       type: 'git',
       url: 'https://github.com/OpenWaggle/OpenWaggle.git',
       directory: `packages/${definition.slug}`,
     },
     bugs: {
-      ...(isJsonObject(value['bugs']) ? value['bugs'] : {}),
+      ...(isJsonObject(value.bugs) ? value.bugs : {}),
       url: 'https://github.com/OpenWaggle/OpenWaggle/issues',
     },
   }

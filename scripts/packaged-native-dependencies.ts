@@ -22,8 +22,8 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 
 export function isNativePackageFor(name: string, platform: PackagedPlatform, architecture: string) {
   const groups = PLATFORM_PACKAGE.exec(name)?.groups
-  if (groups?.['platform'] !== platform || groups['arch'] !== architecture) return false
-  return groups['toolchain'] === undefined || COMPATIBLE_SUFFIXES.has(groups['toolchain'])
+  if (groups?.platform !== platform || groups.arch !== architecture) return false
+  return groups.toolchain === undefined || COMPATIBLE_SUFFIXES.has(groups.toolchain)
 }
 
 export async function missingNativeDependencies(
@@ -40,9 +40,7 @@ export async function missingNativeDependencies(
   for (const manifest of manifests) {
     const parsed: unknown = JSON.parse((await archive.readFile(manifest.file)).toString('utf8'))
     const optional =
-      isRecord(parsed) && isRecord(parsed['optionalDependencies'])
-        ? parsed['optionalDependencies']
-        : {}
+      isRecord(parsed) && isRecord(parsed.optionalDependencies) ? parsed.optionalDependencies : {}
     for (const dependency of Object.keys(optional)) {
       if (!isNativePackageFor(dependency, platform, architecture) || shipped.has(dependency)) {
         continue

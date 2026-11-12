@@ -32,7 +32,7 @@ export function countErrorsByFile(output: string): ErrorCounts {
   const counts: Record<string, number> = {}
   for (const rawLine of output.split('\n')) {
     const match = ERROR_LINE.exec(rawLine.trim())
-    const file = match?.groups?.['file']
+    const file = match?.groups?.file
     if (file === undefined) continue
     const normalized = file.split(path.sep).join('/')
     counts[normalized] = (counts[normalized] ?? 0) + 1
@@ -123,7 +123,7 @@ function errorsOutsideExemptions(output: string, exempt: ReadonlySet<string>) {
   const reported = new Map<string, string>()
   for (const rawLine of output.split(/\r?\n/u)) {
     const line = rawLine.trim()
-    const file = ERROR_LINE.exec(line)?.groups?.['file']?.split(path.sep).join('/')
+    const file = ERROR_LINE.exec(line)?.groups?.file?.split(path.sep).join('/')
     if (file !== undefined && !exempt.has(file)) reported.set(line, file)
   }
   return reported

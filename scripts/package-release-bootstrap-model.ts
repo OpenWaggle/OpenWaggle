@@ -149,8 +149,8 @@ export function createRulesetPayload() {
 }
 
 function rulesetRule(value: JsonObject, type: string) {
-  if (!isUnknownArray(value['rules'])) return undefined
-  return value['rules'].find((rule) => isJsonObject(rule) && rule['type'] === type)
+  if (!isUnknownArray(value.rules)) return undefined
+  return value.rules.find((rule) => isJsonObject(rule) && rule.type === type)
 }
 
 export function createRulesetUpgradePayload(value: unknown) {
@@ -161,9 +161,9 @@ export function createRulesetUpgradePayload(value: unknown) {
   const statusRule = rulesetRule(value, 'required_status_checks')
   if (
     !isJsonObject(pullRequestRule) ||
-    !isJsonObject(pullRequestRule['parameters']) ||
+    !isJsonObject(pullRequestRule.parameters) ||
     !isJsonObject(statusRule) ||
-    !isJsonObject(statusRule['parameters'])
+    !isJsonObject(statusRule.parameters)
   ) {
     throw new Error('GitHub managed ruleset is missing required rule parameters.')
   }
@@ -174,12 +174,12 @@ export function createRulesetUpgradePayload(value: unknown) {
       { type: 'deletion' },
       { type: 'non_fast_forward' },
       {
-        parameters: { ...pullRequestRule['parameters'] },
+        parameters: { ...pullRequestRule.parameters },
         type: 'pull_request',
       },
       {
         parameters: {
-          ...statusRule['parameters'],
+          ...statusRule.parameters,
           required_status_checks: REQUIRED_CHECK_CONTEXTS.map((context) => ({ context })),
         },
         type: 'required_status_checks',
@@ -196,12 +196,12 @@ function stringArray(value: unknown) {
 
 export function isCompatibleTrustConfiguration(value: unknown) {
   if (!isJsonObject(value)) return false
-  const permissions = stringArray(value['permissions'])
+  const permissions = stringArray(value.permissions)
   return (
-    value['type'] === 'github' &&
-    value['repository'] === REPOSITORY &&
-    value['file'] === PACKAGE_RELEASE_WORKFLOW &&
-    value['environment'] === NPM_ENVIRONMENT &&
+    value.type === 'github' &&
+    value.repository === REPOSITORY &&
+    value.file === PACKAGE_RELEASE_WORKFLOW &&
+    value.environment === NPM_ENVIRONMENT &&
     permissions?.length === 1 &&
     permissions[0] === 'createPackage'
   )
@@ -210,22 +210,22 @@ export function isCompatibleTrustConfiguration(value: unknown) {
 export function isCompatibleBootstrapRecord(value: unknown, packageName: string) {
   if (!isJsonObject(value)) return false
   if (
-    value['name'] !== packageName ||
-    value['version'] !== BOOTSTRAP_VERSION ||
-    value['openwaggleNamespaceBootstrap'] !== true
+    value.name !== packageName ||
+    value.version !== BOOTSTRAP_VERSION ||
+    value.openwaggleNamespaceBootstrap !== true
   ) {
     return false
   }
 
-  const hasDistMetadata = value['dist'] !== undefined
-  const distFileCount = isJsonObject(value['dist']) ? value['dist']['fileCount'] : undefined
+  const hasDistMetadata = value.dist !== undefined
+  const distFileCount = isJsonObject(value.dist) ? value.dist.fileCount : undefined
   const hasCompatibleDistMetadata = !hasDistMetadata || distFileCount === 1
   const manifestHasNoFiles =
-    isUnknownArray(value['files']) && value['files'].length === 0 && hasCompatibleDistMetadata
-  const registryMetadataHasOnlyManifest = value['files'] === undefined && distFileCount === 1
+    isUnknownArray(value.files) && value.files.length === 0 && hasCompatibleDistMetadata
+  const registryMetadataHasOnlyManifest = value.files === undefined && distFileCount === 1
   const hasCompatibleDirectories =
-    value['directories'] === undefined ||
-    (isJsonObject(value['directories']) && Object.keys(value['directories']).length === 0)
+    value.directories === undefined ||
+    (isJsonObject(value.directories) && Object.keys(value.directories).length === 0)
 
   return (
     (manifestHasNoFiles || registryMetadataHasOnlyManifest) &&
@@ -238,20 +238,20 @@ export function isCompatibleBootstrapMetadata(value: unknown, packageName: strin
   return (
     isCompatibleBootstrapRecord(value, packageName) &&
     isJsonObject(value) &&
-    value['deprecated'] === DEPRECATION_MESSAGE
+    value.deprecated === DEPRECATION_MESSAGE
   )
 }
 
 export function needsBootstrapDeprecation(value: unknown) {
-  return isJsonObject(value) && value['deprecated'] === undefined
+  return isJsonObject(value) && value.deprecated === undefined
 }
 
 export function hasCompatibleTags(value: unknown) {
-  if (!isJsonObject(value) || value['bootstrap'] !== BOOTSTRAP_VERSION) return false
+  if (!isJsonObject(value) || value.bootstrap !== BOOTSTRAP_VERSION) return false
   const tagCount = Object.keys(value).length
   return (
     tagCount === 1 ||
-    (tagCount === BOOTSTRAP_WITH_LATEST_TAG_COUNT && value['latest'] === BOOTSTRAP_VERSION)
+    (tagCount === BOOTSTRAP_WITH_LATEST_TAG_COUNT && value.latest === BOOTSTRAP_VERSION)
   )
 }
 

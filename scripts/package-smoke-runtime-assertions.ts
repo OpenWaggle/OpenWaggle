@@ -5,11 +5,11 @@ const MINIMUM_PACKAGE_SMOKE_NODE_MINOR = 19
 
 export function assertReactPeerDependencies(manifest: unknown) {
   const peerDependencies =
-    isObject(manifest) && isObject(manifest['peerDependencies'])
-      ? manifest['peerDependencies']
+    isObject(manifest) && isObject(manifest.peerDependencies)
+      ? manifest.peerDependencies
       : undefined
   const dependencies =
-    isObject(manifest) && isObject(manifest['dependencies']) ? manifest['dependencies'] : undefined
+    isObject(manifest) && isObject(manifest.dependencies) ? manifest.dependencies : undefined
 
   for (const dependencyName of ['react', 'react-dom']) {
     if (peerDependencies?.[dependencyName] !== '^19.0.0') {
@@ -89,11 +89,7 @@ export function resolvePackageSmokeCatalogVersion(
 export function findPackageDependencyVersion(manifest: unknown, dependencyName: string) {
   if (!isObject(manifest)) return undefined
 
-  const scopes = [
-    manifest['dependencies'],
-    manifest['devDependencies'],
-    manifest['peerDependencies'],
-  ]
+  const scopes = [manifest.dependencies, manifest.devDependencies, manifest.peerDependencies]
   for (const scope of scopes) {
     if (isObject(scope) && typeof scope[dependencyName] === 'string') {
       return scope[dependencyName]
@@ -187,10 +183,8 @@ function bundledDependencyNames(manifest: Readonly<Record<string, unknown>>) {
 }
 
 export function assertPiHostPackagesArePeers(packageName: string, manifest: unknown) {
-  if (!isObject(manifest) || !isObject(manifest['pi'])) return
-  const peerDependencies = isObject(manifest['peerDependencies'])
-    ? manifest['peerDependencies']
-    : {}
+  if (!isObject(manifest) || !isObject(manifest.pi)) return
+  const peerDependencies = isObject(manifest.peerDependencies) ? manifest.peerDependencies : {}
   const bundled = bundledDependencyNames(manifest)
   const problems: string[] = []
   for (const name of PI_HOST_PROVIDED_PACKAGES) {

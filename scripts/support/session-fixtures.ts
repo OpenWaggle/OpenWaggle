@@ -198,7 +198,7 @@ function readOptionalRecordField(
 }
 
 function readParts(messageValue: Readonly<Record<string, unknown>>): readonly unknown[] {
-  const parts = messageValue['parts']
+  const parts = messageValue.parts
   return Array.isArray(parts) ? parts : []
 }
 

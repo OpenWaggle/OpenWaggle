@@ -111,8 +111,7 @@ async function resolveBaseline(input: {
   readonly options: ConventionalCommitValidationOptions
   readonly to: string
 }) {
-  const explicitBaseline =
-    input.options.baseline ?? process.env['OPENWAGGLE_COMMIT_POLICY_BASELINE']
+  const explicitBaseline = input.options.baseline ?? process.env.OPENWAGGLE_COMMIT_POLICY_BASELINE
   if (explicitBaseline !== undefined && explicitBaseline.length > 0) {
     return explicitBaseline
   }

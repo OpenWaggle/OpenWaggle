@@ -107,11 +107,11 @@ function numericEntries(file: string, text: string): Map<string, number> {
   }
   const seen = new Map<string, number>()
   for (const match of text.matchAll(TS_NUMBER)) {
-    const key = match.groups?.['key'] ?? ''
+    const key = match.groups?.key ?? ''
     const count = (seen.get(key) ?? 0) + 1
     seen.set(key, count)
-    const value = Number((match.groups?.['value'] ?? '').replaceAll('_', ''))
-    const factor = Number((match.groups?.['factor'] ?? '1').replaceAll('_', ''))
+    const value = Number((match.groups?.value ?? '').replaceAll('_', ''))
+    const factor = Number((match.groups?.factor ?? '1').replaceAll('_', ''))
     entries.set(count === 1 ? key : `${key}#${count}`, value * factor)
   }
   return entries
@@ -141,7 +141,7 @@ function listEntries(list: ShrinkingList, text: string): Map<string, number> | u
     for (const match of text
       .slice(start, end < 0 ? undefined : start + end)
       .matchAll(STRING_LITERAL)) {
-      entries.set(match.groups?.['value'] ?? match.groups?.['double'] ?? '', 1)
+      entries.set(match.groups?.value ?? match.groups?.double ?? '', 1)
     }
     return entries
   }

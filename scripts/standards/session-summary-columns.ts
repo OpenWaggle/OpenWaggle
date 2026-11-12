@@ -43,7 +43,7 @@ function namesNoColumns(projection: string) {
 }
 
 function selectsNamedColumns(query: string) {
-  const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.['projection']
+  const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.projection
   if (projection === undefined) return false
   return !namesNoColumns(projection)
 }

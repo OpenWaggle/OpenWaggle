@@ -38,10 +38,10 @@ async function runFallow() {
   } catch (error) {
     if (
       isRecord(error) &&
-      error['code'] === FALLOW_ISSUES_FOUND_EXIT_CODE &&
-      typeof error['stdout'] === 'string'
+      error.code === FALLOW_ISSUES_FOUND_EXIT_CODE &&
+      typeof error.stdout === 'string'
     ) {
-      return error['stdout']
+      return error.stdout
     }
     throw error
   }

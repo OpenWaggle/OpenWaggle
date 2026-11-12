@@ -108,7 +108,7 @@ function prototypeOf(value: unknown) {
 
 /** Each patched builtin's exports and its exported classes' prototypes, `Bun` and its parts. */
 function ownedObjects() {
-  const bun = objectValue(scope['Bun'])
+  const bun = objectValue(scope.Bun)
   const roots: object[] = PATCHED_BUILTINS.map((name) => process.getBuiltinModule(name))
   if (bun) roots.push(bun)
   const objects = new Set<object>(roots)

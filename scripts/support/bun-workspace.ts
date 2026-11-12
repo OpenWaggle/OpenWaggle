@@ -79,11 +79,11 @@ export function splitPackageSpecifier(specifier: string) {
  */
 export function parseBunLockfile(text: string): BunLockfile {
   const lockfile = parseJsoncText(text, BUN_LOCKFILE)
-  if (!isRecord(lockfile) || !isRecord(lockfile['packages'])) {
+  if (!isRecord(lockfile) || !isRecord(lockfile.packages)) {
     throw new Error(`${BUN_LOCKFILE} must contain a packages object.`)
   }
   const packages: LockedPackage[] = []
-  for (const [key, entry] of Object.entries(lockfile['packages'])) {
+  for (const [key, entry] of Object.entries(lockfile.packages)) {
     if (!Array.isArray(entry) || typeof entry[0] !== 'string') continue
     const { name, version } = splitPackageSpecifier(entry[0])
     if (!EXACT_VERSION.test(version)) continue
@@ -97,8 +97,8 @@ export function parseBunLockfile(text: string): BunLockfile {
   }
   return {
     packages,
-    patchedDependencies: stringRecord(lockfile['patchedDependencies']),
-    catalogs: catalogRecord(lockfile['catalogs']),
+    patchedDependencies: stringRecord(lockfile.patchedDependencies),
+    catalogs: catalogRecord(lockfile.catalogs),
   }
 }
 
@@ -118,12 +118,12 @@ export interface RootWorkspaceConfig {
 export function parseRootWorkspaceConfig(manifestText: string): RootWorkspaceConfig {
   const manifest: unknown = JSON.parse(manifestText)
   if (!isRecord(manifest)) throw new Error('package.json must contain an object.')
-  const workspaces = isRecord(manifest['workspaces']) ? manifest['workspaces'] : {}
+  const workspaces = isRecord(manifest.workspaces) ? manifest.workspaces : {}
   const catalogs: Record<string, Readonly<Record<string, string>>> = {
-    ...catalogRecord(workspaces['catalogs']),
+    ...catalogRecord(workspaces.catalogs),
   }
-  if (isRecord(workspaces['catalog'])) catalogs['default'] = stringRecord(workspaces['catalog'])
-  return { catalogs, patchedDependencies: stringRecord(manifest['patchedDependencies']) }
+  if (isRecord(workspaces.catalog)) catalogs.default = stringRecord(workspaces.catalog)
+  return { catalogs, patchedDependencies: stringRecord(manifest.patchedDependencies) }
 }
 
 /** `install.minimumReleaseAgeExcludes` of `bunfig.toml`. */
@@ -139,8 +139,8 @@ export function parseMinimumReleaseAgeExcludes(bunfigText: string) {
       },
     )
   }
-  const install = isRecord(config) ? config['install'] : undefined
-  const excludes = isRecord(install) ? install['minimumReleaseAgeExcludes'] : undefined
+  const install = isRecord(config) ? config.install : undefined
+  const excludes = isRecord(install) ? install.minimumReleaseAgeExcludes : undefined
   if (!Array.isArray(excludes) || !excludes.every((entry) => typeof entry === 'string')) {
     throw new Error(
       `${BUNFIG} must define install.minimumReleaseAgeExcludes as an array of strings.`,

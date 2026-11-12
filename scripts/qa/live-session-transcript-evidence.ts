@@ -6,16 +6,16 @@ function transcriptItems(jsonl: string) {
   return jsonl.split('\n').flatMap((line) => {
     if (!line) return []
     const parsed: unknown = JSON.parse(line)
-    if (!isRecord(parsed) || !isRecord(parsed['record'])) return []
-    const streamRecord = parsed['record']
-    return streamRecord['record'] === 'item' && 'item' in streamRecord ? [streamRecord['item']] : []
+    if (!isRecord(parsed) || !isRecord(parsed.record)) return []
+    const streamRecord = parsed.record
+    return streamRecord.record === 'item' && 'item' in streamRecord ? [streamRecord.item] : []
   })
 }
 
 function recordInvokedSkill(value: unknown, skillId: string): boolean {
   if (Array.isArray(value)) return value.some((entry) => recordInvokedSkill(entry, skillId))
   if (!isRecord(value)) return false
-  const marker = [value['type'], value['kind']]
+  const marker = [value.type, value.kind]
     .filter((entry): entry is string => typeof entry === 'string')
     .join('-')
     .toLowerCase()
@@ -29,15 +29,14 @@ export function transcriptInvokedSkill(jsonl: string, skillId: string) {
 }
 
 function isSessionsSpawnToolCall(value: Record<string, unknown>) {
-  if (value['type'] === 'toolCall' && value['name'] === 'hive' && isRecord(value['arguments'])) {
-    return value['arguments']['action'] === 'spawn' || value['arguments']['operation'] === 'spawn'
+  if (value.type === 'toolCall' && value.name === 'hive' && isRecord(value.arguments)) {
+    return value.arguments.action === 'spawn' || value.arguments.operation === 'spawn'
   }
-  if (value['type'] === 'tool-call' && isRecord(value['toolCall'])) {
+  if (value.type === 'tool-call' && isRecord(value.toolCall)) {
     return (
-      value['toolCall']['name'] === 'hive' &&
-      isRecord(value['toolCall']['args']) &&
-      (value['toolCall']['args']['action'] === 'spawn' ||
-        value['toolCall']['args']['operation'] === 'spawn')
+      value.toolCall.name === 'hive' &&
+      isRecord(value.toolCall.args) &&
+      (value.toolCall.args.action === 'spawn' || value.toolCall.args.operation === 'spawn')
     )
   }
   return false

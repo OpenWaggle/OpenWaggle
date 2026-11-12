@@ -88,7 +88,7 @@ export function collectAgentMemoryIndexViolations(
   if (index === undefined) return []
   const linked = new Set(
     [...index.matchAll(/\]\((?<target>\.agents\/memory\/[^)\s]+\.md)\)/gu)].flatMap(
-      (match) => match.groups?.['target'] ?? [],
+      (match) => match.groups?.target ?? [],
     ),
   )
   const topics = [...contentsByFile.keys()].filter(isMemoryTopic)

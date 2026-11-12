@@ -16,7 +16,7 @@ export interface NodeRuntime {
 let cachedNodeRuntime: NodeRuntime | undefined
 
 function isBunRuntime() {
-  return typeof process.versions['bun'] === 'string'
+  return typeof process.versions.bun === 'string'
 }
 
 /** The Node.js executable on `PATH` (or this process, when it already is Node) and its version. */
@@ -65,7 +65,7 @@ function readNodeRuntime(): NodeRuntime {
         encoding: 'utf8',
         env: {
           ...process.env,
-          PATH: pathWithoutBunNode(process.env['PATH'] ?? '', process.execPath),
+          PATH: pathWithoutBunNode(process.env.PATH ?? '', process.execPath),
         },
         stdio: ['ignore', 'pipe', 'inherit'],
       },
