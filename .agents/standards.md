@@ -113,6 +113,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native AB
 - No TypeScript `baseUrl`; use explicit `paths` entries (`4bd0325e2`, `check:repository-standards`).
 - `while (true)`, not `for (;;)` (`4bd0325e2`, `openwaggle/no-infinite-for-loop`).
 - Numeric literals outside tests are named `SCREAMING_SNAKE_CASE` constants (`4bd0325e2`, `openwaggle/no-inline-magic-numbers`).
+- A change does not make the app slower or heavier: `performance/perf-budgets.json` follows the measurement, and a raised budget or a timing regression needs a maintainer's `perf-budget-increase` or `perf-regression-accepted` label; `no-cheating/budget` leaves these files to the gate (check `perf-budgets`, CI `Performance Gate`, `.agents/verification.md`).
 - Bun only: `bun install`, `bun run`, `bunx`. No npm, pnpm, yarn or tsx (ADR 0064).
 - oxfmt formats JavaScript and TypeScript with `.oxfmtrc.json` (ADR 0064, check `format`).
 - Change generated files only by running their generator (`no-cheating/generated-file`; the usage statistics catalog, API snapshots and package docs have their own check steps).
