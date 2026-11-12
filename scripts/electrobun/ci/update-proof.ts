@@ -3,6 +3,7 @@
  * src/main/updater.ts, on Electrobun's updater) checks a loopback release directory, downloads the
  * newer build and installs it on Restart to update; the installed app then launches as that build.
  */
+import fs from 'node:fs'
 import { appRss } from '../../electrobun-probe-host'
 import { type LaunchContext, startApp, stopApp } from './app-launch'
 import { screenshot, waitUntil } from './app-proof'
@@ -47,7 +48,9 @@ async function downloadUpdate(context: LaunchContext, from: string, feed: string
       await delay(STATUS_POLL_MS)
     }
     if (type !== 'downloaded') {
-      throw new Error(`No update downloaded: ${JSON.stringify(statuses)}`)
+      // Electrobun offers an update only when the feed's hash differs from the installed one.
+      const installed = fs.readFileSync(context.app.versionFile, 'utf8')
+      throw new Error(`No update downloaded: ${JSON.stringify(statuses)}; installed ${installed}`)
     }
     // The app quits inside this call, so its answer may never come back.
     void app.page.evaluate(async () => window.api.installUpdateNow()).catch(() => undefined)

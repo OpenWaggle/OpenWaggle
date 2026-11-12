@@ -148,6 +148,8 @@ function serve(directory: string, port: number) {
     .createServer((request, response) => {
       const name = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname)
       const file = path.join(directory, path.normalize(name))
+      // The step's log shows what the app's updater asked for (the workflow keeps it).
+      console.log(`${request.method ?? 'GET'} ${request.url ?? '/'}`)
       if (!file.startsWith(directory) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
         response.writeHead(HTTP_NOT_FOUND).end()
         return
