@@ -33,20 +33,20 @@ function parseDocumentChanges(value: unknown) {
   for (const candidate of value) {
     if (
       !isRecord(candidate) ||
-      typeof candidate['rangeOffset'] !== 'number' ||
-      !Number.isInteger(candidate['rangeOffset']) ||
-      candidate['rangeOffset'] < 0 ||
-      typeof candidate['rangeLength'] !== 'number' ||
-      !Number.isInteger(candidate['rangeLength']) ||
-      candidate['rangeLength'] < 0 ||
-      typeof candidate['text'] !== 'string'
+      typeof candidate.rangeOffset !== 'number' ||
+      !Number.isInteger(candidate.rangeOffset) ||
+      candidate.rangeOffset < 0 ||
+      typeof candidate.rangeLength !== 'number' ||
+      !Number.isInteger(candidate.rangeLength) ||
+      candidate.rangeLength < 0 ||
+      typeof candidate.text !== 'string'
     ) {
       return null
     }
     changes.push({
-      rangeOffset: candidate['rangeOffset'],
-      rangeLength: candidate['rangeLength'],
-      text: candidate['text'],
+      rangeOffset: candidate.rangeOffset,
+      rangeLength: candidate.rangeLength,
+      text: candidate.text,
     })
   }
   return changes
@@ -56,12 +56,12 @@ function parseDocumentBatches(value: unknown) {
   if (!Array.isArray(value)) return null
   const batches: WorkspaceDocumentEditBatch[] = []
   for (const candidate of value) {
-    if (!isRecord(candidate) || typeof candidate['version'] !== 'number') return null
-    const changes = parseDocumentChanges(candidate['changes'])
-    if (!Number.isInteger(candidate['version']) || candidate['version'] < 0 || changes === null) {
+    if (!isRecord(candidate) || typeof candidate.version !== 'number') return null
+    const changes = parseDocumentChanges(candidate.changes)
+    if (!Number.isInteger(candidate.version) || candidate.version < 0 || changes === null) {
       return null
     }
-    batches.push({ version: candidate['version'], changes })
+    batches.push({ version: candidate.version, changes })
   }
   return batches
 }
@@ -77,24 +77,24 @@ export function readDraftJournal(
     const parsed: unknown = JSON.parse(stored)
     if (
       !isRecord(parsed) ||
-      typeof parsed['baselineRevision'] !== 'string' ||
-      typeof parsed['baseVersion'] !== 'number' ||
-      typeof parsed['content'] !== 'string'
+      typeof parsed.baselineRevision !== 'string' ||
+      typeof parsed.baseVersion !== 'number' ||
+      typeof parsed.content !== 'string'
     ) {
       logger.warn('Ignored an invalid workspace draft journal', { projectPath, path })
       return null
     }
-    const batches = parseDocumentBatches(parsed['batches'])
+    const batches = parseDocumentBatches(parsed.batches)
     if (batches === null) {
       logger.warn('Ignored an invalid workspace draft journal', { projectPath, path })
       return null
     }
     return {
-      baselineRevision: parsed['baselineRevision'],
-      baseVersion: parsed['baseVersion'],
-      content: parsed['content'],
+      baselineRevision: parsed.baselineRevision,
+      baseVersion: parsed.baseVersion,
+      content: parsed.content,
       batches,
-      conflicted: parsed['conflicted'] === true,
+      conflicted: parsed.conflicted === true,
     }
   } catch (error) {
     logger.warn('Could not read a workspace draft journal', {

@@ -59,11 +59,11 @@ export function migrateHivePanelView(persisted: unknown): PersistedHivePanelView
   if (!isRecord(persisted)) return DEFAULT_VIEW
   return {
     view:
-      persisted['view'] === 'by-state' || persisted['view'] === 'by-next-actor'
+      persisted.view === 'by-state' || persisted.view === 'by-next-actor'
         ? 'by-next-actor'
         : 'tree',
-    showArchived: persisted['showArchived'] === true,
-    collapsed: rememberedCollapsed(persisted['collapsed']),
+    showArchived: persisted.showArchived === true,
+    collapsed: rememberedCollapsed(persisted.collapsed),
   }
 }
 

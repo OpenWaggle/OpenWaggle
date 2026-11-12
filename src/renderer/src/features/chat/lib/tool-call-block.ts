@@ -71,21 +71,21 @@ function textFromResultRecord(parsed: Readonly<Record<string, unknown>>) {
     return contentText
   }
 
-  const message = match(parsed['message'])
+  const message = match(parsed.message)
     .with(P.string, (value) => value)
     .otherwise(() => null)
   if (message) {
     return message
   }
 
-  const error = match(parsed['error'])
+  const error = match(parsed.error)
     .with(P.string, (value) => value)
     .otherwise(() => null)
   if (error) {
     return error
   }
 
-  return Array.isArray(parsed['content']) && parsed['content'].length === 0 ? '' : null
+  return Array.isArray(parsed.content) && parsed.content.length === 0 ? '' : null
 }
 
 export function getToolResultText(content: unknown, serialized?: string | null) {
@@ -148,8 +148,8 @@ export function getResultError(result: ToolCallResultPayload | undefined) {
   }
 
   const parsed = parseResultPayload(result.content)
-  if (isRecord(parsed) && typeof parsed['error'] === 'string') {
-    return parsed['error']
+  if (isRecord(parsed) && typeof parsed.error === 'string') {
+    return parsed.error
   }
   return null
 }

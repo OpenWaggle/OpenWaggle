@@ -93,7 +93,7 @@ export function hostVisualizationTheme() {
     }
   }
   const colorScheme: 'light' | 'dark' = styles.colorScheme === 'light' ? 'light' : 'dark'
-  const reducedMotion = document.documentElement.dataset['motion'] === 'reduced'
+  const reducedMotion = document.documentElement.dataset.motion === 'reduced'
   return { colorScheme, reducedMotion, variables }
 }
 

@@ -15,7 +15,7 @@ function renderShortcutCapture() {
 
 function terminalTarget() {
   const pane = document.createElement('div')
-  pane.dataset['terminalPane'] = 'term-1'
+  pane.dataset.terminalPane = 'term-1'
   const textarea = document.createElement('textarea')
   pane.append(textarea)
   document.body.append(pane)

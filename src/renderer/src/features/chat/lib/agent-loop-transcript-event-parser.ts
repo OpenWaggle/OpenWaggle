@@ -32,7 +32,7 @@ export interface AgentLoopTranscriptNode {
 }
 
 function parseCustomEvent(event: UnknownObject): AgentTransportCustomEvent | null {
-  if (event['type'] !== 'custom') {
+  if (event.type !== 'custom') {
     return null
   }
 
@@ -42,7 +42,7 @@ function parseCustomEvent(event: UnknownObject): AgentTransportCustomEvent | nul
     return null
   }
 
-  const value = optionalJsonValue(event['value'])
+  const value = optionalJsonValue(event.value)
   return {
     type: 'custom',
     name,
@@ -54,12 +54,12 @@ function parseCustomEvent(event: UnknownObject): AgentTransportCustomEvent | nul
 function parseInteractionRequestEvent(
   event: UnknownObject,
 ): AgentTransportInteractionRequestEvent | null {
-  if (event['type'] !== 'agent_interaction_request') {
+  if (event.type !== 'agent_interaction_request') {
     return null
   }
 
   const base = baseEventFields(event)
-  const interaction = parseInteraction(event['interaction'])
+  const interaction = parseInteraction(event.interaction)
   return base !== null && interaction !== null
     ? { type: 'agent_interaction_request', ...base, interaction }
     : null
@@ -68,7 +68,7 @@ function parseInteractionRequestEvent(
 function parseInteractionResolvedEvent(
   event: UnknownObject,
 ): AgentTransportInteractionResolvedEvent | null {
-  if (event['type'] !== 'agent_interaction_resolved') {
+  if (event.type !== 'agent_interaction_resolved') {
     return null
   }
 
@@ -88,8 +88,8 @@ function parseInteractionResolvedEvent(
     return null
   }
 
-  const response = safeDecodeUnknown(agentLoopResponseSchema, event['response'])
-  const error = parseErrorInfo(event['error'])
+  const response = safeDecodeUnknown(agentLoopResponseSchema, event.response)
+  const error = parseErrorInfo(event.error)
 
   return {
     type: 'agent_interaction_resolved',
@@ -127,7 +127,7 @@ export function isAgentLoopTranscriptNode(node: AgentLoopTranscriptNode) {
   }
 
   const content = parseJsonObject(node.contentJson)
-  return content?.['customType'] === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+  return content?.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
 }
 
 export function readAgentLoopEventFromNode(node: AgentLoopTranscriptNode) {
@@ -136,5 +136,5 @@ export function readAgentLoopEventFromNode(node: AgentLoopTranscriptNode) {
   }
 
   const content = node.contentJson ? parseJsonObject(node.contentJson) : null
-  return content ? parseAgentLoopEvent(content['event']) : null
+  return content ? parseAgentLoopEvent(content.event) : null
 }

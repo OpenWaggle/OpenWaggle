@@ -26,7 +26,7 @@ function sessionIdField(value: JsonValue | undefined) {
 function createdSessionId(resultContent: unknown) {
   if (resultContent === undefined) return null
   const body = parseToolArgs(getToolResultText(resultContent))
-  return stringField(objectField(objectField(body['response'])?.['outcome'])?.['sessionId'])
+  return stringField(objectField(objectField(body.response)?.outcome)?.sessionId)
 }
 
 /**
@@ -38,14 +38,14 @@ export function sessionsToolTargetId(
   resultContent: unknown,
   callerSessionId: string | null,
 ): string | null {
-  const action = stringField(args['action'])
+  const action = stringField(args.action)
   if (action !== null && CREATING_ACTIONS.has(action)) return createdSessionId(resultContent)
   if (action === 'report') {
-    const target = objectField(args['target'])
-    return target?.['type'] === 'session' ? sessionIdField(target['sessionId']) : null
+    const target = objectField(args.target)
+    return target?.type === 'session' ? sessionIdField(target.sessionId) : null
   }
-  if (action === 'fork') return sessionIdField(args['sessionId']) ?? callerSessionId
-  return sessionIdField(args['sessionId'])
+  if (action === 'fork') return sessionIdField(args.sessionId) ?? callerSessionId
+  return sessionIdField(args.sessionId)
 }
 
 export function findHiveSession(id: string | null, sessions: readonly HiveSession[]) {

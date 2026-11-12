@@ -174,9 +174,9 @@ export function endsAtFromDraft(endDate: string, timeZone: string): TaskDraftRes
   const match = DATE_PATTERN.exec(endDate)
   if (!match || !isValidTimeZone(timeZone)) return { ok: false, error: 'Choose a valid end date.' }
   const day = {
-    year: Number(match.groups?.['year']),
-    month: Number(match.groups?.['month']),
-    day: Number(match.groups?.['day']),
+    year: Number(match.groups?.year),
+    month: Number(match.groups?.month),
+    day: Number(match.groups?.day),
   }
   const nextMidnight = zonedEpoch(addDays(day, 1), 0, 0, timeZone)
   if (Number.isNaN(nextMidnight)) return { ok: false, error: 'Choose a valid end date.' }

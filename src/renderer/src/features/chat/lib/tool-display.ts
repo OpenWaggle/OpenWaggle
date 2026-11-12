@@ -87,16 +87,16 @@ function formatToolTarget(name: string, args: JsonObject, primaryArg: string) {
       ({ path }) => `${path}${formatReadLineSuffix(args)}`,
     )
     .with({ name: 'grep', args: { pattern: P.select('pattern', P.string) } }, ({ pattern }) => {
-      const path = typeof args['path'] === 'string' && args['path'] ? args['path'] : '.'
-      const glob = typeof args['glob'] === 'string' && args['glob'] ? ` (${args['glob']})` : ''
+      const path = typeof args.path === 'string' && args.path ? args.path : '.'
+      const glob = typeof args.glob === 'string' && args.glob ? ` (${args.glob})` : ''
       return `/${pattern}/ in ${path}${glob}`
     })
     .with({ name: 'find', args: { pattern: P.select('pattern', P.string) } }, ({ pattern }) => {
-      const path = typeof args['path'] === 'string' && args['path'] ? args['path'] : '.'
+      const path = typeof args.path === 'string' && args.path ? args.path : '.'
       return `${pattern} in ${path}`
     })
     .with({ name: 'ls' }, () => {
-      const path = typeof args['path'] === 'string' && args['path'] ? args['path'] : '.'
+      const path = typeof args.path === 'string' && args.path ? args.path : '.'
       return path
     })
     .otherwise(() => {
@@ -106,8 +106,8 @@ function formatToolTarget(name: string, args: JsonObject, primaryArg: string) {
 }
 
 function formatReadLineSuffix(args: JsonObject) {
-  const offset = typeof args['offset'] === 'number' ? args['offset'] : undefined
-  const limit = typeof args['limit'] === 'number' ? args['limit'] : undefined
+  const offset = typeof args.offset === 'number' ? args.offset : undefined
+  const limit = typeof args.limit === 'number' ? args.limit : undefined
   if (offset === undefined && limit === undefined) {
     return ''
   }
@@ -145,11 +145,11 @@ export function resolveActionText(params: ActionTextParams): string {
 }
 
 function formatStatusActionText(prefix: string, name: string, args: JsonObject) {
-  if (typeof args['path'] === 'string') {
-    return `${prefix} ${name} ${args['path']}`
+  if (typeof args.path === 'string') {
+    return `${prefix} ${name} ${args.path}`
   }
-  if (name === 'bash' && typeof args['command'] === 'string') {
-    return `${prefix} ${name} \`${args['command']}\``
+  if (name === 'bash' && typeof args.command === 'string') {
+    return `${prefix} ${name} \`${args.command}\``
   }
   return `${prefix} ${name}`
 }

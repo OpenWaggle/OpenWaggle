@@ -76,12 +76,12 @@ function parseResourceView(value: unknown) {
 }
 
 function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
-  const branch = parseSearchString(search['branch'])
-  const node = parseSearchString(search['node'])
+  const branch = parseSearchString(search.branch)
+  const node = parseSearchString(search.node)
   return {
     ...(branch ? { branch } : {}),
     ...(node ? { node } : {}),
-    ...(search['diff'] === 1 || search['diff'] === '1' ? { diff: 1 } : {}),
+    ...(search.diff === 1 || search.diff === '1' ? { diff: 1 } : {}),
   }
 }
 
@@ -89,12 +89,12 @@ function parseExtensionPanelSearch(
   search: Record<string, unknown>,
   base: ChatRouteSearch,
 ): ChatRouteSearch {
-  const sidePanelExtensionId = parseSearchToken(search['sidePanelExtensionId'])
-  const sidePanelId = parseSearchToken(search['sidePanelId'])
+  const sidePanelExtensionId = parseSearchToken(search.sidePanelExtensionId)
+  const sidePanelId = parseSearchToken(search.sidePanelId)
   if (!sidePanelExtensionId || !sidePanelId) return base
 
-  const sidePanelPackagePath = parseSearchToken(search['sidePanelPackagePath'])
-  const sidePanelContentHash = parseSearchToken(search['sidePanelContentHash'])
+  const sidePanelPackagePath = parseSearchToken(search.sidePanelPackagePath)
+  const sidePanelContentHash = parseSearchToken(search.sidePanelContentHash)
   return {
     ...base,
     panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
@@ -106,7 +106,7 @@ function parseExtensionPanelSearch(
 }
 
 export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
-  const panel = parseRightPanel(search['panel'])
+  const panel = parseRightPanel(search.panel)
   const base = parseBaseChatSearch(search)
 
   if (panel === EXTENSION_SIDE_PANEL_ROUTE_PANEL) {
@@ -114,8 +114,8 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
   }
 
   if (panel === 'file') {
-    const filePath = parseSearchToken(search['filePath'])
-    const fileLine = parseFileLine(search['fileLine'])
+    const filePath = parseSearchToken(search.filePath)
+    const fileLine = parseFileLine(search.fileLine)
     // Files without a path is the navigator on its own (ADR 0043).
     return filePath
       ? { ...base, panel, filePath, ...(fileLine ? { fileLine } : {}) }
@@ -123,8 +123,8 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
   }
 
   if (panel === 'resources') {
-    const resourceView = parseResourceView(search['resourceView'])
-    const resourceId = parseSearchToken(search['resourceId'])
+    const resourceView = parseResourceView(search.resourceView)
+    const resourceId = parseSearchToken(search.resourceId)
     return {
       ...base,
       panel,
@@ -134,8 +134,8 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
   }
 
   if (panel === 'change-request') {
-    const changeRequestUrl = parseSearchToken(search['changeRequestUrl'])
-    const changeRequestSessionId = parseSearchToken(search['changeRequestSessionId'])
+    const changeRequestUrl = parseSearchToken(search.changeRequestUrl)
+    const changeRequestSessionId = parseSearchToken(search.changeRequestSessionId)
     return changeRequestUrl && changeRequestSessionId
       ? { ...base, panel, changeRequestUrl, changeRequestSessionId }
       : base

@@ -20,7 +20,7 @@ const WAIT_PREVIEW = /^\{\s*"sessionIds"\s*:/
  */
 export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?: string) {
   if (name !== HIVE_TOOL_NAME) return false
-  const action = typeof args['action'] === 'string' ? args['action'] : null
+  const action = typeof args.action === 'string' ? args.action : null
   if (action === 'wait') return true
   return state === 'input-streaming' && (action === null || !isWholeSessionsAction(action))
 }
@@ -37,7 +37,7 @@ export function isHiddenSessionsToolCallJson(
 ) {
   if (name !== HIVE_TOOL_NAME) return false
   const args = parseToolArgs(argsJson)
-  if (typeof args['action'] === 'string') return isHiddenSessionsToolCall(name, args, state)
+  if (typeof args.action === 'string') return isHiddenSessionsToolCall(name, args, state)
   const previewed = PREVIEW_ACTION.exec(argsJson)?.[1]
   if (previewed) return isHiddenSessionsToolCall(name, { action: previewed }, state)
   // A preview cut inside a long `sessionIds` list, before its action: only a wait takes that list.

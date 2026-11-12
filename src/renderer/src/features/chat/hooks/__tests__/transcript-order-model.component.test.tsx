@@ -49,9 +49,9 @@ import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-
  * its trace.
  */
 
-const SEEDS = Number(import.meta.env['VITE_TRANSCRIPT_ORDER_SEEDS'] ?? 40)
-const FIRST_SEED = Number(import.meta.env['VITE_TRANSCRIPT_ORDER_FIRST_SEED'] ?? 1)
-const STEPS = Number(import.meta.env['VITE_TRANSCRIPT_ORDER_STEPS'] ?? 26)
+const SEEDS = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_SEEDS ?? 40)
+const FIRST_SEED = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_FIRST_SEED ?? 1)
+const STEPS = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_STEPS ?? 26)
 
 type ModelAction = (typeof MODEL_ACTIONS)[number]
 
