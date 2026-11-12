@@ -151,7 +151,10 @@ jobs:
           set -euo pipefail
           args=(); while IFS= read -r arg; do args+=("$arg"); done < "$RUNNER_TEMP/package-args"
           start=$(date +%s)
-          APPIMAGE_EXTRACT_AND_RUN=1 bun scripts/electrobun/package.ts "${args[@]}" | tee "$RESULTS/package-current.txt"
+          # The installed app's release directory is the feed's /current; the update comes from its
+          # sibling /next, as a GitHub release directory's update comes from the next tag's.
+          OPENWAGGLE_ELECTROBUN_RELEASE_BASE_URL="http://127.0.0.1:$FEED_PORT/current" APPIMAGE_EXTRACT_AND_RUN=1 \
+            bun scripts/electrobun/package.ts "${args[@]}" | tee "$RESULTS/package-current.txt"
           echo "{\"packageSeconds\": $(( $(date +%s) - start ))}" > "$RESULTS/package-current.json"
           mkdir -p "$RUNNER_TEMP/feed"
           cp -R out/electrobun/release "$RUNNER_TEMP/feed/current"
