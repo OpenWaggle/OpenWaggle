@@ -121,17 +121,20 @@ const nextMacrotask = () => new Promise<void>((resolve) => setImmediate(resolve)
  * desktop run's turn-start failure path does.
  */
 async function checkDesktopWaggleLoop(loop: DesktopWaggleLoop) {
-  let settled: 'resolved' | 'rejected' | null = null
+  // Held in an object because the callbacks, not this function's flow, set it.
+  const observed: { settled: 'resolved' | 'rejected' | null } = { settled: null }
   loop.done.then(
     () => {
-      settled = 'resolved'
+      observed.settled = 'resolved'
     },
     () => {
-      settled = 'rejected'
+      observed.settled = 'rejected'
     },
   )
   await nextMacrotask()
-  if (settled !== null) fail(`the desktop Waggle loop ${settled} before any turn ran`)
+  if (observed.settled !== null) {
+    fail(`the desktop Waggle loop ${observed.settled} before any turn ran`)
+  }
   const stop = new Error('pi main bundle smoke stopped the loop')
   loop.fail(stop)
   const outcome = await loop.done.then(
@@ -148,8 +151,9 @@ type BundledSession = Awaited<ReturnType<PiSdk['createAgentSession']>>['session'
 function checkBundledWaggleExtension(session: BundledSession, waggle: BundledWaggle) {
   const commands = session.extensionRunner.getRegisteredCommands().map((command) => command.name)
   for (const name of ['waggle', 'standard']) {
-    if (!commands.includes(name))
+    if (!commands.includes(name)) {
       fail(`pi-waggle did not register /${name}; commands: ${commands.join(', ')}`)
+    }
   }
   if (!session.extensionRunner.getMessageRenderer(waggle.protocol.PI_WAGGLE_TURN_CUSTOM_TYPE)) {
     fail('pi-waggle did not register its turn renderer')
@@ -278,8 +282,9 @@ function checkPiPackageAssets(pi: PiSdk) {
     typeof manifest === 'object' && manifest !== null && 'name' in manifest
       ? manifest.name
       : undefined
-  if (name !== '@earendil-works/pi-coding-agent')
+  if (name !== '@earendil-works/pi-coding-agent') {
     fail(`Pi's package directory is ${packageDirectory} (${String(name)})`)
+  }
   for (const asset of [
     path.join(pi.getDocsPath(), 'codemode.md'),
     pi.getReadmePath(),

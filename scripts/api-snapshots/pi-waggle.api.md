@@ -232,7 +232,7 @@ export declare function writePiWagglePresetsFile(filePath: string, presets: read
 ### Declarations from `dist/presets.d.ts`
 
 ```ts
-import { type WagglePreset } from '@openwaggle/waggle-core';
+import { type WaggleConfig, type WagglePreset } from '@openwaggle/waggle-core';
 export type PiWagglePresetScope = 'built-in' | 'user' | 'project';
 export type PiWaggleEditablePresetScope = Exclude<PiWagglePresetScope, 'built-in'>;
 export interface PiWagglePresetLayers {
@@ -254,7 +254,7 @@ export declare function loadPiWagglePresetLayers(cwd?: string): Promise<PiWaggle
 export declare function mergePiWagglePresetLayers(layers: PiWagglePresetLayers): readonly PiWaggleResolvedPreset[];
 export declare function resolvedPresetsForUi(layers: PiWagglePresetLayers): PiWaggleResolvedPreset[];
 export declare function hiddenBuiltInPresetsForUi(layers: PiWagglePresetLayers): PiWaggleHiddenBuiltInPreset[];
-export declare function presetScopeLabel(scope: PiWaggleEditablePresetScope): "Project (.pi/waggle-presets.json)" | "User (~/.pi/agent/waggle-presets.json)";
+export declare function presetScopeLabel(scope: PiWaggleEditablePresetScope): 'Project (.pi/waggle-presets.json)' | 'User (~/.pi/agent/waggle-presets.json)';
 export declare function savePiWagglePreset(input: {
     readonly cwd?: string;
     readonly scope: PiWaggleEditablePresetScope;
@@ -284,7 +284,7 @@ export declare function buildEditablePreset(input: {
     id: string;
     name: string;
     description: string;
-    config: import("@openwaggle/waggle-core").WaggleConfig;
+    config: WaggleConfig;
     isBuiltIn: false;
     createdAt: number;
     updatedAt: number;
@@ -697,7 +697,7 @@ Types: `dist/presets.d.ts`
 ### Declarations from `dist/presets.d.ts`
 
 ```ts
-import { type WagglePreset } from '@openwaggle/waggle-core';
+import { type WaggleConfig, type WagglePreset } from '@openwaggle/waggle-core';
 export type PiWagglePresetScope = 'built-in' | 'user' | 'project';
 export type PiWaggleEditablePresetScope = Exclude<PiWagglePresetScope, 'built-in'>;
 export interface PiWagglePresetLayers {
@@ -719,7 +719,7 @@ export declare function loadPiWagglePresetLayers(cwd?: string): Promise<PiWaggle
 export declare function mergePiWagglePresetLayers(layers: PiWagglePresetLayers): readonly PiWaggleResolvedPreset[];
 export declare function resolvedPresetsForUi(layers: PiWagglePresetLayers): PiWaggleResolvedPreset[];
 export declare function hiddenBuiltInPresetsForUi(layers: PiWagglePresetLayers): PiWaggleHiddenBuiltInPreset[];
-export declare function presetScopeLabel(scope: PiWaggleEditablePresetScope): "Project (.pi/waggle-presets.json)" | "User (~/.pi/agent/waggle-presets.json)";
+export declare function presetScopeLabel(scope: PiWaggleEditablePresetScope): 'Project (.pi/waggle-presets.json)' | 'User (~/.pi/agent/waggle-presets.json)';
 export declare function savePiWagglePreset(input: {
     readonly cwd?: string;
     readonly scope: PiWaggleEditablePresetScope;
@@ -749,7 +749,7 @@ export declare function buildEditablePreset(input: {
     id: string;
     name: string;
     description: string;
-    config: import("@openwaggle/waggle-core").WaggleConfig;
+    config: WaggleConfig;
     isBuiltIn: false;
     createdAt: number;
     updatedAt: number;

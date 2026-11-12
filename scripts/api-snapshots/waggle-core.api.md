@@ -61,7 +61,7 @@ export type WaggleValidationResult<T> = {
     readonly success: false;
     readonly issues: readonly string[];
 };
-export declare function isWaggleInheritedModel(model: string): model is "$inherit";
+export declare function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL;
 export declare function isProviderQualifiedWaggleModel(model: string): boolean;
 export declare function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig>;
 export declare function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset>;
@@ -234,7 +234,7 @@ export type WaggleValidationResult<T> = {
     readonly success: false;
     readonly issues: readonly string[];
 };
-export declare function isWaggleInheritedModel(model: string): model is "$inherit";
+export declare function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL;
 export declare function isProviderQualifiedWaggleModel(model: string): boolean;
 export declare function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig>;
 export declare function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset>;
@@ -340,7 +340,7 @@ export type WaggleValidationResult<T> = {
     readonly success: false;
     readonly issues: readonly string[];
 };
-export declare function isWaggleInheritedModel(model: string): model is "$inherit";
+export declare function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL;
 export declare function isProviderQualifiedWaggleModel(model: string): boolean;
 export declare function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig>;
 export declare function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset>;
@@ -430,7 +430,7 @@ export type WaggleValidationResult<T> = {
     readonly success: false;
     readonly issues: readonly string[];
 };
-export declare function isWaggleInheritedModel(model: string): model is "$inherit";
+export declare function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL;
 export declare function isProviderQualifiedWaggleModel(model: string): boolean;
 export declare function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig>;
 export declare function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset>;
@@ -495,7 +495,7 @@ export type WaggleValidationResult<T> = {
     readonly success: false;
     readonly issues: readonly string[];
 };
-export declare function isWaggleInheritedModel(model: string): model is "$inherit";
+export declare function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL;
 export declare function isProviderQualifiedWaggleModel(model: string): boolean;
 export declare function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig>;
 export declare function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset>;
@@ -570,7 +570,7 @@ export type WaggleValidationResult<T> = {
     readonly success: false;
     readonly issues: readonly string[];
 };
-export declare function isWaggleInheritedModel(model: string): model is "$inherit";
+export declare function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL;
 export declare function isProviderQualifiedWaggleModel(model: string): boolean;
 export declare function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig>;
 export declare function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset>;
@@ -704,7 +704,7 @@ export type WaggleValidationResult<T> = {
     readonly success: false;
     readonly issues: readonly string[];
 };
-export declare function isWaggleInheritedModel(model: string): model is "$inherit";
+export declare function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL;
 export declare function isProviderQualifiedWaggleModel(model: string): boolean;
 export declare function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig>;
 export declare function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset>;

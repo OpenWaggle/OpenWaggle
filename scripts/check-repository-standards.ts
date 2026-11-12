@@ -1,7 +1,23 @@
-import { readFile } from 'node:fs/promises'
+/**
+ * Repository standards: per-file rules over every tracked or untracked-but-not-ignored file, plus
+ * rules across files (duplicate exported types, the memory index, design-token exemptions).
+ *
+ *   bun scripts/check-repository-standards.ts [files...]
+ *
+ * With files (the check runner's `--changed`), the per-file rules run on those files only, and a
+ * cross-file rule runs when one of them is an input of that rule.
+ */
 import path from 'node:path'
-import fg from 'fast-glob'
+import { pathToFileURL } from 'node:url'
+import micromatch from 'micromatch'
+import { listRepositoryFiles, readFiles } from './check/repository-files'
 import { collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations } from './standards/forbidden-references'
+import {
+  collectAgentMemoryFileViolations,
+  collectAgentMemoryIndexViolations,
+} from './standards/agent-memory'
+import { collectRepositoryAdrNumberingViolations } from './standards/adr-numbering'
+import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
 import {
@@ -22,6 +38,7 @@ import {
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
 import { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
+import { collectRepositorySkillsLockViolations } from './standards/skills-lock'
 import { collectSqliteLibraryViolations } from './standards/sqlite-library'
 import { collectSyntaxRenderingViolations } from './standards/syntax-rendering'
 
@@ -111,9 +128,7 @@ function collectToolingConfigViolations(file: string) {
   ]
 }
 
-async function collectViolationsForFile(file: string) {
-  const contents = await readFile(file, 'utf8')
-
+function collectViolationsForFile(file: string, contents: string) {
   return [
     ...collectForbiddenReferenceViolations(file, contents),
     ...collectTsconfigViolations(file, contents),
@@ -126,6 +141,8 @@ async function collectViolationsForFile(file: string) {
     ...collectSyntaxRenderingViolations(file, contents),
     ...collectExactDependencyVersionViolations(file, contents),
     ...collectSqliteLibraryViolations(file, contents),
+    ...collectAstroRawButtonViolations(file, contents),
+    ...collectAgentMemoryFileViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 
@@ -139,29 +156,97 @@ function printViolations(violations: readonly Violation[]) {
   }
 }
 
-async function main() {
-  const files = await fg([...scanGlobs, ...packageBoundarySourceGlobs], {
-    dot: true,
-    ignore: ignoreGlobs,
-    onlyFiles: true,
-  })
-  const violations: Violation[] = []
-  const contentsByFile = new Map<string, string>()
+const SCRIPT_ARGUMENTS_START = 2
+const MEMORY_FILES = ['MEMORY.md', '.agents/memory/**']
+const DESIGN_TOKEN_FILES = ['src/renderer/src/**', 'scripts/renderer-design-token-exemptions.json']
+const SKILLS_LOCK_FILES = ['skills-lock.json', '.agents/skills/**']
+const ADR_FILES = ['docs/adr/**', 'docs/architecture.md']
 
-  for (const file of files.map(normalizePath).sort()) {
-    violations.push(...(await collectViolationsForFile(file)))
-    contentsByFile.set(file, await readFile(file, 'utf8'))
-  }
-
-  violations.push(...collectDuplicateExportedTypes(contentsByFile))
-  violations.push(
-    ...collectRendererDesignTokenExemptionViolations(
-      new Set(contentsByFile.keys()),
-      readRendererDesignTokenExemptions(),
-    ),
+function isScanned(file: string) {
+  return (
+    micromatch.isMatch(file, [...scanGlobs, ...packageBoundarySourceGlobs], { dot: true }) &&
+    !micromatch.isMatch(file, ignoreGlobs, { dot: true })
   )
+}
 
+function isDuplicateTypeInput(file: string) {
+  return file.startsWith('src/') && /\.tsx?$/u.test(file) && !file.includes('__tests__')
+}
+
+const matches = (globs: readonly string[]) => (file: string) =>
+  micromatch.isMatch(file, [...globs], { dot: true })
+
+interface CrossFileContext {
+  readonly repositoryFiles: readonly string[]
+  readonly present: ReadonlySet<string>
+  readonly contentsByFile: ReadonlyMap<string, string>
+}
+
+/**
+ * Rules that read more than the file they report on. A scoped run (`--changed`) runs one only when
+ * a requested file matches `trigger`, present or deleted, and then reads every file `reads` names.
+ */
+interface CrossFileRule {
+  readonly trigger: (file: string) => boolean
+  readonly reads?: (file: string) => boolean
+  readonly collect: (context: CrossFileContext) => readonly Violation[]
+}
+
+const CROSS_FILE_RULES: readonly CrossFileRule[] = [
+  {
+    trigger: isDuplicateTypeInput,
+    reads: isDuplicateTypeInput,
+    collect: ({ contentsByFile }) => collectDuplicateExportedTypes(contentsByFile),
+  },
+  {
+    trigger: matches(MEMORY_FILES),
+    reads: (file) => file === 'MEMORY.md',
+    // The index rule reads MEMORY.md's contents and only the names of the other files.
+    collect: ({ repositoryFiles, contentsByFile }) =>
+      collectAgentMemoryIndexViolations(
+        new Map(repositoryFiles.map((file) => [file, contentsByFile.get(file) ?? ''])),
+      ),
+  },
+  {
+    trigger: matches(DESIGN_TOKEN_FILES),
+    collect: ({ present }) =>
+      collectRendererDesignTokenExemptionViolations(present, readRendererDesignTokenExemptions()),
+  },
+  {
+    trigger: matches(SKILLS_LOCK_FILES),
+    collect: () => collectRepositorySkillsLockViolations(process.cwd()),
+  },
+  {
+    trigger: matches(ADR_FILES),
+    collect: () => collectRepositoryAdrNumberingViolations(process.cwd()),
+  },
+]
+
+async function main(requested: readonly string[]) {
+  const repositoryFiles = (await listRepositoryFiles()).filter(isScanned)
+  const present = new Set(repositoryFiles)
+  const scoped = requested.length > 0
+  const changed = [...new Set(requested.map(normalizePath))]
+  const targets = scoped ? changed.filter((file) => present.has(file)).sort() : repositoryFiles
+  const rules = scoped
+    ? CROSS_FILE_RULES.filter((rule) => changed.some(rule.trigger))
+    : CROSS_FILE_RULES
+
+  const toRead = new Set(targets)
+  for (const rule of rules) {
+    const reads = rule.reads
+    if (reads !== undefined) for (const file of repositoryFiles.filter(reads)) toRead.add(file)
+  }
+  const contentsByFile = await readFiles([...toRead].sort())
+
+  const context: CrossFileContext = { repositoryFiles, present, contentsByFile }
+  const violations: Violation[] = [
+    ...targets.flatMap((file) => collectViolationsForFile(file, contentsByFile.get(file) ?? '')),
+    ...rules.flatMap((rule) => rule.collect(context)),
+  ]
   if (violations.length === 0) {
+    const scope = scoped ? `${targets.length} changed` : `${repositoryFiles.length}`
+    console.log(`repository standards: no problems (${scope} files)`)
     return
   }
 
@@ -169,7 +254,9 @@ async function main() {
   process.exitCode = 1
 }
 
-void main().catch((error: unknown) => {
-  console.error(error)
-  process.exitCode = 1
-})
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main(process.argv.slice(SCRIPT_ARGUMENTS_START)).catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

@@ -36,8 +36,9 @@ async function missingSourceMaps(files: readonly string[]) {
       () => true,
       () => false,
     )
-    if (!exists)
+    if (!exists) {
       missing.push(`out/main/${file}.map is missing; the main build must emit hidden source maps.`)
+    }
   }
   return missing
 }
