@@ -49,7 +49,10 @@ export type WaggleValidationResult<T> =
   | { readonly success: true; readonly value: T }
   | { readonly success: false; readonly issues: readonly string[] }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+/** The declared fields of `T`, each still unchecked: what a parser reads before it validates. */
+type UncheckedFields<T> = { readonly [K in keyof T]?: unknown }
+
+function isObjectValue(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -127,14 +130,15 @@ function modelValue(value: unknown, path: string): WaggleValidationResult<string
 }
 
 function parseAgentSlot(value: unknown, path: string): WaggleValidationResult<WaggleAgentSlot> {
-  if (!isRecord(value)) {
+  if (!isObjectValue(value)) {
     return { success: false, issues: [`${path} must be an object.`] }
   }
 
-  const label = stringValue(value.label, `${path}.label`)
-  const model = modelValue(value.model, `${path}.model`)
-  const roleDescription = stringValue(value.roleDescription, `${path}.roleDescription`)
-  const color = literalValue(value.color, WAGGLE_AGENT_COLORS, `${path}.color`)
+  const fields: UncheckedFields<WaggleAgentSlot> = value
+  const label = stringValue(fields.label, `${path}.label`)
+  const model = modelValue(fields.model, `${path}.model`)
+  const roleDescription = stringValue(fields.roleDescription, `${path}.roleDescription`)
+  const color = literalValue(fields.color, WAGGLE_AGENT_COLORS, `${path}.color`)
   const issues = collectIssues([label, model, roleDescription, color])
   if (
     issues.length > 0 ||
@@ -176,12 +180,13 @@ function parseMaxTurnsSafety(value: unknown): WaggleValidationResult<number> {
 }
 
 function parseStopConfig(value: unknown): WaggleValidationResult<WaggleStopConfig> {
-  if (!isRecord(value)) {
+  if (!isObjectValue(value)) {
     return { success: false, issues: ['stop must be an object.'] }
   }
 
-  const primary = literalValue(value.primary, WAGGLE_STOP_CONDITIONS, 'stop.primary')
-  const maxTurnsSafety = parseMaxTurnsSafety(value.maxTurnsSafety)
+  const fields: UncheckedFields<WaggleStopConfig> = value
+  const primary = literalValue(fields.primary, WAGGLE_STOP_CONDITIONS, 'stop.primary')
+  const maxTurnsSafety = parseMaxTurnsSafety(fields.maxTurnsSafety)
   const issues = collectIssues([primary, maxTurnsSafety])
   if (issues.length > 0 || !primary.success || !maxTurnsSafety.success) {
     return { success: false, issues }
@@ -217,13 +222,14 @@ function parseAgentTuple(
 }
 
 export function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig> {
-  if (!isRecord(value)) {
+  if (!isObjectValue(value)) {
     return { success: false, issues: ['config must be an object.'] }
   }
 
-  const mode = literalValue(value.mode, WAGGLE_COLLABORATION_MODES, 'mode')
-  const agents = parseAgentTuple(value.agents)
-  const stop = parseStopConfig(value.stop)
+  const fields: UncheckedFields<WaggleConfig> = value
+  const mode = literalValue(fields.mode, WAGGLE_COLLABORATION_MODES, 'mode')
+  const agents = parseAgentTuple(fields.agents)
+  const stop = parseStopConfig(fields.stop)
   const issues = collectIssues([mode, agents, stop])
   if (issues.length > 0 || !mode.success || !agents.success || !stop.success) {
     return { success: false, issues }
@@ -240,17 +246,18 @@ export function parseWaggleConfig(value: unknown): WaggleValidationResult<Waggle
 }
 
 export function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset> {
-  if (!isRecord(value)) {
+  if (!isObjectValue(value)) {
     return { success: false, issues: ['preset must be an object.'] }
   }
 
-  const id = stringValue(value.id, 'id')
-  const name = stringValue(value.name, 'name')
-  const description = stringValue(value.description, 'description')
-  const config = parseWaggleConfig(value.config)
-  const isBuiltIn = booleanValue(value.isBuiltIn, 'isBuiltIn')
-  const createdAt = timestampValue(value.createdAt, 'createdAt')
-  const updatedAt = timestampValue(value.updatedAt, 'updatedAt')
+  const fields: UncheckedFields<WagglePreset> = value
+  const id = stringValue(fields.id, 'id')
+  const name = stringValue(fields.name, 'name')
+  const description = stringValue(fields.description, 'description')
+  const config = parseWaggleConfig(fields.config)
+  const isBuiltIn = booleanValue(fields.isBuiltIn, 'isBuiltIn')
+  const createdAt = timestampValue(fields.createdAt, 'createdAt')
+  const updatedAt = timestampValue(fields.updatedAt, 'updatedAt')
   const issues = collectIssues([id, name, description, config, isBuiltIn, createdAt, updatedAt])
 
   if (

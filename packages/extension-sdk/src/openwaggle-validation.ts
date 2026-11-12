@@ -1,329 +1,188 @@
+import * as Schema from 'effect/Schema'
 import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { isNonEmptyString, isRecord, isStringArray } from './internal-validation.js'
-import type {
-  ExtensionActionSelectProjectResult,
-  ExtensionModelPrefs,
-  ExtensionSessionResourcePublishResult,
-  ExtensionSessionResourcesListResult,
-  ExtensionSettingsGetResult,
-  ExtensionSettingsGetSettingResult,
-  ExtensionSettingsSelectedValue,
-  ExtensionSettingsUpdateResult,
-  ExtensionSettingsUpdateSettingResult,
-  ExtensionStateCurrentBranchReadResult,
-  ExtensionStateCurrentProjectReadResult,
-  ExtensionStateCurrentSessionReadResult,
-  ExtensionStateModelPreferencesReadResult,
-  ExtensionStateReadResult,
-  ExtensionStateRecentProjectsReadResult,
-} from './types.js'
+const { CAPABILITY, METHOD, SETTING_KEY, STATE_SELECTOR } = OPENWAGGLE_EXTENSION_BROKER
 
-function isStringOrNull(value: unknown): value is string | null {
-  return value === null || typeof value === 'string'
-}
+const nonEmptyString = Schema.String.pipe(
+  Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.'),
+)
 
-function isSessionResourceView(value: unknown) {
-  return (
-    isRecord(value) &&
-    isNonEmptyString(value.id) &&
-    isNonEmptyString(value.title) &&
-    ['image', 'file', 'link', 'tool', 'web-search', 'site', 'commit', 'change-request'].includes(
-      String(value.kind),
-    ) &&
-    isStringOrNull(value.mimeType) &&
-    typeof value.available === 'boolean' &&
-    typeof value.isSource === 'boolean' &&
-    typeof value.isOutput === 'boolean'
-  )
-}
+const invokeScopeSchema = Schema.Union(
+  Schema.Struct({ kind: Schema.Literal('app') }),
+  Schema.Struct({ kind: Schema.Literal('project'), projectPath: nonEmptyString }),
+  Schema.Struct({
+    kind: Schema.Literal('session'),
+    projectPath: nonEmptyString,
+    sessionId: nonEmptyString,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('branch'),
+    projectPath: nonEmptyString,
+    sessionId: nonEmptyString,
+    branchId: nonEmptyString,
+  }),
+)
 
-function isSessionResourceResultBase(value: Readonly<Record<string, unknown>>, method: string) {
-  return (
-    hasOpenWaggleResultBase(value, OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES, method) &&
-    isNonEmptyString(value.sessionId)
-  )
-}
+const modelPreferencesSchema = Schema.Struct({
+  selectedModel: Schema.String,
+  favoriteModels: Schema.Array(Schema.String),
+  enabledModels: Schema.Array(Schema.String),
+  thinkingLevel: Schema.String,
+})
 
-export function isSessionResourcesListResult(
-  value: unknown,
-): value is ExtensionSessionResourcesListResult {
-  return (
-    isRecord(value) &&
-    isSessionResourceResultBase(value, OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES) &&
-    Array.isArray(value.resources) &&
-    value.resources.every(isSessionResourceView) &&
-    typeof value.total === 'number' &&
-    Number.isInteger(value.total) &&
-    value.total >= 0 &&
-    (value.nextCursor === null || typeof value.nextCursor === 'string')
-  )
-}
+const projectViewSchema = Schema.Struct({
+  projectPath: nonEmptyString,
+  displayName: Schema.NullOr(Schema.String),
+  active: Schema.Boolean,
+})
 
-export function isSessionResourcePublishResult(
-  value: unknown,
-): value is ExtensionSessionResourcePublishResult {
-  return (
-    isRecord(value) &&
-    isSessionResourceResultBase(value, OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE) &&
-    isSessionResourceView(value.resource)
-  )
-}
+const sessionViewSchema = Schema.Struct({
+  sessionId: nonEmptyString,
+  title: nonEmptyString,
+  projectPath: Schema.NullOr(Schema.String),
+})
 
-function isInvokeScope(value: unknown) {
-  if (!isRecord(value)) {
-    return false
-  }
+const branchViewSchema = Schema.Struct({
+  branchId: nonEmptyString,
+  sessionId: nonEmptyString,
+  name: nonEmptyString,
+  main: Schema.Boolean,
+  archived: Schema.Boolean,
+})
 
-  if (value.kind === 'app') {
-    return true
-  }
+const sessionResourceViewSchema = Schema.Struct({
+  id: nonEmptyString,
+  title: nonEmptyString,
+  kind: Schema.Literal(
+    'image',
+    'file',
+    'link',
+    'tool',
+    'web-search',
+    'site',
+    'commit',
+    'change-request',
+  ),
+  mimeType: Schema.NullOr(Schema.String),
+  available: Schema.Boolean,
+  isSource: Schema.Boolean,
+  isOutput: Schema.Boolean,
+})
 
-  if (value.kind === 'project') {
-    return isNonEmptyString(value.projectPath)
-  }
-
-  if (value.kind === 'session') {
-    return isNonEmptyString(value.projectPath) && isNonEmptyString(value.sessionId)
-  }
-
-  return (
-    value.kind === 'branch' &&
-    isNonEmptyString(value.projectPath) &&
-    isNonEmptyString(value.sessionId) &&
-    isNonEmptyString(value.branchId)
-  )
-}
-
-function isStringRecord(value: unknown) {
-  return isRecord(value) && Object.values(value).every((entry) => typeof entry === 'string')
-}
-
-function isModelPreferences(value: unknown): value is ExtensionModelPrefs {
-  return (
-    isRecord(value) &&
-    typeof value.selectedModel === 'string' &&
-    isStringArray(value.favoriteModels) &&
-    isStringArray(value.enabledModels) &&
-    typeof value.thinkingLevel === 'string'
-  )
-}
-
-function isProjectView(value: unknown) {
-  return (
-    isRecord(value) &&
-    isNonEmptyString(value.projectPath) &&
-    isStringOrNull(value.displayName) &&
-    typeof value.active === 'boolean'
-  )
-}
-
-function isSessionView(value: unknown) {
-  return (
-    isRecord(value) &&
-    isNonEmptyString(value.sessionId) &&
-    isNonEmptyString(value.title) &&
-    isStringOrNull(value.projectPath)
-  )
-}
-
-function isBranchView(value: unknown) {
-  return (
-    isRecord(value) &&
-    isNonEmptyString(value.branchId) &&
-    isNonEmptyString(value.sessionId) &&
-    isNonEmptyString(value.name) &&
-    typeof value.main === 'boolean' &&
-    typeof value.archived === 'boolean'
-  )
-}
-
-function hasOpenWaggleResultBase(
-  value: Readonly<Record<string, unknown>>,
-  capability: string,
-  method: string,
+/** The fields every OpenWaggle broker result carries, for one capability and method. */
+function resultBase<TCapability extends string, TMethod extends string>(
+  capability: TCapability,
+  method: TMethod,
 ) {
-  return (
-    isNonEmptyString(value.extensionId) &&
-    isNonEmptyString(value.contributionId) &&
-    value.capability === capability &&
-    value.method === method
-  )
+  return {
+    extensionId: nonEmptyString,
+    contributionId: nonEmptyString,
+    capability: Schema.Literal(capability),
+    method: Schema.Literal(method),
+  }
 }
 
-export function isStateReadResult(value: unknown): value is ExtensionStateReadResult {
-  return (
-    isRecord(value) &&
-    hasOpenWaggleResultBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
-    ) &&
-    isInvokeScope(value.scope) &&
-    isStringOrNull(value.activeProjectPath) &&
-    (value.currentProject === null || isProjectView(value.currentProject)) &&
-    (value.currentSession === null || isSessionView(value.currentSession)) &&
-    (value.currentBranch === null || isBranchView(value.currentBranch)) &&
-    isStringArray(value.recentProjects) &&
-    isModelPreferences(value.modelPreferences)
-  )
-}
+export const sessionResourcesListResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.RESOURCES, METHOD.LIST_RESOURCES),
+  sessionId: nonEmptyString,
+  resources: Schema.Array(sessionResourceViewSchema),
+  total: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  nextCursor: Schema.NullOr(Schema.String),
+})
 
-function isSelectedStateResult(
-  value: unknown,
-  selector: string,
-  isSelectedValue: (selectedValue: unknown) => boolean,
+export const sessionResourcePublishResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.RESOURCES, METHOD.PUBLISH_RESOURCE),
+  sessionId: nonEmptyString,
+  resource: sessionResourceViewSchema,
+})
+
+export const stateReadResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.STATE, METHOD.GET_STATE),
+  scope: invokeScopeSchema,
+  activeProjectPath: Schema.NullOr(Schema.String),
+  currentProject: Schema.NullOr(projectViewSchema),
+  currentSession: Schema.NullOr(sessionViewSchema),
+  currentBranch: Schema.NullOr(branchViewSchema),
+  recentProjects: Schema.Array(Schema.String),
+  modelPreferences: modelPreferencesSchema,
+})
+
+function selectedStateResult<TSelector extends string, TValue, TEncoded>(
+  selector: TSelector,
+  value: Schema.Schema<TValue, TEncoded>,
 ) {
-  return (
-    isRecord(value) &&
-    hasOpenWaggleResultBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
-    ) &&
-    isInvokeScope(value.scope) &&
-    value.selector === selector &&
-    isSelectedValue(value.value)
-  )
-}
-
-export function isStateCurrentProjectReadResult(
-  value: unknown,
-): value is ExtensionStateCurrentProjectReadResult {
-  return isSelectedStateResult(
+  return Schema.Struct({
+    ...resultBase(CAPABILITY.STATE, METHOD.READ_STATE),
+    scope: invokeScopeSchema,
+    selector: Schema.Literal(selector),
     value,
-    OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_PROJECT,
-    (selectedValue) => selectedValue === null || isProjectView(selectedValue),
-  )
+  })
 }
 
-export function isStateCurrentSessionReadResult(
-  value: unknown,
-): value is ExtensionStateCurrentSessionReadResult {
-  return isSelectedStateResult(
-    value,
-    OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_SESSION,
-    (selectedValue) => selectedValue === null || isSessionView(selectedValue),
-  )
-}
+export const actionSelectProjectResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.ACTIONS, METHOD.SELECT_PROJECT),
+  previousProjectPath: Schema.NullOr(Schema.String),
+  projectPath: nonEmptyString,
+  recentProjects: Schema.Array(Schema.String),
+})
 
-export function isStateCurrentBranchReadResult(
-  value: unknown,
-): value is ExtensionStateCurrentBranchReadResult {
-  return isSelectedStateResult(
-    value,
-    OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_BRANCH,
-    (selectedValue) => selectedValue === null || isBranchView(selectedValue),
-  )
-}
+const settingsViewSchema = Schema.Struct({
+  modelPreferences: modelPreferencesSchema,
+  projectDisplayNames: Schema.Record({ key: Schema.String, value: Schema.String }),
+})
 
-export function isStateRecentProjectsReadResult(
-  value: unknown,
-): value is ExtensionStateRecentProjectsReadResult {
-  return isSelectedStateResult(
-    value,
-    OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.RECENT_PROJECTS,
-    isStringArray,
-  )
-}
+const settingsSelectedValueSchema = Schema.Union(
+  Schema.Struct({
+    key: Schema.Literal(SETTING_KEY.MODEL_PREFERENCES),
+    value: modelPreferencesSchema,
+  }),
+  Schema.Struct({
+    key: Schema.Literal(SETTING_KEY.PROJECT_DISPLAY_NAME),
+    projectPath: nonEmptyString,
+    value: Schema.NullOr(Schema.String),
+  }),
+)
 
-export function isStateModelPreferencesReadResult(
-  value: unknown,
-): value is ExtensionStateModelPreferencesReadResult {
-  return isSelectedStateResult(
-    value,
-    OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.MODEL_PREFERENCES,
-    isModelPreferences,
-  )
-}
+export const stateCurrentProjectReadResultSchema = selectedStateResult(
+  STATE_SELECTOR.CURRENT_PROJECT,
+  Schema.NullOr(projectViewSchema),
+)
 
-export function isActionSelectProjectResult(
-  value: unknown,
-): value is ExtensionActionSelectProjectResult {
-  return (
-    isRecord(value) &&
-    hasOpenWaggleResultBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT,
-    ) &&
-    isStringOrNull(value.previousProjectPath) &&
-    isNonEmptyString(value.projectPath) &&
-    isStringArray(value.recentProjects)
-  )
-}
+export const stateCurrentSessionReadResultSchema = selectedStateResult(
+  STATE_SELECTOR.CURRENT_SESSION,
+  Schema.NullOr(sessionViewSchema),
+)
 
-function isSettingsView(value: unknown) {
-  return (
-    isRecord(value) &&
-    isModelPreferences(value.modelPreferences) &&
-    isStringRecord(value.projectDisplayNames)
-  )
-}
+export const stateCurrentBranchReadResultSchema = selectedStateResult(
+  STATE_SELECTOR.CURRENT_BRANCH,
+  Schema.NullOr(branchViewSchema),
+)
 
-function isSettingsSelectedValue(value: unknown): value is ExtensionSettingsSelectedValue {
-  if (!isRecord(value)) {
-    return false
-  }
+export const stateRecentProjectsReadResultSchema = selectedStateResult(
+  STATE_SELECTOR.RECENT_PROJECTS,
+  Schema.Array(Schema.String),
+)
 
-  if (value.key === OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES) {
-    return isModelPreferences(value.value)
-  }
+export const stateModelPreferencesReadResultSchema = selectedStateResult(
+  STATE_SELECTOR.MODEL_PREFERENCES,
+  modelPreferencesSchema,
+)
 
-  return (
-    value.key === OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME &&
-    isNonEmptyString(value.projectPath) &&
-    isStringOrNull(value.value)
-  )
-}
+export const settingsGetResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.SETTINGS, METHOD.GET_SETTINGS),
+  settings: settingsViewSchema,
+})
 
-export function isSettingsGetResult(value: unknown): value is ExtensionSettingsGetResult {
-  return (
-    isRecord(value) &&
-    hasOpenWaggleResultBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
-    ) &&
-    isSettingsView(value.settings)
-  )
-}
+export const settingsUpdateResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.SETTINGS, METHOD.UPDATE_SETTINGS),
+  settings: settingsViewSchema,
+})
 
-export function isSettingsUpdateResult(value: unknown): value is ExtensionSettingsUpdateResult {
-  return (
-    isRecord(value) &&
-    hasOpenWaggleResultBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
-    ) &&
-    isSettingsView(value.settings)
-  )
-}
+export const settingsGetSettingResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.SETTINGS, METHOD.GET_SETTING),
+  setting: settingsSelectedValueSchema,
+})
 
-export function isSettingsGetSettingResult(
-  value: unknown,
-): value is ExtensionSettingsGetSettingResult {
-  return (
-    isRecord(value) &&
-    hasOpenWaggleResultBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
-    ) &&
-    isSettingsSelectedValue(value.setting)
-  )
-}
-
-export function isSettingsUpdateSettingResult(
-  value: unknown,
-): value is ExtensionSettingsUpdateSettingResult {
-  return (
-    isRecord(value) &&
-    hasOpenWaggleResultBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
-    ) &&
-    isSettingsSelectedValue(value.setting)
-  )
-}
+export const settingsUpdateSettingResultSchema = Schema.Struct({
+  ...resultBase(CAPABILITY.SETTINGS, METHOD.UPDATE_SETTING),
+  setting: settingsSelectedValueSchema,
+})

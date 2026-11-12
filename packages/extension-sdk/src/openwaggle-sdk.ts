@@ -1,20 +1,21 @@
+import * as Schema from 'effect/Schema'
 import { toDecodedOperationResult } from './broker-validation.js'
 import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { isDocsDiscoverResult, isDocsResolveTopicResult } from './docs-validation.js'
+import { extensionDocsDiscoverResultSchema, extensionDocsResolveTopicResultSchema } from './docs.js'
 import {
-  isActionSelectProjectResult,
-  isSessionResourcePublishResult,
-  isSessionResourcesListResult,
-  isSettingsGetResult,
-  isSettingsGetSettingResult,
-  isSettingsUpdateResult,
-  isSettingsUpdateSettingResult,
-  isStateCurrentBranchReadResult,
-  isStateCurrentProjectReadResult,
-  isStateCurrentSessionReadResult,
-  isStateModelPreferencesReadResult,
-  isStateReadResult,
-  isStateRecentProjectsReadResult,
+  actionSelectProjectResultSchema,
+  sessionResourcePublishResultSchema,
+  sessionResourcesListResultSchema,
+  settingsGetResultSchema,
+  settingsGetSettingResultSchema,
+  settingsUpdateResultSchema,
+  settingsUpdateSettingResultSchema,
+  stateCurrentBranchReadResultSchema,
+  stateCurrentProjectReadResultSchema,
+  stateCurrentSessionReadResultSchema,
+  stateModelPreferencesReadResultSchema,
+  stateReadResultSchema,
+  stateRecentProjectsReadResultSchema,
 } from './openwaggle-validation.js'
 import type {
   CreateOpenWaggleSdkOptions,
@@ -30,11 +31,20 @@ const SETTINGS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle s
 const STATE_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle state result.'
 const RESOURCE_RESULT_ERROR = 'Extension broker returned an invalid session resource result.'
 
-function sessionResultGuard<TValue extends { readonly sessionId: string }>(
-  guard: (value: unknown) => value is TValue,
+/** A resource result for the Session the request named, and no other. */
+function forSession<TValue extends { readonly sessionId: string }, TEncoded>(
+  schema: Schema.Schema<TValue, TEncoded>,
   sessionId: string,
 ) {
-  return (value: unknown): value is TValue => guard(value) && value.sessionId === sessionId
+  return schema.pipe(
+    Schema.filter(
+      (value) =>
+        value.sessionId === sessionId || {
+          path: ['sessionId'],
+          message: 'Must be the Session the request named.',
+        },
+    ),
+  )
 }
 
 const unsupportedOpenExternal = async () => {
@@ -51,7 +61,7 @@ function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWagg
           scope,
           payload: {},
         }),
-        isStateReadResult,
+        stateReadResultSchema,
         STATE_RESULT_ERROR,
       ),
     readCurrentProject: async (scope) =>
@@ -62,7 +72,7 @@ function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWagg
           scope,
           payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_PROJECT },
         }),
-        isStateCurrentProjectReadResult,
+        stateCurrentProjectReadResultSchema,
         STATE_RESULT_ERROR,
       ),
     readCurrentSession: async (scope) =>
@@ -73,7 +83,7 @@ function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWagg
           scope,
           payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_SESSION },
         }),
-        isStateCurrentSessionReadResult,
+        stateCurrentSessionReadResultSchema,
         STATE_RESULT_ERROR,
       ),
     readCurrentBranch: async (scope) =>
@@ -84,7 +94,7 @@ function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWagg
           scope,
           payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_BRANCH },
         }),
-        isStateCurrentBranchReadResult,
+        stateCurrentBranchReadResultSchema,
         STATE_RESULT_ERROR,
       ),
     readRecentProjects: async (scope) =>
@@ -95,7 +105,7 @@ function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWagg
           scope,
           payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.RECENT_PROJECTS },
         }),
-        isStateRecentProjectsReadResult,
+        stateRecentProjectsReadResultSchema,
         STATE_RESULT_ERROR,
       ),
     readModelPreferences: async (scope) =>
@@ -106,7 +116,7 @@ function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWagg
           scope,
           payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.MODEL_PREFERENCES },
         }),
-        isStateModelPreferencesReadResult,
+        stateModelPreferencesReadResultSchema,
         STATE_RESULT_ERROR,
       ),
   }
@@ -122,7 +132,7 @@ function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenW
           scope,
           payload: {},
         }),
-        isSettingsGetResult,
+        settingsGetResultSchema,
         SETTINGS_RESULT_ERROR,
       ),
     getModelPreferences: async (scope) =>
@@ -133,7 +143,7 @@ function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenW
           scope,
           payload: { key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES },
         }),
-        isSettingsGetSettingResult,
+        settingsGetSettingResultSchema,
         SETTINGS_RESULT_ERROR,
       ),
     updateModelPreferences: async (scope, value) =>
@@ -144,7 +154,7 @@ function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenW
           scope,
           payload: { key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES, value },
         }),
-        isSettingsUpdateSettingResult,
+        settingsUpdateSettingResultSchema,
         SETTINGS_RESULT_ERROR,
       ),
     getProjectDisplayName: async (scope, projectPath) =>
@@ -158,7 +168,7 @@ function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenW
             projectPath,
           },
         }),
-        isSettingsGetSettingResult,
+        settingsGetSettingResultSchema,
         SETTINGS_RESULT_ERROR,
       ),
     setProjectDisplayName: async (scope, projectPath, value) =>
@@ -173,7 +183,7 @@ function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenW
             value,
           },
         }),
-        isSettingsUpdateSettingResult,
+        settingsUpdateSettingResultSchema,
         SETTINGS_RESULT_ERROR,
       ),
     update: async (scope, settings) =>
@@ -184,7 +194,7 @@ function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenW
           scope,
           payload: settings,
         }),
-        isSettingsUpdateResult,
+        settingsUpdateResultSchema,
         SETTINGS_RESULT_ERROR,
       ),
   }
@@ -206,7 +216,7 @@ export function createOpenWaggleSdk(
             scope,
             payload: { projectPath },
           }),
-          isActionSelectProjectResult,
+          actionSelectProjectResultSchema,
           ACTION_RESULT_ERROR,
         ),
     },
@@ -220,7 +230,7 @@ export function createOpenWaggleSdk(
             scope,
             payload: input,
           }),
-          isDocsDiscoverResult,
+          extensionDocsDiscoverResultSchema,
           DOCS_RESULT_ERROR,
         ),
       resolveTopic: async (scope, input) =>
@@ -231,7 +241,7 @@ export function createOpenWaggleSdk(
             scope,
             payload: input,
           }),
-          isDocsResolveTopicResult,
+          extensionDocsResolveTopicResultSchema,
           DOCS_RESULT_ERROR,
         ),
     },
@@ -244,7 +254,7 @@ export function createOpenWaggleSdk(
             scope,
             payload: input,
           }),
-          sessionResultGuard(isSessionResourcesListResult, scope.sessionId),
+          forSession(sessionResourcesListResultSchema, scope.sessionId),
           RESOURCE_RESULT_ERROR,
         ),
       publish: async (scope, resource) =>
@@ -255,7 +265,7 @@ export function createOpenWaggleSdk(
             scope,
             payload: resource,
           }),
-          sessionResultGuard(isSessionResourcePublishResult, scope.sessionId),
+          forSession(sessionResourcePublishResultSchema, scope.sessionId),
           RESOURCE_RESULT_ERROR,
         ),
     },
