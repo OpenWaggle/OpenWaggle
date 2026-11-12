@@ -79,7 +79,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function readManifest(directory: string): PackageManifest {
+export function readManifest(directory: string): PackageManifest {
   const parsed: unknown = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8'))
   if (!isRecord(parsed)) throw new Error(`${directory}/package.json is not an object`)
   return parsed

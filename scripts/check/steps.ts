@@ -21,6 +21,7 @@ import {
 import type { CheckGate, CheckStep } from './step-model'
 import { EXTENSION_SDK_TYPES_STEP } from './extension-sdk-types-step'
 import { NO_CHEATING_STEP } from './no-cheating-step'
+import { PERF_BUDGETS_STEP } from './perf-budgets-step'
 import { TEST_STEPS } from './test-steps'
 
 export const STEPS: readonly CheckStep[] = [
@@ -209,6 +210,7 @@ export const STEPS: readonly CheckStep[] = [
     findings: 'generic',
     hint: 'bun run check:renderer-bundle',
   },
+  PERF_BUDGETS_STEP,
   {
     id: 'pi-main-bundle-smoke',
     summary: 'Pi bundled into the main chunk runs under Node and Electron as Node',
@@ -272,6 +274,7 @@ const STATIC_STEPS = [
   'react-doctor',
   'waggle-dead-code',
   'renderer-bundle',
+  'perf-budgets',
   'pi-main-bundle-smoke',
   'package-release-validate',
   'api-snapshots',
