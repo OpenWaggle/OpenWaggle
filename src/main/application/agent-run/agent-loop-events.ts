@@ -1,11 +1,12 @@
-import { Schema } from '@shared/schema'
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
-import type {
-  AgentTransportCustomEvent,
-  AgentTransportEvent,
-  AgentTransportInteractionRequestEvent,
-  AgentTransportInteractionResolvedEvent,
-} from '@shared/types/stream'
+import { Schema, type SchemaType } from '@shared/schema'
+import {
+  agentLoopSessionEventContentJsonSchema,
+  type durableAgentLoopEventNodeContentSchema,
+  type durableAgentLoopEventSchema,
+} from '@shared/schemas/agent-loop-session-event'
+import type { AgentTransportEvent } from '@shared/types/stream'
+import { Option } from 'effect'
 import {
   notificationCreatesDurableRecord,
   notificationResolutionCreatesDurableRecord,
@@ -15,15 +16,11 @@ import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 
 const DECIMAL_RADIX = 10
 
-export type DurableAgentLoopEvent =
-  | AgentTransportCustomEvent
-  | AgentTransportInteractionRequestEvent
-  | AgentTransportInteractionResolvedEvent
+export type DurableAgentLoopEvent = SchemaType<typeof durableAgentLoopEventSchema>
 
-export interface DurableAgentLoopEventNodeContent {
-  readonly customType: typeof OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
-  readonly event: DurableAgentLoopEvent
-}
+export type DurableAgentLoopEventNodeContent = SchemaType<
+  typeof durableAgentLoopEventNodeContentSchema
+>
 
 interface DurableAgentLoopNodeSource {
   readonly id: string
@@ -37,8 +34,6 @@ interface DurableAgentLoopNodeSource {
   readonly pathDepth: number
   readonly createdOrder: number
 }
-
-type UnknownObject = Readonly<Record<string, unknown>>
 
 export function isDurableAgentLoopEvent(
   event: AgentTransportEvent,
@@ -61,29 +56,14 @@ export function isDurableAgentLoopEvent(
   return false
 }
 
-function isObject(value: unknown): value is UnknownObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseJsonObject(raw: string): UnknownObject | null {
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return isObject(parsed) ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-const agentLoopSessionEventContentSchema = Schema.Struct({
-  customType: Schema.Literal(OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE),
-})
+const decodeAgentLoopSessionEventContent = Schema.decodeUnknownOption(
+  agentLoopSessionEventContentJsonSchema,
+)
 
 function isDurableAgentLoopNode(node: DurableAgentLoopNodeSource) {
-  if (node.kind !== 'custom') {
-    return false
-  }
-
-  return Schema.is(agentLoopSessionEventContentSchema)(parseJsonObject(node.contentJson))
+  return (
+    node.kind === 'custom' && Option.isSome(decodeAgentLoopSessionEventContent(node.contentJson))
+  )
 }
 
 function nextCreatedOrder(nodes: readonly ProjectedSessionNodeInput[]) {

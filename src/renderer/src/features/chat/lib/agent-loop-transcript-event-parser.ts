@@ -1,6 +1,6 @@
-import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { Schema } from '@shared/schema'
 import { agentLoopResponseSchema } from '@shared/schemas/agent-loop-interaction'
+import { agentLoopSessionEventContentJsonSchema } from '@shared/schemas/agent-loop-session-event'
 import { lenientExactOptional } from '@shared/schemas/lenient-exact'
 import {
   agentTransportCustomEventSchema,
@@ -68,14 +68,8 @@ export function parseAgentLoopEvent(
   return Option.getOrNull(decodeAgentLoopEvent(event))
 }
 
-/** A persisted Agent loop session event's content, as an audit node stores it. */
 const decodeAgentLoopSessionEventContent = Schema.decodeUnknownOption(
-  Schema.parseJson(
-    Schema.Struct({
-      customType: Schema.Literal(OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE),
-      event: Schema.Unknown,
-    }),
-  ),
+  agentLoopSessionEventContentJsonSchema,
 )
 
 function agentLoopSessionEventContent(node: AgentLoopTranscriptNode) {
