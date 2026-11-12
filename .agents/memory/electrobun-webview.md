@@ -150,3 +150,4 @@ runtime module URLs, or renderer error reporting (`sentry-renderer.ts`).
 - Session resource requests are tied to their owner page by Electron's `webRequest` frame
   identity (`shouldBlockSessionResourceRequest`); on Electrobun only the per-resource token and
   the host capability guard them.
+- CEF creates every browser on `about:blank` and reports its `OnLoadStart` as `did-commit-navigation` before the app's document, so the renderer surface ignores `about:blank`. The heartbeat that stands in for `render-process-gone` gave false positives on CI Macs (three missed 5 s beats on a busy hidden page, then a reload to `about:blank` that Playwright saw as "Target crashed"); a page is now gone only after it answered once and then stayed silent for `PAGE_GONE_AFTER_MS` (60 s).
