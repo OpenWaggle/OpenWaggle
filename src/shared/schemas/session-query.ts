@@ -45,17 +45,18 @@ export const sessionExportQuerySchema = Schema.Struct({
   operation: Schema.Literal('export'),
   sessionId: sessionInputIdSchema,
   limit: transcriptLimit,
-  branchScope: Schema.optional(sessionExportBranchScopeSchema),
-  branchId: Schema.optional(sessionInputIdSchema),
-  includeQueueBodies: Schema.optional(Schema.Boolean),
-  afterCreatedOrder: Schema.optional(nonNegativeIntegerSchema),
-  throughCreatedOrder: Schema.optional(nonNegativeIntegerSchema),
-  snapshotStateRevision: Schema.optional(nonNegativeIntegerSchema),
-  snapshotHeadNodeId: Schema.optional(sessionInputIdSchema),
-  capturedAt: Schema.optional(nonNegativeIntegerSchema),
+  branchScope: Schema.optionalWith(sessionExportBranchScopeSchema, { exact: true }),
+  branchId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  afterCreatedOrder: Schema.optionalWith(nonNegativeIntegerSchema, { exact: true }),
+  throughCreatedOrder: Schema.optionalWith(nonNegativeIntegerSchema, { exact: true }),
+  snapshotStateRevision: Schema.optionalWith(nonNegativeIntegerSchema, { exact: true }),
+  snapshotHeadNodeId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  capturedAt: Schema.optionalWith(nonNegativeIntegerSchema, { exact: true }),
   /** Exact immutable manifest returned by the first page. Required for stable continuation pages. */
-  snapshotManifest: Schema.optional(
+  snapshotManifest: Schema.optionalWith(
     sessionExportManifestSchema.pipe(Schema.filter(sessionInputJsonWithinLimit)),
+    { exact: true },
   ),
 }).pipe(
   Schema.filter(
@@ -68,37 +69,39 @@ export const sessionExportQuerySchema = Schema.Struct({
 export const sessionListQuerySchema = Schema.Struct({
   operation: Schema.Literal('list'),
   limit: discoveryLimit,
-  cursor: Schema.optional(cursor),
-  archived: Schema.optional(Schema.Boolean),
-  interrupted: Schema.optional(Schema.Boolean),
-  unreadTerminalStatus: Schema.optional(Schema.Literal('completed', 'failed')),
-  projectPath: Schema.optional(pathValue),
-  projectPaths: Schema.optional(
+  cursor: Schema.optionalWith(cursor, { exact: true }),
+  archived: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  interrupted: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  unreadTerminalStatus: Schema.optionalWith(Schema.Literal('completed', 'failed'), { exact: true }),
+  projectPath: Schema.optionalWith(pathValue, { exact: true }),
+  projectPaths: Schema.optionalWith(
     Schema.Array(pathValue).pipe(
       Schema.minItems(1),
       Schema.maxItems(SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT),
     ),
+    { exact: true },
   ),
   /** A catalog query's current project: the Sessions of the project this path belongs to. */
-  workingPath: Schema.optional(pathValue),
+  workingPath: Schema.optionalWith(pathValue, { exact: true }),
   /** Only the direct Workers of this Session. */
-  parentSessionId: Schema.optional(sessionInputIdSchema),
-  searchText: Schema.optional(searchText),
+  parentSessionId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  searchText: Schema.optionalWith(searchText, { exact: true }),
 })
 
 export const sessionSearchQuerySchema = Schema.Struct({
   operation: Schema.Literal('search'),
   query: searchText,
   limit: discoveryLimit,
-  cursor: Schema.optional(cursor),
-  projectPath: Schema.optional(pathValue),
-  workingPath: Schema.optional(pathValue),
-  includeArchived: Schema.optional(Schema.Boolean),
-  searchScope: Schema.optional(Schema.Literal('discovery', 'full-transcript')),
-  mode: Schema.optional(Schema.Literal('hybrid', 'lexical', 'semantic')),
-  requireFresh: Schema.optional(Schema.Boolean),
-  waitTimeoutMs: Schema.optional(
+  cursor: Schema.optionalWith(cursor, { exact: true }),
+  projectPath: Schema.optionalWith(pathValue, { exact: true }),
+  workingPath: Schema.optionalWith(pathValue, { exact: true }),
+  includeArchived: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  searchScope: Schema.optionalWith(Schema.Literal('discovery', 'full-transcript'), { exact: true }),
+  mode: Schema.optionalWith(Schema.Literal('hybrid', 'lexical', 'semantic'), { exact: true }),
+  requireFresh: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  waitTimeoutMs: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
+    { exact: true },
   ),
 })
 
@@ -106,67 +109,71 @@ export const sessionTurnsQuerySchema = Schema.Struct({
   operation: Schema.Literal('turns'),
   sessionId: sessionInputIdSchema,
   limit: discoveryLimit,
-  cursor: Schema.optional(cursor),
+  cursor: Schema.optionalWith(cursor, { exact: true }),
 })
 
 export const sessionItemsQuerySchema = Schema.Struct({
   operation: Schema.Literal('items'),
   sessionId: sessionInputIdSchema,
   limit: transcriptLimit,
-  runId: Schema.optional(sessionInputIdSchema),
-  branchScope: Schema.optional(sessionExportBranchScopeSchema),
-  branchId: Schema.optional(sessionInputIdSchema),
-  afterCreatedOrder: Schema.optional(nonNegativeIntegerSchema),
-  throughCreatedOrder: Schema.optional(nonNegativeIntegerSchema),
-  snapshotHeadNodeId: Schema.optional(sessionInputIdSchema),
+  runId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  branchScope: Schema.optionalWith(sessionExportBranchScopeSchema, { exact: true }),
+  branchId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  afterCreatedOrder: Schema.optionalWith(nonNegativeIntegerSchema, { exact: true }),
+  throughCreatedOrder: Schema.optionalWith(nonNegativeIntegerSchema, { exact: true }),
+  snapshotHeadNodeId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
 })
 
 export const sessionQueueListQuerySchema = Schema.Struct({
   operation: Schema.Literal('queue-list'),
   sessionId: sessionInputIdSchema,
-  includeBodies: Schema.optional(Schema.Boolean),
+  includeBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const delegationsListQuerySchema = Schema.Struct({
   operation: Schema.Literal('delegations-list'),
   limit: discoveryLimit,
-  cursor: Schema.optional(cursor),
-  projectPath: Schema.optional(pathValue),
-  workingPath: Schema.optional(pathValue),
-  parentSessionId: Schema.optional(sessionInputIdSchema),
-  workerSessionId: Schema.optional(sessionInputIdSchema),
-  states: Schema.optional(
+  cursor: Schema.optionalWith(cursor, { exact: true }),
+  projectPath: Schema.optionalWith(pathValue, { exact: true }),
+  workingPath: Schema.optionalWith(pathValue, { exact: true }),
+  parentSessionId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  workerSessionId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  states: Schema.optionalWith(
     Schema.Array(delegationStateSchema).pipe(Schema.maxItems(DELEGATION_STATES.length)),
+    { exact: true },
   ),
 })
 
 export const delegationsReadQuerySchema = Schema.Struct({
   operation: Schema.Literal('delegations-read'),
   delegationId: sessionInputIdSchema,
-  limit: Schema.optional(
+  limit: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_QUERY_DELEGATION_READ_LIMIT)),
+    { exact: true },
   ),
-  cursor: Schema.optional(cursor),
+  cursor: Schema.optionalWith(cursor, { exact: true }),
 })
 
 export const delegationsConflictsQuerySchema = Schema.Struct({
   operation: Schema.Literal('delegations-conflicts'),
   limit: discoveryLimit,
-  cursor: Schema.optional(cursor),
-  projectPath: Schema.optional(pathValue),
-  workingPath: Schema.optional(pathValue),
-  parentSessionId: Schema.optional(sessionInputIdSchema),
-  workerSessionId: Schema.optional(sessionInputIdSchema),
-  delegationId: Schema.optional(sessionInputIdSchema),
-  kinds: Schema.optional(
+  cursor: Schema.optionalWith(cursor, { exact: true }),
+  projectPath: Schema.optionalWith(pathValue, { exact: true }),
+  workingPath: Schema.optionalWith(pathValue, { exact: true }),
+  parentSessionId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  workerSessionId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  delegationId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  kinds: Schema.optionalWith(
     Schema.Array(Schema.Literal(...DELEGATION_CONFLICT_KINDS)).pipe(
       Schema.maxItems(DELEGATION_CONFLICT_KINDS.length),
     ),
+    { exact: true },
   ),
-  statuses: Schema.optional(
+  statuses: Schema.optionalWith(
     Schema.Array(Schema.Literal(...DELEGATION_CONFLICT_STATUSES)).pipe(
       Schema.maxItems(DELEGATION_CONFLICT_STATUSES.length),
     ),
+    { exact: true },
   ),
 })
 
@@ -200,7 +207,7 @@ export const sessionWaitQuerySchema = Schema.Struct({
     Schema.maxItems(SESSION_QUERY_WAIT_TARGET_LIMIT),
   ),
   timeoutMs: Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
-  after: Schema.optional(sessionHostEventCursorSchema),
+  after: Schema.optionalWith(sessionHostEventCursorSchema, { exact: true }),
 })
 
 export const sessionQuerySchema = Schema.Union(

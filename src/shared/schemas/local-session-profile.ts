@@ -15,21 +15,21 @@ const scopeValuesSchema = Schema.Array(scopeValueSchema).pipe(
 
 /** A named profile's scope. `workspaceRoots` belongs to transient authorities only. */
 export const localSessionProfileScopeSchema = Schema.Struct({
-  all: Schema.optional(Schema.Boolean),
+  all: Schema.optionalWith(Schema.Boolean, { exact: true }),
   /** Explicit roots from which Session commands may snapshot attachment files. */
-  attachmentRoots: Schema.optional(scopeValuesSchema),
+  attachmentRoots: Schema.optionalWith(scopeValuesSchema, { exact: true }),
   /** Explicit roots within which Session exports may read resources and create artifacts. */
-  exportRoots: Schema.optional(scopeValuesSchema),
-  projectPaths: Schema.optional(scopeValuesSchema),
-  sessionIds: Schema.optional(scopeValuesSchema),
-  hiveRootSessionIds: Schema.optional(scopeValuesSchema),
+  exportRoots: Schema.optionalWith(scopeValuesSchema, { exact: true }),
+  projectPaths: Schema.optionalWith(scopeValuesSchema, { exact: true }),
+  sessionIds: Schema.optionalWith(scopeValuesSchema, { exact: true }),
+  hiveRootSessionIds: Schema.optionalWith(scopeValuesSchema, { exact: true }),
 })
 
 /** An authority's scope: a profile's, plus the canonical directory roots of a transient one. */
 export const localSessionAuthorityScopeSchema = Schema.Struct({
   ...localSessionProfileScopeSchema.fields,
   /** Canonical directory roots used only by machine-authenticated transient authorities. */
-  workspaceRoots: Schema.optional(scopeValuesSchema),
+  workspaceRoots: Schema.optionalWith(scopeValuesSchema, { exact: true }),
 })
 
 export const localSessionProfileCapabilitiesSchema = Schema.Array(
@@ -48,7 +48,9 @@ export const localSessionProfileAuthoritySchema = Schema.Struct({
   capabilities: localSessionProfileCapabilitiesSchema,
   scope: localSessionAuthorityScopeSchema,
   authorizationCeiling: Schema.Literal(...AGENT_AUTHORIZATION_MODES),
-  managementEnvelope: Schema.optional(localSessionProfileManagementEnvelopeSchema),
+  managementEnvelope: Schema.optionalWith(localSessionProfileManagementEnvelopeSchema, {
+    exact: true,
+  }),
 })
 
 export function decodeLocalSessionProfileScope(value: unknown) {

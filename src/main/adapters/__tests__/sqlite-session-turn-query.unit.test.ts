@@ -35,7 +35,7 @@ describe('SQLite Session Run query', () => {
       operation: 'turns',
       sessionId: 'worker',
       limit: 1,
-      cursor: first.outcome.nextCursor,
+      ...(first.outcome.nextCursor ? { cursor: first.outcome.nextCursor } : {}),
     })
 
     expect(first.outcome).toMatchObject({

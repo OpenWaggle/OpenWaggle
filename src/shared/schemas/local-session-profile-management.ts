@@ -31,7 +31,9 @@ const profilePolicyFields = {
   capabilities: localSessionProfileCapabilitiesSchema,
   scope: localSessionProfileScopeSchema,
   authorizationCeiling: authorizationCeilingSchema,
-  managementEnvelope: Schema.optional(localSessionProfileManagementEnvelopeSchema),
+  managementEnvelope: Schema.optionalWith(localSessionProfileManagementEnvelopeSchema, {
+    exact: true,
+  }),
 }
 
 export const localSessionProfileManagementCommandSchema = Schema.Union(
@@ -126,7 +128,7 @@ export const localSessionProfileManagementOutcomeSchema = Schema.Union(
     code: Schema.String,
     /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
     kind: Schema.Literal(...SESSION_HOST_ERROR_KINDS),
-    profileName: Schema.optional(Schema.String),
+    profileName: Schema.optionalWith(Schema.String, { exact: true }),
   }),
 )
 

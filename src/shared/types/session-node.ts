@@ -31,7 +31,7 @@ export interface SessionTreeNode {
   readonly parentId: SessionNodeId | null
   readonly piEntryType: string
   readonly kind: SessionNodeKind
-  readonly role?: MessageRole | undefined
+  readonly role?: MessageRole
   readonly timestampMs: number
   readonly createdOrder: number
   readonly pathDepth: number

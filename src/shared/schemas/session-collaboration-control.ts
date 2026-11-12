@@ -60,23 +60,24 @@ export const reportTargetSchema = Schema.Union(
 export const reportCommandSchema = Schema.Struct({
   operation: Schema.Literal('report'),
   sessionId: sessionInputIdSchema,
-  sourceRunId: Schema.optional(sessionInputIdSchema),
+  sourceRunId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
   target: reportTargetSchema,
   input: Schema.Struct({
     text: sessionInputTextSchema,
     requestReply: Schema.Boolean,
-    replyToReportId: Schema.optional(sessionInputIdSchema),
+    replyToReportId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
   }),
 })
 
 export const delegationEvidenceSchema = Schema.Struct({
   kind: delegationEvidenceKindSchema,
   summary: sessionInputItemTextSchema,
-  reference: Schema.optional(sessionInputItemTextSchema),
-  provenance: Schema.optional(
+  reference: Schema.optionalWith(sessionInputItemTextSchema, { exact: true }),
+  provenance: Schema.optionalWith(
     Schema.Record({ key: sessionInputItemTextSchema, value: sessionInputItemTextSchema }).pipe(
       Schema.filter(sessionInputJsonWithinLimit),
     ),
+    { exact: true },
   ),
 })
 
@@ -100,7 +101,7 @@ const revisedDelegationSpecificationSchema = Schema.Struct({
   objective: sessionInputTextSchema,
   deliverables: uniqueStringsSchema,
   acceptanceCriteria: uniqueStringsSchema,
-  handoffContext: Schema.optional(sessionInputTextSchema),
+  handoffContext: Schema.optionalWith(sessionInputTextSchema, { exact: true }),
   resourceReferences: uniqueStringsSchema,
 })
 
@@ -110,7 +111,7 @@ export const delegationRequestRevisionCommandSchema = Schema.Struct({
   delegationId: sessionInputIdSchema,
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   feedback: sessionInputTextSchema,
-  revisedSpecification: Schema.optional(revisedDelegationSpecificationSchema),
+  revisedSpecification: Schema.optionalWith(revisedDelegationSpecificationSchema, { exact: true }),
 })
 
 export const delegationAcceptCommandSchema = Schema.Struct({
@@ -118,7 +119,7 @@ export const delegationAcceptCommandSchema = Schema.Struct({
   sessionId: sessionInputIdSchema,
   delegationId: sessionInputIdSchema,
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  note: Schema.optional(sessionInputItemTextSchema),
+  note: Schema.optionalWith(sessionInputItemTextSchema, { exact: true }),
 })
 
 export const delegationReopenCommandSchema = Schema.Struct({
@@ -208,7 +209,7 @@ export const delegationAmendCommandSchema = Schema.Struct({
   expectedSpecificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   specification: delegationSpecificationSchema,
   reason: sessionInputItemTextSchema,
-  proposalId: Schema.optional(sessionInputIdSchema),
+  proposalId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
 })
 
 export const delegationVerifyCommandSchema = Schema.Struct({

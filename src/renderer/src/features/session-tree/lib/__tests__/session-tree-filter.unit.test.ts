@@ -16,7 +16,7 @@ function node(input: {
     parentId: input.parentId ? SessionNodeId(input.parentId) : null,
     piEntryType: input.kind === 'label' ? 'label' : 'message',
     kind: input.kind,
-    role: input.role,
+    ...(input.role === undefined ? {} : { role: input.role }),
     timestampMs: 1,
     createdOrder: 1,
     pathDepth: 0,

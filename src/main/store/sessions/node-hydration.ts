@@ -126,7 +126,7 @@ function hydrateSessionNode(
     parentId: parentId ? SessionNodeId(parentId) : null,
     piEntryType: row.pi_entry_type,
     kind: row.kind,
-    role: row.role ?? undefined,
+    ...(row.role === null ? {} : { role: row.role }),
     timestampMs: row.timestamp_ms,
     createdOrder: row.created_order,
     pathDepth: getVisiblePathDepth(row.id, visibleParentById, visibleDepthById),

@@ -1,29 +1,33 @@
 import path from 'node:path'
-import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
+import {
+  decodeUnknownExactOrThrow,
+  parseJsonUnknown,
+  type SchemaType,
+  Schema,
+} from '@shared/schema'
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
 
-export interface SessionAuthoritySnapshot {
-  readonly scope: LocalSessionProfileScope
-  readonly projectPath: string
-  readonly workingPath: string
-}
-
-const sessionAuthorityScopeSchema: Schema.Schema<LocalSessionProfileScope> = Schema.Struct({
-  all: Schema.optional(Schema.Boolean),
-  workspaceRoots: Schema.optional(Schema.Array(Schema.String)),
-  attachmentRoots: Schema.optional(Schema.Array(Schema.String)),
-  exportRoots: Schema.optional(Schema.Array(Schema.String)),
-  projectPaths: Schema.optional(Schema.Array(Schema.String)),
-  sessionIds: Schema.optional(Schema.Array(Schema.String)),
-  hiveRootSessionIds: Schema.optional(Schema.Array(Schema.String)),
+/**
+ * A persisted authority scope. It is read without the profile scope's entry bounds, so a snapshot
+ * stored before a bound changed stays readable; its type is still `LocalSessionProfileScope`.
+ */
+const sessionAuthorityScopeSchema = Schema.Struct({
+  all: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  workspaceRoots: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  attachmentRoots: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  exportRoots: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  projectPaths: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  sessionIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  hiveRootSessionIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
 })
 
-const sessionAuthoritySnapshotSchema: Schema.Schema<SessionAuthoritySnapshot> = Schema.Struct({
+const sessionAuthoritySnapshotSchema = Schema.Struct({
   scope: sessionAuthorityScopeSchema,
   projectPath: Schema.String,
   workingPath: Schema.String,
 })
+export type SessionAuthoritySnapshot = SchemaType<typeof sessionAuthoritySnapshotSchema>
 
 export function encodeSessionAuthoritySnapshot(snapshot: SessionAuthoritySnapshot) {
   return JSON.stringify(snapshot)
@@ -34,12 +38,8 @@ export function decodeSessionAuthoritySnapshot(value: string | null | undefined)
   return decodeUnknownExactOrThrow(sessionAuthoritySnapshotSchema, parseJsonUnknown(value))
 }
 
-function retargetRoot(
-  roots: readonly string[] | undefined,
-  previousWorkingPath: string,
-  workingPath: string,
-) {
-  return roots?.map((root) => (root === previousWorkingPath ? workingPath : root))
+function retargetRoot(roots: readonly string[], previousWorkingPath: string, workingPath: string) {
+  return roots.map((root) => (root === previousWorkingPath ? workingPath : root))
 }
 
 function hasSynthesizedLocalScope(authorityOriginCallerId: string) {

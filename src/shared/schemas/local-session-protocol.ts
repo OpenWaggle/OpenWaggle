@@ -51,10 +51,10 @@ export const localSessionClientHelloSchema = Schema.Struct({
   ),
   clientKind: Schema.Literal('gui', 'cli', 'mcp', 'internal'),
   clientVersion: Schema.String.pipe(Schema.maxLength(LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH)),
-  workingDirectory: Schema.optional(sessionInputPathSchema),
-  profile: Schema.optional(localSessionProfileNameSchema),
-  transientAuthority: Schema.optional(localSessionProfileAuthoritySchema),
-  credential: Schema.optional(localSessionCredentialSchema),
+  workingDirectory: Schema.optionalWith(sessionInputPathSchema, { exact: true }),
+  profile: Schema.optionalWith(localSessionProfileNameSchema, { exact: true }),
+  transientAuthority: Schema.optionalWith(localSessionProfileAuthoritySchema, { exact: true }),
+  credential: Schema.optionalWith(localSessionCredentialSchema, { exact: true }),
 })
 
 export const localSessionClientFrameSchema = Schema.Union(
@@ -66,11 +66,12 @@ export const localSessionClientFrameSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal('subscribe'),
     requestId: sessionInputIdSchema,
-    after: Schema.optional(sessionHostEventCursorSchema),
-    sessionIds: Schema.optional(
+    after: Schema.optionalWith(sessionHostEventCursorSchema, { exact: true }),
+    sessionIds: Schema.optionalWith(
       Schema.Array(sessionInputIdSchema).pipe(
         Schema.maxItems(LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT),
       ),
+      { exact: true },
     ),
   }),
   Schema.Struct({
@@ -92,12 +93,14 @@ export const localSessionCommandPayloadSchema = Schema.Union(
       entries: Schema.Array(
         Schema.Struct({
           path: sessionInputPathSchema,
-          origin: Schema.optional(
+          origin: Schema.optionalWith(
             Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
+            { exact: true },
           ),
-          browserPreview: Schema.optional(browserPreviewAttachmentSchema),
-          browserAnnotationText: Schema.optional(
+          browserPreview: Schema.optionalWith(browserPreviewAttachmentSchema, { exact: true }),
+          browserAnnotationText: Schema.optionalWith(
             Schema.String.pipe(Schema.maxLength(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)),
+            { exact: true },
           ),
         }),
       ).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
@@ -117,23 +120,25 @@ export const localSessionCommandPayloadSchema = Schema.Union(
   Schema.Struct({
     contract: Schema.Literal('session-control-v2'),
     request: sessionControlMutationRequestSchema,
-    transport: Schema.optional(
+    transport: Schema.optionalWith(
       Schema.Struct({
         attachmentPaths: Schema.Array(sessionInputPathSchema).pipe(
           Schema.maxItems(ATTACHMENT.MAX_COUNT),
         ),
       }),
+      { exact: true },
     ),
   }),
   Schema.Struct({
     contract: Schema.Literal('session-lifecycle-v2'),
     request: sessionLifecycleRequestSchema,
-    transport: Schema.optional(
+    transport: Schema.optionalWith(
       Schema.Struct({
         attachmentPaths: Schema.Array(sessionInputPathSchema).pipe(
           Schema.maxItems(ATTACHMENT.MAX_COUNT),
         ),
       }),
+      { exact: true },
     ),
   }),
   Schema.Struct({
@@ -158,7 +163,7 @@ export const localSessionCommandPayloadSchema = Schema.Union(
       requestId: sessionInputIdSchema,
       sessionId: sessionInputIdSchema,
       model: sessionInputIdSchema,
-      customInstructions: Schema.optional(sessionInputTextSchema),
+      customInstructions: Schema.optionalWith(sessionInputTextSchema, { exact: true }),
     }),
   }),
   Schema.Struct({

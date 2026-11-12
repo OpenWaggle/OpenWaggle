@@ -73,7 +73,7 @@ function buildTranscriptPath(tree: SessionContentTree, activeNodeId: SessionNode
     getParentId: (node) => (node.parentId ? String(node.parentId) : null),
   }).map((node) => ({
     node,
-    branchId: node.branchId,
+    ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
     isActive: node.id === activeNodeId,
   }))
 }

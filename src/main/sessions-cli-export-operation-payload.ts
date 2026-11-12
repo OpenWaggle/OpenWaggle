@@ -16,6 +16,7 @@ import {
   required,
   requiredSessionId,
   watchCursor,
+  optionEntry,
 } from './sessions-cli-arguments'
 
 const EXPORT_TARGET_POSITION = 1
@@ -54,6 +55,7 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
     throw new Error('Unsupported export scope. Expected active-branch or tree.')
   }
   const branchId = option(arguments_, 'branch')
+  const resources = arguments_.options.get('resource')
   assertSessionExportBranchSelection({ branchScope: scope, ...(branchId ? { branchId } : {}) })
   return {
     contract: 'session-control-v2',
@@ -70,12 +72,8 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
         ...(branchId ? { branchId } : {}),
         ...(hasFlag(arguments_, 'overwrite') ? { overwriteExisting: true } : {}),
         ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
-        ...(arguments_.options.get('resource')?.length
-          ? {
-              resources: arguments_.options
-                .get('resource')
-                ?.map((path) => ({ kind: 'workspace-file' as const, path })),
-            }
+        ...(resources?.length
+          ? { resources: resources.map((path) => ({ kind: 'workspace-file' as const, path })) }
           : {}),
       },
     },
@@ -120,7 +118,7 @@ function queryPayload(command: string, arguments_: ParsedArguments): LocalSessio
           limit: option(arguments_, 'limit')
             ? positiveInteger(option(arguments_, 'limit'), '--limit')
             : SESSION_EXPORT_OPERATION_QUERY_LIMIT,
-          ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+          ...optionEntry(arguments_, 'cursor', 'cursor'),
           ...(statuses.length ? { statuses } : {}),
           ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
         },

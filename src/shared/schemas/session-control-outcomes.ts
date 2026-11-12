@@ -41,9 +41,11 @@ export const followUpQueuedOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
   followUpId: Schema.String,
   /** Absent only in outcomes recorded before 1.0.0-rc.1. */
-  queueState: Schema.optional(Schema.Literal('running', 'paused')),
+  queueState: Schema.optionalWith(Schema.Literal('running', 'paused'), { exact: true }),
   /** Why a paused queue holds the Follow-up, when the Host recorded it. */
-  pauseReason: Schema.optional(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS)),
+  pauseReason: Schema.optionalWith(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS), {
+    exact: true,
+  }),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
@@ -62,9 +64,11 @@ export const messageQueuedFollowUpOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
   followUpId: Schema.String,
   /** Absent only in outcomes recorded before 1.0.0-rc.1. */
-  queueState: Schema.optional(Schema.Literal('running', 'paused')),
+  queueState: Schema.optionalWith(Schema.Literal('running', 'paused'), { exact: true }),
   /** Why a paused queue holds the Follow-up, when the Host recorded it. */
-  pauseReason: Schema.optional(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS)),
+  pauseReason: Schema.optionalWith(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS), {
+    exact: true,
+  }),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
@@ -177,7 +181,7 @@ export const queueUpdatedOutcomeSchema = Schema.Struct({
   /** The Follow-ups still queued after the change, in delivery order. */
   remainingFollowUpIds: Schema.Array(Schema.String),
   /** `queue-withdraw` only: the Follow-ups this call removed. */
-  withdrawnFollowUpIds: Schema.optional(Schema.Array(Schema.String)),
+  withdrawnFollowUpIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
   stateRevision: stateRevisionSchema,
 })
 
@@ -199,7 +203,7 @@ export const queueResumeStartedRunOutcomeSchema = Schema.Struct({
   runId: Schema.String,
   followUpId: Schema.String,
   /** `queue-withdraw` only: the Follow-ups this call removed. */
-  withdrawnFollowUpIds: Schema.optional(Schema.Array(Schema.String)),
+  withdrawnFollowUpIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })

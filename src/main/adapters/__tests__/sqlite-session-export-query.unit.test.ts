@@ -263,7 +263,7 @@ describe('SQLite Session export query', () => {
       operation: 'exports-list',
       sessionId: 'worker',
       limit: 200,
-      cursor: first.outcome.nextCursor,
+      ...(first.outcome.nextCursor ? { cursor: first.outcome.nextCursor } : {}),
       includeQueueBodies: true,
     })
     if (second.outcome.operation !== 'exports-list' || !('exports' in second.outcome)) {

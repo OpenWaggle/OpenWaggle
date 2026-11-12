@@ -11,7 +11,7 @@ export const localHostRequestSchema = Schema.Struct({
    * `update`: the stop that installing an update sends, from the desktop app, `openwaggle update`
    * or the install script (ADR 0047). It has a deadline and answers with the Host's process id.
    */
-  purpose: Schema.optional(Schema.Literal('update')),
+  purpose: Schema.optionalWith(Schema.Literal('update'), { exact: true }),
 })
 
 export const localHostResponseSchema = Schema.Struct({
@@ -26,7 +26,9 @@ export const localHostResponseSchema = Schema.Struct({
    * The Host's process id, sent only for an update stop, so the installer can wait for that
    * process to exit (ADR 0047).
    */
-  processId: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
+  processId: Schema.optionalWith(Schema.Number.pipe(Schema.int(), Schema.positive()), {
+    exact: true,
+  }),
 })
 
 export function decodeLocalHostResponse(value: unknown) {

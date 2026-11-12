@@ -13,7 +13,7 @@ import {
 } from '@shared/types/session-query'
 import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
-import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
+import { positiveInteger, required, requiredSessionId, optionEntry } from './sessions-cli-arguments'
 
 const DELEGATION_QUERY_COMMANDS = [
   'delegations-list',
@@ -67,7 +67,7 @@ function listPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         ...(hasFlag(arguments_, 'all')
           ? {}
           : projectPath
@@ -92,7 +92,7 @@ function readPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
         ...(option(arguments_, 'limit')
           ? { limit: positiveInteger(option(arguments_, 'limit'), '--limit') }
           : {}),
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
       },
     },
   }
@@ -141,16 +141,14 @@ function conflictsPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         ...(hasFlag(arguments_, 'all')
           ? {}
           : projectPath
             ? { projectPath: resolveCliProjectPath(projectPath, workingDirectory) }
             : { workingPath: workingDirectory }),
         ...sessionFilters(arguments_),
-        ...(option(arguments_, 'delegation')
-          ? { delegationId: option(arguments_, 'delegation') }
-          : {}),
+        ...optionEntry(arguments_, 'delegation', 'delegationId'),
         ...(kinds.length ? { kinds } : {}),
         ...(statuses.length ? { statuses } : {}),
       },

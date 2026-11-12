@@ -91,7 +91,7 @@ function workspace(nodes: readonly SessionNode[], pathNodes = nodes): SessionCon
     activeNodeId: last?.id ?? null,
     transcriptPath: pathNodes.map((node) => ({
       node,
-      branchId: node.branchId,
+      ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
       isActive: node.id === last?.id,
     })),
   }

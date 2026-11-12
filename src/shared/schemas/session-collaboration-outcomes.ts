@@ -19,7 +19,7 @@ export const delegationUpdatedOutcomeSchema = Schema.Struct({
   delegationState: Schema.Literal(...DELEGATION_STATES),
   specificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  specificationChanged: Schema.optional(Schema.Boolean),
+  specificationChanged: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const delegationClaimsUpdatedOutcomeSchema = Schema.Struct({
@@ -67,7 +67,7 @@ export const delegationSpecificationAmendedOutcomeSchema = Schema.Struct({
   delegationId: Schema.String,
   delegationState: Schema.Literal(...DELEGATION_STATES),
   specificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  appliedProposalId: Schema.optional(Schema.String),
+  appliedProposalId: Schema.optionalWith(Schema.String, { exact: true }),
   workerSessionId: Schema.String,
 })
 

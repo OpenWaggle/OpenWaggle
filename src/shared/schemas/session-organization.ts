@@ -23,8 +23,8 @@ export const sessionHandoffWorkspaceSchema = Schema.Union(
   Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
   Schema.Struct({
     mode: Schema.Literal('new-worktree'),
-    baseRef: Schema.optional(sessionInputItemTextSchema),
-    startFromOrigin: Schema.optional(Schema.Boolean),
+    baseRef: Schema.optionalWith(sessionInputItemTextSchema, { exact: true }),
+    startFromOrigin: Schema.optionalWith(Schema.Boolean, { exact: true }),
   }),
 )
 
