@@ -7,15 +7,15 @@ import { ContextMeter } from './ContextMeter'
 import { ThinkingLevelMenu } from './ThinkingLevelMenu'
 
 interface ComposerToolbarProps {
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   readonly accessControl?: ReactNode
   readonly submission: {
     readonly onSend: () => void
     readonly onCancel: () => void
     readonly isLoading: boolean
-    readonly finishing?: ComposerRunFinishing | undefined
+    readonly finishing?: ComposerRunFinishing
     readonly canSend: boolean
-    readonly sendTitle?: string | undefined
+    readonly sendTitle?: string
     /** The primary action saves a queued-message edit instead of sending. */
     readonly savesEdit?: boolean
   }
@@ -38,7 +38,10 @@ export function ComposerToolbar({
       className="@container/composer-toolbar flex h-11 flex-nowrap items-center gap-2 px-4 py-2 @max-xl/composer-toolbar:px-3"
     >
       <div className="flex shrink-0 items-center gap-1.5">
-        <ComposerAttachButton fileInputRef={fileInputRef} disabled={disabled} />
+        <ComposerAttachButton
+          fileInputRef={fileInputRef}
+          {...(disabled === undefined ? {} : { disabled })}
+        />
         {accessControl}
       </div>
       <div
@@ -53,13 +56,17 @@ export function ComposerToolbar({
         className="flex shrink-0 flex-nowrap items-center gap-2 @max-xl/composer-toolbar:gap-1.5"
         data-testid="composer-toolbar-primary-actions"
       >
-        <ComposerVoiceButton mode={voiceMode} onToggleVoice={onToggleVoice} disabled={disabled} />
+        <ComposerVoiceButton
+          mode={voiceMode}
+          onToggleVoice={onToggleVoice}
+          {...(disabled === undefined ? {} : { disabled })}
+        />
         <ComposerSendControls
           isLoading={submission.isLoading}
-          finishing={submission.finishing}
+          {...(submission.finishing === undefined ? {} : { finishing: submission.finishing })}
           canSend={submission.canSend}
-          sendTitle={submission.sendTitle}
-          savesEdit={submission.savesEdit}
+          {...(submission.sendTitle === undefined ? {} : { sendTitle: submission.sendTitle })}
+          {...(submission.savesEdit === undefined ? {} : { savesEdit: submission.savesEdit })}
           onSend={submission.onSend}
           onCancel={submission.onCancel}
         />

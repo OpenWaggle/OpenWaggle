@@ -18,8 +18,8 @@ interface ModelSelectorProps {
   providerModels: ProviderInfo[]
   className?: string
   disabled?: boolean
-  fallbackLabel?: string | undefined
-  title?: string | undefined
+  fallbackLabel?: string
+  title?: string
 }
 
 /**
@@ -36,7 +36,9 @@ function toFlatModel(group: ProviderInfo, model: ProviderInfo['models'][number])
     name: model.name.trim() || model.modelId,
     provider: group.provider,
     providerName: group.displayName,
-    contextWindowLabel: model.contextWindow ? formatContextWindow(model.contextWindow) : undefined,
+    ...(model.contextWindow
+      ? { contextWindowLabel: formatContextWindow(model.contextWindow) }
+      : {}),
   } satisfies FlatModel
 }
 

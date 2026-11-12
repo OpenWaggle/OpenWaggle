@@ -87,9 +87,12 @@ function renderAssistantMessage({
         extensions: { registry: null, projectPaths: [] },
       }}
       run={{ ...run, ...(assistantModel ? { assistantModel } : {}) }}
-      waggle={waggle}
-      presentation={{ hideAgentLabel, turnFolded }}
-      actions={onViewTurnDiff ? { onViewTurnDiff } : undefined}
+      {...(waggle === undefined ? {} : { waggle })}
+      presentation={{
+        ...(hideAgentLabel === undefined ? {} : { hideAgentLabel }),
+        ...(turnFolded === undefined ? {} : { turnFolded }),
+      }}
+      {...(onViewTurnDiff ? { actions: { onViewTurnDiff } } : {})}
     />,
   )
 }

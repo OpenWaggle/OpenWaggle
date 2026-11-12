@@ -9,7 +9,7 @@ import { RunTargetTrigger } from './RunTargetTrigger'
 
 interface RunTargetPickerProps {
   readonly strip: SessionContextRowState | null
-  readonly onToast?: ((message: string) => void) | undefined
+  readonly onToast?: (message: string) => void
 }
 
 /**
@@ -23,7 +23,7 @@ interface RunTargetPickerProps {
  * which one governed the send.
  */
 export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
-  const controller = useBranchPickerController({ onToast })
+  const controller = useBranchPickerController({ ...(onToast === undefined ? {} : { onToast }) })
   /*
    * Read status for THIS strip's worktree rather than relying on the ambient active
    * session resolution. They agree in the app, but depending on two independent

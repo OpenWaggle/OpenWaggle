@@ -14,12 +14,12 @@ const TERMINAL_SHORTCUT_COMMANDS: readonly TerminalShortcutCommand[] = [
 
 export interface TerminalShortcutEvent {
   readonly key: string
-  readonly code?: string | undefined
+  readonly code?: string
   readonly altKey: boolean
   readonly ctrlKey: boolean
   readonly metaKey: boolean
   readonly shiftKey: boolean
-  readonly isComposing?: boolean | undefined
+  readonly isComposing?: boolean
   readonly repeat?: boolean
 }
 
@@ -81,12 +81,12 @@ export function isRepeatedTerminalCloseShortcut(
     matchesTerminalShortcutBinding(
       {
         key: event.key,
-        code: event.code,
+        ...(event.code === undefined ? {} : { code: event.code }),
         altKey: event.altKey,
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
         shiftKey: event.shiftKey,
-        isComposing: event.isComposing,
+        ...(event.isComposing === undefined ? {} : { isComposing: event.isComposing }),
         repeat: false,
       },
       bindings['terminal.close'],

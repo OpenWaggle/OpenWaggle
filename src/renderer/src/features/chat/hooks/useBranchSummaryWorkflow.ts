@@ -30,7 +30,7 @@ interface BranchSummaryWorkflowParams {
   readonly refreshSessionWorkspace: (
     sessionId: SessionId,
     selection?: {
-      readonly branchId?: SessionBranchId | null | undefined
+      readonly branchId?: SessionBranchId | null
       readonly nodeId?: SessionNodeId | null
     },
   ) => Promise<void>

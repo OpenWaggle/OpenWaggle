@@ -10,7 +10,7 @@ interface SelectedModelThinkingLevelInput {
   }[]
   readonly selectedModel: SupportedModelId
   /** The model a selection the catalog lacks runs on: the Session's last answering model. */
-  readonly fallbackModel?: SupportedModelId | undefined
+  readonly fallbackModel?: SupportedModelId
   readonly requestedThinkingLevel: ThinkingLevel
 }
 
@@ -96,7 +96,7 @@ export function useSelectedModelThinkingLevel(
   return resolveSelectedModelThinkingLevel({
     providerModels,
     selectedModel,
-    fallbackModel,
+    ...(fallbackModel === undefined ? {} : { fallbackModel }),
     requestedThinkingLevel,
   })
 }

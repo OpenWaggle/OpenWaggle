@@ -25,7 +25,7 @@ export function useSourceViewViewport({
 }: {
   readonly lineCount: number
   readonly lineHeight: number
-  readonly targetLine?: number | null | undefined
+  readonly targetLine?: number | null
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const frameRef = useRef<number | null>(null)

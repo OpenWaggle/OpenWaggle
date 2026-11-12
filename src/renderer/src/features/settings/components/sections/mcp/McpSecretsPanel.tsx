@@ -11,7 +11,7 @@ export function McpSecretsPanel({
   onSaved,
 }: {
   /** A secret a server needs, from its "Add in Secrets": filled in, with its value to type. */
-  readonly requestedName?: string | undefined
+  readonly requestedName?: string
   readonly onSaved?: () => void
 } = {}) {
   const vault = useMcpSecrets()

@@ -40,7 +40,7 @@ interface SendMessageDeps {
     thinkingLevel?: ThinkingLevel,
   ) => Promise<SessionId>
   /** Pi's default thinking level as last read, which a draft shows without a pick; unknown: undefined. */
-  readonly defaultThinkingLevel?: ThinkingLevel | undefined
+  readonly defaultThinkingLevel?: ThinkingLevel
   /**
    * Reads Pi's default as cached now, which a settled draft pick has refreshed. First send reads it
    * after the draft's picks settle; `defaultThinkingLevel` stands in when it reads nothing.
@@ -199,7 +199,7 @@ interface UseSendMessageOptions {
     thinkingLevel?: ThinkingLevel,
   ) => Promise<SessionId>
   /** Pi's default thinking level as last read (`defaultThinkingLevelQueryOptions`). */
-  readonly defaultThinkingLevel?: ThinkingLevel | undefined
+  readonly defaultThinkingLevel?: ThinkingLevel
   /** Reads Pi's default from the query cache now; see `SendMessageDeps`. */
   readonly readDefaultThinkingLevel?: () => ThinkingLevel | undefined
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>

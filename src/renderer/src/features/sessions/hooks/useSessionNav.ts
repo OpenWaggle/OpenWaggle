@@ -1,14 +1,13 @@
 import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useSessionStatusStore } from '@/features/sessions/state/session-status-store'
 
-interface SessionNavItem {
-  readonly id: SessionId
-  readonly projectPath: string | null
-  readonly environmentMode?: 'local' | 'worktree' | undefined
-  readonly worktreePath?: string | null | undefined
-}
+type SessionNavItem = Pick<
+  SessionSummary,
+  'id' | 'projectPath' | 'environmentMode' | 'worktreePath'
+>
 
 interface SessionNavDeps {
   readonly sessions: readonly SessionNavItem[]
@@ -43,13 +42,7 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
     refreshGitBranches,
   } = deps
 
-  function refreshGit(
-    session: {
-      environmentMode?: 'local' | 'worktree' | undefined
-      worktreePath?: string | null | undefined
-    } | null,
-    path: string | null,
-  ) {
+  function refreshGit(session: SessionNavItem | null, path: string | null) {
     // Status targets the selected session's working tree via the sole WorkingPath
     // producer; the branch list is repository-level.
     void Promise.all([

@@ -6,9 +6,27 @@ import {
 } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { queryKeys } from './query-keys'
-import type { HiveRelationsPage, SessionHiveReader } from './session-hive-contract'
+import type {
+  HiveCatalogPage,
+  HiveRelationsPage,
+  HiveSession,
+  SessionHiveReader,
+} from './session-hive-contract'
 
 const HIVE_PAGE_SIZE = 50
+
+function relationsPage(
+  current: HiveSession | null,
+  parent: HiveSession | null,
+  page: HiveCatalogPage,
+): HiveRelationsPage {
+  return {
+    current,
+    parent,
+    workers: page.workers,
+    ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+  }
+}
 
 export async function readSessionHivePage(
   reader: SessionHiveReader,
@@ -41,7 +59,7 @@ export async function readSessionHivePage(
     if (parentContext.length > 0 && parent === null) {
       throw new Error('Hive catalog contains mismatched parent context.')
     }
-    return { current, parent, workers: page.workers, nextCursor: page.nextCursor }
+    return relationsPage(current, parent, page)
   }
   // Transitional projection only. A Host error must never fall back to stale legacy data.
   if (reader.getSessionHiveRelations) return reader.getSessionHiveRelations(sessionId)

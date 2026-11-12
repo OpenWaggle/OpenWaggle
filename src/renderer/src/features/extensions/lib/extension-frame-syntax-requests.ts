@@ -9,8 +9,11 @@ import { highlightExtensionSyntax } from './extension-syntax-sdk'
 /** A highlight request as a frame sends it. The frame may set an optional field to undefined. */
 interface FrameSyntaxHighlightInput {
   readonly source: string
+  // explicit undefined: the extension frame may post language as undefined
   readonly language?: string | undefined
+  // explicit undefined: the extension frame may post path as undefined
   readonly path?: string | undefined
+  // explicit undefined: the extension frame may post priority as undefined
   readonly priority?: OpenWaggleExtensionSyntaxHighlightInput['priority'] | undefined
 }
 

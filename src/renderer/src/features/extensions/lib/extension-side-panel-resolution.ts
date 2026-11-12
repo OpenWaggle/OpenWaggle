@@ -10,8 +10,8 @@ import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 export interface ExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string
-  readonly packagePath?: string | undefined
-  readonly contentHash?: string | undefined
+  readonly packagePath?: string
+  readonly contentHash?: string
 }
 
 export interface ResolvedExtensionSidePanelContribution {

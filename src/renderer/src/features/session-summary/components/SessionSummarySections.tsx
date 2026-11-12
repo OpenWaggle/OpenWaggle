@@ -138,7 +138,9 @@ export function EnvironmentSummarySection({
           <SessionSummaryRow
             icon={<GitCommit className="size-4" />}
             label={quickAction.label}
-            disabledReason={quickAction.disabled ? quickAction.hint : undefined}
+            {...(quickAction.disabled && quickAction.hint !== undefined
+              ? { disabledReason: quickAction.hint }
+              : {})}
             onClick={onQuickAction}
           />
         </>

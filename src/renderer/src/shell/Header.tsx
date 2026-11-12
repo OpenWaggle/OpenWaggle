@@ -196,7 +196,9 @@ export function Header() {
           sidebarOpen={sidebarOpen}
           sessionId={activeSessionId}
           title={title}
-          sessionIdentity={currentSessionIdentity}
+          {...(currentSessionIdentity === undefined
+            ? {}
+            : { sessionIdentity: currentSessionIdentity })}
           onToggleSidebar={toggleSidebar}
         />
 

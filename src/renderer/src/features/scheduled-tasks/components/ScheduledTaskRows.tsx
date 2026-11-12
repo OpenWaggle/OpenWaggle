@@ -17,7 +17,7 @@ import { ScheduledTaskKindIcon } from './ScheduledTaskParts'
 export interface ScheduledTaskRowGroup {
   readonly id: string
   readonly label: string
-  readonly title?: string | undefined
+  readonly title?: string
   readonly tasks: readonly ScheduledTask[]
   /** Shown instead of rows when the group has none. */
   readonly emptyText?: string

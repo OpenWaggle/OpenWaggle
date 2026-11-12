@@ -36,9 +36,7 @@ interface TranscriptViewportProps {
   readonly positionKey: string
   readonly input: TranscriptViewportInput
   readonly trailing: ReactNode
-  readonly renderVisibleMessageRows?:
-    | ((nodeIds: readonly string[], rows: ReactNode) => ReactNode)
-    | undefined
+  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
 }
 
 /**

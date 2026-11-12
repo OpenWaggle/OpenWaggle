@@ -14,13 +14,13 @@ import {
 
 /** The drill-down selections derived from clicking a chart bar or a breakdown row. */
 export interface UsageCostDrillDown {
-  readonly day?: string | undefined
-  readonly provider?: string | undefined
-  readonly modelId?: string | undefined
+  readonly day?: string
+  readonly provider?: string
+  readonly modelId?: string
   /** Resolved project path group key, sent to the session query. */
-  readonly projectPath?: string | null | undefined
+  readonly projectPath?: string | null
   /** UI-only display label for the selection summary; never sent to the query. */
-  readonly projectLabel?: string | undefined
+  readonly projectLabel?: string
 }
 
 const DEFAULT_QUERY: UsageCostQuery = { preset: '30d', origin: 'all' }
@@ -58,30 +58,24 @@ export function useUsageCostView() {
   }, [])
 
   const toggleDay = useCallback((day: string) => {
-    setDrillDown((current) => ({ ...current, day: current.day === day ? undefined : day }))
+    setDrillDown(({ day: shownDay, ...rest }) => (shownDay === day ? rest : { ...rest, day }))
   }, [])
 
   const toggleModel = useCallback((model: Pick<UsageCostModelRow, 'provider' | 'modelId'>) => {
-    setDrillDown((current) => {
-      const active = current.provider === model.provider && current.modelId === model.modelId
-      return {
-        ...current,
-        provider: active ? undefined : model.provider,
-        modelId: active ? undefined : model.modelId,
-      }
-    })
+    setDrillDown(({ provider, modelId, ...rest }) =>
+      provider === model.provider && modelId === model.modelId
+        ? rest
+        : { ...rest, provider: model.provider, modelId: model.modelId },
+    )
   }, [])
 
   const toggleProject = useCallback(
     (project: Pick<UsageCostProjectRow, 'projectPath' | 'label'>) => {
-      setDrillDown((current) => {
-        const active = current.projectPath === project.projectPath
-        return {
-          ...current,
-          projectPath: active ? undefined : project.projectPath,
-          projectLabel: active ? undefined : project.label,
-        }
-      })
+      setDrillDown(({ projectPath, projectLabel: _label, ...rest }) =>
+        projectPath === project.projectPath
+          ? rest
+          : { ...rest, projectPath: project.projectPath, projectLabel: project.label },
+      )
     },
     [],
   )

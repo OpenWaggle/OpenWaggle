@@ -31,10 +31,10 @@ interface ActiveResize<T extends HTMLElement> {
   readonly minWidth: number
   readonly moveThreshold: number
   readonly onCommit: (width: number) => void
-  readonly onFinish?: ((context: ResizeFinishContext) => void) | undefined
+  readonly onFinish: ((context: ResizeFinishContext) => void) | undefined
   readonly onPreview: (width: number) => void
   readonly pointerId: number
-  readonly shouldAcceptWidth?: ((width: number) => boolean) | undefined
+  readonly shouldAcceptWidth: ((width: number) => boolean) | undefined
   readonly startWidth: number
   readonly startX: number
   readonly target: T

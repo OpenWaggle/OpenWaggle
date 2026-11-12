@@ -26,7 +26,7 @@ function typedResponseFromPayload(
 export function responseFromExtensionAction(input: {
   readonly interaction: AgentLoopInteraction
   readonly actionId: string
-  readonly payload?: JsonValue | undefined
+  readonly payload?: JsonValue
 }): AgentLoopInteractionResponse | null {
   const typedResponse = typedResponseFromPayload(input.interaction, input.payload)
   if (input.actionId === CUSTOM_INTERACTION_RESPONSE_ACTION_ID && typedResponse !== null) {

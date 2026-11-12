@@ -13,7 +13,7 @@ const NO_PROJECT_RESULT: GitBranchMutationResult = {
 }
 
 interface UseBranchPickerControllerInput {
-  readonly onToast?: ((message: string) => void) | undefined
+  readonly onToast?: (message: string) => void
 }
 
 export function useBranchPickerController({ onToast }: UseBranchPickerControllerInput) {

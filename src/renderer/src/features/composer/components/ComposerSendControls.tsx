@@ -12,11 +12,11 @@ export type ComposerRunFinishing = 'settling' | 'stoppable'
 interface ComposerSendControlsProps {
   readonly isLoading: boolean
   /** The agent has ended the Run; undefined while it is not finishing. */
-  readonly finishing?: ComposerRunFinishing | undefined
+  readonly finishing?: ComposerRunFinishing
   readonly canSend: boolean
-  readonly sendTitle?: string | undefined
+  readonly sendTitle?: string
   /** Save a queued-message edit rather than send a new message. */
-  readonly savesEdit?: boolean | undefined
+  readonly savesEdit?: boolean
   readonly onSend: () => void
   readonly onCancel: () => void
 }
@@ -38,7 +38,7 @@ export function ComposerSendControls({
         isLoading={isLoading && !savesEdit}
         savesEdit={savesEdit}
         canSend={canSend}
-        sendTitle={sendTitle}
+        {...(sendTitle === undefined ? {} : { sendTitle })}
         onSend={onSend}
       />
     </>
@@ -85,7 +85,7 @@ function CancelRunButton({ onCancel }: CancelRunButtonProps) {
 interface SendMessageButtonProps {
   readonly isLoading: boolean
   readonly canSend: boolean
-  readonly sendTitle?: string | undefined
+  readonly sendTitle?: string
   readonly savesEdit: boolean
   readonly onSend: () => void
 }

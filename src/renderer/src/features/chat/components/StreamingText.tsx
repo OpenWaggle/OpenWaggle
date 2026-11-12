@@ -116,7 +116,7 @@ export function StreamingText({
           text={segment.text}
           isStreaming={isStreaming}
           rehypePlugins={MARKDOWN_PLUGINS}
-          tailRehypePlugins={isStreaming ? TAIL_STREAMING_PLUGINS : undefined}
+          {...(isStreaming ? { tailRehypePlugins: TAIL_STREAMING_PLUGINS } : {})}
         />
       </div>
     )

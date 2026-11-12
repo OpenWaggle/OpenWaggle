@@ -14,7 +14,7 @@ import { setEditorText } from '../../lib/lexical-utils'
 interface KeyboardPluginProps {
   onSubmit: (text: string) => void
   /** Escape not taken by a menu above the input (they register at higher priority). */
-  onEscape?: (() => void) | undefined
+  onEscape?: () => void
 }
 
 export function KeyboardPlugin({ onSubmit, onEscape }: KeyboardPluginProps): null {

@@ -3,7 +3,7 @@ import type { SyntaxToken } from './protocol'
 export function syntaxTokens(
   lines: readonly (readonly {
     readonly content: string
-    readonly color?: string | undefined
+    readonly color?: string
     readonly bgColor?: string
     readonly fontStyle?: number
   }[])[],

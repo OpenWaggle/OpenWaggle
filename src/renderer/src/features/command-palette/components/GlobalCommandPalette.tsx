@@ -117,7 +117,7 @@ export function GlobalCommandPalette({
     extensionPanels: extensionSidePanelSurfaces(panelContributions).filter(
       (panel) => panel.openable || panel.cannotRunYet,
     ),
-    disabledReason: panelDisabledReason,
+    ...(panelDisabledReason === undefined ? {} : { disabledReason: panelDisabledReason }),
     showSurface: (id: RightPanelSurfaceId, panel) => {
       close()
       showPanelSurface(id, panel, {

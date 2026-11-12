@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import type { JsonObject } from '@shared/types/json'
+import type { JsonObject, JsonValue } from '@shared/types/json'
 import { Bot } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
@@ -80,11 +80,12 @@ function ExtensionRenderer({
         entry={entry}
         maxAutoHeight={agentLoopRendererMaxHeight(input)}
         minAutoHeight={AGENT_LOOP_RENDERER_MIN_HEIGHT}
-        onSurfaceAction={
-          input.surface === 'interaction' && input.onAction
-            ? (actionId, payload) => input.onAction?.(input.interaction.id, actionId, payload)
-            : undefined
-        }
+        {...(input.surface === 'interaction' && input.onAction
+          ? {
+              onSurfaceAction: (actionId: string, payload?: JsonValue) =>
+                input.onAction?.(input.interaction.id, actionId, payload),
+            }
+          : {})}
         surfacePayload={payload}
       />
     </PanelErrorBoundary>

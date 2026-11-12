@@ -99,6 +99,10 @@ function stateAnnouncement(state: ExtensionSessionSummaryView['state']) {
   return ''
 }
 
+function disabledReasonProps(action: ReturnType<typeof resolveSessionSummaryAction> | null) {
+  return action?.kind === 'disabled-command' ? { disabledReason: action.disabledReason } : {}
+}
+
 export function ExtensionSessionSummarySection({
   contribution,
   sessionId,
@@ -171,9 +175,8 @@ export function ExtensionSessionSummarySection({
             key={row.id}
             label={row.label}
             value={rowValue(row)}
-            ariaLabel={actionable ? row.label : undefined}
-            disabledReason={action?.kind === 'disabled-command' ? action.disabledReason : undefined}
-            onClick={actionable ? () => onActivate(row) : undefined}
+            {...(actionable ? { ariaLabel: row.label, onClick: () => onActivate(row) } : {})}
+            {...disabledReasonProps(action)}
           />
         )
       })}
@@ -209,7 +212,7 @@ export function ExtensionSessionSummarySection({
       <SessionSummarySection
         id={sectionId}
         title={contribution.title}
-        count={summary.rows.length > 0 ? summary.rows.length : undefined}
+        {...(summary.rows.length > 0 ? { count: summary.rows.length } : {})}
         expanded={expanded}
         sectionRef={sectionRef}
         triggerRef={triggerRef}

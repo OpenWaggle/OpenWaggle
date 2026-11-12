@@ -11,7 +11,7 @@ import { Button } from '@/shared/ui/Button'
 export interface SessionBranchDisclosure {
   readonly visible: boolean
   readonly collapsed: boolean
-  readonly onToggle?: (() => void) | undefined
+  readonly onToggle?: () => void
 }
 
 /**

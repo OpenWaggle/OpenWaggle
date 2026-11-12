@@ -11,7 +11,7 @@ interface InterruptedRunNoticeProps {
   readonly runMode: RunMode
   readonly model: SupportedModelId | undefined
   readonly interruptedAt: number
-  readonly onDismiss?: ((runId: string, branchId: SessionBranchId) => void) | undefined
+  readonly onDismiss?: (runId: string, branchId: SessionBranchId) => void
 }
 
 export function InterruptedRunNotice({

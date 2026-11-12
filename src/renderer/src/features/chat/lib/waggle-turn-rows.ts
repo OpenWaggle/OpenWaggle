@@ -1,4 +1,4 @@
-import { sameWaggleTurn } from './chat-message-row-model'
+import { sameWaggleTurn, waggleTurnDividerProps } from './chat-message-row-model'
 import type { ChatRow, MessageChatRow, WaggleTurnChatRow } from './types-chat-row'
 
 function getWaggleTurnId(meta: NonNullable<MessageChatRow['waggleMeta']>, firstMessageId: string) {
@@ -11,12 +11,9 @@ function getWaggleTurnId(meta: NonNullable<MessageChatRow['waggleMeta']>, firstM
   ].join(':')
 }
 
-function withoutInlineTurnDivider(row: MessageChatRow) {
-  return {
-    ...row,
-    showTurnDivider: false,
-    turnDividerProps: undefined,
-  }
+function withoutInlineTurnDivider(row: MessageChatRow): MessageChatRow {
+  const { turnDividerProps: _divider, ...withoutDivider } = row
+  return { ...withoutDivider, showTurnDivider: false }
 }
 
 function isAgentLoopCard(row: ChatRow) {
@@ -69,12 +66,7 @@ export function groupWaggleTurnRows(rows: readonly ChatRow[]) {
       type: 'waggle-turn',
       id: getWaggleTurnId(row.waggleMeta, row.message.id),
       agentColor: row.waggleMeta.agentColor,
-      turnDividerProps: {
-        turnNumber: row.waggleMeta.turnNumber,
-        agentLabel: row.waggleMeta.agentLabel,
-        agentColor: row.waggleMeta.agentColor,
-        agentModel: row.waggleMeta.agentModel,
-      },
+      turnDividerProps: waggleTurnDividerProps(row.waggleMeta),
       messages: [withoutInlineTurnDivider(row)],
     })
   }

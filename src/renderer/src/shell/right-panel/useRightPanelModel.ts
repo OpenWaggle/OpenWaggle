@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionIconView } from '@shared/types/extensions'
-import type { SessionLineageSummary } from '@shared/types/session'
+import type { SessionSummary } from '@shared/types/session'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
@@ -33,10 +33,7 @@ const NEEDS_A_HIVE = 'Only for Sessions in a Hive'
 
 /** The active Session's lineage, read from the chat store's summary list. */
 function activeSessionLineage(
-  sessions: readonly {
-    readonly id: unknown
-    readonly lineage?: SessionLineageSummary | null | undefined
-  }[],
+  sessions: readonly Pick<SessionSummary, 'id' | 'lineage'>[],
   activeSessionId: unknown,
 ) {
   return sessions.find((session) => String(session.id) === String(activeSessionId))?.lineage

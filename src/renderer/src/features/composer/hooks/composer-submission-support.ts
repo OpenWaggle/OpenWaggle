@@ -25,7 +25,7 @@ export function attachmentLimitMessage(reason: 'count' | 'size') {
 
 interface SubmitBlockInput {
   readonly payload: AgentSendPayload
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   readonly requiresText: boolean
   readonly projectPath: string | null
   readonly selectedModel: string | undefined
@@ -116,7 +116,7 @@ function toastSubmitBlock(message: string) {
 interface CanSendInput {
   readonly input: string
   readonly attachments: readonly PreparedAttachment[]
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   readonly hasPreparingTextAttachment: boolean
   readonly projectPath: string | null
   readonly selectedModel: string | undefined

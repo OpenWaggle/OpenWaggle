@@ -17,7 +17,7 @@ import { ExtensionPanelStatusCard } from './ExtensionPanelStatusCard'
 interface ExtensionDialogSurfaceActions {
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
 }
 
 const DIALOG_SIZE_STYLE: CSSProperties & {
@@ -116,9 +116,9 @@ function ExtensionDialogContribution({
   resolution,
   surfacePayload,
 }: {
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
   readonly resolution: Extract<ExtensionDialogResolution, { readonly status: 'available' }>
-  readonly surfacePayload?: JsonValue | undefined
+  readonly surfacePayload?: JsonValue
 }) {
   const entry = resolution.contribution.entry
 
@@ -128,8 +128,8 @@ function ExtensionDialogContribution({
         chrome="bare"
         entry={entry}
         fill
-        onSurfaceAction={onSurfaceAction}
-        surfacePayload={surfacePayload}
+        {...(onSurfaceAction === undefined ? {} : { onSurfaceAction })}
+        {...(surfacePayload === undefined ? {} : { surfacePayload })}
       />
     </PanelErrorBoundary>
   )
@@ -151,8 +151,8 @@ function extensionDialogBody({
   readonly loading: boolean
   readonly error: string | null
   readonly onRefresh: () => void
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
-  readonly surfacePayload?: JsonValue | undefined
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly surfacePayload?: JsonValue
 }): ReactNode {
   if (loading && registry === null) {
     return <ExtensionDialogLoadingCard />
@@ -187,9 +187,9 @@ function extensionDialogBody({
   if (resolution.status === 'available') {
     return (
       <ExtensionDialogContribution
-        onSurfaceAction={onSurfaceAction}
+        {...(onSurfaceAction === undefined ? {} : { onSurfaceAction })}
         resolution={resolution}
-        surfacePayload={surfacePayload}
+        {...(surfacePayload === undefined ? {} : { surfacePayload })}
       />
     )
   }
@@ -240,7 +240,7 @@ export function ExtensionDialogSurfaceContent({
   readonly loading: boolean
   readonly error: string | null
   readonly actions: ExtensionDialogSurfaceActions
-  readonly surfacePayload?: JsonValue | undefined
+  readonly surfacePayload?: JsonValue
 }) {
   const title = extensionDialogTitle({ registry, target, projectPaths })
   const body = extensionDialogBody({
@@ -250,8 +250,8 @@ export function ExtensionDialogSurfaceContent({
     loading,
     error,
     onRefresh: actions.onRefresh,
-    onSurfaceAction: actions.onSurfaceAction,
-    surfacePayload,
+    ...(actions.onSurfaceAction === undefined ? {} : { onSurfaceAction: actions.onSurfaceAction }),
+    ...(surfacePayload === undefined ? {} : { surfacePayload }),
   })
 
   return (
@@ -279,8 +279,8 @@ export function ExtensionDialogSurface({
   readonly error: string | null
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
-  readonly surfacePayload?: JsonValue | undefined
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly surfacePayload?: JsonValue
 }) {
   const actions = onSurfaceAction ? { onClose, onRefresh, onSurfaceAction } : { onClose, onRefresh }
 
@@ -291,7 +291,7 @@ export function ExtensionDialogSurface({
       loading={loading}
       projectPaths={projectPaths}
       registry={registry}
-      surfacePayload={surfacePayload}
+      {...(surfacePayload === undefined ? {} : { surfacePayload })}
       target={target}
     />
   )

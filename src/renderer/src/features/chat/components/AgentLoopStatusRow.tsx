@@ -84,7 +84,7 @@ export function StatusRow({
           ? { label, tone: 'warning' }
           : {
               label: `${row.label}...`,
-              detail: row.elapsedMs > 0 ? formatElapsed(row.elapsedMs) : undefined,
+              ...(row.elapsedMs > 0 ? { detail: formatElapsed(row.elapsedMs) } : {}),
               tone: 'running',
             },
       }}

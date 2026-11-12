@@ -1,3 +1,4 @@
+import type { Message } from '@shared/types/agent'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import { parseModelRef } from '@shared/types/llm'
 import { latestAnsweringModel } from '@/features/providers/state'
@@ -39,11 +40,7 @@ export function routedModelName({ selected, answeredBy, providerModels }: Routed
  * the virtual model has answered.
  */
 export function lastAnsweringModel(
-  messages: readonly {
-    readonly role: string
-    readonly model?: SupportedModelId | undefined
-    readonly metadata?: { readonly selectedModel?: SupportedModelId | undefined } | undefined
-  }[],
+  messages: readonly Pick<Message, 'role' | 'model' | 'metadata'>[],
   selected: SupportedModelId | undefined,
 ) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {

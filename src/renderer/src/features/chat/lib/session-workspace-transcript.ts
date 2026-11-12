@@ -8,7 +8,7 @@ import {
 
 interface ResolveTranscriptMessagesInput {
   readonly activeSessionId: SessionId | null
-  readonly activeSessionUpdatedAt?: number | undefined
+  readonly activeSessionUpdatedAt?: number
   readonly activeWorkspace: SessionWorkspace | null
   readonly messages: UIMessage[]
   readonly draftBranchSourceNodeId?: SessionNodeId | null

@@ -42,7 +42,7 @@ function renderSubmission(
     useComposerSubmission({
       onSend: options.onSend ?? vi.fn(),
       onEnqueue,
-      onToast: options.onToast,
+      ...(options.onToast === undefined ? {} : { onToast: options.onToast }),
       isLoading: options.isLoading ?? true,
       requiresText: false,
       clearOnSubmit: true,

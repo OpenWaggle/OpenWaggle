@@ -26,7 +26,7 @@ interface ConditionNodeEditorProps {
   readonly node: ProjectActionWhenNode
   readonly depth?: number
   readonly onChange: (node: ProjectActionWhenNode) => void
-  readonly onRemove?: (() => void) | undefined
+  readonly onRemove?: () => void
 }
 
 function ConditionSelect(props: {
@@ -79,7 +79,7 @@ function IdentifierConditionEditor(props: {
   readonly condition: ConditionParts
   readonly depth: number
   readonly onChange: (node: ProjectActionWhenNode) => void
-  readonly onRemove?: (() => void) | undefined
+  readonly onRemove?: () => void
 }) {
   const unknown = projectActionUnknownWhenVariables(props.condition.identifier).length > 0
   return (
@@ -283,12 +283,26 @@ export function ProjectActionConditionNodeEditor({
         condition={condition}
         depth={depth}
         onChange={onChange}
-        onRemove={onRemove}
+        {...(onRemove === undefined ? {} : { onRemove })}
       />
     )
   }
   if (node.type === 'not') {
-    return <NegatedGroupEditor node={node} depth={depth} onChange={onChange} onRemove={onRemove} />
+    return (
+      <NegatedGroupEditor
+        node={node}
+        depth={depth}
+        onChange={onChange}
+        {...(onRemove === undefined ? {} : { onRemove })}
+      />
+    )
   }
-  return <BooleanGroupEditor node={node} depth={depth} onChange={onChange} onRemove={onRemove} />
+  return (
+    <BooleanGroupEditor
+      node={node}
+      depth={depth}
+      onChange={onChange}
+      {...(onRemove === undefined ? {} : { onRemove })}
+    />
+  )
 }

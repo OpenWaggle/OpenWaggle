@@ -53,9 +53,9 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 /** Optional overrides for a longer local run of the model. */
 const transcriptOrderEnv = decodeUnknownOrThrow(
   Schema.Struct({
-    VITE_TRANSCRIPT_ORDER_SEEDS: Schema.optional(Schema.NumberFromString),
-    VITE_TRANSCRIPT_ORDER_FIRST_SEED: Schema.optional(Schema.NumberFromString),
-    VITE_TRANSCRIPT_ORDER_STEPS: Schema.optional(Schema.NumberFromString),
+    VITE_TRANSCRIPT_ORDER_SEEDS: Schema.optionalWith(Schema.NumberFromString, { exact: true }),
+    VITE_TRANSCRIPT_ORDER_FIRST_SEED: Schema.optionalWith(Schema.NumberFromString, { exact: true }),
+    VITE_TRANSCRIPT_ORDER_STEPS: Schema.optionalWith(Schema.NumberFromString, { exact: true }),
   }),
   import.meta.env,
 )

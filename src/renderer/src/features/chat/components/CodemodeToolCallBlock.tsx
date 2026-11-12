@@ -26,7 +26,7 @@ import {
 interface CodemodeToolCallBlockProps {
   readonly args: string
   readonly state: string
-  readonly result?: ToolCallResultPayload | undefined
+  readonly result?: ToolCallResultPayload
   readonly isStreaming?: boolean
   /**
    * Whether the script's tool calls are shown as nested tool cards under this card (from Pi's

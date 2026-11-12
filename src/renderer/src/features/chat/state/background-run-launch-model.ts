@@ -1,10 +1,7 @@
-import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
+import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 
-interface WorktreeLaunchSourceSnapshot {
-  readonly sessionId: SessionId
-  readonly worktreeLaunch?: WorktreeLaunchSnapshot | undefined
-}
+type WorktreeLaunchSourceSnapshot = Pick<BackgroundRunSnapshot, 'sessionId' | 'worktreeLaunch'>
 
 export function launchesFromSnapshots(
   snapshots: readonly (WorktreeLaunchSourceSnapshot | null)[],

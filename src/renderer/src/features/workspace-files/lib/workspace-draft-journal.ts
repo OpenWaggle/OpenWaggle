@@ -40,7 +40,7 @@ const draftJournalSchema = Schema.Struct({
     }),
   ),
   // Anything but `true` reads as not conflicted, as journals written before the flag do.
-  conflicted: Schema.optional(Schema.Unknown),
+  conflicted: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export function readDraftJournal(

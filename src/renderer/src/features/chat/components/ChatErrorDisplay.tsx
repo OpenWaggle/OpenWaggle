@@ -47,8 +47,8 @@ interface ChatErrorDisplayProps {
   dismissedError: string | null
   sessionId: string | null
   onDismiss: (message: string) => void
-  onOpenSettings?: (() => void) | undefined
-  onRetry?: ((content: string) => void) | undefined
+  onOpenSettings?: () => void
+  onRetry?: (content: string) => void
 }
 
 function resolveErrorInfo(error: Error, sessionId: string | null) {
@@ -65,10 +65,10 @@ interface ChatErrorActionsProps {
   readonly copy: { readonly copied: boolean; readonly onCopy: () => void }
   readonly retry: {
     readonly lastUserMessage: string | null
-    readonly onRetry?: ((content: string) => void) | undefined
+    readonly onRetry?: (content: string) => void
     readonly onDismiss: () => void
   }
-  readonly onOpenSettings?: (() => void) | undefined
+  readonly onOpenSettings?: () => void
   readonly onDismiss: () => void
   readonly onReport: () => void
 }
@@ -208,8 +208,12 @@ export function ChatErrorDisplay({
             info={info}
             isAuthError={isAuthError}
             copy={{ copied, onCopy: handleCopy }}
-            retry={{ lastUserMessage, onRetry, onDismiss: handleDismiss }}
-            onOpenSettings={onOpenSettings}
+            retry={{
+              lastUserMessage,
+              ...(onRetry === undefined ? {} : { onRetry }),
+              onDismiss: handleDismiss,
+            }}
+            {...(onOpenSettings === undefined ? {} : { onOpenSettings })}
             onDismiss={handleDismiss}
             onReport={() => openFeedbackModal(info)}
           />

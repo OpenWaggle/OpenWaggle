@@ -54,7 +54,7 @@ export function useSessionTreePanelController(
   const rows = buildSessionTreePanelRows({
     tree,
     activeNodeId: activeWorkspace?.activeNodeId,
-    textMatchNodeIds,
+    ...(textMatchNodeIds === undefined ? {} : { textMatchNodeIds }),
     filterMode: filter.filterMode,
     searchQuery: deferredSearchQuery,
     focusIndex: panelState.focusIndex,

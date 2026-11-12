@@ -10,7 +10,6 @@ function row(id: string, role: UIMessage['role'], parts: UIMessage['parts']): Ch
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-    turnDividerProps: undefined,
   }
 }
 

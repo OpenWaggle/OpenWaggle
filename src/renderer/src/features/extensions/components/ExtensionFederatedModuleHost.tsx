@@ -1,7 +1,7 @@
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useId, useRef, useState } from 'react'
 import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { useAppearancePreferencesRuntimeStore } from '@/shared/lib/appearance-preferences-runtime'
@@ -26,6 +26,20 @@ const DEFAULT_FRAME_AUTO_MAX_HEIGHT = 520
 interface ReportedFrameHeight {
   readonly mountKey: string
   readonly height: number
+}
+
+/** Records a frame's reported height for this mount, keeping the same state when unchanged. */
+function heightReporter(
+  mountKey: string,
+  setReportedHeight: Dispatch<SetStateAction<ReportedFrameHeight | null>>,
+) {
+  return (height: number) => {
+    setReportedHeight((previous) =>
+      previous?.mountKey === mountKey && previous.height === height
+        ? previous
+        : { height, mountKey },
+    )
+  }
 }
 
 function clampFrameHeight(input: {
@@ -143,14 +157,14 @@ export function ExtensionFederatedModuleHost({
   surfacePayload,
 }: {
   readonly entry: ExtensionContributionRegistryEntry
-  readonly autoHeight?: boolean | undefined
-  readonly className?: string | undefined
-  readonly chrome?: 'bare' | 'card' | undefined
-  readonly fill?: boolean | undefined
-  readonly maxAutoHeight?: number | undefined
-  readonly minAutoHeight?: number | undefined
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
-  readonly surfacePayload?: JsonValue | undefined
+  readonly autoHeight?: boolean
+  readonly className?: string
+  readonly chrome?: 'bare' | 'card'
+  readonly fill?: boolean
+  readonly maxAutoHeight?: number
+  readonly minAutoHeight?: number
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly surfacePayload?: JsonValue
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const onSurfaceActionRef = useRef(onSurfaceAction)
@@ -192,15 +206,7 @@ export function ExtensionFederatedModuleHost({
       moduleUrl,
       mountKey,
       onSurfaceAction: (actionId, payload) => onSurfaceActionRef.current?.(actionId, payload),
-      reportHeight: shouldAutoHeight
-        ? (height) => {
-            setReportedHeight((previous) =>
-              previous?.mountKey === mountKey && previous.height === height
-                ? previous
-                : { height, mountKey },
-            )
-          }
-        : undefined,
+      ...(shouldAutoHeight ? { reportHeight: heightReporter(mountKey, setReportedHeight) } : {}),
       reportStatus: (status) => {
         setReportedStatus((previous) =>
           previous?.mountKey === status.mountKey && sameMountStatus(previous.status, status.status)
@@ -208,7 +214,7 @@ export function ExtensionFederatedModuleHost({
             : status,
         )
       },
-      surfacePayloadJson,
+      ...(surfacePayloadJson === undefined ? {} : { surfacePayloadJson }),
     })
   }, [frameId, frameRuntimeSupported, moduleUrl, mountKey, shouldAutoHeight, surfacePayloadJson])
 

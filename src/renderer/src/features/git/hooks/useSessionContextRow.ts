@@ -223,7 +223,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     envMode,
     hasWorktree,
     baseRef,
-    worktreeExists,
+    ...(worktreeExists === undefined ? {} : { worktreeExists }),
   })
 
   const recreateWorktree = async () => {

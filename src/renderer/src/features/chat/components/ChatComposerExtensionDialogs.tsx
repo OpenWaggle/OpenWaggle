@@ -260,7 +260,7 @@ export function ChatComposerExtensionDialogs({
     const response = responseFromExtensionAction({
       interaction: activeSurface.interaction,
       actionId,
-      payload,
+      ...(payload === undefined ? {} : { payload }),
     })
     if (response === null) {
       return

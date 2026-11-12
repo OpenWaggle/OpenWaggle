@@ -31,7 +31,7 @@ const mcpAppToolResultPayloadSchema = Schema.Struct({
         content: mcpConfigValueSchema,
         structuredContent: Schema.optionalWith(mcpConfigValueSchema, { exact: true }),
         // Only `true` marks an error result.
-        isError: Schema.optional(Schema.Unknown),
+        isError: Schema.optionalWith(Schema.Unknown, { exact: true }),
       }),
     }),
   }),

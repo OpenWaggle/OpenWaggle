@@ -4,7 +4,7 @@ import { ComposerToolbar } from './ComposerToolbar'
 import { VoiceRecorder } from './VoiceRecorder'
 
 interface ComposerModeControlsProps {
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   readonly accessControl?: ReactNode
   readonly fileInputRef: RefObject<HTMLInputElement | null>
   readonly voice: VoiceCaptureController
@@ -19,12 +19,18 @@ export function ComposerModeControls({
   submission,
 }: ComposerModeControlsProps) {
   if (voice.isActive) {
-    return <VoiceRecorder fileInputRef={fileInputRef} voice={voice} disabled={disabled} />
+    return (
+      <VoiceRecorder
+        fileInputRef={fileInputRef}
+        voice={voice}
+        {...(disabled === undefined ? {} : { disabled })}
+      />
+    )
   }
 
   return (
     <ComposerToolbar
-      disabled={disabled}
+      {...(disabled === undefined ? {} : { disabled })}
       accessControl={accessControl}
       submission={submission}
       onToggleVoice={voice.toggleVoice}

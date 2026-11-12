@@ -4,9 +4,9 @@ import { useAutoTextAttachment } from './useAutoTextAttachment'
 import { type UseFileAttachmentResult, useFileAttachment } from './useFileAttachment'
 
 interface UseComposerAttachmentsInput {
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   readonly projectPath: string | null
-  readonly onToast?: ((message: string) => void) | undefined
+  readonly onToast?: (message: string) => void
 }
 
 export interface ComposerAttachmentsController {
@@ -34,21 +34,21 @@ export function useComposerAttachments({
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
   const textAttachment = useAutoTextAttachment({
-    disabled,
+    ...(disabled === undefined ? {} : { disabled }),
     attachments,
     addAttachments,
     removeAttachment,
     setAttachmentError,
-    onToast,
+    ...(onToast === undefined ? {} : { onToast }),
   })
   const fileAttachment = useFileAttachment({
-    disabled,
+    ...(disabled === undefined ? {} : { disabled }),
     projectPath,
     attachments,
     preparingPendingCount: textAttachment.preparingPendingCount,
     addAttachments,
     setAttachmentError,
-    onToast,
+    ...(onToast === undefined ? {} : { onToast }),
   })
 
   return {
