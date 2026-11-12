@@ -1,8 +1,15 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { SchemaType } from '@shared/schema'
 import type {
-  ExtensionLifecycleMutationTarget,
-  ExtensionPackageScopeView,
-} from './extension-package-scope'
+  extensionAcceptUpdateInputSchema,
+  extensionApproveBuildInputSchema,
+  extensionListPackagesInputSchema,
+  extensionReloadInputSchema,
+  extensionSetEnabledInputSchema,
+  extensionSetProjectDisabledInputSchema,
+  extensionSetTrustedInputSchema,
+} from '@shared/schemas/extensions'
+import type { ExtensionPackageScopeView } from './extension-package-scope'
 
 type ConstantValue<TObject> = TObject[keyof TObject]
 
@@ -42,26 +49,15 @@ export type {
   ExtensionProposePackageWriteInput,
 } from './extension-package-workflow'
 
-export interface ExtensionListPackagesInput {
-  readonly projectPaths?: readonly string[]
-}
-
-export interface ExtensionSetTrustedInput extends ExtensionLifecycleMutationTarget {
-  readonly trusted: boolean
-}
-
-export interface ExtensionSetEnabledInput extends ExtensionLifecycleMutationTarget {
-  readonly enabled: boolean
-}
-
-export interface ExtensionSetProjectDisabledInput extends ExtensionLifecycleMutationTarget {
-  readonly projectPath: string
-  readonly disabled: boolean
-}
-
-export type ExtensionAcceptUpdateInput = ExtensionLifecycleMutationTarget
-export type ExtensionApproveBuildInput = ExtensionLifecycleMutationTarget
-export type ExtensionReloadInput = ExtensionLifecycleMutationTarget
+export type ExtensionListPackagesInput = SchemaType<typeof extensionListPackagesInputSchema>
+export type ExtensionSetTrustedInput = SchemaType<typeof extensionSetTrustedInputSchema>
+export type ExtensionSetEnabledInput = SchemaType<typeof extensionSetEnabledInputSchema>
+export type ExtensionSetProjectDisabledInput = SchemaType<
+  typeof extensionSetProjectDisabledInputSchema
+>
+export type ExtensionAcceptUpdateInput = SchemaType<typeof extensionAcceptUpdateInputSchema>
+export type ExtensionApproveBuildInput = SchemaType<typeof extensionApproveBuildInputSchema>
+export type ExtensionReloadInput = SchemaType<typeof extensionReloadInputSchema>
 
 export interface ExtensionSdkCompatibilityView {
   readonly hostVersion: string

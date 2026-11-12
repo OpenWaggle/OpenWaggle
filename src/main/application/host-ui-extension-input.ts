@@ -1,6 +1,10 @@
-import { assertMatching, P } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { type Schema, safeDecodeUnknown } from '@shared/schema'
+import {
+  decodeUnknownExactOrThrow,
+  getParseIssues,
+  type Schema,
+  safeDecodeUnknown,
+} from '@shared/schema'
 import {
   extensionAcceptUpdateInputSchema,
   extensionApplyPackageRemoveInputSchema,
@@ -8,7 +12,6 @@ import {
   extensionApproveBuildInputSchema,
   extensionListContributionsInputSchema,
   extensionListPackagesInputSchema,
-  type extensionPackageWorkflowActorSchema,
   extensionProposePackageRemoveInputSchema,
   extensionProposePackageWriteInputSchema,
   extensionReloadInputSchema,
@@ -18,8 +21,6 @@ import {
 } from '@shared/schemas/extensions'
 import type {
   ExtensionApplyPackageWriteInput,
-  ExtensionPackageWorkflowActor,
-  ExtensionPackageWorkflowGlobalConfirmation,
   ExtensionProposePackageWriteInput,
 } from '@shared/types/extension-package-workflow'
 import type {
@@ -85,21 +86,16 @@ export function decodeHostUiExtensionListPackagesInput(
   })
 }
 
-function validateListContributionsInputShape(raw: unknown): Effect.Effect<void, Error> {
-  if (raw === undefined) return Effect.void
+const LIST_CONTRIBUTIONS_INPUT_MESSAGE =
+  'Extension contribution list input must be an object with optional projectPaths and sessionId'
+
+/** Refuses undeclared keys too, naming the field that failed. */
+function decodeListContributionsInput(raw: unknown) {
   return Effect.try({
-    try: () => {
-      assertMatching(
-        P.exact({
-          projectPaths: P.optional(P.array(P.string)),
-          sessionId: P.optional(P.string),
-        }),
-        raw,
-      )
-    },
-    catch: () =>
+    try: () => decodeUnknownExactOrThrow(extensionListContributionsInputSchema, raw),
+    catch: (error) =>
       new Error(
-        'Extension contribution list input must be an object with optional projectPaths and sessionId.',
+        `${LIST_CONTRIBUTIONS_INPUT_MESSAGE}: ${(getParseIssues(error) ?? [String(error)]).join('; ')}`,
       ),
   })
 }
@@ -114,8 +110,7 @@ export function decodeHostUiExtensionListContributionsInput(
 ): Effect.Effect<ExtensionListContributionsInput, Error> {
   return Effect.gen(function* () {
     if (raw === undefined) return { projectPaths: [] }
-    yield* validateListContributionsInputShape(raw)
-    const decoded = yield* decodeSchema(extensionListContributionsInputSchema, raw)
+    const decoded = yield* decodeListContributionsInput(raw)
     const projectPaths = yield* validateProjectPaths(decoded.projectPaths)
     return { projectPaths, ...normalizeOptionalSessionId(decoded.sessionId) }
   })
@@ -148,37 +143,6 @@ function normalizeLifecycleTargetInput<
   })
 }
 
-type DecodedWorkflowActor = Schema.Schema.Type<typeof extensionPackageWorkflowActorSchema>
-
-/** The decoded actor with absent optional ids left absent instead of present and undefined. */
-function exactWorkflowActor(actor: DecodedWorkflowActor): ExtensionPackageWorkflowActor {
-  if (actor.kind === 'agent') {
-    const { sessionId, ...agent } = actor
-    return sessionId === undefined ? agent : { ...agent, sessionId }
-  }
-  if (actor.kind === 'user') {
-    const { userId, ...user } = actor
-    return userId === undefined ? user : { ...user, userId }
-  }
-  return actor
-}
-
-function withExactWorkflowActor<TInput extends { readonly actor: DecodedWorkflowActor }>(
-  input: TInput,
-) {
-  return { ...input, actor: exactWorkflowActor(input.actor) }
-}
-
-/** Leaves an absent global confirmation absent instead of present and undefined. */
-function omitAbsentGlobalConfirmation<
-  TInput extends {
-    readonly globalConfirmation?: ExtensionPackageWorkflowGlobalConfirmation | undefined
-  },
->(input: TInput) {
-  const { globalConfirmation, ...rest } = input
-  return globalConfirmation === undefined ? rest : { ...rest, globalConfirmation }
-}
-
 export function normalizeHostUiExtensionTrustedInput(
   raw: unknown,
 ): Effect.Effect<ExtensionSetTrustedInput, Error> {
@@ -193,7 +157,7 @@ export function normalizeHostUiExtensionProposePackageWriteInput(
 ): Effect.Effect<ExtensionProposePackageWriteInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionProposePackageWriteInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(withExactWorkflowActor(decoded))
+    return yield* normalizeLifecycleTargetInput(decoded)
   })
 }
 
@@ -202,9 +166,7 @@ export function normalizeHostUiExtensionApplyPackageWriteInput(
 ): Effect.Effect<ExtensionApplyPackageWriteInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionApplyPackageWriteInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(
-      withExactWorkflowActor(omitAbsentGlobalConfirmation(decoded)),
-    )
+    return yield* normalizeLifecycleTargetInput(decoded)
   })
 }
 
@@ -213,7 +175,7 @@ export function normalizeHostUiExtensionProposePackageRemoveInput(
 ): Effect.Effect<ExtensionProposePackageRemoveInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionProposePackageRemoveInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(withExactWorkflowActor(decoded))
+    return yield* normalizeLifecycleTargetInput(decoded)
   })
 }
 
@@ -222,9 +184,7 @@ export function normalizeHostUiExtensionApplyPackageRemoveInput(
 ): Effect.Effect<ExtensionApplyPackageRemoveInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionApplyPackageRemoveInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(
-      withExactWorkflowActor(omitAbsentGlobalConfirmation(decoded)),
-    )
+    return yield* normalizeLifecycleTargetInput(decoded)
   })
 }
 
