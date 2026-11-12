@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { assertNativeModulesLoad } from '../native-load-probe'
+import {
+  assertNativeModulesLoad,
+  TESSERACT_CORE_LOADER,
+  TRIMMED_RUNTIME_MODULES,
+} from '../native-load-probe'
 
 vi.mock('../native-windows-telemetry-probe', () => ({ probeWindowsTerminalTelemetry: vi.fn() }))
 
@@ -117,6 +121,8 @@ function fakeNativeModules(platform: NodeJS.Platform) {
     if (moduleName === 'better-sqlite3') return FakeDatabase
     if (moduleName === 'node-pty') return nodePty
     if (moduleName === 'sharp') return { versions: {} }
+    if (TRIMMED_RUNTIME_MODULES.some((name) => name === moduleName)) return {}
+    if (moduleName === TESSERACT_CORE_LOADER) return async () => () => undefined
     throw new Error(`Unexpected module ${moduleName}.`)
   })
   return { loadModule, spawn, terminals }

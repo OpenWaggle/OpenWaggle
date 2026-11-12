@@ -69,6 +69,30 @@ function assertUnixNativeContract(native: unknown) {
   )
 }
 
+/**
+ * Packages the packaged app ships only part of (scripts/packaged-runtime-packages.ts
+ * `PACKAGE_UNLOADED_FILES`): each loads from what is left, transformers.js through onnxruntime-node.
+ */
+export const TRIMMED_RUNTIME_MODULES = [
+  'lucide',
+  'mammoth',
+  'jszip',
+  'playwright-core',
+  '@huggingface/transformers',
+  'tesseract.js',
+] as const
+
+/** tesseract.js's Node core loader: it picks the `-lstm` core this runtime's WASM features allow. */
+export const TESSERACT_CORE_LOADER = 'tesseract.js/src/worker-script/node/getCore.js'
+const TESSERACT_LSTM_ONLY = 1
+
+async function assertTesseractCoreLoads(loadModule: NativeModuleLoader) {
+  const getCore = loadModule(TESSERACT_CORE_LOADER)
+  if (!isFunction(getCore)) throw new Error('tesseract.js has no Node core loader.')
+  const core = await getCore(TESSERACT_LSTM_ONLY, undefined, { progress: () => undefined })
+  if (!isFunction(core)) throw new Error('tesseract.js loaded no Tesseract core.')
+}
+
 export async function assertNativeModulesLoad(
   mode: RebuildMode,
   loadModule: NativeModuleLoader = localRequire,
@@ -96,7 +120,10 @@ export async function assertNativeModulesLoad(
 
   await probeNodePtyLifecycle(nodePtyValue, platform, executablePath, profile)
 
-  if (mode === 'electron') void loadModule('sharp')
+  if (mode !== 'electron') return
+  void loadModule('sharp')
+  for (const moduleName of TRIMMED_RUNTIME_MODULES) void loadModule(moduleName)
+  await assertTesseractCoreLoads(loadModule)
 }
 
 async function main() {

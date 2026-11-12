@@ -10,9 +10,14 @@ import {
   PI_PACKAGE_ASSET_FILE_PATTERNS,
 } from './scripts/electron-builder-pi-assets'
 import { foreignNativePrebuildExclusions } from './scripts/electron-builder-native-prebuilds'
-import { UNUSED_RUNTIME_FILE_PATTERNS } from './scripts/electron-builder-runtime-trim'
+import {
+  unshippedPackagePatterns,
+  UNUSED_RUNTIME_FILE_PATTERNS,
+} from './scripts/electron-builder-runtime-trim'
 import { resolveMacSigning } from './scripts/mac-signing'
+import { packagedRuntimePackages } from './scripts/packaged-runtime-packages'
 import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
+import { mainExternalPackages } from './scripts/vite/main-externals'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
@@ -26,6 +31,8 @@ import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
  * module resolution. Replaces the former static electron-builder.yml.
  */
 const identity = resolveBuildIdentity()
+// The production packages the main bundle already contains (scripts/packaged-runtime-packages.ts).
+const { unshipped } = packagedRuntimePackages(process.cwd(), [...mainExternalPackages()])
 const buildResourcesDir = 'build'
 
 const stableIcons = {
@@ -120,6 +127,8 @@ const config = {
     '!node_modules/@openwaggle/*/tsconfig*.json',
     // onnxruntime-web, SQLite sources, tesseract browser builds (scripts/electron-builder-runtime-trim.ts).
     ...UNUSED_RUNTIME_FILE_PATTERNS,
+    // Packages inlined into the main bundle, apart from files they read from their directory.
+    ...unshippedPackagePatterns(unshipped),
     // Pi reads its README, docs (codemode points the model at docs/codemode.md) and examples from
     // its package directory; keep them although other packages' docs are excluded above.
     ...PI_PACKAGE_ASSET_FILE_PATTERNS,
