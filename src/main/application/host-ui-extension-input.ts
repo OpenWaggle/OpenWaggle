@@ -132,7 +132,7 @@ function validateLifecycleScope(
 function normalizeLifecycleTargetInput<
   TInput extends {
     readonly scope: ExtensionPackageLifecycleScope
-    readonly viewProjectPaths?: readonly string[] | undefined
+    readonly viewProjectPaths?: readonly string[]
   },
 >(input: TInput) {
   return Effect.gen(function* () {
