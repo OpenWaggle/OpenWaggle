@@ -57,13 +57,13 @@ function locator(text: string) {
 
 function isAstNode(value: unknown): value is object {
   return (
-    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
   )
 }
 
 /** Sets `parent` on every node, as oxlint does for JS plugins; the Program's is null. */
 function linkParents(program: object) {
-  Reflect.set(program, 'parent', null)
+  Object.assign(program, { parent: null })
   const pending: { readonly parent: object; readonly value: unknown }[] = [
     { parent: program, value: Object.values(program) },
   ]
@@ -77,7 +77,7 @@ function linkParents(program: object) {
       continue
     }
     if (!isAstNode(value)) continue
-    Reflect.set(value, 'parent', parent)
+    Object.assign(value, { parent })
     for (const [key, child] of Object.entries(value)) {
       if (key !== 'parent') pending.push({ parent: value, value: child })
     }

@@ -1,111 +1,53 @@
-import type { Node } from '@oxlint/plugins'
-
-type UnknownObject = Readonly<Record<string, unknown>>
+import type { ESTree } from '@oxlint/plugins'
 
 interface SourceRange {
   readonly start: number
   readonly end: number
 }
 
-export interface NodeWithReturnType {
-  readonly returnType: Node
-  readonly body: unknown
-}
-
-function isObject(value: unknown): value is UnknownObject {
-  return typeof value === 'object' && value !== null
-}
-
-export function property(value: unknown, key: string) {
-  if (!isObject(value)) {
-    return undefined
-  }
-
-  return value[key]
-}
-
-export function nodeType(value: unknown) {
-  const type = property(value, 'type')
-  return typeof type === 'string' ? type : null
-}
-
-export function hasNodeType(value: unknown, type: string) {
-  return nodeType(value) === type
-}
-
 export function isUnknownArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value)
 }
 
-export function isLintNode(value: unknown): value is Node {
-  return nodeType(value) !== null
-}
-
-export function rangeFrom(value: unknown): SourceRange | null {
-  const range = property(value, 'range')
-  if (!isUnknownArray(range)) {
-    return null
-  }
-
-  const start = range[0]
-  const end = range[1]
-  if (typeof start !== 'number' || typeof end !== 'number') {
-    return null
-  }
-
+export function rangeFrom(node: ESTree.Node | null | undefined): SourceRange | null {
+  if (!node) return null
+  const [start, end] = node.range
   return { start, end }
 }
 
-export function parentOf(value: unknown) {
-  return property(value, 'parent')
-}
-
-export function sourceValueOf(node: Node) {
-  const sourceValue = property(property(node, 'source'), 'value')
-  return typeof sourceValue === 'string' ? sourceValue : null
+/** The string a declaration's `source` names; `import()` and others name no literal here. */
+export function sourceValueOf(node: ESTree.Node) {
+  const source = 'source' in node ? node.source : null
+  return source?.type === 'Literal' && typeof source.value === 'string' ? source.value : null
 }
 
 /** A string literal's value, or the text of a template literal with no `${}` expressions. */
-function stringLiteralValue(value: unknown) {
-  if (hasNodeType(value, 'TemplateLiteral')) {
-    const expressions = property(value, 'expressions')
-    const quasis = property(value, 'quasis')
-    if (!isUnknownArray(expressions) || expressions.length > 0) return null
-    if (!isUnknownArray(quasis) || quasis.length !== 1) return null
-    const cooked = property(property(quasis[0], 'value'), 'cooked')
-    return typeof cooked === 'string' ? cooked : null
+function stringLiteralValue(node: ESTree.Node | null | undefined) {
+  if (node?.type === 'TemplateLiteral') {
+    if (node.expressions.length > 0 || node.quasis.length !== 1) return null
+    return node.quasis[0]?.value.cooked ?? null
   }
-  const literal = property(value, 'value')
-  return typeof literal === 'string' ? literal : null
+  return node?.type === 'Literal' && typeof node.value === 'string' ? node.value : null
 }
 
 /**
  * The module a node names with a string literal or a template literal with no expressions: an
- * import or export declaration, a dynamic `import()`, an `import()` type (Babel puts its specifier
- * in `source`, typescript-estree in `argument.literal`), or `require()`. A computed specifier
- * names no module that lint can see.
+ * import or export declaration, a dynamic `import()`, an `import()` type, or `require()`. A
+ * computed specifier names no module that lint can see.
  */
-export function moduleSpecifierOf(node: Node) {
-  const type = nodeType(node)
-  if (type === 'TSImportType') {
-    const argument = property(node, 'argument')
-    return sourceValueOf(node) ?? stringLiteralValue(property(argument, 'literal') ?? argument)
-  }
-  if (type === 'CallExpression') {
-    const callee = property(node, 'callee')
-    const args = property(node, 'arguments')
-    const isRequire = hasNodeType(callee, 'Identifier') && property(callee, 'name') === 'require'
-    return isRequire && isUnknownArray(args) && args.length === 1
-      ? stringLiteralValue(args[0])
-      : null
+export function moduleSpecifierOf(node: ESTree.Node) {
+  if (node.type === 'CallExpression') {
+    const { callee, arguments: args } = node
+    const isRequire = callee.type === 'Identifier' && callee.name === 'require'
+    return isRequire && args.length === 1 ? stringLiteralValue(args[0]) : null
   }
   // Declarations always name a string literal; a dynamic import() may name a template literal.
-  return stringLiteralValue(property(node, 'source'))
+  return stringLiteralValue('source' in node ? node.source : null)
 }
 
-export function jsxIdentifierName(node: Node) {
-  const name = property(property(node, 'name'), 'name')
-  return typeof name === 'string' ? name : null
+/** The name of a JSX element named by a plain identifier (`<Button>`, not `<a.b>` or `<a:b>`). */
+export function jsxIdentifierName(node: ESTree.JSXOpeningElement) {
+  return node.name.type === 'JSXIdentifier' ? node.name.name : null
 }
 
 export function normalizedFilename(filename: string) {

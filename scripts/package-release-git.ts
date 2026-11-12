@@ -1,6 +1,7 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
 import { Version } from 'release-please/build/src/version.js'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /*
  * Git reads for the package release line check. Everything is read from a revision, not the
@@ -111,8 +112,8 @@ export async function commitsTouching(cwd: string, range: string, packagePath: s
 }
 
 function lineOrder(line: string): readonly [number, number] {
-  const match = DOCS_LINE_PATTERN.exec(line)
-  return [Number(match?.groups?.major), Number(match?.groups?.minor)]
+  const { major, minor } = namedGroups(DOCS_LINE_PATTERN.exec(line), ['major', 'minor']) ?? {}
+  return [Number(major), Number(minor)]
 }
 
 /** The published `<major>.<minor>` docs directories at `to`, oldest first by number (0.9 before 0.10). */

@@ -1,3 +1,6 @@
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../../support/object-fields'
+
 interface InvokeRecord {
   readonly channel: string
   readonly ms: number
@@ -10,28 +13,30 @@ interface ChannelTotals {
   ms: number
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+/** The main-process IPC log (`IPC_LOG_READ`): invokes in order, and pushed totals by channel. */
+const ipcLogSchema = Schema.Struct({ invokes: unknownField, sends: unknownField })
+const invokeSchema = Schema.Struct({
+  channel: Schema.String,
+  bytes: Schema.Number,
+  ms: Schema.Number,
+})
+const pushedTotalsSchema = Schema.Struct({ count: Schema.Number, bytes: Schema.Number })
 
 function invokesOf(log: unknown): InvokeRecord[] {
-  const invokes = isRecord(log) ? log.invokes : null
+  const invokes = objectFields(ipcLogSchema, log)?.invokes
   if (!Array.isArray(invokes)) return []
   return invokes.flatMap((entry: unknown) =>
-    isRecord(entry) &&
-    typeof entry.channel === 'string' &&
-    typeof entry.bytes === 'number' &&
-    typeof entry.ms === 'number'
+    Schema.is(invokeSchema)(entry)
       ? [{ channel: entry.channel, bytes: entry.bytes, ms: entry.ms }]
       : [],
   )
 }
 
 function pushedOf(log: unknown) {
-  const sends = isRecord(log) ? log.sends : null
-  if (!isRecord(sends)) return []
-  return Object.entries(sends).flatMap(([channel, totals]) =>
-    isRecord(totals) && typeof totals.count === 'number' && typeof totals.bytes === 'number'
+  const sends = objectFields(ipcLogSchema, log)?.sends
+  if (typeof sends !== 'object' || sends === null) return []
+  return Object.entries(sends).flatMap(([channel, totals]: [string, unknown]) =>
+    Schema.is(pushedTotalsSchema)(totals)
       ? [{ channel, count: totals.count, bytes: totals.bytes }]
       : [],
   )

@@ -7,6 +7,8 @@ import { missingPackagedPiAssets } from './electron-builder-pi-assets'
 import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
 import { nodeRuntime } from './support/node-runtime'
 import { prunedRuntimeIssues } from './electron-builder-runtime-trim'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 const execFile = promisify(execFileCallback)
 
@@ -50,10 +52,12 @@ function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const asarNodeFilesSchema = Schema.Struct({ files: unknownField })
+
 function parseAsarNode(value: unknown): AsarNode | null {
   if (!isObject(value)) return null
 
-  const files = value.files
+  const { files } = objectFields(asarNodeFilesSchema, value) ?? {}
   if (files === undefined) return {}
   if (!isObject(files)) return null
 

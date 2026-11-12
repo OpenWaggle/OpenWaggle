@@ -15,6 +15,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { nodeRuntime } from './support/node-runtime'
+import { Schema } from '@shared/schema'
+import { scriptEnv } from './support/env'
+import { unknownField } from './support/object-fields'
 
 /** External packages the main bundle may load while it starts. Node built-ins always may. */
 export const ALLOWED_STARTUP_EXTERNALS: readonly string[] = ['electron']
@@ -131,9 +134,11 @@ export interface StartupProbeResult {
 const PROBE_TIMEOUT_MS = 60_000
 const PROBE_MAX_BUFFER_BYTES = 1024 * 1024
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+/** The probe's last line: the modules the bundle loaded, and its load error if any. */
+const startupProbeOutputSchema = Schema.Struct({
+  loaded: Schema.Array(Schema.Unknown),
+  error: unknownField,
+})
 
 /** Evaluates `bundlePath` once per argument vector, in a throwaway HOME, and reports its loads. */
 export function probeStartupExternals(
@@ -148,14 +153,14 @@ export function probeStartupExternals(
         ['-e', PROBE_SOURCE, path.resolve(bundlePath), JSON.stringify(ELECTRON_EXPORTS), ...argv],
         {
           encoding: 'utf8',
-          env: { PATH: process.env.PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
+          env: { PATH: scriptEnv().PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
           timeout: PROBE_TIMEOUT_MS,
           maxBuffer: PROBE_MAX_BUFFER_BYTES,
         },
       )
       const line = output.trim().split('\n').at(-1) ?? ''
       const parsed: unknown = JSON.parse(line)
-      if (!isRecord(parsed) || !Array.isArray(parsed.loaded)) {
+      if (!Schema.is(startupProbeOutputSchema)(parsed)) {
         throw new Error(`The startup probe printed ${line}.`)
       }
       return {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_TEST_TIME_ZONE, testTimeZone } from '../vitest-tier-options'
+import { scriptEnv } from '../../support/env'
 
 const JANUARY_FIRST = new Date(2026, 0, 1)
 
@@ -15,7 +16,7 @@ describe('the test time zone', () => {
 
   it('is the zone this test file runs in, whatever the machine zone is', () => {
     expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(testTimeZone())
-    expect(process.env.TZ).toBe(testTimeZone())
+    expect(scriptEnv().TZ).toBe(testTimeZone())
   })
 
   it('lets one test choose its own zone', () => {
@@ -26,6 +27,6 @@ describe('the test time zone', () => {
     } finally {
       vi.unstubAllEnvs()
     }
-    expect(process.env.TZ).toBe(testTimeZone())
+    expect(scriptEnv().TZ).toBe(testTimeZone())
   })
 })

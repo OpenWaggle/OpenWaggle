@@ -68,7 +68,8 @@ const { values } = parseArgs({
 
 async function selectFakeModel(page: Page) {
   await page.evaluate(async (model) => {
-    const api: unknown = Reflect.get(globalThis, 'api')
+    const holder: object = globalThis
+    const api: unknown = 'api' in holder ? holder.api : null
     const call = (name: string, argument: unknown) => {
       const method: unknown =
         typeof api === 'object' && api !== null ? Reflect.get(api, name) : null
@@ -143,10 +144,11 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
         await inspector?.evaluate(IPC_LOG_INSTALL)
         await inspector?.evaluate(IPC_LOG_RESET)
         await page.evaluate(() => {
-          Reflect.set(globalThis, '__owFrames', [])
+          Object.assign(globalThis, { __owFrames: [] })
+          const holder: object = globalThis
           let last = performance.now()
           const tick = (now: number) => {
-            const frames: unknown = Reflect.get(globalThis, '__owFrames')
+            const frames: unknown = '__owFrames' in holder ? holder.__owFrames : null
             if (Array.isArray(frames)) frames.push(now - last)
             last = now
             requestAnimationFrame(tick)
@@ -156,7 +158,7 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
         const cdp = await page.context().newCDPSession(page)
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle })
         const trace = await traced(cdp, async () => {
-          await page.evaluate(() => Reflect.set(globalThis, '__owFrames', []))
+          await page.evaluate(() => Object.assign(globalThis, { __owFrames: [] }))
           await page.locator('[contenteditable]').first().click()
           await page.keyboard.type('Please write a long answer with code.')
           await page.keyboard.press('Enter')
@@ -165,7 +167,8 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
         })
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
         const frames: unknown = await page.evaluate(() => {
-          const value: unknown = Reflect.get(globalThis, '__owFrames')
+          const holder: object = globalThis
+          const value: unknown = '__owFrames' in holder ? holder.__owFrames : null
           return value
         })
         const ipcLog: unknown = await inspector?.evaluate(IPC_LOG_READ)

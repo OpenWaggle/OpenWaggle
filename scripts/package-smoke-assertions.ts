@@ -1,3 +1,6 @@
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
+
 const REQUIRED_PACKAGE_FILES = [
   'CHANGELOG.md',
   'LICENSE',
@@ -123,12 +126,34 @@ function allowedTarballFile(packageName: string, filePath: string) {
   return packageName === '@openwaggle/extension-react' && filePath === 'styles.css'
 }
 
-export function collectManifestPackagePaths(manifest: unknown) {
-  if (!isObject(manifest)) {
+/** The packed `package.json` fields the smoke checks read; each is checked where it is used. */
+const packedManifestSchema = Schema.Struct({
+  dependencies: unknownField,
+  engines: unknownField,
+  exports: unknownField,
+  license: unknownField,
+  pi: unknownField,
+  publishConfig: unknownField,
+  repository: unknownField,
+  types: unknownField,
+})
+const piManifestSchema = Schema.Struct({ extensions: unknownField })
+const enginesSchema = Schema.Struct({ node: unknownField })
+const publishConfigSchema = Schema.Struct({ access: unknownField })
+const repositorySchema = Schema.Struct({
+  type: unknownField,
+  url: unknownField,
+  directory: unknownField,
+})
+
+export function collectManifestPackagePaths(value: unknown) {
+  const manifest = objectFields(packedManifestSchema, value)
+  if (manifest === undefined) {
     return []
   }
 
-  const piPaths = isObject(manifest.pi) ? collectPackagePaths(manifest.pi.extensions) : []
+  const pi = objectFields(piManifestSchema, manifest.pi)
+  const piPaths = pi === undefined ? [] : collectPackagePaths(pi.extensions)
 
   return uniqueSorted([
     ...collectPackagePaths(manifest.exports),
@@ -160,8 +185,9 @@ export function assertPackedPackageFiles(input: {
   }
 }
 
-export function assertPackedPackageMetadata(manifest: unknown, packageDirectory: string) {
-  if (!isObject(manifest)) {
+export function assertPackedPackageMetadata(value: unknown, packageDirectory: string) {
+  const manifest = objectFields(packedManifestSchema, value)
+  if (manifest === undefined) {
     throw new Error(`${packageDirectory} packed manifest must be an object.`)
   }
 
@@ -169,22 +195,23 @@ export function assertPackedPackageMetadata(manifest: unknown, packageDirectory:
     throw new Error(`${packageDirectory} packed manifest must declare MIT license.`)
   }
 
-  if (!isObject(manifest.engines) || manifest.engines.node !== '>=22.19.0') {
+  if (objectFields(enginesSchema, manifest.engines)?.node !== '>=22.19.0') {
     throw new Error(`${packageDirectory} packed manifest must require Node.js >=22.19.0.`)
   }
 
-  if (!isObject(manifest.publishConfig) || manifest.publishConfig.access !== 'public') {
+  if (objectFields(publishConfigSchema, manifest.publishConfig)?.access !== 'public') {
     throw new Error(`${packageDirectory} packed manifest must publish with public access.`)
   }
 
-  if (!isObject(manifest.repository)) {
+  const repository = objectFields(repositorySchema, manifest.repository)
+  if (repository === undefined) {
     throw new Error(`${packageDirectory} packed manifest must declare repository metadata.`)
   }
 
   if (
-    manifest.repository.type !== 'git' ||
-    manifest.repository.url !== REPOSITORY_URL ||
-    manifest.repository.directory !== packageDirectory
+    repository.type !== 'git' ||
+    repository.url !== REPOSITORY_URL ||
+    repository.directory !== packageDirectory
   ) {
     throw new Error(`${packageDirectory} packed manifest has incorrect repository metadata.`)
   }
@@ -194,12 +221,13 @@ function stringProperty(value: unknown, key: string) {
   return isObject(value) && typeof value[key] === 'string' ? value[key] : undefined
 }
 
-export function assertDualModuleExports(packageName: string, manifest: unknown) {
-  if (!isObject(manifest) || !isObject(manifest.exports)) {
+export function assertDualModuleExports(packageName: string, value: unknown) {
+  const exportMap = objectFields(packedManifestSchema, value)?.exports
+  if (!isObject(exportMap)) {
     throw new Error(`${packageName} packed manifest must declare exports.`)
   }
 
-  for (const [exportPath, target] of Object.entries(manifest.exports)) {
+  for (const [exportPath, target] of Object.entries(exportMap)) {
     if (exportPath.endsWith('.css')) continue
 
     if (
@@ -228,7 +256,8 @@ export function assertPackedWorkspaceDependencyRanges(
         : undefined
   if (!dependencyName) return
 
-  if (!isObject(manifest) || !isObject(manifest.dependencies)) {
+  const dependencies = objectFields(packedManifestSchema, manifest)?.dependencies
+  if (!isObject(dependencies)) {
     throw new Error(`${packageName} packed manifest must declare dependencies.`)
   }
 
@@ -241,7 +270,7 @@ export function assertPackedWorkspaceDependencyRanges(
     )
   }
 
-  if (manifest.dependencies[dependencyName] !== `^${packedDependency.version}`) {
+  if (dependencies[dependencyName] !== `^${packedDependency.version}`) {
     throw new Error(
       `${packageName} packed manifest must pack ${dependencyName} as a caret range for its packed version.`,
     )

@@ -2812,7 +2812,6 @@ export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
     };
 };
 export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'dangerText', 'warning', 'info', 'infoText', 'review', 'plan', 'progress', 'neutral'];
-export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
 export declare const EXTENSION_THEME_TYPE_SCALE_KEYS: readonly ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'];
 export declare const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS: readonly ['fontSize', 'lineHeight'];
 export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['unit'];
@@ -8113,7 +8112,6 @@ export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
     };
 };
 export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'dangerText', 'warning', 'info', 'infoText', 'review', 'plan', 'progress', 'neutral'];
-export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
 export declare const EXTENSION_THEME_TYPE_SCALE_KEYS: readonly ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'];
 export declare const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS: readonly ['fontSize', 'lineHeight'];
 export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['unit'];
@@ -12124,7 +12122,6 @@ export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
     };
 };
 export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'dangerText', 'warning', 'info', 'infoText', 'review', 'plan', 'progress', 'neutral'];
-export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
 export declare const EXTENSION_THEME_TYPE_SCALE_KEYS: readonly ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'];
 export declare const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS: readonly ['fontSize', 'lineHeight'];
 export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['unit'];

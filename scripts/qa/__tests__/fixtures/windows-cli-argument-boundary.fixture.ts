@@ -3,9 +3,10 @@ import path from 'node:path'
 import { app } from 'electron'
 import { applicationCliArguments } from '../../../../src/main/application-cli-arguments'
 import { prepareDesktopUi } from '../../../../src/main/desktop-window-policy'
+import { scriptEnv } from '../../../support/env'
 
 prepareDesktopUi()
-const directory = process.env.OPENWAGGLE_QA_CLI_BOUNDARY_DIR
+const directory = scriptEnv().OPENWAGGLE_QA_CLI_BOUNDARY_DIR
 if (!directory) throw new Error('CLI boundary fixture requires its private directory.')
 app.setPath('userData', path.join(directory, 'profile'))
 

@@ -5,14 +5,20 @@
  * reachable from the root tsconfig.json, or when any file loses rank on any flag. Build outputs
  * and node_modules leaving the set are not weaker.
  */
-import { type StrictnessRanks, STRICTNESS_FLAGS, strictest, strictnessRanks } from './flags'
+import {
+  type StrictnessOptions,
+  type StrictnessRanks,
+  STRICTNESS_FLAGS,
+  strictest,
+  strictnessRanks,
+} from './flags'
 
 export interface ProjectCoverage {
   /** Repository-relative path of the tsconfig file. */
   readonly config: string
   /** Repository-relative source files the project checks. */
   readonly files: readonly string[]
-  readonly options: Readonly<Record<string, unknown>>
+  readonly options: StrictnessOptions
 }
 
 export type Coverage = ReadonlyMap<string, StrictnessRanks>
@@ -54,7 +60,7 @@ export function weakening(before: Coverage, after: Coverage): Weakening {
       continue
     }
     for (const flag of STRICTNESS_FLAGS) {
-      if ((now[flag] ?? 0) >= (was[flag] ?? 0)) continue
+      if ((now.get(flag) ?? 0) >= (was.get(flag) ?? 0)) continue
       const files = droppedFlags.get(flag) ?? []
       files.push(file)
       droppedFlags.set(flag, files)

@@ -1,15 +1,31 @@
+import { Schema } from '@shared/schema'
 import { isObject } from './package-smoke-assertions'
+import { objectFields, unknownField } from './support/object-fields'
+
+/** The dependency sections of a packed manifest; each is a map keyed by package name. */
+const dependencyManifestSchema = Schema.Struct({
+  dependencies: unknownField,
+  devDependencies: unknownField,
+  optionalDependencies: unknownField,
+  peerDependencies: unknownField,
+  bundleDependencies: unknownField,
+  bundledDependencies: unknownField,
+  pi: unknownField,
+})
+type DependencyManifest = Schema.Schema.Type<typeof dependencyManifestSchema>
+
+/** A dependency section, read by package name. */
+function dependencyMap(value: unknown) {
+  return isObject(value) ? value : undefined
+}
 
 const MINIMUM_PACKAGE_SMOKE_NODE_MAJOR = 22
 const MINIMUM_PACKAGE_SMOKE_NODE_MINOR = 19
 
 export function assertReactPeerDependencies(manifest: unknown) {
-  const peerDependencies =
-    isObject(manifest) && isObject(manifest.peerDependencies)
-      ? manifest.peerDependencies
-      : undefined
-  const dependencies =
-    isObject(manifest) && isObject(manifest.dependencies) ? manifest.dependencies : undefined
+  const fields = objectFields(dependencyManifestSchema, manifest)
+  const peerDependencies = dependencyMap(fields?.peerDependencies)
+  const dependencies = dependencyMap(fields?.dependencies)
 
   for (const dependencyName of ['react', 'react-dom']) {
     if (peerDependencies?.[dependencyName] !== '^19.0.0') {
@@ -86,8 +102,9 @@ export function resolvePackageSmokeCatalogVersion(
   return version
 }
 
-export function findPackageDependencyVersion(manifest: unknown, dependencyName: string) {
-  if (!isObject(manifest)) return undefined
+export function findPackageDependencyVersion(value: unknown, dependencyName: string) {
+  const manifest = objectFields(dependencyManifestSchema, value)
+  if (manifest === undefined) return undefined
 
   const scopes = [manifest.dependencies, manifest.devDependencies, manifest.peerDependencies]
   for (const scope of scopes) {
@@ -172,9 +189,8 @@ const PI_HOST_PROVIDED_PACKAGES = [
 /** Manifest sections whose packages are installed as physical copies inside the package. */
 const INSTALLED_DEPENDENCY_SECTIONS = ['dependencies', 'optionalDependencies'] as const
 
-function bundledDependencyNames(manifest: Readonly<Record<string, unknown>>) {
-  for (const key of ['bundleDependencies', 'bundledDependencies']) {
-    const value = manifest[key]
+function bundledDependencyNames(manifest: DependencyManifest) {
+  for (const value of [manifest.bundleDependencies, manifest.bundledDependencies]) {
     if (Array.isArray(value)) {
       return value.filter((name): name is string => typeof name === 'string')
     }
@@ -182,9 +198,10 @@ function bundledDependencyNames(manifest: Readonly<Record<string, unknown>>) {
   return []
 }
 
-export function assertPiHostPackagesArePeers(packageName: string, manifest: unknown) {
-  if (!isObject(manifest) || !isObject(manifest.pi)) return
-  const peerDependencies = isObject(manifest.peerDependencies) ? manifest.peerDependencies : {}
+export function assertPiHostPackagesArePeers(packageName: string, value: unknown) {
+  const manifest = objectFields(dependencyManifestSchema, value)
+  if (manifest === undefined || !isObject(manifest.pi)) return
+  const peerDependencies = dependencyMap(manifest.peerDependencies) ?? {}
   const bundled = bundledDependencyNames(manifest)
   const problems: string[] = []
   for (const name of PI_HOST_PROVIDED_PACKAGES) {

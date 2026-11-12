@@ -4,6 +4,8 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import type { CheckStep, StepCommand } from './step-model'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 
 const BUN = process.execPath
 const REPOSITORY_ROOT = path.join(import.meta.dirname, '..', '..')
@@ -12,11 +14,12 @@ const REPOSITORY_ROOT = path.join(import.meta.dirname, '..', '..')
  * A root dependency's CLI entry from its manifest's `bin`. Read from node_modules directly: some
  * packages (react-doctor) export no package.json.
  */
+const binManifestSchema = Schema.Struct({ bin: unknownField })
+
 function packageBinEntry(packageName: string, bin: string) {
   const manifestPath = path.join(REPOSITORY_ROOT, 'node_modules', packageName, 'package.json')
   const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  const bins: unknown =
-    manifest !== null && typeof manifest === 'object' ? Reflect.get(manifest, 'bin') : undefined
+  const bins = objectFields(binManifestSchema, manifest)?.bin
   const entry: unknown = bins !== null && typeof bins === 'object' ? Reflect.get(bins, bin) : bins
   if (typeof entry !== 'string') throw new Error(`${packageName} has no "${bin}" bin`)
   return path.join(path.dirname(manifestPath), entry)

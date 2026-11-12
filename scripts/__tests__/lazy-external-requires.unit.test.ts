@@ -59,7 +59,7 @@ async function bundle(label: string, lazy: boolean) {
 
 function isRunnableBundle(value: unknown): value is { run: () => Promise<unknown> } {
   return (
-    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'run') === 'function'
+    typeof value === 'object' && value !== null && 'run' in value && typeof value.run === 'function'
   )
 }
 

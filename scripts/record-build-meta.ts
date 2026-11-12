@@ -15,7 +15,7 @@ export interface BuildMeta {
   readonly builtAt: string
 }
 
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
+function isObjectRecord(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -39,8 +39,9 @@ export function parseBuildMeta(raw: string): BuildMeta | null {
     return null
   }
   if (!isObjectRecord(parsed)) return null
-  const commit = parsed.commit
-  const builtAt = parsed.builtAt
+  // Narrowed with `in`: the build config loads this file before the `@shared` alias exists.
+  const commit = 'commit' in parsed ? parsed.commit : undefined
+  const builtAt = 'builtAt' in parsed ? parsed.builtAt : undefined
   return {
     commit: typeof commit === 'string' && commit.length > 0 ? commit : null,
     builtAt: typeof builtAt === 'string' ? builtAt : '',

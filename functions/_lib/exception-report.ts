@@ -41,15 +41,13 @@ function endpointCodeLocation(file: string) {
 export function stackFrames(stack: string | undefined): StackFrame[] {
   const frames: StackFrame[] = []
   for (const line of (stack ?? '').split('\n')) {
-    const groups = STACK_FRAME.exec(line)?.groups
-    if (groups?.file === undefined || groups.line === undefined || groups.column === undefined) {
-      continue
-    }
+    const { fn, file, line: lineNumber, column } = STACK_FRAME.exec(line)?.groups ?? {}
+    if (file === undefined || lineNumber === undefined || column === undefined) continue
     frames.push({
-      function: groups.fn ?? '<anonymous>',
-      filename: endpointCodeLocation(groups.file),
-      lineno: Number(groups.line),
-      colno: Number(groups.column),
+      function: fn ?? '<anonymous>',
+      filename: endpointCodeLocation(file),
+      lineno: Number(lineNumber),
+      colno: Number(column),
       in_app: true,
     })
   }

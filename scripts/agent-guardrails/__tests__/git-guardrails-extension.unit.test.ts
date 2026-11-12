@@ -17,7 +17,7 @@ afterAll(() => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-function call(toolName: string, input: Record<string, unknown>): ToolCall {
+function call(toolName: string, input: ToolCall['input']): ToolCall {
   return { type: 'tool_call', toolCallId: 'call-1', toolName, input }
 }
 

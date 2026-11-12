@@ -126,11 +126,10 @@ async function verifyInstalledState(input: {
   if (!windowsPathContains(installedUserPath, input.installDirectory)) {
     throw new Error('Windows installer did not add its CLI directory to the user PATH.')
   }
-  const freshPath = [installedUserPath, process.env.PATH ?? ''].filter(Boolean).join(';')
-  const environmentOverrides = {
-    PATH: freshPath,
-    PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD',
-  }
+  // Destructured: Windows spells it `Path`, and only process.env itself matches names case-insensitively.
+  const { PATH: currentPath = '', PATHEXT: pathExtensions = '.COM;.EXE;.BAT;.CMD' } = process.env
+  const freshPath = [installedUserPath, currentPath].filter(Boolean).join(';')
+  const environmentOverrides = { PATH: freshPath, PATHEXT: pathExtensions }
   const resolvedCommand = await input.findCommand('openwaggle', environmentOverrides)
   if (!resolvedCommand) throw new Error('Fresh shell did not resolve openwaggle.')
   const [canonicalResolvedCommand, canonicalCliShimPath] = await Promise.all([

@@ -1,5 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 /**
  * Reads the Pi session files a measured Run wrote (`<agent dir>/sessions/**.jsonl`): the tools each
@@ -25,12 +27,38 @@ export interface UsageTotals {
 
 const CODEMODE_TOOL_PATTERN = /tools\.([A-Za-z0-9_]+)\s*\(/g
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+/** The Pi session entry fields the summary reads; a field of another type reads as absent. */
+const sessionEntrySchema = Schema.Struct({
+  type: unknownField,
+  customType: unknownField,
+  message: unknownField,
+})
+const assistantMessageSchema = Schema.Struct({
+  role: Schema.Literal('assistant'),
+  usage: unknownField,
+  content: unknownField,
+})
+/** Pi's message usage; `cost.total` is its cost in US dollars. */
+const messageUsageSchema = Schema.Struct({
+  input: unknownField,
+  output: unknownField,
+  cacheRead: unknownField,
+  cacheWrite: unknownField,
+  cost: unknownField,
+})
+const usageCostSchema = Schema.Struct({ total: unknownField })
+const toolCallBlockSchema = Schema.Struct({
+  type: Schema.Literal('toolCall'),
+  name: Schema.String,
+  arguments: unknownField,
+})
+const codemodeArgumentsSchema = Schema.Struct({ code: Schema.String })
+const textBlockSchema = Schema.Struct({ type: Schema.Literal('text'), text: Schema.String })
 
-function numberField(record: Record<string, unknown>, key: string) {
-  const value = record[key]
+/** Pi's message usage as this module reads it. */
+export type MessageUsage = Schema.Schema.Type<typeof messageUsageSchema>
+
+function numberOrZero(value: unknown) {
   return typeof value === 'number' ? value : 0
 }
 
@@ -39,7 +67,8 @@ function parseLines(text: string) {
     if (line.trim() === '') return []
     try {
       const parsed: unknown = JSON.parse(line)
-      return isRecord(parsed) ? [parsed] : []
+      const entry = objectFields(sessionEntrySchema, parsed)
+      return entry === undefined ? [] : [entry]
     } catch {
       return []
     }
@@ -50,11 +79,8 @@ function parseLines(text: string) {
 function toolNamesOf(content: unknown) {
   if (!Array.isArray(content)) return []
   return content.flatMap((block: unknown) => {
-    if (!isRecord(block) || block.type !== 'toolCall' || typeof block.name !== 'string') {
-      return []
-    }
-    const args = isRecord(block.arguments) ? block.arguments : {}
-    const code = typeof args.code === 'string' ? args.code : ''
+    if (!Schema.is(toolCallBlockSchema)(block)) return []
+    const code = objectFields(codemodeArgumentsSchema, block.arguments)?.code ?? ''
     const nested = [...code.matchAll(CODEMODE_TOOL_PATTERN)].map(
       (match) => `codemode:${match[1] ?? ''}`,
     )
@@ -65,9 +91,7 @@ function toolNamesOf(content: unknown) {
 function textOf(content: unknown) {
   if (!Array.isArray(content)) return typeof content === 'string' ? content : ''
   return content
-    .map((block: unknown) =>
-      isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? block.text : '',
-    )
+    .map((block: unknown) => (Schema.is(textBlockSchema)(block) ? block.text : ''))
     .join('')
 }
 
@@ -75,12 +99,12 @@ export function emptyUsage(): UsageTotals {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 }
 }
 
-export function addUsage(totals: UsageTotals, usage: Record<string, unknown>) {
-  totals.input += numberField(usage, 'input')
-  totals.output += numberField(usage, 'output')
-  totals.cacheRead += numberField(usage, 'cacheRead')
-  totals.cacheWrite += numberField(usage, 'cacheWrite')
-  totals.costUsd += isRecord(usage.cost) ? numberField(usage.cost, 'total') : 0
+export function addUsage(totals: UsageTotals, usage: MessageUsage) {
+  totals.input += numberOrZero(usage.input)
+  totals.output += numberOrZero(usage.output)
+  totals.cacheRead += numberOrZero(usage.cacheRead)
+  totals.cacheWrite += numberOrZero(usage.cacheWrite)
+  totals.costUsd += numberOrZero(objectFields(usageCostSchema, usage.cost)?.total)
 }
 
 export function summarizeSessionFile(file: string, text: string): SessionTranscriptSummary {
@@ -99,10 +123,11 @@ export function summarizeSessionFile(file: string, text: string): SessionTranscr
     ) {
       isRoot = false
     }
-    const message = isRecord(entry.message) ? entry.message : null
-    if (entry.type !== 'message' || message?.role !== 'assistant') continue
+    const message = objectFields(assistantMessageSchema, entry.message)
+    if (entry.type !== 'message' || message === undefined) continue
     modelCalls += 1
-    if (isRecord(message.usage)) addUsage(usage, message.usage)
+    const messageUsage = objectFields(messageUsageSchema, message.usage)
+    if (messageUsage !== undefined) addUsage(usage, messageUsage)
     toolNames.push(...toolNamesOf(message.content))
     const text = textOf(message.content).trim()
     if (text.length > 0) finalText = text

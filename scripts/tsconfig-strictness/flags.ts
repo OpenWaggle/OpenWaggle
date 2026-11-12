@@ -3,7 +3,6 @@
  * is stricter. no-cheating/tsconfig compares ranks: a tsconfig change may raise a file's rank on a
  * flag or keep it, never lower it. `types` and `lib` are not strictness: narrowing them is allowed.
  */
-type Options = Readonly<Record<string, unknown>>
 
 const ON = 1
 const OFF = 0
@@ -51,40 +50,49 @@ const WEAKER_WHEN_ON = ['skipLibCheck', 'skipDefaultLibCheck', 'noCheck'] as con
 /** Flags whose `false` errors, unset warns and `true` allows. */
 const ERROR_WHEN_FALSE = ['allowUnreachableCode', 'allowUnusedLabels'] as const
 
-export const STRICTNESS_FLAGS: readonly string[] = [
+export const STRICTNESS_FLAGS = [
   'strict',
   ...STRICT_FAMILY,
   ...STRICT_WHEN_ON,
   'forceConsistentCasingInFileNames',
   ...WEAKER_WHEN_ON,
   ...ERROR_WHEN_FALSE,
-]
+] as const
 
-export type StrictnessRanks = Readonly<Record<string, number>>
+export type StrictnessFlag = (typeof STRICTNESS_FLAGS)[number]
+
+/** The resolved compiler options a rank reads: each strictness flag, unchecked. */
+export type StrictnessOptions = Readonly<Partial<Record<StrictnessFlag, unknown>>>
+
+/** The rank of each strictness flag. */
+export type StrictnessRanks = ReadonlyMap<StrictnessFlag, number>
 
 function rank(value: boolean) {
   return value ? ON : OFF
 }
 
 /** The rank of every strictness flag under one project's resolved compiler options. */
-export function strictnessRanks(options: Options): StrictnessRanks {
+export function strictnessRanks(options: StrictnessOptions): StrictnessRanks {
   const strict = options.strict ?? STRICT_DEFAULT
-  const ranks: Record<string, number> = { strict: rank(strict === true) }
-  for (const flag of STRICT_FAMILY) ranks[flag] = rank((options[flag] ?? strict) === true)
-  for (const flag of STRICT_WHEN_ON) ranks[flag] = rank(options[flag] === true)
+  const ranks = new Map<StrictnessFlag, number>([['strict', rank(strict === true)]])
+  for (const flag of STRICT_FAMILY) ranks.set(flag, rank((options[flag] ?? strict) === true))
+  for (const flag of STRICT_WHEN_ON) ranks.set(flag, rank(options[flag] === true))
   // On by default since TypeScript 5.
-  ranks.forceConsistentCasingInFileNames = rank(options.forceConsistentCasingInFileNames !== false)
-  for (const flag of WEAKER_WHEN_ON) ranks[flag] = rank(options[flag] !== true)
+  ranks.set(
+    'forceConsistentCasingInFileNames',
+    rank(options.forceConsistentCasingInFileNames !== false),
+  )
+  for (const flag of WEAKER_WHEN_ON) ranks.set(flag, rank(options[flag] !== true))
   for (const flag of ERROR_WHEN_FALSE) {
     const value = options[flag]
-    ranks[flag] = value === false ? ERRORS : value === undefined ? WARNS : OFF
+    ranks.set(flag, value === false ? ERRORS : value === undefined ? WARNS : OFF)
   }
   return ranks
 }
 
 /** The stricter of two rank sets, flag by flag: a file checked by both gets both checks. */
 export function strictest(left: StrictnessRanks, right: StrictnessRanks): StrictnessRanks {
-  return Object.fromEntries(
-    STRICTNESS_FLAGS.map((flag) => [flag, Math.max(left[flag] ?? OFF, right[flag] ?? OFF)]),
+  return new Map(
+    STRICTNESS_FLAGS.map((flag) => [flag, Math.max(left.get(flag) ?? OFF, right.get(flag) ?? OFF)]),
   )
 }

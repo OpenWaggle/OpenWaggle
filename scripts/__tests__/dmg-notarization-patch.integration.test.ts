@@ -10,6 +10,10 @@ function dmgBuilderRequire() {
   return createRequire(electronBuilderRequire.resolve('app-builder-lib/package.json'))
 }
 
+function isObject(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
 describe('DMG signing and notarization', () => {
   it('asks electron-builder to sign the DMG, not only the app inside it', () => {
     expect(config.dmg).toEqual({ sign: true })
@@ -30,11 +34,11 @@ describe('DMG signing and notarization', () => {
 
   it('reports an unsigned DMG, so an unsigned build is never sent for notarization', async () => {
     const dmg: unknown = dmgBuilderRequire()('dmg-builder/out/dmg')
-    const target: unknown = Reflect.get(Object(dmg), 'DmgTarget')
-    const signDmg: unknown = Reflect.get(
-      Object(Reflect.get(Object(target), 'prototype')),
-      'signDmg',
-    )
+    const target: unknown = isObject(dmg) && 'DmgTarget' in dmg ? dmg.DmgTarget : undefined
+    const prototype: unknown =
+      typeof target === 'function' && 'prototype' in target ? target.prototype : undefined
+    const signDmg: unknown =
+      isObject(prototype) && 'signDmg' in prototype ? prototype.signDmg : undefined
     expect(typeof signDmg).toBe('function')
     const unsignedTarget = { packager: { platformSpecificBuildOptions: { identity: null } } }
     if (typeof signDmg !== 'function') return

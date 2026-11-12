@@ -73,7 +73,7 @@ describe('the coverage index', () => {
     expect(result.files).toEqual(whole.files)
     expect(result.units).toEqual(whole.units)
     // Two coverers are enough to tell a shared unit.
-    expect(result.units.shared).toHaveLength(2)
+    expect(result.units).toHaveProperty(['shared', 'length'], 2)
     expect(isCoverageIndex(JSON.parse(JSON.stringify(result)))).toBe(true)
     expect(isCoverageIndex({ version: 0, files: [], failed: [], units: {} })).toBe(false)
   })

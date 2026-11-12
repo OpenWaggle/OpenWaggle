@@ -1,3 +1,6 @@
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../../support/object-fields'
+
 /** A minimal Chrome DevTools Protocol client for a Node inspector (the Electron main process). */
 export interface CdpClient {
   readonly send: (method: string, params?: object) => Promise<unknown>
@@ -7,9 +10,17 @@ export interface CdpClient {
 
 const INSPECTOR_POLL_MS = 50
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+const inspectorTargetSchema = Schema.Struct({ webSocketDebuggerUrl: Schema.String })
+/** A CDP message that answers a request: its `id`. */
+const cdpResponseSchema = Schema.Struct({ id: Schema.Number })
+/** A `Runtime.evaluate` response: the remote object, or the exception it threw. */
+const evaluateResponseSchema = Schema.Struct({
+  result: Schema.Struct({
+    result: unknownField,
+    exceptionDetails: unknownField,
+  }),
+})
+const remoteObjectSchema = Schema.Struct({ value: unknownField })
 
 async function inspectorWebSocketUrl(port: number, deadline: number) {
   while (Date.now() < deadline) {
@@ -19,8 +30,7 @@ async function inspectorWebSocketUrl(port: number, deadline: number) {
       if (response.ok) {
         const targets: unknown = await response.json()
         const first: unknown = Array.isArray(targets) ? targets[0] : null
-        const url = isRecord(first) ? first.webSocketDebuggerUrl : null
-        if (typeof url === 'string') return url
+        if (Schema.is(inspectorTargetSchema)(first)) return first.webSocketDebuggerUrl
       }
     } catch {
       // The inspector is not listening yet.
@@ -42,7 +52,7 @@ export async function connectInspector(port: number, timeoutMs: number): Promise
   const pending = new Map<number, (value: unknown) => void>()
   socket.addEventListener('message', (event) => {
     const message: unknown = JSON.parse(String(event.data))
-    if (!isRecord(message) || typeof message.id !== 'number') return
+    if (!Schema.is(cdpResponseSchema)(message)) return
     pending.get(message.id)?.(message)
     pending.delete(message.id)
   })
@@ -58,12 +68,11 @@ export async function connectInspector(port: number, timeoutMs: number): Promise
       awaitPromise: true,
       returnByValue: true,
     })
-    const result = isRecord(response) ? response.result : null
-    const remote = isRecord(result) ? result.result : null
-    if (isRecord(result) && result.exceptionDetails) {
+    const result = objectFields(evaluateResponseSchema, response)?.result
+    if (result?.exceptionDetails) {
       throw new Error(`Main-process evaluation failed: ${JSON.stringify(result.exceptionDetails)}`)
     }
-    return isRecord(remote) ? remote.value : undefined
+    return objectFields(remoteObjectSchema, result?.result)?.value
   }
   return { send, evaluate, close: () => socket.close() }
 }

@@ -2,6 +2,7 @@
  * Command-line options of the check runner (scripts/check/run.ts).
  */
 import os from 'node:os'
+import { scriptEnv } from '../support/env'
 
 export const DEFAULT_BASE = 'origin/main'
 const CORES_PER_STEP = 2
@@ -70,7 +71,7 @@ const SWITCHES: Readonly<Record<string, (options: Mutable<RunOptions>) => void>>
 }
 
 function initialConcurrency(environment: NodeJS.ProcessEnv) {
-  const fromEnvironment = Number(environment.CHECK_CONCURRENCY)
+  const fromEnvironment = Number(scriptEnv(environment).CHECK_CONCURRENCY)
   return Number.isInteger(fromEnvironment) && fromEnvironment > 0
     ? fromEnvironment
     : defaultConcurrency()

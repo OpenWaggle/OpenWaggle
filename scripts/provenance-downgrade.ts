@@ -5,6 +5,8 @@
  */
 
 import type { ProvenanceDowngradeException } from './provenance-downgrade-policy'
+import { Schema } from '@shared/schema'
+import { objectEntries, objectFields, unknownField } from './support/object-fields'
 
 /** What the check needs from one package's registry metadata. */
 export interface PackageProvenance {
@@ -40,9 +42,12 @@ export interface ProvenanceEvaluation {
 const DAY_MS = 86_400_000
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const packumentVersionsSchema = Schema.Struct({ versions: unknownField })
+const packumentTimeSchema = Schema.Struct({ time: unknownField })
+/** A packument version whose `dist.attestations.provenance` is an object. */
+const attestedManifestSchema = Schema.Struct({
+  dist: Schema.Struct({ attestations: Schema.Struct({ provenance: Schema.Object }) }),
+})
 
 /**
  * Which versions of an abbreviated packument (`Accept: application/vnd.npm.install-v1+json`)
@@ -52,25 +57,26 @@ export function parseAbbreviatedPackument(
   document: unknown,
   name: string,
 ): Record<string, boolean> {
-  if (!isRecord(document) || !isRecord(document.versions)) {
+  const packumentVersions = objectFields(packumentVersionsSchema, document)?.versions
+  const versionEntries = objectEntries(packumentVersions)
+  if (versionEntries === undefined) {
     throw new Error(`The registry metadata for ${name} has no versions object.`)
   }
   const versions: Record<string, boolean> = {}
-  for (const [version, manifest] of Object.entries(document.versions)) {
-    const dist = isRecord(manifest) ? manifest.dist : undefined
-    const attestations = isRecord(dist) ? dist.attestations : undefined
-    versions[version] = isRecord(attestations) && isRecord(attestations.provenance)
+  for (const [version, manifest] of versionEntries) {
+    versions[version] = Schema.is(attestedManifestSchema)(manifest)
   }
   return versions
 }
 
 /** The publish times of the full packument, by version. */
 export function parsePublishTimes(document: unknown, name: string): Record<string, string> {
-  if (!isRecord(document) || !isRecord(document.time)) {
+  const timeEntries = objectEntries(objectFields(packumentTimeSchema, document)?.time)
+  if (timeEntries === undefined) {
     throw new Error(`The registry metadata for ${name} has no time object.`)
   }
   return Object.fromEntries(
-    Object.entries(document.time).filter(
+    timeEntries.filter(
       (entry): entry is [string, string] => VERSION.test(entry[0]) && typeof entry[1] === 'string',
     ),
   )

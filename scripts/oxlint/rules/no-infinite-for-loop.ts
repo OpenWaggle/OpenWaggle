@@ -1,9 +1,4 @@
-import type { Node, Rule } from '@oxlint/plugins'
-import { property } from '../ast-helpers.ts'
-
-function isMissing(value: unknown) {
-  return value === null || value === undefined
-}
+import type { Rule } from '@oxlint/plugins'
 
 export const noInfiniteForLoopRule: Rule = {
   meta: {
@@ -15,12 +10,8 @@ export const noInfiniteForLoopRule: Rule = {
   },
   create(context) {
     return {
-      ForStatement(node: Node) {
-        if (
-          isMissing(property(node, 'init')) &&
-          isMissing(property(node, 'test')) &&
-          isMissing(property(node, 'update'))
-        ) {
+      ForStatement(node) {
+        if (node.init === null && node.test === null && node.update === null) {
           context.report({
             node,
             messageId: 'noInfiniteForLoop',

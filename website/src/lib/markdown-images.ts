@@ -3,11 +3,17 @@
 // DocsImageLightbox.astro enhances the link into an in-page dialog.
 
 // Only the fields this plugin reads. `@types/hast` is not a website dependency, so it is not imported.
+interface HastProperties {
+  src?: unknown
+  href?: unknown
+  className?: unknown
+}
+
 interface HastNode {
   type: string
   tagName?: string
   value?: string
-  properties?: Record<string, unknown>
+  properties?: HastProperties
   children?: HastNode[]
 }
 

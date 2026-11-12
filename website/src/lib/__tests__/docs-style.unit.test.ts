@@ -10,7 +10,8 @@ import { docsPageFiles } from './docs-page-files'
 // Pending package lines (src/content/package-docs-next/) are checked as `packages/<package>/next/<page>`,
 // because Release Please promotes them into the docs unchanged.
 
-const ONLY = (process.env.DOCS_STYLE_ONLY ?? '')
+const { DOCS_STYLE_ONLY } = process.env
+const ONLY = (DOCS_STYLE_ONLY ?? '')
   .split(',')
   .map((prefix) => prefix.trim())
   .filter((prefix) => prefix.length > 0)

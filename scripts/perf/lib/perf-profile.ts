@@ -7,6 +7,7 @@ import { prepareQaProfileRemoval, shutdownSessionHostForQa } from '../../qa/sess
 import { buildSafeElectronEnvironment } from '../../safe-electron-environment'
 import { interruptCleanup } from './interrupt-cleanup'
 import { processTree, profileHostPids } from './perf-processes'
+import { scriptEnv } from '../../support/env'
 
 /**
  * A throwaway OpenWaggle profile: its own user data, HOME and Pi agent directory, so a measured
@@ -73,7 +74,7 @@ export async function createPerfProfile(options: PerfProfileOptions): Promise<Pe
   liveProfiles.set(
     root,
     interruptCleanup.register('profile', () =>
-      disposePerfProfile(profile, process.env.OWPERF_KEEP_PROFILE === '1'),
+      disposePerfProfile(profile, scriptEnv().OWPERF_KEEP_PROFILE === '1'),
     ),
   )
   return profile
@@ -90,6 +91,7 @@ export function profileEnvironment(
   // The measured Host keeps its scratch directories (and their sweeps) under this harness's own
   // temp directory, never under a temp directory another Host shares.
   const temporaryDirectory = os.tmpdir()
+  const env = scriptEnv()
   return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
     TMPDIR: temporaryDirectory,
@@ -102,11 +104,11 @@ export function profileEnvironment(
     OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1',
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: profile.projectPath,
-    ...(process.env.OWPERF_LOG_LEVEL ? { OPENWAGGLE_LOG_LEVEL: process.env.OWPERF_LOG_LEVEL } : {}),
+    ...(env.OWPERF_LOG_LEVEL ? { OPENWAGGLE_LOG_LEVEL: env.OWPERF_LOG_LEVEL } : {}),
     // A stable V8 compile cache across launches of one series (boot shim, W2); without it every
     // throwaway profile starts with a cold cache, as the first launch after an update does.
-    ...(process.env.OWPERF_COMPILE_CACHE_DIR
-      ? { OPENWAGGLE_COMPILE_CACHE_DIR: process.env.OWPERF_COMPILE_CACHE_DIR }
+    ...(env.OWPERF_COMPILE_CACHE_DIR
+      ? { OPENWAGGLE_COMPILE_CACHE_DIR: env.OWPERF_COMPILE_CACHE_DIR }
       : {}),
     ...overrides,
   })

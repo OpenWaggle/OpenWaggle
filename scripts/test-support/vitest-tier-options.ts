@@ -61,8 +61,10 @@ export const COMPONENT_TIER_TIMEOUTS = {} as const
  */
 export const DEFAULT_TEST_TIME_ZONE = 'Pacific/Kiritimati'
 
-export function testTimeZone(environment: NodeJS.ProcessEnv = process.env) {
-  return environment.OPENWAGGLE_TEST_TIME_ZONE || DEFAULT_TEST_TIME_ZONE
+// Env reads here destructure rather than decode: Vitest loads this file with its config, before
+// the `@shared` alias exists.
+export function testTimeZone({ OPENWAGGLE_TEST_TIME_ZONE: zone }: NodeJS.ProcessEnv = process.env) {
+  return zone || DEFAULT_TEST_TIME_ZONE
 }
 
 /** The `test.env` entry that pins it; the machine's own `TZ` does not reach the tests. */
@@ -72,9 +74,10 @@ export const TEST_TIME_ZONE_ENV = { TZ: testTimeZone() } as const
  * The test tiers' reporters: the compact reporter (one line when green, `file:line:col` per
  * failure), plus GitHub annotations in Actions. `--reporter=default` restores Vitest's own output.
  */
+const { GITHUB_ACTIONS: githubActions } = process.env
 export const TEST_REPORTERS = [
   './scripts/test-support/vitest-compact-reporter.ts',
-  ...(process.env.GITHUB_ACTIONS === 'true' ? ['github-actions'] : []),
+  ...(githubActions === 'true' ? ['github-actions'] : []),
 ]
 
 /*

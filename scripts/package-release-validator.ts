@@ -1,6 +1,7 @@
 import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { Schema } from '@shared/schema'
 import { GATES, STEPS } from './check/steps'
 import {
   CHECK_RUNNER_SCRIPT,
@@ -14,6 +15,7 @@ import {
   validateSessionPerformanceCiPolicy,
 } from './release-ci-performance-policy'
 import { RELEASE_PLEASE_CONTRACT } from './release-please-contract'
+import { objectFields, unknownField } from './support/object-fields'
 import { validateReleasePleaseRuntimeContract } from './release-please-runtime-contract'
 
 const BOOTSTRAP_SOURCE_VERSION = '0.0.0'
@@ -135,9 +137,18 @@ function validateExactPackagePaths(
   }
 }
 
+const releasePluginSchema = Schema.Struct({ type: Schema.String })
+const releasePleaseConfigSchema = Schema.Struct({ plugins: unknownField })
+const releasePleasePackageSchema = Schema.Struct({ component: unknownField })
+/** The `package.json` fields the release metadata checks read. */
+const packageJsonFieldsSchema = Schema.Struct({ name: unknownField, version: unknownField })
+const publishConfigSchema = Schema.Struct({ access: unknownField })
+const enginesSchema = Schema.Struct({ node: unknownField })
+const rootScriptsSchema = Schema.Struct({ check: unknownField })
+
 function pluginType(plugin: unknown) {
   if (typeof plugin === 'string') return plugin
-  return isJsonObject(plugin) && typeof plugin.type === 'string' ? plugin.type : undefined
+  return objectFields(releasePluginSchema, plugin)?.type
 }
 
 function validateReleasePleaseConfig(config: JsonObject | undefined, violations: string[]) {
@@ -177,7 +188,8 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
     ],
   ]
   for (const [condition, message] of requirements) addViolation(condition, message, violations)
-  const plugins = Array.isArray(config.plugins) ? config.plugins.map(pluginType) : []
+  const configuredPlugins = objectFields(releasePleaseConfigSchema, config)?.plugins
+  const plugins = Array.isArray(configuredPlugins) ? configuredPlugins.map(pluginType) : []
   addViolation(
     !plugins.includes('node-workspace'),
     `${CONFIG_PATH} must enable the node-workspace plugin for dependent bumps.`,
@@ -203,7 +215,7 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
       violations,
     )
     addViolation(
-      packageConfig.component !== expected.component,
+      objectFields(releasePleasePackageSchema, packageConfig)?.component !== expected.component,
       `${CONFIG_PATH} ${expected.path} must set short component.`,
       violations,
     )
@@ -238,10 +250,11 @@ async function validatePackageMetadata(
     const packageJsonPath = `${expected.path}/package.json`
     const packageJson = await readJsonFile(projectRoot, packageJsonPath, violations)
     if (packageJson === undefined) continue
-    const version = packageJson.version
+    const fields = objectFields(packageJsonFieldsSchema, packageJson)
+    const version = fields?.version
     const manifestVersion = manifest?.[expected.path]
     addViolation(
-      packageJson.name !== expected.name,
+      fields?.name !== expected.name,
       `${packageJsonPath} must use package name ${expected.name}.`,
       violations,
     )
@@ -261,12 +274,13 @@ async function validatePackageMetadata(
       violations,
     )
     addViolation(
-      getObject(packageJson, 'publishConfig')?.access !== 'public',
+      objectFields(publishConfigSchema, getObject(packageJson, 'publishConfig'))?.access !==
+        'public',
       `${packageJsonPath} must declare publishConfig.access public.`,
       violations,
     )
     addViolation(
-      getObject(packageJson, 'engines')?.node !== '>=22.19.0',
+      objectFields(enginesSchema, getObject(packageJson, 'engines'))?.node !== '>=22.19.0',
       `${packageJsonPath} must require Node.js >=22.19.0.`,
       violations,
     )
@@ -295,7 +309,7 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   const scripts = packageJson === undefined ? undefined : getObject(packageJson, 'scripts')
   const devDependencies =
     packageJson === undefined ? undefined : getObject(packageJson, 'devDependencies')
-  const checkScript = scripts?.check
+  const checkScript = objectFields(rootScriptsSchema, scripts)?.check
   if (typeof checkScript !== 'string') {
     violations.push(`${ROOT_PACKAGE_PATH} scripts.check must exist.`)
     return

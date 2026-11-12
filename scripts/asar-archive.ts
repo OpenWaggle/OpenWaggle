@@ -7,6 +7,8 @@
  * JSON length, JSON). File data starts right after the header pickle, at the offsets the JSON gives.
  */
 import fs from 'node:fs/promises'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 interface AsarFileEntry {
   readonly size: number
@@ -24,22 +26,34 @@ const JSON_OFFSET = 16
 const DATA_BASE_OFFSET = 8
 const MAX_HEADER_BYTES = 256 * 1024 * 1024
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+function isRecord(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function fileEntry(node: Readonly<Record<string, unknown>>, location: string): AsarFileEntry {
-  if (typeof node.size !== 'number') throw new Error(`asar entry ${location} has no size.`)
-  if (node.unpacked === true) return { size: node.size, offset: null }
-  const offset = Number(node.offset)
-  if (typeof node.offset !== 'string' || !Number.isSafeInteger(offset)) {
+/** One asar header node: a file (`size`, `offset`, `unpacked`), a link, or a directory (`files`). */
+const headerNodeSchema = Schema.Struct({
+  size: unknownField,
+  offset: unknownField,
+  unpacked: unknownField,
+  link: unknownField,
+  files: unknownField,
+})
+type HeaderNode = Schema.Schema.Type<typeof headerNodeSchema>
+
+function fileEntry(node: HeaderNode, location: string): AsarFileEntry {
+  const { size, offset: offsetText } = node
+  if (typeof size !== 'number') throw new Error(`asar entry ${location} has no size.`)
+  if (node.unpacked === true) return { size, offset: null }
+  const offset = Number(offsetText)
+  if (typeof offsetText !== 'string' || !Number.isSafeInteger(offset)) {
     throw new Error(`asar entry ${location} has no valid offset.`)
   }
-  return { size: node.size, offset }
+  return { size, offset }
 }
 
-function collectFiles(node: unknown, location: string, files: Map<string, AsarFileEntry>) {
-  if (!isRecord(node)) throw new Error(`asar entry ${location || '/'} is malformed.`)
+function collectFiles(value: unknown, location: string, files: Map<string, AsarFileEntry>) {
+  const node = objectFields(headerNodeSchema, value)
+  if (node === undefined) throw new Error(`asar entry ${location || '/'} is malformed.`)
   if (node.link !== undefined) return
   if (node.files === undefined) {
     files.set(location, fileEntry(node, location))

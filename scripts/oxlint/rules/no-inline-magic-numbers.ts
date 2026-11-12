@@ -1,5 +1,5 @@
-import type { Context, Node, Rule } from '@oxlint/plugins'
-import { isTestFilename, nodeType, parentOf, property } from '../ast-helpers.ts'
+import type { Context, ESTree, Rule } from '@oxlint/plugins'
+import { isTestFilename } from '../ast-helpers.ts'
 
 const NEGATIVE_ONE_LITERAL = '-1'
 const NEGATIVE_ZERO_LITERAL = '-0'
@@ -7,29 +7,12 @@ const ONE_LITERAL = '1'
 const ZERO_LITERAL = '0'
 const DISALLOWED_EXTRACTION_COMMENT = 'Extracted from inlined numeric' + ' literal'
 
-function literalRaw(node: Node) {
-  const raw = property(node, 'raw')
-  return typeof raw === 'string' ? raw : null
+function isNumericLiteral(node: ESTree.Node | null): node is ESTree.NumericLiteral {
+  return node?.type === 'Literal' && typeof node.value === 'number'
 }
 
-function literalValue(node: Node) {
-  return property(node, 'value')
-}
-
-function isNumericLiteral(node: Node) {
-  return nodeType(node) === 'Literal' && typeof literalValue(node) === 'number'
-}
-
-function isUnaryNegativeNumericLiteral(node: Node) {
-  return (
-    nodeType(node) === 'UnaryExpression' &&
-    property(node, 'operator') === '-' &&
-    isNumericLiteralArgument(property(node, 'argument'))
-  )
-}
-
-function isNumericLiteralArgument(value: unknown): value is Node {
-  return nodeType(value) === 'Literal' && typeof property(value, 'value') === 'number'
+function isUnaryNegativeNumericLiteral(node: ESTree.UnaryExpression) {
+  return node.operator === '-' && isNumericLiteral(node.argument)
 }
 
 function shouldIgnoreLiteralValue(literalText: string) {
@@ -45,51 +28,45 @@ function isScreamingSnakeCase(name: string) {
   return /^[A-Z][A-Z0-9_]*$/.test(name)
 }
 
-function isInTypePosition(node: Node) {
-  let current = parentOf(node)
+function isInTypePosition(node: ESTree.Node) {
+  let current = node.parent
 
   while (current) {
-    const type = nodeType(current)
-    if (type?.startsWith('TS')) {
+    if (current.type.startsWith('TS')) {
       return true
     }
-    current = parentOf(current)
+    current = current.parent
   }
 
   return false
 }
 
-function isInEnumDeclaration(node: Node) {
-  let current = parentOf(node)
+function isInEnumDeclaration(node: ESTree.Node) {
+  let current = node.parent
 
   while (current) {
-    if (nodeType(current) === 'TSEnumDeclaration') {
+    if (current.type === 'TSEnumDeclaration') {
       return true
     }
-    current = parentOf(current)
+    current = current.parent
   }
 
   return false
 }
 
-function isWithinNamedConstantInitializer(node: Node) {
-  let current: unknown = node
+function isWithinNamedConstantInitializer(node: ESTree.Node) {
+  let current: ESTree.Node = node
 
-  while (current) {
-    const parent = parentOf(current)
-    if (!parent) {
-      return false
-    }
-
-    if (nodeType(parent) === 'VariableDeclarator' && property(parent, 'init') === current) {
-      const declaration = parentOf(parent)
-      const name = property(property(parent, 'id'), 'name')
+  while (current.parent) {
+    const { parent } = current
+    if (parent.type === 'VariableDeclarator' && parent.init === current) {
+      const declaration = parent.parent
 
       return (
-        nodeType(declaration) === 'VariableDeclaration' &&
-        property(declaration, 'kind') === 'const' &&
-        typeof name === 'string' &&
-        isScreamingSnakeCase(name)
+        declaration.type === 'VariableDeclaration' &&
+        declaration.kind === 'const' &&
+        parent.id.type === 'Identifier' &&
+        isScreamingSnakeCase(parent.id.name)
       )
     }
 
@@ -99,17 +76,19 @@ function isWithinNamedConstantInitializer(node: Node) {
   return false
 }
 
-function unaryLiteralText(node: Node) {
-  const argument = property(node, 'argument')
-  if (!isNumericLiteralArgument(argument)) {
+function unaryLiteralText(node: ESTree.UnaryExpression) {
+  const { argument } = node
+  if (!isNumericLiteral(argument)) {
     return null
   }
 
-  const raw = literalRaw(argument)
-  return raw ? `-${raw}` : null
+  return argument.raw ? `-${argument.raw}` : null
 }
 
-function reportIfMagicNumber(node: Node, context: Context) {
+function reportIfMagicNumber(
+  node: ESTree.NumericLiteral | ESTree.UnaryExpression,
+  context: Context,
+) {
   if (
     isInTypePosition(node) ||
     isInEnumDeclaration(node) ||
@@ -118,9 +97,7 @@ function reportIfMagicNumber(node: Node, context: Context) {
     return
   }
 
-  const literalText = isUnaryNegativeNumericLiteral(node)
-    ? unaryLiteralText(node)
-    : literalRaw(node)
+  const literalText = node.type === 'UnaryExpression' ? unaryLiteralText(node) : node.raw
   if (!literalText || shouldIgnoreLiteralValue(literalText)) {
     return
   }
@@ -150,8 +127,8 @@ export const noInlineMagicNumbersRule: Rule = {
     }
 
     return {
-      Literal(node: Node) {
-        if (!isNumericLiteral(node) || nodeType(parentOf(node)) === 'UnaryExpression') {
+      Literal(node) {
+        if (!isNumericLiteral(node) || node.parent.type === 'UnaryExpression') {
           return
         }
 
@@ -167,7 +144,7 @@ export const noInlineMagicNumbersRule: Rule = {
           }
         }
       },
-      UnaryExpression(node: Node) {
+      UnaryExpression(node) {
         if (isUnaryNegativeNumericLiteral(node)) {
           reportIfMagicNumber(node, context)
         }

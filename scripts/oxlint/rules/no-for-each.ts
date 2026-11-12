@@ -1,29 +1,24 @@
-import type { Node, Rule } from '@oxlint/plugins'
-import { hasNodeType, isUnknownArray, property } from '../ast-helpers.ts'
+import type { ESTree, Rule } from '@oxlint/plugins'
 
-const FUNCTION_TYPES = new Set(['ArrowFunctionExpression', 'FunctionExpression'])
 const INDEX_PARAMETER_COUNT = 2
 
-function calledMemberName(callee: unknown) {
-  if (!hasNodeType(callee, 'MemberExpression')) {
+/** The member a call names: `.name`, or a string literal key (`['name']`). */
+function calledMemberName(callee: ESTree.Expression) {
+  if (callee.type !== 'MemberExpression') {
     return null
   }
-  const key = property(callee, 'property')
-  if (property(callee, 'computed') !== true) {
-    const name = property(key, 'name')
-    return typeof name === 'string' ? name : null
+  if (callee.computed) {
+    const key = callee.property
+    return key.type === 'Literal' && typeof key.value === 'string' ? key.value : null
   }
-  const value = property(key, 'value')
-  return typeof value === 'string' ? value : null
+  return callee.property.name
 }
 
-function callbackIgnoresIndex(callback: unknown) {
-  const type = property(callback, 'type')
-  if (typeof type !== 'string' || !FUNCTION_TYPES.has(type)) {
+function callbackIgnoresIndex(callback: ESTree.Argument | undefined) {
+  if (callback?.type !== 'ArrowFunctionExpression' && callback?.type !== 'FunctionExpression') {
     return false
   }
-  const params = property(callback, 'params')
-  return isUnknownArray(params) && params.length < INDEX_PARAMETER_COUNT
+  return callback.params.length < INDEX_PARAMETER_COUNT
 }
 
 // Ports Biome's complexity/noForEach: any `.forEach(callback)` whose inline callback does not
@@ -39,12 +34,11 @@ export const noForEachRule: Rule = {
   },
   create(context) {
     return {
-      CallExpression(node: Node) {
-        const args = property(node, 'arguments')
-        if (calledMemberName(property(node, 'callee')) !== 'forEach' || !isUnknownArray(args)) {
+      CallExpression(node) {
+        if (calledMemberName(node.callee) !== 'forEach') {
           return
         }
-        if (callbackIgnoresIndex(args[0])) {
+        if (callbackIgnoresIndex(node.arguments[0])) {
           context.report({ node, messageId: 'preferForOf' })
         }
       },

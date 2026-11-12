@@ -81,7 +81,8 @@ function runCommand(command: string, args: readonly string[]) {
 }
 
 async function resolveExecutable(name: string) {
-  const pathEntries = process.env.PATH?.split(delimiter) ?? []
+  const { PATH: searchPath } = process.env
+  const pathEntries = searchPath?.split(delimiter) ?? []
   for (const pathEntry of pathEntries) {
     const candidate = join(pathEntry, name)
     try {

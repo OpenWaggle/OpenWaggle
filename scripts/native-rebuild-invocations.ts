@@ -3,6 +3,7 @@ import { join, posix, win32 } from 'node:path'
 import { findActivePackageRoots } from './native-rebuild-artifacts'
 import { nativeArtifactPackagesForMode } from './native-rebuild-cache'
 import { bunExecutable, nodeRuntime } from './support/node-runtime'
+import { scriptEnv } from './support/env'
 
 /**
  * The commands `prepare:native:*` runs to build native modules. Bun has no `npm rebuild`, so the
@@ -27,11 +28,17 @@ export interface PackageRebuildInvocation {
   readonly environment: NodeJS.ProcessEnv
 }
 
+/** Destructured: Windows spells it `ComSpec`, and only process.env matches names case-insensitively. */
+function windowsComSpec() {
+  const { ComSpec: commandProcessor } = process.env
+  return commandProcessor
+}
+
 /** A package script runs in the platform shell, as package managers run lifecycle scripts. */
 export function shellInvocationForPlatform(
   commandLine: string,
   platform: NodeJS.Platform = process.platform,
-  windowsCommandProcessor: string | undefined = process.env.ComSpec,
+  windowsCommandProcessor: string | undefined = windowsComSpec(),
 ): CommandInvocation {
   return platform === 'win32'
     ? {
@@ -58,7 +65,7 @@ export function suppressDependencyDeprecationWarnings(
   return {
     ...extraEnvironment,
     NODE_OPTIONS: appendWhitespaceDelimitedOption(
-      extraEnvironment.NODE_OPTIONS ?? baseEnvironment.NODE_OPTIONS,
+      scriptEnv(extraEnvironment).NODE_OPTIONS ?? scriptEnv(baseEnvironment).NODE_OPTIONS,
       SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION,
     ),
   }

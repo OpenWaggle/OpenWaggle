@@ -57,7 +57,9 @@ function formatError(error: SerializedError, moduleFile: string, title: string) 
   const name = error.name !== undefined && error.name !== 'Error' ? `${error.name}: ` : ''
   const lines = [`${where} FAIL ${title}`]
   for (const line of firstLines(`${name}${error.message}`, MESSAGE_LINES)) lines.push(`  ${line}`)
-  const diff = typeof error.diff === 'string' ? error.diff : ''
+  // `diff` is not a declared SerializedError field; an assertion error carries it.
+  const fields: object = error
+  const diff = 'diff' in fields && typeof fields.diff === 'string' ? fields.diff : ''
   for (const line of firstLines(diff, DIFF_LINES)) lines.push(`  ${line}`)
   return lines
 }

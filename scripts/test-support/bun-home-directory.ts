@@ -11,7 +11,9 @@ export function homeFromEnvironment(
   environment: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
 ): string | undefined {
-  const value = platform === 'win32' ? environment.USERPROFILE : environment.HOME
+  // Destructured, not `scriptEnv`: this module backs the `node:os` alias, so it imports nothing.
+  const { USERPROFILE: userProfile, HOME: home } = environment
+  const value = platform === 'win32' ? userProfile : home
   return value === undefined || value === '' ? undefined : value
 }
 
@@ -20,7 +22,10 @@ interface HomedirOwner {
 }
 
 /** Makes `builtin.homedir()` follow HOME at call time when running on Bun. */
-export function followHomeEnvironmentOnBun(runtime: NodeJS.Dict<string>, builtin: HomedirOwner) {
+export function followHomeEnvironmentOnBun(
+  runtime: Readonly<NodeJS.Dict<string> & { bun?: string }>,
+  builtin: HomedirOwner,
+) {
   if (runtime.bun === undefined) return
   const startupHomedir = builtin.homedir.bind(builtin)
   builtin.homedir = () => homeFromEnvironment(process.env, process.platform) ?? startupHomedir()

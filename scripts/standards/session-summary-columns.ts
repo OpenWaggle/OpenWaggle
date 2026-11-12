@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 interface Violation {
   readonly detail?: string
@@ -43,7 +44,7 @@ function namesNoColumns(projection: string) {
 }
 
 function selectsNamedColumns(query: string) {
-  const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.projection
+  const projection = namedGroups(SESSION_SUMMARY_PROJECTION.exec(query), ['projection'])?.projection
   if (projection === undefined) return false
   return !namesNoColumns(projection)
 }

@@ -20,6 +20,7 @@ import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { pathToFileURL } from 'node:url'
 import { compactLintOutput } from './oxlint/compact-output'
+import { scriptEnv } from './support/env'
 
 /** Holds the canary pin; bump the versions in its package.json like any other dependency. */
 const BUN_LINT_PACKAGE_JSON = path.join(
@@ -74,7 +75,7 @@ function lintCommand(runner: Runner, fix: boolean, paths: readonly string[]) {
   if (runner === 'oxlint') {
     // oxlint loads the TypeScript config and plugins through Node, which warns once that the
     // root package.json declares no module type.
-    const nodeOptions = [process.env.NODE_OPTIONS, '--disable-warning=MODULE_TYPELESS_PACKAGE_JSON']
+    const nodeOptions = [scriptEnv().NODE_OPTIONS, '--disable-warning=MODULE_TYPELESS_PACKAGE_JSON']
     return {
       command: 'node',
       args: [packageBin('oxlint', 'oxlint'), ...shared],

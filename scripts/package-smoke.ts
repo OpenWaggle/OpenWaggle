@@ -6,7 +6,6 @@ import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import {
   assertPackedWorkspaceDependencyRanges,
-  isObject,
   parseBunPackTarballPath,
 } from './package-smoke-assertions'
 import {
@@ -41,6 +40,8 @@ import { SMOKE_PROJECT_SCRIPTS, SMOKE_SCRIPTS_BEFORE_BROWSER } from './package-s
 import { BUNFIG } from './support/bun-workspace'
 import { readWorkspaceCatalogs, smokeDependencyVersion } from './package-smoke-dependency-versions'
 import { bunExecutable, nodeRuntime } from './support/node-runtime'
+import { Schema } from '@shared/schema'
+import { objectFields } from './support/object-fields'
 
 const execFile = promisify(execFileCallback)
 const JSON_INDENT_SPACES = 2
@@ -111,13 +112,16 @@ async function canonicalPackedPackages(tarballDirectory: string) {
   )
 }
 
+const packedVersionSchema = Schema.Struct({ version: Schema.String })
+
 function packedPackageVersions(packedPackages: readonly PackedPackage[]) {
   return packedPackages.map((packedPackage) => {
-    if (!isObject(packedPackage.manifest) || typeof packedPackage.manifest.version !== 'string') {
+    const version = objectFields(packedVersionSchema, packedPackage.manifest)?.version
+    if (version === undefined) {
       throw new Error(`${packedPackage.name} packed manifest must declare a version.`)
     }
 
-    return { name: packedPackage.name, version: packedPackage.manifest.version }
+    return { name: packedPackage.name, version }
   })
 }
 

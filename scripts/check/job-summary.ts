@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url'
 import { readJsonFile } from './cache'
 import { OUTPUT_TOKENS_FILE } from './output-budget'
 import { REPORT_FILE, seconds } from './report'
+import { scriptEnv } from '../support/env'
 
 const LOAD_DECIMALS = 2
 
@@ -87,15 +88,16 @@ export function advisoryAnnotations(report: unknown) {
   return summaryAdvisories(report).flatMap((line) => {
     const groups = LOCATED_ADVISORY.exec(line)?.groups
     if (groups === undefined) return []
-    const message = (groups.message ?? '').replaceAll('%', '%25').replaceAll('\n', '%0A')
-    return [`::notice file=${groups.file},line=${groups.line}::${message}`]
+    const { file, line: lineNumber, message = '' } = groups
+    const escaped = message.replaceAll('%', '%25').replaceAll('\n', '%0A')
+    return [`::notice file=${String(file)},line=${String(lineNumber)}::${escaped}`]
   })
 }
 
 async function main() {
   const report = await readJsonFile(REPORT_FILE)
   const markdown = renderJobSummary(report, await readJsonFile(OUTPUT_TOKENS_FILE))
-  const target = process.env.GITHUB_STEP_SUMMARY
+  const target = scriptEnv().GITHUB_STEP_SUMMARY
   if (target === undefined || target === '') {
     process.stdout.write(markdown)
     return

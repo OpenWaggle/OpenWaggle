@@ -1,4 +1,4 @@
-import type { Node, Rule } from '@oxlint/plugins'
+import type { Rule } from '@oxlint/plugins'
 import { isTestFilename, sourceValueOf } from '../ast-helpers.ts'
 
 const SHOEHORN_PACKAGE = '@total-typescript/shoehorn'
@@ -17,7 +17,7 @@ export const noShoehornOutsideTestsRule: Rule = {
   },
   create(context) {
     return {
-      ImportDeclaration(node: Node) {
+      ImportDeclaration(node) {
         const importPath = sourceValueOf(node)
         if (!importPath || !isShoehornImport(importPath) || isTestFilename(context.filename)) {
           return

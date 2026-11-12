@@ -1,6 +1,7 @@
 import os from 'node:os'
 import { describe, expect, it } from 'vitest'
 import { followHomeEnvironmentOnBun, homeFromEnvironment } from '../bun-home-directory'
+import { scriptEnv } from '../../support/env'
 
 describe('homeFromEnvironment', () => {
   it('reads HOME on POSIX and USERPROFILE on Windows, as Node does', () => {
@@ -25,6 +26,6 @@ describe('followHomeEnvironmentOnBun', () => {
   })
 
   it('is what the tiers resolve node:os to, so the per-file HOME reaches code under test', () => {
-    expect(os.homedir()).toBe(process.env.HOME)
+    expect(os.homedir()).toBe(scriptEnv().HOME)
   })
 })

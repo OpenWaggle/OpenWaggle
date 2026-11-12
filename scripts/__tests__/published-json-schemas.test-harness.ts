@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { WagglePreset } from '@openwaggle/waggle-core'
-import { safeDecodeUnknown } from '@shared/schema'
+import { decodeUnknownOrThrow, safeDecodeUnknown, Schema } from '@shared/schema'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import JsonSchema from 'typebox/schema'
 import { readPiWagglePresetsFileData } from '../../packages/pi-waggle/src/preset-storage'
@@ -182,7 +182,16 @@ export async function patternOf(fileName: string, pointer: readonly string[]) {
   for (const segment of pointer) {
     node = Array.isArray(node) ? node[Number(segment)] : record(node)[segment]
   }
-  const pattern = record(node).pattern
-  if (typeof pattern !== 'string') throw new Error(`No pattern at ${pointer.join('/')}.`)
-  return new RegExp(pattern, 'u')
+  if (!Schema.is(patternNodeSchema)(node)) throw new Error(`No pattern at ${pointer.join('/')}.`)
+  return new RegExp(node.pattern, 'u')
+}
+
+const patternNodeSchema = Schema.Struct({ pattern: Schema.String })
+/** A published object schema: its `properties`, keyed by setting name. */
+const objectSchemaDocument = Schema.Struct({ properties: Schema.Object })
+
+/** The property names a published object schema declares. */
+export async function publishedPropertyNames(fileName: string) {
+  const document = decodeUnknownOrThrow(objectSchemaDocument, await readPublishedSchema(fileName))
+  return Object.keys(document.properties)
 }

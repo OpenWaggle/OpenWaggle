@@ -1,5 +1,5 @@
-import type { Context, Node, Rule } from '@oxlint/plugins'
-import { isUnknownArray, nodeType, normalizedFilename, property } from '../ast-helpers.ts'
+import type { Context, ESTree, Node, Rule } from '@oxlint/plugins'
+import { isUnknownArray, normalizedFilename } from '../ast-helpers.ts'
 
 type FindingMessageId = 'arbitraryValue' | 'paletteColor' | 'rawHexColor'
 
@@ -43,7 +43,11 @@ export function repositoryRelativeRendererFilename(filename: string) {
 }
 
 function exemptionSet(context: Context) {
-  const entries = property(context.options[0], 'exemptFiles')
+  const option: unknown = context.options[0]
+  const entries =
+    typeof option === 'object' && option !== null && 'exemptFiles' in option
+      ? option.exemptFiles
+      : undefined
   if (!isUnknownArray(entries)) {
     return new Set<string>()
   }
@@ -51,18 +55,21 @@ function exemptionSet(context: Context) {
   return new Set(entries.filter((entry): entry is string => typeof entry === 'string'))
 }
 
-function staticStringValue(node: Node) {
-  if (nodeType(node) === 'Literal') {
-    const value = property(node, 'value')
-    return typeof value === 'string' ? value : null
+type StringNode =
+  | ESTree.BooleanLiteral
+  | ESTree.NullLiteral
+  | ESTree.NumericLiteral
+  | ESTree.StringLiteral
+  | ESTree.BigIntLiteral
+  | ESTree.RegExpLiteral
+  | ESTree.TemplateElement
+
+function staticStringValue(node: StringNode) {
+  if (node.type === 'TemplateElement') {
+    return node.value.cooked
   }
 
-  if (nodeType(node) === 'TemplateElement') {
-    const cooked = property(property(node, 'value'), 'cooked')
-    return typeof cooked === 'string' ? cooked : null
-  }
-
-  return null
+  return typeof node.value === 'string' ? node.value : null
 }
 
 function stripVariants(candidate: string) {
@@ -108,7 +115,7 @@ function collectTailwindFindings(node: Node, value: string) {
   return findings
 }
 
-function collectStringFindings(node: Node, allowNumericReference: boolean) {
+function collectStringFindings(node: StringNode, allowNumericReference: boolean) {
   const value = staticStringValue(node)
   if (value === null) {
     return []
@@ -162,7 +169,7 @@ export const rendererDesignTokenGuardrailsRule: Rule = {
     const findings: Finding[] = []
 
     return {
-      Literal(node: Node) {
+      Literal(node) {
         findings.push(...collectStringFindings(node, allowNumericReference))
       },
       'Program:exit'() {
@@ -184,7 +191,7 @@ export const rendererDesignTokenGuardrailsRule: Rule = {
           })
         }
       },
-      TemplateElement(node: Node) {
+      TemplateElement(node) {
         findings.push(...collectStringFindings(node, allowNumericReference))
       },
     }

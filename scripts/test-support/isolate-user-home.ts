@@ -15,6 +15,7 @@ import { mkdirSync, realpathSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeEach, expect, inject } from 'vitest'
+import { scriptEnv } from '../support/env'
 import { createTestTemporaryDirectory } from './temporary-directory-guard'
 import { assertTestUserLocationsIsolated, type TestUserLocations } from './user-home-guard'
 
@@ -34,23 +35,29 @@ const temporaryRoot = root
 const home = path.join(root, 'home')
 mkdirSync(home, { recursive: true })
 
-environment.HOME = home
-environment.USERPROFILE = home
-environment.PI_CODING_AGENT_DIR = path.join(home, '.pi', 'agent')
-environment.OPENWAGGLE_USER_DATA_DIR = path.join(root, 'user-data')
-// A developer's exported Pi session dir would receive every session file a test writes; unset,
-// Pi keeps them under the temporary agent dir above.
-delete environment.PI_CODING_AGENT_SESSION_DIR
-// Set in an agent shell; tests that read the temp directory must see this process's own.
-delete environment.OPENWAGGLE_HOST_TMPDIR
+Object.assign(environment, {
+  HOME: home,
+  USERPROFILE: home,
+  PI_CODING_AGENT_DIR: path.join(home, '.pi', 'agent'),
+  OPENWAGGLE_USER_DATA_DIR: path.join(root, 'user-data'),
+})
+const UNSET_VARIABLES = [
+  // A developer's exported Pi session dir would receive every session file a test writes; unset,
+  // Pi keeps them under the temporary agent dir above.
+  'PI_CODING_AGENT_SESSION_DIR',
+  // Set in an agent shell; tests that read the temp directory must see this process's own.
+  'OPENWAGGLE_HOST_TMPDIR',
+] as const
+for (const name of UNSET_VARIABLES) delete environment[name]
 
 function currentLocations(): TestUserLocations {
   const currentHome = os.homedir()
+  const env = scriptEnv(environment)
   return {
     home: currentHome,
-    piAgentDir: environment.PI_CODING_AGENT_DIR ?? path.join(currentHome, '.pi', 'agent'),
-    userDataDir: environment.OPENWAGGLE_USER_DATA_DIR,
-    piSessionDir: environment.PI_CODING_AGENT_SESSION_DIR,
+    piAgentDir: env.PI_CODING_AGENT_DIR ?? path.join(currentHome, '.pi', 'agent'),
+    userDataDir: env.OPENWAGGLE_USER_DATA_DIR,
+    piSessionDir: env.PI_CODING_AGENT_SESSION_DIR,
   }
 }
 

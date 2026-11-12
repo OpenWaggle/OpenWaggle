@@ -1,3 +1,5 @@
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 /**
  * Reads the Release Please settings that decide a package's next version, the way the pinned Release
  * Please merges them: a package's own setting wins over the top-level one. Settings the guard cannot
@@ -35,20 +37,20 @@ function setting(packageConfig: object, topLevelConfig: object, key: string): un
   return own ?? Reflect.get(topLevelConfig, key)
 }
 
+const changelogSectionSchema = Schema.Struct({
+  type: Schema.String,
+  section: Schema.String,
+  hidden: unknownField,
+})
+
 function changelogSections(value: unknown): readonly ChangelogSectionRule[] | undefined | string {
   if (value === undefined) return undefined
   if (!Array.isArray(value)) return 'changelog-sections is not a list'
   const sections: ChangelogSectionRule[] = []
   for (const entry of value) {
-    const type: unknown =
-      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'type') : undefined
-    const section: unknown =
-      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'section') : undefined
-    const hidden: unknown =
-      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'hidden') : undefined
-    if (typeof type !== 'string' || typeof section !== 'string') {
-      return 'a changelog-sections entry has no type or section'
-    }
+    const fields = objectFields(changelogSectionSchema, entry)
+    if (fields === undefined) return 'a changelog-sections entry has no type or section'
+    const { type, section, hidden } = fields
     sections.push(hidden === true ? { type, section, hidden } : { type, section })
   }
   return sections
