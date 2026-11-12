@@ -32,6 +32,7 @@ export function attachSessionMcpContext(sessionId: string, context: SessionMcpCo
 const UI_EXTENSION = 'io.modelcontextprotocol/ui'
 const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app'
 
+// explicit undefined: MCP SDK initialize params and capabilities are in-process objects
 const initializeParamsSchema = Schema.Struct({ capabilities: Schema.optional(Schema.Unknown) })
 const capabilitiesSchema = Schema.Struct({ extensions: Schema.optional(Schema.Unknown) })
 

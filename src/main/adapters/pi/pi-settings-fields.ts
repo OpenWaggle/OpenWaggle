@@ -2,7 +2,7 @@ import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 
-const setting = Schema.optional(jsonValueSchema)
+const setting = Schema.optionalWith(jsonValueSchema, { exact: true })
 
 /**
  * The Pi settings (`settings.json`, and the `pi` key of `.openwaggle/settings.json`) OpenWaggle

@@ -31,9 +31,11 @@ const userInputProjectionSchema = Schema.Struct({
       Schema.Struct({ type: Schema.Literal('attachment'), attachment: projectedAttachmentSchema }),
     ),
   ),
-  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
+  durableTextSha256: Schema.optionalWith(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)), {
+    exact: true,
+  }),
   /** The Scheduled task whose run sent this message, recorded by the Host (ADR 0057). */
-  scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
+  scheduledTask: Schema.optionalWith(messageScheduledTaskOriginSchema, { exact: true }),
 })
 
 interface ProjectionSession {

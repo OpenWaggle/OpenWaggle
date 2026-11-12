@@ -66,12 +66,9 @@ function timeoutFields(opts: PiDialogOptions) {
   return opts?.timeout !== undefined ? { timeoutMs: opts.timeout } : {}
 }
 
-function mergedSignal(input: {
-  readonly runSignal: AbortSignal
-  readonly interactionSignal?: AbortSignal | undefined
-}) {
-  if (!input.interactionSignal) return input.runSignal
-  return AbortSignal.any([input.runSignal, input.interactionSignal])
+function mergedSignal(runSignal: AbortSignal, interactionSignal: AbortSignal | undefined) {
+  if (!interactionSignal) return runSignal
+  return AbortSignal.any([runSignal, interactionSignal])
 }
 
 function baseInteraction(input: {
@@ -155,7 +152,7 @@ function createDesktopInteractionUiOverrides(
       const response = await requestInteraction({
         interaction,
         onEvent: context.onEvent,
-        signal: mergedSignal({ runSignal: context.signal, interactionSignal: opts?.signal }),
+        signal: mergedSignal(context.signal, opts?.signal),
       })
       return selectedValue(response)
     },
@@ -173,7 +170,7 @@ function createDesktopInteractionUiOverrides(
       const response = await requestInteraction({
         interaction,
         onEvent: context.onEvent,
-        signal: mergedSignal({ runSignal: context.signal, interactionSignal: opts?.signal }),
+        signal: mergedSignal(context.signal, opts?.signal),
       })
       return confirmedValue(response)
     },
@@ -187,7 +184,7 @@ function createDesktopInteractionUiOverrides(
       const response = await requestInteraction({
         interaction,
         onEvent: context.onEvent,
-        signal: mergedSignal({ runSignal: context.signal, interactionSignal: opts?.signal }),
+        signal: mergedSignal(context.signal, opts?.signal),
       })
       return textValue(response)
     },
@@ -255,7 +252,7 @@ function createDeclaredConfirmChannel(
     const response = await requestInteraction({
       interaction,
       onEvent: context.onEvent,
-      signal: mergedSignal({ runSignal: context.signal, interactionSignal: request.signal }),
+      signal: mergedSignal(context.signal, request.signal),
     })
     return confirmedValue(response)
   }

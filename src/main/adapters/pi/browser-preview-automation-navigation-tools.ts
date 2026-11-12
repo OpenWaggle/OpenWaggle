@@ -26,7 +26,7 @@ interface RegistrationInput {
 async function approved<T>(input: {
   readonly operation: string
   readonly params: unknown
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
   readonly ctx: ExtensionContext
   readonly execute: () => Promise<T>
 }) {
@@ -48,7 +48,7 @@ export function registerBrowserPreviewNavigationTools(input: RegistrationInput) 
       approved({
         operation: 'open browser preview',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.open(input.scope, params), signal),
       }),
@@ -65,7 +65,7 @@ export function registerBrowserPreviewNavigationTools(input: RegistrationInput) 
       approved({
         operation: 'navigate browser preview',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.navigate(input.scope, params), signal),
       }),
@@ -84,7 +84,7 @@ export function registerBrowserPreviewNavigationTools(input: RegistrationInput) 
       return approved({
         operation: 'resize browser preview',
         params: resize,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.resize(input.scope, resize), signal),
       })
@@ -101,7 +101,7 @@ export function registerBrowserPreviewNavigationTools(input: RegistrationInput) 
       approved({
         operation: 'set browser preview appearance',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () =>
           runBrowserPreviewEffect(input.service.setAppearance(input.scope, params), signal),

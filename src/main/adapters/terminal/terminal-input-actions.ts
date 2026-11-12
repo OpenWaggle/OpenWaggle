@@ -80,7 +80,7 @@ function writeTerminalNow(
     terminalOperationBlockDisposition(context.operationQueue, {
       key,
       ownerKey: record?.ownerKey ?? ownerKey,
-      cwd: record?.cwd,
+      ...(record?.cwd === undefined ? {} : { cwd: record?.cwd }),
     }) !== 'none'
   ) {
     return rejectedInput('terminal-not-open', identity)
@@ -153,7 +153,7 @@ function inputNeedsLifecycleWait(context: TerminalActionContext, requestedKey: T
   const disposition = terminalOperationBlockDisposition(context.operationQueue, {
     key,
     ownerKey: record?.ownerKey ?? ownerKeyFromTerminalKey(requestedKey),
-    cwd: record?.cwd,
+    ...(record?.cwd === undefined ? {} : { cwd: record?.cwd }),
   })
   if (disposition === 'retry') return true
   return (
@@ -175,7 +175,7 @@ async function waitForTerminalInputTurn(context: TerminalActionContext, requeste
     const disposition = terminalOperationBlockDisposition(context.operationQueue, {
       key,
       ownerKey: record?.ownerKey ?? ownerKeyFromTerminalKey(requestedKey),
-      cwd: record?.cwd,
+      ...(record?.cwd === undefined ? {} : { cwd: record?.cwd }),
     })
     if (disposition === 'cancel') return false
     if (disposition === 'retry') {

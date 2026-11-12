@@ -73,7 +73,7 @@ function mergeMetadataJsonWithSelectedModel(rawMetadataJson: string, selectedMod
 
 /** Message metadata JSON written by earlier runs; OpenWaggle's own fields sit under `openWaggle`. */
 const decodeOpenWaggleMetadata = Schema.decodeUnknownOption(
-  Schema.Struct({ openWaggle: Schema.optional(Schema.Unknown) }),
+  Schema.Struct({ openWaggle: Schema.optionalWith(Schema.Unknown, { exact: true }) }),
 )
 
 const decodeBoundaryData = Schema.decodeUnknownOption(Schema.Struct({ runId: Schema.String }))

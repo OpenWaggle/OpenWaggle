@@ -19,7 +19,8 @@ interface HandshakeChannel {
   /** Sends a request upstream and waits for its result. */
   readonly request: (method: string, params: unknown) => Promise<unknown>
   readonly notify: (message: JsonRpcMessage) => Promise<void>
-  readonly augmentParams?: ((params: unknown) => unknown) | undefined
+  /** Rewrites the `initialize` params sent upstream; the connection passes its option, set or not. */
+  readonly augmentParams: ((params: unknown) => unknown) | undefined
   readonly onProtocolVersion: (version: string) => void
   /** Sees each result the server gave, for the connection's catalog. */
   readonly onResult?: (result: unknown) => void

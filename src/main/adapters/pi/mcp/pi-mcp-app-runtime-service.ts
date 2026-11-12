@@ -197,6 +197,7 @@ function json(value: unknown): McpJsonValue {
   return decoded.data
 }
 
+// explicit undefined: an MCP SDK resource read result is an in-process object
 const resourceReadSchema = Schema.Struct({ contents: Schema.optional(Schema.Unknown) })
 
 function resourceReadFields(result: object) {

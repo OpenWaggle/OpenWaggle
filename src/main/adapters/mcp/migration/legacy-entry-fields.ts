@@ -1,7 +1,7 @@
 import { Schema, type SchemaType } from '@shared/schema'
 import { Option } from 'effect'
 
-const checkedByReader = Schema.optional(Schema.Unknown)
+const checkedByReader = Schema.optionalWith(Schema.Unknown, { exact: true })
 
 /**
  * The fields of a server entry in a file the old OpenWaggle MCP code read, which the migration

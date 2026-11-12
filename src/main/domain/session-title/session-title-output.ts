@@ -17,7 +17,7 @@ const ELLIPSIS = '...'
 
 const generatedTitleSchema = Schema.Struct({
   title: Schema.String,
-  needsRefinement: Schema.optional(Schema.Boolean),
+  needsRefinement: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 /** Placeholders a model sometimes returns instead of a title; none of them identifies a Session. */

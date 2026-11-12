@@ -148,7 +148,7 @@ function ownPiSessionFolders(projectPath: string, files: readonly (string | unde
 }
 
 /** The Pi session file a Run's session wrote, for `captureTurnCheckpoint`. */
-export function piSessionFileOf(session: { readonly sessionFile?: string | undefined }) {
+export function piSessionFileOf(session: { readonly sessionFile: string | undefined }) {
   const piSessionFile = session.sessionFile
   return piSessionFile ? { piSessionFile } : {}
 }

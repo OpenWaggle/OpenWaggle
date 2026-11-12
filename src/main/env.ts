@@ -24,7 +24,7 @@ import {
   sessionHostSafeEnvironment,
 } from './session-host/session-host-launch-command'
 
-const optionalUrlSchema = Schema.optional(
+const optionalUrlSchema = Schema.optionalWith(
   Schema.String.pipe(
     Schema.filter((value) => {
       try {
@@ -35,35 +35,40 @@ const optionalUrlSchema = Schema.optional(
       }
     }),
   ),
+  { exact: true },
 )
 
+const optionalString = Schema.optionalWith(Schema.String, { exact: true })
+const optionalFlag = Schema.optionalWith(Schema.Literal('1'), { exact: true })
+const LOG_LEVEL = Schema.Literal('debug', 'info', 'warn', 'error')
+
 const envSchema = Schema.Struct({
-  PATH: Schema.optional(Schema.String),
-  APPIMAGE: Schema.optional(Schema.String),
+  PATH: optionalString,
+  APPIMAGE: optionalString,
   ELECTRON_RENDERER_URL: optionalUrlSchema,
-  OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
-  OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: Schema.optional(Schema.Literal('1')),
-  OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: Schema.optional(Schema.String), // Hidden QA Pi fixtures
-  OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),
-  OPENWAGGLE_AUTOMATION_PROJECT_PATH: Schema.optional(Schema.String),
-  OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
-  OPENWAGGLE_DISABLE_SINGLE_INSTANCE: Schema.optional(Schema.String),
-  OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
-  OPENWAGGLE_CLI_OUTPUT_FD: Schema.optional(Schema.String),
-  OPENWAGGLE_PROFILE: Schema.optional(Schema.String),
-  OPENWAGGLE_PROFILE_CREDENTIAL_FILE: Schema.optional(Schema.String),
-  OPENWAGGLE_AGENT_RUN: Schema.optional(Schema.Literal('1')),
+  OPENWAGGLE_AUTOMATION: optionalFlag,
+  OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: optionalFlag,
+  OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: optionalString, // Hidden QA Pi fixtures
+  OPENWAGGLE_AUTOMATION_LEASE_TOKEN: optionalString,
+  OPENWAGGLE_AUTOMATION_PROJECT_PATH: optionalString,
+  OPENWAGGLE_USER_DATA_DIR: optionalString,
+  OPENWAGGLE_DISABLE_SINGLE_INSTANCE: optionalString,
+  OPENWAGGLE_LOG_LEVEL: Schema.optionalWith(LOG_LEVEL, { exact: true }),
+  OPENWAGGLE_CLI_OUTPUT_FD: optionalString,
+  OPENWAGGLE_PROFILE: optionalString,
+  OPENWAGGLE_PROFILE_CREDENTIAL_FILE: optionalString,
+  OPENWAGGLE_AGENT_RUN: optionalFlag,
   /** The Host's own temp directory, preserved in agent tool processes whose TMPDIR is a scratch dir. */
-  OPENWAGGLE_HOST_TMPDIR: Schema.optional(Schema.String),
+  OPENWAGGLE_HOST_TMPDIR: optionalString,
   /** Usage statistics opt-outs (ADR 0046), interpreted by `resolveUsageStatisticsEnablement`. */
-  DO_NOT_TRACK: Schema.optional(Schema.String),
-  PI_TELEMETRY: Schema.optional(Schema.String),
-  CI: Schema.optional(Schema.String),
-  SystemRoot: Schema.optional(Schema.String),
-  TEMP: Schema.optional(Schema.String),
-  TMP: Schema.optional(Schema.String),
-  USERPROFILE: Schema.optional(Schema.String),
-  LOCALAPPDATA: Schema.optional(Schema.String),
+  DO_NOT_TRACK: optionalString,
+  PI_TELEMETRY: optionalString,
+  CI: optionalString,
+  SystemRoot: optionalString,
+  TEMP: optionalString,
+  TMP: optionalString,
+  USERPROFILE: optionalString,
+  LOCALAPPDATA: optionalString,
 })
 
 export type Env = SchemaType<typeof envSchema>
@@ -104,7 +109,7 @@ export function getCurrentProcessPath(): string | undefined {
 }
 
 const livePiEnvSchema = Schema.Struct({
-  PI_CODING_AGENT_SESSION_DIR: Schema.optional(Schema.String),
+  PI_CODING_AGENT_SESSION_DIR: optionalString,
 })
 
 /** Pi's session directory override, read live like PATH: Pi reads it when it opens a session. */

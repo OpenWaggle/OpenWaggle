@@ -19,7 +19,7 @@ import {
 const MINIMAL_PATH = ['/usr/bin', '/bin'].join(delimiter)
 const TEST_APP_VERSION = '1.2.3-test'
 
-const childPathSchema = Schema.Struct({ PATH: Schema.optional(Schema.String) })
+const childPathSchema = Schema.Struct({ PATH: Schema.optionalWith(Schema.String, { exact: true }) })
 
 /** The PATH entries of a child environment map, decoded rather than read out of the map. */
 function pathEntries(environment: Readonly<Record<string, string | undefined>>) {

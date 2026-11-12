@@ -79,8 +79,10 @@ export const agentDefinitionFrontmatterSchema = Schema.Struct({
 const piFrontmatterSchema = Schema.Struct({
   name: agentName,
   description,
-  model: Schema.optional(modelId),
-  tools: Schema.optional(Schema.Union(Schema.String, Schema.Array(Schema.String))),
+  model: Schema.optionalWith(modelId, { exact: true }),
+  tools: Schema.optionalWith(Schema.Union(Schema.String, Schema.Array(Schema.String)), {
+    exact: true,
+  }),
 })
 
 const resolvedSnapshotSchema = Schema.Struct({

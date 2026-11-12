@@ -12,11 +12,12 @@ import { readTaskSource } from './task-source-files'
 const SOURCE = '.cargo/config.toml'
 const LEGACY_SOURCE = '.cargo/config'
 const cargoSchema = Schema.Struct({
-  alias: Schema.optional(
+  alias: Schema.optionalWith(
     Schema.Record({
       key: Schema.String,
       value: Schema.Union(Schema.String, Schema.Array(Schema.String)),
     }),
+    { exact: true },
   ),
 })
 // Cargo dispatches these before configured aliases, including hidden/unstable commands.

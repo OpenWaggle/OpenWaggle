@@ -7,7 +7,7 @@ interface CopyBoundedSessionResourceFileInput {
   readonly sourcePath: string
   readonly temporaryPath: string
   readonly expectedSizeBytes: number
-  readonly expectedSha256?: string | undefined
+  readonly expectedSha256?: string
   readonly maxSizeBytes: number
 }
 

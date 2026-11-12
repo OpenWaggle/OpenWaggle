@@ -19,8 +19,8 @@ type VisibleWaggleUserEntry = Pick<
 /** The `details` fields of a visible Waggle user request; each is decoded where it is used. */
 const decodeVisibleWaggleUserDetails = Schema.decodeUnknownOption(
   Schema.Struct({
-    waggleInvocation: Schema.optional(Schema.Unknown),
-    userInput: Schema.optional(Schema.Unknown),
+    waggleInvocation: Schema.optionalWith(Schema.Unknown, { exact: true }),
+    userInput: Schema.optionalWith(Schema.Unknown, { exact: true }),
   }),
 )
 

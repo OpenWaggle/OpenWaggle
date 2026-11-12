@@ -16,6 +16,7 @@ import { providerToolParameters } from '../provider-tool-parameter-schema'
 const logger = createLogger('mcp-tool-schema')
 
 /** The fields of an MCP `Tool` and a `tools/list` result this repair reads; others pass through. */
+// explicit undefined: MCP SDK tools and `tools/list` results are in-process objects
 const toolFieldsSchema = Schema.Struct({
   name: lenientOptional(Schema.String),
   inputSchema: Schema.optional(Schema.Unknown),

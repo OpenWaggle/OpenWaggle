@@ -106,9 +106,9 @@ function validateShortcutBindingsUpdate(
 function validateExtensionPanelShortcutUpdate(
   current: Settings,
   patch: {
-    readonly shortcutRules?: ShortcutRules | undefined
-    readonly shortcutBindings?: ShortcutBindings | undefined
-    readonly extensionPanelShortcutBindings?: ExtensionPanelShortcutBindings | undefined
+    readonly shortcutRules?: ShortcutRules
+    readonly shortcutBindings?: ShortcutBindings
+    readonly extensionPanelShortcutBindings?: ExtensionPanelShortcutBindings
   },
 ) {
   const rules =
@@ -155,9 +155,11 @@ function validateShortcutSettingsUpdate(patch: ShortcutSettingsPatch) {
       shortcutBindings = validated.value
     }
     const error = validateExtensionPanelShortcutUpdate(current, {
-      shortcutRules: patch.shortcutRules,
-      shortcutBindings,
-      extensionPanelShortcutBindings: patch.extensionPanelShortcutBindings,
+      ...(patch.shortcutRules === undefined ? {} : { shortcutRules: patch.shortcutRules }),
+      ...(shortcutBindings === undefined ? {} : { shortcutBindings }),
+      ...(patch.extensionPanelShortcutBindings === undefined
+        ? {}
+        : { extensionPanelShortcutBindings: patch.extensionPanelShortcutBindings }),
     })
     if (error !== null) {
       logger.warn('Invalid extension panel shortcut update', { error })

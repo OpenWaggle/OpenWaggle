@@ -9,7 +9,7 @@ import { authorizedSessionScope } from './sqlite-session-query-support'
 /** The Message provenance fields that name who queued a Follow-up. */
 const intentSourceSchema = Schema.Struct({
   callerId: Schema.String,
-  authorCallerId: Schema.optional(Schema.String),
+  authorCallerId: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 /**

@@ -19,10 +19,10 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
  */
 const appServerFields = {
   // Accepted for older renderers; the Session's own project is used.
-  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  sessionId: Schema.optional(Schema.NullOr(Schema.String)),
+  projectPath: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
+  sessionId: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
   serverInstanceId: Schema.String,
-  serverConfigHash: Schema.optional(Schema.String),
+  serverConfigHash: Schema.optionalWith(Schema.String, { exact: true }),
 }
 
 const catalogInputSchema = Schema.Struct(appServerFields)
@@ -47,9 +47,9 @@ function decode<A, I>(schema: Schema.Schema<A, I>, raw: unknown) {
  * request, so a cold connection starts where the Session's Runs do and matches their connection.
  */
 function serverInput(input: {
-  readonly sessionId?: string | null | undefined
+  readonly sessionId?: string | null
   readonly serverInstanceId: string
-  readonly serverConfigHash?: string | undefined
+  readonly serverConfigHash?: string
 }) {
   return Effect.gen(function* () {
     const { sessionId, serverConfigHash } = input

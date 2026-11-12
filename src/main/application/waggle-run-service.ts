@@ -82,7 +82,7 @@ export interface WaggleRunInput extends Partial<WaggleExecutionContext> {
 }
 
 interface PreparedWaggleRun {
-  readonly assignedTitle?: string | undefined
+  readonly assignedTitle?: string
   readonly hydratedPayload: HydratedAgentSendPayload
   readonly inheritedModel: SupportedModelId
   readonly runtimeModel: SupportedModelId
@@ -127,7 +127,7 @@ function prepareWaggleRun(input: WaggleRunInput) {
     return {
       ok: true as const,
       value: {
-        assignedTitle,
+        ...(assignedTitle === undefined ? {} : { assignedTitle }),
         hydratedPayload,
         inheritedModel: models.inheritedModel,
         runtimeModel: resolveInitialWaggleRuntimeModel({

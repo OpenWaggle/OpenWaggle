@@ -85,7 +85,7 @@ const decodeStoredRunIdentity = Schema.decodeUnknownOption(
     prompt: Schema.Struct({
       timestamp: Schema.Number,
       digest: Schema.String,
-      customType: Schema.optional(Schema.String),
+      customType: Schema.optionalWith(Schema.String, { exact: true }),
     }),
   }),
 )

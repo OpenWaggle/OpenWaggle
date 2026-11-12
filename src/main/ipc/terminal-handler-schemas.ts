@@ -41,7 +41,7 @@ export const terminalCloseSchema = Schema.Struct({
 export const terminalInputReleaseSchema = Schema.Struct({
   ownerKey: terminalOwnerKeySchema,
   terminalId: terminalIdSchema,
-  incarnation: Schema.optional(terminalInputIncarnationSchema),
+  incarnation: Schema.optionalWith(terminalInputIncarnationSchema, { exact: true }),
 })
 
 export const terminalOwnerMigrationSchema = Schema.Struct({

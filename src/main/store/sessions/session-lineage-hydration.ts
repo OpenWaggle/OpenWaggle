@@ -43,9 +43,9 @@ function isThinkingLevel(value: unknown): value is ThinkingLevel {
 
 /** The execution profile members these facts read, each still unchecked. */
 const profileAgentFieldsSchema = Schema.Struct({
-  agentDefinitionName: Schema.optional(Schema.Unknown),
-  modelId: Schema.optional(Schema.Unknown),
-  thinkingLevel: Schema.optional(Schema.Unknown),
+  agentDefinitionName: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  modelId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  thinkingLevel: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function profileAgentFacts(profileJson: string | null): ProfileAgentFacts {

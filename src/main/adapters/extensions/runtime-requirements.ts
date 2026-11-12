@@ -25,7 +25,7 @@ function runtimeRequirementCommand(requirement: RuntimeRequirement) {
 }
 
 function pathDirectories() {
-  const { PATH: pathValue = '' }: { readonly PATH?: string | undefined } = getSafeChildEnv()
+  const { PATH: pathValue = '' }: { readonly PATH?: string } = getSafeChildEnv()
   return pathValue.split(path.delimiter).filter((entry) => entry.length > 0)
 }
 

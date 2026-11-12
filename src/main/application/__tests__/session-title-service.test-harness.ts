@@ -39,8 +39,10 @@ export interface World {
   readonly requests: SessionTitleGenerationRequest[]
   readonly cleared: SessionId[]
   /** Runs while the model "thinks", to simulate a rename landing mid-generation. */
+  // explicit undefined: a test clears the hook by assigning undefined once it has run
   duringGeneration?: (() => void) | undefined
   /** Runs while the transcript is read, to simulate a Run ending mid-refinement. */
+  // explicit undefined: a test clears the hook by assigning undefined once it has run
   duringRead?: (() => void) | undefined
 }
 

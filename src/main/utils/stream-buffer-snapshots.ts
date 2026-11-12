@@ -89,7 +89,7 @@ export function emptyActiveStreamBuffer(input: {
   readonly model: SupportedModelId
   readonly mode: RunMode
   readonly startedAt: number
-  readonly runId?: string | undefined
+  readonly runId: string | undefined
 }): ActiveStreamBuffer {
   return {
     ...(input.runId ? { runId: input.runId } : {}),

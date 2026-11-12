@@ -112,7 +112,7 @@ interface McpFileMigratorInput extends Pick<
   MigrateOpenWaggleMcpFilesInput,
   'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
 > {
-  readonly unreadableState?: McpMigrationSourceError | undefined
+  readonly unreadableState: McpMigrationSourceError | undefined
 }
 
 class McpFileMigrator {

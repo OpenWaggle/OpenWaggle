@@ -1,13 +1,14 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 
 const evaluationResponseSchema = Schema.Struct({
-  result: Schema.optional(
+  result: Schema.optionalWith(
     Schema.Struct({
-      value: Schema.optional(Schema.Unknown),
-      description: Schema.optional(Schema.String),
+      value: Schema.optionalWith(Schema.Unknown, { exact: true }),
+      description: Schema.optionalWith(Schema.String, { exact: true }),
     }),
+    { exact: true },
   ),
-  exceptionDetails: Schema.optional(Schema.Unknown),
+  exceptionDetails: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export function browserPreviewCdpEvaluationValue(response: unknown) {

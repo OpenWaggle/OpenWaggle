@@ -46,7 +46,7 @@ function unknownExportVersionRefusal(version: unknown) {
 /** The envelope `schedules export` prints; its version decides how the rest decodes. */
 const scheduledTasksEnvelopeSchema = Schema.Struct({
   type: Schema.Literal(SCHEDULED_TASKS_EXPORT_TYPE),
-  schemaVersion: Schema.optional(Schema.Unknown),
+  schemaVersion: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function importedScheduledTasks(parsed: unknown): readonly ScheduledTaskInput[] {

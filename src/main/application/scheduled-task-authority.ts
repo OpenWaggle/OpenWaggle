@@ -1,5 +1,8 @@
 import { canonicalJson } from '@shared/canonical-json'
-import type { LocalSessionAuthorityLimits } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionAuthorityLimits,
+  LocalSessionProfileScope,
+} from '@shared/types/local-session-profile'
 import type {
   HeartbeatSettingsInput,
   ScheduledTaskPatch,
@@ -99,7 +102,7 @@ export const UNKNOWN_LAUNCH_PROJECT_MESSAGE =
  */
 export function launchNeedsKnownProject(
   creator: Pick<ScheduledTaskRecord['creator'], 'kind'>,
-  scope: { readonly all?: boolean | undefined } | undefined,
+  scope: Pick<LocalSessionProfileScope, 'all'> | undefined,
 ) {
   return creator.kind === 'session-agent' && (scope === undefined || scope.all === true)
 }

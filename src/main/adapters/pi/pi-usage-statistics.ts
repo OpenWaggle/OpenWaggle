@@ -183,6 +183,7 @@ const decodeTextPart = Schema.decodeUnknownOption(
   Schema.Struct({ text: lenientOptional(Schema.String) }),
 )
 const decodeUsage = Schema.decodeUnknownOption(piSessionUsageSchema)
+// explicit undefined: Pi's in-process compaction details may set mechanism to undefined
 const decodeCompactionDetails = Schema.decodeUnknownOption(
   Schema.Struct({ mechanism: Schema.optional(Schema.Unknown) }),
 )
@@ -246,7 +247,7 @@ export function observePiToolResultForUsageStatistics(
 /** A compaction finished. Pi's portable mechanism is the published `fallback`. */
 export function observePiCompactionForUsageStatistics(event: {
   readonly aborted: boolean
-  readonly result?: { readonly details?: unknown } | undefined
+  readonly result: { readonly details?: unknown } | undefined
 }): void {
   if (event.aborted || !isUsageStatisticsEnabled()) return
   const details = event.result?.details

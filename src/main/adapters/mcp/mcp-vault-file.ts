@@ -49,8 +49,8 @@ function parseVaultEntry(name: string, value: unknown): VaultEntry {
 }
 
 const vaultFileSchema = Schema.Struct({
-  version: Schema.optional(Schema.Unknown),
-  secrets: Schema.optional(Schema.Unknown),
+  version: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  secrets: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function parseVault(raw: string): VaultFile {

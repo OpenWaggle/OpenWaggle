@@ -89,7 +89,7 @@ function startAndFinish(
       originCallerId: 'gui:local-user',
       waggle: false,
       attachments: false,
-      runAuthorizationOverride,
+      ...(runAuthorizationOverride === undefined ? {} : { runAuthorizationOverride }),
     })
     noteUsageStatisticsRunModel(`run-${sessionId}`, { provider: 'openai', model: 'gpt-5' }, 'high')
     yield* recorder.runFinished({

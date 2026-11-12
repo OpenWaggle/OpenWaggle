@@ -67,7 +67,9 @@ const legacyTokensSchema = Schema.Struct(
   {
     access_token: Schema.String,
     token_type: Schema.String,
-    expires_in: Schema.optional(Schema.Union(Schema.Number, Schema.NumberFromString)),
+    expires_in: Schema.optionalWith(Schema.Union(Schema.Number, Schema.NumberFromString), {
+      exact: true,
+    }),
   },
   looseRecord,
 )
@@ -78,7 +80,7 @@ const legacyOAuthStateSchema = Schema.Struct({
   version: Schema.Literal(1),
   tokensByIssuer: Schema.Record({ key: Schema.String, value: legacyTokensSchema }),
   clientsByIssuer: Schema.Record({ key: Schema.String, value: legacyClientSchema }),
-  lastTokenIssuer: Schema.optional(Schema.String),
+  lastTokenIssuer: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 /** Pi's `mcpNamespace` (core/mcp-servers.js). */

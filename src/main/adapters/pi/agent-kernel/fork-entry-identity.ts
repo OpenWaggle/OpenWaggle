@@ -37,10 +37,10 @@ function nextEntryId(taken: ReadonlySet<string>) {
 
 /** The fields of a Pi session line a rekey reads; the line keeps every other field it has. */
 const sessionEntryLineSchema = Schema.Struct({
-  type: Schema.optional(Schema.Unknown),
+  type: Schema.optionalWith(Schema.Unknown, { exact: true }),
   id: Schema.String,
-  customType: Schema.optional(Schema.Unknown),
-  data: Schema.optional(Schema.Unknown),
+  customType: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  data: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 const isEntryLine = Schema.is(sessionEntryLineSchema)

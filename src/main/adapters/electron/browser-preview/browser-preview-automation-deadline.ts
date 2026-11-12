@@ -1,8 +1,8 @@
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
 
 export interface BrowserPreviewAutomationRunOptions {
-  readonly signal?: AbortSignal | undefined
-  readonly timeoutMs?: number | undefined
+  readonly signal?: AbortSignal
+  readonly timeoutMs?: number
 }
 
 function timeoutFor(options: BrowserPreviewAutomationRunOptions) {

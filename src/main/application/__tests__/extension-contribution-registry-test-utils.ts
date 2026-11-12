@@ -104,11 +104,11 @@ export function makePackage(input: {
 export function makeLifecycle(
   extensionPackage: DiscoveredExtensionPackage,
   options: {
-    readonly enabled?: boolean | undefined
-    readonly trusted?: boolean | undefined
-    readonly grantedCapabilities?: readonly string[] | undefined
-    readonly reloadStatus?: ExtensionReloadStatus | undefined
-    readonly lastReloadedAt?: number | null | undefined
+    readonly enabled?: boolean
+    readonly trusted?: boolean
+    readonly grantedCapabilities?: readonly string[]
+    readonly reloadStatus?: ExtensionReloadStatus
+    readonly lastReloadedAt?: number | null
   } = {},
 ): ExtensionLifecycleState {
   const reloadStatus = options.reloadStatus ?? OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED
