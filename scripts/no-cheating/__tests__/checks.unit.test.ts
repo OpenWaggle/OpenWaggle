@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { addedLines } from '../added-lines'
 import { formatFinding } from '../findings'
 import { lintConfigFindings } from '../lint-config'
+import { openRecordFindings } from '../open-records'
 import { ratchetFindings } from '../ratchets'
 import {
   type FileState,
@@ -276,5 +277,44 @@ describe('silencing casts', () => {
       'new `as never` cast; type the value instead',
     ])
     expect(newSuppressions('src/a.ts', after, after)).toEqual([])
+  })
+})
+
+describe('new open-record types', () => {
+  it.each([
+    ['a Record of unknown', 'type Payload = Record<string, unknown>'],
+    ['a readonly Record of any', 'let row: Readonly<Record<PropertyKey, any>>'],
+    ['an index signature', 'interface Parsed { readonly [key: string]: unknown }'],
+    [
+      'an open record schema',
+      'const s = Schema.Record({\n  key: Schema.String,\n  value: Schema.Unknown,\n})',
+    ],
+  ])('blocks %s the change added', (_name, code) => {
+    const findings = openRecordFindings('src/a.ts', 'const a = 1\n', `const a = 1\n${code}\n`)
+    expect(findings.map(formatFinding)).toEqual([
+      expect.stringMatching(/^src\/a\.ts:2 \[no-cheating\/open-record\] new open record type/u),
+    ])
+  })
+
+  it('reports only the open records a file gained, not the ones it reformatted', () => {
+    const before = 'type A = Record<string, unknown>\n'
+    const after = 'type A =\n  Record<string, unknown>\ntype B = Record<string, unknown>\n'
+    expect(openRecordFindings('src/a.ts', before, after).map(formatFinding)).toEqual([
+      expect.stringMatching(/^src\/a\.ts:2 \[no-cheating\/open-record\] new open record type/u),
+    ])
+  })
+
+  it('passes an existing or moved open record, a declared value type and non-TypeScript files', () => {
+    const existing =
+      'type A = Record<string, unknown>\nconst s = Schema.Record({ key: Schema.String, value: Schema.Unknown })\n'
+    expect(openRecordFindings('src/a.ts', existing, `const b = 2\n${existing}`)).toEqual([])
+    const reformatted =
+      'type A = Readonly<\n  Record<string, unknown>\n>\nconst s = Schema.Record({ key: Schema.String, value: Schema.Unknown })\n'
+    expect(openRecordFindings('src/a.ts', existing, reformatted)).toEqual([])
+    const declared =
+      'type Headers = Record<string, string>\nconst m = Schema.Record({ key: Schema.String, value: jsonValueSchema })\ntype Map = { [id: string]: Session }\n'
+    expect(openRecordFindings('src/a.ts', '', declared)).toEqual([])
+    expect(openRecordFindings('docs/a.md', '', 'Record<string, unknown>\n')).toEqual([])
+    expect(openRecordFindings('src/a.ts', 'x', undefined)).toEqual([])
   })
 })

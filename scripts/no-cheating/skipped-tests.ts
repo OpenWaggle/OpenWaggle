@@ -8,6 +8,7 @@
 import path from 'node:path'
 import { addedLines } from './added-lines'
 import type { Finding } from './findings'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 const TEST_FILE = /(?:^|\/)__tests__\/.*\.[cm]?[jt]sx?$|\.(?:test|spec)\.[cm]?[jt]sx?$/u
 /** Files that name the modifiers on purpose: the checks that look for them and their tests. */
@@ -71,7 +72,7 @@ export function skippedTestFindings(
   if (after === undefined || !isTestFile(file) || EXEMPT_FILE.test(file)) return []
   const lines = after.split('\n')
   return addedLines(before, after).flatMap((added) => {
-    const groups = SKIP.exec(added.text)?.groups
+    const groups = namedGroups(SKIP.exec(added.text), ['modifier', 'prefixed'])
     const modifier = groups?.modifier ?? groups?.prefixed
     if (modifier === undefined) return []
     if (CONDITIONAL.has(modifier) && commentAbove(lines, added.line)) return []
@@ -111,7 +112,7 @@ function resolvedModule(file: string, specifier: string) {
 function importsModule(file: string, text: string, subject: string) {
   const target = subject.replace(MODULE_EXTENSION, '')
   for (const match of text.matchAll(SPECIFIER)) {
-    const specifier = match.groups?.specifier
+    const specifier = namedGroups(match, ['specifier'])?.specifier
     const resolved = specifier === undefined ? undefined : resolvedModule(file, specifier)
     if (resolved?.replace(MODULE_EXTENSION, '') === target) return true
   }

@@ -7,6 +7,7 @@
  */
 import { type AddedLine, addedLines, removedLines } from './added-lines'
 import type { Finding } from './findings'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 interface LintConfig {
   /** Keys whose entries exempt code from a check: anything added under them checks less. */
@@ -62,7 +63,7 @@ function enclosingKeys(lines: readonly string[], index: number) {
     const text = lines[above] ?? ''
     if (text.trim() === '' || indent(text) >= depth) continue
     depth = indent(text)
-    const key = KEY.exec(text)?.groups?.key
+    const key = namedGroups(KEY.exec(text), ['key'])?.key
     if (key !== undefined) keys.push(key)
   }
   return keys
@@ -70,10 +71,10 @@ function enclosingKeys(lines: readonly string[], index: number) {
 
 function numbers(text: string, pattern: RegExp) {
   return new Map(
-    [...text.matchAll(pattern)].map((match) => [
-      match.groups?.key ?? '',
-      match.groups?.value ?? '',
-    ]),
+    [...text.matchAll(pattern)].map((match) => {
+      const { key = '', value = '' } = namedGroups(match, ['key', 'value']) ?? {}
+      return [key, value]
+    }),
   )
 }
 

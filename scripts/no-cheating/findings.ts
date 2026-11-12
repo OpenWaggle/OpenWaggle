@@ -11,6 +11,7 @@ export type FindingKind =
   | 'budget'
   | 'only-shrinks'
   | 'generated-file'
+  | 'open-record'
 
 export interface Finding {
   readonly file: string
