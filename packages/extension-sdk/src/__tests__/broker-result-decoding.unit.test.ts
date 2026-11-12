@@ -6,6 +6,42 @@ import {
 } from '../index.js'
 
 const APP_SCOPE = { kind: 'app' } as const
+const IDENTITY = { extensionId: 'sample-extension', contributionId: 'sample.docs' }
+
+/** A transport that answers every call with `value` as the broker's success. */
+function answering(value: (input: Parameters<ExtensionBrokerTransport>[0]) => object) {
+  return vi.fn<ExtensionBrokerTransport>(async (input) => ({
+    ok: true,
+    value: value(input),
+    audit: {
+      extensionId: input.extensionId,
+      contributionId: input.contributionId,
+      capability: input.capability,
+      method: input.method,
+      scope: input.scope,
+      outcome: OPENWAGGLE_EXTENSION_BROKER.OUTCOME.SUCCEEDED,
+      timestamp: 1,
+    },
+  }))
+}
+
+function settingsResult(input: Parameters<ExtensionBrokerTransport>[0], thinkingLevel: string) {
+  return {
+    extensionId: input.extensionId,
+    contributionId: input.contributionId,
+    capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+    method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
+    settings: {
+      modelPreferences: {
+        selectedModel: 'model',
+        favoriteModels: [],
+        enabledModels: [],
+        thinkingLevel,
+      },
+      projectDisplayNames: {},
+    },
+  }
+}
 
 describe('broker result decoding', () => {
   // The SDK decodes docs results with the schemas their types come from (docs.ts); the earlier
@@ -55,6 +91,40 @@ describe('broker result decoding', () => {
       error: {
         issues: expect.arrayContaining([expect.stringMatching(/^resolvedTopic\.aliases\.0: /u)]),
       },
+    })
+  })
+
+  // The SDK decodes with the schemas the host builds its results from, so a thinking level the
+  // app does not define is refused; the SDK's own schema accepted any string.
+  it('refuses a model preference with an unknown thinking level, naming the field', async () => {
+    const sdk = createExtensionBrokerSdk(
+      answering((input) => settingsResult(input, 'turbo')),
+      IDENTITY,
+    )
+
+    const result = await sdk.openWaggle.settings.get(APP_SCOPE)
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        issues: expect.arrayContaining([
+          expect.stringMatching(/^settings\.modelPreferences\.thinkingLevel: /u),
+        ]),
+      },
+    })
+  })
+
+  it('accepts a model preference with a thinking level the app defines', async () => {
+    const sdk = createExtensionBrokerSdk(
+      answering((input) => settingsResult(input, 'high')),
+      IDENTITY,
+    )
+
+    const result = await sdk.openWaggle.settings.get(APP_SCOPE)
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { settings: { modelPreferences: { thinkingLevel: 'high' } } },
     })
   })
 })
