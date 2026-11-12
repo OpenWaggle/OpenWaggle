@@ -27,7 +27,7 @@ interface RegistrationInput {
 async function approved<T>(input: {
   readonly operation: string
   readonly params: unknown
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
   readonly ctx: ExtensionContext
   readonly execute: () => Promise<T>
 }) {
@@ -49,7 +49,7 @@ export function registerBrowserPreviewInteractionTools(input: RegistrationInput)
       approved({
         operation: 'click browser preview page',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.click(input.scope, params), signal),
       }),
@@ -66,7 +66,7 @@ export function registerBrowserPreviewInteractionTools(input: RegistrationInput)
       approved({
         operation: 'type into browser preview page',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.type(input.scope, params), signal),
       }),
@@ -82,7 +82,7 @@ export function registerBrowserPreviewInteractionTools(input: RegistrationInput)
       approved({
         operation: 'press key in browser preview page',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.press(input.scope, params), signal),
       }),
@@ -98,7 +98,7 @@ export function registerBrowserPreviewInteractionTools(input: RegistrationInput)
       approved({
         operation: 'scroll browser preview page',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.scroll(input.scope, params), signal),
       }),
@@ -115,7 +115,7 @@ export function registerBrowserPreviewInteractionTools(input: RegistrationInput)
       approved({
         operation: 'evaluate JavaScript in browser preview',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.evaluate(input.scope, params), signal),
       }),
@@ -132,7 +132,7 @@ export function registerBrowserPreviewInteractionTools(input: RegistrationInput)
       approved({
         operation: 'wait for browser preview condition',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () => runBrowserPreviewEffect(input.service.waitFor(input.scope, params), signal),
       }),

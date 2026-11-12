@@ -16,6 +16,7 @@ export function isObject(value: McpJsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// explicit undefined: MCP SDK request objects are in-process and may set a field to undefined
 const field = Schema.optional(jsonValueSchema)
 
 /**
@@ -84,7 +85,7 @@ export async function declaredConfirm(input: {
   readonly purpose: OpenWaggleDeclaredConfirmPurpose
   readonly title: string
   readonly message: string
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
 }): Promise<boolean> {
   const declared = getOpenWaggleDeclaredConfirm(input.ctx.ui)
   if (declared) {

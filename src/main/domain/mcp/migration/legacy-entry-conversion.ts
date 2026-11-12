@@ -60,8 +60,8 @@ interface LegacyEntryFields {
 
 const legacyOAuthSchema = Schema.Struct({
   type: Schema.Literal('oauth'),
-  clientMetadataUrl: Schema.optional(Schema.Unknown),
-  scopes: Schema.optional(Schema.Unknown),
+  clientMetadataUrl: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  scopes: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export interface LiveExposure {

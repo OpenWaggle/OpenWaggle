@@ -14,6 +14,7 @@ function isAgentEndReason(
   )
 }
 
+// explicit undefined: Pi sets stopReason, usage or errorMessage to undefined on its messages
 const agentEndAssistantMessageSchema = Schema.Struct({
   role: Schema.Literal('assistant'),
   stopReason: Schema.optional(Schema.Unknown),

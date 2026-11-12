@@ -21,7 +21,7 @@ export interface PreparationDependencies {
     readonly invocation: ActionInvocation
     readonly environment: PreparedEnvironment
     readonly captureEnvironment: boolean
-    readonly signal?: AbortSignal | undefined
+    readonly signal?: AbortSignal
     readonly onOutput: (chunk: string) => void
   }) => Promise<{
     readonly exitCode: number | null

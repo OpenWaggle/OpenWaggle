@@ -46,8 +46,9 @@ export function generatedImageInput(image: CapturedImage): CapturedGeneratedImag
   return 'data' in image ? image : { data: '', mimeType: image.mimeType, title: image.title }
 }
 
+/** The `sourcePath` of a captured local image, to spread into a capture; none for other images. */
 export function capturedImageSourcePath(image: CapturedImage) {
-  return 'filePath' in image ? image.filePath : undefined
+  return 'filePath' in image ? { sourcePath: image.filePath } : {}
 }
 
 export function prepareLocalImageForCapture(

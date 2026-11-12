@@ -9,13 +9,13 @@ import { mcpConfigServerMaps } from '../mcp-config-server-maps'
 const legacyServerStateSchema = Schema.Struct({
   instanceId: Schema.String,
   enabled: Schema.Boolean,
-  trustedConfigHash: Schema.optional(Schema.String),
+  trustedConfigHash: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 const stringRecordSchema = Schema.Record({ key: Schema.String, value: Schema.String })
 
 const legacyStateFileSchema = Schema.Struct({
-  globalState: Schema.optional(Schema.String),
+  globalState: Schema.optionalWith(Schema.String, { exact: true }),
   projectStates: Schema.optionalWith(stringRecordSchema, { default: () => ({}) }),
   sessionStates: Schema.optionalWith(stringRecordSchema, { default: () => ({}) }),
   projectServerStates: Schema.optionalWith(

@@ -60,6 +60,7 @@ function messageInput(input: { readonly text: string; readonly thinking?: string
  * dropping them silently.
  */
 /** The run settings an idle-only action refuses, read from the action's arguments. */
+// explicit undefined: Pi hands over the tool call's in-process arguments, which may hold undefined
 const runSettingsSchema = Schema.Struct({
   thinking: Schema.optional(Schema.Unknown),
   authorization: Schema.optional(Schema.Unknown),

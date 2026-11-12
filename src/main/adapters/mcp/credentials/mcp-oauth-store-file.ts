@@ -55,7 +55,7 @@ const storeFileSchema = Schema.Struct({
 })
 
 const ownLayerSchema = Schema.Struct({
-  states: Schema.optional(Schema.Unknown),
+  states: Schema.optionalWith(Schema.Unknown, { exact: true }),
   tombstones: lenientStringRecordSchema,
 })
 

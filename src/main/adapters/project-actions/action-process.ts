@@ -27,7 +27,7 @@ export interface ActionProcess {
 export interface ActionProcessLaunch {
   readonly invocation: ResolvedActionInvocation
   readonly environment: PreparedEnvironment
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
   readonly onOutput: (chunk: string) => void
 }
 
@@ -187,7 +187,7 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
         rows: ACTION_TERMINAL_ROWS,
         readinessNonce: 'action',
         execution,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
       })
       if (!outcome.ok) throw outcome.error
       const owned: OwnedTerminalProcessTree = {

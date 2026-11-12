@@ -1,4 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
 import type {
   ExtensionBuildPlan,
   ExtensionDiagnostic,
@@ -7,17 +8,10 @@ import type {
 import { calculateBuildPlanHash } from './package-files'
 
 /** The manifest fields the build plan reads, as a decoded manifest carries them. */
-interface ManifestBuildPlanSource {
-  readonly builtArtifacts: readonly string[]
-  readonly sourceFiles: readonly string[]
-  readonly install?: { readonly source: ExtensionInstallSource } | undefined
-  readonly build?:
-    | {
-        readonly command: string
-        readonly outputs?: readonly string[] | undefined
-      }
-    | undefined
-}
+type ManifestBuildPlanSource = Pick<
+  OpenWaggleExtensionManifest,
+  'builtArtifacts' | 'sourceFiles' | 'install' | 'build'
+>
 
 function normalizeManifestPath(relativePath: string) {
   return relativePath.replaceAll(

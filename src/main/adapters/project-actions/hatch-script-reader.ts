@@ -20,17 +20,22 @@ const scriptsSchema = Schema.Record({
   value: Schema.Union(Schema.String, Schema.Array(Schema.String)),
 })
 const envSchema = Schema.Struct({
-  template: Schema.optional(Schema.String),
-  detached: Schema.optional(Schema.Boolean),
-  scripts: Schema.optional(scriptsSchema),
-  'extra-scripts': Schema.optional(scriptsSchema),
-  matrix: Schema.optional(Schema.Unknown),
+  template: Schema.optionalWith(Schema.String, { exact: true }),
+  detached: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  scripts: Schema.optionalWith(scriptsSchema, { exact: true }),
+  'extra-scripts': Schema.optionalWith(scriptsSchema, { exact: true }),
+  matrix: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 const hatchSchema = Schema.Struct({
-  envs: Schema.optional(Schema.Record({ key: Schema.String, value: envSchema })),
+  envs: Schema.optionalWith(Schema.Record({ key: Schema.String, value: envSchema }), {
+    exact: true,
+  }),
 })
 const projectSchema = Schema.Struct({
-  tool: Schema.optional(Schema.Struct({ hatch: Schema.optional(hatchSchema) })),
+  tool: Schema.optionalWith(
+    Schema.Struct({ hatch: Schema.optionalWith(hatchSchema, { exact: true }) }),
+    { exact: true },
+  ),
 })
 type Environments = Readonly<Record<string, SchemaType<typeof envSchema>>>
 type Scripts = SchemaType<typeof scriptsSchema>

@@ -98,9 +98,9 @@ async function capturePayload(
 
 const anthropicBlockSchema = Schema.Struct({
   type: Schema.String,
-  text: Schema.optional(Schema.String),
-  is_error: Schema.optional(Schema.Boolean),
-  content: Schema.optional(Schema.Unknown),
+  text: Schema.optionalWith(Schema.String, { exact: true }),
+  is_error: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  content: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 type AnthropicBlock = SchemaType<typeof anthropicBlockSchema>
 const anthropicPayloadSchema = Schema.Struct({
@@ -131,13 +131,14 @@ const bedrockPayloadSchema = Schema.Struct({
     Schema.Struct({
       content: Schema.Array(
         Schema.Struct({
-          text: Schema.optional(Schema.String),
-          image: Schema.optional(Schema.Unknown),
-          toolResult: Schema.optional(
+          text: Schema.optionalWith(Schema.String, { exact: true }),
+          image: Schema.optionalWith(Schema.Unknown, { exact: true }),
+          toolResult: Schema.optionalWith(
             Schema.Struct({
               status: Schema.String,
               content: Schema.Array(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
             }),
+            { exact: true },
           ),
         }),
       ),

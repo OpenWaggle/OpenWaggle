@@ -131,6 +131,6 @@ export function captureBrowserPreviewAutomationSnapshot(
         ...(screenshot ? {} : { screenshotUnavailable: SCREENSHOT_UNAVAILABLE }),
       }
     },
-    { signal },
+    { ...(signal === undefined ? {} : { signal }) },
   )
 }

@@ -34,7 +34,7 @@ async function handleUrlElicitation(input: {
   readonly ctx: ExtensionContext
   readonly serverLabel: string
   readonly request: JsonObject
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
 }): Promise<McpElicitationResult> {
   const urlText = stringValue(mcpRequestFields(input.request).url)
   if (!urlText) throw new Error('MCP URL elicitation did not include a URL.')
@@ -55,7 +55,7 @@ async function handleUrlElicitation(input: {
       '',
       'The page may request sensitive information. OpenWaggle will not read the page or its values.',
     ].join('\n'),
-    signal,
+    ...(signal === undefined ? {} : { signal }),
   })
   if (!approved) return { action: 'decline' }
   await openExternal(url.href)
@@ -71,7 +71,7 @@ async function handleFormElicitation(input: {
   readonly ctx: ExtensionContext
   readonly serverLabel: string
   readonly request: JsonObject
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
 }): Promise<McpElicitationResult> {
   const signal = interactionSignal(input.ctx, input.signal)
   const approved = await declaredConfirm({
@@ -89,7 +89,7 @@ async function handleFormElicitation(input: {
       '',
       'This consent applies only to this request. Your response is sent to the named server.',
     ].join('\n'),
-    signal,
+    ...(signal === undefined ? {} : { signal }),
   })
   if (!approved) return { action: 'decline' }
   const edited = await input.ctx.ui.editor(`MCP input for ${input.serverLabel}`, '{}')
@@ -112,7 +112,7 @@ async function askSamplingApproval(input: {
   readonly maxTokens: number
   readonly toolCount: number
   readonly modelRef: string
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
 }) {
   const title = 'Allow legacy MCP sampling?'
   const message = [
@@ -154,7 +154,7 @@ async function handleSampling(input: {
   readonly serverInstanceId: string
   readonly serverLabel: string
   readonly request: JsonObject
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
 }): Promise<McpSamplingResult> {
   requireUi(input.ctx, 'legacy sampling')
   if (!input.ctx.model) throw new Error('MCP sampling requires a selected model.')
@@ -174,7 +174,7 @@ async function handleSampling(input: {
     maxTokens,
     toolCount: tools?.length ?? 0,
     modelRef: `${input.ctx.model.provider}/${input.ctx.model.id}`,
-    signal,
+    ...(signal === undefined ? {} : { signal }),
   })
   if (!approved) throw new Error('The user declined the MCP sampling request.')
   const model = input.ctx.modelRegistry.find(input.ctx.model.provider, input.ctx.model.id)
@@ -212,13 +212,13 @@ export function createPiMcpRuntimeInteractions(ctx: ExtensionContext): McpRuntim
             ctx,
             serverLabel: input.serverLabel,
             request: input.request,
-            signal: input.signal,
+            ...(input.signal === undefined ? {} : { signal: input.signal }),
           })
         : handleFormElicitation({
             ctx,
             serverLabel: input.serverLabel,
             request: input.request,
-            signal: input.signal,
+            ...(input.signal === undefined ? {} : { signal: input.signal }),
           })
     },
     sample: async (input) => {
@@ -228,7 +228,7 @@ export function createPiMcpRuntimeInteractions(ctx: ExtensionContext): McpRuntim
         serverInstanceId: input.serverInstanceId,
         serverLabel: input.serverLabel,
         request: input.request,
-        signal: input.signal,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
     },
   }

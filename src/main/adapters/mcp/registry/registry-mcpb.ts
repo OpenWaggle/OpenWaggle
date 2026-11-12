@@ -29,8 +29,8 @@ export interface InstalledMcpbLauncher extends McpbCachedLauncher {
 
 const nodeErrorSchema = Schema.Struct({ code: Schema.String })
 const integrityMarkerSchema = Schema.Struct({
-  sha256: Schema.optional(Schema.Unknown),
-  schemaVersion: Schema.optional(Schema.Unknown),
+  sha256: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  schemaVersion: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function nodeErrorCode(value: unknown) {

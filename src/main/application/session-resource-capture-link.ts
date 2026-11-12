@@ -20,7 +20,7 @@ export interface LinkCaptureInput {
   readonly createdAt: number
   readonly branchId?: string | null
   readonly label?: string | null
-  readonly displayOrder?: number | null | undefined
+  readonly displayOrder?: number | null
 }
 
 export function linkOccurrenceId(input: LinkCaptureInput) {
@@ -34,13 +34,13 @@ function linkOccurrence(input: LinkCaptureInput, id: string) {
   return occurrence({
     id,
     nodeId: input.nodeId,
-    branchId: input.branchId,
+    ...(input.branchId === undefined ? {} : { branchId: input.branchId }),
     actor: input.actor,
     activity: input.activity,
-    label: input.label,
+    ...(input.label === undefined ? {} : { label: input.label }),
     locator: input.link.url,
     displayName: input.link.image ? input.link.title : null,
-    displayOrder: input.link.image ? input.displayOrder : null,
+    displayOrder: input.link.image ? (input.displayOrder ?? null) : null,
     createdAt: input.createdAt,
   })
 }

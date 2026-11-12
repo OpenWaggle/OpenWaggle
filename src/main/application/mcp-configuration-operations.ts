@@ -100,7 +100,10 @@ export function getMcpConfigurationOperation(raw: unknown) {
 
 /** Leaves an absent write destination absent, so the service picks its default file. */
 function omitAbsentDestination<
-  TInput extends { readonly destination?: McpWriteDestination | undefined },
+  TInput extends {
+    // explicit undefined: a decoded request may set destination to undefined; this drops the key
+    readonly destination?: McpWriteDestination | undefined
+  },
 >(input: TInput) {
   const { destination, ...rest } = input
   return destination === undefined ? rest : { ...rest, destination }

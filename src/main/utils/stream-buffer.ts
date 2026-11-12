@@ -142,7 +142,11 @@ function applyMessageUpdateToStreamBuffer(
       appendBufferedText(sessionId, { type: 'reasoning', delta, contentIndex })
     })
     .with('toolcall_start', ({ toolCallId, toolName, input }) => {
-      upsertBufferedToolCall(sessionId, { toolCallId, toolName, args: input })
+      upsertBufferedToolCall(sessionId, {
+        toolCallId,
+        toolName,
+        ...(input === undefined ? {} : { args: input }),
+      })
     })
     .with('toolcall_end', ({ toolCallId, toolName, input }) => {
       if (activeBuffers.get(sessionId)?.degradedToolCallIds.has(toolCallId)) return

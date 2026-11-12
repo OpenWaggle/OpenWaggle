@@ -14,8 +14,8 @@ const logger = createLogger('open-project-requests')
  * Session a link names. A launch carries at most one of them.
  */
 const secondInstanceDataSchema = Schema.Struct({
-  openProjectPath: Schema.optional(Schema.String),
-  openSessionLink: Schema.optional(Schema.String),
+  openProjectPath: Schema.optionalWith(Schema.String, { exact: true }),
+  openSessionLink: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 /** Launches waiting for the renderer, oldest first; a few is plenty for quick repeats. */
@@ -101,8 +101,8 @@ export type AppInstanceHost = Pick<
  */
 export function claimAppInstance(input: {
   readonly host: AppInstanceHost
-  readonly openProjectPath?: string | undefined
-  readonly openSessionLink?: string | undefined
+  readonly openProjectPath?: string
+  readonly openSessionLink?: string
   readonly singleInstance: boolean
   /** Bring a window to the front for a later launch, creating one if none is open. */
   readonly revealWindow: () => void

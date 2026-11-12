@@ -112,8 +112,10 @@ function captureImages(input: {
         validatedImage: prepared.image,
         actor: input.actor,
         label: input.label,
-        displayOrder: input.displayOrders[localIndex],
-        sourcePath: capturedImageSourcePath(image),
+        ...(input.displayOrders[localIndex] === undefined
+          ? {}
+          : { displayOrder: input.displayOrders[localIndex] }),
+        ...capturedImageSourcePath(image),
       }).pipe(Effect.catchAll(() => Effect.void))
     }
   })
@@ -145,7 +147,9 @@ function captureLinks(input: {
         actor: input.actor,
         activity: input.activity,
         label: input.label,
-        displayOrder: input.displayOrders[localIndex],
+        ...(input.displayOrders[localIndex] === undefined
+          ? {}
+          : { displayOrder: input.displayOrders[localIndex] }),
         createdAt: input.context.message.createdAt,
       }).pipe(Effect.catchAll(() => Effect.void))
     }

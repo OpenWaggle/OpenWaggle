@@ -6,7 +6,7 @@ import type { SessionResourceRepositoryShape } from '../ports/session-resource-r
 interface UnavailableAttachmentLookup {
   readonly sessionId: SessionId
   readonly sourcePath: string
-  readonly repairResource?: SessionResource | undefined
+  readonly repairResource?: SessionResource
 }
 
 export function findUnavailableAttachment(

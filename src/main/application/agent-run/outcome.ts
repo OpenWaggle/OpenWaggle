@@ -21,7 +21,7 @@ interface AgentKernelOutcomeInput {
 interface BuildAgentRunOutcomeInput {
   readonly agentResult: AgentKernelOutcomeInput
   readonly signal: AbortSignal
-  readonly assignedTitle?: string | undefined
+  readonly assignedTitle?: string
   readonly sessionId: SessionId
   readonly runId: string
   readonly model: SupportedModelId
@@ -35,7 +35,7 @@ interface BuildAgentRunFailureInput {
   readonly signal: AbortSignal
   /** Whether the agent already had the message when this failed - see the outcome below. */
   readonly reachedAgent?: boolean
-  readonly assignedTitle?: string | undefined
+  readonly assignedTitle?: string
   readonly sessionId: SessionId
   readonly runId: string
   readonly model: SupportedModelId
@@ -68,7 +68,7 @@ export function buildAgentRunOutcome({
       sessionId,
       runId,
       model,
-      assignedTitle,
+      ...(assignedTitle === undefined ? {} : { assignedTitle }),
       resources,
     })
   }
@@ -179,7 +179,7 @@ function terminalErrorOutcome(
     readonly sessionId: SessionId
     readonly runId: string
     readonly model: SupportedModelId
-    readonly assignedTitle?: string | undefined
+    readonly assignedTitle?: string
     readonly resources: PersistedRunResourceNodes
   },
 ): AgentRunResult {

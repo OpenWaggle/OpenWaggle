@@ -14,7 +14,7 @@ interface AgentRunPreflightSuccess {
   readonly ok: true
   readonly session: SessionDetail
   readonly compactionThresholdPercent: number
-  readonly assignedTitle?: string | undefined
+  readonly assignedTitle?: string
   readonly skillToggles?: Record<string, boolean>
   readonly agentDefinitionToggles?: Record<string, boolean>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]

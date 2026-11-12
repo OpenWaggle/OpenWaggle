@@ -24,7 +24,9 @@ export function mcpConfigServerMaps(config: unknown): McpConfigServerMaps {
   return Option.getOrElse(decodeServerMaps(config), () => ({}))
 }
 
-const mcpServersFieldSchema = Schema.Struct({ mcpServers: Schema.optional(Schema.Unknown) })
+const mcpServersFieldSchema = Schema.Struct({
+  mcpServers: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 const decodeMcpServersField = Schema.decodeUnknownOption(mcpServersFieldSchema)
 
 /**

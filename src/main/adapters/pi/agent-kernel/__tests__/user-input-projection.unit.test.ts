@@ -4,7 +4,11 @@ import { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport
 import { boundedAttachmentText } from '@shared/utils/attachment-text'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { expect, it, vi } from 'vitest'
-import { buildUserInputProjection, enqueueUserInputProjection } from '../user-input-projection'
+import {
+  buildUserInputProjection,
+  decodeUserInputProjection,
+  enqueueUserInputProjection,
+} from '../user-input-projection'
 
 type SessionListener = Parameters<AgentSession['subscribe']>[0]
 type SessionEvent = Parameters<SessionListener>[0]
@@ -89,4 +93,12 @@ it('records a bounded preview of an attachment the Host resolved to its whole te
       sessionNodeCreatedOrder: 0,
     }),
   ).not.toThrow()
+})
+
+it('reads a recorded projection, and refuses one that sets an optional field to undefined', () => {
+  const parts = [{ type: 'text', text: 'hello' }] as const
+  expect(decodeUserInputProjection({ version: 1, parts })).toEqual(parts)
+  // buildUserInputProjection leaves an absent field out, so undefined means another writer.
+  expect(decodeUserInputProjection({ version: 1, parts, durableTextSha256: undefined })).toBeNull()
+  expect(decodeUserInputProjection({ version: 1, parts, scheduledTask: undefined })).toBeNull()
 })

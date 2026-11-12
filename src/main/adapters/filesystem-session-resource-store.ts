@@ -155,7 +155,7 @@ function makeStore(root: string): SessionResourceStoreShape {
             sourcePath: input.sourcePath,
             temporaryPath: temporary,
             expectedSizeBytes: input.expectedSizeBytes,
-            expectedSha256: input.expectedSha256,
+            ...(input.expectedSha256 === undefined ? {} : { expectedSha256: input.expectedSha256 }),
             maxSizeBytes: input.maxSizeBytes,
           })
           try {

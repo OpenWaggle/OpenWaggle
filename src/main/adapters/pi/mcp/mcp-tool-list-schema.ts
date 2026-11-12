@@ -60,6 +60,7 @@ export function mcpListCursor(params: unknown) {
 }
 
 /** The fields of a `tools/call` result OpenWaggle passes to an MCP App; each is checked there. */
+// explicit undefined: an MCP SDK `tools/call` result is an in-process object
 const toolCallResultSchema = Schema.Struct({
   content: Schema.optional(Schema.Unknown),
   structuredContent: Schema.optional(Schema.Unknown),

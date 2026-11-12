@@ -73,6 +73,12 @@ async function readCapturedEnvironment(
     await handle.close()
   }
 }
+
+/** `fields` with the caller's abort signal, when it has one. */
+function withAbortSignal<T extends object>(fields: T, signal: AbortSignal | undefined) {
+  return signal === undefined ? fields : { ...fields, signal }
+}
+
 export function createPreparationExecutor(
   runner: ActionProcessRunner,
   directory: string,
@@ -86,7 +92,7 @@ export function createPreparationExecutor(
     readonly invocation: ActionInvocation
     readonly environment: PreparedEnvironment
     readonly captureEnvironment: boolean
-    readonly signal?: AbortSignal | undefined
+    readonly signal?: AbortSignal
     readonly onOutput: (chunk: string) => void
   }) => {
     if (shuttingDown) throw new Error('The Session Host is stopping.')
@@ -122,12 +128,9 @@ export function createPreparationExecutor(
       const invocation = capture?.invocation ?? resolved
       if (shuttingDown) throw new Error('The Session Host is stopping.')
       input.signal?.throwIfAborted()
-      const child = await launches.start({
-        invocation,
-        environment,
-        signal: input.signal,
-        onOutput: input.onOutput,
-      })
+      const child = await launches.start(
+        withAbortSignal({ invocation, environment, onOutput: input.onOutput }, input.signal),
+      )
       let exitCode: number | null
       const stop = () => {
         void ownership.stop(child)

@@ -52,7 +52,7 @@ export function upsertToolCallPart(input: {
   readonly parts: readonly MessagePart[]
   readonly toolCallId: string
   readonly toolName?: string
-  readonly args?: JsonValue | undefined
+  readonly args?: JsonValue
 }): MessagePart[] {
   const index = findToolCallPartIndex(input.parts, input.toolCallId)
   const existingPart = index === -1 ? null : input.parts[index]
@@ -78,7 +78,7 @@ export function appendToolResultPart(input: {
   readonly parts: readonly MessagePart[]
   readonly toolCallId: string
   readonly toolName: string
-  readonly args?: JsonValue | undefined
+  readonly args?: JsonValue
   readonly result: JsonValue
   readonly isError: boolean
 }): MessagePart[] {

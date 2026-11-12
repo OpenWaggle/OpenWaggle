@@ -19,11 +19,11 @@ interface TranscriptCursor {
 /** The members of a transcript page outcome the CLI reads, each still unchecked but `items`. */
 const transcriptPageSchema = Schema.Struct({
   items: Schema.Array(Schema.Unknown),
-  highWaterMark: Schema.optional(Schema.Unknown),
-  nextCreatedOrder: Schema.optional(Schema.Unknown),
-  branchScope: Schema.optional(Schema.Unknown),
-  selectedBranchId: Schema.optional(Schema.Unknown),
-  snapshotHeadNodeId: Schema.optional(Schema.Unknown),
+  highWaterMark: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  nextCreatedOrder: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  branchScope: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  selectedBranchId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  snapshotHeadNodeId: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function optionalNumber(value: unknown) {

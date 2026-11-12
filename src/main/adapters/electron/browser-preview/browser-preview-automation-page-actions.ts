@@ -143,7 +143,7 @@ export function clickBrowserPreviewPage(
           .catch(() => undefined)
       }
     },
-    { signal, timeoutMs },
+    { ...(signal === undefined ? {} : { signal }), timeoutMs },
   )
 }
 
@@ -162,7 +162,7 @@ export function typeIntoBrowserPreviewPage(
       await ensureLocatorRuntime(context, input)
       await retryBrowserPreviewType(context, input)
     },
-    { signal, timeoutMs },
+    { ...(signal === undefined ? {} : { signal }), timeoutMs },
   )
 }
 
@@ -182,7 +182,7 @@ export function scrollBrowserPreviewPage(
         await context.evaluate(browserPreviewScrollExpression(input)),
       )
     },
-    { signal },
+    { ...(signal === undefined ? {} : { signal }) },
   )
 }
 
@@ -212,7 +212,7 @@ export function evaluateBrowserPreviewPage(
       }
       return value
     },
-    { signal },
+    { ...(signal === undefined ? {} : { signal }) },
   )
 }
 
@@ -254,7 +254,7 @@ export function pressBrowserPreviewKey(
         }
       }
     },
-    { signal },
+    { ...(signal === undefined ? {} : { signal }) },
   )
 }
 
@@ -296,6 +296,6 @@ export function waitForBrowserPreviewPage(
       }
       throw new Error(`Browser preview condition was not met within ${String(timeoutMs)} ms.`)
     },
-    { allowDocumentChanges: true, signal, timeoutMs },
+    { allowDocumentChanges: true, ...(signal === undefined ? {} : { signal }), timeoutMs },
   )
 }

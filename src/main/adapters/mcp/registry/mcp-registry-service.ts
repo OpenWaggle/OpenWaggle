@@ -45,7 +45,14 @@ export function createMcpRegistryService(
   return {
     search: (input) =>
       attempt(async () => ({
-        servers: (await searchMcpRegistry({ ...client, ...input })).map(registryServerView),
+        servers: (
+          await searchMcpRegistry({
+            ...client,
+            query: input.query,
+            ...(input.limit === undefined ? {} : { limit: input.limit }),
+            ...(input.registryUrl === undefined ? {} : { registryUrl: input.registryUrl }),
+          })
+        ).map(registryServerView),
       })),
     getServer: (input) => attempt(async () => registryServerView(await getServer(input))),
     prepareEntry: (input) =>

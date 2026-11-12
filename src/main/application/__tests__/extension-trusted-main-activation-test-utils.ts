@@ -159,7 +159,7 @@ function makeDocsBundleLayer() {
 
 function makeSettingsLayer(input: {
   readonly projectPath: string | null
-  readonly failure?: Error | undefined
+  readonly failure?: Error
 }) {
   if (input.failure === undefined) {
     return makeBrokerSettingsLayer(input.projectPath)
@@ -195,7 +195,10 @@ export function makeTrustedMainActivationHarness(input: {
     makeLoggerLayer(capturedLogs),
     makeDocsBundleLayer(),
     makeExtensionStorageRepositoryLayer([]),
-    makeSettingsLayer({ projectPath: settingsProjectPath, failure: input.settingsGetFailure }),
+    makeSettingsLayer({
+      projectPath: settingsProjectPath,
+      ...(input.settingsGetFailure === undefined ? {} : { failure: input.settingsGetFailure }),
+    }),
     makeTrustedMainSessionLayers(TRUSTED_MAIN_TEST_PROJECT_PATH),
     EmptySessionResourceRepositoryTestLayer,
     Layer.succeed(ExtensionManagerService, {

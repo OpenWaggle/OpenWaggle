@@ -43,8 +43,8 @@ function isHiddenProjectionRow(row: SessionNodeRow) {
 }
 
 const customMessageMetadataSchema = Schema.Struct({
-  display: Schema.optional(Schema.Unknown),
-  customType: Schema.optional(Schema.Unknown),
+  display: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  customType: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function isHiddenCustomMessageRow(row: SessionNodeRow) {

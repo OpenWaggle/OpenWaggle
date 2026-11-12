@@ -34,17 +34,20 @@ function runWithoutRequirements(effect: Effect.Effect<void, unknown, unknown>): 
   return Effect.runPromise(fromAny<Effect.Effect<void, unknown>, typeof effect>(effect))
 }
 
-const sessionTargetSchema = Schema.Struct({ sessionId: Schema.optional(Schema.Unknown) })
+const sessionTargetSchema = Schema.Struct({
+  sessionId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
 /** The members of a dispatched command payload these tests read. */
 const dispatchedPayloadSchema = Schema.Struct({
-  contract: Schema.optional(Schema.Unknown),
-  request: Schema.optional(
+  contract: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  request: Schema.optionalWith(
     Schema.Struct({
-      requestId: Schema.optional(Schema.Unknown),
-      query: Schema.optional(sessionTargetSchema),
-      command: Schema.optional(sessionTargetSchema),
+      requestId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+      query: Schema.optionalWith(sessionTargetSchema, { exact: true }),
+      command: Schema.optionalWith(sessionTargetSchema, { exact: true }),
     }),
+    { exact: true },
   ),
 })
 
