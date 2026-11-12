@@ -1,16 +1,14 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
-import { Schema } from '@shared/schema'
-import { objectFields, unknownField } from './support/object-fields'
-
-type JsonObject = Readonly<Record<string, unknown>>
-
-interface PackageJson {
-  readonly exports?: JsonObject
-  readonly name: string
-}
+import {
+  builtDeclarationFiles,
+  collectDeclarationBlocks,
+  effectModuleSpecifiers,
+  listTypedExports,
+  normalizeRelativePath,
+  readPackageJson,
+} from './support/package-declarations'
 
 export interface CreatePackageApiSnapshotOptions {
   readonly packageRoot: string
@@ -31,16 +29,6 @@ export interface CheckPackageApiSnapshotsResult {
   readonly writtenSnapshots: readonly string[]
 }
 
-interface TypedExport {
-  readonly declarationPath?: string
-  readonly subpath: string
-}
-
-interface DeclarationBlock {
-  readonly contents: string
-  readonly relativePath: string
-}
-
 const FAILURE_EXIT_CODE = 1
 const USER_ARGV_START_INDEX = 2
 const DEFAULT_SNAPSHOT_DIR = 'scripts/api-snapshots'
@@ -50,135 +38,6 @@ const DEFAULT_PACKAGE_PATHS: readonly string[] = [
   'packages/waggle-core',
   'packages/pi-waggle',
 ]
-
-function isJsonObject(value: unknown): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-const namedPackageJsonSchema = Schema.Struct({ name: Schema.String, exports: unknownField })
-const typedExportTargetSchema = Schema.Struct({ types: Schema.String })
-
-function toPackageJson(value: unknown, packageJsonPath: string) {
-  const manifest = objectFields(namedPackageJsonSchema, value)
-  if (manifest === undefined) {
-    throw new Error(`${packageJsonPath} must contain a package name.`)
-  }
-  const exportsValue = isJsonObject(manifest.exports) ? manifest.exports : undefined
-  return { ...(exportsValue === undefined ? {} : { exports: exportsValue }), name: manifest.name }
-}
-
-async function readPackageJson(packageRoot: string) {
-  const packageJsonPath = path.join(packageRoot, 'package.json')
-  const parsed: unknown = JSON.parse(await readFile(packageJsonPath, 'utf8'))
-
-  return toPackageJson(parsed, packageJsonPath)
-}
-
-function normalizeRelativePath(filePath: string) {
-  return filePath.split(path.sep).join('/')
-}
-
-function normalizeExportTargetPath(targetPath: string) {
-  return targetPath.replace(/^\.\//, '')
-}
-
-function declarationPathForExportTarget(target: unknown) {
-  const typedTarget = objectFields(typedExportTargetSchema, target)
-  return typedTarget === undefined ? undefined : normalizeExportTargetPath(typedTarget.types)
-}
-
-function listTypedExports(packageJson: PackageJson) {
-  const exportsValue = packageJson.exports
-  if (!exportsValue) {
-    return []
-  }
-
-  return Object.entries(exportsValue).map(([subpath, target]) => {
-    const declarationPath = declarationPathForExportTarget(target)
-    return { ...(declarationPath === undefined ? {} : { declarationPath }), subpath }
-  }) satisfies readonly TypedExport[]
-}
-
-function normalizeDeclarationContents(contents: string) {
-  return contents.replace(/\r\n/g, '\n').trimEnd()
-}
-
-function declarationPathForModuleSpecifier(moduleSpecifier: string) {
-  if (!moduleSpecifier.startsWith('.')) {
-    return undefined
-  }
-
-  if (moduleSpecifier.endsWith('.js')) {
-    return `${moduleSpecifier.slice(0, -'.js'.length)}.d.ts`
-  }
-
-  if (moduleSpecifier.endsWith('.d.ts')) {
-    return moduleSpecifier
-  }
-
-  return `${moduleSpecifier}.d.ts`
-}
-
-function relativeDeclarationDependencies(contents: string) {
-  const declarations: string[] = []
-  const scanner = createScanner(true, LanguageVariant.Standard, contents)
-  let previousToken: SyntaxKind | null = null
-  let tokenBeforePrevious: SyntaxKind | null = null
-  let token = scanner.scan()
-
-  while (token !== SyntaxKind.EndOfFile) {
-    const followsFrom = previousToken === SyntaxKind.FromKeyword
-    const followsBareImport = previousToken === SyntaxKind.ImportKeyword
-    const followsImportCall =
-      previousToken === SyntaxKind.OpenParenToken &&
-      tokenBeforePrevious === SyntaxKind.ImportKeyword
-
-    if (
-      token === SyntaxKind.StringLiteral &&
-      (followsFrom || followsBareImport || followsImportCall)
-    ) {
-      const declarationPath = declarationPathForModuleSpecifier(scanner.getTokenValue())
-      if (declarationPath) {
-        declarations.push(declarationPath)
-      }
-    }
-
-    tokenBeforePrevious = previousToken
-    previousToken = token
-    token = scanner.scan()
-  }
-
-  return declarations
-}
-
-async function collectDeclarationBlocks(packageRoot: string, declarationPath: string) {
-  const blocks: DeclarationBlock[] = []
-  const visited = new Set<string>()
-
-  async function visit(currentDeclarationPath: string) {
-    const absolutePath = path.join(packageRoot, currentDeclarationPath)
-    if (visited.has(absolutePath)) {
-      return
-    }
-    visited.add(absolutePath)
-
-    const contents = normalizeDeclarationContents(await readFile(absolutePath, 'utf8'))
-    blocks.push({
-      contents,
-      relativePath: normalizeRelativePath(path.relative(packageRoot, absolutePath)),
-    })
-
-    for (const childDeclarationPath of relativeDeclarationDependencies(contents)) {
-      await visit(
-        path.normalize(path.join(path.dirname(currentDeclarationPath), childDeclarationPath)),
-      )
-    }
-  }
-
-  await visit(declarationPath)
-
-  return blocks
-}
 
 function isMissingFileError(error: unknown) {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
@@ -237,6 +96,27 @@ async function readSnapshotIfExists(snapshotFile: string) {
   }
 }
 
+/**
+ * Every published declaration that names an Effect module. A package's public types are its own
+ * declarations, so an Effect upgrade cannot change them (ADR 0066). The check reads every `.d.ts`
+ * under `dist`, not only the ones the exports reach, because npm ships them all.
+ */
+export async function effectDeclarationViolations(projectRoot: string, packageRoot: string) {
+  const violations: string[] = []
+  for (const file of await builtDeclarationFiles(packageRoot)) {
+    const contents = await readFile(path.join(packageRoot, file), 'utf8')
+    for (const specifier of effectModuleSpecifiers(contents)) {
+      const published = normalizeRelativePath(
+        path.relative(projectRoot, path.join(packageRoot, file)),
+      )
+      violations.push(
+        `${published} imports ${specifier}. Published declarations must not name Effect types.`,
+      )
+    }
+  }
+  return violations
+}
+
 export async function checkPackageApiSnapshots({
   dryRun = false,
   packageRoots,
@@ -249,6 +129,7 @@ export async function checkPackageApiSnapshots({
   const writtenSnapshots: string[] = []
 
   for (const packageRoot of packageRoots) {
+    violations.push(...(await effectDeclarationViolations(projectRoot, packageRoot)))
     const snapshotFile = snapshotFileForPackageRoot(snapshotDir, packageRoot)
     const expectedSnapshot = await createPackageApiSnapshot({ packageRoot, projectRoot })
     const actualSnapshot = await readSnapshotIfExists(snapshotFile)

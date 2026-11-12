@@ -1,4 +1,4 @@
-import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
 import { createOpenWaggleSdk } from './openwaggle-sdk.js'
 import { createRuntimeContributionSdk } from './runtime-sdk.js'
 import type {
@@ -8,27 +8,12 @@ import type {
   ExtensionSdkIdentity,
   ExtensionSdkInvoke,
   ExtensionSdkInvokeRequest,
-} from './sdk-types.js'
+} from '../sdk-types.js'
 import { createPackageStorageSdk } from './storage-sdk.js'
-import type { ExtensionInvokeInput } from './types.js'
+import type { ExtensionInvokeInput } from '../types.js'
 
-export type * from './core-types.js'
-export type * from './sdk-types.js'
-// The broker entry point has exported these since 0.1; the schemas moved, the exports stay.
-export {
-  extensionCapabilityAuditEntrySchema,
-  extensionInvokeErrorSchema,
-  extensionInvokeInputSchema,
-  extensionInvokeScopeSchema,
-} from './broker-schemas-core.js'
-export {
-  extensionInvokeFailureSchema,
-  extensionInvokeResultSchema,
-  extensionInvokeSuccessSchema,
-} from './broker-schemas-result.js'
-
-// Typed as a value: inferred, the declarations would spell out the schema type that
-// `ExtensionInvokeInput` names.
+// Typed as a value: inferred, the declarations would spell out the object `ExtensionInvokeInput`
+// names.
 export const toInvokeInput: (
   identity: ExtensionSdkIdentity,
   request: ExtensionSdkInvokeRequest,

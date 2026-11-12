@@ -633,6 +633,14 @@ export default defineConfig({
       rules: { 'max-lines': 'off' },
     },
     {
+      // Printed by scripts/generate-extension-sdk-types.ts from the SDK's schemas (ADR 0066). Each
+      // object type stays a type alias, as the `Schema.Type` it replaces was: a hover shows its
+      // fields, and it keeps the implicit index signature an interface lacks, so a published value
+      // still passes where a caller expects a `Record`. Every other rule still applies.
+      files: ['packages/extension-sdk/src/generated/**'],
+      rules: { 'typescript/consistent-type-definitions': 'off' },
+    },
+    {
       // A renderer hook keeps its state, effects and callbacks in one function body, as the
       // ESLint config before oxlint allowed.
       files: ['src/renderer/src/**/hooks/**/*.{ts,tsx}'],

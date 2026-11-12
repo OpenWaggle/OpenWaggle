@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateExtensionManifest } from '../manifest'
+import { validateExtensionManifest } from '../validation'
 
 const MANIFEST = {
   manifestVersion: 1,
@@ -16,7 +16,7 @@ describe('exact optional manifest fields', () => {
   it('refuses an optional field set to undefined, naming the field', () => {
     expect(validateExtensionManifest({ ...MANIFEST, description: undefined })).toEqual({
       success: false,
-      issues: ['description: Expected string, actual undefined'],
+      issues: [{ path: 'description', message: 'Expected string, actual undefined' }],
     })
   })
 

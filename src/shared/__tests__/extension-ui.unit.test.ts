@@ -2,11 +2,11 @@ import {
   createOpenWaggleExtensionTheme,
   createOpenWaggleExtensionUiStylesheet,
   extensionThemeCssVariableDeclarations,
-  isOpenWaggleExtensionTheme,
   OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
   openWaggleExtensionClassName,
 } from '@shared/extension-sdk'
+import { validateOpenWaggleExtensionTheme } from '@openwaggle/extension-sdk/validation'
 import { describe, expect, it } from 'vitest'
 
 describe('OpenWaggle extension UI helpers', () => {
@@ -32,7 +32,7 @@ describe('OpenWaggle extension UI helpers', () => {
     const declarations = extensionThemeCssVariableDeclarations(theme)
     const stylesheet = createOpenWaggleExtensionUiStylesheet({ theme })
 
-    expect(isOpenWaggleExtensionTheme(theme)).toBe(true)
+    expect(validateOpenWaggleExtensionTheme(theme)).toMatchObject({ success: true })
     expect(declarations).toContain('--ow-color-accent: #ffcc00;')
     expect(stylesheet).toContain('.ow-extension-root {')
     expect(stylesheet).toContain('[data-ow-variant="primary"]')

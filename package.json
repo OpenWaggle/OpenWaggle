@@ -102,6 +102,8 @@
     "check:coverage-uniqueness": "bun scripts/coverage-uniqueness.ts advise",
     "check:usage-statistics-catalog": "bun scripts/generate-usage-statistics-catalog.ts --check",
     "usage-statistics-catalog:generate": "bun scripts/generate-usage-statistics-catalog.ts",
+    "check:extension-sdk-types": "bun scripts/generate-extension-sdk-types.ts --check",
+    "extension-sdk-types:generate": "bun scripts/generate-extension-sdk-types.ts",
     "syntax-languages:generate": "bun scripts/generate-syntax-language-metadata.ts",
     "check:syntax-bundle": "bun scripts/check-syntax-bundle.ts",
     "check:main-bundle": "bun scripts/check-main-bundle.ts",

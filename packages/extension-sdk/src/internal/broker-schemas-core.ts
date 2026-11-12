@@ -1,6 +1,6 @@
 import * as Schema from 'effect/Schema'
-import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { extensionContributionIdSchema, extensionIdSchema } from './manifest.js'
+import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
+import { extensionContributionIdSchema, extensionIdSchema } from './manifest-primitives.js'
 
 const EXTENSION_INVOCATION_BINDING_MAX_LENGTH = 128
 

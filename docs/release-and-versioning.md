@@ -434,7 +434,7 @@ Package builds should follow the `ts-match` plain TypeScript model by default: T
 
 Public imports are limited to each package's explicit `package.json` exports. Documented top-level and subpath exports are supported; deep imports into `src/`, `dist/`, `dist-cjs/`, or other internal files are not part of the public contract. Export smoke tests should validate every documented export and reject accidental reliance on private deep paths.
 
-`@openwaggle/extension-sdk` should export public Effect Schema boundary values directly for manifests, contributions, broker payloads, docs discovery, and agent-loop DTOs. It should also provide helper APIs for common workflows such as defining and validating extension manifests so beginner authoring does not require direct Effect Schema usage. Effect Schema is the primary runtime schema contract for `0.1.0`; JSON Schema may be generated later as an additional artifact, but it should not replace the canonical Effect Schema boundary in the first release.
+`@openwaggle/extension-sdk` publishes TypeScript types and result helpers, not Effect Schema values ([ADR 0066](adr/0066-the-extension-sdk-public-api-is-types-and-result-helpers.md)). Its Effect schemas live in `src/internal/`, which no export reaches. The host imports them through the `@openwaggle/extension-sdk/*` source alias, and the public types are printed from them by `bun run extension-sdk-types:generate`. Every runtime check is a `validate*` helper on the `./validation` entry that returns `{ success, value }` or `{ success: false, issues: { path, message }[] }` and never throws, and the broker SDK factories for tests are on `./testing`. Every other entry must bundle without Effect, which `scripts/__tests__/extension-sdk-runtime-bundles.integration.test.ts` checks, and no published declaration may import `effect`, which the `api-snapshots` step checks. The manifest's JSON Schema is published at `website/public/schemas/openwaggle-extension-manifest-v1.schema.json`.
 
 `@openwaggle/extension-sdk` must remain browser-safe. It must not import Electron, Node built-ins, OpenWaggle main-process services, renderer stores, or Pi SDK packages. Runtime helpers should operate on the brokered SDK/context values passed to extension mount code rather than reaching into host internals.
 
@@ -495,6 +495,8 @@ The first explicit export maps should be minimal:
 - `@openwaggle/pi-waggle/protocol`
 - `@openwaggle/pi-waggle/renderers`
 - `@openwaggle/pi-waggle/stop-policy`
+
+`@openwaggle/extension-sdk` 0.3 removed `/manifest` and `/broker` and added the `/validation` and `/testing` tooling entries ([ADR 0066](adr/0066-the-extension-sdk-public-api-is-types-and-result-helpers.md)). Its current export map is the one in `packages/extension-sdk/package.json`.
 
 Adding, removing, or changing a public export path is a package-contract change and must be reflected in semver and package release notes.
 

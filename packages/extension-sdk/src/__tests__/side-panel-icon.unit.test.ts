@@ -5,9 +5,9 @@ import {
   extensionRouteContributionSchema,
   extensionSidePanelIconSchema,
   extensionSlotContributionRegistrationSchema,
-  validateExtensionManifest,
-} from '../manifest'
-import { safeDecodeExtensionSchema } from '../schema'
+} from '../internal/manifest-contributions'
+import { validateWithSchema } from '../internal/schema'
+import { validateExtensionManifest } from '../validation'
 
 const sidePanel = {
   id: 'issues.panel',
@@ -37,13 +37,13 @@ describe('side panel icon manifest schema', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(result.success && result.manifest.contributions?.sidePanels?.[0]?.icon).toBe('ticket')
+    expect(result.success && result.value.contributions?.sidePanels?.[0]?.icon).toBe('ticket')
   })
 
   it('accepts multi-word kebab-case Lucide names', () => {
-    expect(safeDecodeExtensionSchema(extensionSidePanelIconSchema, 'git-pull-request')).toEqual({
+    expect(validateWithSchema(extensionSidePanelIconSchema, 'git-pull-request')).toEqual({
       success: true,
-      data: 'git-pull-request',
+      value: 'git-pull-request',
     })
   })
 
@@ -53,7 +53,7 @@ describe('side panel icon manifest schema', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(result.success && result.manifest.contributions?.sidePanels?.[0]?.icon).toEqual({
+    expect(result.success && result.value.contributions?.sidePanels?.[0]?.icon).toEqual({
       svg: 'assets/panel-icon.svg',
     })
   })
@@ -79,7 +79,9 @@ describe('side panel icon manifest schema', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.success ? [] : result.issues.join('\n')).toContain('.svg')
+    expect(result.success ? [] : result.issues.map((issue) => issue.message).join('\n')).toContain(
+      '.svg',
+    )
   })
 
   it('rejects unknown keys in the svg icon object', () => {
@@ -93,28 +95,28 @@ describe('side panel icon manifest schema', () => {
   it.each(['Ticket', 'git_pull_request', 'ticket-', 'ticket icon', ''])(
     'rejects non-kebab-case Lucide name %j',
     (icon) => {
-      expect(safeDecodeExtensionSchema(extensionSidePanelIconSchema, icon).success).toBe(false)
+      expect(validateWithSchema(extensionSidePanelIconSchema, icon).success).toBe(false)
     },
   )
 
   it('does not add an icon to routes', () => {
-    const result = safeDecodeExtensionSchema(extensionRouteContributionSchema, {
+    const result = validateWithSchema(extensionRouteContributionSchema, {
       ...sidePanel,
       icon: 'ticket',
     })
 
-    expect(result).toEqual({ success: true, data: sidePanel })
+    expect(result).toEqual({ success: true, value: sidePanel })
   })
 
   it('keeps the icon on runtime side panel registrations', () => {
-    const result = safeDecodeExtensionSchema(extensionContributionRegistrationSchema, {
+    const result = validateWithSchema(extensionContributionRegistrationSchema, {
       family: 'sidePanels',
       contribution: { ...sidePanel, icon: { svg: 'assets/icon.svg' } },
     })
 
     expect(result).toEqual({
       success: true,
-      data: {
+      value: {
         family: 'sidePanels',
         contribution: { ...sidePanel, icon: { svg: 'assets/icon.svg' } },
       },
@@ -126,7 +128,7 @@ describe('side panel icon manifest schema', () => {
     ['a path outside the package', { svg: '../outside.svg' }],
     ['a non-svg file', { svg: 'assets/icon.png' }],
   ])('rejects a runtime side panel registration whose icon is %s', (_label, icon) => {
-    const result = safeDecodeExtensionSchema(extensionContributionRegistrationSchema, {
+    const result = validateWithSchema(extensionContributionRegistrationSchema, {
       family: 'sidePanels',
       contribution: { ...sidePanel, icon },
     })
@@ -135,18 +137,18 @@ describe('side panel icon manifest schema', () => {
   })
 
   it('still accepts slot registrations for the other slot families', () => {
-    const result = safeDecodeExtensionSchema(extensionContributionRegistrationSchema, {
+    const result = validateWithSchema(extensionContributionRegistrationSchema, {
       family: 'dialogs',
       contribution: sidePanel,
     })
 
-    expect(result).toEqual({ success: true, data: { family: 'dialogs', contribution: sidePanel } })
+    expect(result).toEqual({ success: true, value: { family: 'dialogs', contribution: sidePanel } })
   })
 
   it('registers every slot family except side panels through the slot schema', () => {
     const slotFamilies = OPENWAGGLE_EXTENSION.SLOT_CONTRIBUTION_FAMILIES.filter(
       (family) =>
-        safeDecodeExtensionSchema(extensionSlotContributionRegistrationSchema, {
+        validateWithSchema(extensionSlotContributionRegistrationSchema, {
           family,
           contribution: sidePanel,
         }).success,

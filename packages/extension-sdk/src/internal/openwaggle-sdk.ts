@@ -1,7 +1,10 @@
 import * as Schema from 'effect/Schema'
 import { toDecodedOperationResult } from './broker-validation.js'
-import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { extensionDocsDiscoverResultSchema, extensionDocsResolveTopicResultSchema } from './docs.js'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
+import {
+  extensionDocsDiscoverResultSchema,
+  extensionDocsResolveTopicResultSchema,
+} from './docs-schemas.js'
 import {
   actionSelectProjectResultSchema,
   sessionResourcePublishResultSchema,
@@ -23,7 +26,7 @@ import type {
   ExtensionOpenWaggleSettingsSdk,
   ExtensionOpenWaggleStateSdk,
   ExtensionSdkInvoke,
-} from './sdk-types.js'
+} from '../sdk-types.js'
 
 const ACTION_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle action result.'
 const DOCS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle docs result.'

@@ -62,6 +62,11 @@ const packageBoundaryRules: readonly PackageBoundaryRule[] = [
     allowedExternalPrefixes: ['@openwaggle/extension-sdk/'],
     forbiddenExternalSpecifiers: ['electron'],
     forbiddenExternalPrefixes: [
+      // The SDK's schemas are internal, and its tooling entries bundle Effect (ADR 0066): a
+      // renderer library imports the runtime entries only.
+      '@openwaggle/extension-sdk/internal/',
+      '@openwaggle/extension-sdk/testing',
+      '@openwaggle/extension-sdk/validation',
       '@/',
       '@shared/',
       '@earendil-works/',

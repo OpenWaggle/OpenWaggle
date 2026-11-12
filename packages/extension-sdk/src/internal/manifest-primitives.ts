@@ -1,5 +1,5 @@
 import * as Schema from 'effect/Schema'
-import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
 
 export const extensionNonEmptyStringSchema = Schema.String.pipe(
   Schema.minLength(1),
@@ -114,7 +114,7 @@ export function isNetworkOrigin(value: string) {
   )
 }
 
-export function validateBrokerCapabilityDeclaration(declaration: {
+export function brokerCapabilityMethodsRule(declaration: {
   readonly id: string
   readonly methods?: readonly string[]
 }) {
@@ -211,7 +211,4 @@ export const extensionContributionFamilySchema = Schema.Literal(
 )
 export const extensionCommandContributionFamilySchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.COMMAND_CONTRIBUTION_FAMILIES,
-)
-export const extensionSlotContributionFamilySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.SLOT_CONTRIBUTION_FAMILIES,
 )
