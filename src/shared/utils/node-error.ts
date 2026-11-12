@@ -18,7 +18,7 @@ export function isNodeError(err: unknown, code?: string): err is NodeJS.ErrnoExc
  * `maxBuffer` overflow) on the error's prototype, so decoding only own properties loses it.
  */
 export function errorCode(error: unknown): unknown {
-  return typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined
+  return typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
 }
 
 export function isEnoent(err: unknown): err is NodeJS.ErrnoException {

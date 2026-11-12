@@ -43,6 +43,7 @@ import {
   scrubErrorReportDebugMeta,
   scrubErrorReportExceptionType,
   scrubErrorReportFrameLocation,
+  ownErrorReportCode,
 } from './error-report-rules'
 
 export interface ErrorReportStackFrame {
@@ -97,8 +98,6 @@ export interface ErrorReportScrubOptions extends ErrorReportKnownDirectories {
 }
 
 const UNKNOWN_ERROR_CODE = 'unknown'
-const HTTP_STATUS_MIN = 100
-const HTTP_STATUS_MAX = 599
 /**
  * Error classes raised for a failed provider or MCP request: the OpenAI and Anthropic SDKs, Pi's
  * provider adapters, Google's SDK, the MCP SDK, and Bedrock's AWS service exceptions.
@@ -171,19 +170,6 @@ function isErrorReportCode(text: string) {
   )
 }
 
-function ownErrorCode(error: unknown) {
-  if (typeof error !== 'object' || error === null) return undefined
-  const code: unknown = Reflect.get(error, 'code')
-  if (typeof code === 'string' && NODE_ERROR_CODE_PATTERN.test(code)) return code
-  const status: unknown = Reflect.get(error, 'status') ?? Reflect.get(error, 'statusCode')
-  return typeof status === 'number' &&
-    Number.isInteger(status) &&
-    status >= HTTP_STATUS_MIN &&
-    status <= HTTP_STATUS_MAX
-    ? `http-${String(status)}`
-    : undefined
-}
-
 /**
  * The code an error is reported by when its message text is dropped: the message itself when it
  * already is a code, OpenWaggle's error classification of the message, the error's own Node.js
@@ -194,7 +180,7 @@ export function errorReportCode(message: string | undefined, error?: unknown): s
   const classified = message ? classifyErrorMessage(message).code : UNKNOWN_ERROR_CODE
   if (classified !== UNKNOWN_ERROR_CODE) return classified
   return (
-    ownErrorCode(error) ??
+    ownErrorReportCode(error) ??
     (message ? leadingNodeErrorCode(message) : undefined) ??
     UNKNOWN_ERROR_CODE
   )

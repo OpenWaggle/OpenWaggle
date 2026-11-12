@@ -28,6 +28,8 @@
  * error ({@link keepsErrorReportMessageText}); every other report keeps only error types and codes.
  */
 import { ERROR_REPORT_ORIGIN_TAG } from './error-report-constants'
+import { namedGroups } from '../utils/regex-named-groups'
+import { uncheckedFields } from '../utils/object-shape'
 
 export {
   ERROR_REPORT_BUILT_IN_ERROR_TYPES,
@@ -239,14 +241,15 @@ function isObject(value: unknown): value is object {
 }
 
 function exceptionValues(event: unknown): readonly unknown[] {
-  const exception: unknown = isObject(event) ? Reflect.get(event, 'exception') : undefined
-  const values: unknown = isObject(exception) ? Reflect.get(exception, 'values') : undefined
+  const exception = isObject(event) && 'exception' in event ? event.exception : undefined
+  const values = isObject(exception) && 'values' in exception ? exception.values : undefined
   return Array.isArray(values) ? values : []
 }
 
 function handledFlag(exception: unknown): unknown {
-  const mechanism: unknown = isObject(exception) ? Reflect.get(exception, 'mechanism') : undefined
-  return isObject(mechanism) ? Reflect.get(mechanism, 'handled') : undefined
+  const mechanism =
+    isObject(exception) && 'mechanism' in exception ? exception.mechanism : undefined
+  return isObject(mechanism) && 'handled' in mechanism ? mechanism.handled : undefined
 }
 
 /** Whether nothing handled the error, such as an uncaught exception or unhandled rejection. */
@@ -261,7 +264,7 @@ export function hasUnhandledErrorReportException(event: unknown): boolean {
  * content, so they keep only their error type and a code.
  */
 export function keepsErrorReportMessageText(event: unknown): boolean {
-  const tags: unknown = isObject(event) ? Reflect.get(event, 'tags') : undefined
+  const tags = isObject(event) && 'tags' in event ? event.tags : undefined
   if (!isObject(tags) || Reflect.get(tags, ERROR_REPORT_ORIGIN_TAG) !== 'application') return false
   if (hasUnhandledErrorReportException(event)) return false
   return handledFlag(exceptionValues(event).at(-1)) === true
@@ -275,5 +278,27 @@ const LEADING_NODE_ERROR_CODE_PATTERN = /^(?<code>E[A-Z0-9]{2,31}|ERR_[A-Z0-9_]{
 
 /** The Node.js error code a message starts with, as in `ENOENT: no such file or directory`. */
 export function leadingNodeErrorCode(text: string): string | undefined {
-  return LEADING_NODE_ERROR_CODE_PATTERN.exec(text)?.groups?.code
+  return namedGroups(LEADING_NODE_ERROR_CODE_PATTERN.exec(text), ['code'])?.code
+}
+
+const HTTP_STATUS_MIN = 100
+const HTTP_STATUS_MAX = 599
+
+interface ErrorCodeFields {
+  readonly code: string
+  readonly status: number
+  readonly statusCode: number
+}
+
+/** An error's own Node.js error code, or its HTTP status as `http-<status>`. */
+export function ownErrorReportCode(error: unknown) {
+  const { code, status: httpStatus, statusCode } = uncheckedFields<ErrorCodeFields>(error)
+  if (typeof code === 'string' && NODE_ERROR_CODE_PATTERN.test(code)) return code
+  const status = httpStatus ?? statusCode
+  return typeof status === 'number' &&
+    Number.isInteger(status) &&
+    status >= HTTP_STATUS_MIN &&
+    status <= HTTP_STATUS_MAX
+    ? `http-${String(status)}`
+    : undefined
 }

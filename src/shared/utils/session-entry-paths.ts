@@ -1,5 +1,5 @@
 import { parseJsonUnknown } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /*
  * Two paths through a Session's Pi entries (ADR 0048).
@@ -70,8 +70,7 @@ function compactionFirstKeptEntryId<TEntry>(
 ) {
   if (accessors.getKind(entry) !== COMPACTION_KIND) return null
   const content = parseJsonUnknown(accessors.getContentJson(entry))
-  if (!isRecord(content)) return null
-  const firstKeptEntryId = content.firstKeptEntryId
+  const { firstKeptEntryId } = uncheckedFields<{ readonly firstKeptEntryId: string }>(content)
   return typeof firstKeptEntryId === 'string' && firstKeptEntryId.trim().length > 0
     ? firstKeptEntryId
     : null

@@ -2,8 +2,8 @@ import {
   INLINE_VISUALIZATION_PROTOCOL,
   MAX_INLINE_VISUALIZATION_PATH_LENGTH,
 } from '../constants/inline-visualization'
+import { Schema } from '../schema'
 import type { InlineVisualizationReference } from '../types/inline-visualization'
-import { isRecord } from './validation'
 
 export const VISUALIZE_REFERENCE_START = '\uE200visualize\uE202'
 export const VISUALIZE_REFERENCE_END = '\uE201'
@@ -12,7 +12,6 @@ export const VISUALIZE_REFERENCE_END = '\uE201'
 // prose mentioning it never mounts a frame.
 const BARE_REFERENCE_PREFIX = 'visualize{'
 const BARE_REFERENCE_PATTERN = /^visualize(\{.*\})$/
-const VISUALIZE_REFERENCE_KEYS = new Set(['path', 'title', 'mode'])
 const MAX_VISUALIZATION_TITLE_LENGTH = 250
 
 export function isAbsoluteVisualizationPath(value: string) {
@@ -34,34 +33,29 @@ function isValidVisualizationPath(value: unknown): value is string {
   )
 }
 
-function isValidVisualizationTitle(value: unknown) {
-  return (
-    value === undefined ||
-    (typeof value === 'string' &&
-      value.trim().length > 0 &&
-      value.length <= MAX_VISUALIZATION_TITLE_LENGTH)
-  )
+function isValidVisualizationTitle(value: string) {
+  return value.trim().length > 0 && value.length <= MAX_VISUALIZATION_TITLE_LENGTH
 }
+
+/** A reference names exactly these keys; any other key makes it ordinary text. */
+const referenceJsonSchema: Schema.Schema<InlineVisualizationReference, string> = Schema.parseJson(
+  Schema.Struct({
+    path: Schema.String.pipe(Schema.filter(isValidVisualizationPath)),
+    title: Schema.optionalWith(Schema.String.pipe(Schema.filter(isValidVisualizationTitle)), {
+      exact: true,
+    }),
+    mode: Schema.optionalWith(Schema.Literal('wide'), { exact: true }),
+  }),
+)
+const decodeReferenceJson = Schema.decodeUnknownOption(referenceJsonSchema, {
+  onExcessProperty: 'error',
+})
 
 export function parseInlineVisualizationReference(
   value: string,
 ): InlineVisualizationReference | null {
-  try {
-    const parsed: unknown = JSON.parse(value)
-    if (!isRecord(parsed)) return null
-    if (Object.keys(parsed).some((key) => !VISUALIZE_REFERENCE_KEYS.has(key))) return null
-    if (!isValidVisualizationPath(parsed.path)) return null
-    if (!isValidVisualizationTitle(parsed.title)) return null
-    if (parsed.mode !== undefined && parsed.mode !== 'wide') return null
-
-    return {
-      path: parsed.path,
-      ...(typeof parsed.title === 'string' ? { title: parsed.title } : {}),
-      ...(parsed.mode === 'wide' ? { mode: 'wide' as const } : {}),
-    }
-  } catch {
-    return null
-  }
+  const reference = decodeReferenceJson(value)
+  return reference._tag === 'Some' ? reference.value : null
 }
 
 export interface InlineVisualizationReferenceMatch {
@@ -143,20 +137,15 @@ export function containsInlineVisualizationReference(text: string) {
  * Ownership checks run over serialized content JSON ({parts:[...]}); the bare form's
  * own-line rule must apply to the decoded message text, not the escaped serialization.
  */
+const decodeContentParts = Schema.decodeUnknownOption(
+  Schema.parseJson(Schema.Struct({ parts: Schema.Array(Schema.Unknown) })),
+)
+const isTextPart = Schema.is(Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }))
+
 function readContentTextParts(text: string): string[] | null {
-  try {
-    const parsed: unknown = JSON.parse(text)
-    if (!isRecord(parsed) || !Array.isArray(parsed.parts)) return null
-    const parts: string[] = []
-    for (const part of parsed.parts) {
-      if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') {
-        parts.push(part.text)
-      }
-    }
-    return parts
-  } catch {
-    return null
-  }
+  const content = decodeContentParts(text)
+  if (content._tag === 'None') return null
+  return content.value.parts.flatMap((part) => (isTextPart(part) ? [part.text] : []))
 }
 
 /** Withholds a trailing, not-yet-parseable reference while streaming so partial markers or JSON never flash. */
