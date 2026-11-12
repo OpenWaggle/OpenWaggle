@@ -12,8 +12,6 @@ import type {
   waggleHandoffRequestDomainSchema,
   waggleInvocationDomainSchema,
   waggleInvocationMetadataSchema,
-  waggleInvocationSchema,
-  waggleInvocationSourceSchema,
   waggleMetadataSchema,
   wagglePresetDomainSchema,
 } from '@shared/schemas/waggle'
@@ -51,10 +49,7 @@ export function isInheritedWaggleModelBinding(
 export type WaggleAgentSlot = SchemaType<typeof waggleAgentSlotDomainSchema>
 export type WaggleConfig = SchemaType<typeof waggleConfigDomainSchema>
 export type WagglePreset = SchemaType<typeof wagglePresetDomainSchema>
-export type WaggleInvocationSource = SchemaType<typeof waggleInvocationSourceSchema>
 export type WaggleInvocationMetadata = SchemaType<typeof waggleInvocationMetadataSchema>
-/** JSON wire shape before provider/model identifiers are branded at the main-process boundary. */
-export type WaggleInvocationInput = SchemaType<typeof waggleInvocationSchema>
 export type WaggleInvocation = SchemaType<typeof waggleInvocationDomainSchema>
 export type WaggleHandoffRequest = SchemaType<typeof waggleHandoffRequestDomainSchema>
 
