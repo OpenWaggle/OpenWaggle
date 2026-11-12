@@ -1,45 +1,45 @@
 import type { BrowserPreviewAutomationTarget } from './browser-preview-automation-core'
 
 export interface BrowserPreviewAutomationClickInput extends BrowserPreviewAutomationTarget {
-  readonly selector?: string | undefined
-  readonly locator?: string | undefined
-  readonly x?: number | undefined
-  readonly y?: number | undefined
-  readonly timeoutMs?: number | undefined
+  readonly selector?: string
+  readonly locator?: string
+  readonly x?: number
+  readonly y?: number
+  readonly timeoutMs?: number
 }
 
 export interface BrowserPreviewAutomationTypeInput extends BrowserPreviewAutomationTarget {
   readonly text: string
-  readonly selector?: string | undefined
-  readonly locator?: string | undefined
-  readonly clear?: boolean | undefined
-  readonly timeoutMs?: number | undefined
+  readonly selector?: string
+  readonly locator?: string
+  readonly clear?: boolean
+  readonly timeoutMs?: number
 }
 
 export type BrowserPreviewAutomationModifier = 'Alt' | 'Control' | 'Meta' | 'Shift'
 
 export interface BrowserPreviewAutomationPressInput extends BrowserPreviewAutomationTarget {
   readonly key: string
-  readonly modifiers?: readonly BrowserPreviewAutomationModifier[] | undefined
+  readonly modifiers?: readonly BrowserPreviewAutomationModifier[]
 }
 
 export interface BrowserPreviewAutomationScrollInput extends BrowserPreviewAutomationTarget {
-  readonly deltaX?: number | undefined
-  readonly deltaY?: number | undefined
-  readonly selector?: string | undefined
-  readonly locator?: string | undefined
+  readonly deltaX?: number
+  readonly deltaY?: number
+  readonly selector?: string
+  readonly locator?: string
 }
 
 export interface BrowserPreviewAutomationEvaluateInput extends BrowserPreviewAutomationTarget {
   readonly expression: string
-  readonly awaitPromise?: boolean | undefined
-  readonly returnByValue?: boolean | undefined
+  readonly awaitPromise?: boolean
+  readonly returnByValue?: boolean
 }
 
 export interface BrowserPreviewAutomationWaitInput extends BrowserPreviewAutomationTarget {
-  readonly selector?: string | undefined
-  readonly locator?: string | undefined
-  readonly text?: string | undefined
-  readonly urlIncludes?: string | undefined
-  readonly timeoutMs?: number | undefined
+  readonly selector?: string
+  readonly locator?: string
+  readonly text?: string
+  readonly urlIncludes?: string
+  readonly timeoutMs?: number
 }

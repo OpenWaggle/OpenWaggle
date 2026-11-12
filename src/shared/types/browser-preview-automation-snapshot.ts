@@ -13,7 +13,7 @@ export interface BrowserPreviewAutomationConsoleEntry {
   readonly level: string
   readonly text: string
   readonly timestamp: string
-  readonly source?: string | undefined
+  readonly source?: string
 }
 
 export interface BrowserPreviewAutomationNetworkEntry {
@@ -21,7 +21,7 @@ export interface BrowserPreviewAutomationNetworkEntry {
   readonly method: string
   readonly status: number | null
   readonly failed: boolean
-  readonly errorText?: string | undefined
+  readonly errorText?: string
   readonly timestamp: string
 }
 
@@ -30,8 +30,8 @@ export interface BrowserPreviewAutomationActionEvent {
   readonly action: string
   readonly status: 'running' | 'succeeded' | 'failed' | 'interrupted'
   readonly startedAt: string
-  readonly completedAt?: string | undefined
-  readonly error?: string | undefined
+  readonly completedAt?: string
+  readonly error?: string
 }
 
 export interface BrowserPreviewAutomationScreenshot {
@@ -56,7 +56,7 @@ export interface BrowserPreviewAutomationSnapshot {
    * snapshot is still useful, and `screenshotUnavailable` says why.
    */
   readonly screenshot: BrowserPreviewAutomationScreenshot | null
-  readonly screenshotUnavailable?: string | undefined
+  readonly screenshotUnavailable?: string
 }
 
 export interface BrowserPreviewAutomationRecordingStatus {

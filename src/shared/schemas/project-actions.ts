@@ -53,13 +53,14 @@ const projectActionShortcutWhenSchema = trimmedNonEmptyString(
 
 export const projectActionShortcutRuleSchema = Schema.Struct({
   shortcut: projectActionShortcutSchema,
-  when: Schema.optional(projectActionShortcutWhenSchema),
-  order: Schema.optional(
+  when: Schema.optionalWith(projectActionShortcutWhenSchema, { exact: true }),
+  order: Schema.optionalWith(
     Schema.Number.pipe(
       Schema.int(),
       Schema.greaterThanOrEqualTo(0),
       Schema.lessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
     ),
+    { exact: true },
   ),
 })
 
@@ -72,12 +73,14 @@ const projectActionShortcutRulesSchema = Schema.mutable(
 const projectActionEditableFields = {
   name: trimmedNonEmptyString(PROJECT_ACTION_LIMITS.NAME_LENGTH),
   command: trimmedNonEmptyString(PROJECT_ACTION_LIMITS.COMMAND_LENGTH),
-  icon: Schema.optional(projectActionIconSchema),
-  runOnWorktreeCreate: Schema.optional(Schema.Boolean),
-  previewUrl: Schema.optional(Schema.NullOr(projectActionPreviewUrlSchema)),
-  autoOpenPreview: Schema.optional(Schema.Boolean),
-  shortcutRules: Schema.optional(Schema.NullOr(projectActionShortcutRulesSchema)),
-  shortcut: Schema.optional(Schema.NullOr(projectActionShortcutSchema)),
+  icon: Schema.optionalWith(projectActionIconSchema, { exact: true }),
+  runOnWorktreeCreate: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  previewUrl: Schema.optionalWith(Schema.NullOr(projectActionPreviewUrlSchema), { exact: true }),
+  autoOpenPreview: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  shortcutRules: Schema.optionalWith(Schema.NullOr(projectActionShortcutRulesSchema), {
+    exact: true,
+  }),
+  shortcut: Schema.optionalWith(Schema.NullOr(projectActionShortcutSchema), { exact: true }),
 }
 
 export const storedProjectActionSchema = Schema.Struct(
@@ -87,9 +90,9 @@ export const storedProjectActionSchema = Schema.Struct(
     command: projectActionEditableFields.command,
     icon: projectActionIconSchema,
     runOnWorktreeCreate: Schema.Boolean,
-    previewUrl: Schema.optional(projectActionPreviewUrlSchema),
-    autoOpenPreview: Schema.optional(Schema.Boolean),
-    shortcutRules: Schema.optional(projectActionShortcutRulesSchema),
+    previewUrl: Schema.optionalWith(projectActionPreviewUrlSchema, { exact: true }),
+    autoOpenPreview: Schema.optionalWith(Schema.Boolean, { exact: true }),
+    shortcutRules: Schema.optionalWith(projectActionShortcutRulesSchema, { exact: true }),
     shortcut: Schema.optionalWith(projectActionShortcutSchema, { exact: true }),
   },
   looseRecordSchema,

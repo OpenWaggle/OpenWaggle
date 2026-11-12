@@ -7,8 +7,10 @@ export { firstPartyDocTopicSchema } from '@openwaggle/extension-sdk'
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 
 export const docsListInputSchema = Schema.Struct({
-  projectPaths: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-  includeExtensions: Schema.optional(Schema.Boolean),
+  projectPaths: Schema.optionalWith(Schema.mutable(Schema.Array(nonEmptyStringSchema)), {
+    exact: true,
+  }),
+  includeExtensions: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const docsResolveTopicInputSchema = Schema.Struct({
@@ -26,8 +28,8 @@ export const installedDocsTopicSchema = Schema.Struct({
   source: Schema.Literal('openwaggle', 'pi'),
   group: nonEmptyStringSchema,
   title: nonEmptyStringSchema,
-  description: Schema.optional(nonEmptyStringSchema),
-  section: Schema.optional(nonEmptyStringSchema),
+  description: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
+  section: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
   order: Schema.Number,
   sourcePath: nonEmptyStringSchema,
   bundlePath: nonEmptyStringSchema,

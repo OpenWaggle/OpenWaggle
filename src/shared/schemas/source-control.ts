@@ -22,7 +22,7 @@ export const sourceControlConfigureRequestSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal('declare-project-host'),
     projectPath: projectPathSchema,
-    workingPath: Schema.optional(projectPathSchema),
+    workingPath: Schema.optionalWith(projectPathSchema, { exact: true }),
     host: hostSchema,
     provider: Schema.NullOr(providerSchema),
   }),
@@ -39,8 +39,8 @@ export const sourceControlConfigureRequestSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal('set-open-destination'),
     scope: Schema.Literal('user', 'project-local', 'project-shared'),
-    projectPath: Schema.optional(projectPathSchema),
-    workingPath: Schema.optional(projectPathSchema),
+    projectPath: Schema.optionalWith(projectPathSchema, { exact: true }),
+    workingPath: Schema.optionalWith(projectPathSchema, { exact: true }),
     destination: Schema.NullOr(Schema.Literal(...CHANGE_REQUEST_OPEN_DESTINATIONS)),
   }),
   Schema.Struct({

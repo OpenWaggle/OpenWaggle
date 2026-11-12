@@ -11,8 +11,8 @@ export const inlineVisualizationSourceOwnerResultSchema = Schema.NullOr(
   Schema.Struct({
     id: Schema.String,
     projectPath: Schema.NullOr(Schema.String),
-    environmentMode: Schema.optional(Schema.Literal('local', 'worktree')),
-    worktreePath: Schema.optional(Schema.NullOr(Schema.String)),
+    environmentMode: Schema.optionalWith(Schema.Literal('local', 'worktree'), { exact: true }),
+    worktreePath: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
   }),
 )
 
@@ -22,7 +22,9 @@ export const inlineVisualizationFrameRegisterInputSchema: Schema.Schema<InlineVi
     reducedMotion: Schema.Boolean,
     sessionId: Schema.String,
     sourcePath: Schema.String,
-    restoredState: Schema.optional(Schema.NullOr(inlineVisualizationStateSchema)),
+    restoredState: Schema.optionalWith(Schema.NullOr(inlineVisualizationStateSchema), {
+      exact: true,
+    }),
   })
 
 export const inlineVisualizationDownloadInputSchema: Schema.Schema<InlineVisualizationDownloadInput> =

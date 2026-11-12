@@ -51,13 +51,13 @@ export const terminalOpenInputSchema = Schema.Struct({
    * environment. Omission preserves a terminal record's current overrides;
    * an object, including `{}`, is a new launch context.
    */
-  env: Schema.optional(terminalEnvironmentSchema),
+  env: Schema.optionalWith(terminalEnvironmentSchema, { exact: true }),
   /**
    * Renderer-runtime nonce for the ordered input stream. Re-attaches with a
    * new nonce revoke late writes from an older renderer while restarts keep
    * the same nonce and therefore preserve accepted startup input.
    */
-  inputGeneration: Schema.optional(terminalInputGenerationSchema),
+  inputGeneration: Schema.optionalWith(terminalInputGenerationSchema, { exact: true }),
 })
 
 /** Idempotency identity for one ordered renderer-to-terminal input chunk. */
@@ -69,7 +69,7 @@ export const terminalInputIdentitySchema = Schema.Struct({
     Schema.lessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
   ),
   /** Native record identity from attach; prevents late writes reaching a recreated terminal. */
-  incarnation: Schema.optional(terminalInputIncarnationSchema),
+  incarnation: Schema.optionalWith(terminalInputIncarnationSchema, { exact: true }),
 })
 
 /** Semantic intent carried with an ordered input item when it needs main-process arbitration. */
