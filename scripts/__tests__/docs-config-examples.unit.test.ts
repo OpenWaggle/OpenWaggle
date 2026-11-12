@@ -87,7 +87,9 @@ const modelsFileSchema = Schema.Struct({
   providers: Schema.Record({
     key: Schema.String,
     value: Schema.Struct({
-      models: Schema.optional(Schema.Array(Schema.Struct({ id: Schema.Unknown }))),
+      models: Schema.optionalWith(Schema.Array(Schema.Struct({ id: Schema.Unknown })), {
+        exact: true,
+      }),
     }),
   }),
 })

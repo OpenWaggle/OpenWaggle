@@ -50,8 +50,8 @@ interface Handshake {
 const handshakes: Handshake[] = []
 /** The `tls.connect` options that name the peer. */
 const connectOptionsSchema = Schema.Struct({
-  servername: Schema.optional(Schema.String),
-  host: Schema.optional(Schema.String),
+  servername: Schema.optionalWith(Schema.String, { exact: true }),
+  host: Schema.optionalWith(Schema.String, { exact: true }),
 })
 const originalConnect = tls.connect
 vi.spyOn(tls, 'connect').mockImplementation((...args: Parameters<typeof tls.connect>) => {

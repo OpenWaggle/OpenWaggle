@@ -7,6 +7,7 @@
  */
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 
+// explicit undefined: a process.env key can be present and undefined (Bun and vitest set TZ so).
 const optionalString = Schema.optional(Schema.String)
 
 const scriptEnvSchema = Schema.Struct({

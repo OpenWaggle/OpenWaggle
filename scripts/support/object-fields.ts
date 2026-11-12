@@ -6,7 +6,7 @@
 import { Schema } from '@shared/schema'
 
 /** A field that may be absent and is checked where it is read. */
-export const unknownField = Schema.optional(Schema.Unknown)
+export const unknownField = Schema.optionalWith(Schema.Unknown, { exact: true })
 
 /** `value` typed by `schema` when it is a non-array object the schema accepts, else undefined. */
 export function objectFields<A, I>(schema: Schema.Schema<A, I>, value: unknown) {

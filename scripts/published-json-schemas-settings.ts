@@ -19,7 +19,10 @@ function projectSettingsForJsonSchema() {
     {
       ...projectSettingsFileSchema.fields,
       ...Object.fromEntries(
-        SETTINGS_OPEN_OBJECT_KEYS.map((key) => [key, Schema.optional(openJsonObject)]),
+        SETTINGS_OPEN_OBJECT_KEYS.map((key) => [
+          key,
+          Schema.optionalWith(openJsonObject, { exact: true }),
+        ]),
       ),
     },
     ...projectSettingsFileSchema.records,

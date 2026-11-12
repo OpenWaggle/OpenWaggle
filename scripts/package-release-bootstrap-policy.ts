@@ -18,7 +18,7 @@ const REQUIRED_RULE_TYPES = [
 /** A GitHub ruleset rule: its `type` and, for the rules this policy reads, its `parameters`. */
 const rulesetRuleSchema = Schema.Struct({
   type: Schema.String,
-  parameters: Schema.optional(Schema.Unknown),
+  parameters: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 /** The managed ruleset fields both ruleset predicates require, before the status checks. */
@@ -64,7 +64,7 @@ const statusCheckParametersSchema = Schema.Struct({
 /** A required status check that names a context and no integration. */
 const contextOnlyStatusCheckSchema = Schema.Struct({
   context: Schema.String,
-  integration_id: Schema.optional(Schema.Null),
+  integration_id: Schema.optionalWith(Schema.Null, { exact: true }),
 })
 
 const repositoryMergePolicySchema = Schema.Struct({
