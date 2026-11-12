@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, safeDecodeUnknown } from '@shared/schema'
+import {
+  terminalInputIdentitySchema,
+  terminalInputIntentSchema,
+} from '@shared/schemas/terminal-requests'
 import type {
   TerminalInputIdentity,
   TerminalInputIntent,
@@ -14,8 +18,6 @@ import { createLogger } from '../logger'
 import { TerminalService, type TerminalServiceShape } from '../ports/terminal-service'
 import {
   terminalCloseSchema,
-  terminalInputIdentitySchema,
-  terminalInputIntentSchema,
   terminalInputReleaseSchema,
   terminalOpenInputSchema,
   terminalOutputAckSchema,
