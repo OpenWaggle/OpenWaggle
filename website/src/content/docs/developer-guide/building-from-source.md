@@ -22,12 +22,12 @@ OpenWaggle builds the native modules `better-sqlite3` and `node-pty` from source
 
 ### Windows
 
-On Windows, install [Build Tools for Visual Studio 2022](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) with these two selections:
+On Windows, install Build Tools for Visual Studio 2022 from the [Visual Studio older downloads page](https://visualstudio.microsoft.com/vs/older-downloads/), or download [the 2022 installer](https://aka.ms/vs/17/release/vs_BuildTools.exe) directly. The main downloads page offers Visual Studio 2026, which OpenWaggle hasn't been tested with. In the installer, select:
 
-- The **Desktop development with C++** workload. `better-sqlite3` needs it.
-- On the **Individual components** tab, **MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)**. Without it, building `node-pty` fails with error `MSB8040`.
+- The **Desktop development with C++** workload. Both native modules need it.
+- On the **Individual components** tab, **MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)**. Its component ID is `Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre`. Without it, building `node-pty` fails with error `MSB8040`.
 
-You also need [Python 3](https://www.python.org/downloads/windows/). If `python --version` prints nothing in a new terminal, install it and select **Add python.exe to PATH**.
+You also need Python 3. If `python --version` or `py --version` doesn't print a Python 3 version in a new terminal, install it from [python.org](https://www.python.org/downloads/windows/). The build finds it through either command.
 
 If you install pnpm with `npm install -g pnpm`, check that `pnpm --version` works in a new terminal. If Windows can't find `pnpm`, run `npm prefix -g` and add the folder it prints to your user `Path` environment variable, then open a new terminal.
 

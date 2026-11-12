@@ -112,6 +112,15 @@ describe('non-disruptive Electron automation boundary', () => {
     expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', aliased)).toHaveLength(1)
   })
 
+  it('recognizes development app launches through the launcher or `pnpm dev`', () => {
+    const launcher = "const invocation = electronDevInvocation('vite', [])"
+    const pnpmDev = "launchGui('pnpm', environment, ['dev'])"
+
+    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', launcher)).toHaveLength(1)
+    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', pnpmDev)).toHaveLength(1)
+    expect(collectScriptedElectronLaunchViolations('scripts/start-electron-qa.ts', launcher)).toEqual([])
+  })
+
   it('rejects aliased Electron desktop UI imports and visible window construction', () => {
     const source = [
       "import { shell as osShell, BrowserWindow as BW } from 'electron'",

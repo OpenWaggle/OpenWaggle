@@ -6,6 +6,7 @@ import path from 'node:path'
 import type { Readable } from 'node:stream'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium, type Browser, type Page } from '@playwright/test'
+import { electronDevInvocation } from './run-electron-dev'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
 
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
@@ -143,23 +144,18 @@ function createElectronEnv(userDataDir: string): NodeJS.ProcessEnv {
 }
 
 function spawnElectronDev(port: number, userDataDir: string) {
-  return spawn(
-    'pnpm',
-    [
-      'exec',
-      'electron-vite',
-      'dev',
-      '--',
-      `--remote-debugging-port=${port}`,
-      `--${STARTUP_TIMINGS_SWITCH}`,
-    ],
-    {
-      cwd: process.cwd(),
-      detached: process.platform !== 'win32',
-      env: createElectronEnv(userDataDir),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
+  // electron-vite dev through this Node: spawning `pnpm` fails on Windows (a `.cmd` shim).
+  const invocation = electronDevInvocation(
+    'vite',
+    ['--', `--remote-debugging-port=${port}`, `--${STARTUP_TIMINGS_SWITCH}`],
+    { environment: createElectronEnv(userDataDir), projectRoot: process.cwd() },
   )
+  return spawn(invocation.command, [...invocation.args], {
+    cwd: process.cwd(),
+    detached: process.platform !== 'win32',
+    env: invocation.environment,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
 }
 
 async function waitForCdp(port: number, startedAt: number, timeoutMs: number) {

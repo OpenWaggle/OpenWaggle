@@ -134,12 +134,6 @@ jobs:
         shell: bash
         run: ${{ matrix.display }} pnpm qa:packaged-session-host-startup "${{ matrix.packaged_executable }}"
 
-      # Starts the development app with `pnpm dev`, hidden, as a contributor would (through
-      # cmd.exe on Windows), and checks that its Session Host starts and answers the CLI.
-      - name: Smoke development app startup
-        shell: bash
-        run: ${{ matrix.display }} pnpm qa:dev-app-startup
-
       - name: Verify Windows installer
         if: matrix.label == 'Windows'
         shell: pwsh
@@ -167,6 +161,15 @@ jobs:
           pnpm benchmark:syntax
         env:
           SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
+
+      # Starts the development app with `pnpm dev`, hidden, as a contributor would (through
+      # cmd.exe on Windows), and checks that its Session Host starts and answers the CLI. It
+      # needs only the installed dependencies, so it still reports when packaging failed, and it
+      # runs after the syntax budget so its build does not load the runner during that timing.
+      - name: Smoke development app startup
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: bash
+        run: ${{ matrix.display }} pnpm qa:dev-app-startup
 
       - name: Upload build artifacts on failure
         if: failure()

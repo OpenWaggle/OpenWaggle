@@ -14,6 +14,7 @@ const ELECTRON_VITE_LAUNCH_OWNERS = [
   'scripts/measure-main-startup.ts',
   // `pnpm dev` itself: a person runs it to open the visible development app.
   'scripts/run-electron-dev.ts',
+  'scripts/qa/dev-app-startup-smoke.ts',
   'scripts/start-electron-qa.ts',
 ]
 const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
@@ -159,25 +160,38 @@ export function collectUnguardedDesktopUiViolations(file: string, contents: stri
   return [...importedDesktopUiViolations(normalized, code), ...callViolations]
 }
 
+function launchesWithPlaywright(code: string) {
+  return (
+    /\belectron\s*\.\s*launch\s*\(/u.test(code) ||
+    playwrightElectronAliases(code).some((alias) =>
+      new RegExp(`\\b${alias}\\s*\\.\\s*launch\\s*\\(`, 'u').test(code),
+    ) ||
+    /\b\w+\s*\.\s*_electron\s*\.\s*launch\s*\(/u.test(code)
+  )
+}
+
+/** `electron-vite dev`, spawned directly, through the development launcher, or as `pnpm dev`. */
+function launchesDevelopmentApp(code: string) {
+  const spawns =
+    /\bspawn\s*\(/u.test(code) ||
+    childProcessSpawnAliases(code).some((alias) => new RegExp(`\\b${alias}\\s*\\(`, 'u').test(code))
+  const devArgument = /['"]dev['"]/u.test(code)
+  return (
+    (spawns && code.includes('electron-vite') && devArgument) ||
+    /\belectronDevInvocation\s*\(/u.test(code) ||
+    (/['"]pnpm['"]/u.test(code) && devArgument)
+  )
+}
+
 export function collectScriptedElectronLaunchViolations(file: string, contents: string) {
   const normalized = normalizePath(file)
   if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized) || normalized.includes('__tests__')) return []
   const code = withoutCommentLines(contents)
-  const launchesWithPlaywright =
-    /\belectron\s*\.\s*launch\s*\(/u.test(code) ||
-    playwrightElectronAliases(code).some((alias) =>
-      new RegExp(`\\b${alias}\\s*\\.\\s*launch\\s*\\(`, 'u').test(code),
-    ) || /\b\w+\s*\.\s*_electron\s*\.\s*launch\s*\(/u.test(code)
-  const launchesElectronVite =
-    (/\bspawn\s*\(/u.test(code) ||
-      childProcessSpawnAliases(code).some((alias) =>
-        new RegExp(`\\b${alias}\\s*\\(`, 'u').test(code),
-      )) &&
-    code.includes('electron-vite') &&
-    /['"]dev['"]/u.test(code)
-  if (launchesWithPlaywright && normalized === PLAYWRIGHT_ELECTRON_LAUNCH_OWNER) return []
-  if (launchesElectronVite && ELECTRON_VITE_LAUNCH_OWNERS.includes(normalized)) return []
-  if (!launchesWithPlaywright && !launchesElectronVite) return []
+  const playwright = launchesWithPlaywright(code)
+  const devApp = launchesDevelopmentApp(code)
+  if (playwright && normalized === PLAYWRIGHT_ELECTRON_LAUNCH_OWNER) return []
+  if (devApp && ELECTRON_VITE_LAUNCH_OWNERS.includes(normalized)) return []
+  if (!playwright && !devApp) return []
   return [
     {
       file: normalized,

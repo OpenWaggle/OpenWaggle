@@ -15,7 +15,9 @@ runs:
       run: |
         attempt=1
         while true; do
-          if pnpm install --frozen-lockfile; then
+          # pnpm-workspace.yaml allows 10 minutes per download for slow home connections. A
+          # runner's link is fast, so a stalled request fails after 1 minute into this retry loop.
+          if pnpm install --frozen-lockfile --fetch-timeout 60000; then
             exit 0
           fi
           if [ "$attempt" -ge 3 ]; then

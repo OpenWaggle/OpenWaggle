@@ -13,7 +13,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const PROJECT_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const RUN_AS_NODE_VARIABLE = 'ELECTRON_RUN_AS_NODE'
 const FIRST_USER_ARGUMENT_INDEX = 2
-const FORWARDED_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
+// libuv cannot send SIGHUP to a child on Windows, where Node raises it when the console closes.
+const FORWARDED_SIGNALS: readonly NodeJS.Signals[] =
+  process.platform === 'win32' ? ['SIGINT', 'SIGTERM'] : ['SIGINT', 'SIGTERM', 'SIGHUP']
 const SIGNAL_EXIT_CODE = 1
 
 export type ElectronDevTarget = 'vite' | 'electron'
@@ -86,7 +88,11 @@ function run(target: ElectronDevTarget, args: readonly string[]) {
   // A terminal's Ctrl-C reaches the child too; a signal sent only to this process is passed on,
   // and this process waits for the child either way so the app is not left running.
   const forward = (signal: NodeJS.Signals) => {
-    child.kill(signal)
+    try {
+      child.kill(signal)
+    } catch (error) {
+      console.error(`Could not pass ${signal} to the development app:`, error)
+    }
   }
   for (const signal of FORWARDED_SIGNALS) process.on(signal, forward)
   child.once('error', (error) => {
