@@ -73,7 +73,7 @@ See [Installation](/docs/getting-started/installation) for installing and updati
 
 The `openwaggle` command comes with the app. On macOS and Linux, opening the packaged app installs or refreshes `~/.local/bin/openwaggle`. On Windows, the installer adds the command. Make sure the install folder is on your shell's `PATH`.
 
-**General** shows a warning if the command is missing, out of date, blocked by another file, or not on `PATH`. There are no install buttons. OpenWaggle never replaces an unrelated file at the command's path, so you have to move that file yourself. An older macOS link straight to the app still works, but run the installer again if you move the app. When you run OpenWaggle from source, use `pnpm cli:dev -- <command>`.
+**General** shows a warning if the command is missing, out of date, blocked by another file, or not on `PATH`. There are no install buttons. OpenWaggle never replaces an unrelated file at the command's path, so you have to move that file yourself. An older macOS link straight to the app still works, but run the installer again if you move the app. When you run OpenWaggle from source, use `bun run cli:dev -- <command>`.
 
 ## Change how OpenWaggle looks
 

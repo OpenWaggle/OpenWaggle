@@ -128,6 +128,6 @@ OpenWaggle sets these between its own processes. Do not set them yourself.
 | --- | --- | --- |
 | `OPENWAGGLE_RELEASE_CHANNEL` | Builds a released channel: `stable`, `beta`, `rc` or `alpha`. Only the release workflow sets it | Not set, so the build is a Dev build |
 | `OPENWAGGLE_DEV_SLUG` | Names a Dev build, as in `OpenWaggle Dev (<slug>)`, and its own app data folder | The Git branch, else `local` |
-| `ELECTRON_RENDERER_URL` | The development server address `pnpm dev` gives the app | Set by `pnpm dev` |
+| `ELECTRON_RENDERER_URL` | The development server address `bun run dev` gives the app | Set by `bun run dev` |
 
 See [Building from source](/docs/developer-guide/building-from-source).

@@ -66,7 +66,7 @@ The run sends requests to OpenRouter, which can cost money. The four container a
 From a development checkout on macOS, with Docker running, build the packaged app first:
 
 ```sh
-pnpm build && pnpm exec electron-builder --dir
+bun run build && bunx electron-builder --dir
 ```
 
 Then run the benchmark. Replace `OPENROUTER_KEY` with your OpenRouter API key. The path is for Apple silicon. On an Intel Mac the app is in `dist/mac/`.
@@ -77,11 +77,11 @@ BENCH_OPENWAGGLE_APP=dist/mac-arm64/OpenWaggle.app OPENROUTER_API_KEY=OPENROUTER
 
 Without `BENCH_OPENWAGGLE_APP`, it runs only the four container agents. `results.json` records the OpenWaggle app's version and commit. Keep them, the other versions and the raw proxy output with any new result.
 
-To measure OpenWaggle's first request without a provider, `pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty` captures a packaged app's first request with a local recording provider and counts it in o200k tokens per section and per tool. `--setup maintainer` adds MCP servers, skills and an `AGENTS.md`.
+To measure OpenWaggle's first request without a provider, `bun run perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty` captures a packaged app's first request with a local recording provider and counts it in o200k tokens per section and per tool. `--setup maintainer` adds MCP servers, skills and an `AGENTS.md`.
 
 ## Versions measured
 
-- [OpenWaggle](https://github.com/OpenWaggle/OpenWaggle) built from commit <a href={`https://github.com/OpenWaggle/OpenWaggle/commit/${openwaggleBuild.commit}`}><code>{openwaggleBuild.commit}</code></a> on the v1 performance branch (package version {openwaggleBuild.appVersion}). Later changes can move its numbers. `pnpm perf:first-turn-prefix` measures the first request of the current source.
+- [OpenWaggle](https://github.com/OpenWaggle/OpenWaggle) built from commit <a href={`https://github.com/OpenWaggle/OpenWaggle/commit/${openwaggleBuild.commit}`}><code>{openwaggleBuild.commit}</code></a> on the v1 performance branch (package version {openwaggleBuild.appVersion}). Later changes can move its numbers. `bun run perf:first-turn-prefix` measures the first request of the current source.
 - [Pi CLI](https://github.com/badlogic/pi-mono) 1.4.0
 - [opencode](https://github.com/sst/opencode) 1.19.4
 - [Codex CLI](https://github.com/openai/codex) 0.164.0

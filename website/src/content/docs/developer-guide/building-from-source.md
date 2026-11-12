@@ -14,9 +14,9 @@ You need:
 
 - Git.
 - [Node.js](https://nodejs.org/) 24. The root `package.json` accepts `>=24 <25`.
-- [pnpm](https://pnpm.io/), at the version in the `packageManager` field of the root `package.json`.
+- [Bun](https://bun.sh/), at the version in the `packageManager` field of the root `package.json` (also in `.bun-version`).
 
-Use pnpm for every command in this repository. Some dependencies are native modules that must be built for the runtime that loads them. The development and build scripts prepare the Electron builds for you.
+Use Bun for every command in this repository. Bun installs the dependencies, runs the scripts and runs the tests (`bun --bun vitest`). Node.js runs the Electron build tools and the native module builds. Some dependencies are native modules that must be built for the runtime that loads them. The development and build scripts prepare the Electron builds for you.
 
 ## Clone and install
 
@@ -25,13 +25,13 @@ Run these together to get the source and its dependencies:
 ```bash
 git clone https://github.com/OpenWaggle/OpenWaggle.git
 cd OpenWaggle
-pnpm install
+bun install
 ```
 
 ## Run the app in development mode
 
 ```bash
-pnpm dev
+bun run dev
 ```
 
 This opens the Electron app with hot reload for the UI. Changes to the main process or the Session Host may need a restart. Connect a provider and open a project as described in [Get started](/docs/getting-started/first-run).
@@ -41,15 +41,15 @@ A development build is a Dev build with its own app data folder, named after you
 ### Run the app hidden for automated QA
 
 ```bash
-pnpm dev:debug
+bun run dev:debug
 ```
 
-`pnpm dev:debug` runs the app in a hidden window for automated Electron QA. The window never appears or takes focus. It uses a temporary profile with its own home folder and Pi agent folder, a mock keychain, and the Chrome DevTools Protocol on port 9223. It starts none of the MCP servers in the project's MCP files, and it stops the app's Session Host when it stops. Follow `.agents/skills/electron-qa/SKILL.md` when you use it. Agents must not run the visible debug command, `pnpm dev:debug:headed`, unless the maintainer approves that exact run.
+`bun run dev:debug` runs the app in a hidden window for automated Electron QA. The window never appears or takes focus. It uses a temporary profile with its own home folder and Pi agent folder, a mock keychain, and the Chrome DevTools Protocol on port 9223. It starts none of the MCP servers in the project's MCP files, and it stops the app's Session Host when it stops. Follow `.agents/skills/electron-qa/SKILL.md` when you use it. Agents must not run the visible debug command, `bun run dev:debug:headed`, unless the maintainer approves that exact run.
 
 ## Build the app
 
 ```bash
-pnpm build
+bun run build
 ```
 
 This builds the application bundle. It does not create an installer.
@@ -61,25 +61,25 @@ Each platform has its own command. Run the one you need.
 A macOS `.dmg` for the architecture of the Mac you build on:
 
 ```bash
-pnpm build:mac
+bun run build:mac
 ```
 
 macOS `.dmg` files for both arm64 and x64:
 
 ```bash
-pnpm build:mac:all
+bun run build:mac:all
 ```
 
 A Windows NSIS installer for x64:
 
 ```bash
-pnpm build:win
+bun run build:win
 ```
 
 A Linux AppImage for x64:
 
 ```bash
-pnpm build:linux
+bun run build:linux
 ```
 
 On Apple silicon, test the arm64 DMG or `dist/mac-arm64/OpenWaggle.app`. The x64 app in `dist/mac/` runs through Rosetta, so it is only useful for checking Intel compatibility.
@@ -89,13 +89,13 @@ On Apple silicon, test the arm64 DMG or `dist/mac-arm64/OpenWaggle.app`. The x64
 Start with the checks that matter for most changes:
 
 ```bash
-pnpm typecheck
-pnpm lint
-pnpm test:unit
+bun run typecheck
+bun run lint
+bun run test:unit
 ```
 
-Add `pnpm test:integration` when the change crosses services, and `pnpm test:component` when it changes UI components. `.agents/verification.md` has the full list of checks and when to run each one.
+Add `bun run test:integration` when the change crosses services, and `bun run test:component` when it changes UI components. `.agents/verification.md` has the full list of checks and when to run each one.
 
-The test scripts build the native dependencies for Node.js. `pnpm dev` builds them for Electron again, so you can switch between the two without doing anything by hand.
+The test scripts build the native dependencies for Node.js. `bun run dev` builds them for Electron again, so you can switch between the two without doing anything by hand.
 
 For where code lives and which parts may import what, see [Architecture](/docs/developer-guide/architecture).
