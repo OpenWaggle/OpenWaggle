@@ -16,19 +16,22 @@ import { sessionDeleteOptionsSchema } from './session-operation-requests'
  * request types they carry, `SessionNavigateTreeOptions` and `SessionTreeUiStatePatch`, are.
  */
 const navigateTreeOptionsSchema = Schema.Struct({
-  summarize: Schema.optional(Schema.Boolean),
-  customInstructions: Schema.optional(sessionInputTextSchema),
+  summarize: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  customInstructions: Schema.optionalWith(sessionInputTextSchema, { exact: true }),
 })
 
 const treeUiStatePatchSchema = Schema.Struct({
-  expandedNodeIds: Schema.optional(
+  expandedNodeIds: Schema.optionalWith(
     Schema.Array(sessionInputIdSchema.pipe(Schema.fromBrand(SessionNodeId))).pipe(
       Schema.maxItems(SESSION_INPUT_LIMITS.expandedTreeNodeItems),
     ),
+    { exact: true },
   ),
-  branchesSidebarCollapsed: Schema.optional(Schema.Boolean),
+  branchesSidebarCollapsed: Schema.optionalWith(Schema.Boolean, { exact: true }),
   /** Durable read receipt for terminal Run state. */
-  lastVisitedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  lastVisitedAt: Schema.optionalWith(Schema.Number.pipe(Schema.int(), Schema.nonNegative()), {
+    exact: true,
+  }),
 })
 
 /** A `local-ui-v1` command: a desktop-window change to one Session's pins, tree or lifetime. */
