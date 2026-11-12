@@ -204,7 +204,7 @@ describe('SQLite Session catalog search', () => {
       archived: false,
       unreadTerminalStatus: 'failed',
       limit: 200,
-      cursor: first.outcome.nextCursor,
+      ...(first.outcome.nextCursor ? { cursor: first.outcome.nextCursor } : {}),
     })
     if (second.outcome.operation !== 'list' || !('sessions' in second.outcome)) {
       throw new Error('Expected a terminal Session list page.')

@@ -12,6 +12,8 @@ import { sessionDeleteOptionsSchema } from './session-operation-requests'
  * The navigate-tree options and tree UI patch the Local Session socket accepts. They are looser
  * than the window's `sessions:*` request schemas in `session-operation-requests` (no non-blank or
  * at-least-one-field rule), as the socket always accepted; the types come from those schemas.
+ * Their fields stay `Schema.optional` (an explicit undefined is accepted) because the window's
+ * request types they carry, `SessionNavigateTreeOptions` and `SessionTreeUiStatePatch`, are.
  */
 const navigateTreeOptionsSchema = Schema.Struct({
   summarize: Schema.optional(Schema.Boolean),
@@ -61,7 +63,7 @@ export const localUiCommandSchema = Schema.Union(
     sessionId: sessionInputIdSchema,
     model: sessionInputIdSchema,
     targetNodeId: sessionInputIdSchema,
-    options: Schema.optional(navigateTreeOptionsSchema),
+    options: Schema.optionalWith(navigateTreeOptionsSchema, { exact: true }),
   }),
   Schema.Struct({
     operation: Schema.Literal('rename-branch'),

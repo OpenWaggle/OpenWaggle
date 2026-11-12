@@ -15,6 +15,7 @@ import {
   requiredSessionId,
   runAuthorization,
   thinkingLevel,
+  optionEntry,
 } from './sessions-cli-arguments'
 import { delegationCommand } from './sessions-cli-delegation-command'
 import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
@@ -68,7 +69,7 @@ function organizationCommand(
         sessionId,
         workspace: {
           mode,
-          ...(option(arguments_, 'base-ref') ? { baseRef: option(arguments_, 'base-ref') } : {}),
+          ...optionEntry(arguments_, 'base-ref', 'baseRef'),
           ...(hasFlag(arguments_, 'start-from-origin') ? { startFromOrigin: true } : {}),
         },
       }
@@ -210,14 +211,12 @@ function reportCommand(
   return {
     operation: 'report',
     sessionId,
-    ...(option(arguments_, 'source-run') ? { sourceRunId: option(arguments_, 'source-run') } : {}),
+    ...optionEntry(arguments_, 'source-run', 'sourceRunId'),
     target: reportTarget(arguments_),
     input: {
       text: required(option(arguments_, 'text'), 'Report input'),
       requestReply: hasFlag(arguments_, 'request-reply'),
-      ...(option(arguments_, 'reply-to')
-        ? { replyToReportId: option(arguments_, 'reply-to') }
-        : {}),
+      ...optionEntry(arguments_, 'reply-to', 'replyToReportId'),
     },
   }
 }

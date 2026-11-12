@@ -57,13 +57,16 @@ function scopeFromOptions(
 ): LocalSessionProfileScope {
   const values = (name: string) => arguments_.options.get(`${prefix}${name}`)
   const paths = (name: string) => resolveCliProjectPaths(values(name), workingDirectory)
+  const projectPaths = paths('project')
+  const exportRoots = paths('export-root')
+  const attachmentRoots = paths('attachment-root')
   const sessions = values('session')
   const hives = values('hive')
   return {
     ...(hasFlag(arguments_, `${prefix}all`) ? { all: true } : {}),
-    ...(values('project') ? { projectPaths: paths('project') } : {}),
-    ...(values('export-root') ? { exportRoots: paths('export-root') } : {}),
-    ...(values('attachment-root') ? { attachmentRoots: paths('attachment-root') } : {}),
+    ...(projectPaths ? { projectPaths } : {}),
+    ...(exportRoots ? { exportRoots } : {}),
+    ...(attachmentRoots ? { attachmentRoots } : {}),
     ...(sessions ? { sessionIds: sessionIdsFromReferences(sessions, `--${prefix}session`) } : {}),
     ...(hives ? { hiveRootSessionIds: sessionIdsFromReferences(hives, `--${prefix}hive`) } : {}),
   }

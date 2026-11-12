@@ -29,6 +29,7 @@ import {
   summary,
   workerLineage,
 } from './hive-panel.test-utils'
+import * as Struct from 'effect/Struct'
 
 describe('HivePanel', () => {
   beforeEach(() => {
@@ -151,7 +152,7 @@ describe('HivePanel', () => {
     // A top-level Queen never spawned as a Worker has no session_spawn_lineage row, so its
     // summary carries no lineage role; the hive root is still the Queen (ADR 0030).
     listHiveTreeSessionCatalogPage.mockResolvedValue({
-      root: summary('queen', { lineage: undefined }),
+      root: Struct.omit(summary('queen'), 'lineage'),
       members: [summary('active', { lineage: { ...workerLineage, delegationState: 'working' } })],
       needsYouCount: 0,
     })

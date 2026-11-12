@@ -24,15 +24,15 @@ import { sessionTitleSchema } from './session-title'
 const projectPathSchema = sessionInputPathSchema
 
 export const specializationSchema = Schema.Struct({
-  modelId: Schema.optional(sessionInputIdSchema),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  agentDefinitionName: Schema.optional(sessionInputIdSchema),
+  modelId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  thinkingLevel: Schema.optionalWith(Schema.Literal(...THINKING_LEVELS), { exact: true }),
+  agentDefinitionName: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
 })
 
 const newWorktreeSchema = Schema.Struct({
   mode: Schema.Literal('new-worktree'),
-  baseRef: Schema.optional(sessionInputItemTextSchema),
-  startFromOrigin: Schema.optional(Schema.Boolean),
+  baseRef: Schema.optionalWith(sessionInputItemTextSchema, { exact: true }),
+  startFromOrigin: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const launchWorkspaceSchema = Schema.Union(
@@ -58,22 +58,25 @@ export const forkWorkspaceSchema = Schema.Union(
 export const createCommandSchema = Schema.Struct({
   operation: Schema.Literal('create'),
   projectPath: projectPathSchema,
-  title: Schema.optional(sessionTitleSchema),
-  workspace: Schema.optional(launchWorkspaceSchema),
-  specialization: Schema.optional(specializationSchema),
+  title: Schema.optionalWith(sessionTitleSchema, { exact: true }),
+  workspace: Schema.optionalWith(launchWorkspaceSchema, { exact: true }),
+  specialization: Schema.optionalWith(specializationSchema, { exact: true }),
 })
 
 export const launchCommandSchema = Schema.Struct({
   operation: Schema.Literal('launch'),
   projectPath: projectPathSchema,
-  title: Schema.optional(sessionTitleSchema),
-  workspace: Schema.optional(launchWorkspaceSchema),
-  specialization: Schema.optional(specializationSchema),
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  title: Schema.optionalWith(sessionTitleSchema, { exact: true }),
+  workspace: Schema.optionalWith(launchWorkspaceSchema, { exact: true }),
+  specialization: Schema.optionalWith(specializationSchema, { exact: true }),
+  runAuthorizationOverride: Schema.optionalWith(Schema.Literal(...AGENT_AUTHORIZATION_MODES), {
+    exact: true,
+  }),
   objective: sessionInputTextSchema,
   attachmentIds: sessionAttachmentIdsSchema,
-  interactionTimeoutMs: Schema.optional(
+  interactionTimeoutMs: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
+    { exact: true },
   ),
 })
 
@@ -104,7 +107,7 @@ export const delegationSpecificationSchema = Schema.Struct({
   deliverables: uniqueSpecificationStringsSchema,
   acceptanceCriteria: uniqueSpecificationStringsSchema,
   dependencies: delegationDependenciesSchema,
-  handoffContext: Schema.optional(sessionInputTextSchema),
+  handoffContext: Schema.optionalWith(sessionInputTextSchema, { exact: true }),
   resourceReferences: uniqueSpecificationStringsSchema,
 })
 
@@ -113,24 +116,27 @@ export const spawnCommandSchema = Schema.Struct({
   parentSessionId: sessionInputIdSchema,
   expectedParentRunId: sessionInputIdSchema,
   /** A manual title; without one the Worker is titled from its objective. */
-  title: Schema.optional(sessionTitleSchema),
-  workspace: Schema.optional(spawnWorkspaceSchema),
-  specialization: Schema.optional(specializationSchema),
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  interactionTimeoutMs: Schema.optional(
+  title: Schema.optionalWith(sessionTitleSchema, { exact: true }),
+  workspace: Schema.optionalWith(spawnWorkspaceSchema, { exact: true }),
+  specialization: Schema.optionalWith(specializationSchema, { exact: true }),
+  runAuthorizationOverride: Schema.optionalWith(Schema.Literal(...AGENT_AUTHORIZATION_MODES), {
+    exact: true,
+  }),
+  interactionTimeoutMs: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
+    { exact: true },
   ),
-  attachmentIds: Schema.optional(sessionAttachmentIdsSchema),
+  attachmentIds: Schema.optionalWith(sessionAttachmentIdsSchema, { exact: true }),
   delegation: delegationSpecificationSchema,
 })
 
 export const forkCommandSchema = Schema.Struct({
   operation: Schema.Literal('fork'),
   sourceSessionId: sessionInputIdSchema,
-  targetNodeId: Schema.optional(sessionInputIdSchema),
-  position: Schema.optional(Schema.Literal('before', 'at')),
-  title: Schema.optional(sessionTitleSchema),
-  workspace: Schema.optional(forkWorkspaceSchema),
+  targetNodeId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  position: Schema.optionalWith(Schema.Literal('before', 'at'), { exact: true }),
+  title: Schema.optionalWith(sessionTitleSchema, { exact: true }),
+  workspace: Schema.optionalWith(forkWorkspaceSchema, { exact: true }),
 })
 
 export const sessionLifecycleCommandSchema = Schema.Union(
@@ -170,7 +176,7 @@ const forkedSessionSchema = Schema.Struct({
   sourceNodeId: Schema.String,
   position: Schema.Literal('before', 'at'),
   workspaceId: Schema.String,
-  editorText: Schema.optional(Schema.String),
+  editorText: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 const spawnedWorkerSchema = Schema.Struct({
@@ -194,12 +200,21 @@ const rejectedSchema = Schema.Struct({
   /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
   kind: Schema.Literal(...SESSION_HOST_ERROR_KINDS),
   retryable: Schema.Boolean,
-  parentConcurrencyLimit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
-  parentRunningChildren: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  parentConcurrencyLimit: Schema.optionalWith(Schema.Number.pipe(Schema.int(), Schema.positive()), {
+    exact: true,
+  }),
+  parentRunningChildren: Schema.optionalWith(
+    Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    { exact: true },
+  ),
   /** The Host's ceiling on Runs of agents' work; it never refuses a Run the person starts. */
-  hostRunCeiling: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
+  hostRunCeiling: Schema.optionalWith(Schema.Number.pipe(Schema.int(), Schema.positive()), {
+    exact: true,
+  }),
   /** Active Runs of agents' work across the Host when the request was refused. */
-  hostActiveRuns: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  hostActiveRuns: Schema.optionalWith(Schema.Number.pipe(Schema.int(), Schema.nonNegative()), {
+    exact: true,
+  }),
 })
 
 export const sessionLifecycleOutcomeSchema = Schema.Union(

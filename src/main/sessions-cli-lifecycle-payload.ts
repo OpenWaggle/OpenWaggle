@@ -12,6 +12,7 @@ import {
   runAuthorization,
   spawnWorkspace,
   specialization,
+  optionEntry,
 } from './sessions-cli-arguments'
 
 function lifecycleRequest(arguments_: ParsedArguments) {
@@ -41,7 +42,7 @@ export function rootLifecyclePayload(
         command: {
           operation: command,
           projectPath,
-          ...(option(arguments_, 'title') ? { title: option(arguments_, 'title') } : {}),
+          ...optionEntry(arguments_, 'title', 'title'),
           ...(workspace ? { workspace } : {}),
           ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
         },
@@ -66,7 +67,7 @@ export function rootLifecyclePayload(
         attachmentIds: [],
         ...(interactionTimeoutMs !== undefined ? { interactionTimeoutMs } : {}),
         ...(workspace ? { workspace } : {}),
-        ...(option(arguments_, 'title') ? { title: option(arguments_, 'title') } : {}),
+        ...optionEntry(arguments_, 'title', 'title'),
         ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
         ...(authorization ? { runAuthorizationOverride: authorization } : {}),
       },
@@ -92,7 +93,7 @@ export function spawnLifecyclePayload(arguments_: ParsedArguments): LocalSession
         operation: 'spawn',
         parentSessionId: requiredSessionId(arguments_.positionals[0], 'Parent Session ID'),
         expectedParentRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
-        ...(option(arguments_, 'title') ? { title: option(arguments_, 'title') } : {}),
+        ...optionEntry(arguments_, 'title', 'title'),
         ...(workspace ? { workspace } : {}),
         ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
         ...(authorization ? { runAuthorizationOverride: authorization } : {}),
@@ -124,11 +125,9 @@ export function forkLifecyclePayload(arguments_: ParsedArguments): LocalSessionC
       command: {
         operation: 'fork',
         sourceSessionId: requiredSessionId(arguments_.positionals[0], 'Source Session ID'),
-        ...(option(arguments_, 'target-node')
-          ? { targetNodeId: option(arguments_, 'target-node') }
-          : {}),
+        ...optionEntry(arguments_, 'target-node', 'targetNodeId'),
         ...(selectedPosition ? { position: selectedPosition } : {}),
-        ...(option(arguments_, 'title') ? { title: option(arguments_, 'title') } : {}),
+        ...optionEntry(arguments_, 'title', 'title'),
         ...(workspace ? { workspace } : {}),
       },
     },

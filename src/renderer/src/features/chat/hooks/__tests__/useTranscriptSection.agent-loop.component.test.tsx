@@ -106,7 +106,7 @@ function transcriptPathForActiveNode(
 
   return path.map((node) => ({
     node,
-    branchId: node.branchId,
+    ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
     isActive: node.id === activeNodeId,
   }))
 }

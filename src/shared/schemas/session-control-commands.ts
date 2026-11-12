@@ -14,7 +14,7 @@ const queueRevisionSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative(
 export const steeringInputSchema = Schema.Struct({
   text: sessionInputTextSchema,
   attachmentIds: sessionAttachmentIdsSchema,
-  visualizationContext: Schema.optional(inlineVisualizationContextSchema),
+  visualizationContext: Schema.optionalWith(inlineVisualizationContextSchema, { exact: true }),
 })
 
 const uniqueFollowUpIdsSchema = Schema.Array(sessionInputIdSchema).pipe(
@@ -31,7 +31,7 @@ const uniqueFollowUpIdsSchema = Schema.Array(sessionInputIdSchema).pipe(
  */
 export const followUpInputSchema = Schema.Struct({
   ...steeringInputSchema.fields,
-  waggle: Schema.optional(waggleInvocationSchema),
+  waggle: Schema.optionalWith(waggleInvocationSchema, { exact: true }),
 })
 
 /**
@@ -43,7 +43,7 @@ export const followUpInputSchema = Schema.Struct({
  */
 export const messageInputSchema = Schema.Struct({
   ...followUpInputSchema.fields,
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  thinkingLevel: Schema.optionalWith(Schema.Literal(...THINKING_LEVELS), { exact: true }),
 })
 
 export const steerCommandSchema = Schema.Struct({
@@ -61,16 +61,21 @@ export const steerCommandSchema = Schema.Struct({
 export const messageCommandSchema = Schema.Struct({
   operation: Schema.Literal('message'),
   sessionId: sessionInputIdSchema,
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  runAuthorizationOverride: Schema.optionalWith(Schema.Literal(...AGENT_AUTHORIZATION_MODES), {
+    exact: true,
+  }),
   input: messageInputSchema,
 })
 
 export const startCommandSchema = Schema.Struct({
   operation: Schema.Literal('start'),
   sessionId: sessionInputIdSchema,
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  interactionTimeoutMs: Schema.optional(
+  runAuthorizationOverride: Schema.optionalWith(Schema.Literal(...AGENT_AUTHORIZATION_MODES), {
+    exact: true,
+  }),
+  interactionTimeoutMs: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
+    { exact: true },
   ),
   input: messageInputSchema,
 })

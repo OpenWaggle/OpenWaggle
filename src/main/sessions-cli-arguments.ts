@@ -82,10 +82,27 @@ export function specialization(
     : undefined
 }
 
+/**
+ * `{ [key]: value }` for an option given a non-empty value, else `{}`, so a payload omits the key
+ * rather than carrying an explicit undefined.
+ */
+export function optionEntry<Key extends string>(
+  arguments_: ParsedArguments,
+  name: string,
+  key: Key,
+): Partial<Record<Key, string>> {
+  const value = option(arguments_, name)
+  if (!value) return {}
+  const entry: Partial<Record<Key, string>> = {}
+  entry[key] = value
+  return entry
+}
+
 function worktreeSelection(arguments_: ParsedArguments) {
+  const baseRef = option(arguments_, 'base-ref')
   return {
     mode: 'new-worktree' as const,
-    ...(option(arguments_, 'base-ref') ? { baseRef: option(arguments_, 'base-ref') } : {}),
+    ...(baseRef ? { baseRef } : {}),
     ...(hasFlag(arguments_, 'start-from-origin') ? { startFromOrigin: true } : {}),
   }
 }

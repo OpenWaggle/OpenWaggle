@@ -28,7 +28,7 @@ export type LocalSessionServerFrame =
     }
   | {
       readonly kind: 'error'
-      readonly requestId?: string | undefined
+      readonly requestId?: string
       readonly code: string
       /** What kind of failure it is, which the CLI exits with (ADR 0063). */
       readonly errorKind: SessionHostErrorKind
@@ -40,7 +40,7 @@ export type LocalSessionServerFrame =
       readonly requestId: string
       readonly subscriptionId: string
       readonly cursor: SessionHostEventCursor
-      readonly activeRuns?: readonly BackgroundRunSnapshot[] | undefined
+      readonly activeRuns?: readonly BackgroundRunSnapshot[]
     }
   | {
       readonly kind: 'unsubscribed'
@@ -59,8 +59,8 @@ export type LocalSessionServerFrame =
     }
   | {
       readonly kind: 'resync-required'
-      readonly requestId?: string | undefined
-      readonly subscriptionId?: string | undefined
+      readonly requestId?: string
+      readonly subscriptionId?: string
       readonly reason: 'host-restarted' | 'cursor-expired' | 'cursor-ahead' | 'slow-consumer'
       readonly cursor: SessionHostEventCursor
     }

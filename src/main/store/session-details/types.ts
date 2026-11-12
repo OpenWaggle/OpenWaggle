@@ -18,7 +18,7 @@ export const sessionRowSchema = Schema.Struct({
   project_path: nullableStringSchema,
   title: Schema.String,
   /** Read where a caller needs the title's provenance, such as the Run preflight. */
-  title_source: Schema.optional(nullableStringSchema),
+  title_source: Schema.optionalWith(nullableStringSchema, { exact: true }),
   archived: sqliteIntegerSchema,
   waggle_config_json: nullableStringSchema,
   created_at: sqliteIntegerSchema,
@@ -33,9 +33,9 @@ export const sessionRowSchema = Schema.Struct({
   execution_model_id: nullableStringSchema,
   execution_thinking_level: nullableStringSchema,
   /** 1 when the Session uses a discovered Pi session file (ADR 0051). */
-  pi_adopted: Schema.optional(sqliteIntegerSchema),
+  pi_adopted: Schema.optionalWith(sqliteIntegerSchema, { exact: true }),
   /** The working directory a discovered Pi session ran in (ADR 0051). */
-  pi_cwd: Schema.optional(nullableStringSchema),
+  pi_cwd: Schema.optionalWith(nullableStringSchema, { exact: true }),
 })
 export type SessionRow = SchemaType<typeof sessionRowSchema>
 

@@ -1,6 +1,6 @@
 import type { SessionControlMutationCommand } from '@shared/types/session-control'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
-import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
+import { positiveInteger, required, requiredSessionId, optionEntry } from './sessions-cli-arguments'
 import {
   delegationClaims,
   delegationEvidence,
@@ -154,7 +154,7 @@ function revisionCommand(
       expectedSpecificationRevision: revision,
       specification: delegationSpecification(structured.specification),
       reason: required(arguments_.positionals.slice(CONTENT_START).join(' '), 'Amendment reason'),
-      ...(option(arguments_, 'proposal') ? { proposalId: option(arguments_, 'proposal') } : {}),
+      ...optionEntry(arguments_, 'proposal', 'proposalId'),
     }
   }
   if (action === 'accept') {
