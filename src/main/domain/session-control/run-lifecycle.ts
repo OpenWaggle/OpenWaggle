@@ -17,10 +17,7 @@ export type RunLifecycleTransitionResult =
       readonly state: SessionControlSessionState
     }
 
-export function activateStartingRun(
-  state: SessionControlSessionState,
-  expectedRunId: RunId,
-): RunLifecycleTransitionResult {
+export function activateStartingRun(state: SessionControlSessionState, expectedRunId: RunId) {
   return matchBy(state.run, 'state')
     .with('idle', () => ({ accepted: false, code: 'run_not_starting', state }))
     .with('starting', (run) =>
@@ -40,16 +37,16 @@ export function activateStartingRun(
       code: run.runId === expectedRunId ? 'run_not_starting' : 'run_changed',
       state,
     }))
-    .exhaustive()
+    .exhaustive() satisfies RunLifecycleTransitionResult
 }
 
 export function startExternalSessionRun(
   state: SessionControlSessionState,
   runId: RunId,
   intent: SessionControlRunIntent,
-): RunLifecycleTransitionResult {
+) {
   if (state.run.state !== 'idle') {
-    return { accepted: false, code: 'run_not_active', state }
+    return { accepted: false, code: 'run_not_active', state } satisfies RunLifecycleTransitionResult
   }
   return {
     accepted: true,
@@ -58,7 +55,7 @@ export function startExternalSessionRun(
       revision: state.revision + STATE_REVISION_INCREMENT,
       run: { state: 'starting', runId, intent },
     },
-  }
+  } satisfies RunLifecycleTransitionResult
 }
 
 export function replaceWithExternalSessionRun(
@@ -66,21 +63,24 @@ export function replaceWithExternalSessionRun(
   previousRunId: RunId | undefined,
   runId: RunId,
   intent: SessionControlRunIntent,
-): RunLifecycleTransitionResult {
-  if (state.run.state === 'idle') return startExternalSessionRun(state, runId, intent)
+) {
+  if (state.run.state === 'idle') {
+    return startExternalSessionRun(state, runId, intent) satisfies RunLifecycleTransitionResult
+  }
   if (!previousRunId || state.run.runId !== previousRunId) {
-    return { accepted: false, code: 'run_changed', state }
+    return { accepted: false, code: 'run_changed', state } satisfies RunLifecycleTransitionResult
   }
   const settled = settleSessionRun(state, previousRunId)
   if (!settled.accepted) return settled
-  return startExternalSessionRun(settled.state, runId, intent)
+  return startExternalSessionRun(
+    settled.state,
+    runId,
+    intent,
+  ) satisfies RunLifecycleTransitionResult
 }
 
-export function settleSessionRun(
-  state: SessionControlSessionState,
-  expectedRunId: RunId,
-): RunLifecycleTransitionResult {
-  return matchBy(state.run, 'state')
+export function settleSessionRun(state: SessionControlSessionState, expectedRunId: RunId) {
+  const result: RunLifecycleTransitionResult = matchBy(state.run, 'state')
     .with('idle', () => ({ accepted: false, code: 'run_not_active', state }))
     .with('starting', 'active', 'stopping', (run) =>
       run.runId === expectedRunId
@@ -95,6 +95,7 @@ export function settleSessionRun(
         : { accepted: false, code: 'run_changed', state },
     )
     .exhaustive()
+  return result
 }
 
 export type SettleAndScheduleResult =
@@ -113,19 +114,23 @@ export function settleAndScheduleNextFollowUp(
   state: SessionControlSessionState,
   expectedRunId: RunId,
   nextRunId: RunId,
-): SettleAndScheduleResult {
+) {
   const settled = settleSessionRun(state, expectedRunId)
-  if (!settled.accepted) return settled
+  if (!settled.accepted) {
+    const result: SettleAndScheduleResult = settled
+    return result
+  }
   const nextFollowUp = state.followUpQueue.items[0]
   if (
     state.followUpQueue.state === 'paused' ||
     nextFollowUp?.deliveryState !== 'pending' ||
     nextFollowUp.editHold
   ) {
-    return settled
+    const result: SettleAndScheduleResult = settled
+    return result
   }
 
-  return {
+  const result: SettleAndScheduleResult = {
     accepted: true,
     state: {
       ...settled.state,
@@ -138,11 +143,10 @@ export function settleAndScheduleNextFollowUp(
     },
     scheduled: { followUpId: nextFollowUp.id, runId: nextRunId, intent: nextFollowUp.intent },
   }
+  return result
 }
 
-export function recoverSessionAfterHostLoss(
-  state: SessionControlSessionState,
-): SessionControlSessionState {
+export function recoverSessionAfterHostLoss(state: SessionControlSessionState) {
   if (state.run.state === 'idle') return state
   const queue = state.followUpQueue
   // A wait on agents' capacity gives way to the loss: the queue waits for the person's Resume.
@@ -157,5 +161,5 @@ export function recoverSessionAfterHostLoss(
       ...(keepsPauseReason ? {} : { pauseReason: 'host-lost' as const }),
       revision: state.followUpQueue.revision + QUEUE_REVISION_INCREMENT,
     },
-  }
+  } satisfies SessionControlSessionState
 }

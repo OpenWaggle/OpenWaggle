@@ -72,8 +72,8 @@ const STOP_WORDS = new Set([
   'with',
 ])
 
-function firstPartyTopic(topic: FirstPartyDocsTopicSummary): OpenWaggleDocsToolTopic {
-  return {
+function firstPartyTopic(topic: FirstPartyDocsTopicSummary) {
+  const result: OpenWaggleDocsToolTopic = {
     topic: topic.topic,
     source: topic.source,
     title: topic.title,
@@ -84,6 +84,7 @@ function firstPartyTopic(topic: FirstPartyDocsTopicSummary): OpenWaggleDocsToolT
     keywords: topic.keywords,
     rank: topic.order,
   }
+  return result
 }
 
 /**
@@ -91,14 +92,11 @@ function firstPartyTopic(topic: FirstPartyDocsTopicSummary): OpenWaggleDocsToolT
  * hashed after confirming they stay inside the package. Docs of an extension that merely sits in a
  * cloned repository are third-party text the user never approved.
  */
-function extensionTopic(
-  topic: ExtensionDocsTopicSummary,
-  rank: number,
-): OpenWaggleDocsToolTopic | null {
+function extensionTopic(topic: ExtensionDocsTopicSummary, rank: number) {
   const { provenance } = topic
   if (provenance.trust !== 'trusted' || provenance.lifecycle !== 'enabled') return null
   if (topic.contentHash === null) return null
-  return {
+  const result: OpenWaggleDocsToolTopic = {
     topic: topic.topic,
     source: 'extension',
     title: topic.title,
@@ -114,13 +112,14 @@ function extensionTopic(
       contentHash: topic.contentHash,
     },
   }
+  return result
 }
 
-export function docsToolTopics(view: DocsDiscoveryView): readonly OpenWaggleDocsToolTopic[] {
+export function docsToolTopics(view: DocsDiscoveryView) {
   return [
     ...view.firstPartyTopics.map(firstPartyTopic),
     ...view.extensionTopics.flatMap((topic, index) => extensionTopic(topic, index) ?? []),
-  ]
+  ] satisfies readonly OpenWaggleDocsToolTopic[]
 }
 
 function compareTopics(left: OpenWaggleDocsToolTopic, right: OpenWaggleDocsToolTopic) {
@@ -200,7 +199,7 @@ function scoreTopics(
   tokens: readonly string[],
   requireEveryToken: boolean,
 ) {
-  return topics.flatMap((topic): ScoredTopic[] => {
+  return topics.flatMap((topic) => {
     const exactId = normalize(topic.topic) === query
     const exactName = isExactName(topic, query)
     const tokenScores = tokens.map((token) => tokenScore(topic, token))
@@ -208,7 +207,9 @@ function scoreTopics(
       ? tokenScores.length > 0 && tokenScores.every((value) => value > 0)
       : tokenScores.some((value) => value > 0)
     const score = matches ? tokenScores.reduce((sum, value) => sum + value, 0) : 0
-    return exactId || exactName || score > 0 ? [{ topic, exactId, exactName, score }] : []
+    return (
+      exactId || exactName || score > 0 ? [{ topic, exactId, exactName, score }] : []
+    ) satisfies ScoredTopic[]
   })
 }
 

@@ -9,12 +9,12 @@ export const LEGACY_PROVIDER_RENAMES: ReadonlyMap<string, string> = new Map([
 
 const MODEL_REFERENCE_SEPARATOR = '/'
 
-export function renameLegacyProviderId(providerId: string): string {
+export function renameLegacyProviderId(providerId: string) {
   return LEGACY_PROVIDER_RENAMES.get(providerId) ?? providerId
 }
 
 /** Renames the provider of a `provider/modelId` reference or `provider/*` pattern. */
-export function renameLegacyProviderModelReference(reference: string): string {
+export function renameLegacyProviderModelReference(reference: string) {
   const separatorIndex = reference.indexOf(MODEL_REFERENCE_SEPARATOR)
   if (separatorIndex <= 0) return reference
   const providerId = reference.slice(0, separatorIndex)

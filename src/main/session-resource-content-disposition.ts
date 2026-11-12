@@ -26,7 +26,7 @@ function safeDownloadFileName(fileName: string) {
 }
 
 /** A renderer-provided display name may suggest a download/reattachment name, never a path. */
-export function preferredSessionResourceFileName(value: unknown): string | null {
+export function preferredSessionResourceFileName(value: unknown) {
   if (typeof value !== 'string') return null
   const safe = truncateUtf8(
     value.trim().replaceAll(/[\\/:\p{Cc}]/gu, '_'),

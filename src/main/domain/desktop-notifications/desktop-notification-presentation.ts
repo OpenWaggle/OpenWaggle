@@ -39,7 +39,7 @@ export function desktopNotificationPresentation(
   notification: DesktopNotification,
   settings: DesktopNotificationSettings,
   audience: DesktopNotificationAudience,
-): DesktopNotificationPresentation {
+) {
   if (!settings.enabled || !settings.categories[notification.category]) return NOTHING
   // The Host already showed it while no desktop app was connected.
   if (notification.presentedBy === 'host') return NOTHING

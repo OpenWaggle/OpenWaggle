@@ -3,7 +3,7 @@ import { monitorBrowserPreviewSecurityPrompts } from './browser-preview-security
 
 const quarantinedContents = new WeakSet<WebContents>()
 
-export function installBrowserPreviewQuarantinePolicy(contents: WebContents): void {
+export function installBrowserPreviewQuarantinePolicy(contents: WebContents) {
   const removeSecurityPrompts = monitorBrowserPreviewSecurityPrompts(contents)
   const deny = (event: Event) => event.preventDefault()
   contents.on('will-navigate', deny)
@@ -29,12 +29,12 @@ export function installBrowserPreviewQuarantinePolicy(contents: WebContents): vo
   })
 }
 
-export function quarantineBrowserPreviewContents(contents: WebContents): void {
+export function quarantineBrowserPreviewContents(contents: WebContents) {
   quarantinedContents.add(contents)
 }
 
 /** Cached automation pages must not regain access after their renderer owner retires. */
-export function assertBrowserPreviewContentsAvailable(contents: WebContents): void {
+export function assertBrowserPreviewContentsAvailable(contents: WebContents) {
   if (quarantinedContents.has(contents)) {
     throw new Error('Browser preview owner is retired; only native close cleanup is available.')
   }

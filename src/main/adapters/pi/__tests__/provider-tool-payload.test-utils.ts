@@ -35,17 +35,20 @@ async function capture(
   run: (onPayload: (payload: unknown) => never) => {
     result(): Promise<{ readonly errorMessage?: string }>
   },
-): Promise<unknown> {
-  let captured: unknown
+) {
+  // A property, not a `let`: the callback's assignment would not widen a narrowed local.
+  const capture: { payload?: unknown } = {}
   const result = await run((payload) => {
     // Round-trip like the SDKs do on the wire, which also drops TypeBox's symbol keys.
-    captured = JSON.parse(JSON.stringify(payload))
+    capture.payload = JSON.parse(JSON.stringify(payload))
     throw new PayloadCaptured('payload captured before any network request')
   }).result()
-  if (captured === undefined) {
+  // Typed, so the `undefined` check below does not narrow the payload the callers match on.
+  const payload: unknown = capture.payload
+  if (capture.payload === undefined) {
     throw new Error(`Pi failed before building the payload: ${result.errorMessage ?? 'unknown'}`)
   }
-  return captured
+  return payload
 }
 
 function toolsByName(entries: readonly unknown[], pick: (entry: unknown) => [string, unknown]) {
@@ -57,9 +60,7 @@ function toolsByName(entries: readonly unknown[], pick: (entry: unknown) => [str
  * reached through OpenRouter, and returns the tool parameter schemas each provider would receive.
  * `onPayload` throws, so no request leaves the process.
  */
-export async function providerToolPayloads(
-  tools: readonly ToolDefinition[],
-): Promise<ProviderToolPayloads> {
+export async function providerToolPayloads(tools: readonly ToolDefinition[]) {
   const bedrockPayload = await capture((onPayload) =>
     streamBedrock(BEDROCK_MODEL, context(tools), {
       region: 'eu-west-1',
@@ -81,7 +82,7 @@ export async function providerToolPayloads(
   if (!isMatching({ tools: P.array(P._) }, openAiPayload)) {
     throw new Error('OpenAI payload has no tools')
   }
-  return {
+  const payloads: ProviderToolPayloads = {
     // The last entry is the tools cache point, not a tool.
     bedrock: toolsByName(
       bedrockPayload.toolConfig.tools.filter((entry) => !isMatching({ cachePoint: P._ }, entry)),
@@ -99,4 +100,5 @@ export async function providerToolPayloads(
       return [entry.function.name, entry.function.parameters]
     }),
   }
+  return payloads
 }

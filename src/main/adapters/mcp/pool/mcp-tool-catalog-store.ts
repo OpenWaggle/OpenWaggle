@@ -65,7 +65,7 @@ export async function pruneMcpToolCatalogs(directory: string, now: number = Date
 }
 
 /** One file per catalog key under `directory`. */
-export function fileBackedMcpToolCatalogStore(directory: () => string): McpToolCatalogStore {
+export function fileBackedMcpToolCatalogStore(directory: () => string) {
   const file = (key: string) => path.join(directory(), `${key}.json`)
   // Once per Host, at its first write: by then the directory is known to be in use.
   let pruned = false
@@ -122,11 +122,11 @@ export function fileBackedMcpToolCatalogStore(directory: () => string): McpToolC
         logger.warn('Could not forget an MCP tool catalog', { key, error: errorText(error) })
       }
     },
-  }
+  } satisfies McpToolCatalogStore
 }
 
 /** An in-memory store, for tests and Hosts without user data. */
-export function memoryMcpToolCatalogStore(): McpToolCatalogStore {
+export function memoryMcpToolCatalogStore() {
   const catalogs = new Map<string, McpToolCatalog>()
   return {
     read: (key) => catalogs.get(key),
@@ -136,5 +136,5 @@ export function memoryMcpToolCatalogStore(): McpToolCatalogStore {
     forget: (key) => {
       catalogs.delete(key)
     },
-  }
+  } satisfies McpToolCatalogStore
 }

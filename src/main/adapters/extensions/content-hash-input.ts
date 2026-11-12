@@ -17,7 +17,7 @@ function pushContributionEntryPaths(
   }
 }
 
-function getContributionEntryPaths(manifest: ManifestContentHashSource): readonly string[] {
+function getContributionEntryPaths(manifest: ManifestContentHashSource) {
   const contributions = manifest.contributions
   if (!contributions) {
     return []
@@ -42,7 +42,7 @@ function pushIfPresent(paths: string[], pathValue: string | undefined) {
   }
 }
 
-export function getManifestContentHashInput(manifest: ManifestContentHashSource): ContentHashInput {
+export function getManifestContentHashInput(manifest: ManifestContentHashSource) {
   const runtimeFiles: string[] = []
 
   for (const entryPath of getContributionEntryPaths(manifest)) {

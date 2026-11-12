@@ -9,11 +9,7 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
-import {
-  type LiveEnv,
-  liveEnvSchema,
-  SOURCE_CONTROL_CLI_STRIPPED_VARIABLES,
-} from './env-live-schema'
+import { liveEnvSchema, SOURCE_CONTROL_CLI_STRIPPED_VARIABLES } from './env-live-schema'
 import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 import {
   applyPiPackageDirectoryTo,
@@ -73,13 +69,11 @@ const envSchema = Schema.Struct({
 
 export type Env = SchemaType<typeof envSchema>
 
-export type { LiveEnv }
-
 /**
  * The live process environment, decoded now (unlike the startup {@link env} snapshot):
  * desktop-shell hydration and `withTemporaryProcessEnv` change `process.env` while the app runs.
  */
-export function readLiveEnv(): LiveEnv {
+export function readLiveEnv() {
   return decodeUnknownOrThrow(liveEnvSchema, process.env)
 }
 
@@ -104,7 +98,7 @@ export function restoreHostTemporaryDirectory(
 }
 
 /** Unlike the startup snapshot above, PATH can change after desktop-shell hydration. */
-export function getCurrentProcessPath(): string | undefined {
+export function getCurrentProcessPath() {
   return readLiveEnv().PATH
 }
 
@@ -113,7 +107,7 @@ const livePiEnvSchema = Schema.Struct({
 })
 
 /** Pi's session directory override, read live like PATH: Pi reads it when it opens a session. */
-export const getPiSessionDirectoryOverride = (): string | undefined =>
+export const getPiSessionDirectoryOverride = () =>
   decodeUnknownOrThrow(livePiEnvSchema, process.env).PI_CODING_AGENT_SESSION_DIR
 
 const TERMINAL_PROGRAM_NAME = 'OpenWaggle'
@@ -126,12 +120,12 @@ let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
  * This process's own environment, which `desktop-shell-environment-process` hydrates in place
  * from the login shell.
  */
-export function liveProcessEnvironment(): NodeJS.ProcessEnv {
+export function liveProcessEnvironment() {
   return process.env
 }
 
 /** The launching app's login-shell refresh time, removed so no child of this Host inherits it. */
-export function takeShellEnvironmentRefreshedSince(): number | undefined {
+export function takeShellEnvironmentRefreshedSince() {
   const since = Number(process.env[SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE])
   Reflect.deleteProperty(process.env, SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE)
   return Number.isSafeInteger(since) && since > 0 ? since : undefined
@@ -151,7 +145,7 @@ export const applyPiPackageDirectory = (directory?: string) =>
 
 /** Safe environment for child processes: essential variables only, so no API key or other
  * secret of the parent process leaks. */
-export function getSafeChildEnv(): Record<string, string | undefined> {
+export function getSafeChildEnv() {
   const live = readLiveEnv()
   return {
     PATH: getNpmCompatiblePath(),
@@ -165,7 +159,7 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
 }
 
 /** Minimum environment required by the built-in Windows PowerShell security helper. */
-export function getWindowsSecurityChildEnv(): Record<string, string | undefined> {
+export function getWindowsSecurityChildEnv() {
   const live = readLiveEnv()
   return {
     PATH: getNpmCompatiblePath(),
@@ -177,7 +171,7 @@ export function getWindowsSecurityChildEnv(): Record<string, string | undefined>
 }
 
 /** The environment a detached Session Host starts with (see `sessionHostSafeEnvironment`). */
-export function getSessionHostChildEnv(): Record<string, string | undefined> {
+export function getSessionHostChildEnv() {
   return sessionHostSafeEnvironment(
     withShellPiPackageDirectory(process.env),
     getNpmCompatiblePath(),
@@ -190,7 +184,7 @@ export function getSessionHostChildEnv(): Record<string, string | undefined> {
  * PowerShell needs the Windows root/temp variables. No unrelated secrets pass
  * through to either subprocess.
  */
-export function getBrowserCredentialChildEnv(): Record<string, string | undefined> {
+export function getBrowserCredentialChildEnv() {
   const live = readLiveEnv()
   return {
     ...getSafeChildEnv(),
@@ -208,10 +202,7 @@ export function getBrowserCredentialChildEnv(): Record<string, string | undefine
 }
 
 /** Windows profile roots used only for installed-browser discovery. */
-export function getBrowserImportPathEnv(): {
-  readonly appData?: string
-  readonly localAppData?: string
-} {
+export function getBrowserImportPathEnv() {
   const live = readLiveEnv()
   const appData = live.APPDATA?.trim()
   const localAppData = live.LOCALAPPDATA?.trim()
@@ -230,10 +221,7 @@ export function getBrowserImportPathEnv(): {
  * injection controls are removed. A new snapshot is built for every terminal
  * spawn so environment changes made while OpenWaggle is running are observed.
  */
-export function getInteractiveTerminalEnv(
-  appVersion: string,
-  overrides: PreparedEnvironment = {},
-): Record<string, string> {
+export function getInteractiveTerminalEnv(appVersion: string, overrides: PreparedEnvironment = {}) {
   const inherited: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value !== 'string' || shouldExcludeInteractiveTerminalEnvKey(key)) continue
@@ -264,7 +252,7 @@ export function getInteractiveTerminalEnv(
  * host selected by the validated Git remote. Inherited tokens from CI or developer tooling can
  * silently select a different identity or be disclosed to an attacker-controlled custom host.
  */
-export function getSourceControlCliEnv(): Record<string, string | undefined> {
+export function getSourceControlCliEnv() {
   const env: Record<string, string | undefined> = {
     ...process.env,
     PATH: getNpmCompatiblePath(),
@@ -284,24 +272,22 @@ export function readEnvironmentVariables<N extends string>(names: readonly N[]) 
  * The current environment plus explicit overrides, for child git invocations that need extra
  * variables (e.g. `GIT_INDEX_FILE`) while still inheriting PATH/HOME. Only `env.ts` reads it.
  */
-export function getEnvWithOverrides(
-  overrides: Readonly<Record<string, string>>,
-): Record<string, string | undefined> {
+export function getEnvWithOverrides(overrides: Readonly<Record<string, string>>) {
   return { ...withShellPiPackageDirectory(process.env), ...overrides }
 }
 
-export function getNpmCompatiblePath(): string {
+export function getNpmCompatiblePath() {
   return buildNpmCompatiblePath(readLiveEnv().PATH, process.platform, homedir())
 }
 
-export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {
+export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>) {
   return withTemporaryProcessEnv({ PATH: getNpmCompatiblePath() }, operation)
 }
 
 export async function withTemporaryProcessEnv<T>(
   overrides: Readonly<Record<string, string>>,
   operation: () => Promise<T>,
-): Promise<T> {
+) {
   const release = await acquireTemporaryProcessEnvLock()
   const previousValues = new Map<string, string | undefined>()
 

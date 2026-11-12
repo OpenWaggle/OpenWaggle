@@ -21,7 +21,7 @@ export function createGatedElectronTransport(
   isEnabled: () => boolean,
   wasScrubbed: (event: unknown) => boolean,
 ) {
-  return (options: ElectronTransportOptions): ElectronTransport => {
+  return (options: ElectronTransportOptions) => {
     const transport = makeElectronTransport(options)
     return {
       send: (envelope) =>
@@ -29,6 +29,6 @@ export function createGatedElectronTransport(
           ? transport.send(envelope)
           : Promise.resolve({}),
       flush: (timeout) => transport.flush(timeout),
-    }
+    } satisfies ElectronTransport
   }
 }

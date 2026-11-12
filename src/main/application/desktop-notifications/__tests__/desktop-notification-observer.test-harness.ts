@@ -48,7 +48,7 @@ export interface Fixture {
 export function session(
   sessionId: string,
   overrides: Partial<DesktopNotificationSessionFacts> = {},
-): DesktopNotificationSessionFacts {
+) {
   return {
     sessionId,
     title: `Title ${sessionId}`,
@@ -57,7 +57,7 @@ export function session(
     parentSessionId: null,
     parentTitle: null,
     ...overrides,
-  }
+  } satisfies DesktopNotificationSessionFacts
 }
 
 export function setup(overrides: Partial<Fixture> = {}) {

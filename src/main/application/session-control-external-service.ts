@@ -5,7 +5,6 @@ import type {
   SessionControlInterruptDescendantsMutationRequest,
   SessionControlInterruptMutationRequest,
   SessionControlMutationOutcome,
-  SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import {
@@ -35,7 +34,7 @@ function response(
     | SessionControlInterruptDescendantsMutationRequest,
   replayed: boolean,
   outcome: SessionControlMutationOutcome,
-): SessionControlMutationResponse {
+) {
   return {
     contractVersion: request.contractVersion,
     requestId: request.requestId,

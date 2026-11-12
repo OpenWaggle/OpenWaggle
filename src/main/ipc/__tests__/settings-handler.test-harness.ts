@@ -6,7 +6,6 @@ import { ProviderProbeService } from '../../ports/provider-probe-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionTreePreferencesService } from '../../ports/session-tree-preferences-service'
 import { SettingsService } from '../../services/settings-service'
-import type * as SettingsHandler from '../settings-handler'
 
 type TestMock = Mock
 
@@ -148,6 +147,6 @@ export function resetSettingsHandlerMocks() {
   getBranchSummarySkipPromptMock.mockReset()
 }
 
-export function loadSettingsHandlers(): Promise<typeof SettingsHandler> {
+export function loadSettingsHandlers() {
   return import('../settings-handler')
 }

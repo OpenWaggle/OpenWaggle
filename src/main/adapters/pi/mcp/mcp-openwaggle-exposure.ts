@@ -44,8 +44,8 @@ export function withOpenWaggleMcpExposure(
   },
   /** Whether this Run's codemode reaches MCP tools; without it, `direct` stays `direct`. */
   codemode?: McpCodemodeReach,
-): ExtensionFactory {
-  return (pi) => {
+) {
+  return ((pi) => {
     codemode?.capture(pi)
     const registeredLabels = new Set<string>()
     if (unknownApps) {
@@ -81,7 +81,7 @@ export function withOpenWaggleMcpExposure(
         },
       }),
     )
-  }
+  }) satisfies ExtensionFactory
 }
 
 const CODEMODE_TOOL_NAME = 'codemode'
@@ -97,7 +97,7 @@ export interface McpCodemodeReach {
   readonly reachable: () => boolean
 }
 
-export function mcpCodemodeReach(autoEnableCodemode = true): McpCodemodeReach {
+export function mcpCodemodeReach(autoEnableCodemode = true) {
   let api: Pick<ExtensionAPI, 'getAllTools' | 'getActiveTools'> | undefined
   return {
     capture: (pi) => {
@@ -110,7 +110,7 @@ export function mcpCodemodeReach(autoEnableCodemode = true): McpCodemodeReach {
         .some((tool) => tool.name === CODEMODE_TOOL_NAME && tool.reachesTools !== undefined)
       return registered && (autoEnableCodemode || api.getActiveTools().includes(CODEMODE_TOOL_NAME))
     },
-  }
+  } satisfies McpCodemodeReach
 }
 
 /**
@@ -123,7 +123,7 @@ export function withDirectKeptWithoutCodemode<
   loaded: Loaded,
   codemode: McpCodemodeReach,
   fileConfigOf: (name: string) => Pick<McpServerConfig, 'exposure' | 'toolExposure'> | undefined,
-): Loaded {
+) {
   if (codemode.reachable()) return loaded
   return {
     ...loaded,
@@ -140,7 +140,7 @@ export function withDirectKeptWithoutCodemode<
  */
 export function withKnownMcpAppToolsOf<
   Loaded extends { readonly servers: readonly McpServerEntry[] },
->(sessionId: string, loaded: Loaded, cached?: CachedMcpAppTools): Loaded {
+>(sessionId: string, loaded: Loaded, cached?: CachedMcpAppTools) {
   return {
     ...loaded,
     servers: loaded.servers.map((server) => ({
@@ -164,7 +164,7 @@ function declaredIfMcpApp<
   sessionId: string,
   serverConfig: (name: string) => McpServerConfig | undefined,
   definition: Definition,
-): Definition {
+) {
   if (definition.exposure !== 'deferred' || !definition.name.startsWith('mcp__')) return definition
   const server = definition.namespace?.aliases?.[0]
   if (!server || !definition.label.startsWith(`${server}/`)) return definition
@@ -172,5 +172,5 @@ function declaredIfMcpApp<
   const config = serverConfig(server)
   if (!config || getMcpToolExposure(config, tool) !== 'codemode') return definition
   if (!mcpAppTool(sessionId, server, tool)) return definition
-  return { ...definition, exposure: 'direct' }
+  return { ...definition, exposure: 'direct' } satisfies Definition
 }

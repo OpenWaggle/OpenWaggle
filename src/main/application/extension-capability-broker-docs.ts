@@ -121,15 +121,19 @@ function validateDocsListProjectPaths(projectPaths: readonly string[]) {
 function normalizeDocsListProjectPaths(
   input: BrokerDocsRouteInput,
   projectPaths: readonly string[] | undefined,
-): Effect.Effect<DocsListPayloadValidation> {
+) {
   const scopeProjectPath = getScopeProjectPath(input.invocation.scope)
   if (projectPaths === undefined && scopeProjectPath === undefined) {
-    return Effect.succeed({ _tag: 'valid', payload: {} })
+    const effect: Effect.Effect<DocsListPayloadValidation> = Effect.succeed({
+      _tag: 'valid',
+      payload: {},
+    })
+    return effect
   }
 
   const requestedProjectPaths = projectPaths ?? (scopeProjectPath ? [scopeProjectPath] : [])
 
-  return Effect.gen(function* () {
+  const effect: Effect.Effect<DocsListPayloadValidation> = Effect.gen(function* () {
     const validatedProjectPaths = yield* validateDocsListProjectPaths(requestedProjectPaths)
     if (scopeProjectPath === undefined) {
       return {
@@ -160,12 +164,13 @@ function normalizeDocsListProjectPaths(
       }),
     ),
   )
+  return effect
 }
 
 function normalizeDocsDiscoverPayload(
   input: BrokerDocsRouteInput,
   payload: ExtensionDocsDiscoverPayload,
-): Effect.Effect<DocsListPayloadValidation> {
+) {
   return normalizeDocsListProjectPaths(input, payload.projectPaths).pipe(
     Effect.map((validation) => {
       if (validation._tag !== 'valid') {
@@ -182,7 +187,7 @@ function normalizeDocsDiscoverPayload(
         },
       } satisfies DocsListPayloadValidation
     }),
-  )
+  ) satisfies Effect.Effect<DocsListPayloadValidation>
 }
 
 function discoverDocs(input: BrokerDocsRouteInput) {

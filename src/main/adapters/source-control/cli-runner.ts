@@ -29,26 +29,32 @@ export async function runCli(
   args: readonly string[],
   cwd: string,
   options: CliRunOptions = {},
-): Promise<CliResult> {
+) {
   try {
     const output = await execFileAsync(command, [...args], {
       cwd,
       env: options.env ?? getSourceControlCliEnv(),
       timeout: SOURCE_CONTROL_CLI_TIMEOUT_MS,
     })
-    return { stdout: output.stdout ?? '', stderr: output.stderr ?? '', code: 0, missing: false }
+    const result: CliResult = {
+      stdout: output.stdout ?? '',
+      stderr: output.stderr ?? '',
+      code: 0,
+      missing: false,
+    }
+    return result
   } catch (error) {
     return normalizeCliError(error)
   }
 }
 
-function normalizeCliError(error: unknown): CliResult {
+function normalizeCliError(error: unknown) {
   const record = uncheckedFields<{ readonly stdout: string; readonly stderr: string }>(error)
   const code = errorCode(error)
   // ENOENT: binary not found; EACCES: found but not executable — both mean the
   // provider CLI is unusable, so treat them the same (surface as unavailable).
   const missing = code === 'ENOENT' || code === 'EACCES'
-  return {
+  const result: CliResult = {
     stdout: typeof record.stdout === 'string' ? record.stdout : '',
     stderr:
       typeof record.stderr === 'string'
@@ -59,4 +65,5 @@ function normalizeCliError(error: unknown): CliResult {
     code: typeof code === 'number' ? code : 1,
     missing,
   }
+  return result
 }

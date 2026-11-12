@@ -35,7 +35,7 @@ afterEach(async () => {
   while (cleanups.length > 0) await cleanups.pop()?.()
 })
 
-function mcpExtension(name = 'slow', script = SILENT_SERVER): ExtensionFactory {
+function mcpExtension(name = 'slow', script = SILENT_SERVER) {
   return createMcpExtension({
     loadConfig: () => ({
       servers: [

@@ -5,8 +5,8 @@ import type {
 import { describe, expect, it } from 'vitest'
 import { run, view } from './mcp-cli-management.test-fixtures'
 
-function changed(source: McpImportCandidateView['source'], name: string): McpImportCandidateView {
-  return {
+function changed(source: McpImportCandidateView['source'], name: string) {
+  const view: McpImportCandidateView = {
     source,
     sourcePath: `/home/.${source}/mcp.json`,
     suggestedTarget: 'global',
@@ -17,6 +17,7 @@ function changed(source: McpImportCandidateView['source'], name: string): McpImp
     warnings: [],
     status: 'source-changed',
   }
+  return view
 }
 
 const CANDIDATES = [
@@ -25,12 +26,13 @@ const CANDIDATES = [
   changed('vscode', 'github'),
 ]
 
-function previewOf(sources: readonly string[] | undefined): McpImportPreviewView {
-  return {
+function previewOf(sources: readonly string[] | undefined) {
+  const view: McpImportPreviewView = {
     candidates: CANDIDATES.filter((candidate) => !sources || sources.includes(candidate.source)),
     unavailableSources: [],
     errors: [],
   }
+  return view
 }
 
 /** Splits a printed command as a POSIX shell would, for the quoting the hint uses. */

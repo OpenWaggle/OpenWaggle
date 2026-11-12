@@ -52,10 +52,13 @@ function mcpPatterns(reference: string, mcpServers: readonly string[] | undefine
 export function agentToolAllowlist(input: {
   readonly tools: readonly string[]
   readonly mcpServers?: readonly string[]
-}): (toolName: string) => boolean {
+}) {
   const exact = new Set(input.tools.filter((tool) => !isAgentMcpToolReference(tool)))
   const mcp = input.tools.filter(isAgentMcpToolReference)
   const patterns = mcp.flatMap((reference) => mcpPatterns(reference, input.mcpServers))
   if (mcp.length > 0) for (const tool of MCP_REACH_TOOL_NAMES) exact.add(tool)
-  return (toolName) => exact.has(toolName) || patterns.some((pattern) => pattern.test(toolName))
+  return ((toolName) =>
+    exact.has(toolName) || patterns.some((pattern) => pattern.test(toolName))) satisfies (
+    toolName: string,
+  ) => boolean
 }

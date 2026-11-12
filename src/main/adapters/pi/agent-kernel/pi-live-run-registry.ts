@@ -137,8 +137,8 @@ function awaitDurableSteerDelivery(input: {
   readonly runId: string
   readonly durableText: string
   readonly tracker: DeliveryTracker
-}): Promise<boolean> {
-  return new Promise((resolve, reject) => {
+}) {
+  return new Promise<boolean>((resolve, reject) => {
     let finished = false
     const finish = (delivered: boolean) => {
       if (finished) return
@@ -193,7 +193,7 @@ function beginSteerHandoff(
   liveRun: RegisteredPiLiveRun,
   input: PiLiveRunSteeringInput,
   ledgerEntry: SteerLedgerEntry | undefined,
-): DeliveryTracker | undefined {
+) {
   if (!input.requireDurableDelivery && !ledgerEntry) return undefined
   const tracker = createDeliveryTracker({
     session: liveRun.run.session,
@@ -212,7 +212,7 @@ function recordSteerHandoff(handoff: {
   readonly delivery: Awaited<ReturnType<RegisteredPiLiveRun['control']['steer']>>
   readonly tracker?: DeliveryTracker
   readonly ledgerEntry?: SteerLedgerEntry
-}): 'accepted' | 'refused' {
+}) {
   const { liveRun, input, delivery, tracker, ledgerEntry } = handoff
   const stopTracking = () => {
     if (tracker) liveRun.pendingDeliveries.delete(tracker)
@@ -220,7 +220,7 @@ function recordSteerHandoff(handoff: {
   }
   if (delivery.delivery === 'handled') {
     stopTracking()
-    return 'accepted'
+    return 'accepted' as const
   }
   if (!input.requireDurableDelivery && liveRuns.get(input.runId) !== liveRun) {
     // The Run ended while Pi queued this steer, after its Undelivered steering messages were
@@ -228,19 +228,23 @@ function recordSteerHandoff(handoff: {
     // keeps the message instead of a disposed Pi queue.
     const started = tracker !== undefined && deliveryCandidate(tracker, delivery.durableText)
     stopTracking()
-    return started ? 'accepted' : 'refused'
+    return started ? ('accepted' as const) : ('refused' as const)
   }
   if (ledgerEntry && tracker) {
     ledgerEntry.state = { stage: 'queued', tracker, durableText: delivery.durableText }
   }
-  return 'accepted'
+  return 'accepted' as const
 }
 
-export async function steerPiLiveRun(input: PiLiveRunSteeringInput): Promise<AgentSteeringResult> {
+export async function steerPiLiveRun(input: PiLiveRunSteeringInput) {
   const liveRun = liveRuns.get(input.runId)
-  if (!liveRun) return { accepted: false, code: 'run_not_live' }
+  if (!liveRun) {
+    const value: AgentSteeringResult = { accepted: false, code: 'run_not_live' }
+    return value
+  }
   if (input.delivery?.kind === 'steer' && !canAcceptReturnableSteer(liveRun.steerLedger)) {
-    return { accepted: false, code: 'steering_capacity_reached' }
+    const value: AgentSteeringResult = { accepted: false, code: 'steering_capacity_reached' }
+    return value
   }
   // Recorded on arrival, so a Run that ends hands its steers back in the order they were sent.
   const ledgerEntry: SteerLedgerEntry | undefined = input.delivery
@@ -301,5 +305,5 @@ export async function steerPiLiveRun(input: PiLiveRunSteeringInput): Promise<Age
     durableText,
     tracker: outcome.tracker,
   })
-  return delivered ? outcome.result : { accepted: false, code: 'run_not_live' }
+  return delivered ? outcome.result : ({ accepted: false, code: 'run_not_live' } as const)
 }

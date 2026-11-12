@@ -47,7 +47,7 @@ const gitLayer = Layer.succeed(
   }),
 )
 
-function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
+function usage(overrides: Partial<WorktreeUsage> = {}) {
   return {
     path: WORKTREE,
     sessions: [
@@ -70,7 +70,7 @@ function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
     ],
     blockers: [{ kind: 'session', message: 'Archive that Session first.' }],
     ...overrides,
-  }
+  } satisfies WorktreeUsage
 }
 
 /** The mocked operations need only Git's worktree list. */

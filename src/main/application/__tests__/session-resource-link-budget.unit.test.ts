@@ -13,11 +13,7 @@ import { sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
 const EXCESS_LINK_COUNT = SESSION_LINK_CAPTURE_LIMIT + 8
 
-function linkMessage(
-  index: number,
-  count: number,
-  role: 'user' | 'assistant' = 'assistant',
-): Message {
+function linkMessage(index: number, count: number, role: 'user' | 'assistant' = 'assistant') {
   const markdown = Array.from(
     { length: count },
     (_, linkIndex) =>
@@ -28,10 +24,10 @@ function linkMessage(
     role,
     parts: [{ type: 'text', text: markdown }],
     createdAt: index,
-  }
+  } satisfies Message
 }
 
-function capturedResource(input: UpsertSessionResourceInput): SessionResource {
+function capturedResource(input: UpsertSessionResourceInput) {
   return {
     id: input.id,
     sessionId: input.sessionId,
@@ -47,7 +43,7 @@ function capturedResource(input: UpsertSessionResourceInput): SessionResource {
     occurrences: [input.occurrence],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
-  }
+  } satisfies SessionResource
 }
 
 describe('session link capture budgets', () => {

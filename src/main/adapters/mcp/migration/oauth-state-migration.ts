@@ -103,7 +103,7 @@ type OAuthMapping =
   | { readonly kind: 'skip'; readonly reason: string }
 
 /** Map one old OAuth state to Pi's, or explain why it cannot be mapped faithfully. */
-export function mapLegacyOAuthState(rawJson: string, serverUrl: string): OAuthMapping {
+export function mapLegacyOAuthState(rawJson: string, serverUrl: string) {
   const parsed: unknown = JSON.parse(rawJson)
   const state = decodeUnknownOrThrow(legacyOAuthStateSchema, parsed)
   const issuers = new Set([
@@ -111,13 +111,21 @@ export function mapLegacyOAuthState(rawJson: string, serverUrl: string): OAuthMa
     ...Object.keys(state.clientsByIssuer),
   ])
   if (issuers.size > 1) {
-    return { kind: 'skip', reason: 'the sign-in spans several authorization servers' }
+    return {
+      kind: 'skip',
+      reason: 'the sign-in spans several authorization servers',
+    } satisfies OAuthMapping
   }
   const issuer = state.lastTokenIssuer ?? [...issuers][0]
   const tokens = issuer === undefined ? undefined : state.tokensByIssuer[issuer]
   const client = issuer === undefined ? undefined : state.clientsByIssuer[issuer]
-  if (!tokens) return { kind: 'skip', reason: 'no tokens are stored' }
-  if (!client) return { kind: 'skip', reason: 'the client registration for the tokens is missing' }
+  if (!tokens) return { kind: 'skip', reason: 'no tokens are stored' } satisfies OAuthMapping
+  if (!client) {
+    return {
+      kind: 'skip',
+      reason: 'the client registration for the tokens is missing',
+    } satisfies OAuthMapping
+  }
   return {
     kind: 'state',
     state: {
@@ -125,7 +133,7 @@ export function mapLegacyOAuthState(rawJson: string, serverUrl: string): OAuthMa
       clientInformation: withoutIssuer(client),
       tokens: withoutIssuer(tokens),
     },
-  }
+  } satisfies OAuthMapping
 }
 
 interface OAuthCandidate {
@@ -189,7 +197,7 @@ export async function migrateLegacyOAuthStates(input: {
   readonly sink: McpOAuthMigrationSink
   readonly now: () => Date
   readonly logger: Logger
-}): Promise<McpOAuthMigrationResult[]> {
+}) {
   const results: McpOAuthMigrationResult[] = []
   let candidates: OAuthCandidate[]
   try {
@@ -224,13 +232,18 @@ async function migrateOne(
   input: Parameters<typeof migrateLegacyOAuthStates>[0],
   candidate: OAuthCandidate,
   key: string,
-): Promise<McpOAuthMigrationResult> {
+) {
   try {
     const raw = await input.sink.readOld(`oauth.${candidate.instanceId}`)
     const migratedAt = input.now().toISOString()
     const recorded = recordKey(input.sink, key)
     if (raw === SIGN_IN_NOT_READ_YET) {
-      return { server: candidate.name, key, status: 'skipped', reason: 'not read yet' }
+      return {
+        server: candidate.name,
+        key,
+        status: 'skipped',
+        reason: 'not read yet',
+      } satisfies McpOAuthMigrationResult
     }
     if (raw === SIGN_IN_OF_ANOTHER_BUILD) {
       // Not recorded: it is the other build's to move, and this one looks again on a later start.
@@ -239,13 +252,18 @@ async function migrateOne(
         key,
         status: 'skipped',
         reason: 'signed in in another build',
-      }
+      } satisfies McpOAuthMigrationResult
     }
     if (raw === undefined) {
       // Recorded, so later runs do not read the vault again; a failed read is not recorded.
       const reason = 'not signed in'
       await input.record.recordOAuth(recorded, { migratedAt, status: 'skipped', reason })
-      return { server: candidate.name, key, status: 'skipped', reason }
+      return {
+        server: candidate.name,
+        key,
+        status: 'skipped',
+        reason,
+      } satisfies McpOAuthMigrationResult
     }
     const mapping = mapLegacyOAuthState(raw, candidate.url)
     if (mapping.kind === 'skip') {
@@ -254,20 +272,35 @@ async function migrateOne(
         status: 'skipped',
         reason: mapping.reason,
       })
-      return { server: candidate.name, key, status: 'skipped', reason: mapping.reason }
+      return {
+        server: candidate.name,
+        key,
+        status: 'skipped',
+        reason: mapping.reason,
+      } satisfies McpOAuthMigrationResult
     }
     if ((await input.sink.write(key, mapping.state)) === false) {
       const reason = 'already signed in'
       await input.record.recordOAuth(recorded, { migratedAt, status: 'skipped', reason })
-      return { server: candidate.name, key, status: 'skipped', reason }
+      return {
+        server: candidate.name,
+        key,
+        status: 'skipped',
+        reason,
+      } satisfies McpOAuthMigrationResult
     }
     await input.record.recordOAuth(recorded, { migratedAt, status: 'migrated' })
-    return { server: candidate.name, key, status: 'migrated' }
+    return { server: candidate.name, key, status: 'migrated' } satisfies McpOAuthMigrationResult
   } catch (error) {
     input.logger.error('MCP OAuth migration failed for a server', {
       server: candidate.name,
       error: describeError(error),
     })
-    return { server: candidate.name, key, status: 'failed', reason: describeError(error) }
+    return {
+      server: candidate.name,
+      key,
+      status: 'failed',
+      reason: describeError(error),
+    } satisfies McpOAuthMigrationResult
   }
 }

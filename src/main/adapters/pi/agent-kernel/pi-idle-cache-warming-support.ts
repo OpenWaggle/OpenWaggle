@@ -20,7 +20,7 @@ export interface WarmingSession {
   }
 }
 
-export function piFileState(file: string | undefined): PiFileState | null {
+export function piFileState(file: string | undefined) {
   if (!file) return null
   try {
     const stats = statSync(file)

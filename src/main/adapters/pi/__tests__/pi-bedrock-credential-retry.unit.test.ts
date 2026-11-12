@@ -16,8 +16,8 @@ const MODEL = {
   id: 'eu.anthropic.claude-opus',
 } as const
 
-function message(overrides: Partial<AssistantMessage>): AssistantMessage {
-  return {
+function message(overrides: Partial<AssistantMessage>) {
+  const result: AssistantMessage = {
     role: 'assistant',
     content: [],
     api: 'bedrock-converse-stream',
@@ -35,17 +35,18 @@ function message(overrides: Partial<AssistantMessage>): AssistantMessage {
     timestamp: Date.now(),
     ...overrides,
   }
+  return result
 }
 
-function failed(errorMessage: string): AssistantMessageEvent {
+function failed(errorMessage: string) {
   return {
     type: 'error',
     reason: 'error',
     error: message({ stopReason: 'error', errorMessage }),
-  }
+  } satisfies AssistantMessageEvent
 }
 
-function answered(text: string): AssistantMessageEvent[] {
+function answered(text: string) {
   const done = message({ content: [{ type: 'text', text }] })
   return [
     { type: 'start', partial: message({}) },
@@ -53,7 +54,7 @@ function answered(text: string): AssistantMessageEvent[] {
     { type: 'text_delta', contentIndex: 0, delta: text, partial: done },
     { type: 'text_end', contentIndex: 0, content: text, partial: done },
     { type: 'done', reason: 'stop', message: done },
-  ]
+  ] satisfies AssistantMessageEvent[]
 }
 
 /** One call's events, and the result it ends with when no event carried one. */

@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => {
   return {
     loads,
     upstreams,
-    respond: (_method: string): unknown => ({}),
+    respond: (_method: string) => {
+      const result: unknown = {}
+      return result
+    },
     open: vi.fn(),
     legacyIdentity: '',
     enabled: true,

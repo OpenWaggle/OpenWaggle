@@ -28,10 +28,7 @@ import {
   type TerminalHistoryCounts,
 } from './terminal-history-retention'
 import { stripTerminalReplaySequences } from './terminal-history-sanitizer'
-import type {
-  TerminalHistoryCacheSnapshot,
-  TerminalHistoryStore,
-} from './terminal-history-store-types'
+import type { TerminalHistoryStore } from './terminal-history-store-types'
 
 export type { TerminalHistoryStore }
 
@@ -199,11 +196,11 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     }
   }
 
-  cacheSnapshotForTests = (): TerminalHistoryCacheSnapshot => ({
+  cacheSnapshotForTests = () => ({
     states: [...this.states].map(([key, state]) => ({ key, ...state })),
     workingDirectories: [...this.workingDirectories].map(([key, cwd]) => ({ key, cwd })),
   })
-  private enqueueMutation<Result>(mutation: () => Promise<Result>): Promise<Result> {
+  private enqueueMutation<Result>(mutation: () => Promise<Result>) {
     const result = this.mutationTail.then(mutation)
     this.mutationTail = result.then(
       () => undefined,
@@ -326,5 +323,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   }
 }
 
-export const makeTerminalHistoryStore = (logsDir: string): TerminalHistoryStore =>
-  new TerminalHistoryStoreImpl(logsDir)
+export const makeTerminalHistoryStore = (logsDir: string) => {
+  const store: TerminalHistoryStore = new TerminalHistoryStoreImpl(logsDir)
+  return store
+}

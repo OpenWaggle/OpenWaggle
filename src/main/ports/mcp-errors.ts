@@ -29,11 +29,7 @@ export class McpVaultError extends Data.TaggedError('McpVaultError')<{
 export type McpVaultFailure = McpVaultError
 
 /** Wrap an unknown thrown value as a tagged vault failure, preserving its message. */
-export function toMcpVaultError(
-  reason: McpVaultErrorReason,
-  error: unknown,
-  secretName?: string,
-): McpVaultError {
+export function toMcpVaultError(reason: McpVaultErrorReason, error: unknown, secretName?: string) {
   return new McpVaultError({
     reason,
     message: error instanceof Error ? error.message : String(error),

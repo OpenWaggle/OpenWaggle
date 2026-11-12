@@ -34,7 +34,7 @@ export type SpawnAdmissionResult =
       readonly hostActiveRuns: number
     }
 
-export function decideSpawnAdmission(input: SpawnAdmissionInput): SpawnAdmissionResult {
+export function decideSpawnAdmission(input: SpawnAdmissionInput) {
   const rejected = (
     code: Extract<SpawnAdmissionResult, { readonly accepted: false }>['code'],
     retryable: boolean,
@@ -50,22 +50,22 @@ export function decideSpawnAdmission(input: SpawnAdmissionInput): SpawnAdmission
 
   if (input.parentRun.state !== 'active') {
     if (input.parentRun.state !== 'idle' && input.parentRun.runId !== input.expectedParentRunId) {
-      return rejected('parent_run_changed', false)
+      return rejected('parent_run_changed', false) satisfies SpawnAdmissionResult
     }
-    return rejected('parent_run_not_active', true)
+    return rejected('parent_run_not_active', true) satisfies SpawnAdmissionResult
   }
   if (input.parentRun.runId !== input.expectedParentRunId) {
-    return rejected('parent_run_changed', false)
+    return rejected('parent_run_changed', false) satisfies SpawnAdmissionResult
   }
   if (input.parentRunningChildren >= input.parentConcurrencyLimit) {
-    return rejected('parent_capacity_reached', true)
+    return rejected('parent_capacity_reached', true) satisfies SpawnAdmissionResult
   }
   if (input.hostActiveRuns >= input.hostRunCeiling) {
-    return rejected('host_capacity_reached', true)
+    return rejected('host_capacity_reached', true) satisfies SpawnAdmissionResult
   }
   return {
     accepted: true,
     parentRemainingSlots: input.parentConcurrencyLimit - input.parentRunningChildren - 1,
     hostRemainingSlots: input.hostRunCeiling - input.hostActiveRuns - 1,
-  }
+  } satisfies SpawnAdmissionResult
 }

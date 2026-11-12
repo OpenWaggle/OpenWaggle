@@ -36,7 +36,7 @@ function resetElectronNetMocks() {
   electronNetMocks.net.request = electronNetMocks.originalRequest
 }
 
-function policyPackage(): DiscoveredExtensionPackage {
+function policyPackage() {
   return fromPartial<DiscoveredExtensionPackage>({
     id: 'network-policy-extension',
     manifest: {

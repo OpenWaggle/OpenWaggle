@@ -1,7 +1,6 @@
 import { BROWSER_IMPORT_LIMITS } from '@shared/types/browser-import'
 import { numberColumn, stringColumn, withCookieDatabaseSnapshot } from './browser-cookie-database'
 import {
-  type BrowserCookieReadResult,
   boundedSkippedDomains,
   cookieScope,
   type ImportedBrowserCookie,
@@ -33,10 +32,7 @@ function firefoxExpiration(expiry: number, schemaVersion: number) {
     : expiry
 }
 
-function decodeFirefoxCookie(
-  row: Record<string, unknown>,
-  schemaVersion: number,
-): ImportedBrowserCookie | null {
+function decodeFirefoxCookie(row: Record<string, unknown>, schemaVersion: number) {
   const host = stringColumn(row, 'host')
   const name = stringColumn(row, 'name')
   const value = stringColumn(row, 'value')
@@ -66,10 +62,10 @@ function decodeFirefoxCookie(
     httpOnly: numberColumn(row, 'isHttpOnly') === 1,
     ...(expirationDate === undefined ? {} : { expirationDate }),
     sameSite: firefoxSameSite(numberColumn(row, 'sameSite'), numberColumn(row, 'rawSameSite')),
-  }
+  } satisfies ImportedBrowserCookie
 }
 
-export async function readFirefoxCookies(databasePath: string): Promise<BrowserCookieReadResult> {
+export async function readFirefoxCookies(databasePath: string) {
   return withCookieDatabaseSnapshot(databasePath, (database) => {
     const versionRow = database.prepare('PRAGMA user_version').get()
     const schemaVersion = versionRow ? (numberColumn(versionRow, 'user_version') ?? 0) : 0

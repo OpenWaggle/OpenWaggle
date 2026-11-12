@@ -38,7 +38,7 @@ export const CONTEXT: UsageStatisticsContext = {
 export const NOW = Date.parse('2026-10-03T08:00:00.000Z')
 export const ACCEPTED: UsageStatisticsDelivery = { outcome: 'accepted', status: 202 }
 
-export function day(observations: readonly UsageStatisticsObservation[]): UsageStatisticsDay {
+export function day(observations: readonly UsageStatisticsObservation[]) {
   return observations.reduce<UsageStatisticsDay>(
     applyUsageStatisticsObservation,
     EMPTY_USAGE_STATISTICS_DAY,
@@ -52,9 +52,7 @@ export const OPENED = day([{ kind: 'app-opened' }])
 export function memoryFile(
   initial: UsageStatisticsHostState,
   options: { readonly failingFlush?: (flushNumber: number) => boolean } = {},
-): UsageStatisticsJsonFile<UsageStatisticsHostState> & {
-  readonly persisted: () => UsageStatisticsHostState
-} {
+) {
   let current = initial
   let persisted = initial
   let flushes = 0
@@ -72,6 +70,8 @@ export function memoryFile(
       persisted = current
     },
     persisted: () => persisted,
+  } satisfies UsageStatisticsJsonFile<UsageStatisticsHostState> & {
+    readonly persisted: () => UsageStatisticsHostState
   }
 }
 
@@ -135,7 +135,7 @@ export function hostState(input: {
   readonly install?: Partial<UsageStatisticsHostState['install']>
   readonly reporting?: Partial<UsageStatisticsHostState['reporting']>
   readonly days?: UsageStatisticsHostState['days']
-}): UsageStatisticsHostState {
+}) {
   return {
     ...INITIAL_USAGE_STATISTICS_HOST_STATE,
     install: {
@@ -146,7 +146,7 @@ export function hostState(input: {
     },
     reporting: { ...INITIAL_USAGE_STATISTICS_HOST_STATE.reporting, ...input.reporting },
     days: input.days ?? {},
-  }
+  } satisfies UsageStatisticsHostState
 }
 
 export const REPORTED = { newReported: true, onboardingReported: true }

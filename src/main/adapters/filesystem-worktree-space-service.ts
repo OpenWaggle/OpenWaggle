@@ -30,11 +30,7 @@ function allocatedBytes(stats: { readonly blocks: number; readonly size: number 
     : stats.size
 }
 
-async function measureEntry(
-  directory: string,
-  entry: Dirent,
-  state: WalkState,
-): Promise<string | null> {
+async function measureEntry(directory: string, entry: Dirent, state: WalkState) {
   const entryPath = path.join(directory, entry.name)
   try {
     const stats = await lstat(entryPath)
@@ -69,7 +65,7 @@ async function readEntries(directory: string) {
 }
 
 /** Reclaimable space of one folder: blocks of everything in it that is not linked from elsewhere. */
-export async function measureReclaimableBytes(root: string): Promise<number> {
+export async function measureReclaimableBytes(root: string) {
   const rootStats = await lstat(root)
   if (!rootStats.isDirectory()) return 0
   const state: WalkState = { bytes: allocatedBytes(rootStats), device: rootStats.dev }

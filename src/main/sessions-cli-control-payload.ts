@@ -37,10 +37,7 @@ function followUpInput(text: string) {
   return { text, attachmentIds: [] }
 }
 
-function organizationCommand(
-  command: string,
-  arguments_: ParsedArguments,
-): SessionOrganizationCommand | undefined {
+function organizationCommand(command: string, arguments_: ParsedArguments) {
   if (
     command !== 'rename' &&
     command !== 'archive' &&
@@ -52,7 +49,13 @@ function organizationCommand(
   const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'handoff') {
     const mode = required(option(arguments_, 'workspace'), '--workspace')
-    if (mode === 'local') return { operation: command, sessionId, workspace: { mode } }
+    if (mode === 'local') {
+      return {
+        operation: command,
+        sessionId,
+        workspace: { mode },
+      } satisfies SessionOrganizationCommand
+    }
     if (mode === 'existing') {
       return {
         operation: command,
@@ -61,7 +64,7 @@ function organizationCommand(
           mode,
           workspaceId: required(option(arguments_, 'workspace-id'), '--workspace-id'),
         },
-      }
+      } satisfies SessionOrganizationCommand
     }
     if (mode === 'new-worktree') {
       return {
@@ -72,34 +75,35 @@ function organizationCommand(
           ...optionEntry(arguments_, 'base-ref', 'baseRef'),
           ...(hasFlag(arguments_, 'start-from-origin') ? { startFromOrigin: true } : {}),
         },
-      }
+      } satisfies SessionOrganizationCommand
     }
     throw new Error('Handoff --workspace must be local, existing, or new-worktree.')
   }
-  return command === 'rename'
-    ? {
-        operation: command,
-        sessionId,
-        title: required(arguments_.positionals.slice(1).join(' '), 'Title'),
-      }
-    : { operation: command, sessionId }
+  const result: SessionOrganizationCommand | undefined =
+    command === 'rename'
+      ? {
+          operation: command,
+          sessionId,
+          title: required(arguments_.positionals.slice(1).join(' '), 'Title'),
+        }
+      : { operation: command, sessionId }
+  return result
 }
 
-function controlCommand(
-  command: string,
-  arguments_: ParsedArguments,
-): SessionControlMutationCommand {
+function controlCommand(command: string, arguments_: ParsedArguments) {
   const organization = organizationCommand(command, arguments_)
   if (organization) return organization
   const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'report') return reportCommand(sessionId, arguments_)
-  if (command === 'interrupt-descendants') return { operation: command, sessionId }
+  if (command === 'interrupt-descendants') {
+    return { operation: command, sessionId } satisfies SessionControlMutationCommand
+  }
   if (command === 'interrupt') {
     return {
       operation: command,
       sessionId,
       expectedRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
-    }
+    } satisfies SessionControlMutationCommand
   }
   if (command === 'promote') {
     return {
@@ -107,16 +111,13 @@ function controlCommand(
       sessionId,
       followUpId: required(arguments_.positionals[1], 'Follow-up ID'),
       expectedRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
-    }
+    } satisfies SessionControlMutationCommand
   }
-  return messagingCommand(command, sessionId, arguments_)
+  const result: SessionControlMutationCommand = messagingCommand(command, sessionId, arguments_)
+  return result
 }
 
-function messagingCommand(
-  command: string,
-  sessionId: string,
-  arguments_: ParsedArguments,
-): SessionControlMutationCommand {
+function messagingCommand(command: string, sessionId: string, arguments_: ParsedArguments) {
   const text = required(option(arguments_, 'text'), 'Message input')
   refuseRunSettingsOnActiveRunCommand(command, arguments_)
   if (command === 'steer') {
@@ -125,7 +126,7 @@ function messagingCommand(
       sessionId,
       expectedRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
       input: followUpInput(text),
-    }
+    } satisfies SessionControlMutationCommand
   }
   if (command === 'replace') {
     return {
@@ -133,10 +134,14 @@ function messagingCommand(
       sessionId,
       expectedRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
       input: followUpInput(text),
-    }
+    } satisfies SessionControlMutationCommand
   }
   if (command === 'follow-up') {
-    return { operation: command, sessionId, input: followUpInput(text) }
+    return {
+      operation: command,
+      sessionId,
+      input: followUpInput(text),
+    } satisfies SessionControlMutationCommand
   }
   if (command === 'start' || command === 'message') {
     const runAuthorizationOverride = runAuthorization(arguments_)
@@ -153,26 +158,31 @@ function messagingCommand(
           }
         : {}),
       input: messageInput(text, arguments_),
-    }
+    } satisfies SessionControlMutationCommand
   }
   throw new Error(`Unsupported messaging command: ${command}.`)
 }
 
 /** `hive authorization-set <session> inherit` clears the override, as the tool's `inherit` does. */
-function authorizationCommand(arguments_: ParsedArguments): SessionControlMutationCommand {
+function authorizationCommand(arguments_: ParsedArguments) {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   const mode = required(arguments_.positionals[AUTHORIZATION_MODE_POSITIONAL], 'Authorization mode')
   if (mode === 'inherit') {
-    return { operation: 'authorization-set', sessionId, authorizationMode: null }
+    return {
+      operation: 'authorization-set',
+      sessionId,
+      authorizationMode: null,
+    } satisfies SessionControlMutationCommand
   }
   if (mode !== 'ask-for-approval' && mode !== 'yolo') {
     throw new Error('Authorization mode must be inherit, ask-for-approval, or yolo.')
   }
-  return {
+  const command: SessionControlMutationCommand = {
     operation: 'authorization-set',
     sessionId,
     authorizationMode: mode,
   }
+  return command
 }
 
 function reportTarget(arguments_: ParsedArguments) {
@@ -204,10 +214,7 @@ function reportTarget(arguments_: ParsedArguments) {
     : { type: 'sessions' as const, sessionIds: explicitTargets }
 }
 
-function reportCommand(
-  sessionId: string,
-  arguments_: ParsedArguments,
-): SessionControlMutationCommand {
+function reportCommand(sessionId: string, arguments_: ParsedArguments) {
   return {
     operation: 'report',
     sessionId,
@@ -218,17 +225,17 @@ function reportCommand(
       requestReply: hasFlag(arguments_, 'request-reply'),
       ...optionEntry(arguments_, 'reply-to', 'replyToReportId'),
     },
-  }
+  } satisfies SessionControlMutationCommand
 }
 
-function queueCommand(command: string, arguments_: ParsedArguments): SessionControlMutationCommand {
+function queueCommand(command: string, arguments_: ParsedArguments) {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'queue-withdraw') {
     return {
       operation: 'queue-withdraw',
       sessionId,
       followUpIds: arguments_.positionals.slice(QUEUE_ITEM_POSITIONAL_START),
-    }
+    } satisfies SessionControlMutationCommand
   }
   const expectedQueueRevision = nonNegativeInteger(
     option(arguments_, 'queue-revision'),
@@ -240,10 +247,14 @@ function queueCommand(command: string, arguments_: ParsedArguments): SessionCont
       sessionId,
       expectedQueueRevision,
       orderedFollowUpIds: arguments_.positionals.slice(QUEUE_ITEM_POSITIONAL_START),
-    }
+    } satisfies SessionControlMutationCommand
   }
   if (command === 'queue-pause' || command === 'queue-resume') {
-    return { operation: command, sessionId, expectedQueueRevision }
+    return {
+      operation: command,
+      sessionId,
+      expectedQueueRevision,
+    } satisfies SessionControlMutationCommand
   }
   throw new Error(`Unsupported queue command: ${command}.`)
 }
@@ -252,7 +263,7 @@ export function buildSessionsCliControlPayload(
   command: string,
   arguments_: ParsedArguments,
   structured: SessionsCliStructuredInput = {},
-): LocalSessionCommandPayload {
+) {
   const attachmentPaths = arguments_.options.get('attach') ?? []
   if (
     attachmentPaths.length > 0 &&
@@ -280,5 +291,5 @@ export function buildSessionsCliControlPayload(
               ? delegationCommand(command, arguments_, structured)
               : controlCommand(command, arguments_),
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }

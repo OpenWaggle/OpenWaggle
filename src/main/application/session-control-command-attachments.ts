@@ -11,7 +11,7 @@ function controlAttachmentIds(
     LocalSessionCommandPayload,
     { contract: 'session-control-v2' }
   >['request']['command'],
-): readonly string[] {
+) {
   if (
     command.operation === 'message' ||
     command.operation === 'start' ||

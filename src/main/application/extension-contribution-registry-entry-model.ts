@@ -1,13 +1,8 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
-  ExtensionContributionMatchView,
   ExtensionContributionRegistryEntry,
   ExtensionPackageScopeView,
 } from '@shared/types/extensions'
-import type {
-  ExtensionSessionSummaryRowView,
-  ExtensionSessionSummaryView,
-} from '@shared/types/extension-contribution-registry'
 import type { ExtensionPackageScope } from '../extensions/types'
 import {
   findManifestCapabilityDeclaration,
@@ -28,19 +23,22 @@ import {
 } from './extension-contribution-target-model'
 import { issueExtensionInvocationBinding } from './extension-invocation-binding'
 
-function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
+function scopeToView(scope: ExtensionPackageScope) {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' }
+    return {
+      kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
+      label: 'Global',
+    } satisfies ExtensionPackageScopeView
   }
 
   return {
     kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
     label: 'Project',
     projectPath: scope.projectPath,
-  }
+  } satisfies ExtensionPackageScopeView
 }
 
-function matchView(matches: ManifestContributionMatches): ExtensionContributionMatchView {
+function matchView(matches: ManifestContributionMatches) {
   return {
     ...(matches.toolNames !== undefined ? { toolNames: matches.toolNames } : {}),
     ...(matches.customMessageNames !== undefined
@@ -52,9 +50,7 @@ function matchView(matches: ManifestContributionMatches): ExtensionContributionM
   }
 }
 
-function sessionSummaryRowView(
-  row: ManifestSessionSummaryContribution['rows'][number],
-): ExtensionSessionSummaryRowView {
+function sessionSummaryRowView(row: ManifestSessionSummaryContribution['rows'][number]) {
   return {
     id: row.id,
     label: row.label,
@@ -68,7 +64,7 @@ function sessionSummaryRowView(
 
 function sessionSummaryDisclosureView(
   disclosure: NonNullable<ManifestSessionSummaryContribution['disclosure']>,
-): NonNullable<ExtensionSessionSummaryView['disclosure']> {
+) {
   return {
     ...(disclosure.defaultExpanded !== undefined
       ? { defaultExpanded: disclosure.defaultExpanded }
@@ -80,9 +76,7 @@ function sessionSummaryDisclosureView(
   }
 }
 
-function sessionSummaryStateView(
-  state: NonNullable<ManifestSessionSummaryContribution['state']>,
-): NonNullable<ExtensionSessionSummaryView['state']> {
+function sessionSummaryStateView(state: NonNullable<ManifestSessionSummaryContribution['state']>) {
   if (state.status === 'ready' || state.status === 'failure') return state
   const { message, ...live } = state
   return message === undefined ? live : { ...live, message }
@@ -168,7 +162,7 @@ function contributionBaseEntry(
 function sessionSummaryEntry(
   baseEntry: ReturnType<typeof contributionBaseEntry>,
   contribution: ManifestSessionSummaryContribution,
-): ExtensionContributionRegistryEntry {
+) {
   return {
     ...baseEntry,
     sessionSummary: {
@@ -181,12 +175,10 @@ function sessionSummaryEntry(
         : {}),
       rows: contribution.rows.map(sessionSummaryRowView),
     },
-  }
+  } satisfies ExtensionContributionRegistryEntry
 }
 
-export function contributionToEntry(
-  input: ContributionEntryInput,
-): ExtensionContributionRegistryEntry | null {
+export function contributionToEntry(input: ContributionEntryInput) {
   const { contribution, eligibility } = input
   if (isEmptyReadySessionSummary(contribution)) return null
 

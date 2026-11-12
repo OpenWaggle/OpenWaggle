@@ -9,10 +9,10 @@ interface ActionRunRow {
   readonly record_json: string
 }
 const RECENT_TERMINAL_RUN_LIMIT = 50
-const decodeRun = (row: ActionRunRow): ActionRun =>
+const decodeRun = (row: ActionRunRow) =>
   decodeUnknownExactOrThrow(actionRunSchema, parseJsonUnknown(row.record_json))
 
-export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient): ActionRunPersistence {
+export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient) {
   return {
     get: (id) =>
       Effect.runPromise(
@@ -93,5 +93,5 @@ export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient): Acti
           }),
         ),
       ),
-  }
+  } satisfies ActionRunPersistence
 }

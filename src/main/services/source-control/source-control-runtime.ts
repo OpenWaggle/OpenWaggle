@@ -14,6 +14,6 @@ export function configureSourceControlSettingsAccess(access: SourceControlSettin
   configuredAccess = access
 }
 
-export function sourceControlSettingsAccess(): SourceControlSettingsAccess {
+export function sourceControlSettingsAccess() {
   return configuredAccess ?? DEFAULT_ACCESS
 }

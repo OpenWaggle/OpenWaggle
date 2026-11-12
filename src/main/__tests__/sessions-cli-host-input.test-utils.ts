@@ -11,7 +11,7 @@ import { vi } from 'vitest'
 export const SESSION = 'session-1'
 export const RUN = 'run-1'
 
-export function interaction(value: object): AgentLoopInteraction {
+export function interaction(value: object) {
   return fromPartial<AgentLoopInteraction>({
     sessionId: SESSION,
     runId: RUN,
@@ -33,7 +33,7 @@ export const SPECIFICATION = {
 
 export const PROPOSED = { ...SPECIFICATION, objective: 'Ship the flags and the docs.' }
 
-export function requestsList(requests: readonly AgentLoopInteraction[]): LocalSessionCommandResult {
+export function requestsList(requests: readonly AgentLoopInteraction[]) {
   return {
     contract: 'session-query-v2',
     response: {
@@ -41,7 +41,7 @@ export function requestsList(requests: readonly AgentLoopInteraction[]): LocalSe
       requestId: 'request-list',
       outcome: { operation: 'requests-list', sessionId: SESSION, requests },
     },
-  }
+  } satisfies LocalSessionCommandResult
 }
 
 export function delegationPage(input: {
@@ -49,7 +49,7 @@ export function delegationPage(input: {
   readonly proposals?: readonly { readonly proposalId: string; readonly specification: unknown }[]
   readonly nextCursor?: string
   readonly currentSpecificationRevision?: number
-}): LocalSessionCommandResult {
+}) {
   return fromPartial<LocalSessionCommandResult>({
     contract: 'session-query-v2',
     response: {
@@ -91,7 +91,7 @@ export function delegationPage(input: {
 }
 
 /** An accepted mutation; these tests read what was sent, not the outcome's details. */
-export function accepted(): LocalSessionCommandResult {
+export function accepted() {
   return fromPartial<LocalSessionCommandResult>({
     contract: 'session-control-v2',
     response: {
@@ -105,7 +105,7 @@ export function accepted(): LocalSessionCommandResult {
 }
 
 /** A `request-respond` the Session Host refused with `code`, of the kind its table gives. */
-export function rejected(code: string): LocalSessionCommandResult {
+export function rejected(code: string) {
   return {
     contract: 'session-control-v2',
     response: {
@@ -121,7 +121,7 @@ export function rejected(code: string): LocalSessionCommandResult {
         kind: sessionHostErrorKindForThrownCode(code),
       },
     },
-  }
+  } satisfies LocalSessionCommandResult
 }
 
 /** The command or query each Session Host call carried, in order. */

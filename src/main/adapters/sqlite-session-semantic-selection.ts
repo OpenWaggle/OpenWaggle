@@ -87,11 +87,14 @@ export function loadSelectedSemanticEntries(input: {
   readonly scope: TranscriptSemanticScope | undefined
   readonly readiness: SemanticDiscoveryReadiness | undefined
   readonly usable: boolean
-}): Effect.Effect<readonly SessionDiscoveryWindowEntry[], Error> {
+}) {
   if (!input.usable || !input.readiness) {
-    return Effect.succeed<readonly SessionDiscoveryWindowEntry[]>([])
+    const effect: Effect.Effect<readonly SessionDiscoveryWindowEntry[], Error> = Effect.succeed<
+      readonly SessionDiscoveryWindowEntry[]
+    >([])
+    return effect
   }
-  return input.scope
+  const effect: Effect.Effect<readonly SessionDiscoveryWindowEntry[], Error> = input.scope
     ? input.transcript.search(input.query, input.scope, SESSION_DISCOVERY_WINDOW_LIMIT + 1)
     : input.discovery.search(
         input.query,
@@ -100,4 +103,5 @@ export function loadSelectedSemanticEntries(input: {
         input.readiness,
         SESSION_DISCOVERY_WINDOW_LIMIT + 1,
       )
+  return effect
 }

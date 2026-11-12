@@ -159,7 +159,7 @@ async function probePosixEnvironment(
   options: DesktopShellEnvironmentOptions,
   runner: ShellEnvironmentCommandRunner,
   launchEnvironment: Readonly<MutableEnvironment>,
-): Promise<ResolvedShellEnvironment> {
+) {
   const environment = await readPreferredLoginShellEnvironment(options, runner, launchEnvironment)
   const launchctlPath =
     options.platform === 'darwin' && !environmentVariables(environment).PATH
@@ -209,13 +209,11 @@ function applyPosixEnvironment(
   installLinuxDbusEnvironment(options)
 }
 
-function snapshotBase(env: MutableEnvironment): MutableEnvironment {
+function snapshotBase(env: MutableEnvironment) {
   return Object.fromEntries(BASE_ENV_NAMES.map((name) => [name, env[name]]))
 }
 
-export async function installDesktopShellEnvironment(
-  options: DesktopShellEnvironmentOptions,
-): Promise<void> {
+export async function installDesktopShellEnvironment(options: DesktopShellEnvironmentOptions) {
   const runner = options.runCommand ?? runBoundedShellEnvironmentCommand
   if (options.platform === 'win32') {
     await installWindowsEnvironment(options, runner)
@@ -251,9 +249,7 @@ export interface PosixShellEnvironment {
 }
 
 /** Snapshots the launch environment; call it before any result is applied. */
-export function preparePosixShellEnvironment(
-  options: DesktopShellEnvironmentOptions,
-): PosixShellEnvironment {
+export function preparePosixShellEnvironment(options: DesktopShellEnvironmentOptions) {
   const runner = options.runCommand ?? runBoundedShellEnvironmentCommand
   const base = snapshotBase(options.env)
   // The probe runs in the launch environment: a login shell keeps the PATH it inherits.
@@ -266,5 +262,5 @@ export function preparePosixShellEnvironment(
     probe: () => probePosixEnvironment(options, runner, launchEnvironment),
     cacheable: (resolved, previous) =>
       withoutLaunchOnlyPath(options.platform, resolved, launchEnvironment, previous),
-  }
+  } satisfies PosixShellEnvironment
 }

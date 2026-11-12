@@ -20,7 +20,7 @@ function getBundleRootPath() {
   return path.resolve(process.cwd(), 'build', INSTALLED_DOCS_DIR)
 }
 
-async function loadBundle(): Promise<LoadedDocsBundle> {
+async function loadBundle() {
   const bundlePath = getBundleRootPath()
   const rawManifest = await readFile(path.join(bundlePath, INSTALLED_DOCS_INDEX), 'utf8')
   const parsed: unknown = JSON.parse(rawManifest)
@@ -47,7 +47,7 @@ async function loadBundle(): Promise<LoadedDocsBundle> {
       keywords: topic.keywords,
       contentHash: topic.contentHash,
     })),
-  }
+  } satisfies LoadedDocsBundle
 }
 
 function docsBundleError(operation: string) {

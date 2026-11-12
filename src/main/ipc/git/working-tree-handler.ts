@@ -84,7 +84,7 @@ function revertWorkingTreeHandler(event: IpcInvocation, rawPath: unknown) {
   })
 }
 
-export function registerGitWorkingTreeHandlers(): void {
+export function registerGitWorkingTreeHandlers() {
   typedHandle('git:working-tree:stage-all', workingTreeActionHandler(stageAllGitChanges))
   typedHandle('git:working-tree:revert-all', revertWorkingTreeHandler)
 }

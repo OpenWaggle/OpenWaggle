@@ -99,7 +99,7 @@ function agentLoopEventNode(input: {
   readonly parentId: string | null
   readonly pathDepth: number
   readonly createdOrder: number
-}): ProjectedSessionNodeInput {
+}) {
   const content: DurableAgentLoopEventNodeContent = {
     customType: OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE,
     event: input.event,
@@ -117,13 +117,13 @@ function agentLoopEventNode(input: {
     }),
     pathDepth: input.pathDepth,
     createdOrder: input.createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function carriedDurableAgentLoopNode(input: {
   readonly node: DurableAgentLoopNodeSource
   readonly createdOrder: number
-}): ProjectedSessionNodeInput {
+}) {
   return {
     id: input.node.id,
     parentId: input.node.parentId,
@@ -135,7 +135,7 @@ function carriedDurableAgentLoopNode(input: {
     metadataJson: input.node.metadataJson,
     pathDepth: input.node.pathDepth,
     createdOrder: input.createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function appendExistingDurableAgentLoopNodes(input: {
@@ -163,7 +163,7 @@ export function appendDurableAgentLoopEvents(input: {
   readonly events: readonly DurableAgentLoopEvent[]
   readonly runId: string
   readonly existingNodes?: readonly DurableAgentLoopNodeSource[]
-}): AgentKernelSessionSnapshot {
+}) {
   const nodes = [...input.snapshot.nodes]
   let createdOrder = appendExistingDurableAgentLoopNodes({
     nodes,

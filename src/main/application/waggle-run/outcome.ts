@@ -71,12 +71,11 @@ type WaggleRunFailureOutcome =
  * alongside the message, which is why `transportEmitted` is carried here too: set, it means the agent took the
  * turn and already has the message, so handing that work back would offer it twice.
  */
-export function recoverWaggleRunFailure(
-  failure: WaggleRunFailure,
-): Effect.Effect<WaggleRunFailureOutcome> {
-  return Effect.sync((): WaggleRunFailureOutcome => {
+export function recoverWaggleRunFailure(failure: WaggleRunFailure) {
+  return Effect.sync(() => {
     if (isRunCancellation(failure.error, failure.input.signal)) {
-      return { outcome: 'aborted' }
+      const result: WaggleRunFailureOutcome = { outcome: 'aborted' }
+      return result
     }
     const reachedAgent = failure.reachedAgent()
     const { classified, detail } = classifyRunFailure(failure.error, reachedAgent)
@@ -87,12 +86,13 @@ export function recoverWaggleRunFailure(
       reachedAgent,
       error: detail,
     })
-    return {
+    const result: WaggleRunFailureOutcome = {
       outcome: 'error' as const,
       message: userFacingErrorDetail(classified.message),
       code: classified.code,
       ...(reachedAgent ? { transportEmitted: true } : {}),
     }
+    return result
   })
 }
 

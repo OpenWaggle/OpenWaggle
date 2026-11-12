@@ -10,7 +10,7 @@ import * as Effect from 'effect/Effect'
  */
 export function decodeSqlRows<A, I>(schema: Schema.Schema<A, I>, table: string) {
   const decode = ParseResult.decodeUnknownEither(Schema.Array(schema))
-  return (rows: unknown): Effect.Effect<readonly A[], SqlError> => {
+  return (rows: unknown) => {
     const decoded = decode(rows)
     if (decoded._tag === 'Right') return Effect.succeed(decoded.right)
     const issues = ParseResult.ArrayFormatter.formatIssueSync(decoded.left)

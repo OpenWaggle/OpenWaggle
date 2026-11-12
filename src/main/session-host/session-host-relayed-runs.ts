@@ -36,11 +36,19 @@ export function missedSettlement(
   sessionId: SessionId,
   runId: string | undefined,
   continues: boolean,
-): { readonly runId?: string; readonly continues?: true } | null {
+) {
   const handedOff = handedOffRunIds.get(sessionId)
   handedOffRunIds.delete(sessionId)
   const durable = runId === undefined ? undefined : durableSessionRunId(runId)
   const relayed = durable === undefined || durable === handedOff
-  if (continues) return relayed ? null : { runId: durable, continues: true }
-  return relayed ? {} : { runId: durable }
+  if (continues) {
+    return (relayed ? null : { runId: durable, continues: true }) satisfies {
+      readonly runId?: string
+      readonly continues?: true
+    } | null
+  }
+  return (relayed ? {} : { runId: durable }) satisfies {
+    readonly runId?: string
+    readonly continues?: true
+  } | null
 }

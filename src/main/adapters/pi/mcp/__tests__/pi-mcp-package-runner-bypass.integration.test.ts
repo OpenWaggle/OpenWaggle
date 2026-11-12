@@ -44,14 +44,14 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
-function memoryStore(): PackageBinStore {
+function memoryStore() {
   let saved: Record<string, ResolvedPackageBin> = {}
   return {
     load: () => ({ ...saved }),
     save: (entries) => {
       saved = { ...entries }
     },
-  }
+  } satisfies PackageBinStore
 }
 
 async function callServer(root: string, npx: string, cwd: string) {

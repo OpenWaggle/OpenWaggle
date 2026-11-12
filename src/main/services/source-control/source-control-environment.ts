@@ -13,7 +13,7 @@ const CLI_CONFIG_VARIABLES = [
 ] as const
 
 /** Provider token variables that are set, which OpenWaggle strips and never uses (ADR 0048). */
-export function ignoredSourceControlTokenVariables(provider: SourceControlProviderId): string[] {
+export function ignoredSourceControlTokenVariables(provider: SourceControlProviderId) {
   const values = readEnvironmentVariables(SOURCE_CONTROL_TOKEN_VARIABLES[provider])
   return SOURCE_CONTROL_TOKEN_VARIABLES[provider].filter((name) => Boolean(values[name]))
 }
@@ -32,7 +32,7 @@ export function getSourceControlCliEnvForAccountToken(
   provider: SourceControlProviderId,
   host: string,
   token: string,
-): Record<string, string | undefined> {
+) {
   const env = getSourceControlCliEnv()
   const variable = match(provider)
     .with('gitlab', () => 'GITLAB_TOKEN')

@@ -1,7 +1,6 @@
 import { lstat, readFile, realpath } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { isEnoent } from '@shared/utils/node-error'
-import type { LinkedWorktreeCheck } from '../../ports/git-worktree-service'
 import { runGit } from './run-git'
 
 const COMMON_DIR = ['rev-parse', '--path-format=absolute', '--git-common-dir']
@@ -41,15 +40,12 @@ async function registeredDotGit(gitDir: string) {
  * - That git dir has no `locked` file: `git worktree add` writes one ("initializing") before it
  *   checks files out and removes it after, so a half-written checkout is `locked`.
  */
-export async function inspectLinkedWorktree(
-  projectPath: string,
-  candidatePath: string,
-): Promise<LinkedWorktreeCheck> {
+export async function inspectLinkedWorktree(projectPath: string, candidatePath: string) {
   const [candidate, primary] = await Promise.all([
     runGit(candidatePath, [...COMMON_DIR, '--git-dir', '--show-toplevel']),
     runGit(projectPath, COMMON_DIR),
   ])
-  if (candidate.code !== 0 || primary.code !== 0) return 'not-a-worktree'
+  if (candidate.code !== 0 || primary.code !== 0) return 'not-a-worktree' as const
   const [commonDir = '', gitDir = '', topLevel = ''] = candidate.stdout
     .trim()
     .split(/\r?\n/)
@@ -62,10 +58,10 @@ export async function inspectLinkedWorktree(
     gitDir === commonDir ||
     !topLevel
   ) {
-    return 'not-a-worktree'
+    return 'not-a-worktree' as const
   }
   const folder = await realpath(candidatePath)
-  if ((await realpath(topLevel)) !== folder) return 'not-a-worktree'
-  if ((await registeredDotGit(gitDir)) !== join(folder, '.git')) return 'not-a-worktree'
-  return (await lockExists(gitDir)) ? 'locked' : 'linked'
+  if ((await realpath(topLevel)) !== folder) return 'not-a-worktree' as const
+  if ((await registeredDotGit(gitDir)) !== join(folder, '.git')) return 'not-a-worktree' as const
+  return (await lockExists(gitDir)) ? ('locked' as const) : ('linked' as const)
 }

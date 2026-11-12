@@ -255,7 +255,7 @@ describe('Setup launch step', () => {
     return order
   }
 
-  function preparationWith(setupDefinitions: number): WorkspacePreparation {
+  function preparationWith(setupDefinitions: number) {
     return fromPartial<WorkspacePreparation>({
       revision: 1,
       setup: { status: 'idle' },

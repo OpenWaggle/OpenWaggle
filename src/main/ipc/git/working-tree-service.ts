@@ -3,11 +3,8 @@ import path from 'node:path'
 import type { GitWorkingTreeMutationFailure, GitWorkingTreeMutationResult } from '@shared/types/git'
 import { isGitRepository, runGit } from './shared'
 
-function workingTreeFailure(
-  code: GitWorkingTreeMutationFailure['code'],
-  message: string,
-): GitWorkingTreeMutationFailure {
-  return { ok: false, code, message }
+function workingTreeFailure(code: GitWorkingTreeMutationFailure['code'], message: string) {
+  return { ok: false, code, message } satisfies GitWorkingTreeMutationFailure
 }
 
 function nulSeparatedPaths(stdout: string) {
@@ -81,26 +78,28 @@ interface RestoreScanContext {
   submodulePaths: ReadonlySet<string>
 }
 
-type SegmentVerdict = 'obstruction' | 'stop' | 'descend'
-
 async function classifyRestoreSegment(
   ctx: RestoreScanContext,
   gitPath: string,
   filePath: string,
   isDirectory: boolean,
   isHeadFile: boolean,
-): Promise<SegmentVerdict> {
+) {
   // A tracked gitlink is a submodule: `reset --hard` (without --recurse-submodules)
   // leaves its working tree intact, so its inner `.git` is not an obstruction.
-  if (ctx.submodulePaths.has(gitPath)) return 'stop'
-  if (await isNestedRepository(filePath, isDirectory)) return 'obstruction'
+  if (ctx.submodulePaths.has(gitPath)) return 'stop' as const
+  if (await isNestedRepository(filePath, isDirectory)) return 'obstruction' as const
   if (!isHeadFile) {
-    if (isDirectory) return 'descend'
-    return ctx.indexPaths.has(gitPath) ? 'stop' : 'obstruction'
+    if (isDirectory) return 'descend' as const
+    return ctx.indexPaths.has(gitPath) ? ('stop' as const) : ('obstruction' as const)
   }
-  if (!isDirectory) return ctx.indexPaths.has(gitPath) ? 'stop' : 'obstruction'
-  if (!hasIndexedDescendant(ctx.indexPaths, gitPath)) return 'obstruction'
-  return (await directoryObstructsRestore(ctx.repositoryPath, gitPath)) ? 'obstruction' : 'stop'
+  if (!isDirectory) {
+    return ctx.indexPaths.has(gitPath) ? ('stop' as const) : ('obstruction' as const)
+  }
+  if (!hasIndexedDescendant(ctx.indexPaths, gitPath)) return 'obstruction' as const
+  return (await directoryObstructsRestore(ctx.repositoryPath, gitPath))
+    ? ('obstruction' as const)
+    : ('stop' as const)
 }
 
 async function findTrackedRestoreObstruction(
@@ -129,7 +128,7 @@ async function findTrackedRestoreObstruction(
   return null
 }
 
-function parseSubmodulePaths(stageStdout: string): ReadonlySet<string> {
+function parseSubmodulePaths(stageStdout: string) {
   const submodulePaths = new Set<string>()
   for (const line of stageStdout.split('\0').filter(Boolean)) {
     // `ls-files --stage` lines are `<mode> <sha> <stage>\t<path>`; 160000 is a gitlink.
@@ -167,9 +166,7 @@ async function inspectTrackedRestore(projectPath: string) {
   }
 }
 
-export async function stageAllGitChanges(
-  projectPath: string,
-): Promise<GitWorkingTreeMutationResult> {
+export async function stageAllGitChanges(projectPath: string) {
   if (!(await isGitRepository(projectPath))) {
     return workingTreeFailure('not-git-repo', 'Selected folder is not a Git repository.')
   }
@@ -179,12 +176,13 @@ export async function stageAllGitChanges(
     return workingTreeFailure('unknown', result.stderr.trim() || 'Failed to stage changes.')
   }
 
-  return { ok: true, message: 'All working-tree changes staged.' }
+  return {
+    ok: true,
+    message: 'All working-tree changes staged.',
+  } satisfies GitWorkingTreeMutationResult
 }
 
-export async function revertAllGitChanges(
-  projectPath: string,
-): Promise<GitWorkingTreeMutationResult> {
+export async function revertAllGitChanges(projectPath: string) {
   if (!(await isGitRepository(projectPath))) {
     return workingTreeFailure('not-git-repo', 'Selected folder is not a Git repository.')
   }
@@ -225,5 +223,8 @@ export async function revertAllGitChanges(
     )
   }
 
-  return { ok: true, message: 'All eligible working-tree changes reverted.' }
+  return {
+    ok: true,
+    message: 'All eligible working-tree changes reverted.',
+  } satisfies GitWorkingTreeMutationResult
 }

@@ -1,5 +1,5 @@
 import type { McpServerFactory, Transport } from '@modelcontextprotocol/server'
-import { type StdioServerHandle, serveStdio } from '@modelcontextprotocol/server/stdio'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 
 /**
  * Serve one capability factory to both current MCP clients and supported
@@ -13,7 +13,7 @@ export function serveDualEraMcpStdio(
     readonly onerror?: (error: Error) => void
     readonly maxSubscriptions?: number
   } = {},
-): StdioServerHandle {
+) {
   return serveStdio(factory, {
     legacy: 'serve',
     ...(options.transport ? { transport: options.transport } : {}),

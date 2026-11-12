@@ -17,9 +17,7 @@ interface CatalogRow {
 }
 const catalogError = (cause: unknown) => (cause instanceof Error ? cause : new Error(String(cause)))
 
-export function createSqliteActionStatePersistence(
-  sql: SqlClient.SqlClient,
-): ActionStatePersistence {
+export function createSqliteActionStatePersistence(sql: SqlClient.SqlClient) {
   return {
     readWorkspace: (projectPath, workspacePath) =>
       Effect.runPromise(
@@ -62,7 +60,7 @@ export function createSqliteActionStatePersistence(
           }),
         ),
       ),
-  }
+  } satisfies ActionStatePersistence
 }
 
 export const SqliteActionCatalogServiceLive = Layer.effect(

@@ -145,7 +145,7 @@ export function reloadHostUiExtension(input: unknown) {
   })
 }
 
-function invalidInvokeInput(issues: readonly string[]): ExtensionInvokeFailure {
+function invalidInvokeInput(issues: readonly string[]) {
   return {
     ok: false,
     error: {
@@ -153,7 +153,7 @@ function invalidInvokeInput(issues: readonly string[]): ExtensionInvokeFailure {
       message: 'Invalid extension capability invocation.',
       issues,
     },
-  }
+  } satisfies ExtensionInvokeFailure
 }
 
 export function invokeHostUiExtension(input: unknown, rawInvocationBinding?: unknown) {

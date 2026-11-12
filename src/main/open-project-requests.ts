@@ -83,7 +83,7 @@ function acceptSecondInstanceData(additionalData: unknown) {
 function secondInstanceData(input: {
   readonly openProjectPath: string | undefined
   readonly openSessionLink: string | undefined
-}): Record<string, string> | undefined {
+}) {
   if (input.openProjectPath) return { openProjectPath: input.openProjectPath }
   if (input.openSessionLink) return { openSessionLink: input.openSessionLink }
   return undefined
@@ -106,13 +106,13 @@ export function claimAppInstance(input: {
   readonly singleInstance: boolean
   /** Bring a window to the front for a later launch, creating one if none is open. */
   readonly revealWindow: () => void
-}): 'primary' | 'secondary' {
+}) {
   if (input.singleInstance) {
     const data = secondInstanceData({
       openProjectPath: input.openProjectPath,
       openSessionLink: input.openSessionLink,
     })
-    if (!input.host.requestSingleInstanceLock(data)) return 'secondary'
+    if (!input.host.requestSingleInstanceLock(data)) return 'secondary' as const
     input.host.onSecondInstance(({ additionalData }) => {
       // `openwaggle update` probes whether the app is running; it must not raise a window.
       if (isDesktopInstanceProbe(additionalData)) return
@@ -121,5 +121,5 @@ export function claimAppInstance(input: {
   }
   if (input.openProjectPath) requestOpenProject(input.openProjectPath)
   if (input.openSessionLink) requestOpenSessionLink(input.openSessionLink)
-  return 'primary'
+  return 'primary' as const
 }

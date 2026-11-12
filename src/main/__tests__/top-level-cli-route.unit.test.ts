@@ -11,16 +11,13 @@ import {
 const WORKING_DIRECTORY = path.resolve('/work/project')
 const HOME_DIRECTORY = path.resolve('/home/ada')
 
-function environment(
-  paths: Readonly<Record<string, CliPathKind>> = {},
-  isPackaged = false,
-): TopLevelCliEnvironment {
+function environment(paths: Readonly<Record<string, CliPathKind>> = {}, isPackaged = false) {
   return {
     workingDirectory: WORKING_DIRECTORY,
     homeDirectory: HOME_DIRECTORY,
     pathKind: (absolutePath) => paths[absolutePath] ?? 'missing',
     isPackaged,
-  }
+  } satisfies TopLevelCliEnvironment
 }
 
 function route(argv: readonly string[], paths?: Readonly<Record<string, CliPathKind>>) {

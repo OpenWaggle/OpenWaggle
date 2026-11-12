@@ -176,22 +176,22 @@ export const SESSION_DIRECTORIES_PROMPT_SECTION = 'openwaggle_session_directorie
  * Session or Worker reads it from the provider cache instead of writing it again (C11 of the v1
  * performance research).
  */
-function sessionDirectoriesSectionExtension(appendices: readonly string[]): ExtensionFactory {
+function sessionDirectoriesSectionExtension(appendices: readonly string[]) {
   const text = appendices.join('\n\n')
-  return (pi) => {
+  return ((pi) => {
     pi.on('before_agent_start', (event) => {
       event.systemPromptOptions.sections[SESSION_DIRECTORIES_PROMPT_SECTION] = text
       return undefined
     })
-  }
+  }) satisfies ExtensionFactory
 }
 
 function configuredExtensionFactories(
   options: PiRuntimeServicesOptions,
   disableExtensions: boolean,
   appendices: readonly string[],
-): InlineExtension[] {
-  return [
+) {
+  const extension: InlineExtension[] = [
     ...openWagglePiBuiltInExtensions(),
     skillPromptListingExtension(),
     ...(appendices.length > 0 ? [sessionDirectoriesSectionExtension(appendices)] : []),
@@ -200,6 +200,7 @@ function configuredExtensionFactories(
       : []),
     ...(options.trustedExtensionFactories ?? []),
   ]
+  return extension
 }
 
 /**
@@ -251,11 +252,11 @@ function configuredResourcePaths(
   }
 }
 
-export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoaderOptions {
+export function createOpenWaggleGlobalPiResourceLoaderOptions() {
   return {
     ...(disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}),
     extensionsOverride: withoutInstalledPiWaggle,
-  }
+  } satisfies PiResourceLoaderOptions
 }
 
 export function createOpenWagglePiResourceLoaderOptions(
@@ -263,7 +264,7 @@ export function createOpenWagglePiResourceLoaderOptions(
   options: PiRuntimeServicesOptions = {},
   settingsManager?: SettingsManager,
   builtInSkillPaths: readonly string[] = [],
-): PiResourceLoaderOptions {
+) {
   const skillToggles = options.skillToggles ?? {}
   const disableExtensions = disableExecutableExtensionsForAutomation()
   const appendices = systemPromptAppendices(options)
@@ -285,5 +286,5 @@ export function createOpenWagglePiResourceLoaderOptions(
     ...(disableExtensions ? { noExtensions: true } : {}),
     extensionFactories,
     extensionsOverride: withoutInstalledPiWaggle,
-  }
+  } satisfies PiResourceLoaderOptions
 }

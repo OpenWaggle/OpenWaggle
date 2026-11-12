@@ -1,9 +1,6 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { safeDecodeUnknown } from '@shared/schema'
-import {
-  type ExtensionContributionRegistration,
-  extensionContributionRegistrationSchema,
-} from '@shared/schemas/extensions'
+import { extensionContributionRegistrationSchema } from '@shared/schemas/extensions'
 import { describe, expect, it } from 'vitest'
 import { authorizeRuntimeContributionRegistration } from '../extension-runtime-contribution-authorization-model'
 import { makePackage } from './extension-contribution-registry-test-utils'
@@ -24,7 +21,7 @@ const extensionPackage = makePackage({
   },
 })
 
-function sidePanelRegistration(icon: unknown): ExtensionContributionRegistration {
+function sidePanelRegistration(icon: unknown) {
   const decoded = safeDecodeUnknown(extensionContributionRegistrationSchema, {
     family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
     contribution: { ...SIDE_PANEL, id: 'runtime.board', icon },

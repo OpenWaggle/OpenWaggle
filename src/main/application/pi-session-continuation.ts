@@ -78,15 +78,17 @@ export function continueWithPiSessionSettings(
   state: PiSessionProjectionState,
   snapshot: PiSessionFileSnapshot,
   options: ContinuationOptions = {},
-): Effect.Effect<ContinuationOutcome> {
+) {
   const changeOptions: SessionSettingChangeOptions = options.forRun
     ? { forRun: options.forRun }
     : {}
   const { projectPath, piEntryNodeIdPrefix } = state
   if (!piEntryNodeIdPrefix || !projectPath) {
-    return Effect.succeed<ContinuationOutcome>({ kind: 'applied' })
+    return Effect.succeed<ContinuationOutcome>({
+      kind: 'applied',
+    })
   }
-  return Effect.gen(function* () {
+  const effect: Effect.Effect<ContinuationOutcome> = Effect.gen(function* () {
     const settings = yield* Effect.serviceOption(SessionSettingsRepository)
     if (Option.isNone(settings)) return { kind: 'applied' } satisfies ContinuationOutcome
     let outcome: ContinuationOutcome = { kind: 'applied' }
@@ -120,15 +122,17 @@ export function continueWithPiSessionSettings(
     return outcome
   }).pipe(
     Effect.catchAllCause((cause) =>
-      Effect.sync((): ContinuationOutcome => {
+      Effect.sync(() => {
         logger.warn('Could not continue a Pi session with its own model settings', {
           sessionId,
           error: formatErrorMessage(Cause.squash(cause)),
         })
-        return { kind: 'applied' }
+        const outcome: ContinuationOutcome = { kind: 'applied' }
+        return outcome
       }),
     ),
   )
+  return effect
 }
 
 /**

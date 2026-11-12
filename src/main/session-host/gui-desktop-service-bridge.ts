@@ -295,7 +295,7 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
     if (this.stopped.signal.aborted) return 'stopped'
     return this.attached ? 'attached' : 'reconnecting'
   }
-  async start(): Promise<GuiDesktopServiceLifecycle> {
+  async start() {
     this.startHeartbeat()
     try {
       await this.attach()

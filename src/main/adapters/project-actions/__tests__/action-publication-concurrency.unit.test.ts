@@ -18,10 +18,10 @@ import {
 } from './action-catalog.test-harness'
 
 const hooks = vi.hoisted(() => ({
-  beforeRename: async (_source: string, _target: string): Promise<void> => {},
-  beforeLink: async (_source: string, _target: string): Promise<void> => {},
-  afterRename: async (_source: string, _target: string): Promise<void> => {},
-  afterLink: async (_source: string, _target: string): Promise<void> => {},
+  beforeRename: async (_source: string, _target: string) => {},
+  beforeLink: async (_source: string, _target: string) => {},
+  afterRename: async (_source: string, _target: string) => {},
+  afterLink: async (_source: string, _target: string) => {},
 }))
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>()

@@ -35,7 +35,7 @@ const MAX_FLATTEN_DEPTH = 4
 const MAX_FLATTENED_SCHEMAS = 256
 
 /** Why a provider would reject `schema` as a tool's parameters; empty when every provider accepts it. */
-export function providerToolSchemaViolations(schema: unknown): string[] {
+export function providerToolSchemaViolations(schema: unknown) {
   if (!isJsonSchemaObject(schema)) return ['root schema is not a JSON object']
   const violations: string[] = []
   const { type, properties } = keywordsOf(schema)
@@ -211,7 +211,7 @@ function flattenRoot(
   document: JsonSchemaObject,
   repairs: string[],
   limits: FlattenLimits = { depth: 0, budget: { remaining: MAX_FLATTENED_SCHEMAS } },
-): MutableJsonSchema {
+) {
   const { anyOf: _anyOf, oneOf: _oneOf, allOf, ...rest } = node
   // A member referencing an ancestor (`{ anyOf: [{ $ref: '#' }] }`) would recurse forever.
   // Dropping the combinators there only loosens the schema; call-time validation is exact.
@@ -258,12 +258,13 @@ function flattenRoot(
  * arguments against the original. The result can also reject some arguments the original
  * accepts, so it suits tools Pi does not validate calls for, such as MCP sampling tools.
  */
-export function providerToolParameters(schema: unknown): ProviderToolParameters {
+export function providerToolParameters(schema: unknown) {
   if (isJsonSchemaObject(schema) && providerToolSchemaViolations(schema).length === 0) {
-    return { schema, repairs: [] }
+    const parameters: ProviderToolParameters = { schema, repairs: [] }
+    return parameters
   }
   if (!isJsonSchemaObject(schema)) {
-    return {
+    const parameters: ProviderToolParameters = {
       schema: { type: 'object', properties: {} },
       repairs: [
         schema === undefined
@@ -271,6 +272,7 @@ export function providerToolParameters(schema: unknown): ProviderToolParameters 
           : `schema ${JSON.stringify(schema)} is not an object; accepts any object`,
       ],
     }
+    return parameters
   }
   const repairs: string[] = []
   const flattened = flattenRoot(inlineReference(schema, schema, repairs), schema, repairs)
@@ -286,7 +288,7 @@ export function providerToolParameters(schema: unknown): ProviderToolParameters 
         `root type ${JSON.stringify(type)} cannot describe tool arguments; accepts any object`,
       )
       const { description, title, $schema } = flattened
-      return {
+      const parameters: ProviderToolParameters = {
         schema: {
           type: 'object',
           properties: {},
@@ -296,9 +298,11 @@ export function providerToolParameters(schema: unknown): ProviderToolParameters 
         },
         repairs: [...new Set(repairs)],
       }
+      return parameters
     }
     repairs.push(`set root type ${JSON.stringify(type) ?? 'missing'} to "object"`)
     Object.assign(flattened, { type: 'object' })
   }
-  return { schema: flattened, repairs: [...new Set(repairs)] }
+  const parameters: ProviderToolParameters = { schema: flattened, repairs: [...new Set(repairs)] }
+  return parameters
 }

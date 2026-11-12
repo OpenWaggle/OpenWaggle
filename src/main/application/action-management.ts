@@ -1,7 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { actionManagementRequestSchema } from '@shared/schemas/action-management'
-import type { ActionManagementResult, ActionManagementScope } from '@shared/types/action-management'
+import type { ActionManagementScope } from '@shared/types/action-management'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { ActionCatalogService } from '../ports/action-catalog-service'
@@ -46,10 +46,13 @@ export function manageProjectActions(rawRequest: unknown) {
     const workspace = yield* resolveActionManagementWorkspace(request.scope)
     const catalog = yield* ActionCatalogService
     const runs = yield* ActionRunService
-    const requireWorkspace = (): Effect.Effect<ActionRunWorkspace, Error> =>
-      workspace.workspaceId === null
-        ? Effect.fail(new Error('Select a Session to run or inspect actions in its Workspace.'))
-        : Effect.succeed({ ...workspace, workspaceId: workspace.workspaceId })
+    const requireWorkspace = () => {
+      const effect: Effect.Effect<ActionRunWorkspace, Error> =
+        workspace.workspaceId === null
+          ? Effect.fail(new Error('Select a Session to run or inspect actions in its Workspace.'))
+          : Effect.succeed({ ...workspace, workspaceId: workspace.workspaceId })
+      return effect
+    }
     return yield* match(request.operation)
       .with(
         { type: 'preparation' },
@@ -144,5 +147,5 @@ export function manageProjectActions(rawRequest: unknown) {
         ),
       )
       .exhaustive()
-  }).pipe(Effect.map((result): ActionManagementResult => result))
+  })
 }

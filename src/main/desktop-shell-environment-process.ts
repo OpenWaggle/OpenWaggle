@@ -23,7 +23,7 @@ function userLoginShell() {
 }
 
 /** The login shell and uid of this process's user, leaving out the ones it does not have. */
-function processUserIdentity(): { readonly userShell?: string; readonly uid?: number } {
+function processUserIdentity() {
   const userShell = userLoginShell()
   const uid = process.getuid?.()
   return {
@@ -52,7 +52,7 @@ export interface ProcessDesktopShellEnvironmentOptions {
 export function installProcessDesktopShellEnvironment(
   environment: Record<string, string | undefined>,
   options: ProcessDesktopShellEnvironmentOptions = {},
-): StartedDesktopShellEnvironment {
+) {
   if (desktopShellEnvironment) return desktopShellEnvironment
   const writesCache = options.cacheFile !== undefined && options.writeCache !== false
   if (writesCache) cacheRefreshStartedAt = Date.now()
@@ -86,7 +86,7 @@ export function installDesktopShellEnvironment(
  * When this process started refreshing the profile's login-shell cache (the desktop app), so a
  * Host it launches can wait for that refresh instead of probing again; null if it does not.
  */
-export function desktopShellEnvironmentRefreshStartedAt(): number | null {
+export function desktopShellEnvironmentRefreshStartedAt() {
   return cacheRefreshStartedAt
 }
 
@@ -96,7 +96,7 @@ export function desktopShellEnvironmentRefreshStartedAt(): number | null {
  * git and stdio MCP servers wait for it before they start a process. A process that never
  * hydrates (the CLI, tests) does not wait.
  */
-export function desktopShellEnvironmentReady(): Promise<void> {
+export function desktopShellEnvironmentReady() {
   return desktopShellEnvironment
     ? desktopShellEnvironment.ready.catch(() => undefined)
     : Promise.resolve()

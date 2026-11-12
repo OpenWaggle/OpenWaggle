@@ -1,5 +1,5 @@
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
-import type { HydratedAgentSendPayload, PreparedAttachment } from '@shared/types/agent'
+import type { PreparedAttachment } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
@@ -43,9 +43,7 @@ function validatePreparedAttachments(attachments: readonly PreparedAttachment[])
 }
 
 /** Hydrate attachment binary sources from prepared attachment records. */
-export async function hydratePayloadAttachments(
-  attachments: readonly PreparedAttachment[],
-): Promise<HydratedAgentSendPayload['attachments']> {
+export async function hydratePayloadAttachments(attachments: readonly PreparedAttachment[]) {
   validatePreparedAttachments(attachments)
   return hydrateAttachmentSources(attachments)
 }

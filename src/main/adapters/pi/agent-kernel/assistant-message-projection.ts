@@ -18,7 +18,7 @@ function isBlankPart(part: MessagePart) {
   return (part.type === 'text' || part.type === 'reasoning') && part.text.trim() === ''
 }
 
-export function assistantMessageProjection(value: PiAssistantMessage): PiEntryProjection {
+export function assistantMessageProjection(value: PiAssistantMessage) {
   const parts = piAssistantContentToParts(value.content)
   // Pi records the response a Stop or interrupt cut off. One that had streamed nothing is not a
   // message: keep its node for the Pi tree, but as raw data the transcript does not show.
@@ -34,7 +34,7 @@ export function assistantMessageProjection(value: PiAssistantMessage): PiEntryPr
         model: value.model,
       }),
       metadataJson: '{}',
-    }
+    } satisfies PiEntryProjection
   }
   return {
     kind: 'assistant_message',
@@ -48,5 +48,5 @@ export function assistantMessageProjection(value: PiAssistantMessage): PiEntryPr
       stopReason: value.stopReason,
       errorMessage: value.errorMessage ?? null,
     }),
-  }
+  } satisfies PiEntryProjection
 }

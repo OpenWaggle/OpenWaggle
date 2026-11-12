@@ -53,7 +53,7 @@ function tryAcquireOwnershipDatabase(ownershipPath: string) {
 export async function acquireSessionHostOwnership(
   targetPath: string,
   options: AcquireSessionHostOwnershipOptions = {},
-): Promise<SessionHostOwnership> {
+) {
   await mkdir(path.dirname(targetPath), { recursive: true })
   const deadline = performance.now() + (options.timeoutMs ?? OWNERSHIP_HANDOFF_TIMEOUT_MS)
   let database = tryAcquireOwnershipDatabase(`${targetPath}.ownership.sqlite`)

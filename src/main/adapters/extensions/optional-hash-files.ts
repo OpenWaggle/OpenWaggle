@@ -22,17 +22,14 @@ type OptionalHashFileContent =
 
 const MISSING: OptionalHashFileContent = { state: 'missing' }
 
-async function readOptionalHashFile(
-  packagePath: string,
-  relativePath: string,
-): Promise<OptionalHashFileContent> {
+async function readOptionalHashFile(packagePath: string, relativePath: string) {
   try {
     const filePath = await resolveSafePackageFilePath(packagePath, relativePath)
     if (filePath === null) return MISSING
     const read = await readBoundedFile(filePath, OPTIONAL_FILE_MAX_BYTES)
     if (read.kind === 'not-file') return MISSING
-    if (read.kind === 'oversized') return { state: 'oversized' }
-    return { state: 'present', content: read.content }
+    if (read.kind === 'oversized') return { state: 'oversized' } satisfies OptionalHashFileContent
+    return { state: 'present', content: read.content } satisfies OptionalHashFileContent
   } catch {
     // An unreadable optional file is reported where it is used (the icon resolver), not here.
     return MISSING
@@ -48,18 +45,18 @@ function optionalHashFileStateLabel(file: OptionalHashFile) {
 }
 
 /** Reads optional package files in a stable order. Missing files never fail the content hash. */
-async function readOptionalHashFiles(
-  packagePath: string,
-  relativePaths: readonly string[],
-): Promise<readonly OptionalHashFile[]> {
+async function readOptionalHashFiles(packagePath: string, relativePaths: readonly string[]) {
   const uniquePaths = [...new Set(relativePaths.map(normalizeManifestRelativePath))].sort(
     (left, right) => left.localeCompare(right),
   )
   return Promise.all(
-    uniquePaths.map(async (relativePath): Promise<OptionalHashFile> => ({
-      relativePath,
-      ...(await readOptionalHashFile(packagePath, relativePath)),
-    })),
+    uniquePaths.map(async (relativePath) => {
+      const file: OptionalHashFile = {
+        relativePath,
+        ...(await readOptionalHashFile(packagePath, relativePath)),
+      }
+      return file
+    }),
   )
 }
 

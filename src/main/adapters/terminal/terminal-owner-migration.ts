@@ -1,9 +1,5 @@
 import { TERMINAL } from '@shared/constants/resource-limits'
-import type {
-  TerminalKey,
-  TerminalOwnerKey,
-  TerminalOwnerMigrationResult,
-} from '@shared/types/terminal'
+import type { TerminalKey, TerminalOwnerKey } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import { ownerKeyFromTerminalKey } from './terminal-history-files'
@@ -140,7 +136,7 @@ async function migrateOwner(
   context: TerminalActionContext,
   fromOwnerKey: TerminalOwnerKey,
   toOwnerKey: TerminalOwnerKey,
-): Promise<TerminalOwnerMigrationResult> {
+) {
   const sourceRecords = recordsForOwner(context, fromOwnerKey)
   if (fromOwnerKey === toOwnerKey) {
     return { terminalIds: sourceRecords.map((record) => record.terminalId) }

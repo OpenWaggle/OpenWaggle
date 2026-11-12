@@ -72,9 +72,7 @@ function helperFailure(stderr: string, exitCode: number | null, signalCode: Node
   )
 }
 
-export async function launchWindowsHeadlessProcess(
-  input: WindowsHeadlessLaunchInput,
-): Promise<void> {
+export async function launchWindowsHeadlessProcess(input: WindowsHeadlessLaunchInput) {
   const commandLine = windowsHeadlessCommandLine(input.command, input.args)
   if (
     Object.entries(input.environment).some(

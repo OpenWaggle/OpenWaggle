@@ -73,7 +73,7 @@ export function createAuthorityDriftMonitor(options: AuthorityDriftMonitorOption
     // A check that throws before it returns its promise fails closed like one that rejects.
     void Promise.resolve()
       .then(() => watch.check())
-      .catch((): AuthorityDriftOutcome => 'unverifiable')
+      .catch(() => 'unverifiable' as const)
       .then((outcome) => {
         if (outcome === 'current' || !watches.has(watch)) return
         watches.delete(watch)

@@ -31,10 +31,10 @@ function rounded(milliseconds: number) {
   return Number(milliseconds.toFixed(STARTUP_TIMING_PRECISION))
 }
 
-export function createStartupMark(namespace: string): StartupMark {
+export function createStartupMark(namespace: string) {
   const logger = createLogger(namespace)
   let enabled: boolean | undefined
-  return (label) => {
+  return ((label) => {
     try {
       enabled ??= startupTimingsRequested()
     } catch {
@@ -48,5 +48,5 @@ export function createStartupMark(namespace: string): StartupMark {
       `Startup timing at ${String(rounded(process.uptime() * MILLISECONDS_PER_SECOND))} ms uptime`,
       { label, elapsedMs: rounded(performance.now() - moduleLoadedAt) },
     )
-  }
+  }) satisfies StartupMark
 }

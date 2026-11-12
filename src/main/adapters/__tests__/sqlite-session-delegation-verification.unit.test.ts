@@ -3,10 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionControlDelegationVerifyCommand } from '@shared/types/session-collaboration'
-import {
-  SESSION_CONTROL_CONTRACT_VERSION,
-  type SessionControlDelegationMutationRequest,
-} from '@shared/types/session-control'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionDelegationRepository } from '../../ports/session-delegation-repository'
@@ -16,10 +13,7 @@ import {
   spawnLifecycleInput,
 } from './sqlite-session-lifecycle-test-support'
 
-function verifyRequest(
-  id: string,
-  command: SessionControlDelegationVerifyCommand,
-): SessionControlDelegationMutationRequest {
+function verifyRequest(id: string, command: SessionControlDelegationVerifyCommand) {
   return {
     contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
     requestId: `request-${id}`,

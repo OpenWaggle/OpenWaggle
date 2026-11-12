@@ -41,7 +41,7 @@ vi.mock('../terminal-process-probes', () => ({
   readProcessTty: vi.fn(() => Promise.resolve(null)),
 }))
 
-function processRow(pid: number, ppid: number, name: string): ProcessRow {
+function processRow(pid: number, ppid: number, name: string) {
   return {
     pid,
     ppid,
@@ -53,7 +53,7 @@ function processRow(pid: number, ppid: number, name: string): ProcessRow {
     zombie: false,
     startedAt: `start-${pid}`,
     name,
-  }
+  } satisfies ProcessRow
 }
 
 describe('makeNodePtyTerminalService close history lifecycle', () => {

@@ -97,8 +97,10 @@ export function piSkillCommandIdentifier(promptText: string) {
   return name ? builtInSkillName(name) : undefined
 }
 
-function toThinkingLevel(value: unknown): ThinkingLevel | undefined {
-  return typeof value === 'string' && includes(THINKING_LEVELS, value) ? value : undefined
+function toThinkingLevel(value: unknown) {
+  const level: ThinkingLevel | undefined =
+    typeof value === 'string' && includes(THINKING_LEVELS, value) ? value : undefined
+  return level
 }
 
 /** A Pi session is about to run `run.runId` with `model`. */
@@ -111,7 +113,7 @@ export function notePiRunForUsageStatistics(
   },
   model: { readonly provider: string; readonly id: string },
   session: { readonly thinkingLevel: unknown },
-): void {
+) {
   if (!isUsageStatisticsEnabled()) return
   noteUsageStatisticsRunModel(
     run.runId,
@@ -137,7 +139,7 @@ export function notePiRunForUsageStatistics(
 export async function notePiRunProjectDefaultForUsageStatistics(
   runId: string,
   projectPath: string | null,
-): Promise<void> {
+) {
   if (!usageStatisticsRunNeedsProjectDefault(runId)) return
   if (!projectPath) {
     noteUsageStatisticsRunProjectDefault(runId, null)
@@ -157,18 +159,19 @@ export async function notePiRunProjectDefaultForUsageStatistics(
 export function withUsageStatisticsAccessMode(
   runId: string,
   resolve: () => Promise<AgentAuthorizationMode>,
-): () => Promise<AgentAuthorizationMode> {
-  return async () => {
+) {
+  const result: () => Promise<AgentAuthorizationMode> = async () => {
     const mode = await resolve()
     noteUsageStatisticsRunAccessMode(runId, mode)
     return mode
   }
+  return result
 }
 
 /** A Run's tool call reached an MCP server (counted where the server's configuration is known). */
 export function observePiMcpServerUseForUsageStatistics(
   server: Parameters<typeof usageStatisticsMcpServerIdentifier>[0],
-): void {
+) {
   if (!isUsageStatisticsEnabled()) return
   recordUsageStatistics({
     kind: 'mcp-server',
@@ -189,7 +192,7 @@ const decodeCompactionDetails = Schema.decodeUnknownOption(
 )
 
 /** Pi started a tool for the Run. */
-export function observePiToolUseForUsageStatistics(toolName: string, args: unknown): void {
+export function observePiToolUseForUsageStatistics(toolName: string, args: unknown) {
   if (!isUsageStatisticsEnabled()) return
   if (toolName.startsWith(BROWSER_PREVIEW_TOOL_PREFIX)) {
     recordUsageStatistics({ kind: 'feature', flag: 'browser_agent_driven' })
@@ -224,7 +227,7 @@ function addRunTokens(runId: string, value: unknown) {
 export function observePiAssistantMessageForUsageStatistics(
   runId: string,
   message: { readonly usage?: unknown; readonly content?: unknown },
-): void {
+) {
   if (!isUsageStatisticsEnabled()) return
   addRunTokens(runId, message.usage)
   if (containsInlineVisualizationReference(assistantText(message.content))) {
@@ -239,7 +242,7 @@ export function observePiAssistantMessageForUsageStatistics(
 export function observePiToolResultForUsageStatistics(
   runId: string,
   message: { readonly usage?: unknown; readonly content?: unknown },
-): void {
+) {
   if (!isUsageStatisticsEnabled()) return
   addRunTokens(runId, message.usage)
 }
@@ -248,7 +251,7 @@ export function observePiToolResultForUsageStatistics(
 export function observePiCompactionForUsageStatistics(event: {
   readonly aborted: boolean
   readonly result: { readonly details?: unknown } | undefined
-}): void {
+}) {
   if (event.aborted || !isUsageStatisticsEnabled()) return
   const details = event.result?.details
   const compaction = Option.getOrUndefined(decodeCompactionDetails(details))

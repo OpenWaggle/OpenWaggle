@@ -4,7 +4,6 @@ import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { BrowserPreviewAttachmentMetadata, PreparedAttachment } from '@shared/types/agent'
 import type {
   BrowserPreviewElementPickPayload,
-  BrowserPreviewRecordingArtifact,
   BrowserPreviewRecordingMimeType,
   BrowserPreviewScreenshotArtifact,
 } from '@shared/types/browser-preview-controls'
@@ -26,9 +25,9 @@ const PNG_MIME_TYPE = 'image/png'
 const JSON_INDENT_SPACES = 2
 const TRUNCATED_CONTEXT_SUFFIX = '\n...[annotation context truncated]'
 
-function recordingExtension(mimeType: BrowserPreviewRecordingMimeType): 'webm' | 'mp4' {
-  if (mimeType.startsWith('video/webm')) return 'webm'
-  if (mimeType.startsWith('video/mp4')) return 'mp4'
+function recordingExtension(mimeType: BrowserPreviewRecordingMimeType) {
+  if (mimeType.startsWith('video/webm')) return 'webm' as const
+  if (mimeType.startsWith('video/mp4')) return 'mp4' as const
   throw new Error(`Unsupported browser recording format: ${mimeType}`)
 }
 
@@ -106,9 +105,7 @@ function annotationTargetSummary(payload: BrowserPreviewElementPickPayload) {
   return targets.join(', ')
 }
 
-function annotationAttachmentMetadata(
-  payload: BrowserPreviewElementPickPayload,
-): BrowserPreviewAttachmentMetadata {
+function annotationAttachmentMetadata(payload: BrowserPreviewElementPickPayload) {
   const firstElement = payload.elements[0]?.element
   const targetSummary = annotationTargetSummary(payload)
   if (firstElement === undefined) {
@@ -127,7 +124,7 @@ function annotationAttachmentMetadata(
       componentName: null,
       sourceFile: null,
       sourceLine: null,
-    }
+    } satisfies BrowserPreviewAttachmentMetadata
   }
   const source = firstElement.source
   return {
@@ -145,7 +142,7 @@ function annotationAttachmentMetadata(
     componentName: firstElement.componentName,
     sourceFile: source === null ? null : source.fileName,
     sourceLine: source === null ? null : source.lineNumber,
-  }
+  } satisfies BrowserPreviewAttachmentMetadata
 }
 
 type PrepareAnnotationAttachment = (
@@ -164,11 +161,7 @@ export class BrowserPreviewArtifactStore {
     this.prepareAnnotation = prepareAnnotation
   }
 
-  async captureScreenshot(
-    previewId: string,
-    contents: WebContents,
-    clip?: Rectangle,
-  ): Promise<BrowserPreviewScreenshotArtifact> {
+  async captureScreenshot(previewId: string, contents: WebContents, clip?: Rectangle) {
     const sourceImage = await captureBrowserPreviewPage(
       contents,
       clip === undefined ? {} : { clip },
@@ -191,7 +184,7 @@ export class BrowserPreviewArtifactStore {
       width: dimensions.width,
       height: dimensions.height,
       createdAt: new Date().toISOString(),
-    }
+    } satisfies BrowserPreviewScreenshotArtifact
   }
 
   async saveRecording(input: {
@@ -199,7 +192,7 @@ export class BrowserPreviewArtifactStore {
     readonly mimeType: BrowserPreviewRecordingMimeType
     readonly data: Uint8Array
     readonly durationMs: number
-  }): Promise<BrowserPreviewRecordingArtifact> {
+  }) {
     if (input.data.byteLength === 0) throw new Error('Browser preview recording is empty.')
     if (input.data.byteLength > BROWSER_PREVIEW_CAPTURE_LIMITS.RECORDING_BYTES) {
       throw new Error(
@@ -231,7 +224,7 @@ export class BrowserPreviewArtifactStore {
   async prepareAnnotationAttachment(
     payload: BrowserPreviewElementPickPayload,
     screenshot: BrowserPreviewScreenshotArtifact,
-  ): Promise<PreparedAttachment | null> {
+  ) {
     if (screenshot.sizeBytes > ATTACHMENT.MAX_SIZE_BYTES) return null
     const resolvedPath = await this.storage.resolveOwnedArtifact(screenshot.path)
     const stats = await fs.stat(resolvedPath)
@@ -248,11 +241,11 @@ export class BrowserPreviewArtifactStore {
     return attachment
   }
 
-  async revealArtifact(artifactPath: string): Promise<void> {
+  async revealArtifact(artifactPath: string) {
     showItemInFolder(await this.storage.resolveOwnedArtifact(artifactPath))
   }
 
-  async copyScreenshot(artifactPath: string): Promise<void> {
+  async copyScreenshot(artifactPath: string) {
     const resolvedPath = await this.storage.resolveOwnedArtifact(artifactPath)
     const image = nativeImage.createFromPath(resolvedPath)
     if (image.isEmpty()) throw new Error('Browser preview screenshot could not be decoded.')
@@ -262,7 +255,7 @@ export class BrowserPreviewArtifactStore {
 
 let defaultArtifactStore: BrowserPreviewArtifactStore | null = null
 
-export function getBrowserPreviewArtifactStore(): BrowserPreviewArtifactStore {
+export function getBrowserPreviewArtifactStore() {
   defaultArtifactStore ??= new BrowserPreviewArtifactStore(
     new BrowserPreviewArtifactStorage(path.join(app.getPath('userData'), ARTIFACT_DIRECTORY_NAME)),
   )

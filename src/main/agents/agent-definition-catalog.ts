@@ -4,7 +4,6 @@ import path from 'node:path'
 import type {
   AgentDefinitionCatalogItem,
   AgentDefinitionScope,
-  ResolvedAgentDefinitionSnapshot,
 } from '@shared/types/agent-definition'
 import { allInOrder } from '@shared/utils/all-in-order'
 import { readBoundAgentDefinitionSources } from './agent-definition-bound-catalog-reader'
@@ -20,7 +19,7 @@ interface DefinitionRoot {
   readonly directory: string
 }
 
-function roots(projectPath: string, userHome: string): readonly DefinitionRoot[] {
+function roots(projectPath: string, userHome: string) {
   return [
     {
       scope: 'project',
@@ -37,10 +36,10 @@ function roots(projectPath: string, userHome: string): readonly DefinitionRoot[]
       root: userHome,
       directory: path.join(userHome, '.openwaggle', 'agents'),
     },
-  ]
+  ] satisfies readonly DefinitionRoot[]
 }
 
-async function loadRoot(root: DefinitionRoot): Promise<AgentDefinitionCatalogItem[]> {
+async function loadRoot(root: DefinitionRoot) {
   const items = await Promise.all(
     (await readBoundAgentDefinitionSources(root)).map(async (source) => {
       const sourcePath = path.join(root.directory, source.name)
@@ -69,17 +68,18 @@ async function loadRoot(root: DefinitionRoot): Promise<AgentDefinitionCatalogIte
   )
   const counts = new Map<string, number>()
   for (const item of items) counts.set(item.name, (counts.get(item.name) ?? 0) + 1)
-  return items.map((item) => {
+  const result: AgentDefinitionCatalogItem[] = items.map((item) => {
     if ((counts.get(item.name) ?? 0) <= 1) return item
     const { definition: _definition, ...rest } = item
     return { ...rest, loadError: `Duplicate Agent definition name ${item.name}.` }
   })
+  return result
 }
 
 export async function listAgentDefinitions(input: {
   readonly projectPath: string
   readonly userHome?: string
-}): Promise<readonly AgentDefinitionCatalogItem[]> {
+}) {
   const selected = new Map<string, AgentDefinitionCatalogItem>()
   for (const root of roots(input.projectPath, input.userHome ?? os.homedir())) {
     for (const item of await loadRoot(root)) {
@@ -109,7 +109,7 @@ export async function resolveAgentDefinition(input: {
   readonly name: string
   readonly scope?: AgentDefinitionScope
   readonly userHome?: string
-}): Promise<ResolvedAgentDefinitionSnapshot> {
+}) {
   const items = input.scope
     ? await listAllAgentDefinitions(input)
     : await listAgentDefinitions(input)
@@ -143,7 +143,7 @@ export async function previewAgentDefinition(input: {
   readonly projectPath: string
   readonly name: string
   readonly userHome?: string
-}): Promise<string> {
+}) {
   const item = (await listAgentDefinitions(input)).find(
     (candidate) => candidate.name === input.name,
   )

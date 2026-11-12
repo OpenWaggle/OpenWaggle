@@ -24,31 +24,32 @@ interface GlabMergeRequestSummary {
 }
 
 /** Map a GitHub PR JSON object (from `gh pr view --json ...`) to a request summary. */
-export function mapGhPullRequest(raw: unknown): VcsChangeRequest | null {
+export function mapGhPullRequest(raw: unknown) {
   const object = asObject(raw)
   if (!object) return null
   const record: UncheckedFields<GhPullRequestSummary> = object
   const url = asString(record.url)
   const title = asString(record.title)
   if (!url || title === null) return null
-  return {
+  const request: VcsChangeRequest | null = {
     title,
     url,
     baseRef: asString(record.baseRefName) ?? '',
     headRef: asString(record.headRefName) ?? '',
     state: mapGhState(asString(record.state), record.isDraft === true),
   }
+  return request
 }
 
 /** Map a GitLab MR JSON object (from `glab mr view -F json`) to a request summary. */
-export function mapGlabMergeRequest(raw: unknown): VcsChangeRequest | null {
+export function mapGlabMergeRequest(raw: unknown) {
   const object = asObject(raw)
   if (!object) return null
   const record: UncheckedFields<GlabMergeRequestSummary> = object
   const url = asString(record.web_url)
   const title = asString(record.title)
   if (!url || title === null) return null
-  return {
+  const request: VcsChangeRequest | null = {
     title,
     url,
     baseRef: asString(record.target_branch) ?? '',
@@ -58,20 +59,41 @@ export function mapGlabMergeRequest(raw: unknown): VcsChangeRequest | null {
       record.draft === true || record.work_in_progress === true,
     ),
   }
+  return request
 }
 
-export function mapGhState(state: string | null, isDraft: boolean): ChangeRequestState {
-  if (isDraft) return 'draft'
+export function mapGhState(state: string | null, isDraft: boolean) {
+  if (isDraft) {
+    const result: ChangeRequestState = 'draft'
+    return result
+  }
   const upper = state?.toUpperCase()
-  if (upper === 'MERGED') return 'merged'
-  if (upper === 'CLOSED') return 'closed'
-  return 'open'
+  if (upper === 'MERGED') {
+    const result: ChangeRequestState = 'merged'
+    return result
+  }
+  if (upper === 'CLOSED') {
+    const result: ChangeRequestState = 'closed'
+    return result
+  }
+  const result: ChangeRequestState = 'open'
+  return result
 }
 
-export function mapGlabState(state: string | null, isDraft: boolean): ChangeRequestState {
+export function mapGlabState(state: string | null, isDraft: boolean) {
   const lower = state?.toLowerCase()
-  if (lower === 'merged') return 'merged'
-  if (lower === 'closed') return 'closed'
-  if (isDraft) return 'draft'
-  return 'open'
+  if (lower === 'merged') {
+    const result: ChangeRequestState = 'merged'
+    return result
+  }
+  if (lower === 'closed') {
+    const result: ChangeRequestState = 'closed'
+    return result
+  }
+  if (isDraft) {
+    const result: ChangeRequestState = 'draft'
+    return result
+  }
+  const result: ChangeRequestState = 'open'
+  return result
 }

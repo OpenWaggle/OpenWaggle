@@ -9,7 +9,7 @@ import { createModelRef } from '@shared/types/llm'
 export function createEntryModelSelection(entryById: ReadonlyMap<string, SessionEntry>) {
   const selectionById = new Map<string, string | null>()
 
-  function selectionOf(entryId: string | null): string | null {
+  function selectionOf(entryId: string | null) {
     const pending: string[] = []
     let current = entryId
     let found: string | null = null

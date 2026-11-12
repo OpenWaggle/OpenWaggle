@@ -21,15 +21,19 @@ export function byteBoundedPage<T>(input: {
   readonly candidates: readonly T[]
   readonly hasAdditionalCandidates: boolean
   readonly emptyResponse: unknown
-}): ByteBoundedPage<T> {
+}) {
   const emptyResponseBytes = jsonBytes(input.emptyResponse)
-  if (emptyResponseBytes > SESSION_QUERY_MAX_RESPONSE_BYTES) return { accepted: false }
+  if (emptyResponseBytes > SESSION_QUERY_MAX_RESPONSE_BYTES) {
+    return { accepted: false } satisfies ByteBoundedPage<T>
+  }
   const records: T[] = []
   let responseBytes = emptyResponseBytes
   for (const candidate of input.candidates) {
     const candidateBytes = jsonBytes(candidate) + (records.length === 0 ? 0 : 1)
     if (responseBytes + candidateBytes > SESSION_QUERY_MAX_RESPONSE_BYTES) {
-      return records.length === 0 ? { accepted: false } : { accepted: true, records, hasMore: true }
+      return (
+        records.length === 0 ? { accepted: false } : { accepted: true, records, hasMore: true }
+      ) satisfies ByteBoundedPage<T>
     }
     records.push(candidate)
     responseBytes += candidateBytes
@@ -38,5 +42,5 @@ export function byteBoundedPage<T>(input: {
     accepted: true,
     records,
     hasMore: input.hasAdditionalCandidates,
-  }
+  } satisfies ByteBoundedPage<T>
 }

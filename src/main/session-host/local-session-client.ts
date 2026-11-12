@@ -7,7 +7,6 @@ import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-
 import {
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   type LocalSessionCommandPayload,
-  type LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import {
   LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS,
@@ -108,7 +107,7 @@ export async function executeLocalSessionCommand(input: {
   readonly profileCredential?: string
   readonly timeoutMs?: number
   readonly supportedRevisions?: readonly number[]
-}): Promise<LocalSessionCommandResult> {
+}) {
   const responseTimeoutMs = resolveLocalSessionCommandTimeoutMs(input.payload, input.timeoutMs)
   const supportedRevisions = input.supportedRevisions ?? supportedRevisionsForCommand(input.payload)
   const { socket, reader, negotiation } = await openLocalSessionConnection({

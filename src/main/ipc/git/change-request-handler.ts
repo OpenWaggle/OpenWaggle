@@ -58,14 +58,14 @@ async function fetchChangeRequestRef(
   repositoryPath: string,
   remoteName: string,
   changeRequestUrl: string,
-): Promise<ChangeRequestCheckoutResult> {
+) {
   const plan = planChangeRequestFetch(changeRequestUrl)
   if (plan === null) {
     return {
       ok: false,
       code: 'unknown',
       message: `Could not tell which change request "${changeRequestUrl}" refers to.`,
-    }
+    } satisfies ChangeRequestCheckoutResult
   }
 
   const refspec = `+${plan.remoteRef}:${plan.localRef}`
@@ -80,13 +80,13 @@ async function fetchChangeRequestRef(
       ok: false,
       code: 'unknown',
       message: result.stderr.trim() || `Could not fetch ${plan.remoteRef}.`,
-    }
+    } satisfies ChangeRequestCheckoutResult
   }
   // The base ref the session should use: a local ref that exists regardless of forks.
-  return { ok: true, reference: plan.localRef }
+  return { ok: true, reference: plan.localRef } satisfies ChangeRequestCheckoutResult
 }
 
-export function registerGitChangeRequestHandlers(): void {
+export function registerGitChangeRequestHandlers() {
   typedHandle('git:change-request:preflight', (_event, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)

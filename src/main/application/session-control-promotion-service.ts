@@ -4,7 +4,6 @@ import type { AgentSteerDeliveryReceipt } from '@shared/types/agent'
 import { FollowUpId, RunId } from '@shared/types/brand'
 import type {
   SessionControlMutationOutcome,
-  SessionControlMutationResponse,
   SessionControlPromoteMutationRequest,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
@@ -46,7 +45,7 @@ function promotedSteeringInput(
   followUpId: FollowUpId,
   intent: SessionControlIntentSnapshot,
   attachments: AgentSteeringInput['attachments'],
-): AgentSteeringInput {
+) {
   return {
     runId,
     text: intent.text,
@@ -54,7 +53,7 @@ function promotedSteeringInput(
     requireDurableDelivery: true,
     delivery: { kind: 'promoted-follow-up', followUpId },
     ...(intent.visualizationContext ? { visualizationContext: intent.visualizationContext } : {}),
-  }
+  } satisfies AgentSteeringInput
 }
 
 /**
@@ -82,7 +81,7 @@ function response(
   input: PromoteSessionFollowUpInput,
   replayed: boolean,
   outcome: SessionControlMutationOutcome,
-): SessionControlMutationResponse {
+) {
   return {
     contractVersion: input.request.contractVersion,
     requestId: input.request.requestId,
@@ -137,15 +136,16 @@ function completeClaimedPromotion(input: {
     const promoted = (
       receipt: AgentSteerDeliveryReceipt,
       revisions: { readonly queueRevision: number; readonly stateRevision: number },
-    ): SessionControlMutationOutcome => ({
-      operation: 'promote',
-      effect: 'promoted-follow-up',
-      receipt,
-      sessionId: input.operation.request.command.sessionId,
-      runId: input.expectedRunId,
-      followUpId: input.followUpId,
-      ...revisions,
-    })
+    ) =>
+      ({
+        operation: 'promote',
+        effect: 'promoted-follow-up',
+        receipt,
+        sessionId: input.operation.request.command.sessionId,
+        runId: input.expectedRunId,
+        followUpId: input.followUpId,
+        ...revisions,
+      }) satisfies SessionControlMutationOutcome
     const outcome: SessionControlMutationOutcome = steering.accepted
       ? promoted(steering.receipt, {
           queueRevision: input.queueRevision + 1,

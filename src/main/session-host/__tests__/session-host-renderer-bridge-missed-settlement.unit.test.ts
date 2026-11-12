@@ -18,8 +18,8 @@ import { reconcileRemoteRunSnapshots, relaySessionHostEvent } from '../session-h
 const SESSION_ID = SessionId('remote-session')
 const MODEL = SupportedModelId('openai/gpt-5.5')
 
-function snapshot(runId?: string): BackgroundRunSnapshot {
-  return {
+function snapshot(runId?: string) {
+  const result: BackgroundRunSnapshot = {
     activity: 'agent-run',
     sessionId: SESSION_ID,
     ...(runId ? { runId } : {}),
@@ -29,6 +29,7 @@ function snapshot(runId?: string): BackgroundRunSnapshot {
     activityEvents: [],
     parts: [],
   }
+  return result
 }
 
 function relayStart(runId: string, sequence = 1) {
@@ -62,12 +63,17 @@ type Lifecycle = { readonly completed: unknown } | { readonly started: unknown }
 
 /** The run-completed and agent_start broadcasts, in order, as the renderer receives them. */
 function lifecycle() {
-  return broadcastToWindowsMock.mock.calls.flatMap(([channel, payload]): Lifecycle[] => {
-    if (channel === 'agent:run-completed') return [{ completed: payload }]
-    if (channel === 'agent:event' && payload.event.type === 'agent_start') {
-      return [{ started: payload.event.runId }]
+  return broadcastToWindowsMock.mock.calls.flatMap(([channel, payload]) => {
+    if (channel === 'agent:run-completed') {
+      const lifecycle: Lifecycle[] = [{ completed: payload }]
+      return lifecycle
     }
-    return []
+    if (channel === 'agent:event' && payload.event.type === 'agent_start') {
+      const lifecycle: Lifecycle[] = [{ started: payload.event.runId }]
+      return lifecycle
+    }
+    const lifecycle: Lifecycle[] = []
+    return lifecycle
   })
 }
 

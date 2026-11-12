@@ -84,7 +84,7 @@ function loadEnabledOpenWaggleExtensionPackages(
 function loadPiRuntimeExtensionIsolationInput(
   input: AgentKernelSessionInput,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
-): Effect.Effect<PiRuntimeExtensionIsolationInput> {
+) {
   return loadEnabledOpenWaggleExtensionPackages(input, extensionSelectionServices).pipe(
     Effect.map((enabledOpenWaggleExtensionPackages) => ({
       enabledOpenWaggleExtensionPackages,
@@ -97,7 +97,7 @@ function loadPiRuntimeExtensionIsolationInput(
           operation,
         }),
     })),
-  )
+  ) satisfies Effect.Effect<PiRuntimeExtensionIsolationInput>
 }
 
 /** The agent kernel; its Runs lease MCP connections from the Host's pool. */

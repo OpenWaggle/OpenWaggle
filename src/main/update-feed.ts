@@ -64,7 +64,7 @@ interface ParsedReleaseVersion {
   readonly sequence: number
 }
 
-function parseReleaseVersion(tag: string): ParsedReleaseVersion | undefined {
+function parseReleaseVersion(tag: string) {
   const match = RELEASE_TAG_PATTERN.exec(tag)
   if (!match) return
   const [, major, minor, patch, prerelease, sequence] = match
@@ -77,7 +77,7 @@ function parseReleaseVersion(tag: string): ParsedReleaseVersion | undefined {
     core: [Number(major), Number(minor), Number(patch)],
     channel,
     sequence: sequence === undefined ? 0 : Number(sequence),
-  }
+  } satisfies ParsedReleaseVersion
 }
 
 function compareParsedVersions(left: ParsedReleaseVersion, right: ParsedReleaseVersion) {
@@ -171,16 +171,19 @@ export function configureUpdaterFeed(
   channel: UpdateChannel,
   fetchReleases: UpdateReleaseFetcher = fetchReleaseList,
   runtime: UpdateFeedRuntime = process,
-): Promise<UpdateFeedSelection> {
+) {
   updater.setFeedURL({
     provider: 'github',
     owner: 'OpenWaggle',
     repo: 'OpenWaggle',
     channel: updaterFeedChannel(channel),
   })
-  return fetchAllReleases(fetchReleases).then((releases): UpdateFeedSelection => {
+  return fetchAllReleases(fetchReleases).then((releases) => {
     const tag = newestEligibleRelease(releases, channel, runtime)
-    if (tag === undefined) return { type: 'no-release' }
+    if (tag === undefined) {
+      const selection: UpdateFeedSelection = { type: 'no-release' }
+      return selection
+    }
     updater.setFeedURL({
       provider: 'generic',
       url: `https://github.com/OpenWaggle/OpenWaggle/releases/download/${encodeURIComponent(tag)}/`,
@@ -189,6 +192,7 @@ export function configureUpdaterFeed(
       // (blockmap) downloads must use single ranges, as electron-updater's GitHub provider does.
       useMultipleRangeRequest: false,
     })
-    return { type: 'release', tag }
+    const selection: UpdateFeedSelection = { type: 'release', tag }
+    return selection
   })
 }

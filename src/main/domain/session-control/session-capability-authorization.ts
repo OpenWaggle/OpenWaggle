@@ -11,7 +11,7 @@ import { includesEvery, valuesNotIn } from '@shared/utils/set-membership'
 
 export function requiredSessionControlCapabilities(
   command: SessionControlMutationRequest['command'],
-): readonly SessionCapability[] {
+) {
   return (
     matchBy(command, 'operation')
       .with('message', 'follow-up', () => ['sessions:message'])
@@ -63,9 +63,7 @@ export function requiredSessionControlCapabilities(
   )
 }
 
-export function requiredSessionLifecycleCapabilities(
-  command: SessionLifecycleRequest['command'],
-): readonly SessionCapability[] {
+export function requiredSessionLifecycleCapabilities(command: SessionLifecycleRequest['command']) {
   return matchBy(command, 'operation')
     .with('create', () => ['sessions:create'])
     .with('fork', () => ['sessions:create', 'sessions:read'])
@@ -74,9 +72,7 @@ export function requiredSessionLifecycleCapabilities(
     .exhaustive()
 }
 
-export function requiredSessionQueryCapabilities(
-  query: SessionQueryRequest['query'],
-): readonly SessionCapability[] {
+export function requiredSessionQueryCapabilities(query: SessionQueryRequest['query']) {
   return matchBy(query, 'operation')
     .with('list', () => ['sessions:discover'])
     .with('search', (query) =>

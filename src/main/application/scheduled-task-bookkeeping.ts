@@ -44,9 +44,14 @@ export function firingTiming(
   record: ScheduledTaskRecord,
   trigger: 'schedule' | 'run-now',
   now: number,
-): ScheduledTaskFiringTiming {
+) {
   if (trigger === 'run-now') {
-    return { trigger: 'run-now', nominalAt: now, missedCount: 0, supersededNominalAt: null }
+    return {
+      trigger: 'run-now',
+      nominalAt: now,
+      missedCount: 0,
+      supersededNominalAt: null,
+    } satisfies ScheduledTaskFiringTiming
   }
   const pending = record.nextNominalAt ?? now
   const later = missedOccurrences(scheduleDefinitionOf(record), pending, now)
@@ -59,14 +64,14 @@ export function firingTiming(
       nominalAt: pending,
       missedCount: 0,
       supersededNominalAt: null,
-    }
+    } satisfies ScheduledTaskFiringTiming
   }
   return {
     trigger: waited ? 'schedule' : 'catch-up',
     nominalAt: later.latest,
     missedCount: waited ? later.count - 1 : later.count,
     supersededNominalAt: waited ? pending : null,
-  }
+  } satisfies ScheduledTaskFiringTiming
 }
 
 export interface ScheduledTaskAdvance {
@@ -82,7 +87,7 @@ function advanceChanges(
   current: ScheduledTaskRecord,
   advance: ScheduledTaskAdvance,
   scheduleAnchor: number,
-): ScheduledTaskRecordChanges {
+) {
   const runCount = current.runCount + (advance.started ? 1 : 0)
   const updatedAt = Math.max(advance.now, current.updatedAt + 1)
   if (advance.attention) {
@@ -94,7 +99,7 @@ function advanceChanges(
       nextNominalAt: null,
       waitingSince: null,
       updatedAt,
-    }
+    } satisfies ScheduledTaskRecordChanges
   }
   // Someone rescheduled the task while it fired: their plan stands, the count still moves on.
   if (advance.firedNominalAt === null || current.anchorAt !== scheduleAnchor) {
@@ -103,7 +108,7 @@ function advanceChanges(
       runCount,
       updatedAt,
       ...(ended ? { enabled: false, nextRunAt: null, nextNominalAt: null } : {}),
-    }
+    } satisfies ScheduledTaskRecordChanges
   }
   const next = nextFiringOf({ ...current, runCount }, Math.max(advance.now, advance.firedNominalAt))
   return {
@@ -113,7 +118,7 @@ function advanceChanges(
     waitingSince: null,
     ...(next ? {} : { enabled: false }),
     updatedAt,
-  }
+  } satisfies ScheduledTaskRecordChanges
 }
 
 /** A task that just stopped for attention is announced as a Desktop notification (ADR 0062). */
@@ -191,7 +196,7 @@ function pausedBy(
   current: ScheduledTaskRecord,
   autoPause: HeartbeatAutoPause,
   consecutiveIdleRuns: number,
-): ScheduledTaskRecordChanges {
+) {
   return {
     enabled: false,
     autoPause,
@@ -200,18 +205,20 @@ function pausedBy(
     nextNominalAt: null,
     waitingSince: null,
     updatedAt: Math.max(autoPause.since, current.updatedAt + 1),
-  }
+  } satisfies ScheduledTaskRecordChanges
 }
 
 function outcomeChanges(
   current: ScheduledTaskRecord,
   outcome: HeartbeatRunOutcome,
   input: { readonly now: number; readonly note?: string },
-): ScheduledTaskRecordChanges | null {
+) {
   if (current.kind !== 'heartbeat') return null
   const updatedAt = Math.max(input.now, current.updatedAt + 1)
   if (outcome === 'acted') {
-    return current.consecutiveIdleRuns === 0 ? null : { consecutiveIdleRuns: 0, updatedAt }
+    return (
+      current.consecutiveIdleRuns === 0 ? null : { consecutiveIdleRuns: 0, updatedAt }
+    ) satisfies ScheduledTaskRecordChanges | null
   }
   if (outcome === 'done') {
     // Paused already (by the Run itself, as its instruction says): it still says why it ended.
@@ -220,7 +227,7 @@ function outcomeChanges(
       current,
       { reason: 'done', message: doneAutoPauseMessage(input.note), since: input.now },
       current.consecutiveIdleRuns,
-    )
+    ) satisfies ScheduledTaskRecordChanges | null
   }
   const idleRuns = current.consecutiveIdleRuns + 1
   if (current.enabled && idleRuns >= current.idlePauseAfter) {
@@ -228,9 +235,9 @@ function outcomeChanges(
       current,
       { reason: 'idle', message: idleAutoPauseMessage(idleRuns), since: input.now },
       idleRuns,
-    )
+    ) satisfies ScheduledTaskRecordChanges | null
   }
-  return { consecutiveIdleRuns: idleRuns, updatedAt }
+  return { consecutiveIdleRuns: idleRuns, updatedAt } satisfies ScheduledTaskRecordChanges
 }
 
 /**

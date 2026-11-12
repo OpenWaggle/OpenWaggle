@@ -101,7 +101,7 @@ function unregisterSummaryInvocation(sessionId: string) {
   })
 }
 
-function sessionDetail(id: SessionDetail['id'], title: string): SessionDetail {
+function sessionDetail(id: SessionDetail['id'], title: string) {
   return { ...makeSessionDetail(PROJECT_PATH), id, title }
 }
 

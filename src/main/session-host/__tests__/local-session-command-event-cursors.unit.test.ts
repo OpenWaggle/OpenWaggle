@@ -14,10 +14,7 @@ const externalCursor = { hostInstanceId: 'opaque-authority.cursor', sequence: 0 
 const internalCursor = { hostInstanceId: 'host-internal', sequence: 42 }
 const rotatedCursor = { hostInstanceId: 'opaque-authority.rotated', sequence: 0 }
 
-function waitPayload(
-  operation: 'wait' | 'exports-wait',
-  after: SessionHostEventCursor,
-): LocalSessionCommandPayload {
+function waitPayload(operation: 'wait' | 'exports-wait', after: SessionHostEventCursor) {
   return {
     contract: 'session-query-v2',
     request: {
@@ -39,11 +36,11 @@ function waitPayload(
               after,
             },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
-function exportSummary(): SessionExportOperationSummary {
-  return {
+function exportSummary() {
+  const summary: SessionExportOperationSummary = {
     exportOperationId: 'export-1',
     sessionId: 'worker',
     format: 'jsonl',
@@ -57,10 +54,11 @@ function exportSummary(): SessionExportOperationSummary {
     updatedAt: 2,
     completedAt: 2,
   }
+  return summary
 }
 
-function waitResult(operation: 'wait' | 'exports-wait'): LocalSessionCommandResult {
-  return {
+function waitResult(operation: 'wait' | 'exports-wait') {
+  const result: LocalSessionCommandResult = {
     contract: 'session-query-v2',
     response: {
       contractVersion: 2,
@@ -82,6 +80,7 @@ function waitResult(operation: 'wait' | 'exports-wait'): LocalSessionCommandResu
             },
     },
   }
+  return result
 }
 
 describe('Local Session command event cursors', () => {

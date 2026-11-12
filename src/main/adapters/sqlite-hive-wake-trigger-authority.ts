@@ -28,14 +28,24 @@ const NO_PROFILES: Profiles = new Set()
 /** A caller or Run the Host cannot identify. No other Run can lift it. */
 const UNKNOWN: Profiles = new Set(['\u0000unknown'])
 
-function callerStep(callerId: string | null | undefined): RunVerdictStep<Profiles> {
-  if (!callerId) return { verdict: UNKNOWN, followRuns: [] }
-  if (isLocalUserCallerId(callerId)) return { verdict: NO_PROFILES, followRuns: [] }
-  if (isExternalClientCallerId(callerId)) return { verdict: new Set([callerId]), followRuns: [] }
+function callerStep(callerId: string | null | undefined) {
+  if (!callerId) {
+    const step: RunVerdictStep<Profiles> = { verdict: UNKNOWN, followRuns: [] }
+    return step
+  }
+  if (isLocalUserCallerId(callerId)) {
+    const step: RunVerdictStep<Profiles> = { verdict: NO_PROFILES, followRuns: [] }
+    return step
+  }
+  if (isExternalClientCallerId(callerId)) {
+    const step: RunVerdictStep<Profiles> = { verdict: new Set([callerId]), followRuns: [] }
+    return step
+  }
   const agent = parseSessionAgentCallerId(callerId)
-  return agent
+  const step: RunVerdictStep<Profiles> = agent
     ? { verdict: NO_PROFILES, followRuns: [agent] }
     : { verdict: UNKNOWN, followRuns: [] }
+  return step
 }
 
 function runCallerId(sql: SqlClient.SqlClient, run: RunReference) {
@@ -46,13 +56,13 @@ function runCallerId(sql: SqlClient.SqlClient, run: RunReference) {
   `.pipe(Effect.map((rows) => rows[0]?.caller_id))
 }
 
-function profilesWalk(sql: SqlClient.SqlClient): RunInitiatorWalk<Profiles, unknown> {
+function profilesWalk(sql: SqlClient.SqlClient) {
   return {
     step: (run) => runCallerId(sql, run).pipe(Effect.map(callerStep)),
     combine: (verdicts) =>
       verdicts.includes(UNKNOWN) ? UNKNOWN : new Set(verdicts.flatMap((profiles) => [...profiles])),
     failClosed: UNKNOWN,
-  }
+  } satisfies RunInitiatorWalk<Profiles, unknown>
 }
 
 function callerProfiles(sql: SqlClient.SqlClient, callerId: string | null | undefined) {

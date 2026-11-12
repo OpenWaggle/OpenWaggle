@@ -78,7 +78,7 @@ function startPhrase(permits: (action: string) => boolean) {
 export function availableAgentsPromptSection(
   agents: readonly AvailableAgent[],
   grant: SessionsToolActionGrant,
-): string | undefined {
+) {
   const permits = (action: string) => permitsSessionsToolAction(action, grant)
   const start = startPhrase(permits)
   if (agents.length === 0 || start === '') return undefined
@@ -108,9 +108,7 @@ export interface AvailableAgentsPromptInput {
   readonly discover?: typeof discoverAgentDefinitions
 }
 
-async function loadAvailableAgents(
-  input: AvailableAgentsPromptInput,
-): Promise<readonly AvailableAgent[]> {
+async function loadAvailableAgents(input: AvailableAgentsPromptInput) {
   try {
     const { definitions } = await (input.discover ?? discoverAgentDefinitions)({
       projectPath: input.projectPath,
@@ -127,7 +125,7 @@ async function loadAvailableAgents(
       projectPath: input.projectPath,
       error: describeError(error),
     })
-    return []
+    return [] satisfies readonly AvailableAgent[]
   }
 }
 
@@ -145,9 +143,7 @@ function allowsHive(input: AvailableAgentsPromptInput) {
  * it goes in a custom section after `cwd`, like the Session identity, so the prompt cache before
  * it stays shared by the project's Sessions.
  */
-export function createAvailableAgentsPromptExtension(
-  input: AvailableAgentsPromptInput,
-): SynchronousExtensionFactory | undefined {
+export function createAvailableAgentsPromptExtension(input: AvailableAgentsPromptInput) {
   const grant: SessionsToolActionGrant = {
     capabilities: input.sessionCapabilities,
     modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
@@ -156,7 +152,7 @@ export function createAvailableAgentsPromptExtension(
     permitsSessionsToolAction(action, grant),
   )
   if (!startsSessions || !allowsHive(input)) return undefined
-  return (pi) => {
+  return ((pi) => {
     let section: Promise<string | undefined> | undefined
     pi.on('before_agent_start', async (event) => {
       section ??= loadAvailableAgents(input).then((agents) =>
@@ -166,5 +162,5 @@ export function createAvailableAgentsPromptExtension(
       if (content) event.systemPromptOptions.sections[AVAILABLE_AGENTS_PROMPT_SECTION] = content
       return undefined
     })
-  }
+  }) satisfies SynchronousExtensionFactory | undefined
 }

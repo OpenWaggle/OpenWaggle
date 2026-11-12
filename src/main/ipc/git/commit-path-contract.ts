@@ -10,7 +10,7 @@ export {
 } from '@shared/schemas/git-requests'
 
 /** Protect direct main-process callers and rename-source expansion, which can add paths after IPC decoding. */
-export function validateSelectedGitPaths(paths: readonly string[]): string | null {
+export function validateSelectedGitPaths(paths: readonly string[]) {
   if (paths.length > GIT_SELECTED_PATH_COUNT_LIMIT) {
     return `Select at most ${String(GIT_SELECTED_PATH_COUNT_LIMIT)} files in one commit.`
   }

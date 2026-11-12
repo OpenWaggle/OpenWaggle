@@ -32,12 +32,14 @@ export type { McpCliHost } from './mcp-cli-management-context'
  * channels, so the CLI and Settings > MCP change the same files the same way.
  */
 
-function scopeOf(destination: McpWriteDestination): McpConfigFileScope {
-  return destination === 'pi-global' || destination === 'openwaggle-global' ? 'global' : 'project'
+function scopeOf(destination: McpWriteDestination) {
+  return destination === 'pi-global' || destination === 'openwaggle-global'
+    ? ('global' as const)
+    : ('project' as const)
 }
 
-function defaultDestination(scope: McpConfigFileScope): McpWriteDestination {
-  return scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
+function defaultDestination(scope: McpConfigFileScope) {
+  return scope === 'global' ? ('openwaggle-global' as const) : ('project-openwaggle' as const)
 }
 
 function findServer(view: McpConfigurationView, name: string) {
@@ -49,11 +51,7 @@ function missingServer(view: McpConfigurationView, name: string) {
   return new Error(`No MCP server named "${name}". Configured: ${configured}.`)
 }
 
-async function addCommand({
-  args,
-  projectPath,
-  context,
-}: McpManagementCommandInput): Promise<McpManagementExit> {
+async function addCommand({ args, projectPath, context }: McpManagementCommandInput) {
   const input = mcpCliAddInput(args)
   const scope = input.destination ? scopeOf(input.destination) : projectPath ? 'project' : 'global'
   const destination = input.destination ?? defaultDestination(scope)
@@ -81,11 +79,7 @@ async function addCommand({
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }
 
-async function removeCommand({
-  args,
-  projectPath,
-  context,
-}: McpManagementCommandInput): Promise<McpManagementExit> {
+async function removeCommand({ args, projectPath, context }: McpManagementCommandInput) {
   const name = requireServerName('remove', args)
   const view = await context.host.invoke('mcp:get-configuration', { projectPath })
   const server = findServer(view, name)
@@ -98,7 +92,7 @@ async function removeCommand({
 async function setEnabledCommand(
   enabled: boolean,
   { args, projectPath, context }: McpManagementCommandInput,
-): Promise<McpManagementExit> {
+) {
   const name = requireServerName(enabled ? 'enable' : 'disable', args)
   const inProject = args.flags.has('in-project')
   const scopedProject = projectPath ?? (inProject ? context.workingDirectory : null)
@@ -127,11 +121,7 @@ function requireOAuthServer(view: McpConfigurationView, name: string) {
   return server
 }
 
-async function loginCommand({
-  args,
-  projectPath,
-  context,
-}: McpManagementCommandInput): Promise<McpManagementExit> {
+async function loginCommand({ args, projectPath, context }: McpManagementCommandInput) {
   const name = requireServerName('login', args)
   requireOAuthServer(await context.host.invoke('mcp:get-configuration', { projectPath }), name)
   const result = await context.host.invoke('mcp:sign-in', { projectPath, name })
@@ -147,11 +137,7 @@ async function loginCommand({
   return MCP_MANAGEMENT_EXIT.FAILURE
 }
 
-async function logoutCommand({
-  args,
-  projectPath,
-  context,
-}: McpManagementCommandInput): Promise<McpManagementExit> {
+async function logoutCommand({ args, projectPath, context }: McpManagementCommandInput) {
   const name = requireServerName('logout', args)
   requireOAuthServer(await context.host.invoke('mcp:get-configuration', { projectPath }), name)
   await context.host.invoke('mcp:sign-out', { projectPath, name })
@@ -178,7 +164,7 @@ export async function runMcpManagementCommand(
   command: McpManagementCommand,
   rawArgs: readonly string[],
   context: McpManagementContext,
-): Promise<number> {
+) {
   try {
     const args = parseMcpManagementArguments(command, rawArgs)
     const projectPath = mcpCliProjectPath(

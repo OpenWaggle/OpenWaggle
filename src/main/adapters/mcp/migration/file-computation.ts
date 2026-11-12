@@ -94,7 +94,7 @@ function finish(
   document: JsonDocument,
   servers: JsonObject,
   changes: readonly McpServerMigrationChange[],
-): FileComputation {
+) {
   const value = document.value
   const maps = mcpConfigServerMaps(value)
   const usesAlias = maps.mcpServers === undefined && maps.servers !== undefined
@@ -125,10 +125,11 @@ export interface FileComputationInput {
   readonly preserveEnablement: boolean
 }
 
-export async function computeGlobalFile(input: FileComputationInput): Promise<FileComputation> {
+export async function computeGlobalFile(input: FileComputationInput) {
   const paths = globalMcpPaths(input.sources.homeDir, input.sources.piAgentDir)
   if (input.original === undefined && !input.preserveEnablement) {
-    return { text: undefined, changes: [] }
+    const computation: FileComputation = { text: undefined, changes: [] }
+    return computation
   }
   const document = documentFor(paths.openwaggleGlobal, input.original)
   const piGlobal = await input.sources.readOnlyConfig(paths.piGlobal)
@@ -183,7 +184,7 @@ async function projectLayers(sources: McpFileSources, projectPath: string) {
 
 export async function computeProjectFile(
   input: FileComputationInput & { readonly projectPath: string },
-): Promise<FileComputation> {
+) {
   const projectFile = projectMcpPaths(input.projectPath).openwaggle
   const document = documentFor(projectFile, input.original)
   const { lowerLayers, livePiConfigs, oldLayers } = await projectLayers(

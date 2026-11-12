@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionResourceContent } from '@shared/types/session-resource'
 import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { isTrustedRendererRequest } from './renderer-request-trust'
 import { downloadContentDisposition } from './session-resource-content-disposition'
@@ -93,7 +92,7 @@ export function registerSessionResourceContentReference(
     readonly mimeType: string
   },
   ownerId: number,
-): SessionResourceContent {
+) {
   const now = currentTime()
   if (!Number.isSafeInteger(ownerId) || ownerId < 0) {
     throw new Error('Invalid Session resource capability owner.')
@@ -225,7 +224,7 @@ function singleChunkStream(bytes: Uint8Array) {
 async function defaultReadContent(input: {
   readonly sessionId: SessionId
   readonly resourceId: string
-}): Promise<SessionResourceProtocolContent | null> {
+}) {
   const { readHostSessionResourceContent } =
     await import('./application/host-ui-session-resource-content-client')
   // Session resources live in the Session Host's store, never in the window (A-F5).
@@ -235,7 +234,7 @@ async function defaultReadContent(input: {
     fileName: remote.content.fileName,
     mimeType: remote.content.mimeType,
     body: singleChunkStream(remote.content.bytes),
-  }
+  } satisfies SessionResourceProtocolContent
 }
 
 export function registerSessionResourceProtocolOnce(

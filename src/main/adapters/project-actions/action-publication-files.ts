@@ -61,7 +61,7 @@ async function writeExclusive(path: string, content: string) {
 export async function createActionPublication(
   workspace: string,
   requireWorkspace: () => Promise<void>,
-): Promise<ActionPublicationIdentity> {
+) {
   for (const directory of ['.openwaggle', RECOVERY_DIRECTORY]) {
     await requireWorkspace()
     const path = join(workspace, directory)
@@ -108,7 +108,7 @@ export async function writeActionManifest(
   manifest: ActionManifest,
   publication: ActionPublicationIdentity,
   requireWorkspace: () => Promise<void>,
-): Promise<boolean> {
+) {
   const directory = actionPublicationPath(workspace, publication.id)
   const requirePublication = async () => {
     await requireWorkspace()

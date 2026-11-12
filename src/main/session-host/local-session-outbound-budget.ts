@@ -148,7 +148,7 @@ export class LocalSessionOutboundByteBudget {
     signal: AbortSignal,
     owner?: LocalSessionOutboundOwner,
     options: LocalSessionOutboundEncodeOptions = {},
-  ): Promise<LocalSessionOutboundLease> {
+  ) {
     const arrivedAt = this.wallNow()
     const arrivedLiveAt = this.clock.now()
     if (signal.aborted) throw encodingAborted()
@@ -260,7 +260,7 @@ export class LocalSessionOutboundByteBudget {
     signal: AbortSignal,
     owner: LocalSessionOutboundOwner | undefined,
     arrivedAt: number,
-  ): LocalSessionOutboundLease {
+  ) {
     this.retainBytes(MAX_OUTBOUND_ENCODING_RESERVATION_BYTES)
     let payload: Buffer
     try {
@@ -279,7 +279,7 @@ export class LocalSessionOutboundByteBudget {
     owner: LocalSessionOutboundOwner | undefined,
     reservationBytes: number,
     arrivedAt: number,
-  ): LocalSessionOutboundLease {
+  ) {
     const bytes =
       payload.byteLength +
       (payload.byteLength > MAX_LOCAL_SESSION_FRAME_BYTES ? MAX_LOCAL_SESSION_FRAME_BYTES : 0)

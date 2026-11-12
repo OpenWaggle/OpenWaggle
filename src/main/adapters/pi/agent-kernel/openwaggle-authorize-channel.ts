@@ -68,7 +68,7 @@ function carriesDeclaredConfirm(ui: object): ui is OpenWaggleDeclaredConfirmCarr
  * A missing channel degrades to plain `confirm`, which is `user-input` and still always prompts, so
  * the behaviour is unchanged and only the declared category is lost.
  */
-export function getOpenWaggleDeclaredConfirm(ui: unknown): OpenWaggleDeclaredConfirm | undefined {
+export function getOpenWaggleDeclaredConfirm(ui: unknown) {
   if (typeof ui !== 'object' || ui === null) return undefined
   return carriesDeclaredConfirm(ui) ? ui[OPENWAGGLE_DECLARED_CONFIRM_KEY] : undefined
 }
@@ -90,7 +90,7 @@ function carriesAuthorize(ui: object): ui is OpenWaggleAuthorizeCarrier {
   )
 }
 
-export function getOpenWaggleAuthorize(ui: unknown): OpenWaggleAuthorize | undefined {
+export function getOpenWaggleAuthorize(ui: unknown) {
   if (typeof ui !== 'object' || ui === null) return undefined
   return carriesAuthorize(ui) ? ui[OPENWAGGLE_AUTHORIZE_KEY] : undefined
 }

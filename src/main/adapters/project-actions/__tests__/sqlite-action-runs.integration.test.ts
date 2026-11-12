@@ -66,7 +66,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-function run(id: string): ActionRun {
+function run(id: string) {
   return {
     id,
     requestId: `request-${id}`,
@@ -91,7 +91,7 @@ function run(id: string): ActionRun {
     previewUrl: null,
     ready: false,
     outputBytes: 8,
-  }
+  } satisfies ActionRun
 }
 
 it('retains request identities and history metadata after Host loss without replaying commands', async () => {

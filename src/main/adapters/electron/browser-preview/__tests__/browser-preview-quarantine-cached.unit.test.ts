@@ -80,7 +80,7 @@ describe('quarantined cached native capabilities', () => {
   it('does not reinstall an element picker after cancellation crosses owner retirement', async () => {
     const nativePick = Promise.withResolvers<unknown>()
     const execute = vi
-      .fn(async (): Promise<unknown> => null)
+      .fn<() => Promise<unknown>>(async () => null)
       .mockImplementationOnce(() => nativePick.promise)
     const contents = fromPartial<WebContents>({
       executeJavaScriptInIsolatedWorld: execute,

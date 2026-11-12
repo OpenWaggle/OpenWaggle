@@ -35,8 +35,8 @@ export interface TerminalProcessPidRefresh {
 
 type ProcessRows = ReadonlyMap<number, ProcessRow>
 
-function unavailableRefresh(cachedPids: readonly number[]): TerminalProcessPidRefresh {
-  return {
+function unavailableRefresh(cachedPids: readonly number[]) {
+  const refresh: TerminalProcessPidRefresh = {
     processPids: [],
     processIdentities: [],
     ttyProcessPids: [],
@@ -48,6 +48,7 @@ function unavailableRefresh(cachedPids: readonly number[]): TerminalProcessPidRe
     rootIdentityMismatch: false,
     rootExitedByIdentity: false,
   }
+  return refresh
 }
 
 function isMissingProcessError(error: unknown) {
@@ -84,8 +85,8 @@ function closedTtyHasNoKnownProcesses(
   return [...knownPids].every(isProcessAbsent)
 }
 
-function emptyReliableRefresh(): TerminalProcessPidRefresh {
-  return {
+function emptyReliableRefresh() {
+  const refresh: TerminalProcessPidRefresh = {
     processPids: [],
     processIdentities: [],
     ttyProcessPids: [],
@@ -97,6 +98,7 @@ function emptyReliableRefresh(): TerminalProcessPidRefresh {
     rootIdentityMismatch: false,
     rootExitedByIdentity: true,
   }
+  return refresh
 }
 
 function collectValidatedPids(input: {
@@ -211,7 +213,7 @@ export async function refreshTerminalProcessPids(
   ttyClosed: boolean,
   timeoutMs = TERMINAL_PROCESS_SNAPSHOT_MS,
   ttyMembershipClosed = ttyClosed,
-): Promise<TerminalProcessPidRefresh> {
+) {
   // Once the exact PTY has reported exit and its tty device has disappeared,
   // a missing numeric PID is a complete absence proof. This fast path never
   // authorizes a signal: a live or recycled PID falls through to the
@@ -297,5 +299,5 @@ export async function refreshTerminalProcessPids(
     rootIdentityVerified,
     rootIdentityMismatch,
     rootExitedByIdentity,
-  }
+  } satisfies TerminalProcessPidRefresh
 }

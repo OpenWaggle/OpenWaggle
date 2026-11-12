@@ -90,9 +90,9 @@ export function shiftUsageStatisticsDay(day: string, offset: number) {
  * today is closed, `install.new` and `install.onboarding` count as sent, and this week and month
  * already had an Active day. The install age is read again from local evidence.
  */
-export function recoveredUsageStatisticsHostState(today: string): UsageStatisticsHostState {
+export function recoveredUsageStatisticsHostState(today: string) {
   const yesterday = shiftUsageStatisticsDay(today, -1)
-  return {
+  const state: UsageStatisticsHostState = {
     schemaVersion: USAGE_STATISTICS_STATE_SCHEMA_VERSION,
     install: {
       firstSeenDay: null,
@@ -106,6 +106,7 @@ export function recoveredUsageStatisticsHostState(today: string): UsageStatistic
     reporting: { closedThroughDay: yesterday, closedDays: [], inFlightDay: null },
     days: {},
   }
+  return state
 }
 
 function epochDayOrThrow(day: string) {
@@ -141,7 +142,7 @@ export function reportableUsageStatisticsDays(input: {
   readonly state: UsageStatisticsHostState
   readonly guiDays: Readonly<Record<string, UsageStatisticsDay>>
   readonly today: string
-}): readonly string[] {
+}) {
   const todayEpochDay = epochDayOrThrow(input.today)
   const { install, reporting } = input.state
   const candidates = new Set([...Object.keys(input.state.days), ...Object.keys(input.guiDays)])
@@ -194,10 +195,7 @@ function sameDays(left: readonly string[], right: readonly string[]) {
  * closed days. A first day that expired before it was reported ends onboarding unsent. Returns
  * `state` itself when nothing changed.
  */
-export function pruneUsageStatisticsHostState(
-  state: UsageStatisticsHostState,
-  today: string,
-): UsageStatisticsHostState {
+export function pruneUsageStatisticsHostState(state: UsageStatisticsHostState, today: string) {
   const days = pruneUsageStatisticsDays(state.days, today)
   const closedDays = prunedClosedDays(state.reporting)
   const firstDay = state.install.firstSeenDay
@@ -217,21 +215,16 @@ export function pruneUsageStatisticsHostState(
     days,
     reporting: { ...state.reporting, closedDays },
     install: onboardingExpired ? { ...state.install, onboardingReported: true } : state.install,
-  }
+  } satisfies UsageStatisticsHostState
 }
 
 /** Records that the batch for `day` is about to be sent. */
-export function markUsageStatisticsDayInFlight(
-  state: UsageStatisticsHostState,
-  day: string,
-): UsageStatisticsHostState {
+export function markUsageStatisticsDayInFlight(state: UsageStatisticsHostState, day: string) {
   return { ...state, reporting: { ...state.reporting, inFlightDay: day } }
 }
 
 /** The send ended with nothing stored by the endpoint; the day stays queued for a retry. */
-export function clearUsageStatisticsInFlightDay(
-  state: UsageStatisticsHostState,
-): UsageStatisticsHostState {
+export function clearUsageStatisticsInFlightDay(state: UsageStatisticsHostState) {
   if (state.reporting.inFlightDay === null) return state
   return { ...state, reporting: { ...state.reporting, inFlightDay: null } }
 }
@@ -245,7 +238,7 @@ export function closeUsageStatisticsDay(
   state: UsageStatisticsHostState,
   day: string,
   report: UsageStatisticsClosedReport | null,
-): UsageStatisticsHostState {
+) {
   const { [day]: _closed, ...days } = state.days
   const { install } = state
   const reporting: UsageStatisticsReportingState = {

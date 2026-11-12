@@ -24,7 +24,7 @@ const {
     stdout: 'main\n',
     stderr: '',
   })),
-  createGitWorktreeMock: vi.fn(async (): Promise<GitWorktreeMutationResult> => ({
+  createGitWorktreeMock: vi.fn<() => Promise<GitWorktreeMutationResult>>(async () => ({
     ok: true,
     message: 'ok',
     path: '/wt',
@@ -35,8 +35,10 @@ const {
     Promise.resolve(null),
   ),
   setSessionWorktreeMock: vi.fn(async () => {}),
-  resolveFreshWorktreeBaseRefMock: vi.fn(
-    async (workspace: Pick<BoundWorkspaceResource, 'worktreeBaseRef'>): Promise<string | null> =>
+  resolveFreshWorktreeBaseRefMock: vi.fn<
+    (workspace: Pick<BoundWorkspaceResource, 'worktreeBaseRef'>) => Promise<string | null>
+  >(
+    async (workspace: Pick<BoundWorkspaceResource, 'worktreeBaseRef'>) =>
       workspace.worktreeBaseRef ?? 'main',
   ),
 }))

@@ -37,16 +37,12 @@ type SettingsAuthorizationGrant = NonNullable<
 const EMPTY_CONFIG: ProjectConfig = {}
 
 /** A grant as the domain types it: a `resource` the file leaves out stays absent. */
-export function scopedAuthorizationGrant(
-  grant: SettingsAuthorizationGrant,
-): ScopedAuthorizationGrant {
+export function scopedAuthorizationGrant(grant: SettingsAuthorizationGrant) {
   const { resource, ...rest } = grant
   return resource === undefined ? rest : { ...rest, resource }
 }
 
-function parseSessionHostPolicy(
-  policy: NonNullable<ParsedProjectSettingsFile['sessionHost']>,
-): NonNullable<ProjectConfig['sessionHost']> {
+function parseSessionHostPolicy(policy: NonNullable<ParsedProjectSettingsFile['sessionHost']>) {
   const { multiAgentEnabled, parentConcurrencyLimit } = policy
   return {
     ...(multiAgentEnabled === undefined ? {} : { multiAgentEnabled }),
@@ -54,9 +50,7 @@ function parseSessionHostPolicy(
   }
 }
 
-function parseProjectPreferences(
-  settings: ParsedProjectSettingsFile | null,
-): ProjectPreferences | undefined {
+function parseProjectPreferences(settings: ParsedProjectSettingsFile | null) {
   const model = settings?.preferences?.model
   const authorizationMode = settings?.preferences?.authorizationMode
   if (!model && !authorizationMode) return undefined
@@ -66,7 +60,7 @@ function parseProjectPreferences(
   }
 }
 
-export function parseProjectConfig(settings: ParsedProjectSettingsFile | null): ProjectConfig {
+export function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
   if (settings === null) return EMPTY_CONFIG
   const preferences = parseProjectPreferences(settings)
   const grants = (settings.authorizationGrants ?? []).map(scopedAuthorizationGrant)

@@ -5,7 +5,7 @@ import type { FollowUpQueuePauseReason } from '@shared/types/session-control-que
 import type { WaggleInvocation } from '@shared/types/waggle'
 import { appendPendingFollowUp } from './follow-up-append'
 import type { FollowUpQueue, FollowUpQueueItem } from './follow-up-queue'
-import { planMessageSubmission, type SessionRunAvailability } from './message-submission'
+import { planMessageSubmission } from './message-submission'
 import {
   type RunStartSettings,
   type RunStartSettingsRejection,
@@ -49,7 +49,7 @@ export interface SessionControlIntentSnapshot {
  */
 export function followUpAttachmentOwner(
   intent: Pick<SessionControlIntentSnapshot, 'callerId' | 'authorCallerId'>,
-): string {
+) {
   return intent.authorCallerId ?? intent.callerId
 }
 
@@ -157,7 +157,7 @@ export interface ApplyAdaptiveMessageInput {
   readonly runSettings?: RunStartSettings
 }
 
-function toRunAvailability(run: SessionControlRunState): SessionRunAvailability {
+function toRunAvailability(run: SessionControlRunState) {
   return matchBy(run, 'state')
     .with('idle', () => ({ state: 'idle' }))
     .with('starting', ({ runId }) => ({ state: 'starting', runId }))
@@ -166,7 +166,7 @@ function toRunAvailability(run: SessionControlRunState): SessionRunAvailability 
     .exhaustive()
 }
 
-export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAdaptiveMessageResult {
+export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput) {
   const plan = planMessageSubmission({
     run: toRunAvailability(input.state.run),
     followUpQueue: {
@@ -177,7 +177,7 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
     },
   })
 
-  return matchBy(plan, 'action')
+  const result: ApplyAdaptiveMessageResult = matchBy(plan, 'action')
     .with('start-run', () => {
       const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
       return {
@@ -200,16 +200,30 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
         },
       }
     })
-    .with('append-follow-up', (): ApplyAdaptiveMessageResult => {
+    .with('append-follow-up', () => {
       const refused = refuseRunStartSettings(input.runSettings)
-      if (refused) return { accepted: false, code: refused, state: input.state }
+      if (refused) {
+        const result: ApplyAdaptiveMessageResult = {
+          accepted: false,
+          code: refused,
+          state: input.state,
+        }
+        return result
+      }
       const appended = appendPendingFollowUp({
         state: input.state,
         followUpId: input.identities.followUpId,
         intent: input.intent,
       })
-      if (!appended.accepted) return { accepted: false, code: appended.code, state: input.state }
-      return {
+      if (!appended.accepted) {
+        const result: ApplyAdaptiveMessageResult = {
+          accepted: false,
+          code: appended.code,
+          state: input.state,
+        }
+        return result
+      }
+      const result: ApplyAdaptiveMessageResult = {
         accepted: true,
         state: appended.state,
         outcome: {
@@ -219,6 +233,8 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
           ...appended.queued,
         },
       }
+      return result
     })
     .exhaustive()
+  return result
 }

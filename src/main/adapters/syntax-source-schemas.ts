@@ -42,13 +42,17 @@ const autoClosingPairSchema = Schema.transform(
   ),
   {
     strict: true,
-    decode: (pair): SyntaxLanguageAutoClosingPair => {
-      if (!('open' in pair)) return { open: pair[0], close: pair[1] }
-      return {
+    decode: (pair) => {
+      if (!('open' in pair)) {
+        const result: SyntaxLanguageAutoClosingPair = { open: pair[0], close: pair[1] }
+        return result
+      }
+      const result: SyntaxLanguageAutoClosingPair = {
         open: pair.open,
         close: pair.close,
         ...(pair.notIn.length > 0 ? { notIn: pair.notIn } : {}),
       }
+      return result
     },
     encode: (pair) => ({ open: pair.open, close: pair.close, notIn: pair.notIn ?? [] }),
   },
@@ -147,9 +151,10 @@ export const hasResourcePath = Schema.is(resourcePathSchema)
 export const isSourceObject = Schema.is(anyObjectSchema)
 
 /** Decode a source the importer already knows is an object; every field is lenient. */
-export function decodeSource<A, I>(schema: Schema.Schema<A, I>, value: unknown): A | undefined {
+export function decodeSource<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   if (!isSourceObject(value)) return undefined
-  return Option.getOrUndefined(Schema.decodeUnknownOption(schema)(value))
+  const result: A | undefined = Option.getOrUndefined(Schema.decodeUnknownOption(schema)(value))
+  return result
 }
 
 const appearanceVariantSchema = Schema.Literal(

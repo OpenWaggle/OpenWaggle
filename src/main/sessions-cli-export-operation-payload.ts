@@ -49,7 +49,7 @@ function exportStatuses(arguments_: ParsedArguments) {
   ]
 }
 
-function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
+function createPayload(arguments_: ParsedArguments) {
   const scope = option(arguments_, 'scope') ?? 'active-branch'
   if (scope !== 'active-branch' && scope !== 'tree') {
     throw new Error('Unsupported export scope. Expected active-branch or tree.')
@@ -57,7 +57,7 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
   const branchId = option(arguments_, 'branch')
   const resources = arguments_.options.get('resource')
   assertSessionExportBranchSelection({ branchScope: scope, ...(branchId ? { branchId } : {}) })
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       ...controlRequest(arguments_),
@@ -78,10 +78,11 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
       },
     },
   }
+  return payload
 }
 
-function cancelPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
-  return {
+function cancelPayload(arguments_: ParsedArguments) {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       ...controlRequest(arguments_),
@@ -95,9 +96,10 @@ function cancelPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
       },
     },
   }
+  return payload
 }
 
-function queryPayload(command: string, arguments_: ParsedArguments): LocalSessionCommandPayload {
+function queryPayload(command: string, arguments_: ParsedArguments) {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   const base = {
     contract: 'session-query-v2' as const,
@@ -123,7 +125,7 @@ function queryPayload(command: string, arguments_: ParsedArguments): LocalSessio
           ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
         },
       },
-    }
+    } satisfies LocalSessionCommandPayload
   }
   const exportOperationId = required(
     arguments_.positionals[EXPORT_TARGET_POSITION],
@@ -141,7 +143,7 @@ function queryPayload(command: string, arguments_: ParsedArguments): LocalSessio
           ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
         },
       },
-    }
+    } satisfies LocalSessionCommandPayload
   }
   if (command === 'exports-wait') {
     const after = watchCursor(arguments_)
@@ -158,7 +160,7 @@ function queryPayload(command: string, arguments_: ParsedArguments): LocalSessio
           ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
         },
       },
-    }
+    } satisfies LocalSessionCommandPayload
   }
   throw new Error(`Unsupported export operation command: ${command}.`)
 }
@@ -180,7 +182,7 @@ export function isSessionExportOperationCliCommand(value: string | undefined) {
 export function buildSessionsCliExportOperationPayload(
   command: string,
   arguments_: ParsedArguments,
-): LocalSessionCommandPayload {
+) {
   if (command === 'export-create') return createPayload(arguments_)
   if (command === 'export-cancel') return cancelPayload(arguments_)
   return queryPayload(command, arguments_)

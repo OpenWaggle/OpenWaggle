@@ -49,7 +49,7 @@ function stableResourceId(kind: string, identity: string) {
   return `workspace-${digest}`
 }
 
-function legacySetting(database: HostSqliteDatabase, key: string): unknown {
+function legacySetting(database: HostSqliteDatabase, key: string) {
   if (!cutoverTableExists(database, 'settings_store')) return undefined
   const valueJson = queryCutoverRow(
     database,
@@ -147,14 +147,15 @@ function workspaceForSession(session: LegacySessionRow) {
 }
 
 /** A legacy row decoded with its schema; the error names each column that did not match. */
-function decodeLegacyRow<A, I>(schema: Schema.Schema<A, I>, value: unknown, what: string): A {
+function decodeLegacyRow<A, I>(schema: Schema.Schema<A, I>, value: unknown, what: string) {
   const decoded = safeDecodeUnknown(schema, value)
   if (!decoded.success) throw new Error(`${what} is invalid: ${decoded.issues.join('; ')}`)
   return decoded.data
 }
 
-function decodeLegacySession(value: unknown): LegacySessionRow {
-  return decodeLegacyRow(legacySessionRowSchema, value, 'Legacy Session row')
+function decodeLegacySession(value: unknown) {
+  const row: LegacySessionRow = decodeLegacyRow(legacySessionRowSchema, value, 'Legacy Session row')
+  return row
 }
 
 function decodeLegacyActiveRun(value: unknown) {

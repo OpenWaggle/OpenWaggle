@@ -113,10 +113,10 @@ async function appendPrivate(file: string, content: string) {
   await chmodPrivate(file)
 }
 
-export function makeTerminalHistoryFiles(logsDir: string): TerminalHistoryFiles {
+export function makeTerminalHistoryFiles(logsDir: string) {
   let directoryReady = false
 
-  const describe = (key: TerminalKey): HistoryFiles => {
+  const describe = (key: TerminalKey) => {
     const baseName = `${digest(ownerKeyFromTerminalKey(key))}.${digest(key)}`
     return {
       baseName,
@@ -127,7 +127,7 @@ export function makeTerminalHistoryFiles(logsDir: string): TerminalHistoryFiles 
         `${baseName}${TERMINAL_HISTORY_WORKING_DIRECTORY_EXTENSION}`,
       ),
       cursorFile: path.join(logsDir, `${baseName}${TERMINAL_HISTORY_CURSOR_EXTENSION}`),
-    }
+    } satisfies HistoryFiles
   }
 
   const ensureDirectory = async () => {
@@ -227,5 +227,5 @@ export function makeTerminalHistoryFiles(logsDir: string): TerminalHistoryFiles 
     rename: (from, to) => fs.rename(from, to),
     writePrivate,
     writePrivateAtomically,
-  }
+  } satisfies TerminalHistoryFiles
 }

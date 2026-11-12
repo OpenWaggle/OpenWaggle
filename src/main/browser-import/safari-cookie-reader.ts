@@ -1,7 +1,6 @@
 import { readFile, stat } from 'node:fs/promises'
 import { BROWSER_IMPORT_LIMITS } from '@shared/types/browser-import'
 import {
-  type BrowserCookieReadResult,
   boundedSkippedDomains,
   cookieScope,
   type ImportedBrowserCookie,
@@ -48,16 +47,7 @@ function cookieString(cookie: Buffer, offset: number) {
   return cookie.toString('utf8', offset, end)
 }
 
-interface SafariCookieFields {
-  readonly flags: number
-  readonly domain: string
-  readonly name: string
-  readonly cookiePath: string
-  readonly value: string
-  readonly expiry: number | undefined
-}
-
-function readSafariCookieFields(cookie: Buffer): SafariCookieFields | null {
+function readSafariCookieFields(cookie: Buffer) {
   const flags = boundedUInt32(cookie, COOKIE_FLAGS_OFFSET, true)
   const domainOffset = boundedUInt32(cookie, COOKIE_DOMAIN_OFFSET, true)
   const nameOffset = boundedUInt32(cookie, COOKIE_NAME_OFFSET, true)
@@ -96,7 +86,7 @@ function readSafariCookieFields(cookie: Buffer): SafariCookieFields | null {
   }
 }
 
-function parseCookie(page: Buffer, offset: number): ImportedBrowserCookie | null {
+function parseCookie(page: Buffer, offset: number) {
   const size = boundedUInt32(page, offset, true)
   if (size === undefined || size < COOKIE_MIN_BYTES || offset + size > page.length) return null
   const cookie = page.subarray(offset, offset + size)
@@ -117,7 +107,7 @@ function parseCookie(page: Buffer, offset: number): ImportedBrowserCookie | null
     httpOnly: (flags & HTTP_ONLY_FLAG) !== 0,
     ...(expirationDate === undefined ? {} : { expirationDate }),
     sameSite: 'unspecified',
-  }
+  } satisfies ImportedBrowserCookie
 }
 
 function parsePage(page: Buffer) {
@@ -139,7 +129,7 @@ function parsePage(page: Buffer) {
   return { cookies, skipped }
 }
 
-export function parseSafariBinaryCookies(buffer: Buffer): BrowserCookieReadResult {
+export function parseSafariBinaryCookies(buffer: Buffer) {
   if (
     buffer.length < FILE_HEADER_BYTES ||
     buffer.subarray(0, UINT32_BYTES).toString('ascii') !== 'cook'

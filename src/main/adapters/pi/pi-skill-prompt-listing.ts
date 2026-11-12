@@ -69,8 +69,8 @@ export function promptSkillDescription(description: string) {
  * performance research: absolute paths were a third of a 9k-token listing). It changes only the
  * prompt's copy; Pi still reads every skill, and expands `/skill:` commands, from its real path.
  */
-export function skillPromptListingExtension(): ExtensionFactory {
-  return (pi) => {
+export function skillPromptListingExtension() {
+  const factory: ExtensionFactory = (pi) => {
     pi.on('before_agent_start', (event) => {
       const options = event.systemPromptOptions
       options.skills = options.skills.map((skill) => ({
@@ -81,4 +81,5 @@ export function skillPromptListingExtension(): ExtensionFactory {
       return undefined
     })
   }
+  return factory
 }

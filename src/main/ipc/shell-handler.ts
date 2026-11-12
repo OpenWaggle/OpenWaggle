@@ -79,7 +79,7 @@ function parsedWebUrl(url: string) {
   })
 }
 
-export function registerShellHandlers(): void {
+export function registerShellHandlers() {
   typedHandle('app:open-logs-dir', () =>
     Effect.gen(function* () {
       const result = yield* Effect.promise(() => openPath(appPaths.logs()))

@@ -28,21 +28,18 @@ export async function readActionWorkspaceIdentity(workspace: string) {
   }
 }
 
-export function actionContentRevision(content: string | null): string {
+export function actionContentRevision(content: string | null) {
   return createHash('sha256')
     .update(content === null ? 'missing' : `present:${content}`)
     .digest('hex')
 }
 
-export function serializeActionManifest(manifest: ActionManifest): string {
+export function serializeActionManifest(manifest: ActionManifest) {
   return `${JSON.stringify(decodeUnknownExactOrThrow(actionManifestSchema, manifest), null, JSON_INDENT)}\n`
 }
 
 /** Broken links and unreadable files are errors, never empty configuration. */
-export async function readActionConfigSource(
-  workspace: string,
-  source: string,
-): Promise<string | null> {
+export async function readActionConfigSource(workspace: string, source: string) {
   const directory = await lstat(join(workspace, CONFIG_DIRECTORY)).catch((error: unknown) => {
     if (isEnoent(error)) return null
     throw error

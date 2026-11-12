@@ -30,8 +30,8 @@ export function acquireLocalSessionObservationAdmission(
     readonly observationAdmission?: () => Promise<LocalSessionObservationAdmission>
   },
   caller: LocalSessionCallerIdentity,
-): Effect.Effect<LocalSessionObservationAdmission, Error> {
-  return input.observationAdmission
+) {
+  const effect: Effect.Effect<LocalSessionObservationAdmission, Error> = input.observationAdmission
     ? Effect.tryPromise({
         try: input.observationAdmission,
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
@@ -40,4 +40,5 @@ export function acquireLocalSessionObservationAdmission(
         caller,
         release: () => undefined,
       })
+  return effect
 }

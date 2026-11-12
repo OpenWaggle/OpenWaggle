@@ -49,11 +49,11 @@ export class LocalSessionOutboundWriter {
    * Handshake and connection-error frames are small. Bounded, they are written while large answers
    * wait for room, so a full budget never stalls a handshake toward its deadline.
    */
-  sendHandshakeFrame(value: unknown): Promise<void> {
+  sendHandshakeFrame(value: unknown) {
     return this.send(value, { maxBytes: MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES })
   }
 
-  send(value: unknown, options: LocalSessionOutboundSendOptions = {}): Promise<void> {
+  send(value: unknown, options: LocalSessionOutboundSendOptions = {}) {
     if (this.pendingSends >= this.maxPendingFrames) {
       if (!this.socket.destroyed) {
         logger.warn('Closing a Local Session connection: too many frames wait to be written.', {
@@ -62,7 +62,9 @@ export class LocalSessionOutboundWriter {
         })
       }
       this.socket.destroy()
-      return Promise.reject(new Error('Local Session client is not consuming outbound frames.'))
+      return Promise.reject(
+        new Error('Local Session client is not consuming outbound frames.'),
+      ) satisfies Promise<void>
     }
     this.pendingSends += 1
     const operation = this.writeTail

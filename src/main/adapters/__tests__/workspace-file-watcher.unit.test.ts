@@ -13,7 +13,7 @@ interface WatcherMocks {
   watch: ReturnType<typeof vi.fn>
 }
 
-const watcherMocks = vi.hoisted((): WatcherMocks => ({
+const watcherMocks = vi.hoisted<WatcherMocks>(() => ({
   instances: [],
   watch: vi.fn(),
 }))
@@ -93,7 +93,7 @@ async function watcherAt(index: number) {
   return watcher
 }
 
-function webContents(id: number): RendererSurface {
+function webContents(id: number) {
   return fromPartial<RendererSurface>({
     id,
     isDestroyed: () => false,

@@ -32,7 +32,7 @@ const EVIDENCE_OPTIONS: readonly (readonly [string, DelegationEvidenceKind])[] =
   ['evidence-source', 'source-reference'],
 ]
 
-function evidenceItem(value: unknown): DelegationEvidenceInput {
+function evidenceItem(value: unknown) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Delegation evidence must be an object.')
   }
@@ -43,17 +43,15 @@ function evidenceItem(value: unknown): DelegationEvidenceInput {
   if (!kind || typeof record.summary !== 'string') {
     throw new Error('Delegation evidence requires a supported kind and string summary.')
   }
-  return {
+  const input: DelegationEvidenceInput = {
     kind,
     summary: record.summary,
     ...(typeof record.reference === 'string' ? { reference: record.reference } : {}),
   }
+  return input
 }
 
-export function delegationEvidence(
-  arguments_: ParsedArguments,
-  structured?: readonly unknown[],
-): readonly DelegationEvidenceInput[] {
+export function delegationEvidence(arguments_: ParsedArguments, structured?: readonly unknown[]) {
   if (structured) return structured.map(evidenceItem)
   return EVIDENCE_OPTIONS.flatMap(([name, kind]) =>
     (arguments_.options.get(name) ?? []).map((value) =>
@@ -66,7 +64,7 @@ export function delegationEvidence(
 
 const CLAIM_SCOPES = ['project', 'repository'] as const
 
-function namedResource(value: string, name: string): DelegationClaimTarget {
+function namedResource(value: string, name: string) {
   const separator = value.indexOf(':')
   const scope = CLAIM_SCOPES.find((candidate) => candidate === value.slice(0, separator))
   const reference = value.slice(separator + 1)
@@ -76,12 +74,13 @@ function namedResource(value: string, name: string): DelegationClaimTarget {
       `--${name} takes <project|repository>:<namespace>/<name>, not ${JSON.stringify(value)}.`,
     )
   }
-  return {
+  const target: DelegationClaimTarget = {
     type: 'named-resource',
     scope,
     namespace: reference.slice(0, slash),
     name: reference.slice(slash + 1),
   }
+  return target
 }
 
 const CLAIM_OPTIONS: readonly (readonly [
@@ -97,10 +96,7 @@ const CLAIM_OPTIONS: readonly (readonly [
   ['write-resource', 'write', namedResource],
 ]
 
-export function delegationClaims(
-  arguments_: ParsedArguments,
-  structured?: readonly unknown[],
-): readonly DelegationScopeClaimInput[] {
+export function delegationClaims(arguments_: ParsedArguments, structured?: readonly unknown[]) {
   if (structured) {
     return structured.map((claim) => decodeUnknownExactOrThrow(delegationScopeClaimSchema, claim))
   }
@@ -129,7 +125,7 @@ export interface DelegationSpecificationEdits {
   readonly handoffContext?: string | null
 }
 
-function dependency(value: string): Dependency {
+function dependency(value: string) {
   const separator = value.lastIndexOf(':')
   const delegationId = separator < 0 ? value : value.slice(0, separator)
   const state = separator < 0 ? 'ready_for_review' : value.slice(separator + 1)
@@ -138,7 +134,8 @@ function dependency(value: string): Dependency {
       `--depends-on takes <delegation-id>[:accepted], not ${JSON.stringify(value)}.`,
     )
   }
-  return { delegationId, requiredState: state }
+  const result: Dependency = { delegationId, requiredState: state }
+  return result
 }
 
 /** The values of a list option, `[]` for the flag that clears it, or none when both are absent. */
@@ -158,9 +155,7 @@ function singleValue(arguments_: ParsedArguments, name: string) {
 }
 
 /** Reads the specification options of `delegation-amend` and `delegation-propose-amendment`. */
-export function delegationSpecificationEdits(
-  arguments_: ParsedArguments,
-): DelegationSpecificationEdits {
+export function delegationSpecificationEdits(arguments_: ParsedArguments) {
   const objective = singleValue(arguments_, 'objective')
   const deliverables = listEdit(arguments_, 'deliverable', 'no-deliverables')
   const acceptanceCriteria = listEdit(arguments_, 'accept', 'no-acceptance-criteria')
@@ -168,7 +163,7 @@ export function delegationSpecificationEdits(
   const dependencies = listEdit(arguments_, 'depends-on', 'no-dependencies')
   const handoff = listEdit(arguments_, 'handoff', 'no-handoff')
   const handoffContext = handoff === undefined ? undefined : singleValue(arguments_, 'handoff')
-  return {
+  const edits: DelegationSpecificationEdits = {
     ...(objective === undefined ? {} : { objective }),
     ...(deliverables ? { deliverables } : {}),
     ...(acceptanceCriteria ? { acceptanceCriteria } : {}),
@@ -176,6 +171,7 @@ export function delegationSpecificationEdits(
     ...(dependencies ? { dependencies: dependencies.map(dependency) } : {}),
     ...(handoff === undefined ? {} : { handoffContext: handoffContext ?? null }),
   }
+  return edits
 }
 
 export function hasDelegationSpecificationEdits(edits: DelegationSpecificationEdits) {
@@ -186,7 +182,7 @@ export function hasDelegationSpecificationEdits(edits: DelegationSpecificationEd
 export function applyDelegationSpecificationEdits(
   base: DelegationSpecificationInput,
   edits: DelegationSpecificationEdits,
-): DelegationSpecificationInput {
+) {
   const { handoffContext: baseHandoff, ...rest } = base
   const handoffContext = edits.handoffContext === undefined ? baseHandoff : edits.handoffContext
   return {

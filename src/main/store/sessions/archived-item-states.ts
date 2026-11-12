@@ -63,14 +63,12 @@ export function setArchiveTimesEffect(
   })
 }
 
-export async function readArchivedItemStates(
-  refs: readonly ArchivedItemRef[],
-): Promise<ReadonlyMap<string, number | null>> {
+export async function readArchivedItemStates(refs: readonly ArchivedItemRef[]) {
   return runStoreEffect(archivedItemStatesEffect(refs))
 }
 
 export async function setArchiveTimes(
   entries: readonly { readonly ref: ArchivedItemRef; readonly archivedAt: number }[],
-): Promise<void> {
+) {
   await runStoreEffect(setArchiveTimesEffect(entries))
 }

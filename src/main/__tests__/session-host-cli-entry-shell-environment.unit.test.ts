@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => {
     })),
     disableHardwareAcceleration: vi.fn(),
     installSessionBus: vi.fn(() => void order.push('session-bus')),
-    refreshedSince: vi.fn((): number | undefined => undefined),
+    refreshedSince: vi.fn<() => number | undefined>(() => undefined),
     whenReady: vi.fn(async () => void order.push('when-ready')),
     initFileLogger: vi.fn(async () => void order.push('init-logger')),
     drainFileLogger: vi.fn(async () => void order.push('drain-logger')),

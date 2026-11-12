@@ -48,7 +48,7 @@ export function retainPrivatePreparationProfiles(
   previousProfiles: readonly PreparationProfile[],
   sharedProfiles: readonly PreparationProfile[],
   releasedProfileId?: string,
-): ActionManifest {
+) {
   const profiles = new Map(manifest.profiles.map((profile) => [profile.id, profile]))
   const previousById = firstProfileById(previousProfiles)
   const sharedById = firstProfileById(sharedProfiles)
@@ -61,7 +61,9 @@ export function retainPrivatePreparationProfiles(
     if (!profile) throw new Error(`Preparation profile ${id} is missing.`)
     profiles.set(id, profile)
   }
-  return profiles.size === manifest.profiles.length
-    ? manifest
-    : { ...manifest, profiles: [...profiles.values()] }
+  return (
+    profiles.size === manifest.profiles.length
+      ? manifest
+      : { ...manifest, profiles: [...profiles.values()] }
+  ) satisfies ActionManifest
 }

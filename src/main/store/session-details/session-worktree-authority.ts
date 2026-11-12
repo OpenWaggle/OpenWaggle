@@ -89,7 +89,7 @@ export async function setSessionWorktree(
   environmentMode: SessionEnvironmentMode,
   worktreePath: string | null,
   worktreeBranch?: string,
-): Promise<void> {
+) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

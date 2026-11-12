@@ -41,8 +41,8 @@ interface FakeSession {
   readonly isStreaming: boolean
 }
 
-function sessionDetail(): SessionDetail {
-  return {
+function sessionDetail() {
+  const detail: SessionDetail = {
     id: SessionId('run-lifecycle-session'),
     title: 'Run lifecycle',
     projectPath: '/repo',
@@ -52,9 +52,10 @@ function sessionDetail(): SessionDetail {
     createdAt: 1,
     updatedAt: 2,
   }
+  return detail
 }
 
-function runInput(payload: HydratedAgentSendPayload): AgentKernelRunInput {
+function runInput(payload: HydratedAgentSendPayload) {
   return {
     session: sessionDetail(),
     runId: 'run-lifecycle-test',
@@ -62,14 +63,14 @@ function runInput(payload: HydratedAgentSendPayload): AgentKernelRunInput {
     model: SupportedModelId('openai/gpt-5.5'),
     signal: new AbortController().signal,
     onEvent: vi.fn(),
-  }
+  } satisfies AgentKernelRunInput
 }
 
 function assistantMessage(input: {
   readonly text: string
   readonly stopReason: 'stop' | 'error'
   readonly errorMessage?: string
-}): PiAgentMessage {
+}) {
   return {
     role: 'assistant',
     content: [{ type: 'text', text: input.text }],
@@ -93,7 +94,7 @@ function assistantMessage(input: {
     stopReason: input.stopReason,
     ...(input.errorMessage ? { errorMessage: input.errorMessage } : {}),
     timestamp: Date.now(),
-  }
+  } satisfies PiAgentMessage
 }
 
 describe('run lifecycle settlement', () => {

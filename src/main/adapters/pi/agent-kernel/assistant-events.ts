@@ -15,7 +15,7 @@ import type {
 } from './listener-types'
 import { emitEvent } from './transport-emitter'
 
-function getToolCallFromAssistantEvent(event: AgentSessionEvent): PiAssistantToolCall | null {
+function getToolCallFromAssistantEvent(event: AgentSessionEvent) {
   return matchBy(event, 'type')
     .with('message_update', (value) =>
       matchBy(value.assistantMessageEvent, 'type')

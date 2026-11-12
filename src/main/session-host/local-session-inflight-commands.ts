@@ -6,13 +6,15 @@ const DEFAULT_OLDEST_DESCRIBED_COMMANDS = 8
 const DEFAULT_NEWEST_DESCRIBED_COMMANDS = 4
 const LABEL_PATTERN = /^[A-Za-z0-9._:-]+$/u
 
-function labelPart(value: unknown): string | undefined {
+function labelPart(value: unknown) {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_LABEL_LENGTH) return
   return LABEL_PATTERN.test(value) ? value : undefined
 }
 
-function field(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+function field(value: unknown, key: string) {
+  const result: unknown =
+    typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+  return result
 }
 
 /**
@@ -21,7 +23,7 @@ function field(value: unknown, key: string): unknown {
  * session-lifecycle-v2), `request.query.operation` (session-query-v2) or `request.channel`
  * (host-ui-v1).
  */
-export function describeLocalSessionCommand(payload: unknown): string {
+export function describeLocalSessionCommand(payload: unknown) {
   const contract = labelPart(field(payload, 'contract'))
   const request = field(payload, 'request')
   const operation =
@@ -57,7 +59,7 @@ const isLongPollCommand = isMatching(
   ),
 )
 
-export function isLongPollLocalSessionCommand(payload: unknown): boolean {
+export function isLongPollLocalSessionCommand(payload: unknown) {
   return isLongPollCommand(payload)
 }
 
@@ -92,7 +94,7 @@ export class LocalSessionInflightCommands {
     this.onForegroundCommand = onForegroundCommand
   }
 
-  track(payload: unknown): () => void {
+  track(payload: unknown) {
     const id = this.nextId
     this.nextId += 1
     const longPoll = isLongPollLocalSessionCommand(payload)

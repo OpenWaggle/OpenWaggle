@@ -19,19 +19,23 @@ function bounded(message: string) {
   return message.length > MESSAGE_LIMIT ? `${message.slice(0, MESSAGE_LIMIT - 1)}…` : message
 }
 
-function skipped(reason: ScheduledTaskRunReason, message: string): ScheduledTaskDispatchSettlement {
-  return { run: { status: 'skipped', reason, message } }
+function skipped(reason: ScheduledTaskRunReason, message: string) {
+  const settlement: ScheduledTaskDispatchSettlement = {
+    run: { status: 'skipped', reason, message },
+  }
+  return settlement
 }
 
 function failed(
   reason: ScheduledTaskRunReason,
   message: string,
   attention?: ScheduledTaskAttentionReason,
-): ScheduledTaskDispatchSettlement {
-  return {
+) {
+  const settlement: ScheduledTaskDispatchSettlement = {
     run: { status: 'failed', reason, message: bounded(message) },
     ...(attention ? { attention } : {}),
   }
+  return settlement
 }
 
 /** What a refused request means for the task: a busy or full Host skips; the rest stop it. */
@@ -74,13 +78,14 @@ function refusalSettlement(code: string, kind: 'heartbeat' | 'launch') {
     : failed('dispatch-failed', `The Run start was refused (${code}).`)
 }
 
-export function settlementOfDispatch(
-  result: LocalSessionCommandResult,
-): ScheduledTaskDispatchSettlement {
+export function settlementOfDispatch(result: LocalSessionCommandResult) {
   if (result.contract === 'session-control-v2') {
     const outcome = result.response.outcome
     if (outcome.effect === 'started-run') {
-      return { run: { status: 'started', sessionId: outcome.sessionId, runId: outcome.runId } }
+      const settlement: ScheduledTaskDispatchSettlement = {
+        run: { status: 'started', sessionId: outcome.sessionId, runId: outcome.runId },
+      }
+      return settlement
     }
     if (outcome.effect === 'rejected') return refusalSettlement(outcome.code, 'heartbeat')
     return failed('dispatch-failed', `The Session answered ${outcome.effect} instead of starting.`)
@@ -88,7 +93,10 @@ export function settlementOfDispatch(
   if (result.contract === 'session-lifecycle-v2') {
     const outcome = result.response.outcome
     if (outcome.effect === 'launched-root') {
-      return { run: { status: 'started', sessionId: outcome.sessionId, runId: outcome.runId } }
+      const settlement: ScheduledTaskDispatchSettlement = {
+        run: { status: 'started', sessionId: outcome.sessionId, runId: outcome.runId },
+      }
+      return settlement
     }
     if (outcome.effect === 'rejected') return refusalSettlement(outcome.code, 'launch')
   }
@@ -100,7 +108,7 @@ function errorText(error: unknown) {
   return message || (error instanceof Error ? error.message : String(error))
 }
 
-export function settlementOfFailure(error: unknown): ScheduledTaskDispatchSettlement {
+export function settlementOfFailure(error: unknown) {
   if (error instanceof LocalSessionCommandAuthorizationError) {
     return failed(
       'creator-authority-revoked',

@@ -10,13 +10,13 @@ import { DesktopFenceRepository } from '../../ports/desktop-fence-repository'
 import { DESKTOP_FENCE_MIGRATION } from '../../services/desktop-fence-migration'
 import { SqliteDesktopFenceRepositoryLive } from '../sqlite-desktop-fence-repository'
 
-function record(token = 'fence-1'): DesktopFenceRecord & { readonly state: 'active' } {
+function record(token = 'fence-1') {
   return {
     token,
     hostInstanceId: 'host-1',
     scope: { kind: 'owner', ownerKey: 'session:one' },
     state: 'active',
-  }
+  } satisfies DesktopFenceRecord & { readonly state: 'active' }
 }
 
 function makeRuntime(filename: string) {

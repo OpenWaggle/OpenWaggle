@@ -16,7 +16,7 @@ function mcpCaller(
   authorizationCeiling: 'ask-for-approval' | 'yolo',
   capabilities: readonly ('sessions:start' | 'sessions:steer' | 'sessions:queue')[],
   payload: LocalSessionCommandPayload,
-): LocalSessionCallerIdentity {
+) {
   const authority = mcpTransientAuthority(
     {
       transport: 'stdio',
@@ -33,7 +33,7 @@ function mcpCaller(
     callerId: 'transient-mcp:run-controller',
     profileAuthority: authority,
     baseProfileScope: authority.scope,
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 describe('OpenWaggle MCP Session Run Control v2 adapter', () => {

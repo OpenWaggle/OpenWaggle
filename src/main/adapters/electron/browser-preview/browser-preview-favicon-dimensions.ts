@@ -16,7 +16,7 @@ import {
 
 export type { BrowserPreviewImageDimensions } from './browser-preview-favicon-image'
 
-function pngDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
+function pngDimensions(buffer: Buffer) {
   if (
     buffer.byteLength < PNG_FORMAT.MIN_BYTES ||
     !buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)
@@ -29,7 +29,7 @@ function pngDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
   }
 }
 
-function skipGifBlocks(buffer: Buffer, offset: number): number | null {
+function skipGifBlocks(buffer: Buffer, offset: number) {
   let cursor = offset
   while (cursor < buffer.byteLength) {
     const length = buffer[cursor]
@@ -76,7 +76,7 @@ function readGifFrame(buffer: Buffer, cursor: number) {
   }
 }
 
-function gifDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
+function gifDimensions(buffer: Buffer) {
   if (
     buffer.byteLength < GIF_FORMAT.HEADER_BYTES ||
     !/^GIF8[79]a$/u.test(buffer.subarray(0, GIF_FORMAT.SIGNATURE_BYTES).toString('ascii'))
@@ -161,7 +161,7 @@ function jpegFrameDimensions(buffer: Buffer, cursor: number, length: number) {
   }
 }
 
-function jpegDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
+function jpegDimensions(buffer: Buffer) {
   if (!hasJpegHeader(buffer)) return null
   let cursor = JPEG_FORMAT.TEMPORARY + 1
   let dimensions: BrowserPreviewImageDimensions | null = null
@@ -185,7 +185,7 @@ function jpegDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
   return safeBrowserPreviewImageDimensions(dimensions) ? dimensions : null
 }
 
-function webpDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
+function webpDimensions(buffer: Buffer) {
   if (
     buffer.byteLength < WEBP_FORMAT.MIN_BYTES ||
     buffer.subarray(0, WEBP_FORMAT.RIFF_END).toString('ascii') !== 'RIFF' ||
@@ -229,7 +229,7 @@ function webpDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
   return null
 }
 
-function dibDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
+function dibDimensions(buffer: Buffer) {
   if (buffer.byteLength < DIB_FORMAT.CORE_HEADER_BYTES) return null
   const headerSize = buffer.readUInt32LE(0)
   if (headerSize === DIB_FORMAT.CORE_HEADER_BYTES) {
@@ -272,7 +272,7 @@ function readIcoEntry(buffer: Buffer, count: number, index: number) {
   }
 }
 
-function icoDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
+function icoDimensions(buffer: Buffer) {
   if (buffer.byteLength < ICO_FORMAT.MIN_BYTES || buffer.readUInt16LE(0) !== 0) return null
   const kind = buffer.readUInt16LE(ICO_FORMAT.KIND_OFFSET)
   const count = buffer.readUInt16LE(ICO_FORMAT.COUNT_OFFSET)
@@ -298,9 +298,7 @@ function icoDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
   return dimensions
 }
 
-export function browserPreviewImageDimensions(
-  buffer: Buffer,
-): BrowserPreviewImageDimensions | null {
+export function browserPreviewImageDimensions(buffer: Buffer) {
   const dimensions =
     pngDimensions(buffer) ??
     gifDimensions(buffer) ??

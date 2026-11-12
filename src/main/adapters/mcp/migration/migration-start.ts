@@ -13,6 +13,7 @@ import type { McpMigrationFs } from './migration-fs'
 import { gateUnmigratedMcpFiles } from './migration-gate'
 import { globalMcpPaths } from './migration-paths'
 import { McpMigrationRecord, migrationRecordPath } from './migration-record'
+import type { McpMigrationReport } from './migration-report'
 
 /** A file the migration reads could not be read or understood. */
 export class McpMigrationSourceError extends Error {
@@ -96,7 +97,13 @@ export async function startFailureReport(input: {
     fs,
     ...(error instanceof McpMigrationSourceError ? { source: error.filePath } : {}),
   })
-  return { files: [], oauth: [], droppedSessionStates: 0, error: message }
+  const report: McpMigrationReport = {
+    files: [],
+    oauth: [],
+    droppedSessionStates: 0,
+    error: message,
+  }
+  return report
 }
 
 /**

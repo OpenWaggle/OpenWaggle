@@ -18,7 +18,7 @@ function thumbnailError(cause: unknown) {
   return new SessionResourceThumbnailError({ operation: 'create', cause })
 }
 
-export function createSharpSessionResourceThumbnailer(): SessionResourceThumbnailerShape {
+export function createSharpSessionResourceThumbnailer() {
   return {
     create: (bytes, mimeType) =>
       Effect.tryPromise({
@@ -50,7 +50,7 @@ export function createSharpSessionResourceThumbnailer(): SessionResourceThumbnai
         },
         catch: thumbnailError,
       }),
-  }
+  } satisfies SessionResourceThumbnailerShape
 }
 
 export const SharpSessionResourceThumbnailerLive = Layer.succeed(

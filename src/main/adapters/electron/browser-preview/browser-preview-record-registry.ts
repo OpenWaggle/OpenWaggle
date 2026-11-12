@@ -36,7 +36,7 @@ export class BrowserPreviewRecordRegistry {
     this.options = options
   }
 
-  findOwned(ownerKey: string, previewId?: string): BrowserPreviewRecord | undefined {
+  findOwned(ownerKey: string, previewId?: string) {
     if (previewId !== undefined) {
       const record = this.recordsByOwnerKey.get(ownerKey)?.get(previewId)
       return record && this.isLive(record) ? record : undefined
@@ -48,22 +48,22 @@ export class BrowserPreviewRecordRegistry {
     return previews.length === 1 ? previews[0] : undefined
   }
 
-  listOwned(ownerKey: string): readonly BrowserPreviewRecord[] {
+  listOwned(ownerKey: string) {
     return [...(this.recordsByOwnerKey.get(ownerKey)?.values() ?? [])].filter((record) =>
       this.isLive(record),
     )
   }
 
-  countOwned(ownerKey: string): number {
+  countOwned(ownerKey: string) {
     return this.recordsByOwnerKey.get(ownerKey)?.size ?? 0
   }
 
-  countForRenderer(sender: WebContents): number {
+  countForRenderer(sender: WebContents) {
     const owner = this.owners.get(sender.id)
     return owner?.sender === sender ? owner.previews.size : 0
   }
 
-  getOrCreateOwner(sender: WebContents): BrowserPreviewOwnerRecord {
+  getOrCreateOwner(sender: WebContents) {
     const existing = this.owners.get(sender.id)
     if (existing) {
       if (existing.sender !== sender) throw new Error('Browser preview owner identity changed.')
@@ -108,26 +108,26 @@ export class BrowserPreviewRecordRegistry {
     return owner
   }
 
-  requireOwner(sender: WebContents): BrowserPreviewOwnerRecord {
+  requireOwner(sender: WebContents) {
     const owner = this.owners.get(sender.id)
     if (!owner || owner.sender !== sender) throw new Error('Browser preview owner was not found.')
     if (this.retiringOwners.has(owner)) throw new Error('Browser preview owner cleanup is pending.')
     return owner
   }
 
-  requirePreview(sender: WebContents, previewId: string): BrowserPreviewRecord {
+  requirePreview(sender: WebContents, previewId: string) {
     const record = this.requireOwner(sender).previews.get(previewId)
     if (!record || record.disposed) throw new Error(`Browser preview "${previewId}" was not found.`)
     return record
   }
 
-  findForRenderer(sender: WebContents, previewId: string): BrowserPreviewRecord | undefined {
+  findForRenderer(sender: WebContents, previewId: string) {
     const owner = this.owners.get(sender.id)
     const record = owner?.sender === sender ? owner.previews.get(previewId) : undefined
     return record && this.isLive(record) ? record : undefined
   }
 
-  findForDisposal(sender: WebContents, previewId: string): BrowserPreviewRecord | undefined {
+  findForDisposal(sender: WebContents, previewId: string) {
     const owner = this.owners.get(sender.id)
     const owned = owner?.sender === sender ? owner.previews.get(previewId) : undefined
     if (owned) return owned
@@ -139,7 +139,7 @@ export class BrowserPreviewRecordRegistry {
     return undefined
   }
 
-  add(record: BrowserPreviewRecord): void {
+  add(record: BrowserPreviewRecord) {
     const existing = this.recordsByOwnerKey.get(record.ownerKey)?.get(record.previewId)
     if (existing !== undefined) {
       throw new Error(`Browser preview "${record.previewId}" is already owned by this session.`)
@@ -152,11 +152,7 @@ export class BrowserPreviewRecordRegistry {
     this.markCurrent(record)
   }
 
-  setCurrent(
-    sender: WebContents,
-    ownerKey: string,
-    previewId: string | null,
-  ): BrowserPreviewRecord | undefined {
+  setCurrent(sender: WebContents, ownerKey: string, previewId: string | null) {
     if (previewId === null) {
       this.pendingByOwnerKey.delete(ownerKey)
       this.currentByOwnerKey.delete(ownerKey)
@@ -181,7 +177,7 @@ export class BrowserPreviewRecordRegistry {
     return record
   }
 
-  markCurrent(record: BrowserPreviewRecord): void {
+  markCurrent(record: BrowserPreviewRecord) {
     if (!this.isLive(record)) throw new Error('Browser preview is no longer available.')
     const pending = this.pendingByOwnerKey.get(record.ownerKey)
     if (pending !== undefined) {
@@ -191,7 +187,7 @@ export class BrowserPreviewRecordRegistry {
     this.currentByOwnerKey.set(record.ownerKey, record)
   }
 
-  forgetSelection(sender: WebContents, ownerKey: string): void {
+  forgetSelection(sender: WebContents, ownerKey: string) {
     if (this.pendingByOwnerKey.get(ownerKey)?.sender === sender) {
       this.pendingByOwnerKey.delete(ownerKey)
     }
@@ -200,7 +196,7 @@ export class BrowserPreviewRecordRegistry {
     }
   }
 
-  remove(record: BrowserPreviewRecord): void {
+  remove(record: BrowserPreviewRecord) {
     if (record.owner.previews.get(record.previewId) === record) {
       record.owner.previews.delete(record.previewId)
     }
@@ -224,7 +220,7 @@ export class BrowserPreviewRecordRegistry {
     }
   }
 
-  isLive(record: BrowserPreviewRecord): boolean {
+  isLive(record: BrowserPreviewRecord) {
     return (
       !record.disposed &&
       !this.retiringOwners.has(record.owner) &&
@@ -232,7 +228,7 @@ export class BrowserPreviewRecordRegistry {
     )
   }
 
-  disposeOwner(owner: BrowserPreviewOwnerRecord): void {
+  disposeOwner(owner: BrowserPreviewOwnerRecord) {
     if (this.owners.get(owner.sender.id) !== owner) return
     if (this.retiringOwners.has(owner)) return
     this.retiringOwners.add(owner)

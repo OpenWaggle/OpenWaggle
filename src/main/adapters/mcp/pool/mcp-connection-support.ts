@@ -106,13 +106,15 @@ export type Pending =
       readonly reject: (error: Error) => void
     }
 
-export function errorResponse(id: JsonRpcId, code: number, message: string): JsonRpcResponse {
-  return { jsonrpc: '2.0', id, error: { code, message } }
+export function errorResponse(id: JsonRpcId, code: number, message: string) {
+  const response: JsonRpcResponse = { jsonrpc: '2.0', id, error: { code, message } }
+  return response
 }
 
-export function progressTokenOf(params: unknown): JsonRpcId | undefined {
+export function progressTokenOf(params: unknown) {
   const token = mcpMessageFields(mcpMessageFields(params)?._meta)?.progressToken
-  return isJsonRpcId(token) ? token : undefined
+  const result: JsonRpcId | undefined = isJsonRpcId(token) ? token : undefined
+  return result
 }
 
 export function withProgressToken(params: unknown, token: JsonRpcId) {

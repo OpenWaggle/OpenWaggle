@@ -31,10 +31,12 @@ import type { SettingsServiceShape } from '../../services/settings-service'
 import { SettingsService } from '../../services/settings-service'
 
 const { executeAgentRunMock, publishSessionHostEventMock } = vi.hoisted(() => ({
-  executeAgentRunMock: vi.fn(
+  executeAgentRunMock: vi.fn<
     (_input: {
       readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
-    }): Effect.Effect<AgentRunResult> => Effect.succeed({ outcome: 'aborted' as const }),
+    }) => Effect.Effect<AgentRunResult>
+  >((_input: { readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void }) =>
+    Effect.succeed({ outcome: 'aborted' as const }),
   ),
   publishSessionHostEventMock: vi.fn(),
 }))

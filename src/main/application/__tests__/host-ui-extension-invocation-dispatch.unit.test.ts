@@ -24,13 +24,13 @@ const invocation: ExtensionInvokeInput = {
   payload: {},
 }
 
-function request(args: HostUiV1Request['args']): HostUiV1Request {
+function request(args: HostUiV1Request['args']) {
   return {
     contractVersion: 1,
     requestId: 'invoke-extension',
     channel: 'extensions:invoke',
     args,
-  }
+  } satisfies HostUiV1Request
 }
 
 function invoke(args: HostUiV1Request['args']) {

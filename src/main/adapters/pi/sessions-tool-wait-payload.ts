@@ -41,8 +41,8 @@ function waitTargets(input: Extract<SessionsToolParameters, { action: 'wait' }>)
 
 export function buildSessionsToolWaitPayload(
   input: Extract<SessionsToolParameters, { action: 'wait' }>,
-): LocalSessionCommandPayload {
-  return {
+) {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: {
       contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -50,4 +50,5 @@ export function buildSessionsToolWaitPayload(
       query: { operation: 'wait', targets: waitTargets(input), timeoutMs: input.timeoutMs },
     },
   }
+  return payload
 }

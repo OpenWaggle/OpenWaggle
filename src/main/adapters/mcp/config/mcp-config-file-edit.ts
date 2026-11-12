@@ -32,7 +32,7 @@ const NEW_FILE_MODE = 0o600
 const PERMISSION_MODULUS = 0o1000
 
 /** The file's `mcpServers`, undefined when it has none. */
-function parseFile(filePath: string, text: string | undefined): JsonRecord | undefined {
+function parseFile(filePath: string, text: string | undefined) {
   const parsed: unknown = !text?.trim() ? {} : JSON.parse(text)
   const servers = writtenMcpServers(parsed)
   if (!isJsonRecord(parsed) || (servers !== undefined && !isJsonRecord(servers))) {
@@ -42,14 +42,15 @@ function parseFile(filePath: string, text: string | undefined): JsonRecord | und
 }
 
 /** Inserted values follow the file's layout; a one-line file gets one-line values. */
-function formattingOf(text: string): FormattingOptions | undefined {
+function formattingOf(text: string) {
   if (!text.trim().includes('\n')) return undefined
   const indent = /^([ \t]+)\S/m.exec(text)?.[1] ?? DEFAULT_INDENT
-  return {
+  const options: FormattingOptions | undefined = {
     insertSpaces: !indent.includes('\t'),
     tabSize: indent.includes('\t') ? 1 : indent.length,
     eol: text.includes('\r\n') ? '\r\n' : '\n',
   }
+  return options
 }
 
 function same(left: unknown, right: unknown) {

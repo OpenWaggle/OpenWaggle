@@ -1,4 +1,3 @@
-import type { SessionThinkingLevelChange } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { describeError } from '../error-description'
@@ -56,13 +55,7 @@ export function setSessionModel(args: readonly unknown[]) {
  * the default is logged and never reported as a failed Session change: the Session already uses
  * the new level, and only Sessions created later would start elsewhere.
  */
-export function setSessionThinkingLevel(
-  args: readonly unknown[],
-): Effect.Effect<
-  SessionThinkingLevelChange,
-  unknown,
-  SessionSettingsRepository | ThinkingLevelDefaultService
-> {
+export function setSessionThinkingLevel(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, TWO_ARGUMENTS)
     const sessionId = yield* validateSessionId(args[0])

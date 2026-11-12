@@ -191,7 +191,7 @@ async function appRequest(
   return requestOver(pool, connection, input, method, params)
 }
 
-function json(value: unknown): McpJsonValue {
+function json(value: unknown) {
   const decoded = safeDecodeUnknown(mcpConfigValueSchema, value ?? null)
   if (!decoded.success) throw new Error('The MCP server returned a result OpenWaggle cannot read.')
   return decoded.data
@@ -274,12 +274,12 @@ function attempt<A>(operation: () => Promise<A>) {
 }
 
 /** MCP Apps over the given pool, which holds the Session's warm connections. */
-export function createPiMcpAppRuntimeService(pool: McpConnectionPool): McpAppRuntimeServiceShape {
+export function createPiMcpAppRuntimeService(pool: McpConnectionPool) {
   return {
     readResource: (input) =>
       attempt(async () => readResource(pool, await withLegacyAppServer(input))),
     listCatalog: (input) =>
       attempt(async () => listCatalog(pool, await withLegacyAppServer(input))),
     callTool: (input) => attempt(async () => callTool(pool, await withLegacyAppServer(input))),
-  }
+  } satisfies McpAppRuntimeServiceShape
 }

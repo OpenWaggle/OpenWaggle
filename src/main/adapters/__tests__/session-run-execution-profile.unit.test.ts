@@ -5,9 +5,7 @@ import {
   type SessionRunExecutionProfileRow,
 } from '../session-run-execution-profile'
 
-function row(
-  overrides: Partial<SessionRunExecutionProfileRow> = {},
-): SessionRunExecutionProfileRow {
+function row(overrides: Partial<SessionRunExecutionProfileRow> = {}) {
   return {
     session_id: 'worker-1',
     title: 'Audit runtime',
@@ -42,11 +40,12 @@ function row(
     delegation_id: 'delegation-1',
     delegation_state: 'working',
     ...overrides,
-  }
+  } satisfies SessionRunExecutionProfileRow
 }
 
-function identityJson(context: string): unknown {
-  return JSON.parse(context.split('\n').slice(1).join('\n'))
+function identityJson(context: string) {
+  const parsed: unknown = JSON.parse(context.split('\n').slice(1).join('\n'))
+  return parsed
 }
 
 describe('Session run execution profile', () => {

@@ -93,20 +93,19 @@ function decideEdit(
  * A replayed begin returns the hold it acquired only while that hold is alive; after a Host
  * restart or expiry it is refused, so a retry cannot pick up a dead hold.
  */
-function replayedBegin(
-  outcome: SessionControlMutationOutcome,
-  state: SessionControlSessionState,
-): SessionControlMutationOutcome {
+function replayedBegin(outcome: SessionControlMutationOutcome, state: SessionControlSessionState) {
   if (outcome.effect !== 'follow-up-edit-held') return outcome
   const item = state.followUpQueue.items.find((candidate) => candidate.id === outcome.followUpId)
-  return item?.editHold?.holdId === outcome.holdId
-    ? outcome
-    : {
-        operation: 'queue-edit-begin',
-        effect: 'rejected',
-        sessionId: outcome.sessionId,
-        ...sessionHostRefusal('follow_up_edit_not_held'),
-      }
+  return (
+    item?.editHold?.holdId === outcome.holdId
+      ? outcome
+      : {
+          operation: 'queue-edit-begin',
+          effect: 'rejected',
+          sessionId: outcome.sessionId,
+          ...sessionHostRefusal('follow_up_edit_not_held'),
+        }
+  ) satisfies SessionControlMutationOutcome
 }
 
 /**
@@ -123,15 +122,16 @@ export function editSessionFollowUp(input: EditSessionFollowUpInput) {
     const holdId = `follow-up-edit-hold-${yield* identities.nextFollowUpId}`
     const acquiredAt = yield* Clock.currentTimeMillis
     const command = input.request.command
-    const rejected = (code: SessionHostRefusalCode): SessionControlMutationDecision => ({
-      accepted: false,
-      outcome: {
-        operation: command.operation,
-        effect: 'rejected',
-        sessionId: command.sessionId,
-        ...sessionHostRefusal(code),
-      },
-    })
+    const rejected = (code: SessionHostRefusalCode) =>
+      ({
+        accepted: false,
+        outcome: {
+          operation: command.operation,
+          effect: 'rejected',
+          sessionId: command.sessionId,
+          ...sessionHostRefusal(code),
+        },
+      }) satisfies SessionControlMutationDecision
     const execution = yield* repository.executeMutation({
       callerId: input.callerId,
       ...(input.hostRunCeiling ? { hostRunCeiling: input.hostRunCeiling } : {}),

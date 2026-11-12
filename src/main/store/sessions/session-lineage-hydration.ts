@@ -48,19 +48,27 @@ const profileAgentFieldsSchema = Schema.Struct({
   thinkingLevel: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
-function profileAgentFacts(profileJson: string | null): ProfileAgentFacts {
-  if (!profileJson) return {}
+function profileAgentFacts(profileJson: string | null) {
+  if (!profileJson) {
+    const facts: ProfileAgentFacts = {}
+    return facts
+  }
   try {
     const parsed: unknown = JSON.parse(profileJson)
-    if (!Schema.is(profileAgentFieldsSchema)(parsed)) return {}
+    if (!Schema.is(profileAgentFieldsSchema)(parsed)) {
+      const facts: ProfileAgentFacts = {}
+      return facts
+    }
     const { agentDefinitionName: name, modelId, thinkingLevel } = parsed
-    return {
+    const facts: ProfileAgentFacts = {
       ...(typeof name === 'string' ? { agentDefinitionName: name } : {}),
       ...(typeof modelId === 'string' && modelId ? { modelId } : {}),
       ...(isThinkingLevel(thinkingLevel) ? { thinkingLevel } : {}),
     }
+    return facts
   } catch {
-    return {}
+    const facts: ProfileAgentFacts = {}
+    return facts
   }
 }
 

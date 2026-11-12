@@ -42,8 +42,8 @@ function chromiumSource(input: {
   readonly keychainAccount: string
   readonly keychainService: string
   readonly linuxSecretApplication?: string
-}): BrowserImportSourceDefinition {
-  return {
+}) {
+  const definition: BrowserImportSourceDefinition = {
     ...input,
     engine: 'chromium',
     platforms: [
@@ -52,9 +52,7 @@ function chromiumSource(input: {
       ...(input.windowsSegments ? (['win32'] as const) : []),
     ],
     userDataDirectory: (context) => {
-      if (context.platform === 'darwin') {
-        return macApplicationSupport(context, ...input.macSegments)
-      }
+      if (context.platform === 'darwin') return macApplicationSupport(context, ...input.macSegments)
       if (context.platform === 'linux' && input.linuxSegments) {
         return path.join(context.home, '.config', ...input.linuxSegments)
       }
@@ -68,6 +66,7 @@ function chromiumSource(input: {
       return undefined
     },
   }
+  return definition
 }
 
 export const BROWSER_IMPORT_SOURCES: readonly BrowserImportSourceDefinition[] = [
@@ -197,10 +196,7 @@ function resolveFirefoxProfileDirectory(candidate: string, root: string, isRelat
   return path.normalize(candidate)
 }
 
-function firefoxSourceProfile(
-  section: FirefoxProfileSection | null,
-  root: string,
-): BrowserImportSourceProfile | undefined {
+function firefoxSourceProfile(section: FirefoxProfileSection | null, root: string) {
   if (!section?.profilePath || section.profilePath.includes('\u0000')) return undefined
   const candidate = section.profilePath
   const relativeSetting = section.isRelative

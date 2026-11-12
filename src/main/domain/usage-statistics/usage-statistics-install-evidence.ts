@@ -32,7 +32,7 @@ export function seedUsageStatisticsInstall(
   state: UsageStatisticsHostState,
   evidenceTime: number | null,
   today: string,
-): UsageStatisticsHostState {
+) {
   if (state.install.evidenceChecked) return state
   const install = { ...state.install, evidenceChecked: true }
   const recordedSince = dayStart(install.firstSeenDay ?? today) ?? dayStart(today)
@@ -41,7 +41,7 @@ export function seedUsageStatisticsInstall(
     recordedSince !== undefined &&
     Number.isFinite(evidenceTime) &&
     evidenceTime < recordedSince - EVIDENCE_TOLERANCE_MS
-  if (!predatesStatistics) return { ...state, install }
+  if (!predatesStatistics) return { ...state, install } satisfies UsageStatisticsHostState
   return {
     ...state,
     install: {
@@ -50,13 +50,11 @@ export function seedUsageStatisticsInstall(
       newReported: true,
       onboardingReported: true,
     },
-  }
+  } satisfies UsageStatisticsHostState
 }
 
 /** One failed evidence read; after a few, the evidence counts as absent and is settled. */
-export function recordUsageStatisticsEvidenceFailure(
-  state: UsageStatisticsHostState,
-): UsageStatisticsHostState {
+export function recordUsageStatisticsEvidenceFailure(state: UsageStatisticsHostState) {
   if (state.install.evidenceChecked) return state
   const evidenceFailures = state.install.evidenceFailures + 1
   return {

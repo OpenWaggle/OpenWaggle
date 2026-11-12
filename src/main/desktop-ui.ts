@@ -31,7 +31,7 @@ import { launchWindowsHeadlessProcess } from './windows-headless-process'
  */
 export { AutomationDesktopUiError, assertExternalApplicationLaunchAllowed, isAutomationMode }
 
-export function getAllBrowserWindows(): readonly DesktopWindow[] {
+export function getAllBrowserWindows() {
   return desktopWindows.all()
 }
 
@@ -81,12 +81,12 @@ export function launchHeadlessBackgroundProcess(input: {
   readonly command: string
   readonly args: readonly string[]
   readonly environment: Readonly<Record<string, string | undefined>>
-}): Promise<void> {
+}) {
   if (process.platform === 'win32') return launchWindowsHeadlessProcess(input)
   return launchDetachedProcess(input)
 }
 
-export function launchExternalApplication(command: string, args: readonly string[]): Promise<void> {
+export function launchExternalApplication(command: string, args: readonly string[]) {
   assertExternalApplicationLaunchAllowed()
   return launchDetachedProcess({ command, args, environment: getSafeChildEnv() })
 }

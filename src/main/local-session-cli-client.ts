@@ -122,7 +122,7 @@ export function refusedCredentialError(
 export async function prepareLocalSessionCliClientInput(
   arguments_: ParsedArguments,
   options: LocalSessionCliClientOptions = {},
-): Promise<LocalSessionCliClientInput> {
+) {
   const profile = option(arguments_, 'profile') ?? env.OPENWAGGLE_PROFILE
   const credentialFile =
     option(arguments_, 'profile-credential-file') ?? env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
@@ -158,7 +158,7 @@ export async function prepareLocalSessionCliClientInput(
 export async function createLocalSessionCliClientInput(
   arguments_: ParsedArguments,
   options: LocalSessionCliClientOptions = {},
-): Promise<LocalSessionCliClientInput> {
+) {
   const input = await prepareLocalSessionCliClientInput(arguments_, options)
   try {
     await ensureLocalSessionHost(input)

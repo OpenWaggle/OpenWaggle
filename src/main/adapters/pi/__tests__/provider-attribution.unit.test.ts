@@ -40,10 +40,7 @@ const ATTRIBUTION_HEADERS = [
   'x-opencode-client',
 ]
 
-function model(
-  target: (typeof TARGETS)[keyof typeof TARGETS],
-  headers?: Record<string, string>,
-): Model<'openai-completions'> {
+function model(target: (typeof TARGETS)[keyof typeof TARGETS], headers?: Record<string, string>) {
   return {
     id: 'test-model',
     name: 'Test model',
@@ -55,7 +52,7 @@ function model(
     contextWindow: 1000,
     maxTokens: 100,
     ...(headers ? { headers } : {}),
-  }
+  } satisfies Model<'openai-completions'>
 }
 
 const CONTEXT: TranscriptContext = normalizeContext({

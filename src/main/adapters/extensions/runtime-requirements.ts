@@ -25,8 +25,9 @@ function runtimeRequirementCommand(requirement: RuntimeRequirement) {
 }
 
 function pathDirectories() {
-  const { PATH: pathValue = '' }: { readonly PATH?: string } = getSafeChildEnv()
-  return pathValue.split(path.delimiter).filter((entry) => entry.length > 0)
+  return getSafeChildEnv()
+    .PATH.split(path.delimiter)
+    .filter((entry) => entry.length > 0)
 }
 
 function executableCandidates(binary: string) {
@@ -59,18 +60,15 @@ async function isBinaryAvailable(binary: string) {
   return availability.some(Boolean)
 }
 
-function missingRuntimeRequirementDiagnostic(
-  requirement: RuntimeRequirement,
-  binary: string,
-): ExtensionDiagnostic {
+function missingRuntimeRequirementDiagnostic(requirement: RuntimeRequirement, binary: string) {
   return {
     severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
     code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING,
     message: `Missing runtime requirement "${requirement.label}". Install "${binary}" and ensure it is available on PATH before trusting or enabling this extension. OpenWaggle does not install system binaries automatically.`,
-  }
+  } satisfies ExtensionDiagnostic
 }
 
-function runtimeRequirementCommandPaths(manifest: OpenWaggleExtensionManifest): readonly string[] {
+function runtimeRequirementCommandPaths(manifest: OpenWaggleExtensionManifest) {
   const commands: string[] = []
   for (const requirement of manifest.runtimeRequirements ?? []) {
     const command = runtimeRequirementCommand(requirement)
@@ -90,9 +88,7 @@ function diagnosePackageRuntimeRequirementCommands(input: DiagnoseRuntimeRequire
   })
 }
 
-async function diagnoseRuntimeRequirementBinaries(
-  manifest: OpenWaggleExtensionManifest,
-): Promise<readonly ExtensionDiagnostic[]> {
+async function diagnoseRuntimeRequirementBinaries(manifest: OpenWaggleExtensionManifest) {
   const results = await Promise.all(
     (manifest.runtimeRequirements ?? []).map(async (requirement) => {
       const binary = runtimeRequirementBinary(requirement)
@@ -105,12 +101,10 @@ async function diagnoseRuntimeRequirementBinaries(
   return results.flatMap((diagnostic) => (diagnostic === null ? [] : [diagnostic]))
 }
 
-export async function diagnoseRuntimeRequirements(
-  input: DiagnoseRuntimeRequirementsInput,
-): Promise<readonly ExtensionDiagnostic[]> {
+export async function diagnoseRuntimeRequirements(input: DiagnoseRuntimeRequirementsInput) {
   const [binaryDiagnostics, commandDiagnostics] = await Promise.all([
     diagnoseRuntimeRequirementBinaries(input.manifest),
     diagnosePackageRuntimeRequirementCommands(input),
   ])
-  return [...binaryDiagnostics, ...commandDiagnostics]
+  return [...binaryDiagnostics, ...commandDiagnostics] satisfies readonly ExtensionDiagnostic[]
 }

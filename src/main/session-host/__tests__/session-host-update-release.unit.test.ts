@@ -31,9 +31,7 @@ function fakeClock() {
   }
 }
 
-function dependencies(
-  overrides: Partial<SessionHostReleaseDependencies>,
-): SessionHostReleaseDependencies {
+function dependencies(overrides: Partial<SessionHostReleaseDependencies>) {
   return {
     requestStop: async () => ({ hostInstanceId: 'host-1', processId: 4242 }),
     probe: async () => ({ state: 'not-running' }),
@@ -41,7 +39,7 @@ function dependencies(
     platform: 'darwin',
     ...fakeClock(),
     ...overrides,
-  }
+  } satisfies SessionHostReleaseDependencies
 }
 
 describe('releasing the Session Host for an update', () => {

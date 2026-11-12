@@ -34,7 +34,7 @@ export interface AgentDefinitionProjectSources {
   readonly managedWorktreeProject: (workingPath: string) => Promise<string | null>
 }
 
-async function defaultSources(): Promise<AgentDefinitionProjectSources> {
+async function defaultSources() {
   const [{ installPiRuntimeIntegration }, { runAppEffect }] = await Promise.all([
     import('./runtime-pi-integration'),
     import('./runtime'),
@@ -67,7 +67,7 @@ async function spellings(directory: string) {
 export async function resolveAgentDefinitionProject(
   directory: string,
   sources?: AgentDefinitionProjectSources,
-): Promise<AgentDefinitionProject> {
+) {
   const resolved = sources ?? (await defaultSources())
   const [settings, candidates] = await allInOrder([resolved.readSettings(), spellings(directory)])
   const knownProject = await projectOfWorkspacePath(

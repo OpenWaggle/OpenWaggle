@@ -65,7 +65,7 @@ function persistIfCurrent(input: PersistExternalPiSnapshotInput, now: number) {
 export async function persistExternalPiSnapshot(
   input: PersistExternalPiSnapshotInput,
   repairEntryIds?: ExternalSnapshotEntryIdRepair,
-): Promise<boolean> {
+) {
   return withSessionLock(input.sessionId, async () => {
     const now = Date.now()
     try {

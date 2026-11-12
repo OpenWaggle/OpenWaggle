@@ -3,7 +3,6 @@ import { dirname } from 'node:path'
 import {
   deletedCreatedPiSessionFileMessage,
   deletedPiSessionFileMessage,
-  type PiSessionFileUnavailability,
   unavailablePiSessionFileMessage,
 } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
@@ -32,11 +31,11 @@ export function hasProjectedEntries(session: SessionDetail) {
  * is missing (`folder`), or it is a link whose target is missing, or it may not be read (`file`).
  * Undefined when it was deleted from a folder that is there.
  */
-export function unavailabilityOf(file: string): PiSessionFileUnavailability | undefined {
+export function unavailabilityOf(file: string) {
   try {
     lstatSync(file)
     // Something is there that could not be followed or read.
-    return 'file'
+    return 'file' as const
   } catch (cause) {
     const code = errorCode(cause)
     if (code !== 'ENOENT') return 'file'

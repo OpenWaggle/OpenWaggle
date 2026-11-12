@@ -21,7 +21,7 @@ export function resolveChangeRequestIdentity(
   remoteUrl: string,
   provider: SourceControlProviderId,
   requestedUrl: string,
-): ChangeRequestIdentity | null {
+) {
   const repositoryUrl = repositoryWebUrl(remoteUrl)
   if (!repositoryUrl) return null
   try {
@@ -36,7 +36,11 @@ export function resolveChangeRequestIdentity(
     if (!requestPath.startsWith(prefix)) return null
     const reference = requestPath.slice(prefix.length)
     if (!/^\d+$/u.test(reference)) return null
-    return { reference, url: `${repository.origin}${prefix}${reference}` }
+    const identity: ChangeRequestIdentity | null = {
+      reference,
+      url: `${repository.origin}${prefix}${reference}`,
+    }
+    return identity
   } catch {
     return null
   }

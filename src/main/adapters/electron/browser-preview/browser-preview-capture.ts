@@ -72,10 +72,7 @@ function enqueueNativeCapture(
   return completion
 }
 
-function boundedAttempt(
-  completion: Promise<NativeImage>,
-  signal?: AbortSignal,
-): Promise<NativeImage> {
+function boundedAttempt(completion: Promise<NativeImage>, signal?: AbortSignal) {
   if (signal?.aborted) return Promise.reject(cancellationError(signal))
   return new Promise<NativeImage>((resolve, reject) => {
     let settled = false
@@ -99,7 +96,7 @@ function boundedAttempt(
   })
 }
 
-function retryDelay(signal?: AbortSignal): Promise<void> {
+function retryDelay(signal?: AbortSignal) {
   if (signal?.aborted) return Promise.reject(cancellationError(signal))
   return new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(finish, CAPTURE_RETRY_DELAY_MS)
@@ -134,7 +131,7 @@ function requestRepaint(contents: WebContents) {
 export async function captureBrowserPreviewPage(
   contents: WebContents,
   options: BrowserPreviewCaptureOptions = {},
-): Promise<NativeImage> {
+) {
   const request: CaptureRequest = { active: true }
   let completion: Promise<NativeImage> | undefined
   try {

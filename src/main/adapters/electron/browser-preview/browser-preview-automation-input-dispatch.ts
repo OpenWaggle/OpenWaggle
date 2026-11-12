@@ -13,7 +13,7 @@ export async function sendBrowserPreviewAutomationInputCleanup(
   session: BrowserPreviewAutomationControlSession,
   method: string,
   params?: CdpCommandParams,
-): Promise<unknown> {
+) {
   if (session.disposed) return null
   assertBrowserPreviewContentsAvailable(session.contents)
   const options: BrowserPreviewAutomationRunOptions = { timeoutMs: INPUT_CLEANUP_TIMEOUT_MS }

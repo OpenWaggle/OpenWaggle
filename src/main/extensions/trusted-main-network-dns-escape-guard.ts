@@ -37,7 +37,7 @@ function functionPatches(input: {
   readonly apiPrefix: string
   readonly names: readonly string[]
   readonly allowsAuthorizedHostname: boolean
-}): TrustedMainNetworkEscapePatchInstaller[] {
+}) {
   return input.names.flatMap((propertyName) => {
     const original: unknown = Reflect.get(input.target, propertyName)
     if (!isCallable(original)) {
@@ -89,7 +89,7 @@ function dnsTargetPatches(input: {
   ]
 }
 
-function dnsPatches(): TrustedMainNetworkEscapePatchInstaller[] {
+function dnsPatches() {
   return [
     constructablePatch({
       target: dns,
@@ -115,7 +115,7 @@ function dnsPatches(): TrustedMainNetworkEscapePatchInstaller[] {
       resolverPrototype: dns.promises.Resolver.prototype,
       apiPrefix: 'node:dns/promises',
     }),
-  ]
+  ] satisfies TrustedMainNetworkEscapePatchInstaller[]
 }
 
 export function installTrustedMainDnsNetworkEscapeGuard(input: TrustedMainNetworkEscapeGuard) {

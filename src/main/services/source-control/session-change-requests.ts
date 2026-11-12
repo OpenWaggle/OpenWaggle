@@ -58,9 +58,7 @@ async function currentRef(workingPath: string) {
 }
 
 /** The remote's repository plus the repository its fork requests were found in, if any. */
-async function repositoryBindings(
-  resolved: ResolvedChangeRequestProvider,
-): Promise<readonly ChangeRequestRepositoryBinding[]> {
+async function repositoryBindings(resolved: ResolvedChangeRequestProvider) {
   const origin: ChangeRequestRepositoryBinding = {
     repository: resolved.repository,
     provider: resolved.provider,
@@ -73,18 +71,19 @@ async function repositoryBindings(
   const [host, ...rest] = targetKey?.split('/') ?? []
   const name = rest.at(-1)
   const owner = rest.slice(0, -1).join('/')
-  if (!host || !owner || !name) return [origin]
+  if (!host || !owner || !name) {
+    const binding: readonly ChangeRequestRepositoryBinding[] = [origin]
+    return binding
+  }
   const repository = { provider: resolved.repository.provider, host, owner, repository: name }
   const provider = await rememberingProviderForRepository(repository, access)
-  return provider
+  const binding: readonly ChangeRequestRepositoryBinding[] = provider
     ? [origin, { repository, provider, info: { id: repository.provider, host } }]
     : [origin]
+  return binding
 }
 
-function bindRequest(
-  bindings: readonly ChangeRequestRepositoryBinding[],
-  url: string,
-): BoundRequest | null {
+function bindRequest(bindings: readonly ChangeRequestRepositoryBinding[], url: string) {
   for (const binding of bindings) {
     const identity = resolveRepositoryChangeRequestIdentity(binding.repository, url)
     if (identity) return { binding, identity }
@@ -92,17 +91,24 @@ function bindRequest(
   return null
 }
 
-export function verifiedDetails(
-  bound: BoundRequest,
-  result: ChangeRequestDetailsResult,
-): ChangeRequestDetailsResult {
-  if (!result.ok) return withAttention(result, bound.binding.info)
+export function verifiedDetails(bound: BoundRequest, result: ChangeRequestDetailsResult) {
+  if (!result.ok) {
+    const value: ChangeRequestDetailsResult = withAttention(result, bound.binding.info)
+    return value
+  }
   const identity = resolveRepositoryChangeRequestIdentity(
     bound.binding.repository,
     result.changeRequest.url,
   )
-  if (!identity || identity.url !== bound.identity.url) return SESSION_CHANGE_REQUEST_MISMATCH
-  return { ok: true, changeRequest: { ...result.changeRequest, url: identity.url } }
+  if (!identity || identity.url !== bound.identity.url) {
+    const value: ChangeRequestDetailsResult = SESSION_CHANGE_REQUEST_MISMATCH
+    return value
+  }
+  const value: ChangeRequestDetailsResult = {
+    ok: true,
+    changeRequest: { ...result.changeRequest, url: identity.url },
+  }
+  return value
 }
 
 /**

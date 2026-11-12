@@ -63,10 +63,7 @@ function pendingWaggleCancellationError() {
   return new Error('Pending explicit Waggle run was cancelled.')
 }
 
-async function waitForPendingWaggleOwner(
-  settled: Promise<void>,
-  signal: AbortSignal,
-): Promise<void> {
+async function waitForPendingWaggleOwner(settled: Promise<void>, signal: AbortSignal) {
   if (signal.aborted) throw pendingWaggleCancellationError()
   await new Promise<void>((resolve, reject) => {
     let finished = false

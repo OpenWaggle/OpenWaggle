@@ -31,9 +31,7 @@ function attempt<A>(run: () => Promise<A>) {
   return Effect.tryPromise({ try: run, catch: failure })
 }
 
-export function createMcpRegistryService(
-  options: McpRegistryServiceOptions,
-): McpRegistryServiceShape {
+export function createMcpRegistryService(options: McpRegistryServiceOptions) {
   const client = options.fetchResource ? { fetchResource: options.fetchResource } : {}
   const getServer = (input: Parameters<McpRegistryServiceShape['getServer']>[0]) =>
     getMcpRegistryServer({
@@ -65,7 +63,7 @@ export function createMcpRegistryService(
           ...(options.resolveOciImage ? { resolveOciImage: options.resolveOciImage } : {}),
         }),
       ),
-  }
+  } satisfies McpRegistryServiceShape
 }
 
 export const McpRegistryServiceLive = Layer.sync(McpRegistryService, () =>

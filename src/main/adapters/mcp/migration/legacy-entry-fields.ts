@@ -32,6 +32,7 @@ export type LegacyServerFields = SchemaType<typeof legacyServerFieldsSchema>
 const decodeFields = Schema.decodeUnknownOption(legacyServerFieldsSchema)
 
 /** The entry's fields, or undefined when the entry is not an object. */
-export function legacyServerFields(entry: unknown): LegacyServerFields | undefined {
-  return Option.getOrUndefined(decodeFields(entry))
+export function legacyServerFields(entry: unknown) {
+  const fields: LegacyServerFields | undefined = Option.getOrUndefined(decodeFields(entry))
+  return fields
 }

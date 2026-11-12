@@ -1,8 +1,6 @@
 import type {
   McpImportApplyRequest,
-  McpImportCandidateView,
   McpImportPreviewRequest,
-  McpImportPreviewView,
 } from '@shared/types/mcp-configuration-operations'
 import { Cause, Effect, Exit } from 'effect'
 import { McpConfigurationError } from '../../ports/mcp-configuration-service'
@@ -17,7 +15,7 @@ import {
 } from './config/mcp-config-files'
 import { loadMcpMergedConfig } from './config/mcp-runtime-config'
 import { applyMcpImports } from './import/import-apply'
-import { type McpImportTargetServers, previewMcpImports } from './import/import-preview'
+import { previewMcpImports } from './import/import-preview'
 import type {
   ExternalMcpImportCandidate,
   ExternalMcpImportPreview,
@@ -45,10 +43,7 @@ function toConfigurationError(error: unknown) {
     : new McpConfigurationError({ reason: 'io', message: describe(error) })
 }
 
-function serversIn(
-  reader: McpConfigFileReader,
-  filePath: string,
-): Readonly<Record<string, unknown>> {
+function serversIn(reader: McpConfigFileReader, filePath: string) {
   const text = reader.readText(filePath)
   if (!text?.trim()) return {}
   const parsed: unknown = JSON.parse(text)
@@ -56,10 +51,7 @@ function serversIn(
 }
 
 /** Servers already in OpenWaggle's files, so earlier imports and taken names are recognised. */
-function targetServers(
-  reader: McpConfigFileReader,
-  roots: McpConfigFileRoots,
-): McpImportTargetServers {
+function targetServers(reader: McpConfigFileReader, roots: McpConfigFileRoots) {
   return {
     global: serversIn(reader, openWaggleMcpConfigPath(roots, 'global')),
     ...(roots.projectPath
@@ -73,7 +65,7 @@ function displayTarget(entry: PiMcpEntry) {
   return entry.command === undefined ? '' : [entry.command, ...(entry.args ?? [])].join(' ')
 }
 
-function candidateView(candidate: ExternalMcpImportCandidate): McpImportCandidateView {
+function candidateView(candidate: ExternalMcpImportCandidate) {
   return {
     source: candidate.source,
     sourcePath: candidate.sourcePath,
@@ -87,7 +79,7 @@ function candidateView(candidate: ExternalMcpImportCandidate): McpImportCandidat
   }
 }
 
-function previewView(preview: ExternalMcpImportPreview): McpImportPreviewView {
+function previewView(preview: ExternalMcpImportPreview) {
   return {
     candidates: preview.candidates.map(candidateView),
     unavailableSources: preview.unavailableSources,
@@ -95,11 +87,9 @@ function previewView(preview: ExternalMcpImportPreview): McpImportPreviewView {
   }
 }
 
-export function createFilesystemMcpImportService(
-  options: FilesystemMcpImportServiceOptions,
-): McpImportServiceShape {
+export function createFilesystemMcpImportService(options: FilesystemMcpImportServiceOptions) {
   const reader = options.reader ?? nodeMcpConfigFileReader
-  const roots = (projectPath: string | null): McpConfigFileRoots => ({
+  const roots = (projectPath: string | null) => ({
     homeDir: options.homeDir,
     piAgentDir: options.piAgentDir,
     projectPath,
@@ -157,5 +147,5 @@ export function createFilesystemMcpImportService(
       ),
     apply: (input, write) =>
       Effect.tryPromise({ try: () => apply(input, write), catch: toConfigurationError }),
-  }
+  } satisfies McpImportServiceShape
 }

@@ -35,7 +35,7 @@ interface ResolvedAgentDefinitionManagementContext {
 function writeOutcome(
   operation: Extract<AgentDefinitionManagementOutcome['operation'], 'write' | 'duplicate'>,
   result: Awaited<ReturnType<typeof writeAgentDefinitionFile>>,
-): AgentDefinitionManagementOutcome {
+) {
   return { operation, ...result }
 }
 
@@ -209,7 +209,7 @@ async function writeAgentDefinition(
 export async function executeAgentDefinitionManagement(
   command: AgentDefinitionManagementCommand,
   context: AgentDefinitionManagementContext = {},
-): Promise<AgentDefinitionManagementOutcome> {
+) {
   const resolved: ResolvedAgentDefinitionManagementContext = {
     userHome: context.userHome ?? os.homedir(),
     now: context.now ?? Date.now(),
@@ -222,7 +222,7 @@ export async function executeAgentDefinitionManagement(
         projectPath: command.projectPath,
         userHome: resolved.userHome,
       }),
-    }
+    } satisfies AgentDefinitionManagementOutcome
   }
   if (command.operation === 'write') {
     return writeAgentDefinition(command, resolved)
@@ -265,14 +265,14 @@ export async function executeAgentDefinitionManagement(
           ? { expectedContentDigest: command.expectedContentDigest }
           : {}),
       })),
-    }
+    } satisfies AgentDefinitionManagementOutcome
   }
   if (command.operation === 'import-plan') {
     const catalog = await semanticCatalog(command.projectPath, resolved)
     return {
       operation: command.operation,
       plan: await planAgentDefinitionImport(importPlanInput(command, resolved, catalog)),
-    }
+    } satisfies AgentDefinitionManagementOutcome
   }
   if (command.operation === 'import-apply') {
     const catalog = await semanticCatalog(command.projectPath, resolved)
@@ -291,7 +291,7 @@ export async function executeAgentDefinitionManagement(
         ...resolved,
         ...(catalog ? { semanticCatalog: catalog } : {}),
       }),
-    }
+    } satisfies AgentDefinitionManagementOutcome
   }
   const catalog = await semanticCatalog(command.projectPath, resolved)
   return applyRefresh({

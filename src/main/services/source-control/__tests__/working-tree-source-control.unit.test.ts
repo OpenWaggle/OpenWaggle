@@ -53,7 +53,7 @@ function memoryAccess(initial: Partial<Stored> = {}) {
   }
 }
 
-function provider(overrides: Partial<SourceControlProvider>): SourceControlProvider {
+function provider(overrides: Partial<SourceControlProvider>) {
   return fromPartial<SourceControlProvider>({
     resolveChangeRequestForRef: async () => NO_REQUEST,
     forkParent: async () => ({ ok: true, parent: null }),
@@ -62,7 +62,7 @@ function provider(overrides: Partial<SourceControlProvider>): SourceControlProvi
   })
 }
 
-function sourceControlFor(origin: SourceControlProvider): WorkingTreeSourceControl {
+function sourceControlFor(origin: SourceControlProvider) {
   return {
     remote: { name: 'origin', url: 'git@github.com:jdoe/app.git' },
     repository: ORIGIN,
@@ -70,7 +70,7 @@ function sourceControlFor(origin: SourceControlProvider): WorkingTreeSourceContr
     info: { id: 'github', host: 'github.com' },
     provider: origin,
     webUrl: 'https://github.com/jdoe/app',
-  }
+  } satisfies WorkingTreeSourceControl
 }
 
 describe('finding the current branch change request', () => {

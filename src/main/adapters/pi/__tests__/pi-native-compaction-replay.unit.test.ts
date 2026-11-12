@@ -9,7 +9,7 @@ import {
   NATIVE_DETAILS,
 } from './pi-native-compaction-test-fixtures'
 
-function makeTargetModel(contextWindow = 100_000, maxTokens = 0): Model<'openai-responses'> {
+function makeTargetModel(contextWindow = 100_000, maxTokens = 0) {
   return withoutCompat(
     makeNativeModel({
       id: 'target-model',
@@ -19,7 +19,7 @@ function makeTargetModel(contextWindow = 100_000, maxTokens = 0): Model<'openai-
       contextWindow,
       maxTokens,
     }),
-  )
+  ) satisfies Model<'openai-responses'>
 }
 
 describe('Pi native compaction replay', () => {

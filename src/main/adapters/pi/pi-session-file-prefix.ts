@@ -54,16 +54,19 @@ type HeaderSearch =
  * Mirrors Pi's `readSessionHeader`: blank and malformed lines are skipped, and the first entry
  * that parses decides. A session header makes the file a session; anything else means it is not.
  */
-function findHeader(lines: readonly string[]): HeaderSearch {
+function findHeader(lines: readonly string[]) {
   for (const [index, line] of lines.entries()) {
     const entry = parsePiSessionEntryLine(line)
     if (entry === null) continue
     if (entry.type === 'session' && entry.id !== undefined) {
-      return { kind: 'header', header: entry, index }
+      const search: HeaderSearch = { kind: 'header', header: entry, index }
+      return search
     }
-    return { kind: 'not-a-session' }
+    const search: HeaderSearch = { kind: 'not-a-session' }
+    return search
   }
-  return { kind: 'not-found' }
+  const search: HeaderSearch = { kind: 'not-found' }
+  return search
 }
 
 /** When the user message was sent: Pi's message time, else the entry's. */
@@ -102,17 +105,25 @@ function sessionName(entry: PiSessionEntry) {
   return entry.name?.trim() || null
 }
 
-function readEntry(read: PrefixEntries, entry: PiSessionEntry): PrefixEntries {
+function readEntry(read: PrefixEntries, entry: PiSessionEntry) {
   const named = entry.type === 'session_info' ? { ...read, name: sessionName(entry) } : read
   if (named.firstUserMessage !== null) return named
   // The model the session had when its first message was sent, which titles it.
   const withModel = { ...named, model: modelChange(entry) ?? named.model }
   const text = userMessageText(entry)
-  if (text === null) return withModel
-  return { ...withModel, firstUserMessage: text, firstUserMessageAt: messageTime(entry) }
+  if (text === null) {
+    const entries: PrefixEntries = withModel
+    return entries
+  }
+  const entries: PrefixEntries = {
+    ...withModel,
+    firstUserMessage: text,
+    firstUserMessageAt: messageTime(entry),
+  }
+  return entries
 }
 
-function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
+function parsePrefix(lines: readonly string[]) {
   const search = findHeader(lines)
   if (search.kind !== 'header') return null
   const header = search.header
@@ -128,13 +139,14 @@ function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
     const entry = parsePiSessionObjectLine(line)
     if (entry !== null) read = readEntry(read, entry)
   }
-  return {
+  const prefix: PiSessionPrefix | null = {
     id,
     cwd,
     timestamp: header.timestamp ?? null,
     ...read,
     model: read.firstUserMessage === null ? null : read.model,
   }
+  return prefix
 }
 
 /** The file's leading lines: 64 KiB, or up to Pi's 1 MiB header bound when no entry parsed. */
@@ -160,16 +172,17 @@ export interface PiSessionFileHeader extends PiSessionPrefix {
 }
 
 /** Null when the file is not a Pi session, or has no header yet (it may still be being written). */
-export async function readPiSessionFileHeader(file: string): Promise<PiSessionFileHeader | null> {
+export async function readPiSessionFileHeader(file: string) {
   try {
     const [parsed, stats] = await Promise.all([readPrefix(file), stat(file)])
     if (!parsed) return null
     const createdAt = parsed.timestamp ? Date.parse(parsed.timestamp) : Number.NaN
-    return {
+    const header: PiSessionFileHeader | null = {
       ...parsed,
       firstUserMessage: parsed.firstUserMessage?.slice(0, MAX_REMEMBERED_MESSAGE_LENGTH) ?? null,
       createdAt: Number.isFinite(createdAt) ? createdAt : stats.birthtimeMs,
     }
+    return header
   } catch {
     // Discovery is best effort: a file removed or unreadable mid-scan is simply not listed.
     return null

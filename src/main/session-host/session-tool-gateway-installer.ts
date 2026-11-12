@@ -122,8 +122,8 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
       payload: input.payload,
       ...(input.signal ? { signal: input.signal } : {}),
     })
-    const command = Effect.suspend(
-      (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
+    const command = Effect.suspend(() => {
+      const dispatched: Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =
         dispatchNonHostUiLocalSessionCommand({
           caller,
           payload,
@@ -144,8 +144,9 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
               workingDirectory: input.workingDirectory,
               ...(input.signal ? { signal: input.signal } : {}),
             }),
-        }),
-    )
+        })
+      return dispatched
+    })
     return runEffectWithAbortSignal(command.pipe(Effect.provide(dependencies)), input.signal)
   })
   yield* Effect.addFinalizer(() => Effect.sync(release))

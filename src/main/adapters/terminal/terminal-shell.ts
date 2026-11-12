@@ -24,7 +24,7 @@ export interface TerminalShellResolutionOptions {
 export function posixShellCandidates(
   environment: Readonly<Record<string, string>>,
   options: Pick<TerminalShellResolutionOptions, 'accountShell' | 'platform'> = {},
-): readonly TerminalShellCandidate[] {
+) {
   const platform = options.platform ?? os.platform()
   const accountShell =
     options.accountShell === undefined ? readAccountShell() : (options.accountShell ?? undefined)
@@ -38,9 +38,7 @@ export function posixShellCandidates(
   )
 }
 
-export function windowsShellCandidates(
-  environment: Readonly<Record<string, string>>,
-): readonly TerminalShellCandidate[] {
+export function windowsShellCandidates(environment: Readonly<Record<string, string>>) {
   const programFiles = [
     readEnvironmentValue(environment, 'ProgramW6432'),
     readEnvironmentValue(environment, 'ProgramFiles'),
@@ -65,9 +63,7 @@ export function windowsShellCandidates(
   return uniqueCandidates(candidates, 'win32')
 }
 
-export function shellCandidates(
-  options: TerminalShellResolutionOptions,
-): readonly TerminalShellCandidate[] {
+export function shellCandidates(options: TerminalShellResolutionOptions) {
   const platform = options.platform ?? os.platform()
   return platform === 'win32'
     ? windowsShellCandidates(options.environment)
@@ -82,9 +78,7 @@ export function shellCandidates(
  * PATH-resolved names stay eligible because statting a bare command checks the
  * working directory rather than PATH (the previous Windows failure mode).
  */
-export function existingShells(
-  options: TerminalShellResolutionOptions,
-): readonly TerminalShellCandidate[] {
+export function existingShells(options: TerminalShellResolutionOptions) {
   const platform = options.platform ?? os.platform()
   return shellCandidates({ ...options, platform }).filter((candidate) => {
     if (!isAbsolutePath(candidate.command, platform)) return true
@@ -98,7 +92,7 @@ export function existingShells(
 }
 
 /** Absolute, existing-directory validation for a terminal Working path. */
-export function validateTerminalCwd(cwd: string): string | null {
+export function validateTerminalCwd(cwd: string) {
   const candidate = cwd.trim()
   if (candidate.length === 0 || !path.isAbsolute(candidate)) return null
   try {
@@ -127,7 +121,7 @@ function uniqueCandidates(commands: readonly (string | undefined)[], platform: N
   return candidates
 }
 
-function shellStartupArgs(command: string, platform: NodeJS.Platform): readonly string[] {
+function shellStartupArgs(command: string, platform: NodeJS.Platform) {
   const executable = shellExecutableName(command).toLowerCase()
   if (platform === 'win32') {
     if (executable === 'pwsh.exe' || executable === 'powershell.exe') return ['-NoLogo']

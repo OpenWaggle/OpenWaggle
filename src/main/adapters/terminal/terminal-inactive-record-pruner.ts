@@ -35,9 +35,7 @@ function outputIsDrained(record: TerminalRecord) {
   )
 }
 
-export function makeTerminalInactiveRecordPruner(
-  options: TerminalInactiveRecordPrunerOptions,
-): TerminalInactiveRecordPruner {
+export function makeTerminalInactiveRecordPruner(options: TerminalInactiveRecordPrunerOptions) {
   const maxRecords = options.maxRecords ?? TERMINAL.MAX_INACTIVE_RECORDS
   const maxScrollbackBytes = options.maxScrollbackBytes ?? TERMINAL.MAX_INACTIVE_SCROLLBACK_BYTES
   const inactiveOrder = new WeakMap<TerminalRecord, number>()
@@ -93,5 +91,6 @@ export function makeTerminalInactiveRecordPruner(
     return evicted
   }
 
-  return { markActive, markInactive, prune }
+  const pruner: TerminalInactiveRecordPruner = { markActive, markInactive, prune }
+  return pruner
 }

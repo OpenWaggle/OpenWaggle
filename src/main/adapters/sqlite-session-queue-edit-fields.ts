@@ -4,7 +4,6 @@ import type { AttachmentKind, AttachmentOrigin } from '@shared/types/agent'
 import {
   FOLLOW_UP_EDIT_CALLER_ID,
   type SessionFollowUpAttachmentDescriptor,
-  type SessionFollowUpEditHoldSummary,
 } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
 import { canEditFollowUp } from '../domain/session-control/follow-up-edit'
@@ -48,7 +47,7 @@ function holdSummary(
   hold: SessionControlFollowUpEditHold,
   callerId: string | undefined,
   now: number,
-): SessionFollowUpEditHoldSummary {
+) {
   const holderIsCaller = callerId !== undefined && hold.holderCallerId === callerId
   return {
     // Only the holder learns what it saves, cancels, or re-adopts the edit with.

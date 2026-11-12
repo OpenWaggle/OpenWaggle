@@ -57,10 +57,10 @@ function allowlistOf(
  */
 export function createAgentToolAllowlistGuard(
   input: Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'>,
-): SynchronousExtensionFactory | undefined {
+) {
   const allows = allowlistOf(input)
   if (!allows) return undefined
-  return (pi) => {
+  return ((pi) => {
     pi.on('tool_call', (event) =>
       allows(event.toolName)
         ? undefined
@@ -69,14 +69,14 @@ export function createAgentToolAllowlistGuard(
             reason: `This Session's Agent definition does not allow the tool ${event.toolName}.`,
           },
     )
-  }
+  }) satisfies SynchronousExtensionFactory | undefined
 }
 
 /** The allowlist fields of a Run's input that this extension enforces. */
 export function agentRunContextAllowlists(input: {
   readonly toolAllowlist?: readonly string[]
   readonly mcpServerAllowlist?: readonly string[]
-}): Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'> {
+}) {
   return {
     ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
     ...(input.mcpServerAllowlist ? { mcpServerAllowlist: input.mcpServerAllowlist } : {}),
@@ -137,12 +137,10 @@ function setSection(
  * extensions have registered their tools. Intersecting with the active set prevents an Agent
  * definition from activating a tool that another policy or extension disabled.
  */
-export function createAgentRunContextExtension(
-  input: AgentRunContextExtensionInput,
-): SynchronousExtensionFactory {
+export function createAgentRunContextExtension(input: AgentRunContextExtensionInput) {
   const allows = allowlistOf(input)
   const runIdentity = input.runIdentityContext?.trim()
-  return (pi) => {
+  return ((pi) => {
     // Stored on the Run's first model request, whose messages hold the message that started the
     // Run (a prompt, a Waggle user request, or an extension command's custom message), so the
     // identity can name it; once per Run, though `before_agent_start` fires on every turn.
@@ -176,5 +174,5 @@ export function createAgentRunContextExtension(
       const messages = withRunIdentities(event.messages, ctx.sessionManager.getBranch())
       return messages ? { messages } : undefined
     })
-  }
+  }) satisfies SynchronousExtensionFactory
 }

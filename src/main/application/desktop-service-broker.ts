@@ -22,7 +22,7 @@ export function makeDesktopServiceBroker(input: {
   readonly offlineExecute: (
     command: DesktopServiceCommand,
   ) => Effect.Effect<DesktopServiceResult, Error>
-}): DesktopServiceBrokerShape {
+}) {
   const queue = new DesktopServiceCommandQueue()
   const leases = new DesktopServiceLeases({ ...input, queue })
   const mutations = new DesktopServiceFences({ ...input, leases, queue, execute })
@@ -64,7 +64,7 @@ export function makeDesktopServiceBroker(input: {
     return admitted.result
   }
 
-  return {
+  const shape: DesktopServiceBrokerShape = {
     execute: (command) =>
       Effect.tryPromise({ try: (signal) => execute(command, signal), catch: asError }),
     handleGuiRequest: (request) =>
@@ -72,4 +72,5 @@ export function makeDesktopServiceBroker(input: {
     runWithMutationFence: (scope, operation) => mutations.runWithMutationFence(scope, operation),
     close: () => leases.close(),
   }
+  return shape
 }

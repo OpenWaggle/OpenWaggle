@@ -149,12 +149,13 @@ function rejectedLaunch(
   result: LocalSessionCommandResult,
   errorKind: ReturnType<typeof sessionCliResultErrorKind>,
   jsonl: boolean,
-): RunSettlement {
+) {
   if (jsonl) session.output.stdout(sessionsCliStreamRecordLine({ kind: 'launch-rejected', result }))
-  return {
+  const settlement: RunSettlement = {
     exitCode: errorKind ? sessionCliExitCodeForError(errorKind) : SESSION_CLI_EXIT.FAILURE,
     message: `the Session Host refused the launch (${rejectionCode(result)}).`,
   }
+  return settlement
 }
 
 /** A consumed stdin cannot also answer questions, even when it was a terminal. */
@@ -206,7 +207,7 @@ async function streamRun(
   if (!launched || errorKind) return rejectedLaunch(session, result, errorKind, input.jsonl)
   const target = { sessionId: launched.sessionId, runId: launched.runId }
   session.begin(target, { projectPath: launch.projectPath, replayed: launched.replayed })
-  const ended = watchEnded.then(async (outcome): Promise<RunSettlement> => {
+  const ended = watchEnded.then(async (outcome) => {
     const fromTerminalEvent = session.settlementFromTerminalEvent()
     if (fromTerminalEvent) return fromTerminalEvent
     if (outcome.kind === 'failed') {

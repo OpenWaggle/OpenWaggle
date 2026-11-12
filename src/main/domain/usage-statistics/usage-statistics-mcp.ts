@@ -19,15 +19,16 @@ function catalogLaunch(entry: {
   readonly command?: unknown
   readonly args?: unknown
   readonly url?: unknown
-}): UsageStatisticsMcpServerLaunch {
+}) {
   const args = Array.isArray(entry.args)
     ? entry.args.filter((arg): arg is string => typeof arg === 'string')
     : undefined
-  return {
+  const launch: UsageStatisticsMcpServerLaunch = {
     ...(typeof entry.command === 'string' ? { command: entry.command } : {}),
     ...(args ? { args } : {}),
     ...(typeof entry.url === 'string' ? { url: entry.url } : {}),
   }
+  return launch
 }
 
 function sameLaunch(left: UsageStatisticsMcpServerLaunch, right: UsageStatisticsMcpServerLaunch) {

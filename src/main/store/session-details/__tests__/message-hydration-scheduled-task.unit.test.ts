@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { hydrateSessionMessage } from '../message-hydration'
 import type { SessionNodeRow } from '../types'
 
-function userRow(metadata: object): SessionNodeRow {
+function userRow(metadata: object) {
   return {
     id: 'user-node',
     session_id: 'session',
@@ -16,7 +16,7 @@ function userRow(metadata: object): SessionNodeRow {
     branch_hint_id: null,
     path_depth: 1,
     created_order: 2,
-  }
+  } satisfies SessionNodeRow
 }
 
 describe('user message hydration', () => {

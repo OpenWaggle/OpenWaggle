@@ -17,9 +17,7 @@ export interface McpAppServerRequest extends McpAppServerInput {
 }
 
 /** The request with an old instance ID replaced by the server name it stood for. */
-export async function withLegacyAppServer<Input extends McpAppServerInput>(
-  input: Input,
-): Promise<Input & McpAppServerRequest> {
+export async function withLegacyAppServer<Input extends McpAppServerInput>(input: Input) {
   const name = (await readLegacyMcpServerNames(homedir())).get(input.serverName)
   if (!name) return input
   const legacy = (await readLegacyMcpServerIdentities(homedir())).get(input.serverName)

@@ -8,9 +8,7 @@ import {
 } from '@shared/types/session-control'
 import { sanitizeTerminalText } from './terminal-text'
 
-export function sessionControlPayload(
-  command: SessionControlMutationCommand,
-): LocalSessionCommandPayload {
+export function sessionControlPayload(command: SessionControlMutationCommand) {
   return {
     contract: 'session-control-v2',
     request: {
@@ -19,7 +17,7 @@ export function sessionControlPayload(
       idempotencyKey: randomUUID(),
       command,
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 export function isAuthorizationConfirmation(interaction: AgentLoopInteraction) {

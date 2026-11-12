@@ -16,13 +16,13 @@ function deps(primaryRemoteUrl: string) {
   }
 }
 
-function destination(remoteUrl: string | null, multiplePushUrls = false): GitPushDestination {
+function destination(remoteUrl: string | null, multiplePushUrls = false) {
   return {
     remote: 'fork',
     branch: 'feature/current',
     remoteUrl,
     multiplePushUrls,
-  }
+  } satisfies GitPushDestination
 }
 
 describe('change-request pushed-head compatibility', () => {

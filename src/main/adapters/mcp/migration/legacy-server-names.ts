@@ -77,11 +77,11 @@ export async function legacyServerRecords(input: {
 export async function readLegacyMcpServerIdentities(
   homeDir: string,
   fs: McpMigrationFs = nodeMcpMigrationFs,
-): Promise<ReadonlyMap<string, McpLegacyServerIdentity>> {
+) {
   try {
     return (await McpMigrationRecord.load(fs, homeDir)).legacyServerIdentities
   } catch {
-    return new Map()
+    return new Map<string, McpLegacyServerIdentity>()
   }
 }
 
@@ -89,10 +89,10 @@ export async function readLegacyMcpServerIdentities(
 export async function readLegacyMcpServerNames(
   homeDir: string,
   fs: McpMigrationFs = nodeMcpMigrationFs,
-): Promise<ReadonlyMap<string, string>> {
+) {
   try {
     return (await McpMigrationRecord.load(fs, homeDir)).legacyServerNames
   } catch {
-    return new Map()
+    return new Map<string, string>()
   }
 }

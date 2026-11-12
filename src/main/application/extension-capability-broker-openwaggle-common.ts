@@ -36,14 +36,15 @@ export function payloadDecodeFailure(input: BrokerRouteInput, issues: readonly s
   return invalidPayload({ ...input, issues })
 }
 
-export function validateBrokerProjectPath(
-  projectPath: string,
-): Effect.Effect<ProjectPathValidationResult> {
+export function validateBrokerProjectPath(projectPath: string) {
   return validateRequiredProjectPath(projectPath).pipe(
-    Effect.map((validatedProjectPath): ProjectPathValidationResult => ({
-      _tag: 'valid',
-      projectPath: validatedProjectPath,
-    })),
+    Effect.map((validatedProjectPath) => {
+      const result: ProjectPathValidationResult = {
+        _tag: 'valid',
+        projectPath: validatedProjectPath,
+      }
+      return result
+    }),
     Effect.catchAll((error) =>
       Effect.succeed<ProjectPathValidationResult>({
         _tag: 'invalid',

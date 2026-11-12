@@ -62,7 +62,7 @@ export type TestOwner = LocalSessionOutboundOwner & {
 }
 
 /** An owner whose eviction releases the frames it holds, as closing its socket does. */
-export function evictableOwner(options: { readonly releasesOnEvict?: boolean } = {}): TestOwner {
+export function evictableOwner(options: { readonly releasesOnEvict?: boolean } = {}) {
   const leases: LocalSessionOutboundLease[] = []
   const owner: TestOwner = {
     evictions: 0,

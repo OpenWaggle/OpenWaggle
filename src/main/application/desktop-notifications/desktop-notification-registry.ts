@@ -7,8 +7,9 @@ interface DesktopNotificationList {
 let installed: DesktopNotificationList | null = null
 
 /** The running observer's outstanding notifications, for `desktop-notifications:list`. */
-export function listOutstandingDesktopNotifications(): readonly DesktopNotification[] {
-  return installed?.list() ?? []
+export function listOutstandingDesktopNotifications() {
+  const notification: readonly DesktopNotification[] = installed?.list() ?? []
+  return notification
 }
 
 export function installDesktopNotificationList(list: DesktopNotificationList) {

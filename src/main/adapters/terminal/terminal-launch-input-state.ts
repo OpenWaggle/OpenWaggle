@@ -11,14 +11,15 @@ interface TerminalLaunchInputContext {
   readonly inFlightOpens: ReadonlyMap<TerminalKey, unknown>
 }
 
-function emptyPendingTerminalInput(): PendingTerminalInput {
-  return {
+function emptyPendingTerminalInput() {
+  const input: PendingTerminalInput = {
     parts: [],
     bytes: 0,
     inputGeneration: null,
     lastInputReceipt: null,
     projectAction: null,
   }
+  return input
 }
 
 /**

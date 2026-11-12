@@ -21,7 +21,7 @@ interface FeedbackHarness {
   spawned: { command: string; args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[]
 }
 
-const hoistedHarness = vi.hoisted((): FeedbackHarness => ({
+const hoistedHarness = vi.hoisted<FeedbackHarness>(() => ({
   handlers: new Map(),
   logPath: '',
   replies: new Map(),

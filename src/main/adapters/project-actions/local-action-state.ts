@@ -58,6 +58,6 @@ export interface ActionStatePersistence {
   ) => Promise<StoredActionState>
 }
 
-export function decodeLocalActionState(raw: string): LocalActionState {
+export function decodeLocalActionState(raw: string) {
   return decodeUnknownExactOrThrow(localActionStateSchema, parseJsonUnknown(raw))
 }

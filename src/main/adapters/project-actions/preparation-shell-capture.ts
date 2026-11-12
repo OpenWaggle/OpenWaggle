@@ -171,16 +171,18 @@ function fishRuntimeEvalCapture(quote: (value: string) => string) {
   ].join('\n')
 }
 
+interface PreparationCapture {
+  readonly invocation: ResolvedActionInvocation
+  readonly format: 'nul' | 'json'
+  readonly verifiedPath?: string
+}
+
 export async function preparationCaptureInvocation(
   invocation: ResolvedActionInvocation,
   destination: string,
   shell: string,
   environment: Readonly<Record<string, string>>,
-): Promise<{
-  readonly invocation: ResolvedActionInvocation
-  readonly format: 'nul' | 'json'
-  readonly verifiedPath?: string
-}> {
+) {
   const resolved =
     invocation.type === 'executable'
       ? {
@@ -207,7 +209,7 @@ export async function preparationCaptureInvocation(
       `$__ow_statement = $__ow_try.Body.Statements | Where-Object { $_.Extent.EndLineNumber -le ${lastUserLine} } | Select-Object -Last 1`,
     ])
     // An explicit exit 0 skips the post-command assignment but still runs finally.
-    return {
+    const result: PreparationCapture = {
       format: 'json',
       invocation: {
         type: 'executable',
@@ -221,6 +223,7 @@ export async function preparationCaptureInvocation(
         ],
       },
     }
+    return result
   }
   const script = match(name)
     .with('fish', () => {
@@ -278,7 +281,7 @@ export async function preparationCaptureInvocation(
         `Setup environment capture is not supported by the configured shell: ${shell}.`,
       )
     })
-  return {
+  const result: PreparationCapture = {
     format: 'nul',
     ...(name === 'fish' ? {} : { verifiedPath: `${destination}.verified` }),
     invocation: {
@@ -288,4 +291,5 @@ export async function preparationCaptureInvocation(
       args: ['-c', script],
     },
   }
+  return result
 }

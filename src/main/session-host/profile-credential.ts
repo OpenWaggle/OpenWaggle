@@ -15,13 +15,8 @@ export interface ProfileCredentialServerChallenge {
   readonly salt: string
 }
 
-interface ParsedProfileCredentialVerifier {
-  readonly salt: Buffer
-  readonly derivedKey: Buffer
-}
-
-function deriveCredential(credential: string, salt: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
+function deriveCredential(credential: string, salt: Buffer) {
+  return new Promise<Buffer>((resolve, reject) => {
     scrypt(
       credential,
       salt,
@@ -40,11 +35,11 @@ function deriveCredential(credential: string, salt: Buffer): Promise<Buffer> {
   })
 }
 
-export function generateProfileCredential(): string {
+export function generateProfileCredential() {
   return randomBytes(PROFILE_CREDENTIAL_BYTES).toString('base64url')
 }
 
-export async function createProfileCredentialVerifier(credential: string): Promise<string> {
+export async function createProfileCredentialVerifier(credential: string) {
   if (!isLocalSessionProfileCredential(credential)) {
     throw new Error('Profile credentials must be 43-character base64url values.')
   }
@@ -60,7 +55,7 @@ export async function createProfileCredentialVerifier(credential: string): Promi
   ].join('$')
 }
 
-function parseProfileCredentialVerifier(verifier: string): ParsedProfileCredentialVerifier | null {
+function parseProfileCredentialVerifier(verifier: string) {
   const [prefix, cost, blockSize, parallelization, encodedSalt, encodedExpected, extra] =
     verifier.split('$')
   if (
@@ -89,25 +84,20 @@ function parseProfileCredentialVerifier(verifier: string): ParsedProfileCredenti
   }
 }
 
-export function profileCredentialServerMaterialFromVerifier(verifier: string): {
-  readonly challenge: ProfileCredentialServerChallenge
-  readonly key: Buffer
-} | null {
+export function profileCredentialServerMaterialFromVerifier(verifier: string) {
   const parsed = parseProfileCredentialVerifier(verifier)
   if (!parsed) return null
-  return {
-    challenge: {
-      kind: VERIFIER_PREFIX,
-      salt: parsed.salt.toString('base64url'),
-    },
-    key: parsed.derivedKey,
+  const challenge: ProfileCredentialServerChallenge = {
+    kind: VERIFIER_PREFIX,
+    salt: parsed.salt.toString('base64url'),
   }
+  return { challenge, key: parsed.derivedKey }
 }
 
 export async function deriveProfileCredentialServerKey(
   credential: string,
   challenge: ProfileCredentialServerChallenge,
-): Promise<Buffer> {
+) {
   if (challenge.kind !== VERIFIER_PREFIX) {
     throw new Error('Unsupported profile credential derivation.')
   }
@@ -118,16 +108,13 @@ export async function deriveProfileCredentialServerKey(
   return deriveCredential(credential, salt)
 }
 
-export async function verifyProfileCredential(
-  credential: string,
-  verifier: string,
-): Promise<boolean> {
+export async function verifyProfileCredential(credential: string, verifier: string) {
   const parsed = parseProfileCredentialVerifier(verifier)
-  if (!parsed) return false
+  if (!parsed) return false satisfies boolean
   try {
     const received = await deriveCredential(credential, parsed.salt)
     return timingSafeEqual(parsed.derivedKey, received)
   } catch {
-    return false
+    return false satisfies boolean
   }
 }

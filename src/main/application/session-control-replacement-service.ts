@@ -3,7 +3,6 @@ import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { RunId } from '@shared/types/brand'
 import type {
   SessionControlMutationOutcome,
-  SessionControlMutationResponse,
   SessionControlReplaceMutationRequest,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
@@ -30,7 +29,7 @@ function response(
   input: ReplaceSessionRunInput,
   replayed: boolean,
   outcome: SessionControlMutationOutcome,
-): SessionControlMutationResponse {
+) {
   return {
     contractVersion: input.request.contractVersion,
     requestId: input.request.requestId,
@@ -106,14 +105,15 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
           ),
         ),
       })
-      const replacedOutcome = (stateRevision: number): SessionControlMutationOutcome => ({
-        operation: 'replace',
-        effect: 'replaced-run',
-        sessionId: input.request.command.sessionId,
-        interruptedRunId,
-        runId: replacementRunId,
-        stateRevision,
-      })
+      const replacedOutcome = (stateRevision: number) =>
+        ({
+          operation: 'replace',
+          effect: 'replaced-run',
+          sessionId: input.request.command.sessionId,
+          interruptedRunId,
+          runId: replacementRunId,
+          stateRevision,
+        }) satisfies SessionControlMutationOutcome
       const outcome: SessionControlMutationOutcome = interruption.accepted
         ? replacedOutcome(claim.stateRevision + 1)
         : {

@@ -26,7 +26,13 @@ function harness(input: {
       counts.splice(0, counts.length, 0)
       return Promise.resolve()
     }),
-    updateState: vi.fn(input.state ?? ((): UpdateRestartState => 'installable')),
+    updateState: vi.fn(
+      input.state ??
+        (() => {
+          const state: UpdateRestartState = 'installable'
+          return state
+        }),
+    ),
     reportWaiting: vi.fn((activeRuns: number | null) => {
       events.push(`waiting:${activeRuns ?? 'none'}`)
     }),

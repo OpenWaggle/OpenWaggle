@@ -20,8 +20,8 @@ let root = ''
 let lockedFolder = ''
 const files = createPiSessionFiles()
 
-function session(overrides: Partial<SessionDetail> = {}): SessionDetail {
-  return {
+function session(overrides: Partial<SessionDetail> = {}) {
+  const detail: SessionDetail = {
     id: SessionId('session-continued'),
     title: 'Continued',
     projectPath: path.join(root, 'project'),
@@ -34,6 +34,7 @@ function session(overrides: Partial<SessionDetail> = {}): SessionDetail {
     updatedAt: 1,
     ...overrides,
   }
+  return detail
 }
 
 async function writeCopy(folder: string) {

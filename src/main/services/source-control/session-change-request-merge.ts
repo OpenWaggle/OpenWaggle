@@ -18,31 +18,32 @@ import {
   verifiedDetails,
 } from './session-change-requests'
 
-function invalidMerge(message: string): SourceControlFailure {
-  return { ok: false, code: 'invalid-target', message }
+function invalidMerge(message: string) {
+  const failure: SourceControlFailure = { ok: false, code: 'invalid-target', message }
+  return failure
 }
 
 function validateMergeCandidate(
   bound: BoundRequest,
   result: ChangeRequestDetailsResult,
   payload: MergeChangeRequestPayload,
-): VcsChangeRequestDetails | SourceControlFailure {
+) {
   const verified = verifiedDetails(bound, result)
   if (!verified.ok) return verified
   if (verified.changeRequest.headCommit !== payload.expectedHeadCommit) {
     return invalidMerge(
       'The request head changed. Refresh and review the latest commit before merging.',
-    )
+    ) satisfies VcsChangeRequestDetails | SourceControlFailure
   }
   if (!verified.changeRequest.merge.allowed) {
     return invalidMerge(
       verified.changeRequest.merge.reason ?? 'The provider currently blocks this merge.',
-    )
+    ) satisfies VcsChangeRequestDetails | SourceControlFailure
   }
   if (!verified.changeRequest.merge.methods.includes(payload.method)) {
     return invalidMerge(
       `The provider does not support the selected ${payload.method} merge method.`,
-    )
+    ) satisfies VcsChangeRequestDetails | SourceControlFailure
   }
   return verified.changeRequest
 }

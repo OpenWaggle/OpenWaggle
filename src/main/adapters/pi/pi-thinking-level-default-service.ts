@@ -8,11 +8,11 @@ function toError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
 }
 
-function configuredThinkingLevel(value: string | undefined): ThinkingLevel | undefined {
+function configuredThinkingLevel(value: string | undefined) {
   return THINKING_LEVELS.find((level) => level === value)
 }
 
-function knownThinkingLevel(value: string | undefined): ThinkingLevel {
+function knownThinkingLevel(value: string | undefined) {
   return configuredThinkingLevel(value) ?? DEFAULT_THINKING_LEVEL
 }
 
@@ -20,7 +20,7 @@ function knownThinkingLevel(value: string | undefined): ThinkingLevel {
  * Pi's global `defaultThinkingLevel`, falling back to Pi's built-in default when it names none.
  * Project settings are never read: OpenWaggle has no project-level default thinking level.
  */
-export function readPiDefaultThinkingLevel(): ThinkingLevel {
+export function readPiDefaultThinkingLevel() {
   return knownThinkingLevel(createOpenWaggleGlobalPiSettingsManager().getDefaultThinkingLevel())
 }
 

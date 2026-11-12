@@ -6,7 +6,6 @@ import type {
   ProjectedSessionNodeInput,
 } from '../../ports/session-repository'
 import {
-  type PiProjectedEntries,
   type PiSessionFileState,
   readPiProjectionFreshnessWithSql,
   recordPiProjectionWithSql,
@@ -141,7 +140,7 @@ export function persistPiSessionSnapshotWithSql(
  * The Pi entries a snapshot holds: every node but OpenWaggle's agent-loop audit nodes, which come
  * after them. Null when their orders are not the entries' indexes, as a Pi projection makes them.
  */
-function projectedPiEntries(input: PersistSessionSnapshotInput): PiProjectedEntries | null {
+function projectedPiEntries(input: PersistSessionSnapshotInput) {
   const entries: ProjectedSessionNodeInput[] = input.nodes.filter(
     (node) => !isAgentLoopAuditNode(node),
   )
@@ -158,7 +157,7 @@ function projectedPiEntries(input: PersistSessionSnapshotInput): PiProjectedEntr
   }
 }
 
-export async function persistSessionSnapshot(input: PersistSessionSnapshotInput): Promise<void> {
+export async function persistSessionSnapshot(input: PersistSessionSnapshotInput) {
   const now = Date.now()
 
   await runStoreEffect(

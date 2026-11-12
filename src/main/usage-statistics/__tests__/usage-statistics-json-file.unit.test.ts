@@ -26,7 +26,7 @@ interface Counter {
   readonly count: number
 }
 
-function decodeCounter(value: unknown): Counter {
+function decodeCounter(value: unknown) {
   if (typeof value !== 'object' || value === null || !('count' in value)) {
     throw new Error('not a counter')
   }

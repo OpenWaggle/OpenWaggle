@@ -36,7 +36,7 @@ export function resolveLocalSessionHostPaths(input: {
   readonly userDataRoot: string
   readonly platform?: NodeJS.Platform
   readonly temporaryRoot?: string
-}): LocalSessionHostPaths {
+}) {
   const platform = input.platform ?? process.platform
   const stateRoot = sessionHostStateRoot(input.userDataRoot)
   const legacyDatabasePath = legacySessionDatabasePath(input.userDataRoot)
@@ -53,7 +53,7 @@ export function resolveLocalSessionHostPaths(input: {
       endpoint: '',
       endpointDirectory: null,
       endpointCapabilityPath: path.join(stateRoot, WINDOWS_ENDPOINT_CAPABILITY_FILE),
-    }
+    } satisfies LocalSessionHostPaths
   }
 
   const { endpoint, endpointDirectory } = unixSessionHostEndpoint(
@@ -70,7 +70,7 @@ export function resolveLocalSessionHostPaths(input: {
     endpoint,
     endpointDirectory,
     endpointCapabilityPath: null,
-  }
+  } satisfies LocalSessionHostPaths
 }
 
 function hasErrorCode(error: unknown, code: string) {
@@ -187,7 +187,7 @@ export async function prepareLocalSessionHostPaths(
   paths: LocalSessionHostPaths,
   platform: NodeJS.Platform = process.platform,
   secureUserOnly: WindowsUserOnlySecurity = secureWindowsUserOnly,
-): Promise<LocalSessionHostPaths> {
+) {
   if (platform === 'win32') {
     const capabilityPath = paths.endpointCapabilityPath
     if (!capabilityPath) {
@@ -211,7 +211,7 @@ export async function prepareLocalSessionHostPaths(
 export async function refreshLocalSessionHostEndpoint(
   paths: LocalSessionHostPaths,
   platform: NodeJS.Platform = process.platform,
-): Promise<LocalSessionHostPaths> {
+) {
   if (platform !== 'win32') return paths
   const capabilityPath = paths.endpointCapabilityPath
   if (!capabilityPath) {
@@ -224,7 +224,7 @@ export async function rotateLocalSessionHostEndpoint(
   paths: LocalSessionHostPaths,
   platform: NodeJS.Platform = process.platform,
   secureUserOnly: WindowsUserOnlySecurity = secureWindowsUserOnly,
-): Promise<LocalSessionHostPaths> {
+) {
   if (platform !== 'win32') return paths
   const capabilityPath = paths.endpointCapabilityPath
   if (!capabilityPath) {

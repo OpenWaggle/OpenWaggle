@@ -42,7 +42,7 @@ function validateDatabaseIntegrity(database: HostSqliteDatabase) {
   }
 }
 
-function targetCounts(database: HostSqliteDatabase): TargetCounts {
+function targetCounts(database: HostSqliteDatabase) {
   return {
     sessions: readCutoverCount(database, 'sessions'),
     nodes: readCutoverCount(database, 'session_nodes'),

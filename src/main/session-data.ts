@@ -16,7 +16,7 @@ export type AppStoragePaths = Pick<
 export function configureAppStoragePaths(
   overrideUserDataPath?: string,
   paths: AppStoragePaths = appPaths,
-): void {
+) {
   const userDataPath = overrideUserDataPath ?? paths.userData()
   paths.setUserData(userDataPath)
   mkdirSync(userDataPath, { recursive: true })

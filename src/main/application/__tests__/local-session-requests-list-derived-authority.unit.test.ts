@@ -27,7 +27,7 @@ const requestPayload = {
 function caller(input: {
   readonly baseCapabilities: readonly SessionCapability[]
   readonly derivedCapabilities: readonly SessionCapability[]
-}): LocalSessionCallerIdentity {
+}) {
   return {
     callerId: 'session-agent:queen:run-1',
     baseProfileScope: { sessionIds: ['queen'] },
@@ -45,7 +45,7 @@ function caller(input: {
         authorizationCeiling: 'ask-for-approval',
       },
     ],
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 function targetLayer() {

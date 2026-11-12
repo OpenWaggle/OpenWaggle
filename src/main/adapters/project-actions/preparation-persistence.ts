@@ -29,9 +29,9 @@ export interface PreparationPersistence {
 interface Row {
   readonly state_json: string
 }
-const decode = (row: Row): StoredWorkspacePreparation =>
+const decode = (row: Row) =>
   decodeUnknownExactOrThrow(storedWorkspacePreparationSchema, parseJsonUnknown(row.state_json))
-export function createPreparationPersistence(sql: SqlClient.SqlClient): PreparationPersistence {
+export function createPreparationPersistence(sql: SqlClient.SqlClient) {
   return {
     read: (workspaceId) =>
       Effect.runPromise(
@@ -64,5 +64,5 @@ export function createPreparationPersistence(sql: SqlClient.SqlClient): Preparat
           }),
         ),
       ),
-  }
+  } satisfies PreparationPersistence
 }

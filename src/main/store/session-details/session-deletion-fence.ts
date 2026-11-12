@@ -4,7 +4,7 @@ const deleting = new Set<SessionId>()
 const mutations = new Map<SessionId, Set<Promise<void>>>()
 
 /** Close admission first, then drain admitted writes before checking deletion eligibility. */
-export async function acquireSessionDeletionFence(id: SessionId): Promise<() => void> {
+export async function acquireSessionDeletionFence(id: SessionId) {
   if (deleting.has(id)) throw new Error('Session deletion is already in progress.')
   deleting.add(id)
   await Promise.all(mutations.get(id) ?? new Set<Promise<void>>())
@@ -20,7 +20,7 @@ export async function acquireSessionDeletionFence(id: SessionId): Promise<() => 
 export async function withSessionLineageMutation<A>(
   sessionIds: readonly SessionId[],
   operation: () => Promise<A>,
-): Promise<A> {
+) {
   const ids = [...new Set(sessionIds)].sort()
   for (const id of ids) {
     if (deleting.has(id)) {

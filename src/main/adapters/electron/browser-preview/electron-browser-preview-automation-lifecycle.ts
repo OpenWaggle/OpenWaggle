@@ -32,7 +32,7 @@ type BrowserPreviewAutomationLifecycleOperations = Pick<
 export function makeBrowserPreviewAutomationLifecycleOperations(
   settings: SettingsServiceShape,
   withAgentAccess: BrowserPreviewAutomationAccessGuard,
-): BrowserPreviewAutomationLifecycleOperations {
+) {
   return {
     status: (scope, input) =>
       withAgentAccess(
@@ -127,5 +127,5 @@ export function makeBrowserPreviewAutomationLifecycleOperations(
           return { tabId: record.previewId, colorScheme: input.colorScheme }
         }),
       ),
-  }
+  } satisfies BrowserPreviewAutomationLifecycleOperations
 }

@@ -50,8 +50,9 @@ function isSessionEntry(line: unknown): line is SchemaType<typeof sessionEntryLi
 }
 
 /** The id of a Pi session line that is an entry, not the session header. */
-export function sessionEntryIdOf(line: unknown): string | undefined {
-  return isSessionEntry(line) ? line.id : undefined
+export function sessionEntryIdOf(line: unknown) {
+  const result: string | undefined = isSessionEntry(line) ? line.id : undefined
+  return result
 }
 
 /**
@@ -61,11 +62,7 @@ export function sessionEntryIdOf(line: unknown): string | undefined {
 export function rekeySessionLines(
   lines: readonly unknown[],
   shouldRekey: (entryId: string) => boolean,
-): {
-  readonly lines: readonly unknown[]
-  /** The previous id of each entry that was given a new id, keyed by the new id. */
-  readonly sourceIdById: ReadonlyMap<string, string>
-} {
+) {
   const taken = new Set<string>()
   for (const line of lines) {
     if (isSessionEntry(line)) taken.add(line.id)
@@ -90,7 +87,12 @@ export function rekeySessionLines(
     })
   })
   const sourceIdById = new Map([...idMap].map(([sourceId, id]) => [id, sourceId] as const))
-  return { lines: rekeyed, sourceIdById }
+  const result: {
+    readonly lines: readonly unknown[]
+    /** The previous id of each entry that was given a new id, keyed by the new id. */
+    readonly sourceIdById: ReadonlyMap<string, string>
+  } = { lines: rekeyed, sourceIdById }
+  return result
 }
 
 /**

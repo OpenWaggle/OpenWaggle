@@ -11,8 +11,8 @@ const { runCliMock, warnMock } = vi.hoisted(() => ({
 vi.mock('../cli-runner', () => ({ runCli: runCliMock }))
 vi.mock('../../../logger', () => ({ createLogger: () => ({ warn: warnMock }) }))
 
-function cli(partial: Partial<CliResult>): CliResult {
-  return { stdout: '', stderr: '', code: 0, missing: false, ...partial }
+function cli(partial: Partial<CliResult>) {
+  return { stdout: '', stderr: '', code: 0, missing: false, ...partial } satisfies CliResult
 }
 
 const GITLAB_REPOSITORY = {

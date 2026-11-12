@@ -13,14 +13,14 @@ function profileCaller(
   authority: Omit<LocalSessionProfileAuthority, 'profileId' | 'profileName'>,
   narrowing: Omit<LocalSessionProfileAuthority, 'profileId' | 'profileName'>,
   extra: Partial<LocalSessionCallerIdentity> = {},
-): LocalSessionCallerIdentity {
+) {
   return {
     callerId: 'profile:reviewer-id',
     baseProfileScope: authority.scope,
     profileAuthority: { profileId: 'reviewer-id', profileName: 'reviewer', ...authority },
     profileNarrowing: { profileId: 'mcp:reviewer', profileName: 'reviewer', ...narrowing },
     ...extra,
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 function narrow(caller: LocalSessionCallerIdentity) {

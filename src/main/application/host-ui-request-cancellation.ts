@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect'
 
-function abortSignalEffect(signal: AbortSignal): Effect.Effect<never, Error> {
+function abortSignalEffect(signal: AbortSignal) {
   return Effect.async<never, Error>((resume) => {
     const abort = () => {
       const reason: unknown = signal.reason

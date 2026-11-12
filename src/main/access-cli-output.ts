@@ -54,7 +54,7 @@ export function classifyAccessCliError(error: unknown): SessionsCliErrorKind {
 /** The kind the Session Host gave a refused profile change (ADR 0063). */
 export function accessCliRejectedOutcomeKind(
   outcome: Extract<LocalSessionProfileManagementOutcome, { readonly effect: 'rejected' }>,
-): SessionsCliErrorKind {
+) {
   return outcome.kind
 }
 
@@ -70,7 +70,7 @@ export function writeAccessCliError(
 const MAX_CAUSE_DEPTH = 8
 
 /** The Session Host code of an error or of the error it wraps, as an uncertain create does. */
-function hostRefusalCode(error: unknown): string | undefined {
+function hostRefusalCode(error: unknown) {
   for (
     let current = error, depth = 0;
     current instanceof Error && depth < MAX_CAUSE_DEPTH;

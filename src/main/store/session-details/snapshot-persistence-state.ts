@@ -13,7 +13,6 @@ import type { PersistSessionSnapshotInput } from '../../ports/session-repository
 import { yieldToEventLoop } from '../../utils/event-loop-slice'
 import { EMPTY_INDEX } from './constants'
 import type {
-  ComparedSessionNodeRow,
   SessionBranchRow,
   SessionBranchStateRow,
   SessionNodeRow,
@@ -162,7 +161,7 @@ export function compareWithStoredNodes(input: {
         })
       }
     }
-    return input.existingNodes.map((node): ComparedSessionNodeRow => ({
+    return input.existingNodes.map((node) => ({
       ...node,
       content: contentById.get(node.id) ?? null,
     }))

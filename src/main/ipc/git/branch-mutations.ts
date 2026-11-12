@@ -12,13 +12,11 @@ function gitOutput(result: { readonly stderr: string; readonly stdout: string })
   return `${result.stderr}\n${result.stdout}`
 }
 
-function branchSuccess(message: string): GitBranchMutationResult {
-  return { ok: true, message }
+function branchSuccess(message: string) {
+  return { ok: true, message } satisfies GitBranchMutationResult
 }
 
-async function ensureBranchRepository(
-  projectPath: string,
-): Promise<GitBranchMutationResult | null> {
+async function ensureBranchRepository(projectPath: string) {
   if (await isGitRepository(projectPath)) {
     return null
   }
@@ -29,7 +27,7 @@ async function checkoutExistingLocalTrackingBranch(
   projectPath: string,
   remoteName: string,
   localName: string,
-): Promise<GitBranchMutationResult> {
+) {
   const upstreamResult = await runGit(projectPath, [
     'for-each-ref',
     '--format=%(upstream:short)',
@@ -47,7 +45,7 @@ async function checkoutExistingLocalTrackingBranch(
   if (checkoutLocalResult.code !== 0) {
     return mapBranchFailure(gitOutput(checkoutLocalResult))
   }
-  return { ok: true, message: `Switched to ${localName}.` }
+  return { ok: true, message: `Switched to ${localName}.` } satisfies GitBranchMutationResult
 }
 
 async function createRemoteTrackingBranch(
@@ -55,7 +53,7 @@ async function createRemoteTrackingBranch(
   remoteRef: string,
   remoteName: string,
   localName: string,
-): Promise<GitBranchMutationResult> {
+) {
   const createResult = await runGit(projectPath, ['branch', '--no-track', localName, remoteRef])
   if (createResult.code !== 0) return mapBranchFailure(gitOutput(createResult))
 
@@ -106,10 +104,7 @@ async function checkoutRemoteBranch(projectPath: string, remoteRef: string) {
   return branchSuccess(`Switched to tracking branch ${remoteRef}.`)
 }
 
-export async function checkoutGitBranch(
-  projectPath: string,
-  payload: GitBranchCheckoutPayload,
-): Promise<GitBranchMutationResult> {
+export async function checkoutGitBranch(projectPath: string, payload: GitBranchCheckoutPayload) {
   const name = payload.name.trim()
   if (!name) return branchFailure('invalid-name', 'Branch name is required.')
 
@@ -143,13 +138,14 @@ function refsConflict(first: string, second: string) {
   return first === second || first.startsWith(`${second}/`) || second.startsWith(`${first}/`)
 }
 
-async function validateNewBranchName(
-  projectPath: string,
-  name: string,
-): Promise<GitBranchValidationResult> {
+async function validateNewBranchName(projectPath: string, name: string) {
   const validateResult = await runGit(projectPath, ['check-ref-format', '--branch', name])
   if (validateResult.code !== 0) {
-    return { ok: false, code: 'invalid-name', message: 'Branch name is invalid.' }
+    return {
+      ok: false,
+      code: 'invalid-name',
+      message: 'Branch name is invalid.',
+    } satisfies GitBranchValidationResult
   }
 
   const refsResult = await runGit(projectPath, [
@@ -171,24 +167,27 @@ async function validateNewBranchName(
         ok: false,
         code: 'branch-exists',
         message: `Branch "${name}" conflicts with existing ref "${conflict}".`,
-      }
+      } satisfies GitBranchValidationResult
     }
   }
-  return { ok: true }
+  return { ok: true } satisfies GitBranchValidationResult
 }
 
-export async function validateGitBranchName(
-  projectPath: string,
-  rawName: string,
-): Promise<GitBranchValidationResult> {
+export async function validateGitBranchName(projectPath: string, rawName: string) {
   const name = rawName.trim()
-  if (!name) return { ok: false, code: 'required', message: 'Branch name is required.' }
+  if (!name) {
+    return {
+      ok: false,
+      code: 'required',
+      message: 'Branch name is required.',
+    } satisfies GitBranchValidationResult
+  }
   if (!(await isGitRepository(projectPath))) {
     return {
       ok: false,
       code: 'not-git-repo',
       message: 'Selected folder is not a Git repository.',
-    }
+    } satisfies GitBranchValidationResult
   }
   return validateNewBranchName(projectPath, name)
 }
@@ -214,10 +213,7 @@ async function checkoutCreatedBranch(
   return null
 }
 
-export async function createGitBranch(
-  projectPath: string,
-  payload: GitBranchCreatePayload,
-): Promise<GitBranchMutationResult> {
+export async function createGitBranch(projectPath: string, payload: GitBranchCreatePayload) {
   const name = payload.name.trim()
   if (!name) return branchFailure('invalid-name', 'Branch name is required.')
 

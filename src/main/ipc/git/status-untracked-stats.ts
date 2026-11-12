@@ -79,10 +79,7 @@ async function loadUntrackedNumstat(projectPath: string, paths: readonly string[
 export async function resolveUntrackedStatus(
   projectPath: string,
   porcelain: readonly ParsedPorcelainEntry[],
-): Promise<{
-  readonly porcelain: readonly ParsedPorcelainEntry[]
-  readonly numstat: ReadonlyMap<string, LineStats>
-}> {
+) {
   if (!porcelain.some((entry) => entry.status === 'untracked')) {
     return { porcelain, numstat: new Map<string, LineStats>() }
   }

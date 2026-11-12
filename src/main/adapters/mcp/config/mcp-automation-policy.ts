@@ -10,7 +10,7 @@ export interface McpAutomationEnvironment {
   readonly OPENWAGGLE_AUTOMATION_PROJECT_MCP?: string
 }
 
-function currentEnvironment(): McpAutomationEnvironment {
+function currentEnvironment() {
   return {
     ...readEnvironmentVariables(['OPENWAGGLE_AUTOMATION_PROJECT_MCP']),
     ...(env.OPENWAGGLE_AUTOMATION ? { OPENWAGGLE_AUTOMATION: env.OPENWAGGLE_AUTOMATION } : {}),
@@ -38,11 +38,15 @@ export function connectsProjectMcpServers(
 export function withProjectServerPolicy<T extends Pick<McpMergedConfig, 'servers' | 'errors'>>(
   merged: T,
   connectProjectServers: boolean,
-): T {
+) {
   if (connectProjectServers) return merged
   const servers = merged.servers.filter((server) => server.scope !== 'project')
   if (servers.length === merged.servers.length) return merged
-  return { ...merged, servers, errors: [AUTOMATION_PROJECT_MCP_NOTICE, ...merged.errors] }
+  return {
+    ...merged,
+    servers,
+    errors: [AUTOMATION_PROJECT_MCP_NOTICE, ...merged.errors],
+  } satisfies T
 }
 
 /** The policy notice for a configured server that it leaves out. */

@@ -52,9 +52,7 @@ function makeFixture() {
   }
 }
 
-function requireRequest(
-  request: BrowserPreviewRecordingRequest | null,
-): BrowserPreviewRecordingRequest {
+function requireRequest(request: BrowserPreviewRecordingRequest | null) {
   if (request === null) throw new Error('Expected a recording request to be sent.')
   return request
 }

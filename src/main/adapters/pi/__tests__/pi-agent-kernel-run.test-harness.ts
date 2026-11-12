@@ -15,9 +15,7 @@ type KernelRunDependencies = Parameters<typeof runPiAgentKernel>[1]
  * no preparation, the docs bundle at `/docs-bundle`, and a fresh MCP pool. A Run's visualization
  * directory is `visualizationDirectory`.
  */
-export function kernelRunDependencies(
-  visualizationDirectory: string | undefined,
-): KernelRunDependencies {
+export function kernelRunDependencies(visualizationDirectory: string | undefined) {
   return {
     runtimeExtensionIsolation: {},
     mcpPool: new McpSessionConnectionPool(),
@@ -45,7 +43,7 @@ export function kernelRunDependencies(
     inlineVisualization: fromPartial({
       prepareSession: () => Effect.succeed(visualizationDirectory),
     }),
-  }
+  } satisfies KernelRunDependencies
 }
 
 /** A first Run of a local Session in `/repo`; `overrides` replace its fields. */
@@ -54,7 +52,7 @@ export function kernelRunInput(
   overrides: Omit<Partial<AgentKernelRunInput>, 'session'> & {
     readonly session?: Partial<SessionDetail>
   } = {},
-): AgentKernelRunInput {
+) {
   const { session, ...rest } = overrides
   return fromPartial<AgentKernelRunInput>({
     runId: 'run-1',

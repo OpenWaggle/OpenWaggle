@@ -3,7 +3,6 @@ import type {
   GitWorktreeCreatePayload,
   GitWorktreeInfo,
   GitWorktreeListResult,
-  GitWorktreeMutationFailure,
   GitWorktreeMutationResult,
   GitWorktreeRemovePayload,
 } from '@shared/types/git'
@@ -23,7 +22,7 @@ function throwIfGitAborted(signal?: AbortSignal, result?: { readonly aborted?: b
   throw error
 }
 
-function classifyCreateError(stderr: string): GitWorktreeMutationFailure {
+function classifyCreateError(stderr: string) {
   const lower = stderr.toLowerCase()
   if (lower.includes('is not a valid ref') || lower.includes('invalid reference')) {
     return worktreeFailure('base-ref-not-found', stderr.trim() || 'Base ref not found.')
@@ -41,7 +40,7 @@ function classifyCreateError(stderr: string): GitWorktreeMutationFailure {
  * Parse `git worktree list --porcelain -z` output into structured worktree info.
  * Records are separated by an empty line; fields are NUL-separated.
  */
-export function parseWorktreeList(stdout: string): GitWorktreeInfo[] {
+export function parseWorktreeList(stdout: string) {
   const worktrees: GitWorktreeInfo[] = []
   const records = stdout.split('\0\0').filter((record) => record.replace(/\0/g, '').trim())
 
@@ -83,15 +82,18 @@ export function parseWorktreeList(stdout: string): GitWorktreeInfo[] {
   return worktrees
 }
 
-export async function listGitWorktrees(projectPath: string): Promise<GitWorktreeListResult> {
+export async function listGitWorktrees(projectPath: string) {
   if (!(await isGitRepository(projectPath))) {
-    return { worktrees: [] }
+    const value: GitWorktreeListResult = { worktrees: [] }
+    return value
   }
   const result = await runGit(projectPath, ['worktree', 'list', '--porcelain', '-z'])
   if (result.code !== 0) {
-    return { worktrees: [] }
+    const value: GitWorktreeListResult = { worktrees: [] }
+    return value
   }
-  return { worktrees: parseWorktreeList(result.stdout) }
+  const value: GitWorktreeListResult = { worktrees: parseWorktreeList(result.stdout) }
+  return value
 }
 
 /**
@@ -101,7 +103,7 @@ export async function listGitWorktrees(projectPath: string): Promise<GitWorktree
  * `branch refs/heads/<name>` for attached worktrees (detached ones report `detached` instead).
  */
 /** Whether two paths name the same tree, resolving symlinks; falls back to a plain compare. */
-async function isSamePath(left: string, right: string): Promise<boolean> {
+async function isSamePath(left: string, right: string) {
   if (left === right) return true
   try {
     return (await realpath(left)) === (await realpath(right))
@@ -110,11 +112,7 @@ async function isSamePath(left: string, right: string): Promise<boolean> {
   }
 }
 
-async function branchWorktreeHolder(
-  projectPath: string,
-  branch: string,
-  signal?: AbortSignal,
-): Promise<string | null> {
+async function branchWorktreeHolder(projectPath: string, branch: string, signal?: AbortSignal) {
   const result = await runWorktreeGit(projectPath, ['worktree', 'list', '--porcelain'], signal)
   throwIfGitAborted(signal, result)
   if (result.code !== 0) return null
@@ -134,7 +132,7 @@ async function createGitWorktreeUnlocked(
   projectPath: string,
   payload: GitWorktreeCreatePayload,
   options: { readonly signal?: AbortSignal } = {},
-): Promise<GitWorktreeMutationResult> {
+) {
   throwIfGitAborted(options.signal)
   if (!(await isGitRepository(projectPath))) {
     return worktreeFailure('not-git-repo', 'Selected folder is not a Git repository.')
@@ -217,27 +215,27 @@ async function createGitWorktreeUnlocked(
 
   const result = await runWorktreeGit(projectPath, addArgs, options.signal)
   throwIfGitAborted(options.signal, result)
-  if (result.code !== 0) {
-    return classifyCreateError(result.stderr)
-  }
+  if (result.code !== 0) return classifyCreateError(result.stderr)
 
-  return { ok: true, message: `Created worktree on ${branch}.`, path: worktreePath }
+  const value: GitWorktreeMutationResult = {
+    ok: true,
+    message: `Created worktree on ${branch}.`,
+    path: worktreePath,
+  }
+  return value
 }
 
 export function createGitWorktree(
   projectPath: string,
   payload: GitWorktreeCreatePayload,
   options: { readonly signal?: AbortSignal } = {},
-): Promise<GitWorktreeMutationResult> {
+) {
   return runWithGitMutationLock(projectPath, () =>
     createGitWorktreeUnlocked(projectPath, payload, options),
-  )
+  ) satisfies Promise<GitWorktreeMutationResult>
 }
 
-async function removeGitWorktreeUnlocked(
-  projectPath: string,
-  payload: GitWorktreeRemovePayload,
-): Promise<GitWorktreeMutationResult> {
+async function removeGitWorktreeUnlocked(projectPath: string, payload: GitWorktreeRemovePayload) {
   if (!(await isGitRepository(projectPath))) {
     return worktreeFailure('not-git-repo', 'Selected folder is not a Git repository.')
   }
@@ -260,17 +258,17 @@ async function removeGitWorktreeUnlocked(
   if (payload.force) args.push('--force', '--force')
 
   const result = await runGit(projectPath, args)
-  if (result.code !== 0) {
-    return classifyRemoveError(result.stderr)
-  }
+  if (result.code !== 0) return classifyRemoveError(result.stderr)
 
-  return { ok: true, message: 'Worktree removed.', path: worktreePath }
+  const value: GitWorktreeMutationResult = {
+    ok: true,
+    message: 'Worktree removed.',
+    path: worktreePath,
+  }
+  return value
 }
 
-export function removeGitWorktree(
-  projectPath: string,
-  payload: GitWorktreeRemovePayload,
-): Promise<GitWorktreeMutationResult> {
+export function removeGitWorktree(projectPath: string, payload: GitWorktreeRemovePayload) {
   const worktreePath = payload.path.trim()
   const mutationPaths = worktreePath ? [projectPath, worktreePath] : [projectPath]
   return runWithGitMutationLocks(mutationPaths, () =>
@@ -281,7 +279,7 @@ export function removeGitWorktree(
 export async function validateGitWorktreeRemoval(
   projectPath: string,
   payload: GitWorktreeRemovePayload,
-): Promise<GitWorktreeMutationResult> {
+) {
   if (!(await isGitRepository(projectPath))) {
     return worktreeFailure('not-git-repo', 'Selected folder is not a Git repository.')
   }
@@ -300,14 +298,18 @@ export async function validateGitWorktreeRemoval(
     return worktreeFailure('unknown', 'Worktree is locked. Unlock it before removing it.')
   }
   if (payload.force && !payload.lockOnly) {
-    return { ok: true, message: 'Worktree can be force-removed.', path: worktreePath }
-  }
-  // A lock-only force still keeps uncommitted work: it is checked here, before and after cleanup.
-  return (
-    (await uncommittedWorkRefusal(worktreePath)) ?? {
+    const result: GitWorktreeMutationResult = {
       ok: true,
-      message: 'Worktree can be removed.',
+      message: 'Worktree can be force-removed.',
       path: worktreePath,
     }
-  )
+    return result
+  }
+  // A lock-only force still keeps uncommitted work: it is checked here, before and after cleanup.
+  const result: GitWorktreeMutationResult = (await uncommittedWorkRefusal(worktreePath)) ?? {
+    ok: true,
+    message: 'Worktree can be removed.',
+    path: worktreePath,
+  }
+  return result
 }

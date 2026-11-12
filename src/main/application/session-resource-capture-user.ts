@@ -32,10 +32,7 @@ interface UserCaptureContext {
   readonly createdAt: number
 }
 
-function userCaptureContext(
-  input: UserRunResourceInput,
-  fallbackCreatedAt: number,
-): UserCaptureContext {
+function userCaptureContext(input: UserRunResourceInput, fallbackCreatedAt: number) {
   const message = input.messages.find((candidate) => candidate.role === 'user') ?? null
   const messageId = message ? String(message.id) : null
   return {

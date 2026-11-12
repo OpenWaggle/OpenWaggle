@@ -11,14 +11,14 @@ import {
 const SHOWN = SessionId('shown')
 const OTHER = SessionId('other')
 
-function textDelta(delta: string, timestamp: number, messageId = 'm1'): AgentTransportEvent {
+function textDelta(delta: string, timestamp: number, messageId = 'm1') {
   return {
     type: 'message_update',
     messageId,
     role: 'assistant',
     assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta },
     timestamp,
-  }
+  } satisfies AgentTransportEvent
 }
 
 function target(id = 1) {
@@ -111,19 +111,20 @@ describe('AgentEventDelivery', () => {
   it('merges tool input deltas only in the same form', () => {
     const delivery = new AgentEventDelivery()
     const window = target()
-    const toolDelta = (delta: string, input?: string): AgentTransportEvent => ({
-      type: 'message_update',
-      messageId: 'm1',
-      role: 'assistant',
-      assistantMessageEvent: {
-        type: 'toolcall_delta',
-        contentIndex: 2,
-        toolCallId: 'call',
-        delta,
-        ...(input === undefined ? {} : { input }),
-      },
-      timestamp: 1,
-    })
+    const toolDelta = (delta: string, input?: string) =>
+      ({
+        type: 'message_update',
+        messageId: 'm1',
+        role: 'assistant',
+        assistantMessageEvent: {
+          type: 'toolcall_delta',
+          contentIndex: 2,
+          toolCallId: 'call',
+          delta,
+          ...(input === undefined ? {} : { input }),
+        },
+        timestamp: 1,
+      }) satisfies AgentTransportEvent
     delivery.deliver([window.value], SHOWN, toolDelta('{"a"', '{}'))
     delivery.deliver([window.value], SHOWN, toolDelta(':1}', '{"a":1}'))
     delivery.deliver([window.value], SHOWN, toolDelta(' raw'))

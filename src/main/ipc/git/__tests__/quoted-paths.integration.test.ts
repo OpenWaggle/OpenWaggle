@@ -12,7 +12,7 @@ let repositoryPath: string | null = null
 /** A name git C-quotes by default, which is the whole point of this test. */
 const ACCENTED_NAME = 'café.txt'
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFileAsync('git', [...args], { cwd })
   return stdout
 }

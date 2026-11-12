@@ -53,9 +53,7 @@ function copyDefined<Key extends keyof WaggleExecutionContext>(
 }
 
 /** Preserve one common optional execution context across classic and Waggle dispatch. */
-export function toWaggleKernelExecutionContext(
-  input: Partial<WaggleExecutionContext>,
-): Partial<WaggleExecutionContext> {
+export function toWaggleKernelExecutionContext(input: Partial<WaggleExecutionContext>) {
   const context: WaggleExecutionContextDraft = {}
   for (const key of WAGGLE_EXECUTION_CONTEXT_KEYS) copyDefined(context, input, key)
   return context

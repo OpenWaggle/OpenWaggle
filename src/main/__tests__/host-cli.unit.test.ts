@@ -31,7 +31,7 @@ function dependencies(input: {
   readonly updateStop?: HostCliDependencies['updateStop']
 }) {
   const probes = [...input.probes]
-  const execute = vi.fn(async (): Promise<LocalSessionCommandResult> =>
+  const execute = vi.fn<() => Promise<LocalSessionCommandResult>>(async () =>
     fromPartial({
       contract: 'local-host-v1',
       response: {

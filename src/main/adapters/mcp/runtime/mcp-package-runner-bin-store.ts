@@ -27,7 +27,7 @@ export interface PackageBinStore {
 }
 
 /** A JSON file of resolutions, so a new Session Host does not start every server via its runner. */
-export function fileBackedPackageBinStore(file: () => string): PackageBinStore {
+export function fileBackedPackageBinStore(file: () => string) {
   return {
     load: () => {
       let text: string
@@ -63,5 +63,5 @@ export function fileBackedPackageBinStore(file: () => string): PackageBinStore {
         })
       }
     },
-  }
+  } satisfies PackageBinStore
 }

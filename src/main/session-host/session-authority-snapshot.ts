@@ -55,7 +55,7 @@ export function retargetSynthesizedSessionAuthorityScope(
   previousWorkingPath: string,
   workingPath: string,
   authorityOriginCallerId: string,
-): LocalSessionProfileScope {
+) {
   if (!hasSynthesizedLocalScope(authorityOriginCallerId)) return scope
   return {
     ...scope,
@@ -79,7 +79,7 @@ export function retargetSessionAuthoritySnapshot(
   snapshot: SessionAuthoritySnapshot,
   workingPath: string,
   authorityOriginCallerId: string,
-): SessionAuthoritySnapshot {
+) {
   return {
     ...snapshot,
     scope: retargetSynthesizedSessionAuthorityScope(
@@ -98,13 +98,10 @@ export function retargetSessionAuthoritySnapshot(
  * or detaches a Worker would otherwise inherit it. The Worker gets its project instead, which is
  * what a Worker snapshot held before root agents reached every project.
  */
-export function workerAuthorityScope(
-  scope: LocalSessionProfileScope,
-  projectPath: string,
-): LocalSessionProfileScope {
+export function workerAuthorityScope(scope: LocalSessionProfileScope, projectPath: string) {
   if (scope.all !== true) return scope
   const { all: _all, ...rest } = scope
-  return { ...rest, projectPaths: [projectPath] }
+  return { ...rest, projectPaths: [projectPath] } satisfies LocalSessionProfileScope
 }
 
 /** Validates a not-yet-materialized Workspace without granting its future path early. */
@@ -112,7 +109,7 @@ export function provisionalSessionAuthoritySnapshot(
   snapshot: SessionAuthoritySnapshot,
   plannedWorkingPath: string,
   authorityOriginCallerId: string,
-): SessionAuthoritySnapshot {
+) {
   return {
     ...retargetSessionAuthoritySnapshot(snapshot, snapshot.projectPath, authorityOriginCallerId),
     workingPath: plannedWorkingPath,

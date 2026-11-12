@@ -45,9 +45,7 @@ export function runSystemPromptAppendices(
   return appendices.length > 0 ? { systemPromptAppendices: appendices } : {}
 }
 
-export function runtimeIsolationOptions(
-  input: CreatePiRunSessionRuntimeInput,
-): PiProjectRuntimeIsolationOptions {
+export function runtimeIsolationOptions(input: CreatePiRunSessionRuntimeInput) {
   return {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
@@ -65,5 +63,5 @@ export function runtimeIsolationOptions(
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
-  }
+  } satisfies PiProjectRuntimeIsolationOptions
 }

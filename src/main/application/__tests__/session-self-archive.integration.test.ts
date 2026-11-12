@@ -90,7 +90,7 @@ function selfArchivingExecutor(
   runtime: () => Runtime.Runtime<HostContext>,
   observed: ObservedRun,
   scenario: Scenario,
-): SessionControlRunExecutorShape {
+) {
   let runs = 0
   return {
     execute: ({ sessionId, runId, controller }) =>
@@ -113,7 +113,7 @@ function selfArchivingExecutor(
           ? { terminalStatus, finalResponse: FINAL_RESPONSE }
           : { terminalStatus }
       }),
-  }
+  } satisfies SessionControlRunExecutorShape
 }
 
 function waitUntil(check: () => boolean, label: string, timeout: '5 seconds' | '40 seconds') {

@@ -30,7 +30,7 @@ import { HOST_SHUTDOWN_CALLER_ID } from '../../domain/session-control/root-sessi
 import { interruptAllSessionRuns } from '../session-run-interruption'
 
 // The dispatcher is mocked, so the services its type names are never used.
-function runWithoutRequirements(effect: Effect.Effect<void, unknown, unknown>): Promise<void> {
+function runWithoutRequirements(effect: Effect.Effect<void, unknown, unknown>) {
   return Effect.runPromise(fromAny<Effect.Effect<void, unknown>, typeof effect>(effect))
 }
 

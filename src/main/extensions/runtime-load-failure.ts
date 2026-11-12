@@ -9,21 +9,19 @@ import type {
 function runtimeLoadFailedDiagnostic(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly error: unknown
-}): ExtensionDiagnostic {
+}) {
   return {
     severity: 'error',
     code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_LOAD_FAILED,
     message: `Extension runtime loading failed and the extension was disabled: ${formatErrorMessage(input.error)}`,
     path: input.extensionPackage.packagePath,
-  }
+  } satisfies ExtensionDiagnostic
 }
 
-function withoutPreviousRuntimeLoadFailures(
-  diagnostics: readonly ExtensionDiagnostic[],
-): readonly ExtensionDiagnostic[] {
+function withoutPreviousRuntimeLoadFailures(diagnostics: readonly ExtensionDiagnostic[]) {
   return diagnostics.filter(
     (diagnostic) => diagnostic.code !== OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_LOAD_FAILED,
-  )
+  ) satisfies readonly ExtensionDiagnostic[]
 }
 
 export function applyRuntimeLoadFailureToLifecycle(input: {
@@ -31,8 +29,8 @@ export function applyRuntimeLoadFailureToLifecycle(input: {
   readonly lifecycle: ExtensionLifecycleState
   readonly error: unknown
   readonly now: number
-}): ExtensionLifecycleState {
-  return {
+}) {
+  const state: ExtensionLifecycleState = {
     ...input.lifecycle,
     enabled: false,
     grantedCapabilities: [],
@@ -44,4 +42,5 @@ export function applyRuntimeLoadFailureToLifecycle(input: {
     ],
     updatedAt: input.now,
   }
+  return state
 }

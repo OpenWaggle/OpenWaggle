@@ -32,8 +32,8 @@ function forkError(operation: string, cause: unknown) {
   return new SessionLifecyclePreparationError({ operation, cause })
 }
 
-function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionDetail {
-  return {
+function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand) {
+  const detail: SessionDetail = {
     id: SessionId(command.sourceSessionId),
     title: row.title,
     projectPath: row.project_path,
@@ -57,6 +57,7 @@ function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionD
       : {}),
     ...(row.pi_cwd ? { piSessionCwd: row.pi_cwd } : {}),
   }
+  return detail
 }
 
 /** Names the Pi file a preparation attempt made, so a failed or interrupted one is cleaned up. */

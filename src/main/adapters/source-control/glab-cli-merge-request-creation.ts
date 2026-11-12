@@ -19,7 +19,7 @@ interface MergeRequestCreationDependencies {
   readonly viewMergeRequest: (projectPath: string, ref: string) => Promise<ChangeRequestResult>
 }
 
-function numberProperty(raw: unknown, property: string): number | null {
+function numberProperty(raw: unknown, property: string) {
   const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
   if (!decoded.success) return null
   const value = decoded.data[property]
@@ -31,7 +31,7 @@ export async function findForkMergeRequest(
   projectPath: string,
   payload: OpenChangeRequestPayload,
   dependencies: MergeRequestCreationDependencies,
-): Promise<ChangeRequestResult> {
+) {
   if (!payload.headRepository) {
     return dependencies.viewMergeRequest(projectPath, payload.headRef)
   }
@@ -48,7 +48,12 @@ export async function findForkMergeRequest(
   if (projectResult.code !== 0) return dependencies.classifyFailure(projectResult)
   const sourceProjectId = numberProperty(safeJsonParse(projectResult.stdout), 'id')
   if (sourceProjectId === null) {
-    return { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
+    const result: ChangeRequestResult = {
+      ok: false,
+      code: 'no-change-request',
+      message: 'No merge request found for ref.',
+    }
+    return result
   }
   const args = [
     'mr',
@@ -77,11 +82,16 @@ export async function findForkMergeRequest(
   })
   const changeRequest = mapGlabMergeRequest(exact)
   if (!changeRequest) {
-    return { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
+    const result: ChangeRequestResult = {
+      ok: false,
+      code: 'no-change-request',
+      message: 'No merge request found for ref.',
+    }
+    return result
   }
   const identity = resolveRepositoryChangeRequestIdentity(repository, changeRequest.url)
   return identity
-    ? { ok: true, changeRequest: { ...changeRequest, url: identity.url } }
+    ? ({ ok: true, changeRequest: { ...changeRequest, url: identity.url } } as const)
     : dependencies.invalidRepositoryFailure()
 }
 
@@ -89,7 +99,7 @@ function createdMergeRequestFromOutput(
   repository: SourceControlRepositoryIdentity,
   result: CliResult,
   payload: OpenChangeRequestPayload,
-): ChangeRequestResult | null {
+) {
   const url = result.stdout.match(/https?:\/\/\S+/u)?.[0]
   if (!url) return null
   const identity = resolveRepositoryChangeRequestIdentity(repository, url)
@@ -103,7 +113,7 @@ function createdMergeRequestFromOutput(
       headRef: payload.headRef,
       state: payload.draft ? 'draft' : 'open',
     },
-  }
+  } satisfies ChangeRequestResult
 }
 
 async function resolveCreatedMergeRequest(
@@ -124,12 +134,13 @@ async function resolveCreatedMergeRequest(
   }
   if (result.code !== 0) return dependencies.classifyFailure(result)
   return (
-    createdMergeRequestFromOutput(repository, result, payload) ?? {
+    createdMergeRequestFromOutput(repository, result, payload) ??
+    ({
       ok: false,
       code: 'unknown',
       message:
         'The merge request command succeeded, but the created request could not be verified.',
-    }
+    } satisfies ChangeRequestResult)
   )
 }
 
@@ -159,9 +170,10 @@ export async function createGitlabMergeRequest(
   return resolveCreatedMergeRequest(repository, projectPath, payload, result, dependencies)
 }
 
-function safeJsonParse(text: string): unknown {
+function safeJsonParse(text: string) {
   try {
-    return JSON.parse(text)
+    const parsed: unknown = JSON.parse(text)
+    return parsed
   } catch {
     return null
   }

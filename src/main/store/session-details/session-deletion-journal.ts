@@ -38,8 +38,8 @@ export interface SessionDeletionCheckpointRef {
   readonly objectId: string
 }
 
-function checkpointRefs(raw: string | null): readonly SessionDeletionCheckpointRef[] {
-  if (!raw) return []
+function checkpointRefs(raw: string | null) {
+  if (!raw) return [] satisfies readonly SessionDeletionCheckpointRef[]
   const parsed: unknown = JSON.parse(raw)
   if (!isMatching(P.array({ name: P.string, objectId: P.string }), parsed)) {
     throw new Error('Session deletion journal contains invalid checkpoint refs.')
@@ -57,8 +57,8 @@ interface SessionDeletionRow {
   readonly checkpoint_refs_json: string | null
 }
 
-function deletionRecord(row: SessionDeletionRow, resumed: boolean): SessionDeletionRecord {
-  return {
+function deletionRecord(row: SessionDeletionRow, resumed: boolean) {
+  const record: SessionDeletionRecord = {
     phase: row.phase,
     resumed,
     piSessionFile: row.pi_session_file,
@@ -68,6 +68,7 @@ function deletionRecord(row: SessionDeletionRow, resumed: boolean): SessionDelet
     worktreePath: row.worktree_path,
     checkpointRefs: checkpointRefs(row.checkpoint_refs_json),
   }
+  return record
 }
 
 function readDeletion(sql: SqlClient.SqlClient, id: SessionId) {
@@ -78,7 +79,7 @@ function readDeletion(sql: SqlClient.SqlClient, id: SessionId) {
   `
 }
 
-export async function getSessionDeletion(id: SessionId): Promise<SessionDeletionRecord | null> {
+export async function getSessionDeletion(id: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -168,7 +169,7 @@ export async function prepareSessionDeletion(
   )
 }
 
-export async function commitSessionDeletion(id: SessionId): Promise<SessionDeletionRecord> {
+export async function commitSessionDeletion(id: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -209,7 +210,7 @@ export async function commitSessionDeletion(id: SessionId): Promise<SessionDelet
 export async function prepareSessionCheckpointRefCleanup(
   id: SessionId,
   refs: readonly SessionDeletionCheckpointRef[],
-): Promise<void> {
+) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -223,10 +224,7 @@ export async function prepareSessionCheckpointRefCleanup(
   )
 }
 
-export async function prepareSessionPiFileCleanup(
-  id: SessionId,
-  piSessionFile: string | null,
-): Promise<SessionDeletionRecord> {
+export async function prepareSessionPiFileCleanup(id: SessionId, piSessionFile: string | null) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -245,7 +243,7 @@ export async function prepareSessionPiFileCleanup(
   )
 }
 
-export async function markSessionPiFileCleanupComplete(id: SessionId): Promise<void> {
+export async function markSessionPiFileCleanupComplete(id: SessionId) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -258,7 +256,7 @@ export async function markSessionPiFileCleanupComplete(id: SessionId): Promise<v
   )
 }
 
-export async function markSessionDeletionExternalCleanupComplete(id: SessionId): Promise<void> {
+export async function markSessionDeletionExternalCleanupComplete(id: SessionId) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -271,7 +269,7 @@ export async function markSessionDeletionExternalCleanupComplete(id: SessionId):
   )
 }
 
-export async function abandonSessionDeletion(id: SessionId): Promise<void> {
+export async function abandonSessionDeletion(id: SessionId) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -280,7 +278,7 @@ export async function abandonSessionDeletion(id: SessionId): Promise<void> {
   )
 }
 
-export async function listPendingSessionDeletions(): Promise<SessionId[]> {
+export async function listPendingSessionDeletions() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

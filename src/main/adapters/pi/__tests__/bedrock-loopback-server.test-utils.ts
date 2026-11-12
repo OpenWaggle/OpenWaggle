@@ -101,6 +101,6 @@ export const BEDROCK_LOOPBACK_ENV = {
   NO_PROXY: '127.0.0.1',
 }
 
-export function userContext(text = 'hello'): Context {
-  return { messages: [{ role: 'user', content: text, timestamp: 0 }] }
+export function userContext(text = 'hello') {
+  return { messages: [{ role: 'user', content: text, timestamp: 0 }] } satisfies Context
 }

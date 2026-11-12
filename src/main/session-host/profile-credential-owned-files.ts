@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import { childScriptRuntime } from '../desktop-shell/child-runtime'
-import type { WorkspaceDirectoryIdentity } from '../domain/workspace-generation'
 import { getSafeChildEnv } from '../env'
 import {
   abortValidatedChild,
@@ -114,9 +113,7 @@ function spawnOwnedFileHelper(
  * `dev:ino` string next to it pins the directory only within this process: macOS renumbers
  * volumes at mount, so `st_dev` changes across reboots.
  */
-export async function readDurableDirectoryIdentity(
-  directoryHandle: FileHandle,
-): Promise<WorkspaceDirectoryIdentity> {
+export async function readDurableDirectoryIdentity(directoryHandle: FileHandle) {
   const stats = await directoryHandle.stat({ bigint: true })
   return {
     device: stats.dev.toString(),

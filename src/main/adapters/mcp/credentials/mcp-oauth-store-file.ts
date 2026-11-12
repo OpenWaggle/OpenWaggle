@@ -59,7 +59,7 @@ const ownLayerSchema = Schema.Struct({
   tombstones: lenientStringRecordSchema,
 })
 
-function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer {
+function decodeOwnLayer(text: string, encryption: McpOAuthEncryption) {
   const file: unknown = JSON.parse(text)
   if (!Schema.is(storeFileSchema)(file)) {
     throw new Error('OpenWaggle MCP sign-in storage has an unsupported format.')
@@ -67,10 +67,11 @@ function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer 
   const decrypted: unknown = JSON.parse(decryptStore(file.encrypted, encryption))
   if (!isRecord(decrypted)) throw new Error('OpenWaggle MCP sign-in storage is invalid.')
   const layer = decodeUnknownOrThrow(ownLayerSchema, decrypted)
-  return {
+  const result: OwnLayer = {
     states: isRecord(layer.states) ? { ...layer.states } : {},
     tombstones: { ...layer.tombstones },
   }
+  return result
 }
 
 /**
@@ -78,7 +79,7 @@ function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer 
  * aside, kept for recovery, and the store starts empty; Pi's own sign-ins still show. Logged once:
  * the next read finds no file. A store that does not decrypt is never moved: see `readOwnLayer`.
  */
-function setAsideUnreadableStore(storePath: string, error: unknown, warn: StoreWarning): OwnLayer {
+function setAsideUnreadableStore(storePath: string, error: unknown, warn: StoreWarning) {
   const asidePath = `${storePath}.unreadable-${Date.now()}`
   try {
     renameSync(storePath, asidePath)
@@ -91,7 +92,8 @@ function setAsideUnreadableStore(storePath: string, error: unknown, warn: StoreW
     error: error instanceof Error ? error.message : String(error),
     movedTo: asidePath,
   })
-  return { states: {}, tombstones: {} }
+  const layer: OwnLayer = { states: {}, tombstones: {} }
+  return layer
 }
 
 /** Writes the store file atomically, readable by this user only. */
@@ -138,21 +140,30 @@ function readLegacyStore(
   legacyStorePath: string,
   encryption: McpOAuthEncryption,
   warn: StoreWarning,
-): LegacyStoreRead {
+) {
   let text: string
   try {
     text = readFileSync(legacyStorePath, 'utf8')
   } catch (error) {
-    if (isMissing(error)) return { kind: 'none' }
-    return { kind: 'retry', error: error instanceof Error ? error.message : String(error) }
+    if (isMissing(error)) {
+      const read: LegacyStoreRead = { kind: 'none' }
+      return read
+    }
+    const read: LegacyStoreRead = {
+      kind: 'retry',
+      error: error instanceof Error ? error.message : String(error),
+    }
+    return read
   }
   try {
-    return { kind: 'taken', text, layer: decodeOwnLayer(text, encryption) }
+    const read: LegacyStoreRead = { kind: 'taken', text, layer: decodeOwnLayer(text, encryption) }
+    return read
   } catch (error) {
     warn('The shared MCP sign-in store is not this build’s; it was left in place', {
       error: error instanceof Error ? error.message : String(error),
     })
-    return { kind: 'none' }
+    const read: LegacyStoreRead = { kind: 'none' }
+    return read
   }
 }
 

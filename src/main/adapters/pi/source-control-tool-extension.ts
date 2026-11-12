@@ -52,10 +52,8 @@ async function execute(
 const SOURCE_CONTROL_RULE =
   'How OpenWaggle reaches GitHub or GitLab for this remote, and why View PR/MR fails (source_control), loads with tool_search or runs from codemode.'
 
-export function createSourceControlToolExtension(
-  input: SourceControlToolInput,
-): SynchronousExtensionFactory {
-  return (pi) => {
+export function createSourceControlToolExtension(input: SourceControlToolInput) {
+  return ((pi) => {
     onDemandToolRegistration(pi).registerTool({
       name: 'source_control',
       label: 'Source Control',
@@ -83,5 +81,5 @@ export function createSourceControlToolExtension(
       },
     })
     announceOnDemandTools(pi, { rule: SOURCE_CONTROL_RULE })
-  }
+  }) satisfies SynchronousExtensionFactory
 }

@@ -15,11 +15,11 @@ export function asObject(value: unknown) {
   return decoded.success ? decoded.data : null
 }
 
-export function asCount(value: unknown): number | null {
+export function asCount(value: unknown) {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
 }
 
-export function asNumericCount(value: unknown): number | null {
+export function asNumericCount(value: unknown) {
   const number = typeof value === 'string' && /^\d+$/u.test(value.trim()) ? Number(value) : value
   return asCount(number)
 }
@@ -32,7 +32,7 @@ export function boundedObjects(value: unknown) {
   })
 }
 
-export function asString(value: unknown): string | null {
+export function asString(value: unknown) {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null

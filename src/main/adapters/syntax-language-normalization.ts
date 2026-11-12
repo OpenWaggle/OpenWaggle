@@ -17,7 +17,7 @@ import {
   languageDeclarationSourceSchema,
 } from './syntax-source-schemas'
 
-function normalizedLanguageConfiguration(value: unknown): SyntaxLanguageConfiguration | undefined {
+function normalizedLanguageConfiguration(value: unknown) {
   if (!isSourceObject(value)) return undefined
   const source = decodeUnknownOrThrow(languageConfigurationSourceSchema, value)
   const { brackets, autoClosingPairs, surroundingPairs, colorizedBracketPairs } = source
@@ -37,7 +37,9 @@ function normalizedLanguageConfiguration(value: unknown): SyntaxLanguageConfigur
     ...(colorizedBracketPairs.length > 0 ? { colorizedBracketPairs } : {}),
     ...(source.autoCloseBefore === undefined ? {} : { autoCloseBefore: source.autoCloseBefore }),
   }
-  return Object.keys(configuration).length > 0 ? configuration : undefined
+  const result: SyntaxLanguageConfiguration | undefined =
+    Object.keys(configuration).length > 0 ? configuration : undefined
+  return result
 }
 
 function normalizedExtension(value: string) {
@@ -96,7 +98,7 @@ export function normalizedLanguage(input: {
   readonly sourcePath: string
   readonly scope: SyntaxResourceScope
   readonly configuration?: unknown
-}): SyntaxLanguageResource {
+}) {
   if (!isSourceObject(input.grammar)) throw new Error('TextMate grammar must contain an object.')
   const grammar = toJsonObject(input.grammar)
   const grammarSource = decodeUnknownOrThrow(grammarSourceSchema, grammar)
@@ -121,7 +123,7 @@ export function normalizedLanguage(input: {
     ...(isSourceObject(rawConfiguration) ? { configuration: rawConfiguration } : {}),
   })
   const revision = createHash('sha256').update(JSON.stringify(original)).digest('hex')
-  return {
+  const resource: SyntaxLanguageResource = {
     id: `language:${syntaxResourceSlug(input.packageId)}:${syntaxResourceSlug(languageId)}`,
     packageId: input.packageId,
     revision,
@@ -145,4 +147,5 @@ export function normalizedLanguage(input: {
     },
     original,
   }
+  return resource
 }

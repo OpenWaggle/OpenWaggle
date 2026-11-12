@@ -38,10 +38,10 @@ export function newRunStart(
     readonly previous: Pick<ScheduledTaskRun, 'sessionId' | 'firedAt'> | null
     readonly byAgent: boolean
   },
-): ScheduledTaskRunStart {
+) {
   const { previous } = firing
   const id = scheduledTaskHooks().newId()
-  return {
+  const start: ScheduledTaskRunStart = {
     id,
     taskId: record.id,
     taskName: record.name,
@@ -54,6 +54,7 @@ export function newRunStart(
     previousSessionId: previous?.sessionId ?? null,
     previousFiredAt: previous?.firedAt ?? null,
   }
+  return start
 }
 
 /** Records a run that sent nothing and moves the task on; an attention also stops it. */

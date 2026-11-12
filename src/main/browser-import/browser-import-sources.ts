@@ -223,18 +223,24 @@ function unavailableSource(
   definition: BrowserImportSourceDefinition,
   unavailable: BrowserImportUnavailableReason,
   profiles: readonly BrowserImportSourceProfile[] = [],
-): BrowserImportSource {
-  return { id: definition.id, name: definition.name, profiles, unavailable }
+) {
+  const source: BrowserImportSource = {
+    id: definition.id,
+    name: definition.name,
+    profiles,
+    unavailable,
+  }
+  return source
 }
 
 async function listSourceProfiles(
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-): Promise<readonly BrowserImportSourceProfile[]> {
+) {
   if (definition.engine === 'chromium') return listChromiumProfiles(definition, context)
   if (definition.engine === 'firefox') return listFirefoxProfiles(definition, context)
   const root = definition.userDataDirectory(context)
-  if (root === undefined) return []
+  if (root === undefined) return [] satisfies readonly BrowserImportSourceProfile[]
   return filterProfilesWithCookieDatabase(definition, context, await listSafariProfiles(root))
 }
 
@@ -255,7 +261,7 @@ async function profileDatabasePermissionDenied(
 async function inspectBrowserImportSource(
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-): Promise<BrowserImportSource> {
+) {
   if (!definition.platforms.includes(context.platform)) {
     return unavailableSource(definition, 'unsupported-platform')
   }
@@ -277,12 +283,13 @@ async function inspectBrowserImportSource(
   if (profilePermissionFailure) {
     return unavailableSource(definition, profilePermissionFailure, profiles)
   }
-  return { id: definition.id, name: definition.name, profiles }
+  const source: BrowserImportSource = { id: definition.id, name: definition.name, profiles }
+  return source
 }
 
 export async function listBrowserImportSources(
   context: BrowserImportPathContext = defaultBrowserImportPathContext(),
-): Promise<readonly BrowserImportSource[]> {
+) {
   return Promise.all(
     BROWSER_IMPORT_SOURCES.filter((definition) =>
       definition.platforms.includes(context.platform),
@@ -290,6 +297,6 @@ export async function listBrowserImportSources(
   )
 }
 
-export function defaultBrowserImportPathContext(): BrowserImportPathContext {
+export function defaultBrowserImportPathContext() {
   return { home: homedir(), platform: process.platform, ...getBrowserImportPathEnv() }
 }

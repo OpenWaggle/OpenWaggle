@@ -8,13 +8,13 @@ import { captureWorktreeSnapshotForTests, turnDiffForTests } from '../turn-captu
 
 let projectPath: string | null = null
 
-async function git(args: readonly string[]): Promise<string> {
+async function git(args: readonly string[]) {
   if (!projectPath) throw new Error('Temporary Git repository is not initialized.')
   const result = await execFileAsync('git', args, { cwd: projectPath })
   return typeof result === 'string' ? result : (result.stdout ?? '')
 }
 
-async function createRepository(): Promise<string> {
+async function createRepository() {
   projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-turn-capture-'))
   await git(['init'])
   await git(['config', 'user.name', 'OpenWaggle Test'])

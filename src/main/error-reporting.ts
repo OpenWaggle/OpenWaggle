@@ -154,7 +154,7 @@ async function beginErrorReporting(processKind: ErrorReportingProcess) {
  * Starts error reporting for this process once Settings have loaded; later calls return the
  * same attempt. Never rejects.
  */
-export function startErrorReporting(processKind: ErrorReportingProcess): Promise<void> {
+export function startErrorReporting(processKind: ErrorReportingProcess) {
   if (startup) return startup
   // Only a Host whose Settings loaded saves the Setting, so a Host that fails before then (and
   // may not own the profile) never writes the file. Not awaited: it never delays reporting.
@@ -211,7 +211,7 @@ async function assumeLastKnownSetting() {
  * Arguments for the main window's renderer: the switch that lets it start its SDK. A renderer
  * report reaches nothing until this process's SDK runs, and is dropped while statistics are off.
  */
-export function errorReportingRendererArguments(): readonly string[] {
+export function errorReportingRendererArguments() {
   return failed || fixedOptOutApplies() ? [] : [ERROR_REPORTING_RENDERER_SWITCH]
 }
 
@@ -219,7 +219,7 @@ export function errorReportingRendererArguments(): readonly string[] {
  * Reports an error the app caught. Only an `origin` of `application` keeps the message text, so
  * pass it only where the message cannot hold user content. Does nothing while reporting is off.
  */
-export function reportError(error: unknown, origin?: ErrorReportOrigin): void {
+export function reportError(error: unknown, origin?: ErrorReportOrigin) {
   void startup?.then(() => reporter?.captureException(error, origin))
 }
 

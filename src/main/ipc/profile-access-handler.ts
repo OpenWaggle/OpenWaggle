@@ -5,7 +5,6 @@ import {
 } from '@shared/schemas/local-session-profile-management'
 import {
   LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
-  type LocalSessionProfileManagementCommand,
   type LocalSessionProfileManagementResponse,
   type LocalSessionProfileUiCommand,
 } from '@shared/types/local-session-profile-management'
@@ -25,10 +24,7 @@ import {
 } from '../session-host/profile-credential-destination'
 import { typedHandle } from './typed-ipc'
 
-function managementCommand(
-  command: LocalSessionProfileUiCommand,
-  credential: string | undefined,
-): LocalSessionProfileManagementCommand {
+function managementCommand(command: LocalSessionProfileUiCommand, credential: string | undefined) {
   if (command.operation === 'create') {
     if (!credential) throw new Error('Profile creation credential was not generated.')
     return { ...command, credential }

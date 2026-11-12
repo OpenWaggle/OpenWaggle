@@ -141,16 +141,18 @@ export function enqueueUserInputProjection(
 
 type ProjectedUserPart = SchemaType<typeof userInputProjectionSchema>['parts'][number]
 
-function boundedPart(part: ProjectedUserPart): ProjectedUserPart {
-  return part.type === 'attachment'
-    ? {
-        ...part,
-        attachment: {
-          ...part.attachment,
-          extractedText: boundedAttachmentText(part.attachment.extractedText),
-        },
-      }
-    : part
+function boundedPart(part: ProjectedUserPart) {
+  const result: ProjectedUserPart =
+    part.type === 'attachment'
+      ? {
+          ...part,
+          attachment: {
+            ...part.attachment,
+            extractedText: boundedAttachmentText(part.attachment.extractedText),
+          },
+        }
+      : part
+  return result
 }
 
 function decodeProjection(value: unknown) {
@@ -158,8 +160,9 @@ function decodeProjection(value: unknown) {
   return decoded.success ? { ...decoded.data, parts: decoded.data.parts.map(boundedPart) } : null
 }
 
-export function decodeUserInputProjection(value: unknown): readonly ProjectedUserPart[] | null {
-  return decodeProjection(value)?.parts ?? null
+export function decodeUserInputProjection(value: unknown) {
+  const part: readonly ProjectedUserPart[] | null = decodeProjection(value)?.parts ?? null
+  return part
 }
 
 /**

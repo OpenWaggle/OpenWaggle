@@ -3,9 +3,10 @@ import { SESSION_HOST_BASELINE_MIGRATION_ID } from '../services/session-host-sch
 import type { HostSqliteDatabase } from './host-sqlite-database'
 
 /** A row decoded with its schema, or `undefined` when there is none or it does not match. */
-export function decodeCutoverRow<A, I>(schema: Schema.Schema<A, I>, value: unknown): A | undefined {
+export function decodeCutoverRow<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
-  return decoded.success ? decoded.data : undefined
+  const result: A | undefined = decoded.success ? decoded.data : undefined
+  return result
 }
 
 export function queryCutoverRow<A, I>(

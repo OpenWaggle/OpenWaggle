@@ -74,11 +74,8 @@ export function newRunAdmissionRefusal(
 }
 
 /** Who the starting Run acts for; a state with no starting Run is held to the Worker rule. */
-function startingRunCaller(
-  state: SessionControlSessionState,
-  actor: MutationActor | undefined,
-): StartingRunCaller {
-  if (state.run.state !== 'starting') return { callerId: '' }
+function startingRunCaller(state: SessionControlSessionState, actor: MutationActor | undefined) {
+  if (state.run.state !== 'starting') return { callerId: '' } satisfies StartingRunCaller
   const { callerId, idempotencyKey, hiveWake } = state.run.intent
   // The Host's release of an edit hold (expired, or its window gone) is sent as the person who
   // held it, but it is not their action.
@@ -92,14 +89,14 @@ function startingRunCaller(
     idempotencyKey,
     ...(hiveWake ? { hiveWake } : {}),
     ...(personActed ? { personActed } : {}),
-  }
+  } satisfies StartingRunCaller
 }
 
 function queueUpdated(
   operation: DeliveringOperation,
   state: SessionControlSessionState,
   withdrawn: WithdrawnFollowUps,
-): SessionControlMutationOutcome {
+) {
   return {
     operation,
     effect: 'queue-updated',
@@ -109,7 +106,7 @@ function queueUpdated(
     remainingFollowUpIds: state.followUpQueue.items.map((item) => item.id),
     ...withdrawn,
     stateRevision: state.revision,
-  }
+  } satisfies SessionControlMutationOutcome
 }
 
 interface WithdrawnFollowUps {
@@ -117,7 +114,7 @@ interface WithdrawnFollowUps {
 }
 
 /** A delivery decision rebuilds the outcome; the ids a withdraw removed must survive it. */
-function withdrawnFollowUps(outcome: SessionControlMutationOutcome): WithdrawnFollowUps {
+function withdrawnFollowUps(outcome: SessionControlMutationOutcome) {
   return outcome.effect === 'queue-updated' && outcome.withdrawnFollowUpIds
     ? { withdrawnFollowUpIds: outcome.withdrawnFollowUpIds }
     : {}
@@ -142,7 +139,7 @@ export function deliverAfterQueueDecision(
     readonly callerId: string
     readonly idempotencyKey: string
   },
-): Effect.Effect<SessionControlMutationDecision, unknown> {
+) {
   const { decision, operation, nextRunId } = input
   if (
     !decision.accepted ||
@@ -150,37 +147,42 @@ export function deliverAfterQueueDecision(
     decision.outcome.effect !== 'queue-updated' ||
     !isDeliveringOperation(operation)
   ) {
-    return Effect.succeed(decision)
+    const result: Effect.Effect<SessionControlMutationDecision, unknown> = Effect.succeed(decision)
+    return result
   }
   const withdrawn = withdrawnFollowUps(decision.outcome)
-  const started = (delivery: Required<IdleQueueDelivery>): SessionControlMutationDecision => ({
-    accepted: true,
-    state: delivery.state,
-    outcome: {
-      operation,
-      effect: 'started-run',
-      sessionId: delivery.state.sessionId,
-      runId: delivery.delivered.runId,
-      followUpId: delivery.delivered.followUpId,
-      ...withdrawn,
-      queueRevision: delivery.state.followUpQueue.revision,
-      stateRevision: delivery.state.revision,
-    },
-  })
+  const started = (delivery: Required<IdleQueueDelivery>) => {
+    const decision: SessionControlMutationDecision = {
+      accepted: true,
+      state: delivery.state,
+      outcome: {
+        operation,
+        effect: 'started-run',
+        sessionId: delivery.state.sessionId,
+        runId: delivery.delivered.runId,
+        followUpId: delivery.delivered.followUpId,
+        ...withdrawn,
+        queueRevision: delivery.state.followUpQueue.revision,
+        stateRevision: delivery.state.revision,
+      },
+    }
+    return decision
+  }
   // Nothing of agents' starts, but the person's Follow-up never waits on their capacity.
   const undelivered = (state: SessionControlSessionState, retriesAfter?: number) =>
     deliverAuthorizedPersonFollowUpPastCapacity(sql, state, nextRunId, retriesAfter).pipe(
-      Effect.map((personal): SessionControlMutationDecision =>
-        personal.delivered
+      Effect.map((personal) => {
+        const result: SessionControlMutationDecision = personal.delivered
           ? started({ state: personal.state, delivered: personal.delivered })
           : {
               ...decision,
               state: personal.state,
               outcome: queueUpdated(operation, personal.state, withdrawn),
-            },
-      ),
+            }
+        return result
+      }),
     )
-  return Effect.gen(function* () {
+  const result: Effect.Effect<SessionControlMutationDecision, unknown> = Effect.gen(function* () {
     const candidate = deliverIdleQueueHead(decision.state, nextRunId)
     if (!candidate.delivered) return yield* undelivered(candidate.state)
     const authorized = yield* applyCurrentFollowUpAuthorization(sql, decision.state)
@@ -207,4 +209,5 @@ export function deliverAfterQueueDecision(
     }
     return started({ state: delivery.state, delivered: delivery.delivered })
   })
+  return result
 }

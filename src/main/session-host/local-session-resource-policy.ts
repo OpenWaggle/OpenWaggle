@@ -96,14 +96,14 @@ function nextAuthenticationFailure(
   failureWindowMs: number,
   cooldownMs: number,
   maxFailedAttempts: number,
-): AuthenticationFailures {
+) {
   const withinWindow = previous && now - previous.windowStartedAt < failureWindowMs
   const attempts = withinWindow ? previous.attempts + 1 : 1
   return {
     attempts,
     windowStartedAt: withinWindow ? previous.windowStartedAt : now,
     blockedUntil: attempts >= maxFailedAttempts ? now + cooldownMs : 0,
-  }
+  } satisfies AuthenticationFailures
 }
 
 export interface LocalSessionAuthenticationBudgetOptions {
@@ -191,15 +191,17 @@ export class LocalSessionAuthenticationBudget {
     )
   }
 
-  private acquire(signal: AbortSignal): Promise<void> {
+  private acquire(signal: AbortSignal) {
     if (signal.aborted) {
-      return Promise.reject(new Error('Local Session authentication was aborted.'))
+      return Promise.reject(
+        new Error('Local Session authentication was aborted.'),
+      ) satisfies Promise<void>
     }
     if (this.active < this.maxConcurrent) {
       this.active += 1
       return Promise.resolve()
     }
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const waiter: AuthenticationWaiter = {
         signal,
         resolve: () => {
@@ -233,7 +235,7 @@ export class LocalSessionAuthenticationBudget {
     readonly key?: string
     readonly signal: AbortSignal
     readonly authenticate: () => Promise<T>
-  }): Promise<T> {
+  }) {
     this.assertNotThrottled(input.key)
     await this.acquire(input.signal)
     try {

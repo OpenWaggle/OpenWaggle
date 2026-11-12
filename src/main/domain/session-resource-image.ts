@@ -195,10 +195,7 @@ function imageDimensions(bytes: Uint8Array, mimeType: string) {
   return null
 }
 
-export function validatedImageBuffer(
-  bytes: Uint8Array,
-  mimeType: string,
-): ValidatedSessionResourceImage | null {
+export function validatedImageBuffer(bytes: Uint8Array, mimeType: string) {
   const normalizedMimeType = normalizeImageMimeType(mimeType)
   if (!ALLOWED_IMAGE_MIME_TYPES.has(normalizedMimeType)) return null
   return bytes.byteLength > 0 &&

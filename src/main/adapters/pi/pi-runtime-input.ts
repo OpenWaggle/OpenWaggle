@@ -59,9 +59,7 @@ export function stripAtomicVisualizationContext(text: string) {
   return text.slice(contextEnd + VISUALIZATION_PROMPT_SEPARATOR.length)
 }
 
-function buildImageContent(
-  attachment: HydratedAgentSendPayload['attachments'][number],
-): PiImageContent | null {
+function buildImageContent(attachment: HydratedAgentSendPayload['attachments'][number]) {
   if (attachment.kind !== 'image' || !attachment.source) {
     return null
   }
@@ -70,7 +68,7 @@ function buildImageContent(
     type: 'image',
     data: attachment.source.value,
     mimeType: attachment.source.mimeType,
-  }
+  } satisfies PiImageContent
 }
 
 interface PiInputCapabilities {
@@ -81,10 +79,7 @@ function modelSupportsImage(model: PiInputCapabilities) {
   return model.input.includes('image')
 }
 
-export function buildPiPromptInput(
-  model: PiInputCapabilities,
-  payload: HydratedAgentSendPayload,
-): PiPromptInput {
+export function buildPiPromptInput(model: PiInputCapabilities, payload: HydratedAgentSendPayload) {
   const images: PiImageContent[] = []
 
   for (const attachment of payload.attachments) {

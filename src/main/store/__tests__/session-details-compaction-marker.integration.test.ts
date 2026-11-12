@@ -52,7 +52,7 @@ function messageNode(
   parentId: string | null,
   role: 'user' | 'assistant',
   createdOrder: number,
-): ProjectedSessionNodeInput {
+) {
   return {
     id,
     parentId,
@@ -64,7 +64,7 @@ function messageNode(
     metadataJson: '{}',
     pathDepth: createdOrder,
     createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function compactionNode(
@@ -72,7 +72,7 @@ function compactionNode(
   parentId: string,
   firstKeptEntryId: string,
   createdOrder: number,
-): ProjectedSessionNodeInput {
+) {
   return {
     id,
     parentId,
@@ -90,7 +90,7 @@ function compactionNode(
     metadataJson: '{}',
     pathDepth: createdOrder,
     createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 const HISTORY = [

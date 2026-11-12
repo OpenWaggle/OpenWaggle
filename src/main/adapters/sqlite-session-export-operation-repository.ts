@@ -31,10 +31,7 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionExportOperationRepositoryError({ operation, cause })
 }
 
-function withRepositoryError<A, E, R>(
-  operation: string,
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, SessionExportOperationRepositoryError, R> {
+function withRepositoryError<A, E, R>(operation: string, effect: Effect.Effect<A, E, R>) {
   return effect.pipe(
     Effect.mapError((cause) =>
       cause instanceof SessionExportOperationRepositoryError
@@ -207,7 +204,7 @@ function finish(
   `.pipe(Effect.asVoid)
 }
 
-function makeRepository(sql: SqlClient.SqlClient): SessionExportOperationRepositoryShape {
+function makeRepository(sql: SqlClient.SqlClient) {
   const recovery = makeExportHostLossRecovery(sql)
   return {
     create: (input) => withRepositoryError('create-export', createOperation(sql, input)),
@@ -300,7 +297,7 @@ function makeRepository(sql: SqlClient.SqlClient): SessionExportOperationReposit
     recoveryPending: Effect.sync(recovery.isPending),
     recoverAfterHostLoss: (now) => withRepositoryError('recover-exports', recovery.readPage(now)),
     completeRecoveryPage: recovery.completePage,
-  }
+  } satisfies SessionExportOperationRepositoryShape
 }
 
 export const SqliteSessionExportOperationRepositoryLive = Layer.effect(

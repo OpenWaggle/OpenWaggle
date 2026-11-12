@@ -8,7 +8,7 @@ const BINDINGS = [
   { key: 'B', mod: true, alt: true },
 ] as const
 
-function input(key: string, code: string): Input {
+function input(key: string, code: string) {
   return fromPartial<Input>({
     type: 'keyDown',
     key,

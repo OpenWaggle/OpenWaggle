@@ -2,7 +2,6 @@ import { desktopNotificationListSchema } from '@shared/schemas/desktop-notificat
 import type {
   DesktopNotification,
   DesktopNotificationPermissionStatus,
-  DesktopNotificationSettings,
 } from '@shared/types/desktop-notification'
 import { DEFAULT_DESKTOP_NOTIFICATION_SETTINGS } from '@shared/types/desktop-notification'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
@@ -63,7 +62,7 @@ const state: PresenterState = {
   overlayCount: 0,
 }
 
-function settings(): DesktopNotificationSettings {
+function settings() {
   try {
     return (
       state.settingsStore?.getSettings().desktopNotifications ??
@@ -75,11 +74,11 @@ function settings(): DesktopNotificationSettings {
   }
 }
 
-function initialPermission(): DesktopNotificationPermissionStatus {
-  if (!nativeNotificationsSupported()) return 'unsupported'
+function initialPermission() {
+  if (!nativeNotificationsSupported()) return 'unsupported' as const
   // Only macOS asks the person; elsewhere the system settings decide quietly.
-  if (process.platform !== 'darwin') return 'allowed'
-  return settings().permissionRequested ? 'allowed' : 'not-asked'
+  if (process.platform !== 'darwin') return 'allowed' as const
+  return settings().permissionRequested ? ('allowed' as const) : ('not-asked' as const)
 }
 
 /**
@@ -238,7 +237,7 @@ function applyWindowsOverlay(window: DesktopWindow, count: number) {
  * Ask the operating system, once: macOS asks the person the first time the app shows a
  * notification, so the first one tells them where the settings are.
  */
-export function requestDesktopNotificationPermission(): DesktopNotificationPermissionStatus {
+export function requestDesktopNotificationPermission() {
   if (state.permission === 'unsupported') return state.permission
   showNativeNotification(
     {

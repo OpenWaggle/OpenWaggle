@@ -93,9 +93,7 @@ function harness(
       deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
     }),
   )
-  const run = <A, E>(
-    effect: Effect.Effect<A, E, Layer.Layer.Success<typeof layer>>,
-  ): Promise<A> => {
+  const run = <A, E>(effect: Effect.Effect<A, E, Layer.Layer.Success<typeof layer>>) => {
     const uninstall = installSessionHostEventPublisher((payload) => published.push(payload))
     return Effect.runPromise(effect.pipe(Effect.provide(layer))).finally(uninstall)
   }

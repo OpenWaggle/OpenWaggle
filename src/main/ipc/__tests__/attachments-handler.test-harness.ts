@@ -1,7 +1,6 @@
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
-import type * as AttachmentsHandler from '../attachments-handler'
 import { resetAttachmentExtractionMocks } from './attachment-extraction-mocks.test-support'
 import {
   type AttachmentFileFixture,
@@ -147,7 +146,7 @@ export function registeredHandler(name: string) {
   return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
-export function loadAttachmentHandlers(): Promise<typeof AttachmentsHandler> {
+export function loadAttachmentHandlers() {
   return import('../attachments-handler')
 }
 

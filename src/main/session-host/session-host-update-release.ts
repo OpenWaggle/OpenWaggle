@@ -103,9 +103,7 @@ function isRejectedUpdatePurpose(error: unknown): error is LocalSessionClientPro
   return error instanceof LocalSessionClientProtocolError && error.code === 'command_failed'
 }
 
-export function defaultReleaseDependencies(
-  client: SessionHostReleaseClient,
-): SessionHostReleaseDependencies {
+export function defaultReleaseDependencies(client: SessionHostReleaseClient) {
   return {
     // Bounded by the client's default 10 s response timeout; the Host answers a stop at once.
     requestStop: async () => {
@@ -147,7 +145,7 @@ export function defaultReleaseDependencies(
     now: Date.now,
     wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     platform: process.platform,
-  }
+  } satisfies SessionHostReleaseDependencies
 }
 
 /** Whether the stopping Host is gone. The process itself is the proof; its socket closes first. */
@@ -180,20 +178,20 @@ export async function releaseSessionHostForUpdate(
   client: SessionHostReleaseClient,
   options: { readonly timeoutMs?: number; readonly waitForExit?: boolean } = {},
   dependencies: SessionHostReleaseDependencies = defaultReleaseDependencies(client),
-): Promise<SessionHostReleaseOutcome> {
+) {
   const timeoutMs = options.timeoutMs ?? SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS
   const startedAt = dependencies.now()
   let host: StoppingHost
   try {
     host = await dependencies.requestStop()
   } catch (error) {
-    if (isLocalSessionHostUnavailable(error)) return 'not-running'
+    if (isLocalSessionHostUnavailable(error)) return 'not-running' as const
     // An older Host refuses the desktop app's stop, and a stuck one may not answer. Quit anyway;
     // the next launch reports the result.
     logger.warn('The Session Host did not accept or answer the update stop', describeError(error))
-    return 'refused'
+    return 'refused' as const
   }
-  if (!(options.waitForExit ?? dependencies.platform === 'darwin')) return 'stop-requested'
+  if (!(options.waitForExit ?? dependencies.platform === 'darwin')) return 'stop-requested' as const
   while (dependencies.now() - startedAt < timeoutMs) {
     const state = await hostHasExited(host, dependencies)
     if (state !== 'running') return state
@@ -203,5 +201,5 @@ export async function releaseSessionHostForUpdate(
     hostInstanceId: host.hostInstanceId,
     timeoutMs,
   })
-  return 'timed-out'
+  return 'timed-out' as const
 }

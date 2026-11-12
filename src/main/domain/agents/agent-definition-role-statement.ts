@@ -146,20 +146,22 @@ const SELF_CHECK_WORDS = 2
  * word, a possessive, a joined second role, a role over "your own" work), `end` it (a
  * contraction: "who's", "it's"), or end it unless further roles follow (`list`, a dash).
  */
-function tokenStop(raw: string, following: readonly string[]): 'drop' | 'end' | 'list' | undefined {
-  if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw) || ROLE_JOINERS.has(raw)) return 'drop'
-  if (DASH.test(raw)) return 'list'
+function tokenStop(raw: string, following: readonly string[]) {
+  if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw) || ROLE_JOINERS.has(raw)) {
+    return 'drop' as const
+  }
+  if (DASH.test(raw)) return 'list' as const
   // "the reviewer of your own diff": a role over the Worker's own work is a self-check, not its role.
   if (
     /^of$/iu.test(raw) &&
     /^your\s+own\b/iu.test(following.slice(0, SELF_CHECK_WORDS).join(' '))
   ) {
-    return 'drop'
+    return 'drop' as const
   }
   // "who's", "it's" end the phrase; "the reviewer's assistant" is another noun's phrase.
   const contraction = /^(.*?)['’]s\b/u.exec(raw.toLowerCase())
   if (!contraction) return undefined
-  return CONTRACTION_BASES.has(contraction[1] ?? '') ? 'end' : 'drop'
+  return CONTRACTION_BASES.has(contraction[1] ?? '') ? ('end' as const) : ('drop' as const)
 }
 
 /** The phrase, ended at `tokens[index]`, unless further roles follow it (`ROLE_LIST`). */
@@ -173,11 +175,11 @@ function phraseBefore(phrase: string[], tokens: readonly string[], index: number
 }
 
 /** What a word before the phrase's first word is: an adverb, a determiner, or "also". */
-function openingWord(core: string): 'adverb' | 'determiner' | 'second-role' | undefined {
+function openingWord(core: string) {
   // "You are also the reviewer": a second role beside one stated elsewhere, so none.
-  if (core === 'also') return 'second-role'
-  if (LEADING_ADVERBS.has(core)) return 'adverb'
-  return DETERMINERS.has(core) ? 'determiner' : undefined
+  if (core === 'also') return 'second-role' as const
+  if (LEADING_ADVERBS.has(core)) return 'adverb' as const
+  return DETERMINERS.has(core) ? ('determiner' as const) : undefined
 }
 
 /**
@@ -244,12 +246,12 @@ function beforeIntroducingLine(text: string) {
  * as the reviewer…" does not override "You are the implementer"; an empty phrase there (the
  * opener led elsewhere) means the objective states no role.
  */
-export function roleStatement(objective: string): readonly string[] {
+export function roleStatement(objective: string) {
   const [possessive, closing] = QUOTED_READINGS.map((quoted) => readRole(objective, quoted))
   return possessive?.join(' ') === closing?.join(' ') ? (possessive ?? []) : []
 }
 
-function readRole(objective: string, quoted: RegExp): readonly string[] {
+function readRole(objective: string, quoted: RegExp) {
   // Someone else's objective quoted here ("Give each Worker this objective: \"You are a
   // reviewer…\"") is never this one's role.
   const marked = objective

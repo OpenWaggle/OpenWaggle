@@ -1,6 +1,6 @@
 import { hostHandle } from './typed-ipc'
 
-export function registerMcpHandlers(): void {
+export function registerMcpHandlers() {
   hostHandle('mcp:get-configuration')
   hostHandle('mcp:set-server-enabled')
   hostHandle('mcp:set-server-exposure')

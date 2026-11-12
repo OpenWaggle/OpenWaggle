@@ -79,7 +79,7 @@ export function withCachedMcpDescriptions<
   loaded: T,
   keyOf: (entry: McpServerEntry) => string,
   store: McpToolCatalogStore = hostMcpToolCatalogStore,
-): T {
+) {
   const servers = loaded.servers.map((entry) => {
     if (entry.config.description?.trim()) return entry
     const description = cachedInstructionsLine(store, keyOf(entry))

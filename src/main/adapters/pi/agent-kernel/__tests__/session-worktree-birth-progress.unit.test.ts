@@ -13,12 +13,18 @@ const mocks = vi.hoisted(() => ({
     stderr: '',
   })),
   createGitWorktree: vi.fn(async () => ({ ok: true, message: 'ok', path: '/wt' })),
-  resolveFreshWorktreeBaseRef: vi.fn(
+  resolveFreshWorktreeBaseRef: vi.fn<
+    (
+      workspace: Pick<BoundWorkspaceResource, 'worktreeBaseRef'>,
+      _projectPath: string,
+      options?: { readonly onFetch?: (base: string) => void },
+    ) => Promise<string | null>
+  >(
     async (
       workspace: Pick<BoundWorkspaceResource, 'worktreeBaseRef'>,
       _projectPath: string,
       options?: { readonly onFetch?: (base: string) => void },
-    ): Promise<string | null> => {
+    ) => {
       const base = workspace.worktreeBaseRef ?? 'main'
       options?.onFetch?.(base)
       return base

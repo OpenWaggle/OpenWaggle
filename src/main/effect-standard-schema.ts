@@ -46,9 +46,9 @@ function cachedJsonSchema(schema: Schema.Schema.AnyNoContext) {
 export function standardSchemaWithJson<A, I>(
   schema: Schema.Schema<A, I>,
   parseOptions: ParseOptions = MCP_SCHEMA_PARSE_OPTIONS,
-): StandardSchemaWithJSON<I, A> {
+) {
   const standard = Schema.standardSchemaV1(schema, parseOptions)['~standard']
-  return {
+  const result: StandardSchemaWithJSON<I, A> = {
     '~standard': {
       ...standard,
       jsonSchema: {
@@ -57,6 +57,7 @@ export function standardSchemaWithJson<A, I>(
       },
     },
   }
+  return result
 }
 
 /**
@@ -66,8 +67,9 @@ export function standardSchemaWithJson<A, I>(
 export function withAdvertisedJsonSchema<I, A>(
   accepted: StandardSchemaWithJSON<I, A>,
   advertised: StandardSchemaWithJSON,
-): StandardSchemaWithJSON<I, A> {
-  return {
+) {
+  const result: StandardSchemaWithJSON<I, A> = {
     '~standard': { ...accepted['~standard'], jsonSchema: advertised['~standard'].jsonSchema },
   }
+  return result
 }

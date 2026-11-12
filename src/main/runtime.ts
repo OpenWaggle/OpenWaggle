@@ -265,7 +265,7 @@ function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 
-export async function initializeAppRuntime(): Promise<void> {
+export async function initializeAppRuntime() {
   // Settings shared with Pi, and prompt cache warming, before anything loads Settings or runs.
   installPiRuntimeIntegration()
   await getAppRuntime().runPromise(
@@ -276,7 +276,7 @@ export async function initializeAppRuntime(): Promise<void> {
   )
 }
 
-export async function disposeAppRuntime(): Promise<void> {
+export async function disposeAppRuntime() {
   await stopHostServicesAfterListening()
   await stopSessionHostOwnedServices()
   // Stdio MCP servers must not outlive the Host.
@@ -332,18 +332,18 @@ export async function startSessionHostOwnedServices(options: HostServiceOptions<
   await started.promise
 }
 
-export async function stopSessionHostOwnedServices(): Promise<void> {
+export async function stopSessionHostOwnedServices() {
   const stop = stopHostOwnedServices
   if (stop) await stop()
   await promptCacheWarming().stop()
 }
 
-export async function resetAppRuntimeForTests(): Promise<void> {
+export async function resetAppRuntimeForTests() {
   await disposeAppRuntime()
   currentRuntime = ManagedRuntime.make(AppLayer)
   installStoreEffectRunner()
 }
 
-export function runAppEffect<A, E>(effect: EffectType<A, E, AppServices>): Promise<A> {
+export function runAppEffect<A, E>(effect: EffectType<A, E, AppServices>) {
   return getAppRuntime().runPromise(effect)
 }

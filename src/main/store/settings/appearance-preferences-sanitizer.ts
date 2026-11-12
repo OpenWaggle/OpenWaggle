@@ -154,6 +154,10 @@ const decodeStoredAppearance = Schema.decodeUnknownOption(
   }),
 )
 
-export function resolveAppearancePreferences(value: unknown): AppearancePreferences {
-  return Option.getOrElse(decodeStoredAppearance(value), () => DEFAULT_APPEARANCE_PREFERENCES)
+export function resolveAppearancePreferences(value: unknown) {
+  const preferences: AppearancePreferences = Option.getOrElse(
+    decodeStoredAppearance(value),
+    () => DEFAULT_APPEARANCE_PREFERENCES,
+  )
+  return preferences
 }

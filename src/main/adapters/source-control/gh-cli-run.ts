@@ -20,16 +20,17 @@ export function runGhWrite(dependencies: GhRunners, args: readonly string[], pro
     : runCli('gh', args, projectPath)
 }
 
-export function jsonStringProperty(raw: unknown, property: string): string | null {
+export function jsonStringProperty(raw: unknown, property: string) {
   const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
   if (!decoded.success) return null
   const value = decoded.data[property]
   return typeof value === 'string' ? value : null
 }
 
-export function safeJsonParse(text: string): unknown {
+export function safeJsonParse(text: string) {
   try {
-    return JSON.parse(text)
+    const parsed: unknown = JSON.parse(text)
+    return parsed
   } catch {
     return null
   }

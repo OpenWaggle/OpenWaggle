@@ -1,6 +1,5 @@
 import os from 'node:os'
 import path from 'node:path'
-import type { AgentDefinitionManagementOutcome } from '@shared/types/agent-definition-management'
 import { loadAgentDefinitionSemanticCatalog } from './agent-definition-semantic-catalog-loader'
 import { resolveAgentDefinition } from './agents/agent-definition-catalog'
 import {
@@ -139,7 +138,7 @@ async function mutationCommand(input: {
   readonly readStdin: () => Promise<string>
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
   readonly beforeImportApply?: () => Promise<void>
-}): Promise<AgentDefinitionManagementOutcome | undefined> {
+}) {
   if (input.command === 'create' || input.command === 'update') {
     return writeAgentsCliDocument({ ...input, command: input.command })
   }

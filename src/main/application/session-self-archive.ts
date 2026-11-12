@@ -119,11 +119,7 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
   readonly runId: string
   readonly request: SessionOrganizationRequest
   readonly archive: Effect.Effect<SessionControlMutationResponse, E, R>
-}): Effect.Effect<
-  SessionControlMutationResponse,
-  SessionHostDrainingError,
-  R | SessionOrganizationRepository
-> {
+}) {
   const { sessionId, runId } = input
   const archiveIfStillWanted = (token: symbol) =>
     Effect.gen(function* () {

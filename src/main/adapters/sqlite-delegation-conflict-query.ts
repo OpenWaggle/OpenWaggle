@@ -1,10 +1,7 @@
 import { Schema } from '@shared/schema'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
-import type {
-  DelegationConflictKind,
-  DelegationConflictStatus,
-} from '@shared/types/session-delegation-query'
+import type { DelegationConflictKind } from '@shared/types/session-delegation-query'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import {
@@ -45,9 +42,9 @@ function conflictCursor(request: ConflictRequest) {
   )
 }
 
-function conflictStatus(row: ConflictCatalogRow): DelegationConflictStatus {
-  if (row.resolved_at !== null) return 'resolved'
-  return row.acknowledged_by === null ? 'unacknowledged' : 'acknowledged'
+function conflictStatus(row: ConflictCatalogRow) {
+  if (row.resolved_at !== null) return 'resolved' as const
+  return row.acknowledged_by === null ? ('unacknowledged' as const) : ('acknowledged' as const)
 }
 
 function conflictSummary(row: ConflictCatalogRow) {

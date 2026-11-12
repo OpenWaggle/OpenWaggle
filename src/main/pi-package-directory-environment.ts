@@ -35,7 +35,7 @@ export function applyPiPackageDirectoryTo(
  */
 export function withShellPiPackageDirectory<V extends string | undefined>(
   environment: Readonly<Record<string, V>>,
-): Record<string, V | string> {
+) {
   const current = state
   if (!current || environment[PI_PACKAGE_DIR_VARIABLE] !== current.bundled) {
     return { ...environment }

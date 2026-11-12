@@ -24,7 +24,7 @@ function iconDiagnosticPath(entry: ExtensionContributionRegistryEntry, filePath?
 function panelIconDiagnostic(
   entry: ExtensionContributionRegistryEntry,
   resolution: Extract<ExtensionPanelIconResolution, { readonly status: 'invalid' }>,
-): ExtensionDiagnosticView {
+) {
   return {
     severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.WARNING,
     code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.PANEL_ICON_INVALID,

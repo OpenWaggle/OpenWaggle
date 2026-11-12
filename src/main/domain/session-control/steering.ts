@@ -23,8 +23,8 @@ export type SteeringMessagePlan =
       readonly currentRunId?: RunId
     }
 
-export function planSteeringMessage(input: SteeringMessageInput): SteeringMessagePlan {
-  return matchBy(input.run, 'state')
+export function planSteeringMessage(input: SteeringMessageInput) {
+  const plan: SteeringMessagePlan = matchBy(input.run, 'state')
     .with('idle', () => ({ accepted: false, code: 'run_not_active' }))
     .with('stopping', (run) => ({
       accepted: false,
@@ -41,4 +41,5 @@ export function planSteeringMessage(input: SteeringMessageInput): SteeringMessag
       return { accepted: true, action: 'append-steering', runId: run.runId }
     })
     .exhaustive()
+  return plan
 }

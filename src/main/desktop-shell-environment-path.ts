@@ -59,7 +59,7 @@ export function withoutLaunchOnlyPath(
   resolved: ResolvedShellEnvironment,
   launchEnvironment: Readonly<MutableEnvironment>,
   previous: ResolvedShellEnvironment | null,
-): ResolvedShellEnvironment {
+) {
   const probedPath = trimNonEmpty(environmentVariables(resolved.environment).PATH)
   const launchPath = readEnvPath(launchEnvironment)
   if (!probedPath || !launchPath) return resolved
@@ -78,5 +78,6 @@ export function withoutLaunchOnlyPath(
   const environment = { ...resolved.environment }
   if (kept.length > 0) Object.assign(environment, { PATH: kept.join(delimiter) })
   else Reflect.deleteProperty(environment, 'PATH')
-  return { ...resolved, environment }
+  const result: ResolvedShellEnvironment = { ...resolved, environment }
+  return result
 }

@@ -10,7 +10,7 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import type { DiscoveredExtensionPackage } from '../extensions/types'
 import { contributionMethodIsDeclared } from './extension-contribution-authorization-model'
 
-export function normalizeScope(scope: ExtensionInvokeScope): ExtensionInvokeScope {
+export function normalizeScope(scope: ExtensionInvokeScope) {
   return matchBy(scope, 'kind')
     .with('app', (value) => value)
     .with('project', (value) => ({ ...value, projectPath: value.projectPath.trim() }))
@@ -28,7 +28,7 @@ export function normalizeScope(scope: ExtensionInvokeScope): ExtensionInvokeScop
     .exhaustive()
 }
 
-export function normalizeInput(input: ExtensionInvokeInput): ExtensionInvokeInput {
+export function normalizeInput(input: ExtensionInvokeInput) {
   return { ...input, scope: normalizeScope(input.scope) }
 }
 
@@ -88,7 +88,7 @@ export function makeCapabilityAudit(input: {
   readonly outcome: ExtensionCapabilityAuditEntry['outcome']
   readonly timestamp: number
   readonly failureCode?: ExtensionInvokeFailureCode
-}): ExtensionCapabilityAuditEntry {
+}) {
   return {
     extensionId: input.invocation.extensionId,
     contributionId: input.invocation.contributionId,

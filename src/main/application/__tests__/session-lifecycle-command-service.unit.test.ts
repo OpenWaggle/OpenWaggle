@@ -15,7 +15,7 @@ import { SessionHostLiveness } from '../session-host-liveness'
 import { dispatchAcceptedLifecycleRun } from '../session-lifecycle-command-service'
 import { NoSteeringLayer } from './agent-steering-test-layer'
 
-function launchedResponse(replayed = false): SessionLifecycleResponse {
+function launchedResponse(replayed = false) {
   return {
     contractVersion: 2,
     requestId: 'request-launch',
@@ -28,7 +28,7 @@ function launchedResponse(replayed = false): SessionLifecycleResponse {
       runId: 'run-launch',
       workspaceId: 'workspace-launch',
     },
-  }
+  } satisfies SessionLifecycleResponse
 }
 
 describe('Session lifecycle command dispatch', () => {

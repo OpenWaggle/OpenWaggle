@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createMcpOAuthStateBackend, type McpOAuthEncryption } from '../mcp-oauth-state-backend'
 
 /** Each build seals with its own key; a value sealed by another key cannot be opened. */
-function keyedEncryption(key: string): McpOAuthEncryption {
+function keyedEncryption(key: string) {
   return {
     isEncryptionAvailable: () => true,
     encryptString: (value) => Buffer.from(`${key}:${value}`),
@@ -24,7 +24,7 @@ function keyedEncryption(key: string): McpOAuthEncryption {
       }
       return text.slice(key.length + 1)
     },
-  }
+  } satisfies McpOAuthEncryption
 }
 
 const RELEASE = keyedEncryption('release')

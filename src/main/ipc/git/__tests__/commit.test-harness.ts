@@ -18,15 +18,12 @@ const { execFileAsync } = await import('../shared')
 
 let repositoryPath: string | null = null
 
-export async function git(cwd: string, args: readonly string[]): Promise<string> {
+export async function git(cwd: string, args: readonly string[]) {
   const result = await execFileAsync('git', args, { cwd })
   return typeof result === 'string' ? result : (result.stdout ?? '')
 }
 
-export async function createRepositoryWithWorktree(): Promise<{
-  readonly repository: string
-  readonly worktree: string
-}> {
+export async function createRepositoryWithWorktree() {
   const repository = await mkdtemp(path.join(tmpdir(), 'openwaggle-commit-worktree-'))
   repositoryPath = repository
   await git(repository, ['init', '--initial-branch=main'])

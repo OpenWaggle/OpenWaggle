@@ -8,7 +8,7 @@ import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { ATTACHMENT_BACKFILL_LIMITS } from '../session-resource-backfill-budget'
 import { sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
-function attachmentMessage(index: number, sourcePath?: string): Message {
+function attachmentMessage(index: number, sourcePath?: string) {
   return {
     id: MessageId(`user-attachment-${String(index)}`),
     role: 'user',
@@ -27,10 +27,10 @@ function attachmentMessage(index: number, sourcePath?: string): Message {
       },
     ],
     createdAt: index,
-  }
+  } satisfies Message
 }
 
-function sharedResource(count: number): SessionResource {
+function sharedResource(count: number) {
   return {
     id: 'shared-attachment-resource',
     sessionId: SessionId('session-1'),
@@ -55,7 +55,7 @@ function sharedResource(count: number): SessionResource {
     })),
     createdAt: 0,
     updatedAt: count - 1,
-  }
+  } satisfies SessionResource
 }
 
 describe('session resource backfill attachment repair', () => {

@@ -78,14 +78,15 @@ export class BrowserPreviewAutomationController {
     actionName: string,
     use: (context: BrowserPreviewAutomationActionContext) => Promise<A>,
     options: BrowserPreviewAutomationControlRunOptions = {},
-  ): Promise<A> {
+  ) {
     const deadline = new BrowserPreviewAutomationDeadline(options)
     let session: ControlSession
     try {
       session = this.getOrCreateSession(page)
     } catch (cause) {
       deadline.dispose()
-      return Promise.reject(cause)
+      const promise: Promise<A> = Promise.reject(cause)
+      return promise
     }
     const boundedOperation = session.tail.then(() =>
       this.runExclusive(session, actionName, use, deadline, options.allowDocumentChanges ?? false),
@@ -158,14 +159,14 @@ export class BrowserPreviewAutomationController {
     documentGeneration: number,
     deadline: BrowserPreviewAutomationDeadline,
     allowDocumentChanges: boolean,
-  ): BrowserPreviewAutomationActionContext {
+  ) {
     const send = (method: string, params?: CdpCommandParams) => {
       const commandDocumentGeneration = allowDocumentChanges
         ? session.documentGeneration
         : documentGeneration
       return this.send(session, epoch, commandDocumentGeneration, deadline, method, params)
     }
-    return {
+    const context: BrowserPreviewAutomationActionContext = {
       signal: deadline.signal,
       remainingTimeMs: () => deadline.remainingMs(),
       send,
@@ -213,6 +214,7 @@ export class BrowserPreviewAutomationController {
       networkEntries: () => [...session.diagnostics.networkEntries],
       actionTimeline: () => [...session.timeline],
     }
+    return context
   }
 
   private async runExclusive<A>(

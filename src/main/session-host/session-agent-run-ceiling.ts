@@ -83,33 +83,48 @@ export function sessionAgentAuthorizationBoundary(sql: SqlClient.SqlClient, sess
 }
 
 /** A caller's own ceiling, and for an agent the Run whose ceiling also bounds it. */
-function callerCeiling(
-  sql: SqlClient.SqlClient,
-  callerId: string,
-): Effect.Effect<RunVerdictStep<AgentAuthorizationMode>, unknown> {
-  if (isLocalUserCallerId(callerId)) return Effect.succeed({ verdict: YOLO, followRuns: [] })
+function callerCeiling(sql: SqlClient.SqlClient, callerId: string) {
+  if (isLocalUserCallerId(callerId)) {
+    const effect: Effect.Effect<RunVerdictStep<AgentAuthorizationMode>, unknown> = Effect.succeed({
+      verdict: YOLO,
+      followRuns: [],
+    })
+    return effect
+  }
   if (isProfileCallerId(callerId)) {
-    return Effect.gen(function* () {
-      const rows = yield* sql<{
-        readonly authorization_ceiling: AgentAuthorizationMode
-        readonly revoked_at: number | null
-      }>`
+    const effect: Effect.Effect<RunVerdictStep<AgentAuthorizationMode>, unknown> = Effect.gen(
+      function* () {
+        const rows = yield* sql<{
+          readonly authorization_ceiling: AgentAuthorizationMode
+          readonly revoked_at: number | null
+        }>`
         SELECT authorization_ceiling, revoked_at FROM session_client_profiles
         WHERE id = ${callerId.slice('profile:'.length)}
         LIMIT 1
       `
-      const profile = rows[0]
-      const verdict = profile?.revoked_at === null ? profile.authorization_ceiling : ASK
-      return { verdict, followRuns: [] }
-    })
+        const profile = rows[0]
+        const verdict = profile?.revoked_at === null ? profile.authorization_ceiling : ASK
+        return { verdict, followRuns: [] }
+      },
+    )
+    return effect
   }
   const agent = parseSessionAgentCallerId(callerId)
-  if (!agent) return Effect.succeed(ASKING)
-  return sessionAgentAuthorizationBoundary(sql, agent.sessionId).pipe(
+  if (!agent) {
+    const effect: Effect.Effect<RunVerdictStep<AgentAuthorizationMode>, unknown> = Effect.succeed(
+      ASKING,
+    )
+    return effect
+  }
+  const effect: Effect.Effect<
+    RunVerdictStep<AgentAuthorizationMode>,
+    unknown
+  > = sessionAgentAuthorizationBoundary(sql, agent.sessionId).pipe(
     Effect.map((boundary) =>
       boundary.revoked ? ASKING : { verdict: boundary.authorizationCeiling, followRuns: [agent] },
     ),
   )
+  return effect
 }
 
 const ASKING: RunVerdictStep<AgentAuthorizationMode> = { verdict: ASK, followRuns: [] }
@@ -132,26 +147,19 @@ function initiatorRow(sql: SqlClient.SqlClient, sessionId: string, runId: string
  * so an ask-for-approval caller that messages a yolo Session cannot have that Session start yolo
  * Runs on its behalf. An initiator the Host cannot identify counts as ask-for-approval.
  */
-export function runInitiatorCeiling(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-  runId: string,
-): Effect.Effect<AgentAuthorizationMode, unknown> {
+export function runInitiatorCeiling(sql: SqlClient.SqlClient, sessionId: string, runId: string) {
   return walkRunInitiators(ceilingWalk(sql), { sessionId, runId })
 }
 
-function ceilingWalk(sql: SqlClient.SqlClient): RunInitiatorWalk<AgentAuthorizationMode, unknown> {
+function ceilingWalk(sql: SqlClient.SqlClient) {
   return {
     step: (run) => runCeilingStep(sql, run),
     combine: narrower,
     failClosed: ASK,
-  }
+  } satisfies RunInitiatorWalk<AgentAuthorizationMode, unknown>
 }
 
-function runCeilingStep(
-  sql: SqlClient.SqlClient,
-  run: RunReference,
-): Effect.Effect<RunVerdictStep<AgentAuthorizationMode>, unknown> {
+function runCeilingStep(sql: SqlClient.SqlClient, run: RunReference) {
   return Effect.gen(function* () {
     const row = yield* initiatorRow(sql, run.sessionId, run.runId)
     if (!row?.initiator_caller_id) return ASKING

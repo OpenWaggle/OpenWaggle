@@ -28,7 +28,7 @@ function importPath(
   filePath: string,
   suggestedTarget: McpImportTarget,
   format: McpImportPath['format'] = 'jsonc',
-): McpImportPath {
+) {
   return { source, path: filePath, format, suggestedTarget }
 }
 
@@ -102,7 +102,7 @@ function projectImportPaths(projectPath: string) {
   ]
 }
 
-export function getMcpImportPaths(options: McpImportPathOptions): readonly McpImportPath[] {
+export function getMcpImportPaths(options: McpImportPathOptions) {
   const projectPath = options.projectPath?.trim()
   const selected = new Set(options.sources ?? MCP_IMPORT_SOURCES)
   const paths = [
@@ -116,5 +116,5 @@ export function getMcpImportPaths(options: McpImportPathOptions): readonly McpIm
       unique.set(`${candidate.source}\0${candidate.path}`, candidate)
     }
   }
-  return [...unique.values()]
+  return [...unique.values()] satisfies readonly McpImportPath[]
 }

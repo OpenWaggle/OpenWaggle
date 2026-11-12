@@ -43,8 +43,8 @@ interface FakeSession {
   readonly isStreaming: boolean
 }
 
-function sessionDetail(): SessionDetail {
-  return {
+function sessionDetail() {
+  const detail: SessionDetail = {
     id: SessionId('run-lifecycle-session'),
     title: 'Run lifecycle',
     projectPath: '/repo',
@@ -54,12 +54,13 @@ function sessionDetail(): SessionDetail {
     createdAt: 1,
     updatedAt: 2,
   }
+  return detail
 }
 
 function runInput(
   payload: HydratedAgentSendPayload,
   signal: AbortSignal = new AbortController().signal,
-): AgentKernelRunInput {
+) {
   return {
     session: sessionDetail(),
     runId: 'run-lifecycle-test',
@@ -67,10 +68,10 @@ function runInput(
     model: SupportedModelId('openai/gpt-5.5'),
     signal,
     onEvent: vi.fn(),
-  }
+  } satisfies AgentKernelRunInput
 }
 
-function assistantMessage(text: string): PiAgentMessage {
+function assistantMessage(text: string) {
   return {
     role: 'assistant',
     content: [{ type: 'text', text }],
@@ -93,14 +94,15 @@ function assistantMessage(text: string): PiAgentMessage {
     },
     stopReason: 'stop',
     timestamp: Date.now(),
-  }
+  } satisfies PiAgentMessage
 }
 
-function payload(): HydratedAgentSendPayload {
-  return {
+function payload() {
+  const result: HydratedAgentSendPayload = {
     text: 'Continue',
     attachments: [],
   }
+  return result
 }
 
 describe('run lifecycle settlement edge cases', () => {

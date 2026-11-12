@@ -42,7 +42,7 @@ export class SessionHostEventSubscription {
     this.releaseAggregateBytes = releaseAggregateBytes
   }
 
-  enqueue(event: SessionHostEventEnvelope, bytes: number): void {
+  enqueue(event: SessionHostEventEnvelope, bytes: number) {
     if (this.terminal) return
     if (!this.accepts(event)) {
       if (this.advanceFilteredCursor(event)) this.enqueueCursorAdvance(event.cursor)
@@ -71,7 +71,7 @@ export class SessionHostEventSubscription {
     this.pendingBytes += bytes
   }
 
-  private enqueueCursorAdvance(cursor: SessionHostEventCursor): void {
+  private enqueueCursorAdvance(cursor: SessionHostEventCursor) {
     if (this.waiter) {
       const waiter = this.waiter
       this.waiter = null
@@ -110,20 +110,33 @@ export class SessionHostEventSubscription {
     }
   }
 
-  next(): Promise<SessionHostEventDelivery> {
+  next() {
     const pending = this.pending.shift()
     if (pending) {
-      if (pending.status === 'cursor-advanced') return Promise.resolve(pending)
+      if (pending.status === 'cursor-advanced') {
+        const promise: Promise<SessionHostEventDelivery> = Promise.resolve(pending)
+        return promise
+      }
       this.pendingEventCount -= 1
       this.pendingBytes -= pending.bytes
       this.releaseAggregateBytes(pending.bytes)
-      return Promise.resolve({ status: 'event', event: pending.event })
+      const promise: Promise<SessionHostEventDelivery> = Promise.resolve({
+        status: 'event',
+        event: pending.event,
+      })
+      return promise
     }
-    if (this.terminal) return Promise.resolve(this.terminal)
+    if (this.terminal) {
+      const promise: Promise<SessionHostEventDelivery> = Promise.resolve(this.terminal)
+      return promise
+    }
     if (this.waiter) throw new Error('Only one pending Session Host subscription read is allowed.')
-    return new Promise((resolve) => {
-      this.waiter = resolve
-    })
+    const promise: Promise<SessionHostEventDelivery> = new Promise<SessionHostEventDelivery>(
+      (resolve) => {
+        this.waiter = resolve
+      },
+    )
+    return promise
   }
 
   /**
@@ -131,14 +144,14 @@ export class SessionHostEventSubscription {
    * state on any delivery, the events queued behind the one it is handling only ask for the same
    * read again; dropping them keeps a burst from filling the queue and forcing a resync.
    */
-  discardPending(): void {
+  discardPending() {
     this.releaseAggregateBytes(this.pendingBytes)
     this.pending.length = 0
     this.pendingEventCount = 0
     this.pendingBytes = 0
   }
 
-  close(): void {
+  close() {
     if (this.terminal) return
     this.releaseAggregateBytes(this.pendingBytes)
     this.pending.length = 0

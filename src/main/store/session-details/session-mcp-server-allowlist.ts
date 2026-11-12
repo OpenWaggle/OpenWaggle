@@ -9,10 +9,7 @@ import { runStoreEffect } from '../store-runtime'
  * undefined when the profile does not restrict it. A profile that cannot be read allows nothing,
  * so a broken profile never widens access.
  */
-async function readProfileList(
-  sessionId: string,
-  key: 'tools' | 'mcpServers',
-): Promise<readonly string[] | undefined> {
+async function readProfileList(sessionId: string, key: 'tools' | 'mcpServers') {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

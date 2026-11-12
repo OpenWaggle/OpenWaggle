@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { PiSessionFiles, type PiSessionPromptOrigin } from '../../ports/pi-session-discovery'
 import { withPiSessionPromptOrigin } from '../pi-session-prompt-origin'
 
-function detail(overrides: Partial<SessionDetail> = {}): SessionDetail {
+function detail(overrides: Partial<SessionDetail> = {}) {
   return fromPartial<SessionDetail>({
     id: SessionId('session-1'),
     piSessionFile: '/sessions/one.jsonl',

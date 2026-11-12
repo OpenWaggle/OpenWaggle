@@ -1,10 +1,7 @@
 const projectWriteQueues = new Map<string, Promise<unknown>>()
 
 /** Serializes each project's read-modify-write settings transaction. */
-export function enqueueProjectConfigWrite<T>(
-  configPath: string,
-  operation: () => Promise<T>,
-): Promise<T> {
+export function enqueueProjectConfigWrite<T>(configPath: string, operation: () => Promise<T>) {
   const previous = projectWriteQueues.get(configPath) ?? Promise.resolve()
   const result = previous.then(operation, operation)
   const tail = result.catch(() => undefined)

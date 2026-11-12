@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
-  type AssistantMessage,
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
@@ -19,7 +18,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const tempDirectories: string[] = []
 const sessions: { dispose: () => void }[] = []
 
-function assistantWithContextUsage(totalTokens: number): AssistantMessage {
+function assistantWithContextUsage(totalTokens: number) {
   const message = fauxAssistantMessage('Reached the configured context threshold')
   message.usage = {
     input: totalTokens,

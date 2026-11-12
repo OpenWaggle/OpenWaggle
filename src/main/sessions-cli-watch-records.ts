@@ -32,21 +32,25 @@ export function watchEventSessionId(envelope: SessionHostEventEnvelope) {
   return isSessionlessHostEvent(envelope.payload) ? undefined : envelope.payload.sessionId
 }
 
-export function watchCursorRecord(cursor: SessionHostEventCursor): SessionsCliWatchRecord {
-  return { kind: 'cursor', cursor }
+export function watchCursorRecord(cursor: SessionHostEventCursor) {
+  return { kind: 'cursor', cursor } satisfies SessionsCliWatchRecord
 }
 
-export function watchEventRecord(envelope: SessionHostEventEnvelope): SessionsCliWatchRecord {
+export function watchEventRecord(envelope: SessionHostEventEnvelope) {
   return {
     kind: 'event',
     cursor: envelope.cursor,
     timestamp: envelope.timestamp,
     event: envelope.payload,
-  }
+  } satisfies SessionsCliWatchRecord
 }
 
 export function watchResyncRecord(
   result: Extract<LocalSessionWatchResult, { readonly status: 'resync-required' }>,
-): SessionsCliWatchRecord {
-  return { kind: 'resync-required', reason: result.reason, cursor: result.cursor }
+) {
+  return {
+    kind: 'resync-required',
+    reason: result.reason,
+    cursor: result.cursor,
+  } satisfies SessionsCliWatchRecord
 }

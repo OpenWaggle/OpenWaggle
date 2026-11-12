@@ -128,7 +128,7 @@ const sessionRepository = SessionRepository.of({
   markActiveRunInterrupted: () => Effect.void,
 })
 
-function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>): Promise<A> {
+function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>) {
   const runnableEffect = fromAny<Effect.Effect<A, unknown>, typeof effect>(effect)
   return Effect.runPromise(runnableEffect)
 }

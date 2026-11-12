@@ -21,10 +21,7 @@ import {
 } from '../../ports/session-tree-preferences-service'
 
 /** Builds a dependency-free layer once and keeps its service. */
-function lazyService<I, S>(
-  tag: Context.Tag<I, S>,
-  load: () => Promise<Layer.Layer<I>>,
-): Effect.Effect<S> {
+function lazyService<I, S>(tag: Context.Tag<I, S>, load: () => Promise<Layer.Layer<I>>) {
   let loaded: Promise<S> | null = null
   return Effect.promise(() => {
     loaded ??= load().then((layer) =>

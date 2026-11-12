@@ -39,7 +39,7 @@ function updateRefsAtomically(projectPath: string, commands: readonly string[]) 
   })
 }
 
-function parseRefSnapshots(stdout: string): readonly CheckpointRefSnapshot[] {
+function parseRefSnapshots(stdout: string) {
   return stdout
     .split('\n')
     .map((line) => line.trim())
@@ -67,7 +67,7 @@ export async function deleteSessionTurnCheckpointRefs(
   projectPath: string,
   sessionId: string,
   beforeDelete?: (refs: readonly CheckpointRefSnapshot[]) => Promise<void>,
-): Promise<readonly CheckpointRefSnapshot[]> {
+) {
   const namespace = turnCheckpointSessionNamespace(sessionId)
   const listed = await runGit(
     projectPath,
@@ -77,7 +77,7 @@ export async function deleteSessionTurnCheckpointRefs(
   if (listed.code !== 0) {
     if (listed.stderr.includes('not a git repository')) {
       await beforeDelete?.([])
-      return []
+      return [] satisfies readonly CheckpointRefSnapshot[]
     }
     throw new Error(
       listed.stderr.trim() || `Could not list turn checkpoint refs for Session ${sessionId}.`,
@@ -86,7 +86,7 @@ export async function deleteSessionTurnCheckpointRefs(
 
   const refs = parseRefSnapshots(listed.stdout)
   await beforeDelete?.(refs)
-  if (refs.length === 0) return []
+  if (refs.length === 0) return [] satisfies readonly CheckpointRefSnapshot[]
   await updateRefsAtomically(
     projectPath,
     refs.map((ref) => `delete ${ref.name} ${ref.objectId}`),
@@ -97,7 +97,7 @@ export async function deleteSessionTurnCheckpointRefs(
 export async function restoreSessionTurnCheckpointRefs(
   projectPath: string,
   refs: readonly CheckpointRefSnapshot[],
-): Promise<void> {
+) {
   if (refs.length === 0) return
   await updateRefsAtomically(
     projectPath,

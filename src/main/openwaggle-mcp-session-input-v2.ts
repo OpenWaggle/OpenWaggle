@@ -54,10 +54,7 @@ export function sessionInputSchemaForGrantsV2(grants: ReadonlySet<SessionCapabil
   )
 }
 
-function parsedInput(input: SessionToolInputV2): {
-  readonly command: string
-  readonly arguments: ParsedArguments
-} {
+function parsedInput(input: SessionToolInputV2) {
   const message = input.message ?? input.objective ?? input.title
   const { command, options } = mcpSessionCliOptionsV2(input, message)
   if (
@@ -71,10 +68,14 @@ function parsedInput(input: SessionToolInputV2): {
     // An MCP caller's current scope is its Host grants, not the server process's cwd.
     options.set('all', ['true'])
   }
-  return {
+  const result: {
+    readonly command: string
+    readonly arguments: ParsedArguments
+  } = {
     command,
     arguments: { positionals: mcpSessionPositionalsV2(input, message), passthrough: [], options },
   }
+  return result
 }
 
 function validateResourceFields(input: SessionToolInputV2) {

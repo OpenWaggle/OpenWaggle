@@ -10,12 +10,12 @@ import { deleteSessionTurnCheckpointRefs } from '../turn-checkpoint-refs'
 const execFileAsync = promisify(execFile)
 let repositoryPath: string | null = null
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFileAsync('git', [...args], { cwd })
   return stdout
 }
 
-async function createRepository(): Promise<string> {
+async function createRepository() {
   const repository = await mkdtemp(path.join(tmpdir(), 'openwaggle-checkpoint-refs-'))
   repositoryPath = repository
   await git(repository, ['init', '--initial-branch=main'])
@@ -27,7 +27,7 @@ async function createRepository(): Promise<string> {
   return repository
 }
 
-async function listOpenWaggleRefs(repository: string): Promise<readonly string[]> {
+async function listOpenWaggleRefs(repository: string) {
   const stdout = await git(repository, ['for-each-ref', '--format=%(refname)', 'refs/openwaggle'])
   return stdout
     .split('\n')

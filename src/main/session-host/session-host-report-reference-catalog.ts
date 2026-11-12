@@ -31,7 +31,7 @@ function optionalAgentDefinitionName(profileJson: string) {
   return decodeCutoverRow(profileAgentDefinitionSchema, decoded)?.agentDefinitionName
 }
 
-function referenceSources(database: HostSqliteDatabase): readonly ReferenceSource[] {
+function referenceSources(database: HostSqliteDatabase) {
   const values: unknown = database
     .prepare(`
       SELECT sessions.id AS session_id, sessions.title,

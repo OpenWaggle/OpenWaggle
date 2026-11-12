@@ -22,7 +22,7 @@ export function setOpenWagglePiAppSettingsSource(settings: Settings | undefined)
 export function openWagglePiAppSettingsFrom(
   settings: Settings,
   readPiUser: () => Partial<OpenWagglePiAppSettings> = readPiUserAppSettingsFile,
-): OpenWagglePiAppSettings {
+) {
   const chosen = settings.piRuntimeSettingsChosen
   let piUser: Partial<OpenWagglePiAppSettings> | undefined
   const fromPi = () => {
@@ -43,12 +43,12 @@ export function openWagglePiAppSettingsFrom(
  * The OpenWaggle settings with a Pi equivalent, read when a Pi runtime is built so each Run uses
  * the current choice. Before Settings load, the user's Pi values or OpenWaggle's defaults apply.
  */
-export function currentOpenWagglePiAppSettings(): OpenWagglePiAppSettings {
+export function currentOpenWagglePiAppSettings() {
   return openWagglePiAppSettingsFrom(latest ?? DEFAULT_SETTINGS)
 }
 
 /** The user's own Pi values for OpenWaggle's settings, read from their global Pi settings file. */
-export function readPiUserAppSettingsFile(): Partial<OpenWagglePiAppSettings> {
+export function readPiUserAppSettingsFile() {
   try {
     return piUserAppSettings(readFileSync(path.join(getAgentDir(), 'settings.json'), 'utf8'))
   } catch {

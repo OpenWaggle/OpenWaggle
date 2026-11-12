@@ -24,8 +24,8 @@ vi.mock('../../gui-runtime', () => ({
 import { holdGuiBackendGate, releaseGuiBackendGate } from '../../gui-backend-gate'
 import { typedHandle, typedOn } from '../typed-ipc'
 
-function okResult(): { readonly ok: true } {
-  return { ok: true }
+function okResult() {
+  return { ok: true } satisfies { readonly ok: true }
 }
 
 /** A window's webContents: it can reload (a new document) or close. */

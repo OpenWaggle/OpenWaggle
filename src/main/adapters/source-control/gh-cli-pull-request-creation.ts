@@ -53,7 +53,7 @@ async function repositoryContext(
   projectPath: string,
   repository: SourceControlRepositoryIdentity,
   dependencies: PullRequestCreationDependencies,
-): Promise<RepositoryContext | null> {
+) {
   const result = await runGh(
     dependencies,
     [
@@ -79,7 +79,8 @@ async function repositoryContext(
   ) {
     return null
   }
-  return { defaultBranch }
+  const context: RepositoryContext | null = { defaultBranch }
+  return context
 }
 
 function repositoryName(repository: string) {
@@ -92,15 +93,16 @@ async function createOrganizationForkPullRequest(
   repository: SourceControlRepositoryIdentity,
   context: RepositoryContext,
   dependencies: PullRequestCreationDependencies,
-): Promise<CliResult> {
+) {
   const baseRef = payload.baseRef ?? context.defaultBranch
   if (!baseRef) {
-    return {
+    const result: CliResult = {
       stdout: '',
       stderr: 'Could not resolve the GitHub base branch.',
       code: 1,
       missing: false,
     }
+    return result
   }
   const fallbackHeadRepository = `${payload.headOwner}/${repository.repository}`
   const headRepository = payload.headRepository ?? fallbackHeadRepository
@@ -126,10 +128,11 @@ async function createOrganizationForkPullRequest(
   return runGhWrite(dependencies, args, projectPath)
 }
 
-function pullRequestHeadOwner(raw: unknown): string | null {
+function pullRequestHeadOwner(raw: unknown) {
   const { headRepositoryOwner } = uncheckedFields<{ readonly headRepositoryOwner: object }>(raw)
   const { login } = uncheckedFields<{ readonly login: string }>(headRepositoryOwner)
-  return typeof login === 'string' ? login : null
+  const result: string | null = typeof login === 'string' ? login : null
+  return result
 }
 
 export async function findPullRequestByHead(
@@ -137,7 +140,7 @@ export async function findPullRequestByHead(
   payload: OpenChangeRequestPayload,
   repository: SourceControlRepositoryIdentity,
   dependencies: PullRequestCreationDependencies,
-): Promise<ChangeRequestResult> {
+) {
   if (!payload.headOwner) return dependencies.viewPullRequest(projectPath, payload.headRef)
   const result = await runGh(
     dependencies,
@@ -170,30 +173,36 @@ export async function findPullRequestByHead(
   })
   const changeRequest = mapGhPullRequest(exact)
   if (!changeRequest) {
-    return { ok: false, code: 'no-change-request', message: 'No pull request found for ref.' }
+    const value: ChangeRequestResult = {
+      ok: false,
+      code: 'no-change-request',
+      message: 'No pull request found for ref.',
+    }
+    return value
   }
   const identity = resolveRepositoryChangeRequestIdentity(repository, changeRequest.url)
-  return identity
+  const value: ChangeRequestResult = identity
     ? { ok: true, changeRequest: { ...changeRequest, url: identity.url } }
     : {
         ok: false,
         code: 'invalid-target',
         message: 'GitHub CLI returned a pull request outside the approved repository.',
       }
+  return value
 }
 
 function createdPullRequestFromOutput(
   result: CliResult,
   payload: OpenChangeRequestPayload,
   repository: SourceControlRepositoryIdentity,
-): ChangeRequestResult | null {
+) {
   const url =
     jsonStringProperty(safeJsonParse(result.stdout), 'html_url') ??
     result.stdout.match(/https?:\/\/\S+/u)?.[0]
   if (!url) return null
   const identity = resolveRepositoryChangeRequestIdentity(repository, url)
   if (!identity) return null
-  return {
+  const value: ChangeRequestResult | null = {
     ok: true,
     changeRequest: {
       title: payload.title,
@@ -203,6 +212,7 @@ function createdPullRequestFromOutput(
       state: payload.draft ? 'draft' : 'open',
     },
   }
+  return value
 }
 
 async function resolveCreatedPullRequest(
@@ -223,11 +233,12 @@ async function resolveCreatedPullRequest(
   }
   if (result.code !== 0) return dependencies.classifyFailure(result)
   return (
-    createdPullRequestFromOutput(result, payload, repository) ?? {
+    createdPullRequestFromOutput(result, payload, repository) ??
+    ({
       ok: false,
       code: 'unknown',
       message: 'The pull request command succeeded, but the created request could not be verified.',
-    }
+    } satisfies ChangeRequestResult)
   )
 }
 

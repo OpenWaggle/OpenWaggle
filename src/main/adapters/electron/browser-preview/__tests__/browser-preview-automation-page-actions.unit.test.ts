@@ -35,7 +35,7 @@ function createPage(commandHandler: CommandHandler) {
   const debuggerEvents = new EventEmitter()
   let attached = false
   const focus = vi.fn()
-  const sendCommand = vi.fn(async (method: string, params?: CdpCommandParams): Promise<unknown> =>
+  const sendCommand = vi.fn(async (method: string, params?: CdpCommandParams) =>
     commandHandler(method, params),
   )
   const browserDebugger = fromPartial<Debugger>({

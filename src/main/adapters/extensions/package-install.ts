@@ -13,7 +13,6 @@ import type {
   RemoveExtensionPackageInput,
   RemoveExtensionPackageResult,
   WriteExtensionPackageInput,
-  WriteExtensionPackageResult,
 } from '../../ports/extension-package-repository'
 import { isPathInside } from '../../utils/paths'
 import { normalizeManifestRelativePath } from './content-hash-input'
@@ -255,9 +254,7 @@ async function replacePackageDirectory(input: {
   }
 }
 
-export async function writeFilesystemExtensionPackage(
-  input: FilesystemWriteExtensionPackageInput,
-): Promise<WriteExtensionPackageResult> {
+export async function writeFilesystemExtensionPackage(input: FilesystemWriteExtensionPackageInput) {
   const paths = extensionPackagePath(input)
   const files = normalizePackageFiles(input.files)
   validatePackageManifestIdentity({ extensionId: input.extensionId, files })
@@ -278,14 +275,17 @@ export async function writeFilesystemExtensionPackage(
 
 export async function removeFilesystemExtensionPackage(
   input: FilesystemRemoveExtensionPackageInput,
-): Promise<RemoveExtensionPackageResult> {
+) {
   const paths = extensionPackagePath(input)
   try {
     await rm(paths.packagePath, { recursive: true })
-    return { packagePath: paths.packagePath, removed: true }
+    return { packagePath: paths.packagePath, removed: true } satisfies RemoveExtensionPackageResult
   } catch (error) {
     if (isEnoent(error)) {
-      return { packagePath: paths.packagePath, removed: false }
+      return {
+        packagePath: paths.packagePath,
+        removed: false,
+      } satisfies RemoveExtensionPackageResult
     }
     throw error
   }

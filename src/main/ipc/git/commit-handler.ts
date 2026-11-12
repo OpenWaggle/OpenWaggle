@@ -17,11 +17,12 @@ import { invalidateVcsStatus } from './vcs-status-cache'
 const COMMIT_HASH_UNAVAILABLE_MESSAGE =
   'The commit was created, but Git did not return its full hash. OpenWaggle did not add an Output for it. Do not repeat the commit; refresh Git status before continuing.'
 
-function commitFailure(code: GitCommitFailure['code'], message: string): GitCommitFailure {
-  return { ok: false, code, message }
+function commitFailure(code: GitCommitFailure['code'], message: string) {
+  const failure: GitCommitFailure = { ok: false, code, message }
+  return failure
 }
 
-function mapCommitFailure(stderr: string): GitCommitFailure {
+function mapCommitFailure(stderr: string) {
   const message = stderr.trim()
   const lower = message.toLowerCase()
 
@@ -63,30 +64,35 @@ type PreparedCommitPaths =
     }
   | { readonly ok: false; readonly failure: GitCommitFailure }
 
-async function prepareCommitPaths(
-  projectPath: string,
-  payload: GitCommitPayload,
-): Promise<PreparedCommitPaths> {
+async function prepareCommitPaths(projectPath: string, payload: GitCommitPayload) {
   const inputPathFailure = validateSelectedGitPaths(payload.paths)
   if (inputPathFailure) {
-    return { ok: false, failure: commitFailure('unknown', inputPathFailure) }
+    const result: PreparedCommitPaths = {
+      ok: false,
+      failure: commitFailure('unknown', inputPathFailure),
+    }
+    return result
   }
 
   const includeUnstaged = payload.includeUnstaged !== false
-  if (!includeUnstaged) return { ok: true, includeUnstaged, paths: payload.paths }
+  if (!includeUnstaged) {
+    const result: PreparedCommitPaths = { ok: true, includeUnstaged, paths: payload.paths }
+    return result
+  }
 
   const pathResult = await resolveSelectedCommitPaths(projectPath, payload.paths)
-  if (!pathResult.ok) return pathResult
+  if (!pathResult.ok) {
+    const result: PreparedCommitPaths = pathResult
+    return result
+  }
   const expandedPathFailure = validateSelectedGitPaths(pathResult.paths)
-  return expandedPathFailure
+  const result: PreparedCommitPaths = expandedPathFailure
     ? { ok: false, failure: commitFailure('unknown', expandedPathFailure) }
     : { ok: true, includeUnstaged, paths: pathResult.paths }
+  return result
 }
 
-export async function commitGit(
-  rawProjectPath: string,
-  payload: GitCommitPayload,
-): Promise<GitCommitResult> {
+export async function commitGit(rawProjectPath: string, payload: GitCommitPayload) {
   const message = payload.message.trim()
 
   /*
@@ -108,7 +114,10 @@ export async function commitGit(
    * the conflict resolved with the markers still in the file, and the commit recorded them and reported success.
    */
   const preflightFailure = await validateCommitPreflight(projectPath, message)
-  if (preflightFailure) return preflightFailure
+  if (preflightFailure) {
+    const result: GitCommitResult = preflightFailure
+    return result
+  }
 
   const pathResult = await prepareCommitPaths(projectPath, payload)
   if (!pathResult.ok) return pathResult.failure
@@ -116,7 +125,10 @@ export async function commitGit(
 
   if (includeUnstaged) {
     const stageFailure = await stageCommitPaths(projectPath, paths)
-    if (stageFailure) return stageFailure
+    if (stageFailure) {
+      const result: GitCommitResult = stageFailure
+      return result
+    }
   }
 
   const commitArgs = [...GIT_LITERAL_PATHS, 'commit', '-m', message]
@@ -139,7 +151,7 @@ export async function commitGit(
   const commitHash = await resolveCommittedHead(projectPath)
   const summary = commitResult.stdout.trim().split('\n')[0] ?? 'Commit created.'
 
-  return {
+  const result: GitCommitResult = {
     ok: true,
     commitHash,
     summary,
@@ -153,6 +165,7 @@ export async function commitGit(
         }
       : {}),
   }
+  return result
 }
 
 async function validateCommitPreflight(projectPath: string, message: string) {
@@ -203,7 +216,7 @@ async function stageCommitPaths(projectPath: string, paths: readonly string[]) {
   return addResult.code === 0 ? null : mapCommitFailure(`${addResult.stderr}\n${addResult.stdout}`)
 }
 
-export function registerGitCommitHandlers(): void {
+export function registerGitCommitHandlers() {
   typedHandle('git:commit', (_event, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)

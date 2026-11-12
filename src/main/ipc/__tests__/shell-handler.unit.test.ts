@@ -27,7 +27,10 @@ interface MockUsageEnv {
   CI?: string
   OPENWAGGLE_AUTOMATION?: '1'
 }
-const mockEnv = vi.hoisted((): MockUsageEnv => ({}))
+const mockEnv = vi.hoisted(() => {
+  const env: MockUsageEnv = {}
+  return env
+})
 vi.mock('../../env', () => ({ env: mockEnv }))
 vi.mock('@shared/build-identity-runtime', () => ({ BUILD_CHANNEL: 'beta' }))
 

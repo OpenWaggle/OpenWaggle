@@ -79,7 +79,7 @@ function inspectorTargets(record: TerminalRecord) {
 export function makeNodePtyTerminalService(
   sink: TerminalEventSink['Type'],
   options: NodePtyTerminalServiceOptions,
-): TerminalServiceShape & TerminalServiceInternals {
+) {
   const history = makeTerminalHistoryStore(options.logsDir)
   const inspector: TerminalProcessInspector = makeTerminalProcessInspector()
   const runner = makePtyRunner({ appVersion: options.appVersion })

@@ -36,7 +36,7 @@ type SettingChanges = Partial<
 >
 
 /** The entry with the changed settings: a value replaces a setting, `undefined` removes it. */
-function withSettings(server: JsonRecord, changes: SettingChanges): JsonRecord {
+function withSettings(server: JsonRecord, changes: SettingChanges) {
   const next: JsonRecord = { ...server }
   for (const [setting, value] of Object.entries(changes)) {
     if (value === undefined) delete next[setting]
@@ -73,13 +73,9 @@ function changedToolExposure(
   return Object.keys(current).length === 0 && !resets ? undefined : current
 }
 
-function settingChanges(
-  server: JsonRecord,
-  patch: McpServerSettingsPatch,
-  keepDefaults: boolean,
-): SettingChanges {
+function settingChanges(server: JsonRecord, patch: McpServerSettingsPatch, keepDefaults: boolean) {
   const { enabled, exposure, toolExposure } = patch
-  return {
+  const changes: SettingChanges = {
     ...(enabled === undefined ? {} : { enabled: enabled && !keepDefaults ? undefined : enabled }),
     ...(exposure === undefined
       ? {}
@@ -93,6 +89,7 @@ function settingChanges(
         }
       : {}),
   }
+  return changes
 }
 
 /**

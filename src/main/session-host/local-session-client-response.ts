@@ -37,16 +37,14 @@ const commandFrameSchema = Schema.Struct({
 })
 
 /** Decodes one contract's response, naming the fields that did not match. */
-function decodeResponse<A, I>(schema: Schema.Schema<A, I>, value: unknown, label: string): A {
+function decodeResponse<A, I>(schema: Schema.Schema<A, I>, value: unknown, label: string) {
   const decoded = safeDecodeUnknown(schema, value)
   if (!decoded.success) throw new Error(`Invalid ${label} response: ${decoded.issues.join('; ')}`)
   return decoded.data
 }
 
-function decodeCommandPayload(
-  payload: LocalSessionCommandResponsePayload,
-): LocalSessionCommandResult {
-  return match(payload.contract)
+function decodeCommandPayload(payload: LocalSessionCommandResponsePayload) {
+  const result: LocalSessionCommandResult = match(payload.contract)
     .with('desktop-service-v1', () => ({
       contract: 'desktop-service-v1' as const,
       response: decodeDesktopServiceResponse(payload.response),
@@ -118,12 +116,10 @@ function decodeCommandPayload(
     .otherwise(() => {
       throw new Error('Local Session Host returned an invalid command contract.')
     })
+  return result
 }
 
-export function decodeLocalSessionCommandResponse(
-  value: unknown,
-  requestId: string,
-): LocalSessionCommandResult {
+export function decodeLocalSessionCommandResponse(value: unknown, requestId: string) {
   const frame = safeDecodeUnknown(commandFrameSchema, value)
   if (!frame.success) throw new Error('Local Session Host returned an invalid command frame.')
   if (frame.data.kind === 'error') {

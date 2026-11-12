@@ -53,8 +53,12 @@ import type { SessionHostPrelaunch } from '../session-host-prelaunch-handoff'
 const PROFILE = '/tmp/openwaggle-test'
 const unavailable = () => Object.assign(new Error('missing socket'), { code: 'ENOENT' })
 
-function prelaunch(): SessionHostPrelaunch {
-  return { userDataRoot: PROFILE, ended: new Promise(() => undefined), hasEnded: () => false }
+function prelaunch() {
+  return {
+    userDataRoot: PROFILE,
+    ended: new Promise(() => undefined),
+    hasEnded: () => false,
+  } satisfies SessionHostPrelaunch
 }
 
 function prelaunchedLifecycle(input: {
@@ -63,7 +67,7 @@ function prelaunchedLifecycle(input: {
   readonly onHostUnderway?: () => void
 }) {
   const launched = prelaunch()
-  const takePrelaunchedHost = vi.fn((): SessionHostPrelaunch | null => launched)
+  const takePrelaunchedHost = vi.fn<() => SessionHostPrelaunch | null>(() => launched)
   const waitForPrelaunchedHost = vi.fn(async () => input.answered)
   return {
     launched,

@@ -58,7 +58,7 @@ export function watchUnadoptableSessionHostEndpoint(input: {
   readonly endpointDirectory: string | null
   readonly stop: () => Promise<void> | void
   readonly intervalMs?: number
-}): () => void {
+}) {
   if (!input.endpoint || !input.endpointDirectory) return () => undefined
   const timer = setInterval(() => {
     if (!existsSync(input.endpoint)) stopUnawaited(input.stop)
@@ -101,7 +101,7 @@ export function hydrateSessionHostShellEnvironment(
       ...(refreshedElsewhereSince === undefined ? {} : { refreshedElsewhereSince }),
     })
   },
-): Promise<void> {
+) {
   return Promise.resolve()
     .then(() => start().refreshed)
     .catch((error: unknown) => {

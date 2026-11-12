@@ -67,7 +67,7 @@ export class CliError extends Error {
  * Runs the part of a command that only reads its arguments: what it rejects is a usage error,
  * whatever it throws, unless the error already says its kind.
  */
-export async function asUsageErrors<T>(read: () => T | Promise<T>): Promise<T> {
+export async function asUsageErrors<T>(read: () => T | Promise<T>) {
   try {
     return await read()
   } catch (error) {
@@ -76,7 +76,7 @@ export async function asUsageErrors<T>(read: () => T | Promise<T>): Promise<T> {
 }
 
 /** The synchronous form of `asUsageErrors`. */
-export function asUsageErrorsSync<T>(read: () => T): T {
+export function asUsageErrorsSync<T>(read: () => T) {
   try {
     return read()
   } catch (error) {

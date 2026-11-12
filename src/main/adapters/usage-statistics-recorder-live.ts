@@ -59,9 +59,7 @@ function recordStart(start: UsageStatisticsRunStart, facts: UsageStatisticsSessi
   })
 }
 
-export function makeUsageStatisticsRecorder(
-  sql: SqlClient.SqlClient,
-): UsageStatisticsRecorderShape {
+export function makeUsageStatisticsRecorder(sql: SqlClient.SqlClient) {
   return {
     record: (observation) => Effect.sync(() => recordUsageStatistics(observation)),
     runStarted: (start) =>
@@ -78,7 +76,7 @@ export function makeUsageStatisticsRecorder(
       Effect.sync(() => recordUsageStatisticsRunFinished(finish)).pipe(
         Effect.catchAllCause(() => Effect.void),
       ),
-  }
+  } satisfies UsageStatisticsRecorderShape
 }
 
 export const UsageStatisticsRecorderLive = Layer.effect(

@@ -40,8 +40,9 @@ const mcpRequestFieldsSchema = Schema.Struct({
 
 export type McpRequestFields = SchemaType<typeof mcpRequestFieldsSchema>
 
-export function mcpRequestFields(request: JsonObject): McpRequestFields {
-  return decodeUnknownOrThrow(mcpRequestFieldsSchema, request)
+export function mcpRequestFields(request: JsonObject) {
+  const fields: McpRequestFields = decodeUnknownOrThrow(mcpRequestFieldsSchema, request)
+  return fields
 }
 
 export function stringValue(value: McpJsonValue | undefined) {
@@ -86,7 +87,7 @@ export async function declaredConfirm(input: {
   readonly title: string
   readonly message: string
   readonly signal?: AbortSignal
-}): Promise<boolean> {
+}) {
   const declared = getOpenWaggleDeclaredConfirm(input.ctx.ui)
   if (declared) {
     return declared({

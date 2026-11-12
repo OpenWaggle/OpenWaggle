@@ -103,7 +103,7 @@ const COMMAND_OPTIONS: Readonly<
 export function parseMcpManagementArguments(
   command: McpManagementCommand,
   args: readonly string[],
-): McpManagementArguments {
+) {
   const known = COMMAND_OPTIONS[command]
   const maxPositionals =
     command === 'add' ? ADD_POSITIONALS_BEFORE_COMMAND : Number.POSITIVE_INFINITY
@@ -135,7 +135,8 @@ export function parseMcpManagementArguments(
     if (kind === 'list') lists.set(name, [...(lists.get(name) ?? []), value])
     else values.set(name, value)
   }
-  return { positional, flags, values, lists }
+  const result: McpManagementArguments = { positional, flags, values, lists }
+  return result
 }
 
 /** The project the command reads and writes: `--project`, the current directory for `-l`, or none. */
@@ -191,7 +192,7 @@ function isGiven(args: McpManagementArguments, option: string) {
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
-function httpEntry(args: McpManagementArguments, url: string): Record<string, JsonValue> {
+function httpEntry(args: McpManagementArguments, url: string) {
   const bearer = args.values.get('bearer-token-env-var')
   const headers: Record<string, JsonValue> = {
     ...pairs('header', args.lists.get('header')),
@@ -213,11 +214,12 @@ function httpEntry(args: McpManagementArguments, url: string): Record<string, Js
     if (value !== undefined) oauth[key] = value
   }
   if (port !== undefined) Object.assign(oauth, { callbackPort: Number(port) })
-  return {
+  const record: Record<string, JsonValue> = {
     url,
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
     ...(Object.keys(oauth).length > 0 ? { oauth } : {}),
   }
+  return record
 }
 
 function stdioEntry(args: McpManagementArguments, command: readonly string[]) {
@@ -242,7 +244,7 @@ export interface McpCliAddInput {
 }
 
 /** The Pi entry `pi mcp add` would write for these arguments. The Host validates it like Pi. */
-export function mcpCliAddInput(args: McpManagementArguments): McpCliAddInput {
+export function mcpCliAddInput(args: McpManagementArguments) {
   const [name, ...command] = args.positional
   const url = args.values.get('url')
   if (!name || (url === undefined) === (command.length === 0)) {
@@ -272,15 +274,14 @@ export function mcpCliAddInput(args: McpManagementArguments): McpCliAddInput {
       `--file must be one of ${MCP_CONFIG_FILE_ID_VALUES.join(', ')}; got "${file}".`,
     )
   }
-  return { name, entry, ...(destination ? { destination } : {}) }
+  const input: McpCliAddInput = { name, entry, ...(destination ? { destination } : {}) }
+  return input
 }
 
-export function mcpCliImportSources(
-  args: McpManagementArguments,
-): readonly McpImportSourceId[] | undefined {
+export function mcpCliImportSources(args: McpManagementArguments) {
   const from = args.values.get('from')
   if (from === undefined) return undefined
-  return from.split(',').map((value) => {
+  const result: readonly McpImportSourceId[] | undefined = from.split(',').map((value) => {
     const source = MCP_IMPORT_SOURCE_IDS.find((candidate) => candidate === value.trim())
     if (!source) {
       throw new McpCliUsageError(
@@ -289,10 +290,14 @@ export function mcpCliImportSources(
     }
     return source
   })
+  return result
 }
 
-export function mcpCliConflictPolicy(args: McpManagementArguments): McpImportNameConflictPolicy {
+export function mcpCliConflictPolicy(args: McpManagementArguments) {
   const value = args.values.get('conflict') ?? 'skip'
-  if (value === 'skip' || value === 'replace' || value === 'rename') return value
+  if (value === 'skip' || value === 'replace' || value === 'rename') {
+    const policy: McpImportNameConflictPolicy = value
+    return policy
+  }
   throw new McpCliUsageError(`--conflict must be skip, replace, or rename; got "${value}".`)
 }

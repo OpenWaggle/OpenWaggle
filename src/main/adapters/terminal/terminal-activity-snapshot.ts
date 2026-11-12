@@ -21,12 +21,12 @@ export function terminalEventCanChangeActivitySummary(event: TerminalRuntimeEven
  * unreliable probe remains unknown, which keeps Project Action terminal reuse
  * conservative while the inspector is starting or temporarily unavailable.
  */
-export function terminalActivityStatus(record: TerminalRecord): TerminalActivityStatus {
+export function terminalActivityStatus(record: TerminalRecord) {
   if (record.live === null) {
-    return record.exitCode === null && !record.closed ? 'unknown' : 'idle'
+    return record.exitCode === null && !record.closed ? ('unknown' as const) : ('idle' as const)
   }
-  if (record.activity?.processReliable !== true) return 'unknown'
-  return record.activity.processNames.length > 0 ? 'running' : 'idle'
+  if (record.activity?.processReliable !== true) return 'unknown' as const
+  return record.activity.processNames.length > 0 ? ('running' as const) : ('idle' as const)
 }
 
 const STATUS_PRIORITY: Record<TerminalActivityStatus, number> = {
@@ -46,10 +46,7 @@ function compareSummaries(left: TerminalActivitySummary, right: TerminalActivity
   return ownerOrder === 0 ? left.terminalId.localeCompare(right.terminalId) : ownerOrder
 }
 
-function mergeSummary(
-  existing: TerminalActivitySummary,
-  candidate: TerminalActivitySummary,
-): TerminalActivitySummary {
+function mergeSummary(existing: TerminalActivitySummary, candidate: TerminalActivitySummary) {
   const preferred =
     STATUS_PRIORITY[candidate.activityStatus] > STATUS_PRIORITY[existing.activityStatus]
       ? candidate
@@ -79,7 +76,7 @@ function mergeSummary(
 export function projectTerminalActivitySnapshot(
   records: Iterable<TerminalRecord>,
   revision: number,
-): TerminalActivitySnapshot {
+) {
   const summariesByKey = new Map<string, TerminalActivitySummary>()
   for (const record of records) {
     const portPreviews = record.activity?.portPreviews ?? []

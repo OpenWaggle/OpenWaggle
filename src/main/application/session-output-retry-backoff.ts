@@ -12,7 +12,7 @@ interface PendingRetryBackoff {
 const pendingBackoffs = new Map<string, PendingRetryBackoff>()
 
 /** Starts a fresh recovery cycle after a durable retry is first queued. */
-export function beginPendingSessionOutputRetry(sessionId: SessionId): void {
+export function beginPendingSessionOutputRetry(sessionId: SessionId) {
   clearPendingSessionOutputRetry(sessionId)
   pendingBackoffs.set(String(sessionId), { sessionId, attempt: 0, timer: null })
   publishSessionResourceInvalidation(sessionId)
@@ -22,7 +22,7 @@ export function beginPendingSessionOutputRetry(sessionId: SessionId): void {
  * Schedules one exact-Session wake. A mounted catalog consumes the wake and decides whether
  * another bounded attempt is needed; without a mounted catalog the cycle remains dormant.
  */
-export function schedulePendingSessionOutputRetry(sessionId: SessionId): void {
+export function schedulePendingSessionOutputRetry(sessionId: SessionId) {
   const key = String(sessionId)
   const current = pendingBackoffs.get(key) ?? { sessionId, attempt: 0, timer: null }
   if (current.timer || current.attempt >= SESSION_OUTPUT_RETRY_BACKOFF_MS.length) return
@@ -35,7 +35,7 @@ export function schedulePendingSessionOutputRetry(sessionId: SessionId): void {
   pendingBackoffs.set(key, { ...current, timer })
 }
 
-export function clearPendingSessionOutputRetry(sessionId: SessionId): void {
+export function clearPendingSessionOutputRetry(sessionId: SessionId) {
   const key = String(sessionId)
   const current = pendingBackoffs.get(key)
   if (current?.timer) clearTimeout(current.timer)

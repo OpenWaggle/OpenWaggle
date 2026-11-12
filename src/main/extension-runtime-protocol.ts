@@ -44,11 +44,6 @@ export interface RegisterExtensionRuntimeProtocolDependencies {
   ) => Promise<boolean>
 }
 
-interface RuntimeModuleContext {
-  readonly fileSegmentOffset: number
-  readonly sessionId?: string
-}
-
 function hasProjectExtensionRootSegments(packagePath: string) {
   const segments = packagePath.split(/[\\/]+/)
   const [projectConfigSegment, extensionsSegment] = OPENWAGGLE_EXTENSION.PROJECT_ROOT_SEGMENTS
@@ -132,9 +127,7 @@ function moduleContextSessionId(parsedContext: unknown) {
   return trimmedSessionId.length > 0 ? trimmedSessionId : null
 }
 
-function decodeModuleContext(
-  contextSegment: string,
-): Omit<RuntimeModuleContext, 'fileSegmentOffset'> | null {
+function decodeModuleContext(contextSegment: string) {
   const decodedContext = decodePathSegment(contextSegment)
   if (decodedContext === null) {
     return null
@@ -157,7 +150,7 @@ function decodeModuleContext(
   }
 }
 
-function runtimeModuleContext(pathSegments: readonly string[]): RuntimeModuleContext | null {
+function runtimeModuleContext(pathSegments: readonly string[]) {
   if (
     pathSegments[MODULE_FILE_SEGMENT_OFFSET] !==
     OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.MODULE_CONTEXT_SEGMENT

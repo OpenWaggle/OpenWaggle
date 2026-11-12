@@ -35,7 +35,7 @@ async function handleUrlElicitation(input: {
   readonly serverLabel: string
   readonly request: JsonObject
   readonly signal?: AbortSignal
-}): Promise<McpElicitationResult> {
+}) {
   const urlText = stringValue(mcpRequestFields(input.request).url)
   if (!urlText) throw new Error('MCP URL elicitation did not include a URL.')
   const url = new URL(urlText)
@@ -57,14 +57,18 @@ async function handleUrlElicitation(input: {
     ].join('\n'),
     ...(signal === undefined ? {} : { signal }),
   })
-  if (!approved) return { action: 'decline' }
+  if (!approved) {
+    const result: McpElicitationResult = { action: 'decline' }
+    return result
+  }
   await openExternal(url.href)
   const completed = await input.ctx.ui.confirm(
     'MCP elicitation opened',
     'Confirm only after you have completed the external flow. The server will be told that the flow may continue.',
     signal ? { signal } : {},
   )
-  return { action: completed ? 'accept' : 'cancel' }
+  const result: McpElicitationResult = { action: completed ? 'accept' : 'cancel' }
+  return result
 }
 
 async function handleFormElicitation(input: {
@@ -72,7 +76,7 @@ async function handleFormElicitation(input: {
   readonly serverLabel: string
   readonly request: JsonObject
   readonly signal?: AbortSignal
-}): Promise<McpElicitationResult> {
+}) {
   const signal = interactionSignal(input.ctx, input.signal)
   const approved = await declaredConfirm({
     ctx: input.ctx,
@@ -91,10 +95,20 @@ async function handleFormElicitation(input: {
     ].join('\n'),
     ...(signal === undefined ? {} : { signal }),
   })
-  if (!approved) return { action: 'decline' }
+  if (!approved) {
+    const result: McpElicitationResult = { action: 'decline' }
+    return result
+  }
   const edited = await input.ctx.ui.editor(`MCP input for ${input.serverLabel}`, '{}')
-  if (edited === undefined) return { action: 'cancel' }
-  return { action: 'accept', content: parseElicitationContent(edited) }
+  if (edited === undefined) {
+    const result: McpElicitationResult = { action: 'cancel' }
+    return result
+  }
+  const result: McpElicitationResult = {
+    action: 'accept',
+    content: parseElicitationContent(edited),
+  }
+  return result
 }
 
 /**
@@ -155,7 +169,7 @@ async function handleSampling(input: {
   readonly serverLabel: string
   readonly request: JsonObject
   readonly signal?: AbortSignal
-}): Promise<McpSamplingResult> {
+}) {
   requireUi(input.ctx, 'legacy sampling')
   if (!input.ctx.model) throw new Error('MCP sampling requires a selected model.')
   const signal = interactionSignal(input.ctx, input.signal)
@@ -194,16 +208,17 @@ async function handleSampling(input: {
   if (response.stopReason === 'error' || response.stopReason === 'aborted') {
     throw new Error(response.errorMessage ?? `MCP sampling ${response.stopReason}.`)
   }
-  return {
+  const result: McpSamplingResult = {
     model: `${model.provider}/${model.id}`,
     role: 'assistant',
     content: samplingContent(response, Boolean(tools)),
     stopReason: stopReason(response.stopReason),
   }
+  return result
 }
 
-export function createPiMcpRuntimeInteractions(ctx: ExtensionContext): McpRuntimeInteractions {
-  return {
+export function createPiMcpRuntimeInteractions(ctx: ExtensionContext) {
+  const interactions: McpRuntimeInteractions = {
     elicit: async (input) => {
       requireUi(ctx, 'elicitation')
       if (!isObject(input.request)) throw new Error('Invalid MCP elicitation request.')
@@ -232,4 +247,5 @@ export function createPiMcpRuntimeInteractions(ctx: ExtensionContext): McpRuntim
       })
     },
   }
+  return interactions
 }

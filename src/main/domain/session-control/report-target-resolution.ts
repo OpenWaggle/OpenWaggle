@@ -40,54 +40,69 @@ export type ReportTargetResolution =
       readonly candidates?: readonly SessionId[]
     }
 
-function resolvedTarget(
-  sourceSessionId: SessionId,
-  targetSessionId: SessionId | null,
-): ReportTargetResolution {
-  if (targetSessionId === null) return { resolved: false, code: 'lineage_target_missing' }
-  if (targetSessionId === sourceSessionId) return { resolved: false, code: 'target_is_source' }
-  return { resolved: true, targetSessionIds: [targetSessionId] }
+function resolvedTarget(sourceSessionId: SessionId, targetSessionId: SessionId | null) {
+  if (targetSessionId === null) {
+    const resolution: ReportTargetResolution = { resolved: false, code: 'lineage_target_missing' }
+    return resolution
+  }
+  if (targetSessionId === sourceSessionId) {
+    const resolution: ReportTargetResolution = { resolved: false, code: 'target_is_source' }
+    return resolution
+  }
+  const resolution: ReportTargetResolution = { resolved: true, targetSessionIds: [targetSessionId] }
+  return resolution
 }
 
 function resolveExplicitTargets(
   sourceSessionId: SessionId,
   requestedSessionIds: readonly SessionId[],
   candidates: readonly AuthorizedReportCandidate[],
-): ReportTargetResolution {
+) {
   const uniqueSessionIds = [...new Set(requestedSessionIds)]
-  if (uniqueSessionIds.length === 0) return { resolved: false, code: 'targets_empty' }
+  if (uniqueSessionIds.length === 0) {
+    const resolution: ReportTargetResolution = { resolved: false, code: 'targets_empty' }
+    return resolution
+  }
   if (uniqueSessionIds.includes(sourceSessionId)) {
-    return { resolved: false, code: 'target_is_source' }
+    const resolution: ReportTargetResolution = { resolved: false, code: 'target_is_source' }
+    return resolution
   }
   const authorizedSessionIds = new Set(candidates.map((candidate) => candidate.sessionId))
   if (uniqueSessionIds.some((sessionId) => !authorizedSessionIds.has(sessionId))) {
-    return { resolved: false, code: 'target_not_authorized' }
+    const resolution: ReportTargetResolution = { resolved: false, code: 'target_not_authorized' }
+    return resolution
   }
-  return { resolved: true, targetSessionIds: uniqueSessionIds }
+  const resolution: ReportTargetResolution = { resolved: true, targetSessionIds: uniqueSessionIds }
+  return resolution
 }
 
 function resolveWorkerReference(
   sourceSessionId: SessionId,
   reference: string,
   candidates: readonly AuthorizedReportCandidate[],
-): ReportTargetResolution {
+) {
   const normalized = normalizeSessionReportReference(reference)
   const matches = candidates.filter((candidate) =>
     candidate.referenceNames.some((name) => normalizeSessionReportReference(name) === normalized),
   )
-  if (matches.length === 0) return { resolved: false, code: 'target_not_found' }
+  if (matches.length === 0) {
+    const resolution: ReportTargetResolution = { resolved: false, code: 'target_not_found' }
+    return resolution
+  }
   if (matches.length > 1) {
-    return {
+    const resolution: ReportTargetResolution = {
       resolved: false,
       code: 'target_ambiguous',
       candidates: matches.map((candidate) => candidate.sessionId),
     }
+    return resolution
   }
   const targetSessionId = matches[0]?.sessionId ?? null
-  return resolvedTarget(sourceSessionId, targetSessionId)
+  const resolution: ReportTargetResolution = resolvedTarget(sourceSessionId, targetSessionId)
+  return resolution
 }
 
-export function resolveReportTargets(input: ResolveReportTargetsInput): ReportTargetResolution {
+export function resolveReportTargets(input: ResolveReportTargetsInput) {
   return matchBy(input.selector, 'type')
     .with('upstream', () => resolvedTarget(input.source.sessionId, input.source.parentSessionId))
     .with('queen', () => resolvedTarget(input.source.sessionId, input.source.queenSessionId))

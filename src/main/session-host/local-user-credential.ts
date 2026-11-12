@@ -26,7 +26,7 @@ async function removeTemporaryCredential(temporaryPath: string, operationError: 
   }
 }
 
-function decodeCredential(value: string): Buffer {
+function decodeCredential(value: string) {
   const trimmed = value.trim()
   if (!BASE64URL_CREDENTIAL_PATTERN.test(trimmed)) {
     throw new Error('Local Session credential has an invalid encoding.')
@@ -38,7 +38,7 @@ function decodeCredential(value: string): Buffer {
   return decoded
 }
 
-export function credentialsMatch(expected: string, received: string): boolean {
+export function credentialsMatch(expected: string, received: string) {
   try {
     return timingSafeEqual(decodeCredential(expected), decodeCredential(received))
   } catch {
@@ -46,7 +46,7 @@ export function credentialsMatch(expected: string, received: string): boolean {
   }
 }
 
-export async function ensureLocalUserCredential(credentialPath: string): Promise<string> {
+export async function ensureLocalUserCredential(credentialPath: string) {
   try {
     const existing = await readFile(credentialPath, 'utf8')
     decodeCredential(existing)

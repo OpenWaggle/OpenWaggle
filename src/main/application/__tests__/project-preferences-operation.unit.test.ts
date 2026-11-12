@@ -29,7 +29,7 @@ vi.mock('../agent-authorization-mode', () => ({
 import { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
-import { SettingsService, type SettingsServiceShape } from '../../services/settings-service'
+import { SettingsService } from '../../services/settings-service'
 import {
   clearAgentLoopInteractionBrokerForTests,
   listPendingAgentLoopInteractions,
@@ -56,7 +56,7 @@ describe('Host-backed project preferences', () => {
   let projectModelMigrations: [string, string][] | undefined
   let projectPath: string
 
-  function makeService(): SettingsServiceShape {
+  function makeService() {
     return {
       get: () =>
         Effect.succeed({ ...DEFAULT_SETTINGS, selectedModelsByProject: { ...storedModels } }),

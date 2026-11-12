@@ -146,8 +146,8 @@ async function sessionScopeOf(
   options: OpenWaggleMcpServeOptions,
   execute: (payload: LocalSessionCommandPayload) => Promise<unknown>,
   sessionId: string,
-): Promise<'allowed' | 'outside' | 'missing'> {
-  if (options.sessionIds.has(sessionId)) return 'allowed'
+) {
+  if (options.sessionIds.has(sessionId)) return 'allowed' as const
   const read = await execute({
     contract: 'session-query-v2',
     request: {
@@ -156,14 +156,14 @@ async function sessionScopeOf(
       query: { operation: 'read', sessionId },
     },
   })
-  if (!readFoundSession(read)) return 'missing'
+  if (!readFoundSession(read)) return 'missing' as const
   const projectPath = projectPathFromReadResult(read)
   return mcpSessionPathAllowed(
     options.workspaceRoots,
     typeof projectPath === 'string' ? projectPath : null,
   )
-    ? 'allowed'
-    : 'outside'
+    ? ('allowed' as const)
+    : ('outside' as const)
 }
 
 export async function filterMcpSessionQueryResult(

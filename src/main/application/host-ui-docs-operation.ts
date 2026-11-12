@@ -23,16 +23,19 @@ function dedupeProjectPaths(projectPaths: readonly string[]) {
   return deduped
 }
 
-function validateProjectPaths(
-  projectPaths: readonly string[] | undefined,
-): Effect.Effect<readonly string[], Error> {
-  if (!projectPaths) return Effect.succeed([])
-  return Effect.forEach(projectPaths, validateRequiredProjectPath).pipe(
-    Effect.map(dedupeProjectPaths),
-  )
+function validateProjectPaths(projectPaths: readonly string[] | undefined) {
+  if (!projectPaths) {
+    const effect: Effect.Effect<readonly string[], Error> = Effect.succeed([])
+    return effect
+  }
+  const effect: Effect.Effect<readonly string[], Error> = Effect.forEach(
+    projectPaths,
+    validateRequiredProjectPath,
+  ).pipe(Effect.map(dedupeProjectPaths))
+  return effect
 }
 
-function decodeDocsListInput(raw: unknown): Effect.Effect<DocsListInput, Error> {
+function decodeDocsListInput(raw: unknown) {
   return Effect.gen(function* () {
     if (raw === undefined) return { projectPaths: [] }
     const decoded = yield* decodeSchema(docsListInputSchema, raw)
@@ -43,7 +46,7 @@ function decodeDocsListInput(raw: unknown): Effect.Effect<DocsListInput, Error> 
         ? { includeExtensions: decoded.includeExtensions }
         : {}),
     }
-  })
+  }) satisfies Effect.Effect<DocsListInput, Error>
 }
 
 export function discoverHostUiDocsWith<A, E, R>(

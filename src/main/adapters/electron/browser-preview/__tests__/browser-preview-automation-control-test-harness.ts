@@ -13,7 +13,7 @@ export function createBrowserPreviewAutomationPageFixture(
   let attached = options.attached ?? false
   let devToolsOpen = options.devToolsOpen ?? false
   let destroyed = false
-  const sendCommand = vi.fn(async (method: string, params?: CdpCommandParams): Promise<unknown> => {
+  const sendCommand = vi.fn(async (method: string, params?: CdpCommandParams) => {
     if (method !== 'Runtime.evaluate') return {}
     const expression = uncheckedFields<{ expression: string }>(params).expression
     if (expression === 'answer') return { result: { value: 42 } }

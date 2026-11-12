@@ -53,7 +53,7 @@ export interface TerminalActionContext {
   readonly onRecordsRekeyed: () => void
 }
 
-export function resolveTerminalKey(context: TerminalActionContext, key: TerminalKey): TerminalKey {
+export function resolveTerminalKey(context: TerminalActionContext, key: TerminalKey) {
   return resolveTerminalAlias(context.terminalKeyAliases, key)
 }
 
@@ -64,9 +64,9 @@ function snapshotReadiness(record: TerminalRecord) {
   } as const
 }
 
-export function runningSnapshot(record: TerminalRecord, history: string): TerminalAttachResult {
+export function runningSnapshot(record: TerminalRecord, history: string) {
   const portPreviews = record.activity?.portPreviews ?? []
-  return {
+  const result: TerminalAttachResult = {
     inputIncarnation: record.inputIncarnation,
     history: clampReplay(history),
     outputBytes: record.outputBytes,
@@ -79,6 +79,7 @@ export function runningSnapshot(record: TerminalRecord, history: string): Termin
     ...(portPreviews.length === 0 ? {} : { portPreviews }),
     projectActionPending: record.projectAction !== null,
   }
+  return result
 }
 
 function liveReplay(record: TerminalRecord) {
@@ -179,10 +180,7 @@ export async function resetPersistedHistory(runtime: TerminalRuntime, key: Termi
   await runtime.history.flush(key)
 }
 
-function reuseLiveTerminal(
-  record: TerminalRecord | undefined,
-  input: TerminalOpenInput,
-): TerminalAttachResult {
+function reuseLiveTerminal(record: TerminalRecord | undefined, input: TerminalOpenInput) {
   if (!record?.live) return CLOSED_SNAPSHOT
   try {
     record.live.pty.resize(input.cols, input.rows)
@@ -194,7 +192,7 @@ function reuseLiveTerminal(
   return runningSnapshot(record, liveReplay(record))
 }
 
-function reuseSpawningTerminal(record: TerminalRecord | undefined): TerminalAttachResult {
+function reuseSpawningTerminal(record: TerminalRecord | undefined) {
   if (record === undefined) return CLOSED_SNAPSHOT
   return runningSnapshot(record, liveReplay(record))
 }
@@ -204,13 +202,13 @@ type TerminalOpenDecision = ReturnType<typeof decideTerminalOpen>
 function missingCwdSnapshot(
   record: TerminalRecord | undefined,
   decision: Extract<TerminalOpenDecision, { readonly kind: 'cwd-missing' }>,
-): TerminalAttachResult {
+) {
   const activity = record?.activity
   const portPreviews = activity?.portPreviews ?? []
   // The decision is made before shutdown. Re-read the live record after its
   // resource/public drain so final PTY output is included in this snapshot.
   const persisted = record?.scrollback.toString() ?? decision.persisted
-  return {
+  const result: TerminalAttachResult = {
     history: clampReplay(coldTerminalReplay(persisted)),
     outputBytes: 0,
     outputGeneration: record?.outputGeneration ?? 0,
@@ -223,6 +221,7 @@ function missingCwdSnapshot(
     ...(portPreviews.length === 0 ? {} : { portPreviews }),
     projectActionPending: Boolean(record?.projectAction),
   }
+  return result
 }
 
 function createTerminalRecord(
@@ -259,7 +258,7 @@ async function applyOpenDecision(
   input: TerminalOpenInput,
   record: TerminalRecord | undefined,
   decision: TerminalOpenDecision,
-): Promise<TerminalAttachResult> {
+) {
   const { runtime } = context
   if (decision.kind === 'cwd-missing') {
     // `live === null` can still mean an asynchronous spawn is settling. Always
