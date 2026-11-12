@@ -22,20 +22,20 @@ function uniqueStrings(values: readonly string[]): string[] {
 }
 
 function rawPresetValues(value: unknown): readonly unknown[] {
-  if (!isRecord(value) || !Array.isArray(value['wagglePresets'])) {
+  if (!isRecord(value) || !Array.isArray(value.wagglePresets)) {
     return []
   }
 
-  return value['wagglePresets']
+  return value.wagglePresets
 }
 
 function rawHiddenBuiltInIds(value: unknown): readonly string[] {
-  if (!isRecord(value) || !Array.isArray(value['hiddenBuiltInPresetIds'])) {
+  if (!isRecord(value) || !Array.isArray(value.hiddenBuiltInPresetIds)) {
     return []
   }
 
   const ids: string[] = []
-  for (const id of value['hiddenBuiltInPresetIds']) {
+  for (const id of value.hiddenBuiltInPresetIds) {
     if (typeof id === 'string' && id.trim().length > 0) ids.push(id)
   }
   return ids

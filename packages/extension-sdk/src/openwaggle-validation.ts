@@ -25,22 +25,22 @@ function isStringOrNull(value: unknown): value is string | null {
 function isSessionResourceView(value: unknown) {
   return (
     isRecord(value) &&
-    isNonEmptyString(value['id']) &&
-    isNonEmptyString(value['title']) &&
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.title) &&
     ['image', 'file', 'link', 'tool', 'web-search', 'site', 'commit', 'change-request'].includes(
-      String(value['kind']),
+      String(value.kind),
     ) &&
-    isStringOrNull(value['mimeType']) &&
-    typeof value['available'] === 'boolean' &&
-    typeof value['isSource'] === 'boolean' &&
-    typeof value['isOutput'] === 'boolean'
+    isStringOrNull(value.mimeType) &&
+    typeof value.available === 'boolean' &&
+    typeof value.isSource === 'boolean' &&
+    typeof value.isOutput === 'boolean'
   )
 }
 
 function isSessionResourceResultBase(value: Readonly<Record<string, unknown>>, method: string) {
   return (
     hasOpenWaggleResultBase(value, OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES, method) &&
-    isNonEmptyString(value['sessionId'])
+    isNonEmptyString(value.sessionId)
   )
 }
 
@@ -50,12 +50,12 @@ export function isSessionResourcesListResult(
   return (
     isRecord(value) &&
     isSessionResourceResultBase(value, OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES) &&
-    Array.isArray(value['resources']) &&
-    value['resources'].every(isSessionResourceView) &&
-    typeof value['total'] === 'number' &&
-    Number.isInteger(value['total']) &&
-    value['total'] >= 0 &&
-    (value['nextCursor'] === null || typeof value['nextCursor'] === 'string')
+    Array.isArray(value.resources) &&
+    value.resources.every(isSessionResourceView) &&
+    typeof value.total === 'number' &&
+    Number.isInteger(value.total) &&
+    value.total >= 0 &&
+    (value.nextCursor === null || typeof value.nextCursor === 'string')
   )
 }
 
@@ -65,7 +65,7 @@ export function isSessionResourcePublishResult(
   return (
     isRecord(value) &&
     isSessionResourceResultBase(value, OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE) &&
-    isSessionResourceView(value['resource'])
+    isSessionResourceView(value.resource)
   )
 }
 
@@ -74,23 +74,23 @@ function isInvokeScope(value: unknown) {
     return false
   }
 
-  if (value['kind'] === 'app') {
+  if (value.kind === 'app') {
     return true
   }
 
-  if (value['kind'] === 'project') {
-    return isNonEmptyString(value['projectPath'])
+  if (value.kind === 'project') {
+    return isNonEmptyString(value.projectPath)
   }
 
-  if (value['kind'] === 'session') {
-    return isNonEmptyString(value['projectPath']) && isNonEmptyString(value['sessionId'])
+  if (value.kind === 'session') {
+    return isNonEmptyString(value.projectPath) && isNonEmptyString(value.sessionId)
   }
 
   return (
-    value['kind'] === 'branch' &&
-    isNonEmptyString(value['projectPath']) &&
-    isNonEmptyString(value['sessionId']) &&
-    isNonEmptyString(value['branchId'])
+    value.kind === 'branch' &&
+    isNonEmptyString(value.projectPath) &&
+    isNonEmptyString(value.sessionId) &&
+    isNonEmptyString(value.branchId)
   )
 }
 
@@ -101,39 +101,39 @@ function isStringRecord(value: unknown) {
 function isModelPreferences(value: unknown): value is ExtensionModelPrefs {
   return (
     isRecord(value) &&
-    typeof value['selectedModel'] === 'string' &&
-    isStringArray(value['favoriteModels']) &&
-    isStringArray(value['enabledModels']) &&
-    typeof value['thinkingLevel'] === 'string'
+    typeof value.selectedModel === 'string' &&
+    isStringArray(value.favoriteModels) &&
+    isStringArray(value.enabledModels) &&
+    typeof value.thinkingLevel === 'string'
   )
 }
 
 function isProjectView(value: unknown) {
   return (
     isRecord(value) &&
-    isNonEmptyString(value['projectPath']) &&
-    isStringOrNull(value['displayName']) &&
-    typeof value['active'] === 'boolean'
+    isNonEmptyString(value.projectPath) &&
+    isStringOrNull(value.displayName) &&
+    typeof value.active === 'boolean'
   )
 }
 
 function isSessionView(value: unknown) {
   return (
     isRecord(value) &&
-    isNonEmptyString(value['sessionId']) &&
-    isNonEmptyString(value['title']) &&
-    isStringOrNull(value['projectPath'])
+    isNonEmptyString(value.sessionId) &&
+    isNonEmptyString(value.title) &&
+    isStringOrNull(value.projectPath)
   )
 }
 
 function isBranchView(value: unknown) {
   return (
     isRecord(value) &&
-    isNonEmptyString(value['branchId']) &&
-    isNonEmptyString(value['sessionId']) &&
-    isNonEmptyString(value['name']) &&
-    typeof value['main'] === 'boolean' &&
-    typeof value['archived'] === 'boolean'
+    isNonEmptyString(value.branchId) &&
+    isNonEmptyString(value.sessionId) &&
+    isNonEmptyString(value.name) &&
+    typeof value.main === 'boolean' &&
+    typeof value.archived === 'boolean'
   )
 }
 
@@ -143,10 +143,10 @@ function hasOpenWaggleResultBase(
   method: string,
 ) {
   return (
-    isNonEmptyString(value['extensionId']) &&
-    isNonEmptyString(value['contributionId']) &&
-    value['capability'] === capability &&
-    value['method'] === method
+    isNonEmptyString(value.extensionId) &&
+    isNonEmptyString(value.contributionId) &&
+    value.capability === capability &&
+    value.method === method
   )
 }
 
@@ -158,13 +158,13 @@ export function isStateReadResult(value: unknown): value is ExtensionStateReadRe
       OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
       OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
     ) &&
-    isInvokeScope(value['scope']) &&
-    isStringOrNull(value['activeProjectPath']) &&
-    (value['currentProject'] === null || isProjectView(value['currentProject'])) &&
-    (value['currentSession'] === null || isSessionView(value['currentSession'])) &&
-    (value['currentBranch'] === null || isBranchView(value['currentBranch'])) &&
-    isStringArray(value['recentProjects']) &&
-    isModelPreferences(value['modelPreferences'])
+    isInvokeScope(value.scope) &&
+    isStringOrNull(value.activeProjectPath) &&
+    (value.currentProject === null || isProjectView(value.currentProject)) &&
+    (value.currentSession === null || isSessionView(value.currentSession)) &&
+    (value.currentBranch === null || isBranchView(value.currentBranch)) &&
+    isStringArray(value.recentProjects) &&
+    isModelPreferences(value.modelPreferences)
   )
 }
 
@@ -180,9 +180,9 @@ function isSelectedStateResult(
       OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
       OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
     ) &&
-    isInvokeScope(value['scope']) &&
-    value['selector'] === selector &&
-    isSelectedValue(value['value'])
+    isInvokeScope(value.scope) &&
+    value.selector === selector &&
+    isSelectedValue(value.value)
   )
 }
 
@@ -246,17 +246,17 @@ export function isActionSelectProjectResult(
       OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS,
       OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT,
     ) &&
-    isStringOrNull(value['previousProjectPath']) &&
-    isNonEmptyString(value['projectPath']) &&
-    isStringArray(value['recentProjects'])
+    isStringOrNull(value.previousProjectPath) &&
+    isNonEmptyString(value.projectPath) &&
+    isStringArray(value.recentProjects)
   )
 }
 
 function isSettingsView(value: unknown) {
   return (
     isRecord(value) &&
-    isModelPreferences(value['modelPreferences']) &&
-    isStringRecord(value['projectDisplayNames'])
+    isModelPreferences(value.modelPreferences) &&
+    isStringRecord(value.projectDisplayNames)
   )
 }
 
@@ -265,14 +265,14 @@ function isSettingsSelectedValue(value: unknown): value is ExtensionSettingsSele
     return false
   }
 
-  if (value['key'] === OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES) {
-    return isModelPreferences(value['value'])
+  if (value.key === OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES) {
+    return isModelPreferences(value.value)
   }
 
   return (
-    value['key'] === OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME &&
-    isNonEmptyString(value['projectPath']) &&
-    isStringOrNull(value['value'])
+    value.key === OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME &&
+    isNonEmptyString(value.projectPath) &&
+    isStringOrNull(value.value)
   )
 }
 
@@ -284,7 +284,7 @@ export function isSettingsGetResult(value: unknown): value is ExtensionSettingsG
       OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
       OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
     ) &&
-    isSettingsView(value['settings'])
+    isSettingsView(value.settings)
   )
 }
 
@@ -296,7 +296,7 @@ export function isSettingsUpdateResult(value: unknown): value is ExtensionSettin
       OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
       OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
     ) &&
-    isSettingsView(value['settings'])
+    isSettingsView(value.settings)
   )
 }
 
@@ -310,7 +310,7 @@ export function isSettingsGetSettingResult(
       OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
       OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
     ) &&
-    isSettingsSelectedValue(value['setting'])
+    isSettingsSelectedValue(value.setting)
   )
 }
 
@@ -324,6 +324,6 @@ export function isSettingsUpdateSettingResult(
       OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
       OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
     ) &&
-    isSettingsSelectedValue(value['setting'])
+    isSettingsSelectedValue(value.setting)
   )
 }
