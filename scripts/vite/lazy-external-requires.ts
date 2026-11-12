@@ -40,7 +40,7 @@ export function lazyExternalRequiresPlugin(isLazyExternal: (specifier: string) =
       order: 'pre',
       handler(source, importer, options) {
         // Exact ids only, like Rolldown's string `external` list this replaces: a subpath or a
-        // `?raw` import of an external package (`zod/v4`, `lucide/LICENSE?raw`) stays bundled.
+        // `?raw` import of an external package (`lucide/LICENSE?raw`) stays bundled.
         if (!isLazyExternal(source)) return null
         const kind: unknown = 'kind' in options ? options.kind : undefined
         const fromLazyModule = importer?.startsWith(LAZY_EXTERNAL_MODULE_PREFIX) === true
