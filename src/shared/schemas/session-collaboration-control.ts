@@ -21,7 +21,21 @@ const uniqueStringsSchema = Schema.Array(sessionInputItemTextSchema).pipe(
   ),
 )
 
-const reportTargetSchema = Schema.Union(
+export const delegationEvidenceKindSchema = Schema.Literal(
+  'observed-command',
+  'workspace-diff',
+  'artifact',
+  'source-reference',
+  'asserted-note',
+)
+
+export const delegationVerificationOutcomeSchema = Schema.Literal(
+  'passed',
+  'failed',
+  'inconclusive',
+)
+
+export const reportTargetSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('upstream') }),
   Schema.Struct({ type: Schema.Literal('queen') }),
   Schema.Struct({ type: Schema.Literal('session'), sessionId: sessionInputIdSchema }),
@@ -55,14 +69,8 @@ export const reportCommandSchema = Schema.Struct({
   }),
 })
 
-const delegationEvidenceSchema = Schema.Struct({
-  kind: Schema.Literal(
-    'observed-command',
-    'workspace-diff',
-    'artifact',
-    'source-reference',
-    'asserted-note',
-  ),
+export const delegationEvidenceSchema = Schema.Struct({
+  kind: delegationEvidenceKindSchema,
   summary: sessionInputItemTextSchema,
   reference: Schema.optional(sessionInputItemTextSchema),
   provenance: Schema.optional(
@@ -208,7 +216,7 @@ export const delegationVerifyCommandSchema = Schema.Struct({
   sessionId: sessionInputIdSchema,
   delegationId: sessionInputIdSchema,
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  outcome: Schema.Literal('passed', 'failed', 'inconclusive'),
+  outcome: delegationVerificationOutcomeSchema,
   summary: sessionInputItemTextSchema,
   evidence: delegationEvidenceCollectionSchema,
 })

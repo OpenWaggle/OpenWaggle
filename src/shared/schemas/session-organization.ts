@@ -18,18 +18,20 @@ export const sessionUnarchiveCommandSchema = Schema.Struct({
   sessionId: sessionInputIdSchema,
 })
 
+export const sessionHandoffWorkspaceSchema = Schema.Union(
+  Schema.Struct({ mode: Schema.Literal('local') }),
+  Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
+  Schema.Struct({
+    mode: Schema.Literal('new-worktree'),
+    baseRef: Schema.optional(sessionInputItemTextSchema),
+    startFromOrigin: Schema.optional(Schema.Boolean),
+  }),
+)
+
 export const sessionHandoffCommandSchema = Schema.Struct({
   operation: Schema.Literal('handoff'),
   sessionId: sessionInputIdSchema,
-  workspace: Schema.Union(
-    Schema.Struct({ mode: Schema.Literal('local') }),
-    Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
-    Schema.Struct({
-      mode: Schema.Literal('new-worktree'),
-      baseRef: Schema.optional(sessionInputItemTextSchema),
-      startFromOrigin: Schema.optional(Schema.Boolean),
-    }),
-  ),
+  workspace: sessionHandoffWorkspaceSchema,
 })
 
 export const sessionRenamedOutcomeSchema = Schema.Struct({
@@ -45,6 +47,11 @@ export const sessionArchivedOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
 })
 
+/**
+ * A Session agent asked, from Run `runId`, to archive its own Session. Archiving stops the
+ * Session's Runs, so the Host archives it after that Run completes instead, unless the Session
+ * changed since.
+ */
 export const sessionArchiveDeferredOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('archive'),
   effect: Schema.Literal('session-archive-deferred'),
