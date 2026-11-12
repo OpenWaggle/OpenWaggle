@@ -61,8 +61,9 @@ const config = {
   directories: {
     buildResources: buildResourcesDir,
   },
-  // zip at 7-Zip's highest level, an LZMA DMG (ULMO, patches/dmg-builder) and an xz AppImage. The Windows
-  // installer keeps electron-builder's differential-update payload (1 MB LZMA blocks) either way.
+  // zip at 7-Zip's highest level and an LZMA DMG (ULMO, patches/dmg-builder); the AppImage stays
+  // gzip (`appImage` below). The Windows installer keeps electron-builder's differential-update
+  // payload (1 MB LZMA blocks) either way.
   compression: 'maximum',
   // SwiftShader, which Chromium no longer falls back to (scripts/electron-builder-after-pack.ts).
   afterPack: removeUnusedChromiumFiles,
@@ -178,6 +179,12 @@ const config = {
   },
   nsis: {
     include: 'build/installer.nsh',
+  },
+  // `maximum` alone would make the AppImage's squashfs xz with 1 MB blocks: 23% smaller, but every
+  // read through its FUSE mount decompresses a whole block, and the app then took 65 s to show its
+  // window on Ubuntu 24.04 instead of 2 s.
+  appImage: {
+    compression: 'gzip',
   },
   linux: {
     icon: icons.linux,

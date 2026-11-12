@@ -59,3 +59,10 @@ describe('removeUnusedChromiumFiles', () => {
     expect(config.afterPack).toBe(removeUnusedChromiumFiles)
   })
 })
+
+describe('artifact compression', () => {
+  it('compresses at the highest level but keeps the AppImage gzip, which reads fast through FUSE', () => {
+    expect(config.compression).toBe('maximum')
+    expect(config.appImage).toEqual({ compression: 'gzip' })
+  })
+})
