@@ -1,0 +1,8 @@
+{
+  "about": "Performance Gate timing thresholds (scripts/perf-gate/ab-verdict.ts), set from base-vs-base runs on GitHub's ubuntu-24.04 runners (.agents/memory/performance.md). A head is slower or heavier when the median of its paired differences from the base exceeds both the relative and the absolute limit. The gate reads main's copy; a pull request that loosens one needs the perf-regression-accepted label.",
+  "pairs": 6,
+  "idleMs": 5000,
+  "timing": { "relative": 0.1, "absolute": 60 },
+  "memory": { "relative": 0.05, "absolute": 12582912 },
+  "count": { "relative": 0, "absolute": 0 }
+}

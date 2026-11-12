@@ -16,6 +16,8 @@ import { listProcesses, selectAppProcesses } from './app-processes'
 
 export interface InstalledElectronApp {
   readonly launcher: string
+  /** What precedes the app's own arguments: the app directory of an unpackaged build. */
+  readonly leadingArguments?: readonly string[]
   /** The `.app` bundle, the Windows install directory or the AppImage. */
   readonly installRoot: string
   readonly installedBytes: number
@@ -203,6 +205,7 @@ export function startElectronApp(input: {
   const child = spawn(
     input.app.launcher,
     [
+      ...(input.app.leadingArguments ?? []),
       ...credentialStoreArguments(),
       `--remote-debugging-port=${String(input.cdpPort)}`,
       '--openwaggle-startup-timings',
@@ -240,7 +243,8 @@ export function runAppCli(
   const started = Date.now()
   const prefix = process.platform === 'win32' || args[0] === '--' ? [] : credentialStoreArguments()
   const separator = process.platform === 'win32' && args[0] !== '--' ? ['--'] : []
-  const child = spawn(app.launcher, [...prefix, ...separator, ...args], {
+  const leading = app.leadingArguments ?? []
+  const child = spawn(app.launcher, [...leading, ...prefix, ...separator, ...args], {
     env: appEnvironment(profile),
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
