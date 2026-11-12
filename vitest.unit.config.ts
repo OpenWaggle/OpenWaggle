@@ -3,7 +3,6 @@ import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
 import {
   BUN_RUNTIME_ALIASES,
-  BUN_RUNTIME_SERVER,
   NODE_TIER_TIMEOUTS,
   REUSED_WORKER_SETUP,
   REUSED_WORKERS,
@@ -25,7 +24,6 @@ export default defineConfig({
   },
   test: {
     reporters: TEST_REPORTERS,
-    server: BUN_RUNTIME_SERVER,
     environment: 'node',
     ...REUSED_WORKERS,
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],

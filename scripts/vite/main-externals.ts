@@ -38,7 +38,6 @@ export const BUNDLED_DEPS = [
   // compiled each of their files at startup (≈150 ms: startup-main.md, A-F4); bundled, they are
   // part of the main bundle's compile cache and evaluate only when their importer does. Natives,
   // WASM readers and packages that locate files beside themselves stay external.
-  'zod',
   'undici',
   'ws',
   'proper-lockfile',

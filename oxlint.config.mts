@@ -489,6 +489,9 @@ const REACT_COMPILER_RULES: DummyRuleMap = {
   'react/set-state-in-effect': 'error',
 }
 
+const ZOD_IMPORT_MESSAGE =
+  'Validate with Effect Schema (src/shared/schema.ts; MCP tool schemas through src/main/effect-standard-schema.ts).'
+
 export default defineConfig({
   plugins: ['typescript', 'unicorn', 'oxc', 'react', 'jsx-a11y', 'node', 'jest', 'import'],
   jsPlugins: [
@@ -528,6 +531,20 @@ export default defineConfig({
     {
       files: ['src/**/*.{ts,tsx}', 'functions/**/*.ts'],
       rules: { 'no-console': 'error' },
+    },
+    {
+      // OpenWaggle validates with Effect Schema only. zod still arrives through the MCP SDK and
+      // the website's Astro, so its import has to be refused rather than left unresolvable.
+      files: ['src/**', 'packages/**', 'scripts/**'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [{ name: 'zod', message: ZOD_IMPORT_MESSAGE }],
+            patterns: [{ group: ['zod/*'], message: ZOD_IMPORT_MESSAGE }],
+          },
+        ],
+      },
     },
     {
       // The logger sinks, and tests that assert on them.
