@@ -119,7 +119,6 @@ export type ScheduledTasksOutcome = SchemaType<typeof scheduledTasksOutcomeSchem
 export {
   SCHEDULED_TASK_REJECTION_CODES,
   type ScheduledTaskRejectionCode,
-  type ScheduledTasksRejectedOutcome,
 } from './scheduled-task-rejection'
 
 export type ScheduledTasksResponse = SchemaType<typeof scheduledTasksResponseSchema>
