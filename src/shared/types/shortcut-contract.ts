@@ -1,3 +1,13 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  extensionPanelShortcutBindingsSchema,
+  shortcutBindingSchema,
+  shortcutBindingsSchema,
+  shortcutCommandSchema,
+  shortcutRuleSchema,
+  shortcutRulesSchema,
+} from '@shared/schemas/settings-shortcuts'
+
 export const SHORTCUT_COMMANDS = [
   'commandPalette.toggle',
   'filePicker.toggle',
@@ -29,25 +39,14 @@ export const SHORTCUT_COMMANDS = [
   'session.copyLink',
 ] as const
 
-export type ShortcutCommand = (typeof SHORTCUT_COMMANDS)[number]
+export type ShortcutCommand = SchemaType<typeof shortcutCommandSchema>
 
-export interface ShortcutBinding {
-  readonly key: string
-  readonly mod?: boolean | undefined
-  readonly ctrl?: boolean | undefined
-  readonly shift?: boolean | undefined
-  readonly alt?: boolean | undefined
-  readonly meta?: boolean | undefined
-}
+export type ShortcutBinding = SchemaType<typeof shortcutBindingSchema>
 
-export type ShortcutBindings = Readonly<Record<ShortcutCommand, ShortcutBinding | null>>
+export type ShortcutBindings = SchemaType<typeof shortcutBindingsSchema>
 
-/**
- * User bindings for extension side panels, keyed by the stable extension Right panel surface id
- * (`extensionRightPanelSurfaceId`). An absent key is unassigned; extensions cannot declare
- * defaults, and a binding outlives its extension so a reinstall gets it back (ADR 0043).
- */
-export type ExtensionPanelShortcutBindings = Readonly<Record<string, ShortcutBinding>>
+/** User bindings for extension side panels, keyed by extension Right panel surface id (ADR 0043). */
+export type ExtensionPanelShortcutBindings = SchemaType<typeof extensionPanelShortcutBindingsSchema>
 
 export const EXTENSION_PANEL_SHORTCUT_LIMITS = {
   BINDINGS: 256,
@@ -60,13 +59,9 @@ export const SHORTCUT_RULE_LIMITS = {
 } as const
 
 /** One ordered built-in command rule. Later active rules win globally. */
-export interface ShortcutRule {
-  readonly command: ShortcutCommand
-  readonly shortcut: ShortcutBinding
-  readonly when?: string
-}
+export type ShortcutRule = SchemaType<typeof shortcutRuleSchema>
 
-export type ShortcutRules = readonly ShortcutRule[]
+export type ShortcutRules = SchemaType<typeof shortcutRulesSchema>
 
 export interface ShortcutDefinition {
   readonly command: ShortcutCommand
