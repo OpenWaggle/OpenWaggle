@@ -21,11 +21,11 @@ describe('Pi package directory environment', () => {
     const { applyPiPackageDirectoryTo } = await loadEnv()
     const unset: NodeJS.ProcessEnv = {}
     applyPiPackageDirectoryTo(BUNDLED_PI, unset)
-    expect(unset['PI_PACKAGE_DIR']).toBe(BUNDLED_PI)
+    expect(unset.PI_PACKAGE_DIR).toBe(BUNDLED_PI)
 
     const userSet: NodeJS.ProcessEnv = { PI_PACKAGE_DIR: USER_PI }
     applyPiPackageDirectoryTo(BUNDLED_PI, userSet)
-    expect(userSet['PI_PACKAGE_DIR']).toBe(BUNDLED_PI)
+    expect(userSet.PI_PACKAGE_DIR).toBe(BUNDLED_PI)
   })
 
   it("keeps OpenWaggle's own Pi package directory out of agent, terminal, and Host shells", async () => {
@@ -39,12 +39,12 @@ describe('Pi package directory environment', () => {
     } = await loadEnv()
     applyPiPackageDirectory(BUNDLED_PI)
 
-    expect(getInteractiveTerminalEnv('1.0.0')['PI_PACKAGE_DIR']).toBeUndefined()
+    expect(getInteractiveTerminalEnv('1.0.0').PI_PACKAGE_DIR).toBeUndefined()
     // Stdio MCP servers, git, and the updater start from this environment.
     expect(getEnvWithOverrides({ EXTRA: '1' })).not.toHaveProperty('PI_PACKAGE_DIR')
-    expect(getEnvWithOverrides({ EXTRA: '1' })['EXTRA']).toBe('1')
+    expect(getEnvWithOverrides({ EXTRA: '1' }).EXTRA).toBe('1')
     // The detached Session Host sets its own value again, from the environment the user had.
-    expect(getSessionHostChildEnv()['PI_PACKAGE_DIR']).toBeUndefined()
+    expect(getSessionHostChildEnv().PI_PACKAGE_DIR).toBeUndefined()
     expect(withShellPiPackageDirectory({ PI_PACKAGE_DIR: BUNDLED_PI, KEEP: '1' })).toEqual({
       KEEP: '1',
     })
@@ -61,9 +61,9 @@ describe('Pi package directory environment', () => {
     } = await loadEnv()
     applyPiPackageDirectory(BUNDLED_PI)
 
-    expect(getInteractiveTerminalEnv('1.0.0')['PI_PACKAGE_DIR']).toBe(USER_PI)
-    expect(getEnvWithOverrides({})['PI_PACKAGE_DIR']).toBe(USER_PI)
-    expect(getSessionHostChildEnv()['PI_PACKAGE_DIR']).toBe(USER_PI)
+    expect(getInteractiveTerminalEnv('1.0.0').PI_PACKAGE_DIR).toBe(USER_PI)
+    expect(getEnvWithOverrides({}).PI_PACKAGE_DIR).toBe(USER_PI)
+    expect(getSessionHostChildEnv().PI_PACKAGE_DIR).toBe(USER_PI)
     expect(withShellPiPackageDirectory({ PI_PACKAGE_DIR: BUNDLED_PI })).toEqual({
       PI_PACKAGE_DIR: USER_PI,
     })

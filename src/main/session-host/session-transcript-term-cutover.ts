@@ -128,9 +128,9 @@ function stageBatch(database: HostSqliteDatabase, cursor: CutoverCursor) {
   )
   if (!last) return null
   if (
-    typeof last['session_id'] !== 'string' ||
-    typeof last['created_order'] !== 'number' ||
-    typeof last['node_id'] !== 'string'
+    typeof last.session_id !== 'string' ||
+    typeof last.created_order !== 'number' ||
+    typeof last.node_id !== 'string'
   ) {
     throw new Error('Session transcript cutover node cursor is invalid.')
   }
@@ -160,9 +160,9 @@ function stageBatch(database: HostSqliteDatabase, cursor: CutoverCursor) {
       ON existing.term = grouped.term AND existing.session_id = grouped.session_id;
   `)
   return {
-    sessionId: last['session_id'],
-    createdOrder: last['created_order'],
-    nodeId: last['node_id'],
+    sessionId: last.session_id,
+    createdOrder: last.created_order,
+    nodeId: last.node_id,
   }
 }
 
@@ -209,7 +209,7 @@ function validateBatch(database: HostSqliteDatabase) {
       ON documents.session_id = expected.session_id
     WHERE documents.session_id IS NULL OR documents.token_count <> expected.token_count
     LIMIT 1`,
-  )?.['mismatch']
+  )?.mismatch
   if (documentMismatch === 1) {
     throw new Error('Session Host transcript document counts do not match the FTS vocabulary.')
   }
@@ -236,7 +236,7 @@ function validateBatch(database: HostSqliteDatabase) {
         OR terms.first_run_id IS NOT expected.first_run_id
       ))
     LIMIT 1`,
-  )?.['mismatch']
+  )?.mismatch
   if (termMismatch === 1) {
     throw new Error('Session Host transcript terms do not match the FTS vocabulary.')
   }
@@ -249,7 +249,7 @@ function dropBulkLoadIndexes(database: HostSqliteDatabase) {
       database,
       "SELECT 1 AS present FROM sqlite_master WHERE type = 'index' AND name = ?",
       index.name,
-    )?.['present']
+    )?.present
     if (exists === 1) {
       existingNames.add(index.name)
       database.exec(`DROP INDEX ${index.name}`)

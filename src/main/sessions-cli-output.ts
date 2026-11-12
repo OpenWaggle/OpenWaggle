@@ -38,15 +38,15 @@ const HUMAN_FIELDS: Readonly<
 }
 
 function humanOutcome(value: unknown) {
-  if (!isRecord(value) || !isRecord(value['response']) || !isRecord(value['response']['outcome'])) {
+  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) {
     return JSON.stringify(value, null, JSON_INDENT_SPACES)
   }
-  const outcome = value['response']['outcome']
+  const outcome = value.response.outcome
   const title =
-    typeof outcome['effect'] === 'string'
-      ? humanLabel(outcome['effect'])
-      : typeof outcome['operation'] === 'string'
-        ? humanLabel(outcome['operation'])
+    typeof outcome.effect === 'string'
+      ? humanLabel(outcome.effect)
+      : typeof outcome.operation === 'string'
+        ? humanLabel(outcome.operation)
         : 'Session Result'
   const details = Object.entries(outcome)
     .filter(([key]) => key !== 'effect' && key !== 'operation')

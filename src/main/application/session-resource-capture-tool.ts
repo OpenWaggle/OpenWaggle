@@ -35,17 +35,17 @@ function normalizedWebSearchQuery(value: unknown) {
 
 function explicitWebSearchQueries(toolName: string, args: Readonly<Record<string, unknown>>) {
   if (DIRECT_WEB_SEARCH_TOOL_NAMES.has(toolName)) {
-    const query = normalizedWebSearchQuery(args['query']) ?? normalizedWebSearchQuery(args['q'])
+    const query = normalizedWebSearchQuery(args.query) ?? normalizedWebSearchQuery(args.q)
     return query ? [query] : []
   }
-  if ((toolName !== 'web' && toolName !== 'web__run') || !Array.isArray(args['search_query'])) {
+  if ((toolName !== 'web' && toolName !== 'web__run') || !Array.isArray(args.search_query)) {
     return []
   }
   const queries: string[] = []
-  for (const candidate of args['search_query']) {
+  for (const candidate of args.search_query) {
     if (queries.length >= MAX_WEB_SEARCHES_PER_TOOL) break
-    if (!isRecord(candidate) || typeof candidate['q'] !== 'string') continue
-    const query = normalizedWebSearchQuery(candidate['q'])
+    if (!isRecord(candidate) || typeof candidate.q !== 'string') continue
+    const query = normalizedWebSearchQuery(candidate.q)
     if (query) queries.push(query)
   }
   return queries
@@ -85,8 +85,8 @@ export function toolResultResourceLabel(toolResult: ToolCallResult) {
 /** The topic's source from the tool's details, which Pi keeps both beside and inside the result. */
 function docsTopicSource(toolResult: ToolCallResult) {
   const result = isRecord(toolResult.result) ? toolResult.result : null
-  for (const details of [toolResult.details, result?.['details']]) {
-    if (isRecord(details) && typeof details['source'] === 'string') return details['source']
+  for (const details of [toolResult.details, result?.details]) {
+    if (isRecord(details) && typeof details.source === 'string') return details.source
   }
   return null
 }
@@ -238,7 +238,7 @@ function capturedFileTitle(normalizedPath: string, workingPath: string | null) {
 }
 
 function captureFileResource(input: ToolMetadataCaptureInput, toolName: string) {
-  const filePath = input.toolResult.args['path']
+  const filePath = input.toolResult.args.path
   const activity = fileToolActivity(toolName)
   if (!activity || typeof filePath !== 'string') return Effect.void
   const normalizedPath = path.isAbsolute(filePath)

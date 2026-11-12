@@ -54,7 +54,7 @@ function requireExistingPath(targetPath: string) {
   return Effect.tryPromise(() => stat(targetPath)).pipe(
     Effect.asVoid,
     Effect.catchAll((failure) => {
-      const code = isRecord(failure.error) ? failure.error['code'] : undefined
+      const code = isRecord(failure.error) ? failure.error.code : undefined
       return MISSING_PATH_CODES.has(code)
         ? Effect.fail(new Error(missingPathMessage(targetPath)))
         : Effect.void

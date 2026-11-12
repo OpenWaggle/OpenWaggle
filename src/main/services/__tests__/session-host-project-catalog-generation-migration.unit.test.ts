@@ -17,7 +17,7 @@ describe('Session Host project catalog generation migration', () => {
           .prepare<[], Record<string, unknown>>(
             'SELECT generation FROM session_project_catalog_generation WHERE singleton = 1',
           )
-          .get()?.['generation']
+          .get()?.generation
       expect(generation()).toBe(0)
       database.exec("INSERT INTO sessions VALUES ('one', '/repo/alpha', 0, 'First')")
       expect(generation()).toBe(1)

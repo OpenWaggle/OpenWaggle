@@ -37,15 +37,15 @@ function evidenceItem(value: unknown): DelegationEvidenceInput {
   }
   const record = Object.fromEntries(Object.entries(value))
   const kind = EVIDENCE_OPTIONS.map(([, candidate]) => candidate).find(
-    (candidate) => candidate === record['kind'],
+    (candidate) => candidate === record.kind,
   )
-  if (!kind || typeof record['summary'] !== 'string') {
+  if (!kind || typeof record.summary !== 'string') {
     throw new Error('Delegation evidence requires a supported kind and string summary.')
   }
   return {
     kind,
-    summary: record['summary'],
-    ...(typeof record['reference'] === 'string' ? { reference: record['reference'] } : {}),
+    summary: record.summary,
+    ...(typeof record.reference === 'string' ? { reference: record.reference } : {}),
   }
 }
 

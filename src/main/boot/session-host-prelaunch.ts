@@ -134,7 +134,7 @@ function legacyStorePresent(databasePath: string) {
  */
 function prelaunchEnvironment(input: SessionHostPrelaunchInput, userDataRoot: string) {
   const environment: Record<string, string | undefined> = { ...input.environment }
-  const hostTemporaryDirectory = environment['OPENWAGGLE_HOST_TMPDIR']
+  const hostTemporaryDirectory = environment.OPENWAGGLE_HOST_TMPDIR
   if (hostTemporaryDirectory) {
     for (const name of TEMPORARY_DIRECTORY_VARIABLES) environment[name] = hostTemporaryDirectory
   }
@@ -144,11 +144,11 @@ function prelaunchEnvironment(input: SessionHostPrelaunchInput, userDataRoot: st
     ...(input.uid === undefined ? {} : { uid: input.uid }),
     exists: input.pathExists ?? existsSync,
   })
-  const logLevel = environment['OPENWAGGLE_LOG_LEVEL']
+  const logLevel = environment.OPENWAGGLE_LOG_LEVEL
   return sessionHostChildEnvironmentFrom({
     safeEnvironment: sessionHostSafeEnvironment(
       environment,
-      buildNpmCompatiblePath(environment['PATH'], input.platform, input.homeDirectory),
+      buildNpmCompatiblePath(environment.PATH, input.platform, input.homeDirectory),
     ),
     userDataRoot,
     ...(isLogLevel(logLevel) ? { logLevel } : {}),
@@ -182,15 +182,13 @@ export function startSessionHostPrelaunch(
   input: SessionHostPrelaunchInput,
 ): SessionHostPrelaunchDecision | null {
   try {
-    const userDataRoot =
-      input.environment['OPENWAGGLE_USER_DATA_DIR'] || input.app.getPath('userData')
+    const userDataRoot = input.environment.OPENWAGGLE_USER_DATA_DIR || input.app.getPath('userData')
     const decision = sessionHostPrelaunchDecision({
       platform: input.platform,
       desktopApp: input.desktopApp,
       userDataRoot,
       // The Host temp directory (`hostTemporaryDirectory`), which the main bundle reads the same way.
-      temporaryRoot: () =>
-        input.environment['OPENWAGGLE_HOST_TMPDIR'] || input.temporaryDirectory(),
+      temporaryRoot: () => input.environment.OPENWAGGLE_HOST_TMPDIR || input.temporaryDirectory(),
       pathExists: input.pathExists ?? existsSync,
       legacyStorePresent: input.legacyStorePresent ?? legacyStorePresent,
     })
@@ -200,7 +198,7 @@ export function startSessionHostPrelaunch(
       isPackaged: input.app.isPackaged,
       executablePath: input.executablePath,
       appPath: input.app.getAppPath(),
-      appImagePath: input.environment['APPIMAGE'],
+      appImagePath: input.environment.APPIMAGE,
       commandLine: input.app.commandLine,
     })
     const child = (input.spawn ?? spawnDetachedProcess)({

@@ -97,12 +97,8 @@ export class LocalSessionFrameReader {
             }, timeoutMs)
       this.waiter = (value) => {
         if (timer) clearTimeout(timer)
-        if (
-          isRecord(value) &&
-          value['kind'] === '__client-error' &&
-          value['error'] instanceof Error
-        ) {
-          reject(value['error'])
+        if (isRecord(value) && value.kind === '__client-error' && value.error instanceof Error) {
+          reject(value.error)
           return
         }
         resolve(value)
@@ -224,7 +220,7 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
       credential: authentication.credential,
     })
     const negotiationFrame = await reader.next(timeoutMs)
-    if (isRecord(negotiationFrame) && negotiationFrame['kind'] === 'error') {
+    if (isRecord(negotiationFrame) && negotiationFrame.kind === 'error') {
       throw localSessionClientProtocolError(
         negotiationFrame,
         'Local Session authentication failed.',

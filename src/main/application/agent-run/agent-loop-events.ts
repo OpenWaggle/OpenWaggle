@@ -79,7 +79,7 @@ function isDurableAgentLoopNode(node: DurableAgentLoopNodeSource) {
   }
 
   const content = parseJsonObject(node.contentJson)
-  return content?.['customType'] === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+  return content?.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
 }
 
 function nextCreatedOrder(nodes: readonly ProjectedSessionNodeInput[]) {

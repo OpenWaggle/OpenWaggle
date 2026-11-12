@@ -55,7 +55,7 @@ function resolveAppearanceTypography(raw: unknown): AppearanceTypographyPreferen
   if (!isObjectRecord(raw)) return defaults
 
   const codeFontSize = boundedNumber(
-    raw['codeFontSize'],
+    raw.codeFontSize,
     CODE_FONT_SIZE_MIN,
     CODE_FONT_SIZE_MAX,
     defaults.codeFontSize,
@@ -65,47 +65,47 @@ function resolveAppearanceTypography(raw: unknown): AppearanceTypographyPreferen
     codeFontSize + CODE_LINE_HEIGHT_FONT_SIZE_GAP,
   )
   return {
-    interfaceFontFamily: fontFamily(raw['interfaceFontFamily'], defaults.interfaceFontFamily),
-    documentFontFamily: fontFamily(raw['documentFontFamily'], defaults.documentFontFamily),
-    codeFontFamily: fontFamily(raw['codeFontFamily'], defaults.codeFontFamily),
-    terminalFontFamily: fontFamily(raw['terminalFontFamily'], defaults.terminalFontFamily),
+    interfaceFontFamily: fontFamily(raw.interfaceFontFamily, defaults.interfaceFontFamily),
+    documentFontFamily: fontFamily(raw.documentFontFamily, defaults.documentFontFamily),
+    codeFontFamily: fontFamily(raw.codeFontFamily, defaults.codeFontFamily),
+    terminalFontFamily: fontFamily(raw.terminalFontFamily, defaults.terminalFontFamily),
     terminalUsesCodeFont:
-      typeof raw['terminalUsesCodeFont'] === 'boolean'
-        ? raw['terminalUsesCodeFont']
+      typeof raw.terminalUsesCodeFont === 'boolean'
+        ? raw.terminalUsesCodeFont
         : defaults.terminalUsesCodeFont,
     interfaceScale: boundedNumber(
-      raw['interfaceScale'],
+      raw.interfaceScale,
       INTERFACE_SCALE_MIN,
       INTERFACE_SCALE_MAX,
       defaults.interfaceScale,
     ),
     documentFontSize: boundedNumber(
-      raw['documentFontSize'],
+      raw.documentFontSize,
       DOCUMENT_FONT_SIZE_MIN,
       DOCUMENT_FONT_SIZE_MAX,
       defaults.documentFontSize,
     ),
     documentLineHeight: boundedNumber(
-      raw['documentLineHeight'],
+      raw.documentLineHeight,
       DOCUMENT_LINE_HEIGHT_MIN,
       DOCUMENT_LINE_HEIGHT_MAX,
       defaults.documentLineHeight,
     ),
     codeFontSize,
     codeLineHeight: boundedNumber(
-      raw['codeLineHeight'],
+      raw.codeLineHeight,
       minimumCodeLineHeight,
       CODE_LINE_HEIGHT_MAX,
       defaults.codeLineHeight,
     ),
     terminalFontSize: boundedNumber(
-      raw['terminalFontSize'],
+      raw.terminalFontSize,
       TERMINAL_FONT_SIZE_MIN,
       TERMINAL_FONT_SIZE_MAX,
       defaults.terminalFontSize,
     ),
     codeLigatures:
-      typeof raw['codeLigatures'] === 'boolean' ? raw['codeLigatures'] : defaults.codeLigatures,
+      typeof raw.codeLigatures === 'boolean' ? raw.codeLigatures : defaults.codeLigatures,
   }
 }
 
@@ -127,13 +127,13 @@ function resolveTerminalPalette(raw: unknown): AppearanceTerminalPalettePreferen
 export function resolveAppearancePreferences(raw: unknown): AppearancePreferences {
   if (!isObjectRecord(raw)) return DEFAULT_APPEARANCE_PREFERENCES
   const motion =
-    typeof raw['motion'] === 'string' && includes(APPEARANCE_MOTION_PREFERENCES, raw['motion'])
-      ? raw['motion']
+    typeof raw.motion === 'string' && includes(APPEARANCE_MOTION_PREFERENCES, raw.motion)
+      ? raw.motion
       : DEFAULT_APPEARANCE_PREFERENCES.motion
 
   return {
-    typography: resolveAppearanceTypography(raw['typography']),
-    terminalPalette: resolveTerminalPalette(raw['terminalPalette']),
+    typography: resolveAppearanceTypography(raw.typography),
+    terminalPalette: resolveTerminalPalette(raw.terminalPalette),
     motion,
   }
 }

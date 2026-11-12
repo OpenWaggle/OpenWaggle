@@ -45,12 +45,12 @@ function unknownExportVersionRefusal(version: unknown) {
  */
 function importedScheduledTasks(parsed: unknown): readonly ScheduledTaskInput[] {
   if (Array.isArray(parsed)) return decodeUnknownExactOrThrow(importedTasksSchema, parsed)
-  if (isRecord(parsed) && parsed['type'] === SCHEDULED_TASKS_EXPORT_TYPE) {
+  if (isRecord(parsed) && parsed.type === SCHEDULED_TASKS_EXPORT_TYPE) {
     const decode =
-      typeof parsed['schemaVersion'] === 'number'
-        ? IMPORTABLE_EXPORT_VERSIONS.get(parsed['schemaVersion'])
+      typeof parsed.schemaVersion === 'number'
+        ? IMPORTABLE_EXPORT_VERSIONS.get(parsed.schemaVersion)
         : undefined
-    if (!decode) throw unknownExportVersionRefusal(parsed['schemaVersion'])
+    if (!decode) throw unknownExportVersionRefusal(parsed.schemaVersion)
     return decode(parsed)
   }
   return decodeUnknownExactOrThrow(importedTasksSchema, [parsed])

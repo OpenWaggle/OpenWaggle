@@ -176,7 +176,7 @@ describe('startSessionHostPrelaunch', () => {
       // The app this shim starts refreshes the login-shell cache; the Host waits for that.
       OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1800000000000',
     })
-    expect(launch?.environment['PATH']?.startsWith('/usr/bin')).toBe(true)
+    expect(launch?.environment.PATH?.startsWith('/usr/bin')).toBe(true)
     for (const clientScoped of [
       'OPENWAGGLE_PROFILE',
       'OPENWAGGLE_AGENT_RUN',
@@ -227,7 +227,7 @@ describe('startSessionHostPrelaunch', () => {
       environment: { ...input.environment, OPENWAGGLE_USER_DATA_DIR: profile },
     })
 
-    expect(spawn.mock.calls[0]?.[0]?.environment['OPENWAGGLE_USER_DATA_DIR']).toBe(profile)
+    expect(spawn.mock.calls[0]?.[0]?.environment.OPENWAGGLE_USER_DATA_DIR).toBe(profile)
   })
 
   it('records a Host that ends once its process exits or cannot start', () => {
