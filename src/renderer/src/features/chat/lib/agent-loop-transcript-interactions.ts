@@ -18,25 +18,22 @@ import type {
 } from '@shared/types/agent-loop-interaction'
 import { SessionId } from '@shared/types/brand'
 import type {
+  AgentTransportErrorInfo,
   AgentTransportInteractionRequestEvent,
   AgentTransportInteractionResolvedEvent,
 } from '@shared/types/stream'
-import {
-  isObject,
-  numberField,
-  optionalJsonValue,
-  stringField,
-  type UnknownObject,
-} from './agent-loop-transcript-event-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
+import { numberOrNull, optionalJsonValue, stringOrNull } from './agent-loop-transcript-event-fields'
 
 type AgentLoopInteractionBaseFields = Omit<AgentLoopInteractionBase, 'kind'>
 
-function baseInteractionFields(interaction: UnknownObject): AgentLoopInteractionBaseFields | null {
-  const interactionId = stringField(interaction, 'interactionId')
-  const sessionId = stringField(interaction, 'sessionId')
-  const runId = stringField(interaction, 'runId')
-  const source = stringField(interaction, 'source')
-  const createdAt = numberField(interaction, 'createdAt')
+function baseInteractionFields(interaction: unknown): AgentLoopInteractionBaseFields | null {
+  const fields = uncheckedFields<AgentLoopInteractionBase>(interaction)
+  const interactionId = stringOrNull(fields.interactionId)
+  const sessionId = stringOrNull(fields.sessionId)
+  const runId = stringOrNull(fields.runId)
+  const source = stringOrNull(fields.source)
+  const createdAt = numberOrNull(fields.createdAt)
 
   if (
     interactionId === null ||
@@ -55,7 +52,7 @@ function baseInteractionFields(interaction: UnknownObject): AgentLoopInteraction
     source: 'pi-ui',
     createdAt,
   }
-  const timeoutMs = numberField(interaction, 'timeoutMs')
+  const timeoutMs = numberOrNull(fields.timeoutMs)
   return timeoutMs !== null ? { ...base, timeoutMs } : base
 }
 
@@ -93,51 +90,54 @@ function parseConfirmPurpose(value: string | null): AgentLoopConfirmPurpose {
  * the wrong thing.
  */
 function parseScopeKey(value: unknown): AgentAuthorizationScopeKey | null {
-  if (!isObject(value)) return null
-  const requester = stringField(value, 'requester')
-  const requesterId = stringField(value, 'requesterId')
+  const fields = uncheckedFields<AgentAuthorizationScopeKey>(value)
+  const requester = stringOrNull(fields.requester)
+  const requesterId = stringOrNull(fields.requesterId)
   if (requester === null || requesterId === null) return null
-  const capability = stringField(value, 'capability')
+  const capability = stringOrNull(fields.capability)
   if (!isAgentAuthorizationCapability(capability)) return null
 
-  const resource = stringField(value, 'resource')
+  const resource = stringOrNull(fields.resource)
   return { capability, requester, requesterId, ...(resource === null ? {} : { resource }) }
 }
 
 function parseConfirmInteraction(
   base: AgentLoopInteractionBaseFields,
-  interaction: UnknownObject,
+  interaction: unknown,
 ): AgentLoopConfirmInteraction | null {
-  const title = stringField(interaction, 'title')
-  const message = stringField(interaction, 'message')
+  const fields = uncheckedFields<AgentLoopConfirmInteraction>(interaction)
+  const title = stringOrNull(fields.title)
+  const message = stringOrNull(fields.message)
   if (title === null || message === null) return null
 
-  const scopeKey = parseScopeKey(interaction.scopeKey)
+  const scopeKey = parseScopeKey(fields.scopeKey)
   return {
     ...base,
     kind: 'confirm',
     title,
     message,
-    purpose: parseConfirmPurpose(stringField(interaction, 'purpose')),
+    purpose: parseConfirmPurpose(stringOrNull(fields.purpose)),
     ...(scopeKey === null ? {} : { scopeKey }),
   }
 }
 
 function parseSelectInteraction(
   base: AgentLoopInteractionBaseFields,
-  interaction: UnknownObject,
+  interaction: unknown,
 ): AgentLoopSelectInteraction | null {
-  const title = stringField(interaction, 'title')
-  const choices = parseChoices(interaction.choices)
+  const fields = uncheckedFields<AgentLoopSelectInteraction>(interaction)
+  const title = stringOrNull(fields.title)
+  const choices = parseChoices(fields.choices)
   return title !== null && choices !== null ? { ...base, kind: 'select', title, choices } : null
 }
 
 function parseInputInteraction(
   base: AgentLoopInteractionBaseFields,
-  interaction: UnknownObject,
+  interaction: unknown,
 ): AgentLoopInputInteraction | null {
-  const title = stringField(interaction, 'title')
-  const placeholder = stringField(interaction, 'placeholder')
+  const fields = uncheckedFields<AgentLoopInputInteraction>(interaction)
+  const title = stringOrNull(fields.title)
+  const placeholder = stringOrNull(fields.placeholder)
   return title !== null
     ? { ...base, kind: 'input', title, ...(placeholder !== null ? { placeholder } : {}) }
     : null
@@ -145,10 +145,11 @@ function parseInputInteraction(
 
 function parseEditorInteraction(
   base: AgentLoopInteractionBaseFields,
-  interaction: UnknownObject,
+  interaction: unknown,
 ): AgentLoopEditorInteraction | null {
-  const title = stringField(interaction, 'title')
-  const prefill = stringField(interaction, 'prefill')
+  const fields = uncheckedFields<AgentLoopEditorInteraction>(interaction)
+  const title = stringOrNull(fields.title)
+  const prefill = stringOrNull(fields.prefill)
   return title !== null
     ? { ...base, kind: 'editor', title, ...(prefill !== null ? { prefill } : {}) }
     : null
@@ -156,10 +157,11 @@ function parseEditorInteraction(
 
 function parseNotifyInteraction(
   base: AgentLoopInteractionBaseFields,
-  interaction: UnknownObject,
+  interaction: unknown,
 ): AgentLoopNotifyInteraction | null {
-  const message = stringField(interaction, 'message')
-  const level = stringField(interaction, 'level')
+  const fields = uncheckedFields<AgentLoopNotifyInteraction>(interaction)
+  const message = stringOrNull(fields.message)
+  const level = stringOrNull(fields.level)
   if (message === null || (level !== 'info' && level !== 'warning' && level !== 'error')) {
     return null
   }
@@ -168,13 +170,13 @@ function parseNotifyInteraction(
 
 function parseCustomInteraction(
   base: AgentLoopInteractionBaseFields,
-  interaction: UnknownObject,
+  interaction: unknown,
 ): AgentLoopCustomInteraction | null {
+  const fields = uncheckedFields<AgentLoopCustomInteraction>(interaction)
   const customType =
-    stringField(interaction, 'customType') ?? OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE
-  const payload = optionalJsonValue(interaction.payload)
-  const renderer = isObject(interaction.renderer) ? interaction.renderer : null
-  const overlay = renderer?.overlay
+    stringOrNull(fields.customType) ?? OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE
+  const payload = optionalJsonValue(fields.payload)
+  const { overlay } = uncheckedFields<AgentLoopCustomInteraction['renderer']>(fields.renderer)
 
   return {
     ...base,
@@ -192,16 +194,14 @@ function parseCustomInteraction(
 export function parseInteraction(
   interaction: unknown,
 ): AgentTransportInteractionRequestEvent['interaction'] | null {
-  if (!isObject(interaction)) {
-    return null
-  }
+  const fields = uncheckedFields<AgentLoopInteractionBase>(interaction)
 
   const base = baseInteractionFields(interaction)
   if (base === null) {
     return null
   }
 
-  return match(interaction.kind)
+  return match(fields.kind)
     .with('confirm', () => parseConfirmInteraction(base, interaction))
     .with('select', () => parseSelectInteraction(base, interaction))
     .with('input', () => parseInputInteraction(base, interaction))
@@ -212,18 +212,16 @@ export function parseInteraction(
 }
 
 export function parseErrorInfo(error: unknown): AgentTransportInteractionResolvedEvent['error'] {
-  if (!isObject(error)) {
-    return undefined
-  }
+  const fields = uncheckedFields<AgentTransportErrorInfo>(error)
 
-  const message = stringField(error, 'message')
+  const message = stringOrNull(fields.message)
   if (message === null) {
     return undefined
   }
 
-  const code = stringField(error, 'code')
-  const name = stringField(error, 'name')
-  const stack = stringField(error, 'stack')
+  const code = stringOrNull(fields.code)
+  const name = stringOrNull(fields.name)
+  const stack = stringOrNull(fields.stack)
   return {
     message,
     ...(code !== null ? { code } : {}),

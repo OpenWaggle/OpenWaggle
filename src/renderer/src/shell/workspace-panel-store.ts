@@ -23,6 +23,7 @@ import {
   type WorkspacePanelSet,
   type WorkspacePanelState,
 } from './workspace-panel-store-types'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export type { BrowserPreviewTabState, WorkspacePanelSurface } from './workspace-panel-model'
 
@@ -175,9 +176,7 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
     merge: (persisted, current) => ({
       ...current,
       groups: sanitizeWorkspacePanelGroups(
-        persisted !== null && typeof persisted === 'object'
-          ? Reflect.get(persisted, 'groups')
-          : undefined,
+        uncheckedFields<{ readonly groups: unknown }>(persisted).groups,
       ),
     }),
   }),

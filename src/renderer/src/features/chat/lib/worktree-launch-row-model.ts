@@ -4,16 +4,25 @@ import {
   type WorktreeSetupActionTerminal,
 } from '@shared/types/background-run'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
-import { isRecord } from '@shared/utils/validation'
 import type { ChatRow } from './types-chat-row'
+import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
+
+/** The value of a worktree-created event, as the Host emits it. */
+interface WorktreeCreatedValue {
+  readonly details: readonly string[]
+  readonly worktreePath: string
+  readonly branch: string
+  readonly baseRef: string
+  readonly setupAction: WorktreeSetupActionTerminal
+}
 
 export function isWorktreeCreatedEvent(event: AgentTransportCustomEvent) {
   return event.name === WORKTREE_CREATED_CUSTOM_EVENT
 }
 
 function setupActionFromValue(value: unknown): WorktreeSetupActionTerminal | undefined {
-  if (!isRecord(value)) return undefined
-  const { terminalId, actionId, actionName, projectRoot, cwd } = value
+  const { terminalId, actionId, actionName, projectRoot, cwd } =
+    uncheckedFields<WorktreeSetupActionTerminal>(value)
   if (
     typeof terminalId !== 'string' ||
     typeof actionId !== 'string' ||
@@ -29,27 +38,18 @@ function setupActionFromValue(value: unknown): WorktreeSetupActionTerminal | und
 export function worktreeLaunchFromCustomEvent(
   event: AgentTransportCustomEvent,
 ): WorktreeLaunchSnapshot | null {
-  if (
-    !isWorktreeCreatedEvent(event) ||
-    typeof event.value !== 'object' ||
-    event.value === null ||
-    Array.isArray(event.value)
-  ) {
+  if (!isWorktreeCreatedEvent(event) || !isObjectValue(event.value)) {
     return null
   }
-  const eventValue = event.value
-  const detailsValue = eventValue.details
-  const details = Array.isArray(detailsValue)
-    ? detailsValue.filter((detail): detail is string => typeof detail === 'string')
+  const fields = uncheckedFields<WorktreeCreatedValue>(event.value)
+  const details = Array.isArray(fields.details)
+    ? fields.details.filter((detail): detail is string => typeof detail === 'string')
     : []
-  const stringValue = (key: 'worktreePath' | 'branch' | 'baseRef') => {
-    const value = eventValue[key]
-    return typeof value === 'string' ? value : undefined
-  }
-  const worktreePath = stringValue('worktreePath')
-  const branch = stringValue('branch')
-  const baseRef = stringValue('baseRef')
-  const setupAction = setupActionFromValue(eventValue.setupAction)
+  const stringValue = (value: unknown) => (typeof value === 'string' ? value : undefined)
+  const worktreePath = stringValue(fields.worktreePath)
+  const branch = stringValue(fields.branch)
+  const baseRef = stringValue(fields.baseRef)
+  const setupAction = setupActionFromValue(fields.setupAction)
   return {
     status: 'complete',
     stage: 'starting-task',

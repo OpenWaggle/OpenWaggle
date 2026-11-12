@@ -12,7 +12,7 @@ const SEARCH_DEBOUNCE_MS = 200
 /** What a failed search may say about itself: never its message, which can hold the query. */
 function searchFailureContext(error: unknown) {
   if (!(error instanceof Error)) return { errorType: typeof error }
-  const code: unknown = Reflect.get(error, 'code')
+  const code = 'code' in error ? error.code : undefined
   return { errorName: error.name, ...(typeof code === 'string' ? { code } : {}) }
 }
 

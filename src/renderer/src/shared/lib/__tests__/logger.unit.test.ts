@@ -42,7 +42,7 @@ describe('createRendererLogger', () => {
       error: new Error('Unknown model: qa-router/auto'),
       cause: { code: 'invalid-model', message: 'Unknown model: qa-router/auto' },
     })
-    const circular: Record<string, unknown> = { reason: 'loop' }
+    const circular: { reason: string; self?: unknown } = { reason: 'loop' }
     circular.self = circular
     logger.warn('retrying', circular)
 
@@ -57,7 +57,7 @@ describe('createRendererLogger', () => {
 
   it('passes debug and info data without eager serialization', () => {
     const logger = createRendererLogger('cycle')
-    const circular: Record<string, unknown> = {}
+    const circular: { self?: unknown } = {}
     circular.self = circular
     logger.info('oops', circular)
     expect(console.info).toHaveBeenCalledWith('[cycle] oops', circular)

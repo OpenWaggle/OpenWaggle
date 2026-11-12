@@ -1,5 +1,6 @@
 import { match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import { openWaggleToolLabel } from './tool-labels'
 import type { SessionsToolTarget } from './tool-labels-sessions'
 
@@ -48,6 +49,24 @@ const PI_TOOL_DISPLAY: Record<PiNativeToolName, ToolDisplayEntry> = {
   },
 }
 
+/** The arguments of Pi's native tools that their rows show. */
+interface PiToolDisplayArgs {
+  readonly path: string
+  readonly glob: string
+  readonly offset: number
+  readonly limit: number
+  readonly command: string
+}
+
+function displayArgs(args: JsonObject): UncheckedFields<PiToolDisplayArgs> {
+  return args
+}
+
+function searchRoot(args: JsonObject) {
+  const { path } = displayArgs(args)
+  return typeof path === 'string' && path ? path : '.'
+}
+
 function getDefaultEntry(name: string) {
   return {
     primaryArg: '',
@@ -87,18 +106,14 @@ function formatToolTarget(name: string, args: JsonObject, primaryArg: string) {
       ({ path }) => `${path}${formatReadLineSuffix(args)}`,
     )
     .with({ name: 'grep', args: { pattern: P.select('pattern', P.string) } }, ({ pattern }) => {
-      const path = typeof args.path === 'string' && args.path ? args.path : '.'
-      const glob = typeof args.glob === 'string' && args.glob ? ` (${args.glob})` : ''
-      return `/${pattern}/ in ${path}${glob}`
+      const { glob } = displayArgs(args)
+      const globSuffix = typeof glob === 'string' && glob ? ` (${glob})` : ''
+      return `/${pattern}/ in ${searchRoot(args)}${globSuffix}`
     })
     .with({ name: 'find', args: { pattern: P.select('pattern', P.string) } }, ({ pattern }) => {
-      const path = typeof args.path === 'string' && args.path ? args.path : '.'
-      return `${pattern} in ${path}`
+      return `${pattern} in ${searchRoot(args)}`
     })
-    .with({ name: 'ls' }, () => {
-      const path = typeof args.path === 'string' && args.path ? args.path : '.'
-      return path
-    })
+    .with({ name: 'ls' }, () => searchRoot(args))
     .otherwise(() => {
       const value = args[primaryArg]
       return typeof value === 'string' ? value : ''
@@ -106,8 +121,9 @@ function formatToolTarget(name: string, args: JsonObject, primaryArg: string) {
 }
 
 function formatReadLineSuffix(args: JsonObject) {
-  const offset = typeof args.offset === 'number' ? args.offset : undefined
-  const limit = typeof args.limit === 'number' ? args.limit : undefined
+  const fields = displayArgs(args)
+  const offset = typeof fields.offset === 'number' ? fields.offset : undefined
+  const limit = typeof fields.limit === 'number' ? fields.limit : undefined
   if (offset === undefined && limit === undefined) {
     return ''
   }
@@ -145,11 +161,12 @@ export function resolveActionText(params: ActionTextParams): string {
 }
 
 function formatStatusActionText(prefix: string, name: string, args: JsonObject) {
-  if (typeof args.path === 'string') {
-    return `${prefix} ${name} ${args.path}`
+  const { path, command } = displayArgs(args)
+  if (typeof path === 'string') {
+    return `${prefix} ${name} ${path}`
   }
-  if (name === 'bash' && typeof args.command === 'string') {
-    return `${prefix} ${name} \`${args.command}\``
+  if (name === 'bash' && typeof command === 'string') {
+    return `${prefix} ${name} \`${command}\``
   }
   return `${prefix} ${name}`
 }

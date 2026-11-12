@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWaggleStore } from '../../state/waggle-store'
 import { useWaggleChat } from '../useWaggleChat'
 
+/** The message whose live Waggle metadata these cases read. */
+const MESSAGE_ID = 'm1'
+
 type WaggleTurnPayload = IpcEventChannelMap['waggle:turn-event']['payload']
 type WaggleEventPayload = IpcEventChannelMap['waggle:event']['payload']
 type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
@@ -129,7 +132,7 @@ describe('useWaggleChat', () => {
     })
     requireRunCompletedHandler()({ sessionId: SESSION_ID })
 
-    expect(useWaggleStore.getState().liveMessageMetadata.m1?.agentLabel).toBe('Reviewer')
+    expect(useWaggleStore.getState().liveMessageMetadata[MESSAGE_ID]?.agentLabel).toBe('Reviewer')
     expect(useWaggleStore.getState().status).toBe('completed')
   })
 })
