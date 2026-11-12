@@ -27,7 +27,7 @@ On Windows, install Build Tools for Visual Studio 2022 from the [Visual Studio o
 - The **Desktop development with C++** workload. Both native modules need it.
 - On the **Individual components** tab, **MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)**. Its component ID is `Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre`. Without it, building `node-pty` fails with error `MSB8040`.
 
-You also need Python 3. If `python --version` or `py --version` doesn't print a Python 3 version in a new terminal, install it from [python.org](https://www.python.org/downloads/windows/). The build finds it through either command.
+You also need Python 3. If neither `python --version` nor `py --version` prints a Python 3 version in a new terminal, install it from [python.org](https://www.python.org/downloads/windows/). The build finds Python through either command.
 
 If you install pnpm with `npm install -g pnpm`, check that `pnpm --version` works in a new terminal. If Windows can't find `pnpm`, run `npm prefix -g` and add the folder it prints to your user `Path` environment variable, then open a new terminal.
 

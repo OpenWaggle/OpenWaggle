@@ -170,25 +170,37 @@ function launchesWithPlaywright(code: string) {
   )
 }
 
-/** `electron-vite dev`, spawned directly, through the development launcher, or as `pnpm dev`. */
-function launchesDevelopmentApp(code: string) {
+/** `pnpm dev`, `pnpm run dev`, `pnpm dev:debug` or `pnpm dev:debug:headed`, as arguments or one string. */
+const PNPM_DEV_ARGUMENTS =
+  /['"`]pnpm['"`][^;]{0,200}?['"`](?:run['"`]\s*,\s*['"`])?dev(?::debug(?::headed)?)?['"`]/su
+const PNPM_DEV_COMMAND =
+  /\b(?:exec|execSync|spawn|spawnSync)\s*\(\s*['"`]pnpm\s+(?:run\s+)?dev(?::debug(?::headed)?)?(?=[\s'"`])/u
+
+/**
+ * `electron-vite dev` spawned directly, the development launcher (called, imported or run by its
+ * path), or a pnpm dev script.
+ */
+function launchesDevelopmentApp(code: string, inScripts: boolean) {
   const spawns =
     /\bspawn\s*\(/u.test(code) ||
     childProcessSpawnAliases(code).some((alias) => new RegExp(`\\b${alias}\\s*\\(`, 'u').test(code))
-  const devArgument = /['"]dev['"]/u.test(code)
   return (
-    (spawns && code.includes('electron-vite') && devArgument) ||
+    (spawns && code.includes('electron-vite') && /['"]dev['"]/u.test(code)) ||
     /\belectronDevInvocation\s*\(/u.test(code) ||
-    (/['"]pnpm['"]/u.test(code) && devArgument)
+    /\brun-electron-dev\b/u.test(code) ||
+    // The app's own code runs a project's `pnpm dev` for the user (project actions), and shows it.
+    (inScripts && (PNPM_DEV_ARGUMENTS.test(code) || PNPM_DEV_COMMAND.test(code)))
   )
 }
 
 export function collectScriptedElectronLaunchViolations(file: string, contents: string) {
   const normalized = normalizePath(file)
   if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized) || normalized.includes('__tests__')) return []
+  // The standards spell out the launches they look for.
+  if (normalized.startsWith('scripts/standards/')) return []
   const code = withoutCommentLines(contents)
   const playwright = launchesWithPlaywright(code)
-  const devApp = launchesDevelopmentApp(code)
+  const devApp = launchesDevelopmentApp(code, normalized.startsWith('scripts/'))
   if (playwright && normalized === PLAYWRIGHT_ELECTRON_LAUNCH_OWNER) return []
   if (devApp && ELECTRON_VITE_LAUNCH_OWNERS.includes(normalized)) return []
   if (!playwright && !devApp) return []

@@ -101,24 +101,19 @@ describe('non-disruptive Electron automation boundary', () => {
     expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', safe)).toEqual([])
   })
 
-  it('recognizes Electron Vite launches with either quote style', () => {
-    const source = 'spawn("pnpm", ["exec", "electron-vite", "dev"])'
-    const aliased = [
-      "import { spawn as run } from 'node:child_process'",
-      'run("pnpm", ["exec", "electron-vite", "dev"])',
-    ].join('\n')
-
-    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', source)).toHaveLength(1)
-    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', aliased)).toHaveLength(1)
-  })
-
-  it('recognizes development app launches through the launcher or `pnpm dev`', () => {
-    const launcher = "const invocation = electronDevInvocation('vite', [])"
-    const pnpmDev = "launchGui('pnpm', environment, ['dev'])"
-
-    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', launcher)).toHaveLength(1)
-    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', pnpmDev)).toHaveLength(1)
-    expect(collectScriptedElectronLaunchViolations('scripts/start-electron-qa.ts', launcher)).toEqual([])
+  it.each([
+    ['spawn("pnpm", ["exec", "electron-vite", "dev"])', 1],
+    ["import { spawn as run } from 'node:child_process'\nrun('x', ['electron-vite', 'dev'])", 1],
+    ["electronDevInvocation('vite', [])", 1],
+    ["spawn('tsx', ['scripts/run-electron-dev.ts', 'vite'])", 1],
+    ["spawn('pnpm', ['run', 'dev'])", 1],
+    ["spawn('pnpm', ['dev:debug:headed'])", 1],
+    ["execSync('pnpm dev')", 1],
+    ["spawn('pnpm', ['install']);\nif (BUILD_CHANNEL === 'dev') {}", 0],
+    ["const commands = ['pnpm install', 'pnpm dev']", 0],
+  ] as const)('counts %s as %i development app launch', (source, launches) => {
+    expect(collectScriptedElectronLaunchViolations('scripts/x.ts', source)).toHaveLength(launches)
+    expect(collectScriptedElectronLaunchViolations('scripts/start-electron-qa.ts', source)).toEqual([])
   })
 
   it('rejects aliased Electron desktop UI imports and visible window construction', () => {
