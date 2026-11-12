@@ -63,14 +63,15 @@ export const openWaggleToolCallSurfaceInputSchema = Schema.Struct({
   toolCall: Schema.Struct({
     id: nonEmptyStringSchema,
     name: nonEmptyStringSchema,
-    input: Schema.optional(jsonValueSchema),
+    input: Schema.optionalWith(jsonValueSchema, { exact: true }),
   }),
-  toolResult: Schema.optional(
+  toolResult: Schema.optionalWith(
     Schema.Struct({
       ok: Schema.Boolean,
-      output: Schema.optional(jsonValueSchema),
-      error: Schema.optional(Schema.String),
+      output: Schema.optionalWith(jsonValueSchema, { exact: true }),
+      error: Schema.optionalWith(Schema.String, { exact: true }),
     }),
+    { exact: true },
   ),
 })
 
@@ -78,7 +79,7 @@ export const openWaggleCustomMessageSurfaceInputSchema = Schema.Struct({
   surface: Schema.Literal('custom-message'),
   message: Schema.Struct({
     name: nonEmptyStringSchema,
-    payload: Schema.optional(jsonValueSchema),
+    payload: Schema.optionalWith(jsonValueSchema, { exact: true }),
   }),
 })
 
@@ -87,16 +88,16 @@ export const openWaggleInteractionSurfaceInputSchema = Schema.Struct({
   interaction: Schema.Struct({
     id: nonEmptyStringSchema,
     customType: nonEmptyStringSchema,
-    payload: Schema.optional(jsonValueSchema),
+    payload: Schema.optionalWith(jsonValueSchema, { exact: true }),
   }),
 })
 
 export const openWaggleTranscriptSurfaceInputSchema = Schema.Struct({
   surface: Schema.Literal('transcript'),
   transcript: Schema.Struct({
-    sessionId: Schema.optional(nonEmptyStringSchema),
+    sessionId: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
     messageCount: Schema.Number,
-    payload: Schema.optional(jsonValueSchema),
+    payload: Schema.optionalWith(jsonValueSchema, { exact: true }),
   }),
 })
 
@@ -104,7 +105,7 @@ export const openWaggleStatusSurfaceInputSchema = Schema.Struct({
   surface: Schema.Literal('status'),
   status: Schema.Struct({
     label: nonEmptyStringSchema,
-    payload: Schema.optional(jsonValueSchema),
+    payload: Schema.optionalWith(jsonValueSchema, { exact: true }),
   }),
 })
 

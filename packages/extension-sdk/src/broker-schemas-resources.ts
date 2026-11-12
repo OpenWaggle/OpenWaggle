@@ -44,15 +44,17 @@ export const extensionSessionResourcePublishPayloadSchema = Schema.Struct({
 })
 
 export const extensionSessionResourcesListPayloadSchema = Schema.Struct({
-  cursor: Schema.optional(
+  cursor: Schema.optionalWith(
     Schema.NullOr(Schema.String.pipe(Schema.maxLength(RESOURCE_CURSOR_MAX_LENGTH))),
+    { exact: true },
   ),
-  limit: Schema.optional(
+  limit: Schema.optionalWith(
     Schema.Number.pipe(
       Schema.int(),
       Schema.greaterThanOrEqualTo(1),
       Schema.lessThanOrEqualTo(RESOURCE_LIST_MAX_LIMIT),
     ),
+    { exact: true },
   ),
 })
 

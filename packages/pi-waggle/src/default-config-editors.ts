@@ -278,7 +278,7 @@ export async function editActiveConfig(input: {
 export async function editActiveMaxTurns(input: {
   readonly pi: Pick<ExtensionAPI, 'appendEntry'>
   readonly ctx: ExtensionCommandContext
-  readonly maxTurns?: string | undefined
+  readonly maxTurns?: string
 }): Promise<void> {
   const config = editableActiveConfig(input.ctx)
   if (!config) return

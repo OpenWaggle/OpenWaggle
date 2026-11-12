@@ -38,10 +38,11 @@ export const extensionRuntimeRequirementSchema = Schema.Struct({
   label: extensionNonEmptyStringSchema.pipe(
     Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
   ),
-  kind: Schema.optional(extensionRuntimeRequirementTypeSchema),
-  command: Schema.optional(extensionRelativePathSchema),
-  binary: Schema.optional(
+  kind: Schema.optionalWith(extensionRuntimeRequirementTypeSchema, { exact: true }),
+  command: Schema.optionalWith(extensionRelativePathSchema, { exact: true }),
+  binary: Schema.optionalWith(
     extensionNonEmptyStringSchema.pipe(Schema.filter(isRuntimeRequirementBinary)),
+    { exact: true },
   ),
 }).pipe(
   Schema.filter((requirement) => {
@@ -72,7 +73,7 @@ export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSI
 export const extensionInstallSchema = Schema.Struct({ source: extensionInstallSourceSchema })
 export const extensionBuildSchema = Schema.Struct({
   command: extensionNonEmptyStringSchema.pipe(Schema.filter(isBuildCommand)),
-  outputs: Schema.optional(Schema.Array(extensionRelativePathSchema)),
+  outputs: Schema.optionalWith(Schema.Array(extensionRelativePathSchema), { exact: true }),
 })
 export const extensionNetworkSchema = Schema.Struct({
   origins: Schema.Array(extensionNonEmptyStringSchema.pipe(Schema.filter(isNetworkOrigin))),
@@ -83,30 +84,29 @@ export const extensionDocsTopicDeclarationSchema = Schema.Struct({
     Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
   ),
   path: extensionRelativePathSchema,
-  description: Schema.optional(
+  description: Schema.optionalWith(
     extensionNonEmptyStringSchema.pipe(
       Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH),
     ),
+    { exact: true },
   ),
-  aliases: Schema.optional(Schema.Array(extensionNonEmptyStringSchema)),
-  keywords: Schema.optional(Schema.Array(extensionNonEmptyStringSchema)),
+  aliases: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
+  keywords: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
 })
 export const extensionDocsSchema = Schema.Struct({
-  topics: Schema.optional(Schema.Array(extensionDocsTopicDeclarationSchema)),
+  topics: Schema.optionalWith(Schema.Array(extensionDocsTopicDeclarationSchema), { exact: true }),
 })
 
 interface TrustedRendererBoundaryInput {
-  readonly trusted?: { readonly renderer?: string | undefined } | undefined
-  readonly contributions?:
-    | Readonly<
-        Partial<
-          Record<
-            (typeof OPENWAGGLE_EXTENSION.ENTRY_CONTRIBUTION_FAMILIES)[number],
-            readonly { readonly runtime?: string | undefined }[] | undefined
-          >
-        >
+  readonly trusted?: { readonly renderer?: string }
+  readonly contributions?: Readonly<
+    Partial<
+      Record<
+        (typeof OPENWAGGLE_EXTENSION.ENTRY_CONTRIBUTION_FAMILIES)[number],
+        readonly { readonly runtime?: string }[] | undefined
       >
-    | undefined
+    >
+  >
 }
 
 function validateTrustedRendererRuntimeBoundary(manifest: TrustedRendererBoundaryInput) {
@@ -130,30 +130,41 @@ export const openWaggleExtensionManifestSchema = Schema.Struct({
     Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
   ),
   version: extensionSemverVersionSchema,
-  description: Schema.optional(
+  description: Schema.optionalWith(
     extensionNonEmptyStringSchema.pipe(
       Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH),
     ),
+    { exact: true },
   ),
   sdk: Schema.Struct({ openwaggle: extensionNonEmptyStringSchema }),
   sourceFiles: Schema.Array(extensionRelativePathSchema),
   builtArtifacts: Schema.Array(extensionRelativePathSchema),
-  install: Schema.optional(extensionInstallSchema),
-  build: Schema.optional(extensionBuildSchema),
-  docs: Schema.optional(extensionDocsSchema),
-  network: Schema.optional(extensionNetworkSchema),
-  capabilities: Schema.optional(Schema.Array(extensionCapabilityDeclarationSchema)),
-  contributions: Schema.optional(extensionContributionsSchema),
-  pi: Schema.optional(
-    Schema.Struct({ resourceRoots: Schema.optional(Schema.Array(extensionRelativePathSchema)) }),
-  ),
-  trusted: Schema.optional(
+  install: Schema.optionalWith(extensionInstallSchema, { exact: true }),
+  build: Schema.optionalWith(extensionBuildSchema, { exact: true }),
+  docs: Schema.optionalWith(extensionDocsSchema, { exact: true }),
+  network: Schema.optionalWith(extensionNetworkSchema, { exact: true }),
+  capabilities: Schema.optionalWith(Schema.Array(extensionCapabilityDeclarationSchema), {
+    exact: true,
+  }),
+  contributions: Schema.optionalWith(extensionContributionsSchema, { exact: true }),
+  pi: Schema.optionalWith(
     Schema.Struct({
-      main: Schema.optional(extensionRelativePathSchema),
-      renderer: Schema.optional(extensionRelativePathSchema),
+      resourceRoots: Schema.optionalWith(Schema.Array(extensionRelativePathSchema), {
+        exact: true,
+      }),
     }),
+    { exact: true },
   ),
-  runtimeRequirements: Schema.optional(Schema.Array(extensionRuntimeRequirementSchema)),
+  trusted: Schema.optionalWith(
+    Schema.Struct({
+      main: Schema.optionalWith(extensionRelativePathSchema, { exact: true }),
+      renderer: Schema.optionalWith(extensionRelativePathSchema, { exact: true }),
+    }),
+    { exact: true },
+  ),
+  runtimeRequirements: Schema.optionalWith(Schema.Array(extensionRuntimeRequirementSchema), {
+    exact: true,
+  }),
 }).pipe(Schema.filter(validateTrustedRendererRuntimeBoundary))
 
 export type ExtensionRuntimeRequirementDeclaration = SchemaType<
