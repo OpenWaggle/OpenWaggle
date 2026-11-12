@@ -1,16 +1,17 @@
-import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/math'
-import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { SupportedModelId } from '@shared/types/brand'
-import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
-import { parseModelRef } from '@shared/types/llm'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { lenientStringRecordSchema } from '@shared/schemas/lenient'
+import { lenientWithFallback } from '@shared/schemas/lenient-exact'
+import { settingsWireFields } from '@shared/schemas/settings-fields'
 import {
-  BROWSER_LINK_TARGETS,
-  DEFAULT_COMPACTION_THRESHOLD_PERCENT,
-  DEFAULT_SETTINGS,
-  DIFF_SYNTAX_THEMES,
-  DIFF_VIEWS,
-} from '@shared/types/settings'
+  shortcutBindingSchema,
+  shortcutCommandSchema,
+  shortcutWhenSchema,
+} from '@shared/schemas/settings-shortcuts'
+import { Option } from 'effect'
+import { SupportedModelId } from '@shared/types/brand'
+import { parseModelRef } from '@shared/types/llm'
+import { DEFAULT_COMPACTION_THRESHOLD_PERCENT, DEFAULT_SETTINGS } from '@shared/types/settings'
 import {
   DEFAULT_SHORTCUT_BINDINGS,
   isMandatoryShortcutCommand,
@@ -19,107 +20,106 @@ import {
   type ShortcutBinding,
   type ShortcutBindings,
   type ShortcutCommand,
-  type ShortcutRule,
   type ShortcutRules,
   shortcutBindingKey,
   shortcutScopesOverlap,
 } from '@shared/types/shortcuts'
 import {
   DEFAULT_SYNTAX_THEME_SELECTIONS,
-  SYNTAX_APPEARANCE_VARIANTS,
   type SyntaxAppearanceVariant,
   type SyntaxThemeSelections,
 } from '@shared/types/syntax'
-import { parseProjectActionWhenExpression } from '@shared/utils/project-action-shortcuts'
-import { includes } from '@shared/utils/validation'
 import { dropAddedDefaultsTakenByTheUser } from './shortcut-binding-defaults'
 
 export function isObjectRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function isStringOrNull(value: unknown) {
-  return typeof value === 'string' || value === null
+const fields = settingsWireFields
+
+/** A stored value when it decodes with the setting's own schema, else that setting's default. */
+function storedOr<A, I>(schema: Schema.Schema<A, I>, fallback: NoInfer<A>) {
+  const decode = Schema.decodeUnknownOption(schema)
+  return (raw: unknown): A => Option.getOrElse(decode(raw), () => fallback)
 }
 
 export function resolveProjectPath(raw: unknown) {
-  return isStringOrNull(raw) ? raw : DEFAULT_SETTINGS.projectPath
+  return storedOr(fields.projectPath, DEFAULT_SETTINGS.projectPath)(raw)
 }
 
-export function isValidSessionEnvironmentMode(value: unknown) {
-  return typeof value === 'string' && includes(SESSION_ENVIRONMENT_MODES, value)
-}
+export const isValidSessionEnvironmentMode = Schema.is(fields.defaultSessionEnvironmentMode)
 
-export function resolveDefaultSessionEnvironmentMode(raw: unknown) {
-  return isValidSessionEnvironmentMode(raw) ? raw : DEFAULT_SETTINGS.defaultSessionEnvironmentMode
-}
+export const resolveDefaultSessionEnvironmentMode = storedOr(
+  fields.defaultSessionEnvironmentMode,
+  DEFAULT_SETTINGS.defaultSessionEnvironmentMode,
+)
 
-export function resolveDefaultAuthorizationMode(raw: unknown) {
-  return isAgentAuthorizationMode(raw) ? raw : DEFAULT_SETTINGS.defaultAuthorizationMode
-}
+export const resolveDefaultAuthorizationMode = storedOr(
+  fields.defaultAuthorizationMode,
+  DEFAULT_SETTINGS.defaultAuthorizationMode,
+)
 
-export function isValidDiffSyntaxTheme(value: unknown) {
-  return typeof value === 'string' && includes(DIFF_SYNTAX_THEMES, value)
-}
+export const isValidDiffSyntaxTheme = Schema.is(fields.diffSyntaxTheme)
 
-export function resolveDiffSyntaxTheme(raw: unknown) {
-  return isValidDiffSyntaxTheme(raw) ? raw : DEFAULT_SETTINGS.diffSyntaxTheme
-}
+export const resolveDiffSyntaxTheme = storedOr(
+  fields.diffSyntaxTheme,
+  DEFAULT_SETTINGS.diffSyntaxTheme,
+)
 
 const MAX_SYNTAX_THEME_ID_LENGTH = 240
 
-function isSyntaxThemeId(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.trim().length > 0 &&
-    value.length <= MAX_SYNTAX_THEME_ID_LENGTH
-  )
+/** A theme id is kept trimmed; a blank or overlong one leaves that variant at its default. */
+const syntaxThemeIdSchema = Schema.Trim.pipe(
+  Schema.minLength(1),
+  Schema.filter((value) => value.length <= MAX_SYNTAX_THEME_ID_LENGTH),
+)
+
+function syntaxThemeId(variant: SyntaxAppearanceVariant) {
+  return lenientWithFallback(syntaxThemeIdSchema, () => DEFAULT_SYNTAX_THEME_SELECTIONS[variant])
 }
+
+const decodeStoredSyntaxThemeSelections = Schema.decodeUnknownOption(
+  Schema.Struct({
+    light: syntaxThemeId('light'),
+    dark: syntaxThemeId('dark'),
+    'high-contrast-light': syntaxThemeId('high-contrast-light'),
+    'high-contrast-dark': syntaxThemeId('high-contrast-dark'),
+  }),
+)
 
 export function resolveSyntaxThemeSelections(raw: unknown): SyntaxThemeSelections {
   if (!isObjectRecord(raw)) return DEFAULT_SYNTAX_THEME_SELECTIONS
-
-  const resolved: Record<SyntaxAppearanceVariant, string> = {
-    ...DEFAULT_SYNTAX_THEME_SELECTIONS,
-  }
-  for (const variant of SYNTAX_APPEARANCE_VARIANTS) {
-    const value = raw[variant]
-    if (isSyntaxThemeId(value)) resolved[variant] = value.trim()
-  }
-  return resolved
+  return Option.getOrElse(
+    decodeStoredSyntaxThemeSelections(raw),
+    () => DEFAULT_SYNTAX_THEME_SELECTIONS,
+  )
 }
 
-export function isValidDiffView(value: unknown) {
-  return typeof value === 'string' && includes(DIFF_VIEWS, value)
-}
+export const isValidDiffView = Schema.is(fields.diffView)
 
-export function resolveDiffView(raw: unknown) {
-  return isValidDiffView(raw) ? raw : DEFAULT_SETTINGS.diffView
-}
+export const resolveDiffView = storedOr(fields.diffView, DEFAULT_SETTINGS.diffView)
 
-export function resolveDiffWrapLines(raw: unknown) {
-  if (typeof raw === 'boolean') return raw
-  // Persisted as a string by the key-value store.
-  if (raw === 'true') return true
-  if (raw === 'false') return false
-  return DEFAULT_SETTINGS.diffWrapLines
-}
+/** Persisted as a string by the key-value store before it held JSON values. */
+const storedBooleanSchema = Schema.Union(
+  Schema.Boolean,
+  Schema.transform(Schema.Literal('true', 'false'), Schema.Boolean, {
+    strict: true,
+    decode: (value) => value === 'true',
+    encode: (value) => (value ? 'true' : 'false'),
+  }),
+)
 
-export function isValidBrowserLinkTarget(value: unknown) {
-  return typeof value === 'string' && includes(BROWSER_LINK_TARGETS, value)
-}
+export const resolveDiffWrapLines = storedOr(storedBooleanSchema, DEFAULT_SETTINGS.diffWrapLines)
 
-export function resolveBrowserLinkTarget(raw: unknown) {
-  return isValidBrowserLinkTarget(raw) ? raw : DEFAULT_SETTINGS.browserLinkTarget
-}
+export const resolveBrowserLinkTarget = storedOr(
+  fields.browserLinkTarget,
+  DEFAULT_SETTINGS.browserLinkTarget,
+)
 
-export function isValidCompactionThresholdPercent(value: unknown): value is number {
-  return Number.isInteger(value) && typeof value === 'number' && value >= 1 && value <= PERCENT_BASE
-}
-
-export function resolveCompactionThresholdPercent(raw: unknown) {
-  return isValidCompactionThresholdPercent(raw) ? raw : DEFAULT_COMPACTION_THRESHOLD_PERCENT
-}
+export const resolveCompactionThresholdPercent = storedOr(
+  fields.compactionThresholdPercent,
+  DEFAULT_COMPACTION_THRESHOLD_PERCENT,
+)
 
 export function normalizeStoredModelRef(raw: string) {
   const trimmed = raw.trim()
@@ -240,71 +240,57 @@ export function resolveSkillTogglesByProject(raw: unknown) {
     : DEFAULT_SETTINGS.skillTogglesByProject
 }
 
+/** The string-valued entries of the stored display names; anything else is dropped. */
 export function sanitizeProjectDisplayNames(raw: unknown) {
-  if (!isObjectRecord(raw)) return {}
-
-  const result: Record<string, string> = {}
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof key === 'string' && typeof value === 'string') {
-      result[key] = value
-    }
-  }
-  return result
+  return decodeUnknownOrThrow(lenientStringRecordSchema, raw)
 }
+
+/**
+ * A stored binding: its key trimmed and within the limit, each modifier absent or a boolean. Only
+ * the modifiers that are on are kept.
+ */
+export const storedShortcutBindingSchema = Schema.transform(
+  Schema.Struct({
+    ...shortcutBindingSchema.fields,
+    key: Schema.Trim.pipe(Schema.minLength(1), Schema.maxLength(SHORTCUT_RULE_LIMITS.KEY_LENGTH)),
+  }),
+  Schema.typeSchema(shortcutBindingSchema),
+  {
+    strict: true,
+    decode: ({ key, mod, ctrl, shift, alt, meta }) => ({
+      key,
+      ...(mod === true ? { mod: true } : {}),
+      ...(ctrl === true ? { ctrl: true } : {}),
+      ...(shift === true ? { shift: true } : {}),
+      ...(alt === true ? { alt: true } : {}),
+      ...(meta === true ? { meta: true } : {}),
+    }),
+    encode: (binding) => binding,
+  },
+)
+
+const decodeStoredShortcutBinding = Schema.decodeUnknownOption(storedShortcutBindingSchema)
 
 export function sanitizeShortcutBinding(value: unknown): ShortcutBinding | null {
-  if (!isObjectRecord(value)) return null
-  const raw: UncheckedFields<ShortcutBinding> = value
-  if (typeof raw.key !== 'string') return null
-  const key = raw.key.trim()
-  if (!key || key.length > SHORTCUT_RULE_LIMITS.KEY_LENGTH) return null
-
-  const optionalBooleanKeys = ['mod', 'ctrl', 'shift', 'alt', 'meta'] as const
-  for (const field of optionalBooleanKeys) {
-    if (raw[field] !== undefined && typeof raw[field] !== 'boolean') return null
-  }
-
-  return {
-    key,
-    ...(raw.mod === true ? { mod: true } : {}),
-    ...(raw.ctrl === true ? { ctrl: true } : {}),
-    ...(raw.shift === true ? { shift: true } : {}),
-    ...(raw.alt === true ? { alt: true } : {}),
-    ...(raw.meta === true ? { meta: true } : {}),
-  }
+  return Option.getOrNull(decodeStoredShortcutBinding(value))
 }
+
+/** The canonical ordered rules; one malformed rule refuses the whole list. */
+const decodeStoredShortcutRules = Schema.decodeUnknownOption(
+  Schema.Array(
+    Schema.Struct({
+      command: shortcutCommandSchema,
+      shortcut: storedShortcutBindingSchema,
+      when: Schema.optionalWith(Schema.Trim.pipe(Schema.compose(shortcutWhenSchema)), {
+        exact: true,
+      }),
+    }),
+  ).pipe(Schema.maxItems(SHORTCUT_RULE_LIMITS.RULES)),
+)
 
 /** Validates the canonical ordered rule array without rejecting intentional overlaps. */
 export function sanitizeShortcutRules(raw: unknown): ShortcutRules | null {
-  if (!Array.isArray(raw) || raw.length > SHORTCUT_RULE_LIMITS.RULES) return null
-  const rules: ShortcutRule[] = []
-  for (const value of raw) {
-    const candidate: UncheckedFields<ShortcutRule> | null = isObjectRecord(value) ? value : null
-    if (
-      !candidate ||
-      typeof candidate.command !== 'string' ||
-      !includes(SHORTCUT_COMMANDS, candidate.command)
-    ) {
-      return null
-    }
-    const shortcut = sanitizeShortcutBinding(candidate.shortcut)
-    if (shortcut === null) return null
-    if (candidate.when === undefined) {
-      rules.push({ command: candidate.command, shortcut })
-      continue
-    }
-    if (typeof candidate.when !== 'string') return null
-    const when = candidate.when.trim()
-    if (
-      when.length === 0 ||
-      when.length > SHORTCUT_RULE_LIMITS.WHEN_LENGTH ||
-      parseProjectActionWhenExpression(when) === null
-    ) {
-      return null
-    }
-    rules.push({ command: candidate.command, shortcut, when })
-  }
-  return rules
+  return Option.getOrNull(decodeStoredShortcutRules(raw))
 }
 
 export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {
