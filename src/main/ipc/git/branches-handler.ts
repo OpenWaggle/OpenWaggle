@@ -1,4 +1,8 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import {
+  gitBranchCheckoutPayloadSchema,
+  gitBranchCreatePayloadSchema,
+} from '@shared/schemas/git-requests'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -8,7 +12,6 @@ import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { readGitBranchList } from './branch-list-cache'
 import { checkoutGitBranch, createGitBranch, validateGitBranchName } from './branch-mutations'
-import { branchCheckoutPayloadSchema, branchCreatePayloadSchema } from './branch-schemas'
 import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-cache'
@@ -60,10 +63,10 @@ export function registerGitBranchHandlers(): void {
 
   typedHandle(
     'git:branches:checkout',
-    branchMutationHandler({ schema: branchCheckoutPayloadSchema, run: checkoutGitBranch }),
+    branchMutationHandler({ schema: gitBranchCheckoutPayloadSchema, run: checkoutGitBranch }),
   )
   typedHandle(
     'git:branches:create',
-    branchMutationHandler({ schema: branchCreatePayloadSchema, run: createGitBranch }),
+    branchMutationHandler({ schema: gitBranchCreatePayloadSchema, run: createGitBranch }),
   )
 }
