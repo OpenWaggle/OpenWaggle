@@ -148,7 +148,7 @@ describe('useUnifiedShortcutCapture', () => {
       }),
     )
     const capture = document.createElement('button')
-    capture.dataset['shortcutCapture'] = ''
+    capture.dataset.shortcutCapture = ''
     document.body.append(capture)
     const event = keyEvent('keydown')
     act(() => {
@@ -173,7 +173,7 @@ describe('useUnifiedShortcutCapture', () => {
       }),
     )
     const pane = document.createElement('div')
-    pane.dataset['terminalPane'] = 'terminal-1'
+    pane.dataset.terminalPane = 'terminal-1'
     const input = document.createElement('textarea')
     pane.append(input)
     document.body.append(pane)

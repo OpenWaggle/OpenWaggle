@@ -17,13 +17,13 @@ function string(value: unknown) {
 
 function descriptor(value: unknown): McpAppDescriptor | null {
   if (!isRecord(value)) return null
-  const serverInstanceId = string(value['serverInstanceId'])
-  const serverLabel = string(value['serverLabel'])
-  const serverConfigHash = string(value['serverConfigHash'])
-  const toolHandle = string(value['toolHandle'])
-  const toolName = string(value['toolName'])
-  const toolTitle = string(value['toolTitle'])
-  const resourceUri = string(value['resourceUri'])
+  const serverInstanceId = string(value.serverInstanceId)
+  const serverLabel = string(value.serverLabel)
+  const serverConfigHash = string(value.serverConfigHash)
+  const toolHandle = string(value.toolHandle)
+  const toolName = string(value.toolName)
+  const toolTitle = string(value.toolTitle)
+  const resourceUri = string(value.resourceUri)
   if (
     !serverInstanceId ||
     !serverLabel ||
@@ -53,15 +53,15 @@ function json(value: unknown) {
 
 function result(value: unknown, app: McpAppDescriptor): McpAppToolCallResult | null {
   if (!isRecord(value)) return null
-  const content = json(value['content'])
+  const content = json(value.content)
   if (content === null) return null
   const structuredContent =
-    value['structuredContent'] === undefined ? undefined : json(value['structuredContent'])
-  if (value['structuredContent'] !== undefined && structuredContent === null) return null
+    value.structuredContent === undefined ? undefined : json(value.structuredContent)
+  if (value.structuredContent !== undefined && structuredContent === null) return null
   return {
     content,
     ...(structuredContent === undefined ? {} : { structuredContent }),
-    isError: value['isError'] === true,
+    isError: value.isError === true,
     attribution: {
       serverInstanceId: app.serverInstanceId,
       serverLabel: app.serverLabel,
@@ -81,17 +81,13 @@ function argumentsFromToolCall(args: JsonObject) {
  */
 export function getMcpAppLaunch(content: unknown, args: JsonObject): McpAppLaunch | null {
   const payload = normalizeToolResultPayload(content)
-  if (
-    !isRecord(payload) ||
-    !isRecord(payload['details']) ||
-    !isRecord(payload['details']['mcpApp'])
-  ) {
+  if (!isRecord(payload) || !isRecord(payload.details) || !isRecord(payload.details.mcpApp)) {
     return null
   }
-  const mcpApp = payload['details']['mcpApp']
-  const app = descriptor(mcpApp['descriptor'])
+  const mcpApp = payload.details.mcpApp
+  const app = descriptor(mcpApp.descriptor)
   if (!app) return null
-  const initialResult = result(mcpApp['toolResult'], app)
+  const initialResult = result(mcpApp.toolResult, app)
   if (!initialResult) return null
   return { descriptor: app, initialArguments: argumentsFromToolCall(args), initialResult }
 }

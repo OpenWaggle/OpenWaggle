@@ -83,7 +83,7 @@ function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
 }
 
 function extensionFrameId(frame: HTMLIFrameElement) {
-  const frameId = frame.dataset['extensionFrameId']
+  const frameId = frame.dataset.extensionFrameId
   if (!frameId) {
     throw new Error('Expected extension module iframe id.')
   }

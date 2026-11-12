@@ -115,7 +115,7 @@ describe('useProjectActionShortcutCapture', () => {
     expect(onRun).toHaveBeenCalledOnce()
 
     const recorder = document.createElement('button')
-    recorder.dataset['projectActionShortcutInput'] = ''
+    recorder.dataset.projectActionShortcutInput = ''
     document.body.append(recorder)
     const recording = keyboardEvent('keydown', {
       key: 'r',
@@ -207,7 +207,7 @@ describe('useProjectActionShortcutCapture', () => {
       }),
     )
     const terminal = document.createElement('section')
-    terminal.dataset['terminalPane'] = ''
+    terminal.dataset.terminalPane = ''
     const terminalInput = document.createElement('textarea')
     terminal.append(terminalInput)
     document.body.append(terminal)

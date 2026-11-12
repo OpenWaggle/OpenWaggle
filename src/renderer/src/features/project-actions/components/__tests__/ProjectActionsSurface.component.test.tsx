@@ -208,7 +208,7 @@ describe('ProjectActionsSurface', () => {
       runId: 'run-1',
       label: 'dev',
     })
-    expect(useTerminalStore.getState().groups['session']?.panelOpen).toBe(true)
+    expect(useTerminalStore.getState().groups.session?.panelOpen).toBe(true)
 
     fireEvent.click(stop)
     await waitFor(() =>

@@ -38,7 +38,7 @@ export function worktreeLaunchFromCustomEvent(
     return null
   }
   const eventValue = event.value
-  const detailsValue = eventValue['details']
+  const detailsValue = eventValue.details
   const details = Array.isArray(detailsValue)
     ? detailsValue.filter((detail): detail is string => typeof detail === 'string')
     : []
@@ -49,7 +49,7 @@ export function worktreeLaunchFromCustomEvent(
   const worktreePath = stringValue('worktreePath')
   const branch = stringValue('branch')
   const baseRef = stringValue('baseRef')
-  const setupAction = setupActionFromValue(eventValue['setupAction'])
+  const setupAction = setupActionFromValue(eventValue.setupAction)
   return {
     status: 'complete',
     stage: 'starting-task',

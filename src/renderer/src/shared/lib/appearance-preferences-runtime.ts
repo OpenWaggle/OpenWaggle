@@ -119,9 +119,9 @@ function applyAppearancePreferences(preferences: AppearancePreferences) {
   }
 
   if (preferences.motion === 'reduced') {
-    root.dataset['motion'] = 'reduced'
+    root.dataset.motion = 'reduced'
   } else {
-    delete root.dataset['motion']
+    delete root.dataset.motion
   }
 }
 

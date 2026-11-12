@@ -233,16 +233,16 @@ function PinnedSessionListItem({
           // A custom type, so dragging selected text (say, out of the rename field) is never read
           // as a row move: only a row drag carries it.
           event.dataTransfer.setData(PINNED_SESSION_DRAG_TYPE, String(row.session.id))
-          event.currentTarget.dataset['dragging'] = 'true'
+          event.currentTarget.dataset.dragging = 'true'
         },
         onDragEnd: (event) => {
-          delete event.currentTarget.dataset['dragging']
+          delete event.currentTarget.dataset.dragging
           event.currentTarget.removeAttribute('data-drop-target')
         },
         onDragOver: (event) => {
           if (!place.draggable) return
           event.preventDefault()
-          event.currentTarget.dataset['dropTarget'] = 'true'
+          event.currentTarget.dataset.dropTarget = 'true'
         },
         onDragLeave: (event) => {
           event.currentTarget.removeAttribute('data-drop-target')

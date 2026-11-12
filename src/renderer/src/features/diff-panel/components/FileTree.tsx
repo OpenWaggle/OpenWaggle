@@ -181,8 +181,8 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
     if (focusedItem !== undefined) visibleRows.push({ item: focusedItem, index: focusedIndex })
   }
   const containerProps = tree.getContainerProps()
-  const treeContainerRef = isContainerRefCallback(containerProps['ref'])
-    ? containerProps['ref']
+  const treeContainerRef = isContainerRefCallback(containerProps.ref)
+    ? containerProps.ref
     : undefined
   const handleContainerRef = useCallback(
     (element: HTMLDivElement | null) => {
@@ -241,9 +241,7 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
             const isFolder = !data.isFile
             const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
             const itemProps = item.getProps()
-            const libraryOnClick = isClickHandler(itemProps['onClick'])
-              ? itemProps['onClick']
-              : undefined
+            const libraryOnClick = isClickHandler(itemProps.onClick) ? itemProps.onClick : undefined
             return (
               <Button
                 variant="unstyled"

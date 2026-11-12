@@ -39,33 +39,30 @@ export function handleInlineVisualizationFrameMessage(
 ) {
   if (!context.acceptMessage()) return
   if (!isRecord(value)) return
-  if (value['type'] === 'openwaggle:inline-visualization:bootstrap') {
-    if (
-      typeof value['capability'] !== 'string' ||
-      value['capability'].length < MIN_CAPABILITY_LENGTH
-    ) {
+  if (value.type === 'openwaggle:inline-visualization:bootstrap') {
+    if (typeof value.capability !== 'string' || value.capability.length < MIN_CAPABILITY_LENGTH) {
       return
     }
     if (context.capability.current !== null) return
-    context.capability.current = value['capability']
+    context.capability.current = value.capability
     return
   }
-  if (value['type'] === 'openwaggle:inline-visualization:ready') {
-    if (value['capability'] !== context.capability.current || context.capability.current === null) {
+  if (value.type === 'openwaggle:inline-visualization:ready') {
+    if (value.capability !== context.capability.current || context.capability.current === null) {
       return
     }
     context.clearHealthCheckTimeout()
     context.sendTheme()
     return
   }
-  if (value['capability'] !== context.capability.current || context.capability.current === null) {
+  if (value.capability !== context.capability.current || context.capability.current === null) {
     return
   }
-  match(value['type'])
+  match(value.type)
     .with('openwaggle:inline-visualization:open-link', () => {
-      if (typeof value['url'] !== 'string' || context.brokerPending.current) return
+      if (typeof value.url !== 'string' || context.brokerPending.current) return
       context.brokerPending.current = true
-      void openBrokeredVisualizationLink(value['url'])
+      void openBrokeredVisualizationLink(value.url)
         .catch(() => false)
         .finally(() => {
           context.brokerPending.current = false
@@ -74,19 +71,19 @@ export function handleInlineVisualizationFrameMessage(
     .with('openwaggle:inline-visualization:follow-up', () => {
       if (
         context.interactionSessionId === null ||
-        typeof value['prompt'] !== 'string' ||
-        typeof value['requestId'] !== 'string' ||
+        typeof value.prompt !== 'string' ||
+        typeof value.requestId !== 'string' ||
         context.brokerPending.current
       ) {
         return
       }
-      if (value['title'] !== undefined && typeof value['title'] !== 'string') return
+      if (value.title !== undefined && typeof value.title !== 'string') return
       context.flushStateChange()
       context.brokerPending.current = true
       void sendBrokeredVisualizationFollowUp({
         sessionId: context.interactionSessionId,
-        prompt: value['prompt'],
-        ...(typeof value['title'] === 'string' ? { title: value['title'] } : {}),
+        prompt: value.prompt,
+        ...(typeof value.title === 'string' ? { title: value.title } : {}),
       })
         .then(
           (accepted) => accepted,
@@ -95,7 +92,7 @@ export function handleInlineVisualizationFrameMessage(
         .then((accepted) => {
           context.postToFrame({
             type: 'openwaggle:inline-visualization:follow-up-result',
-            requestId: value['requestId'],
+            requestId: value.requestId,
             accepted,
           })
         })
@@ -105,18 +102,18 @@ export function handleInlineVisualizationFrameMessage(
     })
     .with('openwaggle:inline-visualization:download', () => {
       if (
-        typeof value['suggestedName'] !== 'string' ||
-        typeof value['mimeType'] !== 'string' ||
-        typeof value['base64Data'] !== 'string' ||
+        typeof value.suggestedName !== 'string' ||
+        typeof value.mimeType !== 'string' ||
+        typeof value.base64Data !== 'string' ||
         context.brokerPending.current
       ) {
         return
       }
       context.brokerPending.current = true
       void saveBrokeredVisualizationDownload({
-        suggestedName: value['suggestedName'],
-        mimeType: value['mimeType'],
-        base64Data: value['base64Data'],
+        suggestedName: value.suggestedName,
+        mimeType: value.mimeType,
+        base64Data: value.base64Data,
       })
         .catch(() => false)
         .finally(() => {
@@ -124,21 +121,21 @@ export function handleInlineVisualizationFrameMessage(
         })
     })
     .with('openwaggle:inline-visualization:error', () => {
-      if (typeof value['reason'] === 'string') context.setErrorReason(value['reason'])
+      if (typeof value.reason === 'string') context.setErrorReason(value.reason)
     })
     .with('openwaggle:inline-visualization:resource-limit', () => {
       context.setErrorReason('resource-limit')
     })
     .with('openwaggle:inline-visualization:resize', () => {
-      const height = boundedVisualizationHeight(value['height'])
+      const height = boundedVisualizationHeight(value.height)
       if (height !== null) context.setHeight(height)
     })
     .with('openwaggle:inline-visualization:state', () => {
-      if (value['state'] === null) {
+      if (value.state === null) {
         context.scheduleStateChange(null)
         return
       }
-      const state = decodeInlineVisualizationState(value['state'])
+      const state = decodeInlineVisualizationState(value.state)
       if (state !== null) context.scheduleStateChange(state)
     })
     .with('openwaggle:inline-visualization:dismiss', context.onDismiss)
