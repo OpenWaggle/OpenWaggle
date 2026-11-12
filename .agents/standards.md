@@ -45,7 +45,7 @@ Main-process code follows hexagonal architecture (ADR 0001, `openwaggle/main-arc
 In the renderer:
 
 - A fire-and-forget `void api.*()` call handles its rejection, or it becomes an unhandled renderer error reported as a bare code (`openwaggle/no-uncaught-void-ipc`).
-- No `typeof api.*` guards. The `api` proxy answers every name with a function, so the guard is always true; check a real capability with `'name' in api` (`openwaggle/no-api-typeof-guard`, fix `1b1a55c33`: a long paste vanished because such a guard never fired).
+- No `typeof api.*` guards. The `api` proxy answers every name with a function, so the guard is always true; check a real capability with `'name' in api` (`openwaggle/no-api-typeof-guard`: a long paste vanished because such a guard never ran its fallback; `useAutoTextAttachment.component.test.tsx` covers the fix).
 
 ## Pi runtime
 
