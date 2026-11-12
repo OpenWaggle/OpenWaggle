@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
+import { sessionDeleteRequestOptionsSchema } from '@shared/schemas/session-operation-requests'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDeleteOptions } from '@shared/types/session'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
@@ -15,6 +16,7 @@ import { SettingsService } from '../services/settings-service'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import {
+  decodeSessionOperationArgument,
   invalid,
   requireArgCount,
   requiredString,
@@ -257,19 +259,13 @@ export function beginProjectRemoval(args: readonly unknown[]) {
   })
 }
 
+/** The window's delete options; `removingProject` defaults to false. */
 function validateDeleteOptions(value: unknown) {
-  if (value === undefined) return Effect.succeed({ removingProject: false })
-  const removingProject =
-    typeof value === 'object' && value !== null && 'removingProject' in value
-      ? value.removingProject
-      : undefined
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return invalid('Session delete options are invalid.')
-  }
-  if (removingProject !== undefined && typeof removingProject !== 'boolean') {
-    return invalid('Session delete option removingProject must be a boolean.')
-  }
-  return Effect.succeed({ removingProject: removingProject === true })
+  return value === undefined
+    ? Effect.succeed({ removingProject: false })
+    : decodeSessionOperationArgument(sessionDeleteRequestOptionsSchema, value).pipe(
+        Effect.map((options) => ({ removingProject: options.removingProject === true })),
+      )
 }
 
 /**
