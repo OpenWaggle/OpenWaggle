@@ -1,83 +1,38 @@
 import {
+  extensionIdSchema,
   type ExtensionDocsTopicDeclaration as PublicExtensionDocsTopicDeclaration,
   type OpenWaggleExtensionManifest as PublicOpenWaggleExtensionManifest,
   openWaggleExtensionManifestSchema as publicOpenWaggleExtensionManifestSchema,
 } from '@openwaggle/extension-sdk'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema } from '@shared/schema'
-import {
-  extensionContributionIdSchema,
-  extensionRelativePathSchema,
-} from './extension-contributions'
-import { isNetworkOrigin } from './extension-network-origin'
-import {
-  isBuildCommand,
-  isExtensionId,
-  isNonEmptyTrimmed,
-  isRuntimeRequirementBinary,
-  isSemverVersion,
-} from './extension-schema-primitives'
+import { extensionRelativePathSchema } from './extension-contributions'
+import { isNonEmptyTrimmed } from './extension-schema-primitives'
 
 export type {
   ExtensionCapabilityDeclaration,
-  ExtensionCommandContribution,
   ExtensionContributionRegistration,
   ExtensionContributions,
   ExtensionContributionUnregistration,
-  ExtensionEntryContribution,
   ExtensionSessionSummaryContribution,
-  ExtensionSidePanelContribution,
   ExtensionSidePanelIcon,
 } from './extension-contributions'
 export {
-  extensionCapabilityDeclarationSchema,
-  extensionCapabilityScopeSchema,
-  extensionCommandContributionFamilySchema,
-  extensionCommandContributionRegistrationSchema,
-  extensionCommandContributionSchema,
   extensionContributionFamilySchema,
   extensionContributionIdSchema,
   extensionContributionRegistrationSchema,
-  extensionContributionRuntimeSchema,
-  extensionContributionsSchema,
   extensionContributionUnregistrationSchema,
-  extensionExecutionPlacementSchema,
-  extensionRelativePathSchema,
-  extensionRouteContributionRegistrationSchema,
-  extensionRouteContributionSchema,
-  extensionSessionSummaryActionSchema,
-  extensionSessionSummaryContributionRegistrationSchema,
-  extensionSessionSummaryContributionSchema,
-  extensionSessionSummaryDisclosureSchema,
-  extensionSessionSummaryRowSchema,
-  extensionSessionSummaryStateSchema,
-  extensionSidePanelContributionRegistrationSchema,
-  extensionSidePanelContributionSchema,
-  extensionSidePanelIconSchema,
-  extensionSlotContributionFamilySchema,
-  extensionSlotContributionRegistrationSchema,
-  extensionSlotContributionSchema,
 } from './extension-contributions'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
 
-export const extensionIdSchema = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.filter(isExtensionId),
-)
-export const extensionSemverVersionSchema = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.filter(isSemverVersion),
-)
+// The manifest's id rule is the public SDK's.
+export { extensionIdSchema }
+
 const extensionProposalHashSchema = Schema.String.pipe(
   Schema.length(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH),
 )
-
-export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
 export const extensionPackageWriteModeSchema = Schema.Literal('create', 'update')
-export const extensionRuntimeRequirementTypeSchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPES,
-)
 export const extensionLifecycleScopeSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal(OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND),
@@ -168,67 +123,6 @@ export const extensionApplyPackageRemoveInputSchema = Schema.Struct({
   actor: extensionPackageWorkflowActorSchema,
   userApproval: extensionPackageWorkflowUserApprovalSchema,
   globalConfirmation: Schema.optional(extensionPackageWorkflowGlobalConfirmationSchema),
-})
-
-export const extensionRuntimeRequirementSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  label: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  kind: Schema.optional(extensionRuntimeRequirementTypeSchema),
-  command: Schema.optional(extensionRelativePathSchema),
-  binary: Schema.optional(nonEmptyStringSchema.pipe(Schema.filter(isRuntimeRequirementBinary))),
-}).pipe(
-  Schema.filter((requirement) => {
-    const hasBinary = requirement.binary !== undefined
-    const hasCommand = requirement.command !== undefined
-
-    if (hasBinary === hasCommand) {
-      return 'Declare exactly one runtime requirement target: binary or command.'
-    }
-    if (
-      hasBinary &&
-      requirement.kind !== undefined &&
-      requirement.kind !== OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE.BINARY
-    ) {
-      return 'Runtime requirement kind must be "binary" when binary is declared.'
-    }
-    if (
-      hasCommand &&
-      requirement.kind !== undefined &&
-      requirement.kind !== OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE.COMMAND
-    ) {
-      return 'Runtime requirement kind must be "command" when command is declared.'
-    }
-
-    return true
-  }),
-)
-
-export const extensionNetworkSchema = Schema.Struct({
-  origins: Schema.mutable(Schema.Array(nonEmptyStringSchema.pipe(Schema.filter(isNetworkOrigin)))),
-})
-
-export const extensionInstallSchema = Schema.Struct({
-  source: extensionInstallSourceSchema,
-})
-
-export const extensionBuildSchema = Schema.Struct({
-  command: nonEmptyStringSchema.pipe(Schema.filter(isBuildCommand)),
-  outputs: Schema.optional(Schema.mutable(Schema.Array(extensionRelativePathSchema))),
-})
-
-export const extensionDocsTopicDeclarationSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  path: extensionRelativePathSchema,
-  description: Schema.optional(
-    nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH)),
-  ),
-  aliases: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-  keywords: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-})
-
-export const extensionDocsSchema = Schema.Struct({
-  topics: Schema.optional(Schema.mutable(Schema.Array(extensionDocsTopicDeclarationSchema))),
 })
 
 export const openWaggleExtensionManifestSchema = publicOpenWaggleExtensionManifestSchema

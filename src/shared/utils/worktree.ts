@@ -25,8 +25,8 @@ export function formatWorktreePathForDisplay(worktreePath: string): string {
  */
 export function resolveSessionWorkingDir(
   session: {
-    readonly environmentMode?: 'local' | 'worktree'
-    readonly worktreePath?: string | null
+    readonly environmentMode?: 'local' | 'worktree' | undefined
+    readonly worktreePath?: string | null | undefined
   } | null,
   openedProjectPath: string | null,
 ): WorkingPath | null {

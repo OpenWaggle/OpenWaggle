@@ -8,7 +8,7 @@ export interface LocalHostStopRequest {
    * `update`: the stop that installing an update sends, from the desktop app, `openwaggle update`
    * or the install script (ADR 0047). It has a deadline and answers with the Host's process id.
    */
-  readonly purpose?: 'update'
+  readonly purpose?: 'update' | undefined
 }
 
 export type LocalHostRequest = LocalHostStopRequest
@@ -25,7 +25,7 @@ export interface LocalHostStopResponse {
    * The Host's process id, sent only for an update stop, so the installer can wait for that
    * process to exit (ADR 0047).
    */
-  readonly processId?: number
+  readonly processId?: number | undefined
 }
 
 export type LocalHostResponse = LocalHostStopResponse

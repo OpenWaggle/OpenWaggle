@@ -28,9 +28,11 @@ function isJsonObject(value: JsonValue | undefined): value is JsonObject {
 
 function resultText(result: JsonValue) {
   if (typeof result === 'string') return result
-  if (isJsonObject(result) && Array.isArray(result.content)) {
-    return result.content
-      .map((block) => (isJsonObject(block) && typeof block.text === 'string' ? block.text : ''))
+  if (isJsonObject(result) && Array.isArray(result['content'])) {
+    return result['content']
+      .map((block) =>
+        isJsonObject(block) && typeof block['text'] === 'string' ? block['text'] : '',
+      )
       .join('\n')
   }
   return JSON.stringify(result)

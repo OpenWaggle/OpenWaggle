@@ -29,10 +29,3 @@ export const extensionDocsResolveTopicResultSchema = Schema.Struct({
 })
 
 export type ExtensionDocsDiscoverPayload = SchemaType<typeof extensionDocsDiscoverPayloadSchema>
-export type ExtensionDocsResolveTopicPayload = SchemaType<
-  typeof extensionDocsResolveTopicPayloadSchema
->
-export type ExtensionDocsDiscoverResult = SchemaType<typeof extensionDocsDiscoverResultSchema>
-export type ExtensionDocsResolveTopicResult = SchemaType<
-  typeof extensionDocsResolveTopicResultSchema
->

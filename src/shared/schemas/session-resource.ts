@@ -74,15 +74,18 @@ export const sessionResourceRouteSelectionSchema = Schema.Struct({
 
 export const sessionResourceCatalogPageRequestSchema = Schema.Struct({
   view: sessionResourceCatalogViewSchema,
-  cursor: Schema.optional(
+  cursor: Schema.optionalWith(
     Schema.NullOr(Schema.String.pipe(Schema.maxLength(MAX_CATALOG_CURSOR_LENGTH))),
+    { exact: true },
   ),
   limit: Schema.Number.pipe(
     Schema.int(),
     Schema.greaterThanOrEqualTo(1),
     Schema.lessThanOrEqualTo(MAX_CATALOG_PAGE_SIZE),
   ),
-  selection: Schema.optional(Schema.NullOr(sessionResourceRouteSelectionSchema)),
+  selection: Schema.optionalWith(Schema.NullOr(sessionResourceRouteSelectionSchema), {
+    exact: true,
+  }),
 })
 
 export const sessionResourceKindOrNullSchema = Schema.NullOr(
@@ -98,8 +101,9 @@ export const sessionResourceTargetLimitSchema = Schema.Number.pipe(
 export const sessionResourceNodePageRequestSchema = Schema.Struct({
   nodeIds: sessionResourceNodeIdsSchema,
   kind: sessionResourceKindOrNullSchema,
-  cursor: Schema.optional(
+  cursor: Schema.optionalWith(
     Schema.NullOr(Schema.String.pipe(Schema.maxLength(MAX_CATALOG_CURSOR_LENGTH))),
+    { exact: true },
   ),
   limit: sessionResourceTargetLimitSchema,
 })

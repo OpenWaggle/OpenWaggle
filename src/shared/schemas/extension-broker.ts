@@ -60,9 +60,6 @@ export const extensionInvokeFailureCodeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODES,
 )
 export const extensionInvokeOutcomeSchema = Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.OUTCOMES)
-export const extensionBrokerCapabilitySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION_BROKER.CAPABILITIES,
-)
 export const extensionBrokerMethodSchema = Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.METHODS)
 
 export const extensionCapabilityAuditEntrySchema = Schema.Struct({
@@ -73,13 +70,14 @@ export const extensionCapabilityAuditEntrySchema = Schema.Struct({
   scope: extensionInvokeScopeSchema,
   outcome: extensionInvokeOutcomeSchema,
   timestamp: Schema.Number,
-  failureCode: Schema.optional(extensionInvokeFailureCodeSchema),
+  // Exact like the extension SDK's ExtensionCapabilityAuditEntry: the broker omits the key.
+  failureCode: Schema.optionalWith(extensionInvokeFailureCodeSchema, { exact: true }),
 })
 
 export const extensionInvokeErrorSchema = Schema.Struct({
   code: extensionInvokeFailureCodeSchema,
   message: nonEmptyStringSchema,
-  issues: Schema.optional(Schema.Array(nonEmptyStringSchema)),
+  issues: Schema.optionalWith(Schema.Array(nonEmptyStringSchema), { exact: true }),
 })
 
 export const extensionHostContextResultSchema = Schema.Struct({
@@ -222,7 +220,7 @@ export const extensionInvokeSuccessSchema = Schema.Struct({
 export const extensionInvokeFailureSchema = Schema.Struct({
   ok: Schema.Literal(false),
   error: extensionInvokeErrorSchema,
-  audit: Schema.optional(extensionCapabilityAuditEntrySchema),
+  audit: Schema.optionalWith(extensionCapabilityAuditEntrySchema, { exact: true }),
 })
 
 export const extensionInvokeResultSchema = Schema.Union(

@@ -2,7 +2,6 @@ export type {
   BrowserPreviewAutomationAppearanceInput,
   BrowserPreviewAutomationAppearanceResult,
   BrowserPreviewAutomationNavigateInput,
-  BrowserPreviewAutomationNavigationTarget,
   BrowserPreviewAutomationOpenInput,
   BrowserPreviewAutomationResizeInput,
   BrowserPreviewAutomationResizeResult,
@@ -26,6 +25,5 @@ export type {
   BrowserPreviewAutomationNetworkEntry,
   BrowserPreviewAutomationRecordingArtifact,
   BrowserPreviewAutomationRecordingStatus,
-  BrowserPreviewAutomationScreenshot,
   BrowserPreviewAutomationSnapshot,
 } from './browser-preview-automation-snapshot'

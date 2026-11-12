@@ -48,35 +48,18 @@ export type {
   SessionAuthorizationUpdatedOutcome,
 } from './session-authorization-control'
 export type {
-  DelegationEvidenceInput,
-  DelegationEvidenceKind,
-  SessionControlDelegationAcceptCommand,
-  SessionControlDelegationAmendCommand,
-  SessionControlDelegationCancelCommand,
-  SessionControlDelegationClaimCommand,
-  SessionControlDelegationConflictAcknowledgeCommand,
   SessionControlDelegationDependencyCommand,
-  SessionControlDelegationProposeAmendmentCommand,
-  SessionControlDelegationReopenCommand,
-  SessionControlDelegationRequestRevisionCommand,
-  SessionControlDelegationStateCommand,
   SessionControlDelegationSubmitCommand,
-  SessionControlDelegationVerifyCommand,
-  SessionControlReportCommand,
-  SessionControlReportTarget,
 } from './session-collaboration'
 export type {
   SessionControlInterruptCommand,
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 export type {
-  SessionControlFollowUpEditInput,
   SessionControlQueueAdoptCommand,
   SessionControlQueueEditBeginCommand,
   SessionControlQueueEditCancelCommand,
-  SessionControlQueueEditCommand,
   SessionControlQueueEditSaveCommand,
-  SessionControlQueueMutationCommand,
   SessionControlQueuePauseCommand,
   SessionControlQueueReorderCommand,
   SessionControlQueueResumeCommand,
@@ -110,12 +93,7 @@ export type {
   SessionControlReplaceCommand,
   SessionControlStartCommand,
   SessionControlSteerCommand,
-  SessionControlSteeringInput,
 } from './session-control-run-commands'
-export type {
-  SessionExportCancelCommand,
-  SessionExportCreateCommand,
-} from './session-export-operation'
 export type {
   SessionInteractionResolvedOutcome,
   SessionInteractionResponseCommand,
@@ -210,9 +188,9 @@ export type SessionControlMutationOutcome =
       readonly sessionId: string
       readonly followUpId: string
       /** Absent only in outcomes recorded before 1.0.0-rc.1. */
-      readonly queueState?: 'running' | 'paused'
+      readonly queueState?: 'running' | 'paused' | undefined
       /** Why a paused queue holds the Follow-up, when the Host recorded it. */
-      readonly pauseReason?: FollowUpQueuePauseReason
+      readonly pauseReason?: FollowUpQueuePauseReason | undefined
       readonly queueRevision: number
       readonly stateRevision: number
     }
@@ -278,9 +256,9 @@ export type SessionControlMutationOutcome =
       readonly sessionId: string
       readonly followUpId: string
       /** Absent only in outcomes recorded before 1.0.0-rc.1. */
-      readonly queueState?: 'running' | 'paused'
+      readonly queueState?: 'running' | 'paused' | undefined
       /** Why a paused queue holds the Follow-up, when the Host recorded it. */
-      readonly pauseReason?: FollowUpQueuePauseReason
+      readonly pauseReason?: FollowUpQueuePauseReason | undefined
       readonly queueRevision: number
       readonly stateRevision: number
     }

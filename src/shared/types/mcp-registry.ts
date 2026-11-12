@@ -39,9 +39,9 @@ export interface McpRegistryServerView {
 
 export interface McpRegistrySearchRequest {
   readonly query: string
-  readonly limit?: number
+  readonly limit?: number | undefined
   /** Another registry with the same API; HTTPS, or an explicit loopback URL. */
-  readonly registryUrl?: string
+  readonly registryUrl?: string | undefined
 }
 
 export interface McpRegistrySearchResultView {
@@ -51,18 +51,18 @@ export interface McpRegistrySearchResultView {
 export interface McpRegistryServerRequest {
   readonly registryName: string
   /** Exact version; the latest when omitted. */
-  readonly version?: string
-  readonly registryUrl?: string
+  readonly version?: string | undefined
+  readonly registryUrl?: string | undefined
 }
 
 export interface McpRegistryInstallRequest
   extends McpConfigurationScopeRequest, McpRegistryServerRequest {
   readonly scope: McpConfigFileScope
   /** Defaults to the hosted URL when there is one, else the first supported package. */
-  readonly method?: McpRegistryInstallMethod
+  readonly method?: McpRegistryInstallMethod | undefined
   /** Defaults to the server's `suggestedName`. */
-  readonly serverName?: string
-  readonly exposure?: McpServerExposure
+  readonly serverName?: string | undefined
+  readonly exposure?: McpServerExposure | undefined
 }
 
 export interface McpRegistryInstallResultView {

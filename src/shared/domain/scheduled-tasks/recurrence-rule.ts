@@ -40,9 +40,9 @@ function parseWeekdays(value: string) {
   const parsed: RecurrenceWeekday[] = []
   for (const item of items) {
     const match = /^(?<ordinal>[+-]?\d)?(?<code>MO|TU|WE|TH|FR|SA|SU)$/.exec(item)
-    const weekday = WEEKDAY_NUMBERS.get(match?.groups?.code ?? '')
+    const weekday = WEEKDAY_NUMBERS.get(match?.groups?.['code'] ?? '')
     if (weekday === undefined) return null
-    const ordinalText = match?.groups?.ordinal
+    const ordinalText = match?.groups?.['ordinal']
     if (ordinalText === undefined) {
       parsed.push({ weekday })
       continue

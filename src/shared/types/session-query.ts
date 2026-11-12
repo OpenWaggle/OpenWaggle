@@ -27,9 +27,7 @@ import type { SessionWaitState, SessionWaitTarget } from './session-wait'
 export type { DelegationQuerySummary } from './session-delegation-query'
 export type {
   SemanticDiscoveryReadiness,
-  SessionDiscoveryEvidence,
   SessionDiscoveryMode,
-  SessionLineageRole,
   SessionQuerySummary,
 } from './session-query-discovery'
 export type { SessionQueryResponse } from './session-query-response'
@@ -38,24 +36,6 @@ export {
   SESSION_QUERY_WAIT_TARGET_LIMIT,
   type SessionWaitState,
 } from './session-wait'
-export const SESSION_QUERY_OPERATIONS = [
-  'list',
-  'search',
-  'read',
-  'turns',
-  'items',
-  'export',
-  'exports-list',
-  'exports-read',
-  'exports-wait',
-  'status',
-  'queue-list',
-  'requests-list',
-  'delegations-list',
-  'delegations-read',
-  'delegations-conflicts',
-  'wait',
-] as const
 
 export const SESSION_QUERY_CONTRACT_VERSION = 2 as const
 // Keep query pages below the Local Session transport's 64 MiB logical-message ceiling.
@@ -81,36 +61,36 @@ export type SessionQuery =
   | {
       readonly operation: 'list'
       readonly limit: number
-      readonly cursor?: string
-      readonly archived?: boolean
-      readonly interrupted?: boolean
-      readonly unreadTerminalStatus?: 'completed' | 'failed'
-      readonly projectPath?: string
-      readonly projectPaths?: readonly string[]
-      readonly workingPath?: SessionCatalogWorkingPath
+      readonly cursor?: string | undefined
+      readonly archived?: boolean | undefined
+      readonly interrupted?: boolean | undefined
+      readonly unreadTerminalStatus?: 'completed' | 'failed' | undefined
+      readonly projectPath?: string | undefined
+      readonly projectPaths?: readonly string[] | undefined
+      readonly workingPath?: SessionCatalogWorkingPath | undefined
       /** Only the direct Workers of this Session. */
-      readonly parentSessionId?: string
-      readonly searchText?: string
+      readonly parentSessionId?: string | undefined
+      readonly searchText?: string | undefined
     }
   | {
       readonly operation: 'search'
       readonly query: string
       readonly limit: number
-      readonly cursor?: string
-      readonly projectPath?: string
-      readonly workingPath?: SessionCatalogWorkingPath
-      readonly includeArchived?: boolean
-      readonly searchScope?: 'discovery' | 'full-transcript'
-      readonly mode?: SessionDiscoveryMode
-      readonly requireFresh?: boolean
-      readonly waitTimeoutMs?: number
+      readonly cursor?: string | undefined
+      readonly projectPath?: string | undefined
+      readonly workingPath?: SessionCatalogWorkingPath | undefined
+      readonly includeArchived?: boolean | undefined
+      readonly searchScope?: 'discovery' | 'full-transcript' | undefined
+      readonly mode?: SessionDiscoveryMode | undefined
+      readonly requireFresh?: boolean | undefined
+      readonly waitTimeoutMs?: number | undefined
     }
   | { readonly operation: 'read'; readonly sessionId: string }
   | {
       readonly operation: 'turns'
       readonly sessionId: string
       readonly limit: number
-      readonly cursor?: string
+      readonly cursor?: string | undefined
     }
   | SessionItemsQuery
   | SessionExportQuery
@@ -119,7 +99,7 @@ export type SessionQuery =
   | {
       readonly operation: 'queue-list'
       readonly sessionId: string
-      readonly includeBodies?: boolean
+      readonly includeBodies?: boolean | undefined
     }
   | {
       readonly operation: 'requests-list'
@@ -128,36 +108,36 @@ export type SessionQuery =
   | {
       readonly operation: 'delegations-list'
       readonly limit: number
-      readonly cursor?: string
-      readonly projectPath?: string
-      readonly workingPath?: SessionCatalogWorkingPath
-      readonly parentSessionId?: string
-      readonly workerSessionId?: string
-      readonly states?: readonly DelegationState[]
+      readonly cursor?: string | undefined
+      readonly projectPath?: string | undefined
+      readonly workingPath?: SessionCatalogWorkingPath | undefined
+      readonly parentSessionId?: string | undefined
+      readonly workerSessionId?: string | undefined
+      readonly states?: readonly DelegationState[] | undefined
     }
   | {
       readonly operation: 'delegations-read'
       readonly delegationId: string
-      readonly limit?: number
-      readonly cursor?: string
+      readonly limit?: number | undefined
+      readonly cursor?: string | undefined
     }
   | {
       readonly operation: 'delegations-conflicts'
       readonly limit: number
-      readonly cursor?: string
-      readonly projectPath?: string
-      readonly workingPath?: SessionCatalogWorkingPath
-      readonly parentSessionId?: string
-      readonly workerSessionId?: string
-      readonly delegationId?: string
-      readonly kinds?: readonly DelegationConflictKind[]
-      readonly statuses?: readonly DelegationConflictStatus[]
+      readonly cursor?: string | undefined
+      readonly projectPath?: string | undefined
+      readonly workingPath?: SessionCatalogWorkingPath | undefined
+      readonly parentSessionId?: string | undefined
+      readonly workerSessionId?: string | undefined
+      readonly delegationId?: string | undefined
+      readonly kinds?: readonly DelegationConflictKind[] | undefined
+      readonly statuses?: readonly DelegationConflictStatus[] | undefined
     }
   | {
       readonly operation: 'wait'
       readonly targets: readonly SessionWaitTarget[]
       readonly timeoutMs: number
-      readonly after?: SessionHostEventCursor
+      readonly after?: SessionHostEventCursor | undefined
     }
 
 export interface SessionQueryRequest {
