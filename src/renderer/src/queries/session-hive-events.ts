@@ -1,7 +1,8 @@
+import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import type { SessionHiveReader } from './session-hive-contract'
 
 export interface HiveHostEvent {
-  readonly cursor: { readonly hostInstanceId: string; readonly sequence: number }
+  readonly cursor: SessionHostEventCursor
   readonly payload: { readonly kind: string; readonly event?: unknown }
 }
 
