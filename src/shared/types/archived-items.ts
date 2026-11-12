@@ -1,4 +1,14 @@
-import type { SessionBranchId, SessionId } from './brand'
+import type { SchemaType } from '@shared/schema'
+import type {
+  archivedItemChangeTargetSchema,
+  archivedItemRefSchema,
+  archivedItemsChangeSchema,
+  archivedItemsFilterSchema,
+  archivedItemsProjectFilterSchema,
+  archivedItemsQuerySchema,
+  archivedItemsRefsQuerySchema,
+} from '@shared/schemas/archived-items'
+import type { SessionId } from './brand'
 
 /**
  * Archived items (CONTEXT.md): the archived sessions and archived branches of active sessions that
@@ -27,38 +37,15 @@ export const ARCHIVED_ITEMS_MAX_TERMS = 8
 /** The most items one bulk restore, archive, or Select all can carry. */
 export const ARCHIVED_ITEMS_SELECTION_LIMIT = 1_000
 
-export type ArchivedItemRef =
-  | { readonly kind: 'session'; readonly sessionId: SessionId }
-  | {
-      readonly kind: 'branch'
-      readonly sessionId: SessionId
-      readonly branchId: SessionBranchId
-    }
+export type ArchivedItemRef = SchemaType<typeof archivedItemRefSchema>
 
-/** Which project the Project facet keeps: one path, or the sessions that have no project. */
-export interface ArchivedItemsProjectFilter {
-  readonly projectPath: string | null
-}
+export type ArchivedItemsProjectFilter = SchemaType<typeof archivedItemsProjectFilterSchema>
 
-export interface ArchivedItemsFilter {
-  /** Words that must all appear in the title, project, parent session title, or transcript. */
-  readonly text?: string
-  readonly project?: ArchivedItemsProjectFilter
-  readonly archivedWithin?: ArchivedWithinFilter
-  readonly kind?: ArchivedItemKindFilter
-}
+export type ArchivedItemsFilter = SchemaType<typeof archivedItemsFilterSchema>
 
-export interface ArchivedItemsQuery extends ArchivedItemsFilter {
-  readonly sort?: ArchivedItemsSort
-  readonly limit: number
-  readonly cursor?: string
-}
+export type ArchivedItemsQuery = SchemaType<typeof archivedItemsQuerySchema>
 
-/** Select all: the first `limit` items in the order the list shows them. */
-export interface ArchivedItemsRefsQuery extends ArchivedItemsFilter {
-  readonly sort?: ArchivedItemsSort
-  readonly limit: number
-}
+export type ArchivedItemsRefsQuery = SchemaType<typeof archivedItemsRefsQuerySchema>
 
 /** A transcript excerpt around a match; each range is `[start, end)` in UTF-16 code units. */
 export interface ArchivedItemSnippet {
@@ -106,17 +93,9 @@ export interface ArchivedItemRefsPage {
   readonly total: number
 }
 
-/** One item of a bulk change; Undo passes the Archive time the restore reported. */
-export interface ArchivedItemChangeTarget {
-  readonly ref: ArchivedItemRef
-  /** When archiving again, the Archive time to put back instead of now. */
-  readonly archivedAt?: number
-}
+export type ArchivedItemChangeTarget = SchemaType<typeof archivedItemChangeTargetSchema>
 
-export interface ArchivedItemsChange {
-  readonly archived: boolean
-  readonly items: readonly ArchivedItemChangeTarget[]
-}
+export type ArchivedItemsChange = SchemaType<typeof archivedItemsChangeSchema>
 
 export interface ArchivedItemChanged {
   readonly ref: ArchivedItemRef

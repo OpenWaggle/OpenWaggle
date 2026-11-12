@@ -1,6 +1,5 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
-import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 
 import {
   isLocalSessionProfileCredential,
@@ -20,13 +19,13 @@ import { requiredLocalSessionCommandRevision } from './local-session-command-rev
 import { localSessionNegotiationResultSchema } from './local-session-negotiation'
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
+import { localUiCommandSchema } from './local-ui-command'
 import { localUpdateRequestSchema } from './local-update'
 import { scheduledTasksRequestSchema } from './scheduled-task'
 import { sessionHostEventCursorSchema } from './session-host-event-cursor'
 import { sessionControlMutationRequestSchema } from './session-control'
 import {
   sessionInputIdSchema,
-  sessionInputItemTextSchema,
   sessionInputPathSchema,
   sessionInputTextSchema,
 } from './session-input'
@@ -108,74 +107,7 @@ export const localSessionCommandPayloadSchema = Schema.Union(
     contract: Schema.Literal('local-ui-v1'),
     request: Schema.Struct({
       requestId: sessionInputIdSchema,
-      command: Schema.Union(
-        Schema.Struct({ operation: Schema.Literal('pin'), sessionId: sessionInputIdSchema }),
-        Schema.Struct({ operation: Schema.Literal('unpin'), sessionId: sessionInputIdSchema }),
-        Schema.Struct({
-          operation: Schema.Literal('move-pin'),
-          sessionId: sessionInputIdSchema,
-          afterSessionId: Schema.NullOr(sessionInputIdSchema),
-          beforeSessionId: Schema.NullOr(sessionInputIdSchema),
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('delete'),
-          sessionId: sessionInputIdSchema,
-          removingProject: Schema.optional(Schema.Boolean),
-          requireArchived: Schema.optional(Schema.Boolean),
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('renew-follow-up-edit-hold'),
-          sessionId: sessionInputIdSchema,
-          followUpId: sessionInputIdSchema,
-          holdId: sessionInputIdSchema,
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('dismiss-interrupted-run'),
-          sessionId: sessionInputIdSchema,
-          runId: sessionInputIdSchema,
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('navigate-tree'),
-          sessionId: sessionInputIdSchema,
-          model: sessionInputIdSchema,
-          targetNodeId: sessionInputIdSchema,
-          options: Schema.optional(
-            Schema.Struct({
-              summarize: Schema.optional(Schema.Boolean),
-              customInstructions: Schema.optional(sessionInputTextSchema),
-            }),
-          ),
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('rename-branch'),
-          sessionId: sessionInputIdSchema,
-          branchId: sessionInputIdSchema,
-          name: sessionInputItemTextSchema,
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('archive-branch'),
-          sessionId: sessionInputIdSchema,
-          branchId: sessionInputIdSchema,
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('restore-branch'),
-          sessionId: sessionInputIdSchema,
-          branchId: sessionInputIdSchema,
-        }),
-        Schema.Struct({
-          operation: Schema.Literal('update-tree-ui-state'),
-          sessionId: sessionInputIdSchema,
-          patch: Schema.Struct({
-            expandedNodeIds: Schema.optional(
-              Schema.Array(sessionInputIdSchema).pipe(
-                Schema.maxItems(SESSION_INPUT_LIMITS.expandedTreeNodeItems),
-              ),
-            ),
-            branchesSidebarCollapsed: Schema.optional(Schema.Boolean),
-            lastVisitedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-          }),
-        }),
-      ),
+      command: localUiCommandSchema,
     }),
   }),
   Schema.Struct({

@@ -40,6 +40,16 @@ export const sessionWorkspaceRequestSchema = Schema.Struct({
   ),
 })
 
+/**
+ * What the caller holds of a Session detail's messages. While the Session's nodes were only
+ * appended since `nodeMutationRevision` and the active path still runs through the caller's
+ * last message, the detail returns only the messages after it (`messagesDelta`).
+ *
+ * `messageCount` counts the active path's messages up to and including the caller's last one,
+ * also when it holds only the newest of them. With `maxMessages` the detail carries at most that
+ * many of the newest messages and says where they start (`messagesWindow`), so a long Session's
+ * open moves the transcript's window rather than its whole history (ADR 0036).
+ */
 export const sessionDetailCursorSchema = Schema.Struct({
   nodeMutationRevision: revisionSchema,
   messageCount: revisionSchema,
@@ -54,6 +64,11 @@ export const sessionDetailCursorSchema = Schema.Struct({
   ),
 })
 
+/**
+ * Where a Session tree search stopped: the last node it read, at the Session's node mutation
+ * revision. While the revision holds, no node it read has changed, so the next search for the same
+ * query reads only the nodes appended after it (review V2 P3-1).
+ */
 export const sessionTreeSearchCursorSchema = Schema.Struct({
   throughCreatedOrder: Schema.Number.pipe(Schema.int()),
   nodeMutationRevision: revisionSchema,
