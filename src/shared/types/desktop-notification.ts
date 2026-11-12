@@ -1,8 +1,6 @@
 import type { SchemaType } from '@shared/schema'
 import type {
   desktopNotificationCategorySchema,
-  desktopNotificationCategorySoundsSchema,
-  desktopNotificationCategorySwitchesSchema,
   desktopNotificationFocusedBehaviorSchema,
   desktopNotificationReasonSchema,
   desktopNotificationSchema,
@@ -66,13 +64,6 @@ export function isBundledNotificationSound(
 export const DESKTOP_NOTIFICATION_FOCUSED_BEHAVIORS = ['sound-only', 'show', 'nothing'] as const
 export type DesktopNotificationFocusedBehavior = SchemaType<
   typeof desktopNotificationFocusedBehaviorSchema
->
-
-export type DesktopNotificationCategorySwitches = SchemaType<
-  typeof desktopNotificationCategorySwitchesSchema
->
-export type DesktopNotificationCategorySounds = SchemaType<
-  typeof desktopNotificationCategorySoundsSchema
 >
 
 /** Settings → Notifications, one app-wide value the Session Host and the desktop app both read. */

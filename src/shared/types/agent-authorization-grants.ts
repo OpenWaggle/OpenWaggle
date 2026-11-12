@@ -20,12 +20,6 @@ export const AGENT_AUTHORIZATION_CAPABILITIES = [
 
 export type AgentAuthorizationCapability = (typeof AGENT_AUTHORIZATION_CAPABILITIES)[number]
 
-export function isAgentAuthorizationCapability(
-  value: unknown,
-): value is AgentAuthorizationCapability {
-  return AGENT_AUTHORIZATION_CAPABILITIES.some((capability) => capability === value)
-}
-
 /**
  * What a grant is bound to.
  *
@@ -61,8 +55,6 @@ export interface ScopedAuthorizationGrant extends AgentAuthorizationScopeKey {
  * is written to the project config and survives restarts until revoked.
  */
 export const AGENT_AUTHORIZATION_DECISION_SCOPES = ['once', 'session', 'project'] as const
-
-export type AgentAuthorizationDecisionScope = (typeof AGENT_AUTHORIZATION_DECISION_SCOPES)[number]
 
 /**
  * Stable string form of a key, for map lookups and for comparing two keys.
