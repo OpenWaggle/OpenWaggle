@@ -3,8 +3,8 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import { JSONSchema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
 import { AGENT_DEFINITION_NAME_PATTERN, isAgentDefinitionName } from '../agent-definition-name'
 import { agentDefinitionFrontmatterSchema, parseAgentDefinition } from '../agent-definition-parser'
 
@@ -76,7 +76,7 @@ const IGNORED_KEYWORDS = new Set([
 /** Keywords whose value is a schema, or a list of schemas, to compare the same way. */
 const SUBSCHEMA_KEYWORDS = new Set(['items', 'not', 'anyOf', 'oneOf', 'allOf'])
 /**
- * Published patterns the parser enforces in code rather than with a Zod regex, and the exact pattern
+ * Published patterns the parser enforces in code rather than with a schema pattern, and the exact pattern
  * each must be: the portable name, which `isAgentDefinitionName` tests with exactly this regex, and
  * the non-whitespace strings. The behavioral tests below also sample each of them.
  */
@@ -150,7 +150,7 @@ function keywordContract(root: Record<string, unknown>, keyword: string, value: 
 
 /**
  * Reduces a schema to the keywords that constrain a document, so the hand-written published schema
- * and the one Zod generates from the parser compare keyword by keyword, in both directions: a
+ * and the one Effect Schema generates from the parser compare keyword by keyword, in both directions: a
  * keyword only one of them has fails the comparison. An enum or const already fixes its type, so
  * `type` is dropped there when it allows every value; a `type` that contradicts them stays and fails.
  */
@@ -284,8 +284,11 @@ describe('published Agent definition schema', () => {
 
   it('matches the parser keyword by keyword: names, required fields, types, enums and limits', async () => {
     const published = await publishedSchema()
-    // The published schema describes the documents people write, so compare the parser's input side.
-    const generated = record(z.toJSONSchema(agentDefinitionFrontmatterSchema, { io: 'input' }))
+    // The published schema describes the documents people write, so compare the parser's input
+    // side, which `JSONSchema.make` describes.
+    const generated = record(
+      JSONSchema.make(agentDefinitionFrontmatterSchema, { target: 'jsonSchema2020-12' }),
+    )
 
     expect(contractOf(published, published)).toEqual(contractOf(generated, generated))
 

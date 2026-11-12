@@ -5,7 +5,11 @@ import {
 } from '@shared/types/session-delegation-query'
 import { SESSION_EXPORT_OPERATION_STATUSES } from '@shared/types/session-export-operation'
 import { describe, expect, it } from 'vitest'
-import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from '../openwaggle-mcp-session-tool-v2'
+import { buildMcpSessionPayloadV2 } from '../openwaggle-mcp-session-tool-v2'
+import {
+  acceptsSessionInput,
+  decodeSessionInput,
+} from './openwaggle-mcp-session-input.test-support'
 
 const filters = [
   {
@@ -32,35 +36,33 @@ const filters = [
 
 describe('OpenWaggle MCP Session finite filter contract', () => {
   it.each(filters)('bounds unique $field values to its exact vocabulary', (filter) => {
+    expect(acceptsSessionInput({ ...filter.base, [filter.field]: filter.values })).toBe(true)
     expect(
-      sessionInputSchemaV2.safeParse({ ...filter.base, [filter.field]: filter.values }).success,
-    ).toBe(true)
-    expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         ...filter.base,
         [filter.field]: [filter.values[0], filter.values[0]],
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         ...filter.base,
         [filter.field]: [...filter.values, filter.values[0]],
-      }).success,
+      }),
     ).toBe(false)
   })
 
   it('passes every complete finite vocabulary through the MCP payload builder', () => {
-    const exportsInput = sessionInputSchemaV2.parse({
+    const exportsInput = decodeSessionInput({
       operation: 'exports-list',
       sessionId: 'queen',
       exportStatuses: SESSION_EXPORT_OPERATION_STATUSES,
     })
-    const delegationsInput = sessionInputSchemaV2.parse({
+    const delegationsInput = decodeSessionInput({
       operation: 'delegations-list',
       catalogScope: 'all',
       states: DELEGATION_STATES,
     })
-    const conflictsInput = sessionInputSchemaV2.parse({
+    const conflictsInput = decodeSessionInput({
       operation: 'delegations-conflicts',
       catalogScope: 'all',
       conflictKinds: DELEGATION_CONFLICT_KINDS,

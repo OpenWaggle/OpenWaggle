@@ -2,8 +2,9 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { MCP_LEGACY_PROTOCOL_VERSIONS, MCP_MODERN_PROTOCOL_VERSIONS } from '@shared/constants/mcp'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
-import { z } from 'zod'
+import { Schema } from 'effect'
 import { routedCliStdoutStream } from './cli-stdout'
+import { standardSchemaWithJson } from './effect-standard-schema'
 import { refusedCredentialError } from './local-session-cli-client'
 import { serveDualEraMcpLoopbackHttp } from './mcp-server-http'
 import { serveDualEraMcpStdio } from './mcp-server-stdio'
@@ -72,13 +73,19 @@ function registerServerResources(server: McpServer, options: OpenWaggleMcpServeO
   )
 }
 
+/** Prompt arguments are strings; an argument the prompt does not name is ignored, not refused. */
+const delegatePromptArgumentsSchema = standardSchemaWithJson(
+  Schema.Struct({ objective: Schema.String, projectPath: Schema.String }),
+  { errors: 'all' },
+)
+
 function registerServerPrompt(server: McpServer) {
   server.registerPrompt(
     'delegate-openwaggle-task',
     {
       title: 'Delegate a task to OpenWaggle',
       description: 'Prepare a durable Session or Hive Worker request for Session Control v2.',
-      argsSchema: z.object({ objective: z.string(), projectPath: z.string() }),
+      argsSchema: delegatePromptArgumentsSchema,
     },
     ({ objective, projectPath }) => ({
       messages: [

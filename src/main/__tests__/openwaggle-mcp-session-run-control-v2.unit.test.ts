@@ -8,8 +8,9 @@ import {
   startPayload,
 } from '../application/__tests__/local-session-command-dispatcher.test-support'
 import { authorizeLocalSessionCommand } from '../application/local-session-command-authorization'
-import { sessionInputSchemaV2 } from '../openwaggle-mcp-session-input-v2'
+
 import { buildMcpSessionPayloadV2, mcpTransientAuthority } from '../openwaggle-mcp-session-tool-v2'
+import { acceptsSessionInput } from './openwaggle-mcp-session-input.test-support'
 
 function mcpCaller(
   authorizationCeiling: 'ask-for-approval' | 'yolo',
@@ -159,7 +160,7 @@ describe('OpenWaggle MCP Session Run Control v2 adapter', () => {
         { yolo: true },
         { runAuthorizationOverride: 'ask-for-approval' },
       ] as const) {
-        expect(sessionInputSchemaV2.safeParse({ ...target, ...settings }).success).toBe(true)
+        expect(acceptsSessionInput({ ...target, ...settings })).toBe(true)
       }
       expect(() => buildMcpSessionPayloadV2({ ...target, thinking: 'high' })).toThrow(
         'thinking_level_requires_idle_session',

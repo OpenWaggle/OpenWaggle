@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { OpenWaggleMcpServeOptions } from '../openwaggle-mcp-server-policy'
 import { OPENWAGGLE_MCP_SESSION_OPERATIONS_V2 } from '../openwaggle-mcp-session-operations-v2'
+import { acceptsInput } from './openwaggle-mcp-session-input.test-support'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn(), getVersion: vi.fn(() => 'test') } }))
 
@@ -27,8 +28,8 @@ function options(identity: OpenWaggleMcpServeOptions['identity']): OpenWaggleMcp
 describe('mcp serve grants (#350)', () => {
   it('advertises exactly the operations whose base capabilities were granted', () => {
     const schema = advertisedSessionInputSchemaV2(new Set(['sessions:read']))
-    const advertised = OPENWAGGLE_MCP_SESSION_OPERATIONS_V2.filter(
-      (operation) => schema.safeParse({ operation }).success,
+    const advertised = OPENWAGGLE_MCP_SESSION_OPERATIONS_V2.filter((operation) =>
+      acceptsInput(schema, { operation }),
     )
 
     expect(advertised).toEqual([

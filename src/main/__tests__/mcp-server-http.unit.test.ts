@@ -3,16 +3,19 @@ import { connect as connectTcp } from 'node:net'
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import { Schema } from 'effect'
 import { getMcpProtocolOptions } from '../adapters/mcp/runtime/protocol-negotiation'
+import { standardSchemaWithJson } from '../effect-standard-schema'
 import { serveDualEraMcpLoopbackHttp } from '../mcp-server-http'
 
 const TOKEN = 'openwaggle-loopback-fixture-token-with-more-than-32-bytes'
 const TEST_REQUEST_BODY_LIMIT_BYTES = 32
 
+const ECHO_INPUT = standardSchemaWithJson(Schema.Struct({ text: Schema.String }))
+
 function server() {
   const fixture = new McpServer({ name: 'loopback-fixture', version: '1.0.0' })
-  fixture.registerTool('echo', { inputSchema: z.object({ text: z.string() }) }, ({ text }) => ({
+  fixture.registerTool('echo', { inputSchema: ECHO_INPUT }, ({ text }) => ({
     content: [{ type: 'text', text }],
   }))
   return fixture

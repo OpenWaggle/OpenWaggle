@@ -1,6 +1,7 @@
 import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { describe, expect, it } from 'vitest'
-import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from '../openwaggle-mcp-session-tool-v2'
+import { buildMcpSessionPayloadV2 } from '../openwaggle-mcp-session-tool-v2'
+import { acceptsSessionInput } from './openwaggle-mcp-session-input.test-support'
 
 function ids(count: number) {
   return Array.from({ length: count }, (_, index) => `follow-up-${String(index)}`)
@@ -16,21 +17,20 @@ describe('OpenWaggle MCP Session Follow-up ID contract', () => {
         ...(operation === 'queue-reorder' ? { queueRevision: 1 } : {}),
       }
       expect(
-        sessionInputSchemaV2.safeParse({
+        acceptsSessionInput({
           ...base,
           followUpIds: ids(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS),
-        }).success,
+        }),
       ).toBe(true)
       expect(
-        sessionInputSchemaV2.safeParse({
+        acceptsSessionInput({
           ...base,
           followUpIds: ids(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS + 1),
-        }).success,
+        }),
       ).toBe(false)
-      expect(
-        sessionInputSchemaV2.safeParse({ ...base, followUpIds: ['follow-up-1', 'follow-up-1'] })
-          .success,
-      ).toBe(false)
+      expect(acceptsSessionInput({ ...base, followUpIds: ['follow-up-1', 'follow-up-1'] })).toBe(
+        false,
+      )
     },
   )
 
