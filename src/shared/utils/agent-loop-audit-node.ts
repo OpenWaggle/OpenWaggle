@@ -1,6 +1,6 @@
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { parseJsonUnknown } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /**
  * Whether a projected node is a durable OpenWaggle agent-loop audit node rather than a Pi entry.
@@ -20,9 +20,8 @@ export function isAgentLoopAuditNode(node: {
 
   try {
     const content = parseJsonUnknown(node.contentJson)
-    return (
-      isRecord(content) && content.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
-    )
+    const { customType } = uncheckedFields<{ readonly customType: string }>(content)
+    return customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
   } catch {
     return false
   }

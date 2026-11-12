@@ -102,7 +102,7 @@ export function scrubErrorReportFrameLocation(frame: object): void {
 
 /** Rewrites, in place, the code file of every external image in an event's `debug_meta`. */
 export function scrubErrorReportDebugMeta(debugMeta: unknown): void {
-  const images: unknown = isObject(debugMeta) ? Reflect.get(debugMeta, 'images') : undefined
+  const images = isObject(debugMeta) && 'images' in debugMeta ? debugMeta.images : undefined
   if (!Array.isArray(images)) return
   for (const image of images) {
     if (isObject(image)) scrubLocations(image, ERROR_REPORT_DEBUG_IMAGE_LOCATION_KEYS)
@@ -111,10 +111,10 @@ export function scrubErrorReportDebugMeta(debugMeta: unknown): void {
 
 /** Whether the frame that threw, the last of the stack trace, is the app's or Node.js's code. */
 function thrownByOwnCode(exception: object) {
-  const stacktrace: unknown = Reflect.get(exception, 'stacktrace')
-  const frames: unknown = isObject(stacktrace) ? Reflect.get(stacktrace, 'frames') : undefined
+  const stacktrace = 'stacktrace' in exception ? exception.stacktrace : undefined
+  const frames = isObject(stacktrace) && 'frames' in stacktrace ? stacktrace.frames : undefined
   const thrower: unknown = Array.isArray(frames) ? frames.at(-1) : undefined
-  const location: unknown = isObject(thrower) ? Reflect.get(thrower, 'filename') : undefined
+  const location = isObject(thrower) && 'filename' in thrower ? thrower.filename : undefined
   return (
     typeof location === 'string' && OWN_CODE_PREFIXES.some((prefix) => location.startsWith(prefix))
   )
@@ -126,7 +126,8 @@ function thrownByOwnCode(exception: object) {
  * `Error`. An exception without a stack trace counts as thrown by external code.
  */
 export function scrubErrorReportExceptionType(exception: object): void {
-  const type: unknown = Reflect.get(exception, 'type')
+  if (!('type' in exception)) return
+  const { type } = exception
   if (typeof type !== 'string' || ERROR_REPORT_BUILT_IN_ERROR_TYPES.has(type)) return
-  if (!thrownByOwnCode(exception)) Reflect.set(exception, 'type', GENERIC_ERROR_TYPE)
+  if (!thrownByOwnCode(exception)) exception.type = GENERIC_ERROR_TYPE
 }
