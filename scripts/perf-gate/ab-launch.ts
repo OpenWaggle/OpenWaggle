@@ -63,6 +63,8 @@ export interface LaunchTimings {
   readonly chatReadyMs: number | null
   /** IPC invokes the renderer made before the chat was ready; null if the recorder was late. */
   readonly ipcCallsUntilChatReady: number | null
+  /** The same invokes by channel. */
+  readonly ipcChannelsUntilChatReady: Readonly<Record<string, number>> | null
 }
 
 export interface Launched {
@@ -114,8 +116,12 @@ function isInvoke(value: unknown): value is { channel: string; at: number } {
 async function ipcCallsUntil(inspector: CdpClient, chatReadyAt: number | null) {
   if (chatReadyAt === null) return null
   const parsed: unknown = JSON.parse(String(await inspector.evaluate(IPC_READ)))
-  const invokes = Array.isArray(parsed) ? parsed.filter(isInvoke) : []
-  return invokes.filter((invoke) => invoke.at <= chatReadyAt).length
+  const invokes = (Array.isArray(parsed) ? parsed.filter(isInvoke) : []).filter(
+    (invoke) => invoke.at <= chatReadyAt,
+  )
+  const channels: Record<string, number> = {}
+  for (const invoke of invokes) channels[invoke.channel] = (channels[invoke.channel] ?? 0) + 1
+  return { count: invokes.length, channels }
 }
 
 /** Launches the app on `profile` and waits until its chat is ready. */
@@ -151,7 +157,8 @@ export async function launchUntilChatReady(
       windowReadyMs: await waitForMark(started, WINDOW_READY_MARK, LAUNCH_TIMEOUT_MS),
       backendReadyMs: await waitForMark(started, BACKEND_READY_MARK, LAUNCH_TIMEOUT_MS),
       chatReadyMs: chatReadyAt === null ? null : Math.round(chatReadyAt - started.spawnedAt),
-      ipcCallsUntilChatReady: ipcCalls,
+      ipcCallsUntilChatReady: ipcCalls?.count ?? null,
+      ipcChannelsUntilChatReady: ipcCalls?.channels ?? null,
     }
     return { started, browser, page, inspector, timings }
   } catch (error) {

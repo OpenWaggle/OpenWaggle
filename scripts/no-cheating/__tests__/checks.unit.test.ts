@@ -3,7 +3,7 @@ import { addedLines } from '../added-lines'
 import { formatFinding } from '../findings'
 import { lintConfigFindings } from '../lint-config'
 import { openRecordFindings } from '../open-records'
-import { ratchetFindings } from '../ratchets'
+import { BUDGETS, PERF_GATE_FILES, ratchetFindings } from '../ratchets'
 import {
   type FileState,
   deletedTestFindings,
@@ -131,6 +131,19 @@ describe('budgets and only-shrinks lists', () => {
     expect(
       ratchetFindings('scripts/check/output-budget.json', output(20), output(25)),
     ).toHaveLength(1)
+  })
+
+  it('leaves the Performance Gate files to the gate, whose maintainer label can accept a raise', () => {
+    expect(
+      PERF_GATE_FILES.filter((file) => BUDGETS.some((budget) => budget.files.test(file))),
+    ).toEqual([])
+    const measured = (value: number) =>
+      JSON.stringify({ metrics: { 'ipc.calls': { value, quantum: 1 } } })
+    expect(ratchetFindings('performance/perf-budgets.json', measured(22), measured(23))).toEqual([])
+    const thresholds = (relative: number) => JSON.stringify({ timing: { relative, absolute: 60 } })
+    expect(
+      ratchetFindings('performance/perf-gate/thresholds.json', thresholds(0.1), thresholds(0.2)),
+    ).toEqual([])
   })
 
   it('blocks a grown exemption list and passes a shrunk one', () => {

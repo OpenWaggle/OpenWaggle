@@ -79,6 +79,8 @@ jobs:
               base=$(git rev-parse "$(jq -r '.base // "origin/main"' performance/perf-gate/bench.json)^{commit}")
               head=$(git rev-parse "$(jq -r '.head // "HEAD"' performance/perf-gate/bench.json)^{commit}")
               pairs=$(jq -r '.pairs // empty' performance/perf-gate/bench.json)
+              # A bench run judges its head against its base as a pull request against main.
+              main="$base"
             fi
           fi
           { echo "base_sha=$base"; echo "head_sha=$head"; echo "main_sha=$main"; echo "pairs=$pairs"; } >> "$GITHUB_OUTPUT"

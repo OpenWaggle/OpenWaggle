@@ -1,0 +1,76 @@
+# Posts the Performance Gate's report on its pull request: one comment, updated on every run, with
+# base vs head for every budget and timing, the changed rows first, and any limit raised.
+#
+# It runs main's code only (the default checkout of a workflow_run event), never the pull request's:
+# that run wrote the report artifact, so scripts/perf-gate/report-data.ts checks every field of it
+# before anything is rendered. The pull request is the one whose head is the run's head commit.
+name: Performance Gate report
+
+on:
+  workflow_run:
+    workflows: ["Performance Gate"]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  comment:
+    name: Comment on the pull request
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: perf-gate-report
+          path: report
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Find the pull request of the run's head commit
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          number=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$HEAD_OWNER:$HEAD_BRANCH" \
+            --jq "[.[] | select(.head.sha == \"$HEAD_SHA\") | .number] | first // empty")
+          if [ -z "$number" ]; then
+            echo "::notice::No open pull request has head $HEAD_SHA; nothing to comment on."
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Render the comment with main's reporter
+        if: steps.pr.outputs.number != ''
+        run: bun scripts/perf-gate/gate.ts render --report report/report.json --markdown comment.md
+
+      - name: Post or update the comment
+        if: steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          marker='<!-- openwaggle-performance-gate -->'
+          existing=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n 1)
+          if [ -n "$existing" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F body=@comment.md >/dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@comment.md >/dev/null
+          fi

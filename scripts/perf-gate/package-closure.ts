@@ -7,7 +7,7 @@
  * What differs by host is left out so macOS, Linux and Windows count the same: packages that
  * declare `os` or `cpu` (a host installs only its own), and native build output (`build/` of a
  * package with a `binding.gyp`, rebuilt per Electron ABI). Prebuilds for every platform stay out
- * except linux-x64, as the Linux pack keeps them.
+ * except linux-x64, as the Linux pack keeps them. The `electron` package is not shipped at all.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -46,10 +46,13 @@ const EXCLUDED_NAMES = [
   /^tsconfig\.json$/u,
 ]
 const LINUX_TARGET = 'linux-x64'
+/** electron-builder packs Electron itself, never the `electron` package and its download. */
+const ELECTRON = 'electron'
 
 /** Package-relative paths the Linux pack leaves out (electron-builder-native-prebuilds.ts). */
 const PACK_EXCLUSIONS: readonly RegExp[] = [
   /^better-sqlite3\/(?:deps|src)(?:\/|$)/u,
+  /^tesseract\.js-core\/tesseract-core-simd-lstm\.(?:js|wasm)$/u,
   new RegExp(`^better-sqlite3/prebuilds/(?!${LINUX_TARGET}\\.node$)`, 'u'),
   new RegExp(`^node-pty/prebuilds/(?!${LINUX_TARGET}(?:/|$))`, 'u'),
   /^node-pty\/third_party\/conpty(?:\/|$)/u,
@@ -124,7 +127,10 @@ function sizeOf(directory: string, files: readonly string[]) {
  */
 function runtimeDirectories(projectRoot: string) {
   const directories = new Map<string, string>()
-  const pending = [...mainExternalPackages(), ...RUNTIME_RESOLVED_PACKAGES].map((name) => ({
+  const roots = [...mainExternalPackages(), ...RUNTIME_RESOLVED_PACKAGES].filter(
+    (name) => name !== ELECTRON,
+  )
+  const pending = roots.map((name) => ({
     name,
     from: projectRoot,
   }))
