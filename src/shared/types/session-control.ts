@@ -9,27 +9,9 @@ import type {
 } from '@shared/schemas/session-control-outcomes'
 
 export type {
-  SessionAuthorizationSetCommand,
-  SessionAuthorizationUpdatedOutcome,
-} from './session-authorization-control'
-export type {
   SessionControlDelegationDependencyCommand,
   SessionControlDelegationSubmitCommand,
 } from './session-collaboration'
-export type {
-  SessionControlInterruptCommand,
-  SessionControlInterruptDescendantsCommand,
-} from './session-control-interruption'
-export type {
-  SessionControlQueueAdoptCommand,
-  SessionControlQueueEditBeginCommand,
-  SessionControlQueueEditCancelCommand,
-  SessionControlQueueEditSaveCommand,
-  SessionControlQueuePauseCommand,
-  SessionControlQueueReorderCommand,
-  SessionControlQueueResumeCommand,
-  SessionControlQueueWithdrawCommand,
-} from './session-control-queue'
 export type {
   SessionAuthorizationSetMutationRequest,
   SessionControlDelegationMutationRequest,
@@ -50,19 +32,7 @@ export type {
   SessionInteractionResponseMutationRequest,
 } from './session-control-requests'
 export type { SessionControlMutationResponse } from './session-control-response'
-export type {
-  SessionControlFollowUpCommand,
-  SessionControlMessageCommand,
-  SessionControlMessageInput,
-  SessionControlPromoteCommand,
-  SessionControlReplaceCommand,
-  SessionControlStartCommand,
-  SessionControlSteerCommand,
-} from './session-control-run-commands'
-export type {
-  SessionInteractionResolvedOutcome,
-  SessionInteractionResponseCommand,
-} from './session-interaction-control'
+export type { SessionControlMessageInput } from './session-control-run-commands'
 
 export const SESSION_CONTROL_CONTRACT_VERSION = 2 as const
 

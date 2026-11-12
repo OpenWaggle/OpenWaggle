@@ -1,16 +1,13 @@
 import type { SchemaType } from '@shared/schema'
 import type {
-  createCommandSchema,
   delegationSpecificationSchema,
   forkCommandSchema,
   forkWorkspaceSchema,
-  launchCommandSchema,
   launchWorkspaceSchema,
   sessionLifecycleCommandSchema,
   sessionLifecycleOutcomeSchema,
   sessionLifecycleRequestSchema,
   sessionLifecycleResponseSchema,
-  spawnCommandSchema,
   spawnWorkspaceSchema,
   specializationSchema,
 } from '@shared/schemas/session-lifecycle'
@@ -39,12 +36,6 @@ export interface ResolvedSessionExecutionProfile {
 }
 
 export type DelegationSpecificationInput = SchemaType<typeof delegationSpecificationSchema>
-
-export type CreateRootSessionCommand = SchemaType<typeof createCommandSchema>
-
-export type LaunchRootSessionCommand = SchemaType<typeof launchCommandSchema>
-
-export type SpawnWorkerSessionCommand = SchemaType<typeof spawnCommandSchema>
 
 export type ForkSessionCommand = SchemaType<typeof forkCommandSchema>
 

@@ -1,8 +1,3 @@
-import type { SchemaType } from '@shared/schema'
-import type { sessionItemsQuerySchema } from '@shared/schemas/session-query'
-
-export type SessionItemsQuery = SchemaType<typeof sessionItemsQuerySchema>
-
 export interface SessionItemsOutcome {
   readonly operation: 'items'
   readonly sessionId: string

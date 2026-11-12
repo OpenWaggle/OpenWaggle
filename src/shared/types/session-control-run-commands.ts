@@ -8,7 +8,6 @@ import type {
   replaceCommandSchema,
   startCommandSchema,
   steerCommandSchema,
-  steeringInputSchema,
 } from '@shared/schemas/session-control-commands'
 
 /** Message content a caller submits: what a Follow-up message carries. */
@@ -16,8 +15,6 @@ export type SessionControlFollowUpInput = SchemaType<typeof followUpInputSchema>
 
 /** Input of a command that may start a Run on an idle Session (`message`, `start`). */
 export type SessionControlMessageInput = SchemaType<typeof messageInputSchema>
-
-export type SessionControlSteeringInput = SchemaType<typeof steeringInputSchema>
 
 export type SessionControlMessageCommand = SchemaType<typeof messageCommandSchema>
 

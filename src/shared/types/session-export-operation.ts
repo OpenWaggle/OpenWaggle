@@ -1,13 +1,8 @@
 import type { SchemaType } from '@shared/schema'
 import type {
   exportCancelCommandSchema,
-  exportCancelOutcomeSchema,
   exportCreateCommandSchema,
-  exportCreateOutcomeSchema,
-  exportListQuerySchema,
-  exportReadQuerySchema,
   exportResourceInputSchema,
-  exportWaitQuerySchema,
 } from '@shared/schemas/session-export-operation'
 import type { SessionExportBranchScope, SessionExportManifest } from './session-export'
 import type { SessionHostEventCursor } from './session-host-event'
@@ -37,8 +32,6 @@ export type SessionExportCreateCommand = SchemaType<typeof exportCreateCommandSc
 
 export type SessionExportCancelCommand = SchemaType<typeof exportCancelCommandSchema>
 
-export type SessionExportControlCommand = SessionExportCreateCommand | SessionExportCancelCommand
-
 export interface SessionExportProgress {
   readonly recordsWritten: number
   readonly resourcesWritten: number
@@ -62,17 +55,6 @@ export interface SessionExportOperationSummary {
   readonly updatedAt: number
   readonly completedAt?: number
 }
-
-export type SessionExportCreateOutcome = SchemaType<typeof exportCreateOutcomeSchema>
-
-export type SessionExportCancelOutcome = SchemaType<typeof exportCancelOutcomeSchema>
-
-export type SessionExportControlOutcome = SessionExportCreateOutcome | SessionExportCancelOutcome
-
-export type SessionExportOperationQuery =
-  | SchemaType<typeof exportListQuerySchema>
-  | SchemaType<typeof exportReadQuerySchema>
-  | SchemaType<typeof exportWaitQuerySchema>
 
 export type SessionExportOperationQueryOutcome =
   | {

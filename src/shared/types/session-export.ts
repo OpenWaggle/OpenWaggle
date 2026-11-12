@@ -3,14 +3,11 @@ import type {
   sessionExportBranchScopeSchema,
   sessionExportManifestSchema,
 } from '@shared/schemas/session-export-operation'
-import type { sessionExportQuerySchema } from '@shared/schemas/session-query'
 
 export const SESSION_EXPORT_SCHEMA_VERSION = 1 as const
 export const SESSION_EXPORT_BUNDLE_SCHEMA_VERSION = 1 as const
 
 export type SessionExportBranchScope = SchemaType<typeof sessionExportBranchScopeSchema>
-
-export type SessionExportQuery = SchemaType<typeof sessionExportQuerySchema>
 
 export type SessionExportManifest = SchemaType<typeof sessionExportManifestSchema>
 

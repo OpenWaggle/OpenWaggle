@@ -1,9 +1,5 @@
 import type { SchemaType } from '@shared/schema'
-import type {
-  hostUiV1RequestSchema,
-  hostUiV1ResultSchema,
-  hostUiWireValueSchema,
-} from '@shared/schemas/host-ui-protocol'
+import type { hostUiV1RequestSchema, hostUiWireValueSchema } from '@shared/schemas/host-ui-protocol'
 import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
@@ -272,4 +268,3 @@ export type HostBackedMcpGuiChannel = (typeof HOST_BACKED_MCP_GUI_CHANNELS)[numb
 
 export type HostUiWireValue = SchemaType<typeof hostUiWireValueSchema>
 export type HostUiV1Request = SchemaType<typeof hostUiV1RequestSchema>
-export type HostUiV1Result = SchemaType<typeof hostUiV1ResultSchema>
