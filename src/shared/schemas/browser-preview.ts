@@ -160,11 +160,11 @@ const browserPreviewShortcutBindingSchema = Schema.Struct({
     Schema.maxLength(SHORTCUT_RULE_LIMITS.KEY_LENGTH),
     Schema.filter((key) => key.trim().length > 0 || 'Shortcut key cannot be blank.'),
   ),
-  mod: Schema.optional(Schema.Boolean),
-  ctrl: Schema.optional(Schema.Boolean),
-  shift: Schema.optional(Schema.Boolean),
-  alt: Schema.optional(Schema.Boolean),
-  meta: Schema.optional(Schema.Boolean),
+  mod: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  ctrl: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  shift: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  alt: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  meta: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const browserPreviewShortcutBindingsSchema: Schema.Schema<BrowserPreviewShortcutBindings> =

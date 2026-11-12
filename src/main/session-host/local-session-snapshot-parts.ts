@@ -63,16 +63,17 @@ export const messagePartSchema = Schema.Union(
     attachment: Schema.Struct({
       id: Schema.String,
       kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(
+      origin: Schema.optionalWith(
         Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
+        { exact: true },
       ),
       name: Schema.String,
       path: Schema.String,
       mimeType: Schema.String,
       sizeBytes: Schema.Number,
-      contentSha256: Schema.optional(Schema.String),
+      contentSha256: Schema.optionalWith(Schema.String, { exact: true }),
       extractedText: Schema.String,
-      browserPreview: Schema.optional(browserPreviewAttachmentSchema),
+      browserPreview: Schema.optionalWith(browserPreviewAttachmentSchema, { exact: true }),
     }),
   }),
   Schema.Struct({

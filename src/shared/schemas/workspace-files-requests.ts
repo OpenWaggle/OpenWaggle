@@ -45,8 +45,8 @@ export const workspaceDocumentApplyInputSchema = Schema.Struct({
   batches: Schema.Array(workspaceDocumentEditBatchSchema).pipe(
     Schema.maxItems(WORKSPACE_FILES.DOCUMENT_EDIT_BATCH_LIMIT),
   ),
-  normalizeLineEnding: Schema.optional(Schema.Literal('lf', 'crlf')),
-  targetEncoding: Schema.optional(Schema.Literal(...WORKSPACE_TEXT_ENCODINGS)),
+  normalizeLineEnding: Schema.optionalWith(Schema.Literal('lf', 'crlf'), { exact: true }),
+  targetEncoding: Schema.optionalWith(Schema.Literal(...WORKSPACE_TEXT_ENCODINGS), { exact: true }),
 })
 
 export const workspaceEntryCreateInputSchema = Schema.Struct({
@@ -58,8 +58,8 @@ export const workspaceEntryCreateInputSchema = Schema.Struct({
 export const workspaceEntryMutationInputSchema = Schema.Struct({
   projectPath: workspaceNonEmptyStringSchema,
   path: workspaceNonEmptyStringSchema,
-  targetPath: Schema.optional(workspaceNonEmptyStringSchema),
-  overwrite: Schema.optional(Schema.Boolean),
+  targetPath: Schema.optionalWith(workspaceNonEmptyStringSchema, { exact: true }),
+  overwrite: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 const externalEditorIdSchema = Schema.Literal(
@@ -69,8 +69,8 @@ const externalEditorIdSchema = Schema.Literal(
 export const workspaceAbsoluteFileExternalOpenInputSchema = Schema.Struct({
   path: workspaceNonEmptyStringSchema,
   editor: externalEditorIdSchema,
-  line: Schema.optional(filePositionSchema),
-  column: Schema.optional(filePositionSchema),
+  line: Schema.optionalWith(filePositionSchema, { exact: true }),
+  column: Schema.optionalWith(filePositionSchema, { exact: true }),
 })
 
 export const workspaceFileExternalOpenInputSchema = Schema.Struct({

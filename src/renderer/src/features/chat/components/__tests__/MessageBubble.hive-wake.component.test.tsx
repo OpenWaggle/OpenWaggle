@@ -27,7 +27,7 @@ function userRow(metadata: UIMessage['metadata'], text: string): UIMessage {
     role: 'user',
     parts: [{ type: 'text', content: text }],
     createdAt: CREATED_AT,
-    metadata,
+    ...(metadata === undefined ? {} : { metadata }),
   }
 }
 

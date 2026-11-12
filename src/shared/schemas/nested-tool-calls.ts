@@ -6,13 +6,13 @@ export const nestedToolCallRecordSchema = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   /** Omitted when over Pi's size limits; `argsBytes` then gives their size. */
-  args: Schema.optional(jsonObjectSchema),
-  argsBytes: Schema.optional(Schema.Number),
+  args: Schema.optionalWith(jsonObjectSchema, { exact: true }),
+  argsBytes: Schema.optionalWith(Schema.Number, { exact: true }),
   /** `unfinished`: the call was still running when the calling tool finished. */
   status: Schema.Literal('ok', 'error', 'unfinished'),
-  durationMs: Schema.optional(Schema.Number),
+  durationMs: Schema.optionalWith(Schema.Number, { exact: true }),
   /** Error text, truncated by Pi. */
-  error: Schema.optional(Schema.String),
+  error: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 /**
@@ -27,5 +27,5 @@ export const nestedToolCallsSchema = Schema.Struct({
    * Calls left out past the maximum, counted by OpenWaggle's live record. Pi's own record does
    * not count them: it is only marked incomplete.
    */
-  droppedCalls: Schema.optional(Schema.Number),
+  droppedCalls: Schema.optionalWith(Schema.Number, { exact: true }),
 })

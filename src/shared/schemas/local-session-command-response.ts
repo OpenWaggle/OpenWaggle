@@ -67,9 +67,9 @@ export const sessionQueryResponseSchema = Schema.Struct({
 /** A Waggle send's report; a Waggle send is never `queued`. */
 const waggleSendReportSchema = Schema.Struct({
   outcome: Schema.Literal('delivered', 'refused', 'cancelled'),
-  message: Schema.optional(Schema.String),
-  code: Schema.optional(Schema.String),
-  runId: Schema.optional(Schema.String),
+  message: Schema.optionalWith(Schema.String, { exact: true }),
+  code: Schema.optionalWith(Schema.String, { exact: true }),
+  runId: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 export const sessionWaggleResponseSchema = Schema.Struct({

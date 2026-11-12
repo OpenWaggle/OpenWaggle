@@ -38,7 +38,7 @@ export function makeSessionDetail(config: WaggleConfig, metadata?: WaggleMessage
         role: 'assistant',
         createdAt: 1,
         parts: [{ type: 'text', text: 'draft' }],
-        metadata: metadata ? { waggle: metadata } : undefined,
+        ...(metadata ? { metadata: { waggle: metadata } } : {}),
       },
     ],
   } satisfies SessionDetail

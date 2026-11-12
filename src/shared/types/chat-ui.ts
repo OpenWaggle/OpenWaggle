@@ -115,6 +115,6 @@ export interface UIMessage {
   readonly id: string
   readonly role: ChatMessageRole
   readonly parts: UIMessagePart[]
-  readonly createdAt?: Date | undefined
-  readonly metadata?: UIMessageMetadata | undefined
+  readonly createdAt?: Date
+  readonly metadata?: UIMessageMetadata
 }

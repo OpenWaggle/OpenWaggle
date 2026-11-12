@@ -143,7 +143,7 @@ export const agentTransportCompactionEndEventSchema = transportEvent('compaction
   result: jsonValueSchema,
   aborted: Schema.Boolean,
   willRetry: Schema.Boolean,
-  errorMessage: Schema.optional(Schema.String),
+  errorMessage: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 export const agentTransportAutoRetryStartEventSchema = transportEvent('auto_retry_start', {

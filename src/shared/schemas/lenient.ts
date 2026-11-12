@@ -11,6 +11,7 @@ import { Schema } from '@shared/schema'
 /** A property that decodes to its value, or `undefined` when it is missing or does not decode. */
 export function lenientOptional<A, I>(schema: Schema.Schema<A, I>) {
   const decode = Schema.decodeUnknownOption(schema)
+  // explicit undefined: a malformed value decodes to an explicit undefined key
   return Schema.optional(
     Schema.transform(Schema.Unknown, Schema.UndefinedOr(Schema.typeSchema(schema)), {
       strict: true,

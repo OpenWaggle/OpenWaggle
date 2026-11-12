@@ -92,10 +92,10 @@ export function useFeedback(
       includeErrorContext,
       includeLastMessage,
       includeModelInfo,
-      lastUserMessage: lastUserMessage ?? undefined,
-      lastErrorContext: errorContext ?? undefined,
-      activeModel: activeModel ?? undefined,
-      activeProvider: activeProvider ?? undefined,
+      ...(lastUserMessage === null ? {} : { lastUserMessage }),
+      ...(errorContext === null ? {} : { lastErrorContext: errorContext }),
+      ...(activeModel === null ? {} : { activeModel }),
+      ...(activeProvider === null ? {} : { activeProvider }),
     }
   }
 

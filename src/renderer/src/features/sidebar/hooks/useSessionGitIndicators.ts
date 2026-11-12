@@ -54,7 +54,12 @@ export function useSessionGitIndicators(sessions: readonly SessionSummary[]): vo
 /** The working tree a session row describes, or null when it has no project. */
 export function sessionWorkingPath(session: SessionSummary): WorkingPath | null {
   return resolveSessionWorkingDir(
-    { environmentMode: session.environmentMode, worktreePath: session.worktreePath ?? null },
+    {
+      ...(session.environmentMode === undefined
+        ? {}
+        : { environmentMode: session.environmentMode }),
+      worktreePath: session.worktreePath ?? null,
+    },
     session.projectPath,
   )
 }

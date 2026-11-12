@@ -11,7 +11,7 @@ import {
 import { appPaths } from '../desktop-shell/app-paths'
 import { clipboard } from '../desktop-shell/clipboard'
 import { AutomationDesktopUiError, openExternal, openPath, revealPath } from '../desktop-ui'
-import { env } from '../env'
+import { usageStatisticsEnv } from '../usage-statistics-env'
 import { createLogger } from '../logger'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -94,12 +94,7 @@ export function registerShellHandlers(): void {
     Effect.sync(() =>
       resolveUsageStatisticsEnvironmentBlock({
         buildChannel: BUILD_CHANNEL,
-        env: {
-          DO_NOT_TRACK: env.DO_NOT_TRACK,
-          PI_TELEMETRY: env.PI_TELEMETRY,
-          CI: env.CI,
-          OPENWAGGLE_AUTOMATION: env.OPENWAGGLE_AUTOMATION,
-        },
+        env: usageStatisticsEnv(),
       }),
     ),
   )

@@ -65,7 +65,7 @@ export const agentLoopConfirmInteractionSchema = Schema.Struct({
   message: Schema.String,
   purpose: agentLoopConfirmPurposeSchema,
   /** Present only for `authorization`, naming what a kept approval would cover. */
-  scopeKey: Schema.optional(authorizationScopeKeySchema),
+  scopeKey: Schema.optionalWith(authorizationScopeKeySchema, { exact: true }),
 })
 
 export const agentLoopSelectInteractionSchema = Schema.Struct({

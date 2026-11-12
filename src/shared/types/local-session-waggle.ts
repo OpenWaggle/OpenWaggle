@@ -30,14 +30,12 @@ export interface LocalSessionWaggleConfig {
 export interface LocalSessionWagglePayload {
   readonly text: string
   readonly attachments: PreparedAttachment[]
-  readonly waggle?:
-    | {
-        readonly presetId: string
-        readonly presetName: string
-        readonly source: WaggleInvocationSource
-        readonly config: LocalSessionWaggleConfig
-      }
-    | undefined
+  readonly waggle?: {
+    readonly presetId: string
+    readonly presetName: string
+    readonly source: WaggleInvocationSource
+    readonly config: LocalSessionWaggleConfig
+  }
 }
 
 export type LocalSessionWaggleCommandPayload =
