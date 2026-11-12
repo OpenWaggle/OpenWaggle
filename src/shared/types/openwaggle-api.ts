@@ -1,33 +1,4 @@
-import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
-import type { AgentAuthorizationMode } from './agent-authorization'
-import type {
-  AgentLoopInteractionResponseInput,
-  AgentLoopInteractionSubmitResult,
-} from './agent-loop-interaction'
-import type { OAuthAccountInfo, OAuthProvider } from './auth'
-import type {
-  ActiveRunInfo,
-  BackgroundRunSnapshot,
-  WorktreeLaunchEventPayload,
-} from './background-run'
-import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
-import type { FileSuggestion } from './composer'
-import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
-import type {
-  DocsDiscoveryView,
-  DocsListInput,
-  DocsResolveTopicInput,
-  FirstPartyDocsTopicSummary,
-} from './docs'
-import type { AgentExtensionCommand } from './extension-command'
-import type {
-  InlineVisualizationDownloadInput,
-  InlineVisualizationFrameRegisterInput,
-  InlineVisualizationFrameRegisterResult,
-  InlineVisualizationFrameUnregisterInput,
-} from './inline-visualization'
-import type { IpcEventPayload } from './ipc'
-import type { ProviderCatalogScope, ProviderInfo, SupportedModelId } from './llm'
+import type { PreparedAttachment } from './agent'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleDesktopNotificationsApi } from './openwaggle-api-desktop-notifications'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
@@ -46,42 +17,7 @@ import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { OpenWaggleTerminalApi } from './openwaggle-terminal-api'
 import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
-import type { AgentPhaseState } from './phase'
-import type {
-  PinnedSession,
-  PinnedSessionMove,
-  SessionCatalogPage,
-  SessionCopyToNewResult,
-  SessionDeleteOptions,
-  SessionDetail,
-  SessionNavigateTreeOptions,
-  SessionThinkingLevelChange,
-  SessionTree,
-  SessionTreeFilterMode,
-  SessionTreeUiStatePatch,
-  SessionWorkspace,
-  SessionWorkspaceSelection,
-  SessionWorktreePlan,
-} from './session'
-import type { SessionTitleRegenerationResult } from './session-title'
-import type { SessionDetailCursor, SessionWorkspaceRequest } from './session-transcript-window'
-import type { SessionTreeSearchCursor, SessionTreeSearchPage } from './session-tree-search'
-import type { Settings, ThinkingLevel } from './settings'
-import type {
-  AgentsInstructionStatus,
-  AgentsResolutionResult,
-  SkillCatalogResult,
-} from './standards'
-import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from './turn-diff'
-import type {
-  UsageCostQuery,
-  UsageCostSessionQuery,
-  UsageCostSessionsResult,
-  UsageCostView,
-} from './usage-cost'
-import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
-
-type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
+import type { IpcEventMethod, IpcInvokeMethod, IpcSendMethod } from './ipc-api-methods'
 
 export interface PreparedSelectedAttachment {
   readonly attachment: PreparedAttachment
@@ -109,204 +45,135 @@ export interface OpenWaggleApi
     OpenWaggleSessionControlApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
-  sendMessage(
-    sessionId: SessionId,
-    payload: AgentSendPayload,
-    model: SupportedModelId,
-  ): Promise<AgentSendReport>
-  cancelAgent(sessionId?: SessionId): Promise<void>
-  respondAgentInteraction(
-    input: AgentLoopInteractionResponseInput,
-  ): Promise<AgentLoopInteractionSubmitResult>
+  sendMessage: IpcInvokeMethod<'agent:send-message'>
+  cancelAgent: IpcInvokeMethod<'agent:cancel'>
+  respondAgentInteraction: IpcInvokeMethod<'agent:respond-interaction'>
   /** Subscribe to live Pi-shaped runtime events from the main process */
-  onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
+  onAgentEvent: IpcEventMethod<'agent:event'>
 
-  getAgentPhase(sessionId: SessionId): Promise<AgentPhaseState | null>
+  getAgentPhase: IpcInvokeMethod<'agent:get-phase'>
   /**
    * Names the Sessions this window shows. Their streamed deltas arrive about 30 times a second; other
    * Sessions' arrive merged on a slower beat, for activity and route-switch snapshots.
    */
-  setShownSessions(sessionIds: readonly SessionId[]): Promise<void>
-  getBackgroundRun(sessionId: SessionId): Promise<BackgroundRunSnapshot | null>
-  listActiveRuns(): Promise<ActiveRunInfo[]>
-  getContextUsage(
-    sessionId: SessionId,
-    model: SupportedModelId,
-  ): Promise<ContextUsageSnapshot | null>
+  setShownSessions: IpcInvokeMethod<'agent:set-shown-sessions'>
+  getBackgroundRun: IpcInvokeMethod<'agent:get-background-run'>
+  listActiveRuns: IpcInvokeMethod<'agent:list-active-runs'>
+  getContextUsage: IpcInvokeMethod<'agent:get-context-usage'>
   /**
    * The commands the Session's Pi extensions register, for the slash menu; with no Session, as
    * for a New session draft, those a Session in `projectPath` would have.
    */
-  listExtensionCommands(
-    sessionId: SessionId | null,
-    model: SupportedModelId,
-    projectPath?: string,
-  ): Promise<readonly AgentExtensionCommand[]>
-  compactSession(
-    sessionId: SessionId,
-    model: SupportedModelId,
-    customInstructions?: string,
-  ): Promise<ContextCompactionResult>
-  onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
-  onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
-  onSessionHostEvent(callback: (payload: IpcEventPayload<'session-host:event'>) => void): () => void
-  onSessionHostResyncRequired(
-    callback: (payload: IpcEventPayload<'session-host:resync-required'>) => void,
-  ): () => void
-  onWorktreeLaunch(callback: (payload: WorktreeLaunchEventPayload) => void): () => void
+  listExtensionCommands: IpcInvokeMethod<'agent:list-extension-commands'>
+  compactSession: IpcInvokeMethod<'agent:compact-session'>
+  onRunCompleted: IpcEventMethod<'agent:run-completed'>
+  onAgentPhase: IpcEventMethod<'agent:phase'>
+  onSessionHostEvent: IpcEventMethod<'session-host:event'>
+  onSessionHostResyncRequired: IpcEventMethod<'session-host:resync-required'>
+  onWorktreeLaunch: IpcEventMethod<'agent:worktree-launch'>
 
   // Settings
-  getSettings(): Promise<Settings>
-  updateSettings(settings: Partial<Settings>): Promise<{ ok: true } | { ok: false; error: string }>
-  setEnabledModels(models: string[]): Promise<void>
-  getPiTreeFilterMode(projectPath?: string | null): Promise<SessionTreeFilterMode>
-  setPiTreeFilterMode(mode: SessionTreeFilterMode, projectPath?: string | null): Promise<void>
-  getPiBranchSummarySkipPrompt(projectPath?: string | null): Promise<boolean>
-  testApiKey(
-    provider: string,
-    apiKey: string,
-    projectPath?: string | null,
-  ): Promise<{ success: boolean; error?: string }>
-  discoverDocs(input?: DocsListInput): Promise<DocsDiscoveryView>
-  resolveDocsTopic(input: DocsResolveTopicInput): Promise<FirstPartyDocsTopicSummary | null>
-  getUsageCostView(query: UsageCostQuery): Promise<UsageCostView>
-  getUsageCostSessions(query: UsageCostSessionQuery): Promise<UsageCostSessionsResult>
+  getSettings: IpcInvokeMethod<'settings:get'>
+  updateSettings: IpcInvokeMethod<'settings:update'>
+  setEnabledModels: IpcInvokeMethod<'settings:set-enabled-models'>
+  getPiTreeFilterMode: IpcInvokeMethod<'pi-settings:get-tree-filter-mode'>
+  setPiTreeFilterMode: IpcInvokeMethod<'pi-settings:set-tree-filter-mode'>
+  getPiBranchSummarySkipPrompt: IpcInvokeMethod<'pi-settings:get-branch-summary-skip-prompt'>
+  testApiKey: IpcInvokeMethod<'settings:test-api-key'>
+  discoverDocs: IpcInvokeMethod<'docs:discover'>
+  resolveDocsTopic: IpcInvokeMethod<'docs:resolve-topic'>
+  getUsageCostView: IpcInvokeMethod<'usage-cost:get-view'>
+  getUsageCostSessions: IpcInvokeMethod<'usage-cost:get-sessions'>
 
   // Providers
-  getProviderModels(
-    projectPath?: string | null,
-    scope?: ProviderCatalogScope,
-  ): Promise<ProviderInfo[]>
+  getProviderModels: IpcInvokeMethod<'providers:get-models'>
 
-  registerInlineVisualizationFrame(
-    input: InlineVisualizationFrameRegisterInput,
-  ): Promise<InlineVisualizationFrameRegisterResult>
-  unregisterInlineVisualizationFrame(input: InlineVisualizationFrameUnregisterInput): Promise<void>
-  saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
+  registerInlineVisualizationFrame: IpcInvokeMethod<'visualizations:register-frame'>
+  unregisterInlineVisualizationFrame: IpcInvokeMethod<'visualizations:unregister-frame'>
+  saveInlineVisualizationDownload: IpcInvokeMethod<'visualizations:save-download'>
 
   // Sessions
-  getSessionDetail(id: SessionId, cursor?: SessionDetailCursor): Promise<SessionDetail | null>
-  dismissInterruptedSessionRun(sessionId: SessionId, runId: string): Promise<void>
-  listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
-  getTurnDiffFiles(id: SessionId, turnId: string): Promise<readonly TurnDiffFileSummary[]>
-  listTurnDiffFiles(
-    id: SessionId,
-    turnIds: readonly string[],
-  ): Promise<Readonly<Record<string, readonly TurnDiffFileSummary[]>>>
-  getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
+  getSessionDetail: IpcInvokeMethod<'sessions:get-detail'>
+  dismissInterruptedSessionRun: IpcInvokeMethod<'sessions:dismiss-interrupted-run'>
+  listTurnCheckpoints: IpcInvokeMethod<'sessions:turn-checkpoints:list'>
+  getTurnDiffFiles: IpcInvokeMethod<'sessions:turn-diff-files:get'>
+  listTurnDiffFiles: IpcInvokeMethod<'sessions:turn-diff-files:list'>
+  getTurnDiff: IpcInvokeMethod<'sessions:turn-diff:get'>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
-  listPinnedSessions(): Promise<PinnedSession[]>
-  pinSession(id: SessionId): Promise<void>
-  unpinSession(id: SessionId): Promise<void>
+  listPinnedSessions: IpcInvokeMethod<'sessions:pins:list'>
+  pinSession: IpcInvokeMethod<'sessions:pins:pin'>
+  unpinSession: IpcInvokeMethod<'sessions:pins:unpin'>
   /** Reposition one pin between the neighbours it should land between. */
-  movePinnedSession(move: PinnedSessionMove): Promise<void>
-  createSession(
-    projectPath: string,
-    worktreePlan?: SessionWorktreePlan,
-    model?: SupportedModelId,
-    thinkingLevel?: ThinkingLevel,
-  ): Promise<SessionDetail>
-  forkSessionToNew(
-    sessionId: SessionId,
-    model: SupportedModelId,
-    targetNodeId: SessionNodeId,
-  ): Promise<SessionCopyToNewResult>
-  cloneSessionToNew(
-    sessionId: SessionId,
-    model: SupportedModelId,
-    targetNodeId: SessionNodeId,
-  ): Promise<SessionCopyToNewResult>
+  movePinnedSession: IpcInvokeMethod<'sessions:pins:move'>
+  createSession: IpcInvokeMethod<'sessions:create'>
+  forkSessionToNew: IpcInvokeMethod<'sessions:fork-to-new'>
+  cloneSessionToNew: IpcInvokeMethod<'sessions:clone-to-new'>
   /** `removingProject` keeps a discovered Pi session listable if its folder is added back. */
-  deleteSession(id: SessionId, options?: SessionDeleteOptions): Promise<void>
+  deleteSession: IpcInvokeMethod<'sessions:delete'>
   /** Stops Pi session discovery for a project the user is removing, before its Sessions are read. */
-  beginProjectRemoval(projectPath: string): Promise<void>
-  archiveSession(id: SessionId): Promise<void>
-  unarchiveSession(id: SessionId): Promise<void>
-  updateSessionTitle(id: SessionId, title: string): Promise<void>
-  regenerateSessionTitle(id: SessionId): Promise<SessionTitleRegenerationResult>
-  setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
+  beginProjectRemoval: IpcInvokeMethod<'sessions:begin-project-removal'>
+  archiveSession: IpcInvokeMethod<'sessions:archive'>
+  unarchiveSession: IpcInvokeMethod<'sessions:unarchive'>
+  updateSessionTitle: IpcInvokeMethod<'sessions:update-title'>
+  regenerateSessionTitle: IpcInvokeMethod<'sessions:regenerate-title'>
+  setSessionAuthorizationMode: IpcInvokeMethod<'sessions:set-authorization-mode'>
   /** Switch the model the Session's next Run uses; a running Run keeps its model. */
-  setSessionModel(id: SessionId, model: SupportedModelId): Promise<void>
+  setSessionModel: IpcInvokeMethod<'sessions:set-model'>
   /** Refused with `session_run_active` while a Run is active; also sets Pi's global default. */
-  setSessionThinkingLevel(id: SessionId, level: ThinkingLevel): Promise<SessionThinkingLevelChange>
+  setSessionThinkingLevel: IpcInvokeMethod<'sessions:set-thinking-level'>
   /** Pi's default thinking level, where a new Session starts. */
-  getDefaultThinkingLevel(): Promise<ThinkingLevel>
-  setDefaultThinkingLevel(level: ThinkingLevel): Promise<void>
-  listArchivedSessionBranches(limit: number, cursor?: string): Promise<SessionCatalogPage>
-  getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
-  getSessionWorkspace(
-    sessionId: SessionId,
-    selection?: SessionWorkspaceSelection,
-    request?: SessionWorkspaceRequest,
-  ): Promise<SessionWorkspace | null>
-  searchSessionTree(
-    sessionId: SessionId,
-    query: string,
-    after?: SessionTreeSearchCursor,
-  ): Promise<SessionTreeSearchPage>
-  navigateSessionTree(
-    sessionId: SessionId,
-    model: SupportedModelId,
-    targetNodeId: SessionNodeId,
-    options?: SessionNavigateTreeOptions,
-  ): Promise<{ editorText?: string; cancelled: boolean }>
-  renameSessionBranch(sessionId: SessionId, branchId: SessionBranchId, name: string): Promise<void>
-  archiveSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
-  restoreSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
-  updateSessionTreeUiState(sessionId: SessionId, patch: SessionTreeUiStatePatch): Promise<void>
-  onSessionTitleUpdated(callback: SessionTitleUpdatedHandler): () => void
-  onSessionListInvalidated(
-    callback: (payload: IpcEventPayload<'sessions:list-invalidated'>) => void,
-  ): () => void
+  getDefaultThinkingLevel: IpcInvokeMethod<'sessions:get-default-thinking-level'>
+  setDefaultThinkingLevel: IpcInvokeMethod<'sessions:set-default-thinking-level'>
+  listArchivedSessionBranches: IpcInvokeMethod<'sessions:list-archived-branches'>
+  getSessionTree: IpcInvokeMethod<'sessions:get-tree'>
+  getSessionWorkspace: IpcInvokeMethod<'sessions:get-workspace'>
+  searchSessionTree: IpcInvokeMethod<'sessions:search-tree'>
+  navigateSessionTree: IpcInvokeMethod<'sessions:navigate-tree'>
+  renameSessionBranch: IpcInvokeMethod<'sessions:rename-branch'>
+  archiveSessionBranch: IpcInvokeMethod<'sessions:archive-branch'>
+  restoreSessionBranch: IpcInvokeMethod<'sessions:restore-branch'>
+  updateSessionTreeUiState: IpcInvokeMethod<'sessions:update-tree-ui-state'>
+  onSessionTitleUpdated: IpcEventMethod<'sessions:title-updated'>
+  onSessionListInvalidated: IpcEventMethod<'sessions:list-invalidated'>
 
   // Window
-  onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
+  onFullscreenChanged: IpcEventMethod<'window:fullscreen-changed'>
 
   // Attachments
   prepareAttachments(
     projectPath: string,
     files: readonly File[],
   ): Promise<PreparedSelectedAttachment[]>
-  prepareAttachmentFromText(
-    text: string,
-    operationId: string,
-    name?: string,
-  ): Promise<PreparedAttachment>
-  discardPreparedAttachment(attachment: PreparedAttachment): Promise<void>
-  onPrepareAttachmentFromTextProgress(
-    callback: (payload: IpcEventPayload<'attachments:prepare-from-text-progress'>) => void,
-  ): () => void
+  prepareAttachmentFromText: IpcInvokeMethod<'attachments:prepare-from-text'>
+  discardPreparedAttachment: IpcInvokeMethod<'attachments:discard'>
+  onPrepareAttachmentFromTextProgress: IpcEventMethod<'attachments:prepare-from-text-progress'>
 
   // Voice
-  transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>
+  transcribeVoiceLocal: IpcInvokeMethod<'voice:transcribe-local'>
 
-  getStandardsStatus(
-    projectPath: string,
-  ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }>
-  getEffectiveAgents(projectPath: string, targetPath?: string): Promise<AgentsResolutionResult>
-  listSkills(projectPath: string): Promise<SkillCatalogResult>
-  setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
-  getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
+  getStandardsStatus: IpcInvokeMethod<'standards:get-status'>
+  getEffectiveAgents: IpcInvokeMethod<'standards:get-effective-agents'>
+  listSkills: IpcInvokeMethod<'skills:list'>
+  setSkillEnabled: IpcInvokeMethod<'skills:set-enabled'>
+  getSkillPreview: IpcInvokeMethod<'skills:get-preview'>
 
-  showConfirm(message: string, detail?: string): Promise<boolean>
+  showConfirm: IpcInvokeMethod<'dialog:confirm'>
 
-  copyToClipboard(text: string): void
-  readFromClipboard(): Promise<string>
-  openLogsDir(): Promise<void>
-  getLogsPath(): Promise<string>
-  openPath(path: string): Promise<void>
-  revealPath(path: string): Promise<void>
+  copyToClipboard: IpcSendMethod<'clipboard:write-text'>
+  readFromClipboard: IpcInvokeMethod<'clipboard:read-text'>
+  openLogsDir: IpcInvokeMethod<'app:open-logs-dir'>
+  getLogsPath: IpcInvokeMethod<'app:get-logs-path'>
+  openPath: IpcInvokeMethod<'shell:open-path'>
+  revealPath: IpcInvokeMethod<'shell:reveal-path'>
 
-  startOAuth(provider: OAuthProvider): Promise<void>
-  submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
-  cancelOAuth(provider: OAuthProvider): Promise<void>
-  setProviderApiKey(provider: string, apiKey: string): Promise<void>
-  disconnectAuth(provider: OAuthProvider): Promise<void>
-  getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
-  getAuthAccountInfos(
-    providers: readonly OAuthProvider[],
-  ): Promise<Readonly<Partial<Record<OAuthProvider, OAuthAccountInfo>>>>
-  onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
+  startOAuth: IpcInvokeMethod<'auth:start-oauth'>
+  submitAuthCode: IpcInvokeMethod<'auth:submit-code'>
+  cancelOAuth: IpcInvokeMethod<'auth:cancel-oauth'>
+  setProviderApiKey: IpcInvokeMethod<'auth:set-api-key'>
+  disconnectAuth: IpcInvokeMethod<'auth:disconnect'>
+  getAuthAccountInfo: IpcInvokeMethod<'auth:get-account-info'>
+  getAuthAccountInfos: IpcInvokeMethod<'auth:get-account-infos'>
+  onOAuthStatus: IpcEventMethod<'auth:oauth-status'>
 
   /*
    * Feedback moved to its own interface on main, and the Waggle presets to this branch's Waggle interface, so
@@ -314,5 +181,5 @@ export interface OpenWaggleApi
    */
 
   // Composer
-  suggestFiles(projectPath: string, query: string): Promise<FileSuggestion[]>
+  suggestFiles: IpcInvokeMethod<'composer:file-suggest'>
 }

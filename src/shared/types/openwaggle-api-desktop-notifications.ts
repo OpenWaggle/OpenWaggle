@@ -1,26 +1,17 @@
-import type {
-  BundledNotificationSoundId,
-  DesktopNotificationPermissionStatus,
-} from './desktop-notification'
+import type { IpcEventMethod, IpcInvokeMethod, IpcSendMethod } from './ipc-api-methods'
 
 /** Renderer-facing Desktop notifications API (ADR 0062). */
 export interface OpenWaggleDesktopNotificationsApi {
-  getDesktopNotificationPermissionStatus(): Promise<DesktopNotificationPermissionStatus>
-  requestDesktopNotificationPermission(): Promise<DesktopNotificationPermissionStatus>
-  sendTestDesktopNotification(): Promise<DesktopNotificationPermissionStatus>
-  openDesktopNotificationSystemSettings(): Promise<undefined>
+  getDesktopNotificationPermissionStatus: IpcInvokeMethod<'desktop-notifications:get-permission-status'>
+  requestDesktopNotificationPermission: IpcInvokeMethod<'desktop-notifications:request-permission'>
+  sendTestDesktopNotification: IpcInvokeMethod<'desktop-notifications:send-test'>
+  openDesktopNotificationSystemSettings: IpcInvokeMethod<'desktop-notifications:open-system-settings'>
   /** Tell the desktop app which Session this window shows, or `null`. */
-  setDesktopNotificationViewingSession(sessionId: string | null): void
+  setDesktopNotificationViewingSession: IpcSendMethod<'desktop-notifications:set-viewing-session'>
   /** The desktop app asks the focused window to play a Notification sound. */
-  onDesktopNotificationSound(
-    callback: (payload: { readonly sound: BundledNotificationSoundId }) => void,
-  ): () => void
+  onDesktopNotificationSound: IpcEventMethod<'desktop-notifications:play-sound'>
   /** The permission status changed, for instance a notification was refused by the system. */
-  onDesktopNotificationPermissionChanged(
-    callback: (payload: DesktopNotificationPermissionStatus) => void,
-  ): () => void
+  onDesktopNotificationPermissionChanged: IpcEventMethod<'desktop-notifications:permission-changed'>
   /** A notification about a Launch schedule was clicked: open that Scheduled task. */
-  onDesktopNotificationOpenScheduledTask(
-    callback: (payload: { readonly taskId: string }) => void,
-  ): () => void
+  onDesktopNotificationOpenScheduledTask: IpcEventMethod<'desktop-notifications:open-scheduled-task'>
 }
