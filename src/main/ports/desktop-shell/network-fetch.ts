@@ -13,8 +13,8 @@ export interface ShellNetworkEgressPolicy {
 
 /**
  * The shell's own network stack (ADR 0064). Electron's `net` follows the system proxy and PAC
- * settings and reads `file:` URLs as streaming responses with the file's content type; an
- * Electrobun adapter must keep both (Bun's `fetch` reads no system proxy by itself).
+ * settings and reads `file:` URLs as streaming responses with the file's content type; every
+ * adapter must keep both.
  */
 export interface NetworkFetchShape {
   readonly fetch: (input: string | Request, init?: RequestInit) => Promise<Response>

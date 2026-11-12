@@ -38,8 +38,8 @@ export interface BrowserProfileCookieJar {
  *
  * Every renderer call names its `owner` page, the surface that sent the IPC request. A preview
  * belongs to the owner that opened it: calls from any other surface throw, and an owner that is
- * destroyed or navigates away loses its previews. Electron renders previews as `WebContentsView`s
- * in the owner's window; Electrobun renders `BrowserView`s, with CEF where CDP is needed.
+ * destroyed or navigates away loses its previews. The Electron adapter renders previews as
+ * `WebContentsView`s in the owner's window.
  */
 export interface BrowserPreviewViewsShape {
   readonly registerOwner: (ownerKey: string, owner: RendererSurface) => void

@@ -11,8 +11,7 @@ import { Context } from 'effect'
  * - `session-resource`: Session images and files the renderer displays.
  *
  * Electron serves a privileged custom scheme per domain (`TRUSTED_ORIGIN_SCHEMES`) through
- * `protocol.handle`. Electrobun
- * serves a `Bun.serve` origin per domain on `127.0.0.1` that requires a per-launch token.
+ * `protocol.handle`.
  */
 export type TrustedOriginDomain =
   | 'renderer'
