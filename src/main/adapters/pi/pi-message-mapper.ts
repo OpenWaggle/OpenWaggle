@@ -59,12 +59,12 @@ function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined
     return fallbackArgs ?? {}
   }
 
-  const args = toJsonObject(details['args'])
+  const args = toJsonObject(details.args)
   return Object.keys(args).length > 0 ? args : (fallbackArgs ?? {})
 }
 
 function toToolResultDuration(details: unknown) {
-  return isRecord(details) && typeof details['duration'] === 'number' ? details['duration'] : 0
+  return isRecord(details) && typeof details.duration === 'number' ? details.duration : 0
 }
 
 function toProjectedToolResultValue(content: readonly unknown[], details: unknown) {
@@ -125,14 +125,14 @@ function projectAssistantPart(
   part: unknown,
   toolCallArgs: Map<string, JsonObject>,
 ): MessagePart | null {
-  if (!isRecord(part) || typeof part['type'] !== 'string') {
+  if (!isRecord(part) || typeof part.type !== 'string') {
     return null
   }
-  if (part['type'] === 'text' && typeof part['text'] === 'string') {
-    return { type: 'text', text: part['text'] }
+  if (part.type === 'text' && typeof part.text === 'string') {
+    return { type: 'text', text: part.text }
   }
-  if (part['type'] === 'thinking' && typeof part['thinking'] === 'string') {
-    return { type: 'reasoning', text: part['thinking'] }
+  if (part.type === 'thinking' && typeof part.thinking === 'string') {
+    return { type: 'reasoning', text: part.thinking }
   }
   return isPiToolCallContent(part) ? projectToolCallPart(part, toolCallArgs) : null
 }
@@ -140,10 +140,10 @@ function projectAssistantPart(
 function isPiToolCallContent(part: unknown): part is PiToolCallContent {
   return (
     isRecord(part) &&
-    part['type'] === 'toolCall' &&
-    typeof part['id'] === 'string' &&
-    typeof part['name'] === 'string' &&
-    isRecord(part['arguments'])
+    part.type === 'toolCall' &&
+    typeof part.id === 'string' &&
+    typeof part.name === 'string' &&
+    isRecord(part.arguments)
   )
 }
 

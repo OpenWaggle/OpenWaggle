@@ -79,7 +79,7 @@ runContract(systemNotificationsContract, async () => {
   const { electronSystemNotifications } = await import('../../electron-system-notifications')
   return {
     subject: electronSystemNotifications,
-    shownTitles: () => electron.notifications.shown.map((shown) => String(shown.options['title'])),
+    shownTitles: () => electron.notifications.shown.map((shown) => String(shown.options.title)),
     clickLast: () => electron.notifications.shown.at(-1)?.emit('click'),
     enterAutomation,
   }

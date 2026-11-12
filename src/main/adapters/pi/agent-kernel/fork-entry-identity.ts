@@ -34,7 +34,7 @@ function nextEntryId(taken: ReadonlySet<string>) {
 }
 
 function isSessionEntry(line: unknown): line is { readonly id: string; readonly type: string } {
-  return isRecord(line) && line['type'] !== 'session' && typeof line['id'] === 'string'
+  return isRecord(line) && line.type !== 'session' && typeof line.id === 'string'
 }
 
 /**
@@ -66,10 +66,8 @@ export function rekeySessionLines(
     const next = remapReferences({ ...line, id: idMap.get(line.id) ?? line.id }, idMap, [
       ...ENTRY_REFERENCE_FIELDS,
     ])
-    if (next['customType'] === RECONSTRUCTION_CUSTOM_TYPE && isRecord(next['data'])) {
-      next['data'] = remapReferences({ ...next['data'] }, idMap, [
-        ...RECONSTRUCTION_REFERENCE_FIELDS,
-      ])
+    if (next.customType === RECONSTRUCTION_CUSTOM_TYPE && isRecord(next.data)) {
+      next.data = remapReferences({ ...next.data }, idMap, [...RECONSTRUCTION_REFERENCE_FIELDS])
     }
     return next
   })
@@ -120,7 +118,7 @@ async function syncDirectory(directory: string) {
   } catch (error) {
     logger.warn('Could not sync the Pi session directory after replacing a file', {
       directory,
-      code: isRecord(error) && typeof error['code'] === 'string' ? error['code'] : 'unknown',
+      code: isRecord(error) && typeof error.code === 'string' ? error.code : 'unknown',
     })
   }
 }

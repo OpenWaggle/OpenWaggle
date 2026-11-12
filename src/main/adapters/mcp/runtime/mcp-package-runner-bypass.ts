@@ -120,7 +120,7 @@ export class PackageRunnerBypass {
       input.command,
       launch.packageSpec,
       launch.binName ?? null,
-      input.env['PATH'] ?? '',
+      input.env.PATH ?? '',
       launch.localFolder ?? null,
       folderConfigOf(input.cwd),
     ])
@@ -159,7 +159,7 @@ export class PackageRunnerBypass {
     const key = this.key(launch, input)
     const entry = this.cache()[key]
     if (!options.refresh && entry && this.fresh(entry)) {
-      const PATH = [entry.binDirectory, input.env['PATH']].filter(Boolean).join(path.delimiter)
+      const PATH = [entry.binDirectory, input.env.PATH].filter(Boolean).join(path.delimiter)
       return {
         ...input,
         command: entry.command,

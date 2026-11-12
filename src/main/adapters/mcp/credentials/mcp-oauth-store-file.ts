@@ -55,18 +55,14 @@ function decryptStore(encrypted: string, encryption: McpOAuthEncryption) {
 
 function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer {
   const file: unknown = JSON.parse(text)
-  if (
-    !isRecord(file) ||
-    file['version'] !== STORE_VERSION ||
-    typeof file['encrypted'] !== 'string'
-  ) {
+  if (!isRecord(file) || file.version !== STORE_VERSION || typeof file.encrypted !== 'string') {
     throw new Error('OpenWaggle MCP sign-in storage has an unsupported format.')
   }
-  const layer: unknown = JSON.parse(decryptStore(file['encrypted'], encryption))
+  const layer: unknown = JSON.parse(decryptStore(file.encrypted, encryption))
   if (!isRecord(layer)) throw new Error('OpenWaggle MCP sign-in storage is invalid.')
   return {
-    states: isRecord(layer['states']) ? { ...layer['states'] } : {},
-    tombstones: stringRecord(layer['tombstones']),
+    states: isRecord(layer.states) ? { ...layer.states } : {},
+    tombstones: stringRecord(layer.tombstones),
   }
 }
 

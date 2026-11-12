@@ -16,8 +16,8 @@ export function reservedFollowUpIds(sql: SqlClient.SqlClient, sessionId: string)
       for (const row of rows) {
         try {
           const request = parseJsonUnknown(row.request_json)
-          if (isRecord(request) && typeof request['followUpId'] === 'string') {
-            ids.add(request['followUpId'])
+          if (isRecord(request) && typeof request.followUpId === 'string') {
+            ids.add(request.followUpId)
           }
         } catch {
           // Invalid durable requests are handled by host recovery; do not reserve an unknown item.
@@ -44,7 +44,7 @@ export function hasPendingReplacementForRun(
       rows.some((row) => {
         try {
           const request = parseJsonUnknown(row.request_json)
-          return isRecord(request) && request['expectedRunId'] === runId
+          return isRecord(request) && request.expectedRunId === runId
         } catch {
           return false
         }

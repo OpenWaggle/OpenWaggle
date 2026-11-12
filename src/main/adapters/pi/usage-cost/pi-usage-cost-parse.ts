@@ -87,14 +87,12 @@ function shortened(text: string) {
 
 /** The text of a user message, whether Pi stored it as a string or as content blocks. */
 function userPromptText(message: Readonly<Record<string, unknown>>) {
-  if (message['role'] !== 'user') return null
-  if (typeof message['content'] === 'string') return message['content']
-  if (!Array.isArray(message['content'])) return null
-  return message['content']
+  if (message.role !== 'user') return null
+  if (typeof message.content === 'string') return message.content
+  if (!Array.isArray(message.content)) return null
+  return message.content
     .flatMap((part: unknown) =>
-      isRecord(part) && part['type'] === 'text' && typeof part['text'] === 'string'
-        ? [part['text']]
-        : [],
+      isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
     )
     .join(' ')
 }
@@ -109,30 +107,30 @@ function sessionTitle(state: ParseState) {
 }
 
 function absorbTitle(state: ParseState, entry: Readonly<Record<string, unknown>>) {
-  if (entry['type'] === 'session_info') {
-    state.name = typeof entry['name'] === 'string' && entry['name'].trim() ? entry['name'] : null
+  if (entry.type === 'session_info') {
+    state.name = typeof entry.name === 'string' && entry.name.trim() ? entry.name : null
     return
   }
-  if (state.firstPrompt !== null || entry['type'] !== 'message' || !isRecord(entry['message'])) {
+  if (state.firstPrompt !== null || entry.type !== 'message' || !isRecord(entry.message)) {
     return
   }
-  const text = userPromptText(entry['message'])
+  const text = userPromptText(entry.message)
   if (text?.trim()) state.firstPrompt = text
 }
 
 function absorbEntry(state: ParseState, entry: Readonly<Record<string, unknown>>) {
-  const type = entry['type']
+  const type = entry.type
   absorbTitle(state, entry)
 
   if (type === 'session') {
-    if (typeof entry['id'] === 'string') state.sessionId = entry['id']
-    if (typeof entry['cwd'] === 'string') state.cwd = entry['cwd']
-    const headerTimestamp = parseTimestampMs(entry['timestamp'])
+    if (typeof entry.id === 'string') state.sessionId = entry.id
+    if (typeof entry.cwd === 'string') state.cwd = entry.cwd
+    const headerTimestamp = parseTimestampMs(entry.timestamp)
     if (headerTimestamp !== null) state.startedAtMs = headerTimestamp
     return
   }
 
-  const timestampMs = parseTimestampMs(entry['timestamp'])
+  const timestampMs = parseTimestampMs(entry.timestamp)
   if (
     timestampMs !== null &&
     (state.lastActivityMs === null || timestampMs > state.lastActivityMs)
@@ -140,17 +138,17 @@ function absorbEntry(state: ParseState, entry: Readonly<Record<string, unknown>>
     state.lastActivityMs = timestampMs
   }
 
-  if (type === 'custom' && typeof entry['customType'] === 'string') {
-    if (entry['customType'].startsWith(OPENWAGGLE_CUSTOM_TYPE_PREFIX)) state.origin = 'openwaggle'
+  if (type === 'custom' && typeof entry.customType === 'string') {
+    if (entry.customType.startsWith(OPENWAGGLE_CUSTOM_TYPE_PREFIX)) state.origin = 'openwaggle'
     return
   }
 
   if (
     type === 'model_change' &&
-    typeof entry['provider'] === 'string' &&
-    typeof entry['modelId'] === 'string'
+    typeof entry.provider === 'string' &&
+    typeof entry.modelId === 'string'
   ) {
-    state.lastModel = { provider: entry['provider'], modelId: entry['modelId'] }
+    state.lastModel = { provider: entry.provider, modelId: entry.modelId }
   }
 }
 
@@ -158,12 +156,12 @@ function extractRecords(
   entry: Readonly<Record<string, unknown>>,
   lastModel: { provider: string; modelId: string } | null,
 ): UsageCostRecord[] {
-  const timestampMs = parseTimestampMs(entry['timestamp'])
+  const timestampMs = parseTimestampMs(entry.timestamp)
   if (timestampMs === null) return []
 
-  if (entry['type'] === 'message') return messageRecords(entry, timestampMs, lastModel)
-  if (entry['type'] === 'usage') return directUsageRecords(entry, timestampMs)
-  if (entry['type'] === 'compaction' || entry['type'] === 'branch_summary') {
+  if (entry.type === 'message') return messageRecords(entry, timestampMs, lastModel)
+  if (entry.type === 'usage') return directUsageRecords(entry, timestampMs)
+  if (entry.type === 'compaction' || entry.type === 'branch_summary') {
     return summaryRecords(entry, timestampMs)
   }
   return []
@@ -174,24 +172,23 @@ function messageRecords(
   timestampMs: number,
   lastModel: { provider: string; modelId: string } | null,
 ): UsageCostRecord[] {
-  const message = entry['message']
-  if (!isRecord(message) || !isRecord(message['usage'])) return []
+  const message = entry.message
+  if (!isRecord(message) || !isRecord(message.usage)) return []
 
-  if (message['role'] === 'assistant') {
-    const provider =
-      typeof message['provider'] === 'string' ? message['provider'] : lastModel?.provider
-    const modelId = typeof message['model'] === 'string' ? message['model'] : lastModel?.modelId
+  if (message.role === 'assistant') {
+    const provider = typeof message.provider === 'string' ? message.provider : lastModel?.provider
+    const modelId = typeof message.model === 'string' ? message.model : lastModel?.modelId
     if (provider === undefined || modelId === undefined) return []
-    return [createRecord(timestampMs, provider, modelId, message['usage'])]
+    return [createRecord(timestampMs, provider, modelId, message.usage)]
   }
 
-  if (message['role'] === 'toolResult') {
+  if (message.role === 'toolResult') {
     return [
       createRecord(
         timestampMs,
         USAGE_COST_TOOLS_MODEL_PROVIDER,
         USAGE_COST_TOOLS_MODEL_ID,
-        message['usage'],
+        message.usage,
       ),
     ]
   }
@@ -202,22 +199,22 @@ function directUsageRecords(
   entry: Readonly<Record<string, unknown>>,
   timestampMs: number,
 ): UsageCostRecord[] {
-  if (typeof entry['provider'] !== 'string' || typeof entry['model'] !== 'string') return []
-  if (!isRecord(entry['usage'])) return []
-  return [createRecord(timestampMs, entry['provider'], entry['model'], entry['usage'])]
+  if (typeof entry.provider !== 'string' || typeof entry.model !== 'string') return []
+  if (!isRecord(entry.usage)) return []
+  return [createRecord(timestampMs, entry.provider, entry.model, entry.usage)]
 }
 
 function summaryRecords(
   entry: Readonly<Record<string, unknown>>,
   timestampMs: number,
 ): UsageCostRecord[] {
-  if (!isRecord(entry['usage'])) return []
+  if (!isRecord(entry.usage)) return []
   return [
     createRecord(
       timestampMs,
       USAGE_COST_TOOLS_MODEL_PROVIDER,
       USAGE_COST_TOOLS_MODEL_ID,
-      entry['usage'],
+      entry.usage,
     ),
   ]
 }
@@ -229,14 +226,14 @@ function createRecord(
   usage: Readonly<Record<string, unknown>>,
 ): UsageCostRecord {
   const tokens: UsageCostRecordTokens = {
-    input: tokenCount(usage['input']),
-    output: tokenCount(usage['output']),
-    cacheRead: tokenCount(usage['cacheRead']),
-    cacheWrite: tokenCount(usage['cacheWrite']),
+    input: tokenCount(usage.input),
+    output: tokenCount(usage.output),
+    cacheRead: tokenCount(usage.cacheRead),
+    cacheWrite: tokenCount(usage.cacheWrite),
   }
   const totalTokens =
-    typeof usage['totalTokens'] === 'number'
-      ? usage['totalTokens']
+    typeof usage.totalTokens === 'number'
+      ? usage.totalTokens
       : tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite
   return {
     timestampMs,
@@ -250,10 +247,10 @@ function createRecord(
 }
 
 function recordedCost(usage: Readonly<Record<string, unknown>>): number | null {
-  const cost = usage['cost']
+  const cost = usage.cost
   if (!isRecord(cost)) return null
-  if (typeof cost['total'] !== 'number' || !Number.isFinite(cost['total'])) return null
-  return cost['total']
+  if (typeof cost.total !== 'number' || !Number.isFinite(cost.total)) return null
+  return cost.total
 }
 
 function applyEstimate(record: UsageCostRecord, estimateCost: UsageCostEstimator): UsageCostRecord {

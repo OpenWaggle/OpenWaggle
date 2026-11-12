@@ -67,32 +67,32 @@ const CODEX_FALLBACK_TOOL_PATTERN = '*'
 
 /** Reshape source-specific layouts into the generic `mcpServers` layout. */
 function reshape(source: ExternalMcpImportSource, value: Raw): Raw {
-  if (source === 'zed' && isRecord(value['command'])) {
-    const { path: command, args, env } = value['command']
+  if (source === 'zed' && isRecord(value.command)) {
+    const { path: command, args, env } = value.command
     return { ...value, command, args, env }
   }
-  if (source === 'opencode' && value['environment'] !== undefined && value['env'] === undefined) {
-    return { ...value, env: value['environment'] }
+  if (source === 'opencode' && value.environment !== undefined && value.env === undefined) {
+    return { ...value, env: value.environment }
   }
-  if (source === 'windsurf' && value['url'] === undefined) {
-    return { ...value, url: value['serverUrl'] }
+  if (source === 'windsurf' && value.url === undefined) {
+    return { ...value, url: value.serverUrl }
   }
   return value
 }
 
 function endpointFields(value: Raw, context: ImportValueContext): PiMcpEntry {
-  const commandArray = stringArray(value['command'])
-  const rawCommand = commandArray?.[0] ?? nonEmptyString(value['command'])
+  const commandArray = stringArray(value.command)
+  const rawCommand = commandArray?.[0] ?? nonEmptyString(value.command)
   // Pi takes these as written, like arguments: a variable in them is kept, with a warning.
   const command = rawCommand && literalString(rawCommand, 'command', context)
   const args = portableArgs(
-    commandArray?.slice(1) ?? stringArray(value['args']) ?? [],
+    commandArray?.slice(1) ?? stringArray(value.args) ?? [],
     rawCommand,
     context,
   )
-  const rawCwd = nonEmptyString(value['cwd'])
+  const rawCwd = nonEmptyString(value.cwd)
   const cwd = rawCwd && literalString(rawCwd, 'cwd', context)
-  const rawUrl = nonEmptyString(value['url'])
+  const rawUrl = nonEmptyString(value.url)
   const url = rawUrl && urlWithoutCredentials(literalString(rawUrl, 'url', context), 'url', context)
   return {
     ...(command ? { command } : {}),
@@ -103,7 +103,7 @@ function endpointFields(value: Raw, context: ImportValueContext): PiMcpEntry {
 }
 
 function typeField(value: Raw, context: ImportValueContext): PiMcpEntry {
-  const type = value['type']
+  const type = value.type
   if (type === undefined || (typeof type === 'string' && IMPLICIT_TYPES.has(type))) return {}
   if (type === 'sse') return { type: 'sse' }
   context.warnings.push(
@@ -114,10 +114,10 @@ function typeField(value: Raw, context: ImportValueContext): PiMcpEntry {
 
 function codexHeaders(value: Raw, context: ImportValueContext) {
   const headers: Record<string, string> = {}
-  const bearer = nonEmptyString(value['bearer_token_env_var'])
-  if (bearer) headers['Authorization'] = `Bearer \${${bearer}}`
-  if (isRecord(value['env_http_headers'])) {
-    for (const [header, variable] of Object.entries(value['env_http_headers'])) {
+  const bearer = nonEmptyString(value.bearer_token_env_var)
+  if (bearer) headers.Authorization = `Bearer \${${bearer}}`
+  if (isRecord(value.env_http_headers)) {
+    for (const [header, variable] of Object.entries(value.env_http_headers)) {
       if (typeof variable === 'string') headers[header] = `\${${variable}}`
       else {
         context.warnings.push(`env_http_headers.${header} was ignored because it is not a string.`)
@@ -132,11 +132,10 @@ function credentialFields(
   value: Raw,
   context: ImportValueContext,
 ): PiMcpEntry {
-  const mapped = credentialMap(value['env'], 'env', context)
+  const mapped = credentialMap(value.env, 'env', context)
   const env =
     Object.keys(context.argumentEnv).length > 0 ? { ...context.argumentEnv, ...mapped } : mapped
-  const headerSource =
-    source === 'codex' ? (value['http_headers'] ?? value['headers']) : value['headers']
+  const headerSource = source === 'codex' ? (value.http_headers ?? value.headers) : value.headers
   const headers = {
     ...credentialMap(headerSource, 'headers', context),
     ...(source === 'codex' ? codexHeaders(value, context) : {}),
@@ -161,9 +160,9 @@ function oauthValue(key: string, entry: unknown, context: ImportValueContext) {
 }
 
 function oauthField(value: Raw, context: ImportValueContext): PiMcpEntry {
-  if (!isRecord(value['oauth'])) return {}
+  if (!isRecord(value.oauth)) return {}
   const oauth: Record<string, unknown> = {}
-  for (const [key, entry] of Object.entries(value['oauth'])) {
+  for (const [key, entry] of Object.entries(value.oauth)) {
     const converted = oauthValue(key, entry, context)
     if (converted === undefined) {
       context.warnings.push(`oauth.${key} has no Pi equivalent and was not imported.`)
@@ -175,8 +174,8 @@ function oauthField(value: Raw, context: ImportValueContext): PiMcpEntry {
 }
 
 function codexToolExposure(value: Raw): PiMcpEntry {
-  const enabled = stringArray(value['enabled_tools'])
-  const disabled = stringArray(value['disabled_tools']) ?? []
+  const enabled = stringArray(value.enabled_tools)
+  const disabled = stringArray(value.disabled_tools) ?? []
   const exposure: Record<string, string> = {}
   if (enabled) {
     for (const name of enabled) exposure[name] = 'codemode'
@@ -187,20 +186,20 @@ function codexToolExposure(value: Raw): PiMcpEntry {
 }
 
 function codexFields(value: Raw, context: ImportValueContext): PiMcpEntry {
-  if (value['startup_timeout_sec'] !== undefined || value['startup_timeout_ms'] !== undefined) {
+  if (value.startup_timeout_sec !== undefined || value.startup_timeout_ms !== undefined) {
     context.warnings.push('The startup timeout has no Pi equivalent and was not imported.')
   }
   const timeout =
-    typeof value['tool_timeout_sec'] === 'number' && value['tool_timeout_sec'] > 0
-      ? { timeout: value['tool_timeout_sec'] }
+    typeof value.tool_timeout_sec === 'number' && value.tool_timeout_sec > 0
+      ? { timeout: value.tool_timeout_sec }
       : {}
   return { ...timeout, ...codexToolExposure(value) }
 }
 
 function stateFields(value: Raw): PiMcpEntry {
-  const description = nonEmptyString(value['description'])
+  const description = nonEmptyString(value.description)
   return {
-    ...(value['enabled'] === false || value['disabled'] === true ? { enabled: false } : {}),
+    ...(value.enabled === false || value.disabled === true ? { enabled: false } : {}),
     ...(description ? { description } : {}),
   }
 }
@@ -247,7 +246,7 @@ export function normalizeImportedEntry(
     ...stateFields(shaped),
   }
   warnUnknownFields(source, value, context)
-  if (entry['command'] === undefined && entry['url'] === undefined) {
+  if (entry.command === undefined && entry.url === undefined) {
     context.warnings.push('No portable command or URL was found; this server cannot be imported.')
   }
   return { entry, warnings: context.warnings }

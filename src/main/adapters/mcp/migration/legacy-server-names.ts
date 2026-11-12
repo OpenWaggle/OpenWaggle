@@ -27,12 +27,12 @@ function legacyServerFiles(sources: McpFileSources, projects: readonly string[])
 /** The identity of what an old entry ran or connected to, as `mcpServerIdentity` makes it. */
 function legacyEntryIdentity(name: string, entry: unknown) {
   if (!isRecord(entry)) return undefined
-  if (typeof entry['url'] === 'string') return mcpServerIdentity(name, { url: entry['url'] })
-  if (typeof entry['command'] !== 'string') return undefined
-  const args = Array.isArray(entry['args'])
-    ? entry['args'].filter((arg): arg is string => typeof arg === 'string')
+  if (typeof entry.url === 'string') return mcpServerIdentity(name, { url: entry.url })
+  if (typeof entry.command !== 'string') return undefined
+  const args = Array.isArray(entry.args)
+    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
     : []
-  return mcpServerIdentity(name, { command: entry['command'], args })
+  return mcpServerIdentity(name, { command: entry.command, args })
 }
 
 /** For every server in the files the old code read: its name and what it was, by instance ID. */

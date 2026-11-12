@@ -137,7 +137,7 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     const result = await admittedSessionControlRun(sessionId, 'Go on')
 
     expect(result.terminalStatus).toBe('completed')
-    expect(provider.requests.map((request) => request['model'])).toEqual(['file-model'])
+    expect(provider.requests.map((request) => request.model)).toEqual(['file-model'])
     expect(provider.requests[0]).toMatchObject({ reasoning_effort: 'high' })
   })
 
@@ -153,7 +153,7 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     const result = await admittedSessionControlRun(sessionId, 'Go on', 'low')
 
     expect(result.terminalStatus).toBe('completed')
-    expect(provider.requests.map((request) => request['model'])).toEqual(['file-model'])
+    expect(provider.requests.map((request) => request.model)).toEqual(['file-model'])
     expect(provider.requests[0]).toMatchObject({ reasoning_effort: 'low' })
     expect(await sessionDetail(sessionId)).toMatchObject({
       executionModel: 'local/file-model',
@@ -190,7 +190,7 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     const result = await sessionControlRun(SessionId(sessionId), 'Go on')
 
     expect(result.terminalStatus).toBe('completed')
-    expect(provider.requests.map((request) => request['model'])).toEqual(['file-model'])
+    expect(provider.requests.map((request) => request.model)).toEqual(['file-model'])
     expect(await sessionDetail(sessionId)).toMatchObject({
       executionModel: 'local/file-model',
       executionThinkingLevel: 'high',

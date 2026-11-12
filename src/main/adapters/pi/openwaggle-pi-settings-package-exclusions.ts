@@ -18,13 +18,13 @@ function serializeJsonObject(value: JsonObject) {
 function getPackageSource(value: JsonValue): string | null {
   if (typeof value === 'string') return value
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    return typeof value['source'] === 'string' ? value['source'] : null
+    return typeof value.source === 'string' ? value.source : null
   }
   return null
 }
 
 function getPackageEntries(settings: JsonObject) {
-  return Array.isArray(settings['packages']) ? [...settings['packages']] : []
+  return Array.isArray(settings.packages) ? [...settings.packages] : []
 }
 
 function getNpmPackageName(source: string) {
@@ -47,7 +47,7 @@ function getExcludedExtensionPatterns(excludedSources: readonly string[]) {
 }
 
 function withExcludedExtensionPatterns(settings: JsonObject, excludedSources: readonly string[]) {
-  const nextExtensions = isStringArray(settings['extensions']) ? [...settings['extensions']] : []
+  const nextExtensions = isStringArray(settings.extensions) ? [...settings.extensions] : []
   const extensionSet = new Set(nextExtensions)
   for (const pattern of getExcludedExtensionPatterns(excludedSources)) {
     if (extensionSet.has(pattern)) continue
@@ -154,10 +154,10 @@ export function withoutSyntheticExcludedExtensionPatterns(
   const currentSettings = parseJsonObject(currentContent)
   const nextSettings = parseJsonObject(nextContent)
   const currentExtensions = new Set(
-    isStringArray(currentSettings['extensions']) ? currentSettings['extensions'] : [],
+    isStringArray(currentSettings.extensions) ? currentSettings.extensions : [],
   )
   const syntheticPatterns = new Set(getExcludedExtensionPatterns(excludedSources))
-  const nextExtensions = isStringArray(nextSettings['extensions']) ? nextSettings['extensions'] : []
+  const nextExtensions = isStringArray(nextSettings.extensions) ? nextSettings.extensions : []
   const persisted = nextExtensions.filter(
     (entry) => !syntheticPatterns.has(entry) || currentExtensions.has(entry),
   )

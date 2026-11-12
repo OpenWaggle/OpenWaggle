@@ -38,7 +38,7 @@ export function unavailabilityOf(file: string): PiSessionFileUnavailability | un
     // Something is there that could not be followed or read.
     return 'file'
   } catch (cause) {
-    const code = isRecord(cause) ? cause['code'] : undefined
+    const code = isRecord(cause) ? cause.code : undefined
     if (code !== 'ENOENT') return 'file'
     return existsSync(dirname(file)) ? undefined : 'folder'
   }

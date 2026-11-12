@@ -51,25 +51,25 @@ function parseLine(line: string): unknown {
 }
 
 function leavesTurnRunning(message: Readonly<Record<string, unknown>>) {
-  if (message['role'] === 'toolResult') return true
-  return message['role'] === 'assistant' && message['stopReason'] === 'toolUse'
+  if (message.role === 'toolResult') return true
+  return message.role === 'assistant' && message.stopReason === 'toolUse'
 }
 
 function nextScan(scan: OriginScan, entry: Readonly<Record<string, unknown>>): OriginScan {
-  if (entry['type'] === 'custom') {
-    if (entry['customType'] === OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
+  if (entry.type === 'custom') {
+    if (entry.customType === OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
       return { origin: 'openwaggle', afterOpenWaggleInput: false, turnRunning: false }
     }
-    if (entry['customType'] === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
+    if (entry.customType === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
       return { ...scan, afterOpenWaggleInput: true }
     }
     return { ...scan, afterOpenWaggleInput: false }
   }
-  if (entry['type'] !== 'message' || !isRecord(entry['message'])) {
+  if (entry.type !== 'message' || !isRecord(entry.message)) {
     return { ...scan, afterOpenWaggleInput: false }
   }
-  const message = entry['message']
-  if (message['role'] !== 'user') {
+  const message = entry.message
+  if (message.role !== 'user') {
     return { ...scan, afterOpenWaggleInput: false, turnRunning: leavesTurnRunning(message) }
   }
   const origin = scan.afterOpenWaggleInput

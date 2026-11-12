@@ -71,7 +71,7 @@ async function prepareZshLaunch(
   readinessNonce: string,
 ): Promise<PreparedTerminalShellLaunch> {
   const directory = await makePrivateIntegrationDirectory('zsh')
-  const originalZdotdir = environment['ZDOTDIR']
+  const originalZdotdir = environment.ZDOTDIR
   const scripts = buildZshStartupScripts({ directory, originalZdotdir, readinessNonce })
 
   try {
@@ -99,7 +99,7 @@ async function prepareBashLaunch(
   readinessNonce: string,
 ): Promise<PreparedTerminalShellLaunch> {
   const directory = await makePrivateIntegrationDirectory('bash')
-  const originalHome = environment['HOME'] ?? homedir()
+  const originalHome = environment.HOME ?? homedir()
 
   try {
     await writePrivateFile(

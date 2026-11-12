@@ -38,7 +38,7 @@ function renamedModelKeyedObject(value: JsonValue | undefined): JsonObject | und
 
 function renamedCompaction(value: JsonValue | undefined): JsonObject | undefined {
   if (!isJsonObject(value)) return undefined
-  const modelOverrides = renamedModelKeyedObject(value['modelOverrides'])
+  const modelOverrides = renamedModelKeyedObject(value.modelOverrides)
   return modelOverrides ? { ...value, modelOverrides } : undefined
 }
 
@@ -50,27 +50,27 @@ function renamedCompaction(value: JsonValue | undefined): JsonObject | undefined
 export function renameLegacyProviderPiSettings<T extends JsonObject>(settings: T): T {
   const next: Record<string, JsonValue> = { ...settings }
   let changed = false
-  const defaultProvider = settings['defaultProvider']
+  const defaultProvider = settings.defaultProvider
   if (
     typeof defaultProvider === 'string' &&
     renameLegacyProviderId(defaultProvider) !== defaultProvider
   ) {
-    next['defaultProvider'] = renameLegacyProviderId(defaultProvider)
+    next.defaultProvider = renameLegacyProviderId(defaultProvider)
     changed = true
   }
-  const enabledModels = renamedStringArray(settings['enabledModels'])
+  const enabledModels = renamedStringArray(settings.enabledModels)
   if (enabledModels) {
-    next['enabledModels'] = enabledModels
+    next.enabledModels = enabledModels
     changed = true
   }
-  const modelThinkingLevels = renamedModelKeyedObject(settings['modelThinkingLevels'])
+  const modelThinkingLevels = renamedModelKeyedObject(settings.modelThinkingLevels)
   if (modelThinkingLevels) {
-    next['modelThinkingLevels'] = modelThinkingLevels
+    next.modelThinkingLevels = modelThinkingLevels
     changed = true
   }
-  const compaction = renamedCompaction(settings['compaction'])
+  const compaction = renamedCompaction(settings.compaction)
   if (compaction) {
-    next['compaction'] = compaction
+    next.compaction = compaction
     changed = true
   }
   return changed ? { ...settings, ...next } : settings

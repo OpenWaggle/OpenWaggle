@@ -4,7 +4,7 @@ import type { ExternalMcpImportSource } from '../import-types'
 
 function env(source: ExternalMcpImportSource, values: Record<string, string>) {
   const entry = normalizeImportedEntry(source, 'db', { command: 'db-mcp', env: values })?.entry
-  return entry?.['env']
+  return entry?.env
 }
 
 describe('imported env and header values, as Pi will read them', () => {
@@ -55,8 +55,8 @@ describe('imported env and header values, as Pi will read them', () => {
         oauth: { clientId: value },
       })
 
-      expect(normalized?.entry['args']).toEqual(['--root', value])
-      expect(normalized?.entry['oauth']).toEqual({ clientId: value })
+      expect(normalized?.entry.args).toEqual(['--root', value])
+      expect(normalized?.entry.oauth).toEqual({ clientId: value })
       expect(normalized?.warnings).toEqual([
         `args uses ${value}, which Pi does not expand there; it was kept as written.`,
         `oauth.clientId uses ${value}, which Pi does not expand there; it was kept as written.`,
@@ -93,8 +93,8 @@ describe('imported env and header values, as Pi will read them', () => {
       env: { CACHE: `\${userHome}/.cache` },
     })
 
-    expect(normalized?.entry['args']).toEqual(['--root', `\${workspaceFolder}`])
-    expect(normalized?.entry['env']).toEqual({ CACHE: `$\${userHome}/.cache` })
+    expect(normalized?.entry.args).toEqual(['--root', `\${workspaceFolder}`])
+    expect(normalized?.entry.env).toEqual({ CACHE: `$\${userHome}/.cache` })
     expect(normalized?.warnings).toEqual([
       "args uses VS Code's ${workspaceFolder}, which only VS Code fills in; Pi takes it as written, so put the real value there.",
       "env.CACHE uses VS Code's ${userHome}, which only VS Code fills in; Pi takes it as written, so put the real value there.",

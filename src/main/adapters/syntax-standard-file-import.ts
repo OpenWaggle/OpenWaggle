@@ -29,7 +29,7 @@ export async function parseJsonSyntaxFile(
   if (!isRecord(raw)) throw new Error('Theme JSON must contain an object.')
   const native = nativeSyntaxResources(raw, filePath, scope)
   if (native) return native
-  if (typeof raw['scopeName'] === 'string' && Array.isArray(raw['patterns'])) {
+  if (typeof raw.scopeName === 'string' && Array.isArray(raw.patterns)) {
     return {
       themes: [],
       languages: [
@@ -47,7 +47,7 @@ export async function parseJsonSyntaxFile(
     }
   }
   const label =
-    typeof raw['name'] === 'string' ? raw['name'] : path.basename(filePath, path.extname(filePath))
+    typeof raw.name === 'string' ? raw.name : path.basename(filePath, path.extname(filePath))
   const themeRoot = path.dirname(entryPath)
   const parsedByPath = new Map<string, unknown>([[entryPath, raw]])
   const resolved = await resolveThemeDeclaration(
@@ -96,7 +96,7 @@ export async function parseTextMateSyntaxFile(
   const raw: unknown = parseTextMatePlist(
     (await readBoundedFile(filePath, undefined, readBudget)).toString('utf8'),
   )
-  if (isRecord(raw) && typeof raw['scopeName'] === 'string' && Array.isArray(raw['patterns'])) {
+  if (isRecord(raw) && typeof raw.scopeName === 'string' && Array.isArray(raw.patterns)) {
     return {
       themes: [],
       languages: [
@@ -113,8 +113,7 @@ export async function parseTextMateSyntaxFile(
       appearances: [],
     }
   }
-  const label =
-    isRecord(raw) && typeof raw['name'] === 'string' ? raw['name'] : path.basename(filePath)
+  const label = isRecord(raw) && typeof raw.name === 'string' ? raw.name : path.basename(filePath)
   return {
     themes: [
       normalizedTheme({

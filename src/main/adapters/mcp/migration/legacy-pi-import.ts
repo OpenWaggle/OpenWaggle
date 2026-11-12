@@ -127,10 +127,10 @@ function directToolsValue(value: unknown) {
 }
 
 function endpointFields(value: Record<string, unknown>) {
-  const commandArray = stringArray(value['command'])
-  const command = commandArray?.[0] ?? stringValue(value['command'])
-  const args = sanitizeArgs(commandArray?.slice(1) ?? stringArray(value['args']))
-  const url = stringValue(value['url'])
+  const commandArray = stringArray(value.command)
+  const command = commandArray?.[0] ?? stringValue(value.command)
+  const args = sanitizeArgs(commandArray?.slice(1) ?? stringArray(value.args))
+  const url = stringValue(value.url)
   return {
     ...(command ? { command } : {}),
     ...(args?.length ? { args } : {}),
@@ -139,9 +139,9 @@ function endpointFields(value: Record<string, unknown>) {
 }
 
 function credentialFields(value: Record<string, unknown>, name: string) {
-  const env = credentialMap(name, value['env'] ?? value['environment'])
-  const headers = credentialMap(name, value['headers'] ?? value['http_headers'])
-  const bearerTokenEnv = stringValue(value['bearer_token_env_var'])
+  const env = credentialMap(name, value.env ?? value.environment)
+  const headers = credentialMap(name, value.headers ?? value.http_headers)
+  const bearerTokenEnv = stringValue(value.bearer_token_env_var)
   return {
     ...(env ? { env } : {}),
     ...(bearerTokenEnv
@@ -153,16 +153,16 @@ function credentialFields(value: Record<string, unknown>, name: string) {
 }
 
 function optionFields(value: Record<string, unknown>) {
-  const url = stringValue(value['url'])
-  const transport = transportValue(value['transport'] ?? value['type'], Boolean(url))
+  const url = stringValue(value.url)
+  const transport = transportValue(value.transport ?? value.type, Boolean(url))
   const compatibility =
-    typeof value['compatibility'] === 'string' &&
-    LEGACY_COMPATIBILITY_PROFILES.has(value['compatibility'])
-      ? value['compatibility']
+    typeof value.compatibility === 'string' &&
+    LEGACY_COMPATIBILITY_PROFILES.has(value.compatibility)
+      ? value.compatibility
       : undefined
-  const directTools = directToolsValue(value['directTools'])
-  const cwd = stringValue(value['cwd'])
-  const protocolVersion = stringValue(value['protocolVersion'])
+  const directTools = directToolsValue(value.directTools)
+  const cwd = stringValue(value.cwd)
+  const protocolVersion = stringValue(value.protocolVersion)
   return {
     ...(cwd ? { cwd } : {}),
     ...(transport ? { transport } : {}),

@@ -35,7 +35,7 @@ async function bodyOf(request: IncomingMessage) {
 
 function answerTitleRequest(text: string, requestedModels: string[], response: ServerResponse) {
   const body: unknown = JSON.parse(text)
-  requestedModels.push(isRecord(body) ? String(body['model']) : '')
+  requestedModels.push(isRecord(body) ? String(body.model) : '')
   const chunk = (delta: object, finish: string | null) =>
     `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', created: 1, model: 'echo', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`
   response.writeHead(200, { 'content-type': 'text/event-stream' })

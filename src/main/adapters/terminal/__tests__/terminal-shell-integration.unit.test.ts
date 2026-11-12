@@ -45,13 +45,13 @@ describe('terminal shell prompt-readiness integration', () => {
       NONCE,
       { ...BASE_ENVIRONMENT, ZDOTDIR: "/Users/Terminal User's Home/.config/zsh" },
     )
-    const integrationDirectory = launch.environment['ZDOTDIR']
+    const integrationDirectory = launch.environment.ZDOTDIR
     if (integrationDirectory === undefined) throw new Error('Expected an integration ZDOTDIR.')
 
     expect(launch.args).toEqual(['-l', '-i'])
     expect(launch.integrated).toBe(true)
     expect(integrationDirectory).toContain('OpenWaggle terminal zsh-')
-    expect(launch.environment['SSH_AUTH_SOCK']).toBe(BASE_ENVIRONMENT.SSH_AUTH_SOCK)
+    expect(launch.environment.SSH_AUTH_SOCK).toBe(BASE_ENVIRONMENT.SSH_AUTH_SOCK)
 
     const startupFiles = ['.zshenv', '.zprofile', '.zshrc', '.zlogin'] as const
     const scripts = await Promise.all(
@@ -79,7 +79,7 @@ describe('terminal shell prompt-readiness integration', () => {
       { command: '/bin/bash', args: ['--login', '-i'], label: 'bash' },
       NONCE,
     )
-    const integrationHome = launch.environment['HOME']
+    const integrationHome = launch.environment.HOME
     if (integrationHome === undefined) throw new Error('Expected an integration HOME.')
     const script = await readFile(`${integrationHome}/.bash_profile`, 'utf8')
 
@@ -142,8 +142,8 @@ describe('terminal shell prompt-readiness integration', () => {
       { command: '/bin/bash', args: ['--login', '-i'], label: 'bash' },
       'second-generation',
     )
-    const firstScript = await readFile(`${first.environment['HOME']}/.bash_profile`, 'utf8')
-    const secondScript = await readFile(`${second.environment['HOME']}/.bash_profile`, 'utf8')
+    const firstScript = await readFile(`${first.environment.HOME}/.bash_profile`, 'utf8')
+    const secondScript = await readFile(`${second.environment.HOME}/.bash_profile`, 'utf8')
 
     expect(firstScript).toContain('633;B;first-generation')
     expect(firstScript).not.toContain('second-generation')

@@ -23,8 +23,8 @@ export function scheduledTaskRecord(value: string | null | undefined) {
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
   const record: Record<string, unknown> = Object.fromEntries(Object.entries(parsed))
-  if (typeof record['id'] !== 'string' || typeof record['name'] !== 'string') return undefined
-  return { record, id: record['id'], name: record['name'] }
+  if (typeof record.id !== 'string' || typeof record.name !== 'string') return undefined
+  return { record, id: record.id, name: record.name }
 }
 
 /**
@@ -34,7 +34,7 @@ export function scheduledTaskRecord(value: string | null | undefined) {
 export function scheduledTaskRunContext(
   record: Readonly<Record<string, unknown>>,
 ): HeartbeatRunContext | undefined {
-  const context = record['context']
+  const context = record.context
   if (typeof context !== 'string') return undefined
   try {
     return decodeHeartbeatRunContext(context)
@@ -55,6 +55,6 @@ export function scheduledTaskMessageOrigin(
 ): MessageScheduledTaskOrigin | undefined {
   const task = scheduledTaskRecord(value)
   if (!task?.id || !task.name) return undefined
-  const kind = SCHEDULED_TASK_KINDS.find((candidate) => candidate === task.record['kind'])
+  const kind = SCHEDULED_TASK_KINDS.find((candidate) => candidate === task.record.kind)
   return { taskId: task.id, name: task.name, ...(kind ? { kind } : {}) }
 }

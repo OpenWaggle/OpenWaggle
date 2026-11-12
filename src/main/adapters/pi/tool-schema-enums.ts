@@ -12,10 +12,10 @@ function stringValues(values: unknown): string[] | undefined {
 /** The strings a union member allows when it is a plain string `const` or `enum`. */
 function stringChoices(member: unknown): string[] | undefined {
   if (!isJsonSchemaObject(member)) return undefined
-  if (member['type'] !== undefined && member['type'] !== 'string') return undefined
+  if (member.type !== undefined && member.type !== 'string') return undefined
   if (Object.keys(member).some((key) => !CHOICE_ANNOTATIONS.has(key))) return undefined
-  if (typeof member['const'] === 'string' && member['enum'] === undefined) return [member['const']]
-  if (member['const'] === undefined) return stringValues(member['enum'])
+  if (typeof member.const === 'string' && member.enum === undefined) return [member.const]
+  if (member.const === undefined) return stringValues(member.enum)
   return undefined
 }
 

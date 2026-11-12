@@ -34,9 +34,9 @@ describe('hive tool flattened schema', () => {
 
     expect(shape.type).toBe('object')
     expect(shape.anyOf).toBeUndefined()
-    expect(shape.properties?.['action']).toBeDefined()
-    expect(shape.properties?.['objective']).toBeDefined()
-    expect(shape.properties?.['sessionId']).toBeDefined()
+    expect(shape.properties?.action).toBeDefined()
+    expect(shape.properties?.objective).toBeDefined()
+    expect(shape.properties?.sessionId).toBeDefined()
   })
 
   it('still accepts valid action arguments against the union contract', () => {
@@ -65,10 +65,8 @@ describe('hive tool flattened schema', () => {
 
   it('names the actions that require a property the flat schema leaves optional', () => {
     const shape = schemaShape(flattenSessionsToolParameters(sessionsToolParameterVariants))
-    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.['objective'])
-    const projectPath = fromAny<{ description?: string }, unknown>(
-      shape.properties?.['projectPath'],
-    )
+    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.objective)
+    const projectPath = fromAny<{ description?: string }, unknown>(shape.properties?.projectPath)
 
     expect(objective.description).toBe('Required for launch, spawn.')
     // Optional for every action, so it names none; its own description explains catalogScope.
@@ -84,7 +82,7 @@ describe('hive tool flattened schema', () => {
         modelMultiAgentEnabled: true,
       }),
     )
-    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.['objective'])
+    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.objective)
 
     expect(objective.description).toBe('Required for spawn.')
   })

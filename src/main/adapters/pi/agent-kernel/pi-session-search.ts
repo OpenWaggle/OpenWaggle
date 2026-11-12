@@ -17,7 +17,7 @@ function isUnsearchable(folder: string) {
     readdirSync(folder)
     return false
   } catch (error) {
-    return isRecord(error) && (error['code'] === 'EACCES' || error['code'] === 'EPERM')
+    return isRecord(error) && (error.code === 'EACCES' || error.code === 'EPERM')
   }
 }
 

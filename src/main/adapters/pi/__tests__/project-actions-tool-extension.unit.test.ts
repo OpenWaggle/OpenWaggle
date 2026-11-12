@@ -92,11 +92,11 @@ describe('Pi project_actions shares GUI executions', () => {
     expect(shape.type).toBe('object')
     expect(shape.anyOf).toBeUndefined()
     expect(shape.required).toEqual(['action'])
-    expect(shape.properties?.['action']).toBeDefined()
-    expect(shape.properties?.['actionId']).toBeDefined()
-    expect(shape.properties?.['restartRunId']).toBeDefined()
-    expect(shape.properties?.['runId']).toBeDefined()
-    expect(shape.properties?.['afterOffset']).toBeDefined()
+    expect(shape.properties?.action).toBeDefined()
+    expect(shape.properties?.actionId).toBeDefined()
+    expect(shape.properties?.restartRunId).toBeDefined()
+    expect(shape.properties?.runId).toBeDefined()
+    expect(shape.properties?.afterOffset).toBeDefined()
   })
 
   it.each([

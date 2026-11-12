@@ -52,7 +52,7 @@ async function waggleRunWithSecondTurn(reply: ReturnType<typeof failedTurn>) {
   const turnEvents: unknown[] = []
   let turns = 0
   vi.mocked(fakePi.pi.sendMessage).mockImplementation((message, options) => {
-    if (!isRecord(options) || options['triggerTurn'] !== true) return
+    if (!isRecord(options) || options.triggerTurn !== true) return
     turns += 1
     const answer = turns === 1 ? reply : assistantMessage(`turn ${String(turns + 1)}`)
     sessionMessages.push(message, answer)
