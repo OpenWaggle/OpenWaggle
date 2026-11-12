@@ -4,7 +4,6 @@ import type {
   archivedItemRefSchema,
   archivedItemsChangeSchema,
   archivedItemsFilterSchema,
-  archivedItemsProjectFilterSchema,
   archivedItemsQuerySchema,
   archivedItemsRefsQuerySchema,
 } from '@shared/schemas/archived-items'
@@ -38,8 +37,6 @@ export const ARCHIVED_ITEMS_MAX_TERMS = 8
 export const ARCHIVED_ITEMS_SELECTION_LIMIT = 1_000
 
 export type ArchivedItemRef = SchemaType<typeof archivedItemRefSchema>
-
-export type ArchivedItemsProjectFilter = SchemaType<typeof archivedItemsProjectFilterSchema>
 
 export type ArchivedItemsFilter = SchemaType<typeof archivedItemsFilterSchema>
 

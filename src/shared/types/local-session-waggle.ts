@@ -1,9 +1,6 @@
 import type { SchemaType } from '@shared/schema'
 import type { waggleSendReportSchema } from '@shared/schemas/local-session-command-response'
-import type {
-  LocalSessionCommandPayload,
-  LocalSessionCommandResult,
-} from './local-session-protocol'
+import type { LocalSessionCommandPayload } from './local-session-protocol'
 
 export const SESSION_WAGGLE_CONTRACT_VERSION = 1 as const
 
@@ -11,11 +8,6 @@ type LocalSessionWaggleContract = 'session-waggle-v1' | 'session-waggle-cancel-v
 
 export type LocalSessionWaggleCommandPayload = Extract<
   LocalSessionCommandPayload,
-  { readonly contract: LocalSessionWaggleContract }
->
-
-export type LocalSessionWaggleCommandResult = Extract<
-  LocalSessionCommandResult,
   { readonly contract: LocalSessionWaggleContract }
 >
 

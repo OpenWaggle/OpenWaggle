@@ -15,21 +15,10 @@ import type {
   delegationScopeClaimSchema,
   delegationStateCommandSchema,
   delegationSubmitCommandSchema,
-  delegationVerificationOutcomeSchema,
   delegationVerifyCommandSchema,
   reportCommandSchema,
   reportTargetSchema,
 } from '@shared/schemas/session-collaboration-control'
-import type {
-  delegationAmendmentProposedOutcomeSchema,
-  delegationClaimsUpdatedOutcomeSchema,
-  delegationConflictAcknowledgedOutcomeSchema,
-  delegationDependenciesUpdatedOutcomeSchema,
-  delegationSpecificationAmendedOutcomeSchema,
-  delegationUpdatedOutcomeSchema,
-  delegationVerificationRecordedOutcomeSchema,
-} from '@shared/schemas/session-collaboration-outcomes'
-import type { acceptedReportOutcomeSchema } from '@shared/schemas/session-control-outcomes'
 
 export type SessionControlReportTarget = SchemaType<typeof reportTargetSchema>
 
@@ -85,31 +74,4 @@ export type SessionControlDelegationProposeAmendmentCommand = SchemaType<
 
 export type SessionControlDelegationAmendCommand = SchemaType<typeof delegationAmendCommandSchema>
 
-export type DelegationVerificationOutcome = SchemaType<typeof delegationVerificationOutcomeSchema>
-
 export type SessionControlDelegationVerifyCommand = SchemaType<typeof delegationVerifyCommandSchema>
-
-export type SessionControlCollaborationCommand =
-  | SessionControlDelegationAcceptCommand
-  | SessionControlDelegationCancelCommand
-  | SessionControlDelegationClaimCommand
-  | SessionControlDelegationConflictAcknowledgeCommand
-  | SessionControlDelegationDependencyCommand
-  | SessionControlDelegationProposeAmendmentCommand
-  | SessionControlDelegationAmendCommand
-  | SessionControlDelegationReopenCommand
-  | SessionControlDelegationRequestRevisionCommand
-  | SessionControlDelegationStateCommand
-  | SessionControlDelegationSubmitCommand
-  | SessionControlDelegationVerifyCommand
-  | SessionControlReportCommand
-
-export type SessionControlCollaborationOutcome =
-  | SchemaType<typeof delegationUpdatedOutcomeSchema>
-  | SchemaType<typeof delegationClaimsUpdatedOutcomeSchema>
-  | SchemaType<typeof delegationConflictAcknowledgedOutcomeSchema>
-  | SchemaType<typeof delegationDependenciesUpdatedOutcomeSchema>
-  | SchemaType<typeof delegationAmendmentProposedOutcomeSchema>
-  | SchemaType<typeof delegationSpecificationAmendedOutcomeSchema>
-  | SchemaType<typeof delegationVerificationRecordedOutcomeSchema>
-  | SchemaType<typeof acceptedReportOutcomeSchema>

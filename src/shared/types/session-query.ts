@@ -46,14 +46,6 @@ export const SESSION_QUERY_MAX_CURSOR_LENGTH = 4_096
 export const SESSION_QUERY_MAX_PATH_LENGTH = 4_096
 export const SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT = 1_000
 
-/**
- * A catalog query's current project: the Sessions of the project this path belongs to, so the
- * project checkout and every managed worktree of it. The Host resolves a managed worktree (or a
- * directory inside one) to its Session's project, as it maps a Workspace to its project
- * elsewhere; any other path stands for the project at that path.
- */
-export type SessionCatalogWorkingPath = string
-
 export type SessionQuery = SchemaType<typeof sessionQuerySchema>
 
 export type SessionQueryRequest = SchemaType<typeof sessionQueryRequestSchema>

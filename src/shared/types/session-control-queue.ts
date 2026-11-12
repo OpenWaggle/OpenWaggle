@@ -1,7 +1,6 @@
 import type { SchemaType } from '@shared/schema'
 import type {
   followUpEditHoldReferenceSchema,
-  followUpEditInputSchema,
   queueAdoptCommandSchema,
   queueEditBeginCommandSchema,
   queueEditCancelCommandSchema,
@@ -11,11 +10,6 @@ import type {
   queueResumeCommandSchema,
   queueWithdrawCommandSchema,
 } from '@shared/schemas/session-control-commands'
-import type {
-  followUpEditHeldOutcomeSchema,
-  queueResumeStartedRunOutcomeSchema,
-  queueUpdatedOutcomeSchema,
-} from '@shared/schemas/session-control-outcomes'
 import type { AttachmentKind, AttachmentOrigin } from './agent'
 
 export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
@@ -79,8 +73,6 @@ export type SessionControlQueueMutationCommand =
   | SessionControlQueueResumeCommand
   | SessionControlQueueWithdrawCommand
 
-export type SessionControlFollowUpEditInput = SchemaType<typeof followUpEditInputSchema>
-
 export type SessionControlQueueEditBeginCommand = SchemaType<typeof queueEditBeginCommandSchema>
 
 export type SessionControlQueueEditSaveCommand = SchemaType<typeof queueEditSaveCommandSchema>
@@ -142,10 +134,3 @@ export interface SessionFollowUpAttachmentDescriptor {
   readonly mimeType: string
   readonly sizeBytes: number
 }
-
-export type SessionControlQueueOutcome =
-  | SchemaType<typeof queueUpdatedOutcomeSchema>
-  | SchemaType<typeof queueResumeStartedRunOutcomeSchema>
-  | SessionControlFollowUpEditHeldOutcome
-
-export type SessionControlFollowUpEditHeldOutcome = SchemaType<typeof followUpEditHeldOutcomeSchema>
