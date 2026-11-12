@@ -25,3 +25,15 @@ export function lenientWithFallback<A, I>(schema: Schema.Schema<A, I>, fallback:
     encode: (value) => Option.some(value),
   })
 }
+
+/**
+ * A required property that a sanitizer resolves from whatever is stored: `resolve` receives the
+ * raw value (`undefined` when missing) and returns the value to keep, clamped, normalized or
+ * defaulted as that setting tolerates.
+ */
+export function lenientResolved<A, I>(schema: Schema.Schema<A, I>, resolve: (raw: unknown) => A) {
+  return Schema.optionalToRequired(Schema.Unknown, Schema.typeSchema(schema), {
+    decode: (value) => resolve(Option.getOrUndefined(value)),
+    encode: (value) => Option.some(value),
+  })
+}
