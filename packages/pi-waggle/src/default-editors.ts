@@ -186,7 +186,9 @@ async function saveDraftAsPreset(input: {
   return preset
 }
 
-export async function createPresetFromEditor(input: { readonly ctx: ExtensionCommandContext }) {
+export async function createPresetFromEditor(input: {
+  readonly ctx: ExtensionCommandContext
+}): Promise<void> {
   try {
     const sourceDraft = await selectDraftSource(input.ctx)
     if (!sourceDraft) return
@@ -205,7 +207,7 @@ export async function saveConfigAsPreset(input: {
   readonly ctx: ExtensionCommandContext
   readonly config: WaggleConfig
   readonly defaultName?: string
-}) {
+}): Promise<void> {
   try {
     const draft = await promptPresetDraft({
       ctx: input.ctx,
@@ -224,8 +226,8 @@ export async function saveConfigAsPreset(input: {
 
 export async function editPresetFromEditor(input: {
   readonly ctx: ExtensionCommandContext
-  readonly presetId?: string
-}) {
+  readonly presetId?: string | undefined
+}): Promise<void> {
   try {
     const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(input.ctx.cwd))
     const existing = input.presetId
@@ -266,7 +268,7 @@ export async function editPresetFromEditor(input: {
 export async function editConfigBeforeEnabling(input: {
   readonly ctx: ExtensionCommandContext
   readonly preset: WagglePreset
-}) {
+}): Promise<WaggleConfig | null> {
   try {
     return await editWaggleConfigGuided({
       ctx: input.ctx,

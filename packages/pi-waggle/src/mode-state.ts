@@ -34,7 +34,10 @@ export function disabledPiWaggleModeState(
   return createPiWaggleModeState({ enabled: false, updatedAt: input.updatedAt ?? Date.now() })
 }
 
-export function appendPiWaggleModeState(writer: PiWaggleModeStateWriter, state: PiWaggleModeState) {
+export function appendPiWaggleModeState(
+  writer: PiWaggleModeStateWriter,
+  state: PiWaggleModeState,
+): string | undefined {
   return writer.appendCustomEntry(PI_WAGGLE_MODE_STATE_CUSTOM_TYPE, state)
 }
 

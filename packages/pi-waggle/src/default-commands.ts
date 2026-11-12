@@ -14,7 +14,7 @@ import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets.js'
 
 export async function handleDefaultWaggleCommand(
   input: DefaultWaggleCommandInput & { readonly args: string },
-) {
+): Promise<void> {
   const intent = parsePiWaggleCommandArgs(input.args)
   if (intent.type === 'disable') return disableWaggle(input)
   if (intent.type === 'menu') return openWaggleControlCenter(input)
@@ -38,7 +38,7 @@ export async function handleDefaultWaggleCommand(
 export async function defaultWaggleCommandCompletions(
   argumentPrefix: string,
   ctx?: ExtensionCommandContext,
-) {
+): Promise<{ value: string; label: string; description: string }[]> {
   const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(ctx?.cwd))
 
   return [
