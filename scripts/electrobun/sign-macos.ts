@@ -71,12 +71,31 @@ async function walk(directory: string) {
 }
 
 const depth = (file: string) => file.split(path.sep).length
+const BUNDLE_EXECUTABLE = /<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/u
 
-/** The order codesign needs: deepest code first, each bundle after its contents, the app last. */
+/** `Contents/MacOS/<CFBundleExecutable>` of an `.app` bundle, from its XML Info.plist. */
+async function mainExecutable(bundle: string) {
+  const plist = await fs
+    .readFile(path.join(bundle, 'Contents', 'Info.plist'), 'utf8')
+    .catch(() => '')
+  const name = BUNDLE_EXECUTABLE.exec(plist)?.[1]
+  return name === undefined ? null : path.join(bundle, 'Contents', 'MacOS', name)
+}
+
+/**
+ * The order codesign needs: deepest code first, each bundle after its contents, the app last. An
+ * app's main executable is left to its bundle: codesign given that file signs the whole bundle, and
+ * fails while nested code it has not reached yet is unsigned (an x86_64 `zig-zstd` has no linker
+ * signature).
+ */
 export async function macosSigningOrder(app: string) {
   const { files, bundles } = await walk(path.join(app, 'Contents'))
+  const apps = [app, ...bundles.filter((bundle) => bundle.endsWith('.app'))]
+  const mainExecutables = new Set(await Promise.all(apps.map(mainExecutable)))
   const machO: string[] = []
-  for (const file of files) if (await isMachO(file)) machO.push(file)
+  for (const file of files) {
+    if (!mainExecutables.has(file) && (await isMachO(file))) machO.push(file)
+  }
   const byDepth = (left: string, right: string) =>
     depth(right) - depth(left) || left.localeCompare(right)
   return [...machO.sort(byDepth), ...bundles.sort(byDepth), app]

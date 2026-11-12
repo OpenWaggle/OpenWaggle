@@ -126,14 +126,18 @@ describe('staged node_modules', () => {
 })
 
 describe('macosSigningOrder', () => {
-  it('signs the deepest code first, each bundle after its contents, and the app last', async () => {
+  it('signs the deepest code first, each bundle after its contents, and the app with its main executable last', async () => {
     const app = path.join(await scratch(), 'OpenWaggle.app')
     const framework = path.join(app, 'Contents', 'Frameworks', 'Squirrel.framework')
     await fs.mkdir(path.join(framework, 'Versions', 'A'), { recursive: true })
     await fs.mkdir(path.join(app, 'Contents', 'MacOS'), { recursive: true })
     await fs.writeFile(path.join(framework, 'Versions', 'A', 'Squirrel'), MACH_O_64)
     await fs.writeFile(path.join(app, 'Contents', 'MacOS', 'bun'), MACH_O_64)
-    await fs.writeFile(path.join(app, 'Contents', 'Info.plist'), '<plist/>')
+    await fs.writeFile(path.join(app, 'Contents', 'MacOS', 'OpenWaggle'), MACH_O_64)
+    await fs.writeFile(
+      path.join(app, 'Contents', 'Info.plist'),
+      '<plist><dict><key>CFBundleExecutable</key>\n<string>OpenWaggle</string></dict></plist>',
+    )
     await fs.symlink('Versions/A/Squirrel', path.join(framework, 'Squirrel'))
 
     const order = await macosSigningOrder(app)
