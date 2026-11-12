@@ -4,6 +4,7 @@ import type {
   UpdateEngineShape,
   UpdateMetadataTarget,
 } from '../../ports/desktop-shell/update-engine'
+import { quitToInstallUpdate } from './electrobun-app-lifecycle'
 import { electrobun } from './electrobun-sdk'
 import { emitShellEvent } from './electrobun-shell-events'
 
@@ -280,11 +281,13 @@ function createElectrobunUpdateEngine(): UpdateEngineShape {
     quitAndInstall: () => {
       subscribe()
       emitShellEvent('before-quit-for-update')
-      updater()
-        .applyUpdate()
-        .catch((error: unknown) => {
-          failed.emit(error instanceof Error ? error : new Error(String(error)))
-        })
+      quitToInstallUpdate(() =>
+        updater()
+          .applyUpdate()
+          .catch((error: unknown) => {
+            failed.emit(error instanceof Error ? error : new Error(String(error)))
+          }),
+      )
     },
     onCheckingForUpdate: (listener) => listen(checking)(() => listener()),
     onUpdateAvailable: listen(available),

@@ -13,7 +13,13 @@ type QuitListener = (event: CancellableShellEvent) => void
 
 const beforeQuitListeners = new Set<QuitListener>()
 const willQuitListeners = new Set<() => void>()
-const state = { completing: false, relaunch: false, nativeQuitRouted: false }
+const state: {
+  completing: boolean
+  relaunch: boolean
+  nativeQuitRouted: boolean
+  /** Installs a downloaded update in place of the final exit (`quitToInstallUpdate`). */
+  install: (() => Promise<void>) | null
+} = { completing: false, relaunch: false, nativeQuitRouted: false, install: null }
 const RELAUNCH_POLL_SECONDS = 0.2
 
 function listen<Listener>(listeners: Set<Listener>, listener: Listener): Unsubscribe {
@@ -61,8 +67,15 @@ function startRelaunch() {
 /** Ends the process once every listener let the quit through. */
 function completeQuit() {
   for (const listener of [...willQuitListeners]) listener()
-  if (state.relaunch && electrobunBootShell.isPackaged()) startRelaunch()
   state.completing = true
+  const { install } = state
+  if (install) {
+    // The update's helper starts the new version, so the app never relaunches itself here. An
+    // install that quit already makes this exit a no-op; one that stopped short still quits.
+    void install().finally(() => electrobunBootShell.exit(0))
+    return
+  }
+  if (state.relaunch && electrobunBootShell.isPackaged()) startRelaunch()
   electrobunBootShell.exit(0)
 }
 
@@ -79,6 +92,17 @@ function quit() {
   const forwarding = pendingForwardedLaunch()
   if (forwarding) void forwarding.then(completeQuit)
   else completeQuit()
+}
+
+/**
+ * Quits through the port's protocol and then installs a downloaded update instead of exiting.
+ * Electrobun's install asks its `before-quit` handlers for approval before it starts the helper
+ * that swaps the bundle, and `routeNativeQuits` vetoes every request it did not expect, which
+ * cancelled the install: it runs once the protocol has completed, when the veto lets it through.
+ */
+export function quitToInstallUpdate(install: () => Promise<void>) {
+  state.install = install
+  quit()
 }
 
 /**

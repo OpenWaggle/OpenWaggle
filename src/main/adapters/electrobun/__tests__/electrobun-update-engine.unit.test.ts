@@ -10,6 +10,28 @@ async function engine(installedVersion?: string) {
 }
 
 describe('Electrobun UpdateEngine', () => {
+  it("installs after the desktop app's quit protocol, whose native quit veto cancelled it", async () => {
+    const { updater, subject } = await engine('1.0.0')
+    const { electrobunAppLifecycle: lifecycle } = await import('../electrobun-app-lifecycle')
+    // The desktop app routes Electrobun's own quit requests through the port's protocol.
+    await lifecycle.whenReady()
+    let shutdownDone = false
+    lifecycle.onBeforeQuit((event) => {
+      // OpenWaggle holds the first quit for its async shutdown, then quits again.
+      if (!shutdownDone) event.preventDefault()
+    })
+    const order: string[] = []
+    lifecycle.onWillQuit(() => order.push('will-quit'))
+    subject.quitAndInstall({ silent: true, relaunch: true })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(updater.state.installs).toBe(0)
+    shutdownDone = true
+    lifecycle.quit()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(order).toEqual(['will-quit'])
+    expect(updater.state.installs).toBe(1)
+  })
+
   it('checks the release OpenWaggle selected, or the feed baked into the build before that', async () => {
     const { updater, subject } = await engine()
     await subject.checkForUpdates()

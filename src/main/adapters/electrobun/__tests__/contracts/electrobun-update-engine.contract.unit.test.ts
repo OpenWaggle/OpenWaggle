@@ -20,7 +20,7 @@ describe(`${updateEngineContract.port} contract (Electrobun)`, () => {
       installsOnQuit: () => updater.state.applies > 0,
       // Electrobun always installs silently and relaunches the app.
       installs: () =>
-        Array.from({ length: updater.state.applies }, () => ({ silent: true, relaunch: true })),
+        Array.from({ length: updater.state.installs }, () => ({ silent: true, relaunch: true })),
       downloadCancelled: () => updater.state.downloadsStarted === 0,
     })
   })

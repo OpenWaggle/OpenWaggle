@@ -12,7 +12,15 @@ type StatusEntryInput = Omit<UpdateStatusEntry, 'timestamp'>
 
 const INSTALLED_HASH = 'installed-hash'
 
-export function fakeElectrobunUpdater(installedVersion = '1.0.0') {
+/** How the install asks Electrobun's `before-quit` handlers, as `Updater.applyUpdate` does. */
+export interface FakeUpdaterHost {
+  readonly requestQuitApproval: () => boolean
+}
+
+export function fakeElectrobunUpdater(
+  installedVersion = '1.0.0',
+  host: FakeUpdaterHost = { requestQuitApproval: () => true },
+) {
   const localInfo: LocalUpdateInfo = {
     version: installedVersion,
     hash: INSTALLED_HASH,
@@ -31,6 +39,8 @@ export function fakeElectrobunUpdater(installedVersion = '1.0.0') {
     holdDownloads: boolean
     pending: (() => void)[]
     applies: number
+    /** Installs a `before-quit` handler let through: the helper started and the app quit. */
+    installs: number
   } = {
     offered: null,
     info: { version: '', hash: '', updateAvailable: false, updateReady: false, error: '' },
@@ -40,6 +50,7 @@ export function fakeElectrobunUpdater(installedVersion = '1.0.0') {
     holdDownloads: false,
     pending: [],
     applies: 0,
+    installs: 0,
   }
 
   function emit(entry: StatusEntryInput) {
@@ -77,6 +88,12 @@ export function fakeElectrobunUpdater(installedVersion = '1.0.0') {
     },
     applyUpdate: async () => {
       state.applies += 1
+      // Electrobun asks before it arms the helper; a veto cancels the install.
+      if (!host.requestQuitApproval()) {
+        emit({ status: 'idle', message: 'Update restart was cancelled by a before-quit handler' })
+        return
+      }
+      state.installs += 1
     },
   }
 

@@ -157,7 +157,9 @@ export function fakeElectrobun() {
   }
 
   const browserPreview = fakeElectrobunBrowserPreview(webview)
-  const updater = fakeElectrobunUpdater()
+  const updater = fakeElectrobunUpdater(undefined, {
+    requestQuitApproval: () => emit('before-quit', {}).response?.allow !== false,
+  })
   const module = {
     Utils,
     BuildConfig,
