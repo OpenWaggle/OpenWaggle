@@ -106,7 +106,7 @@ function isFeatureIndexPublicApi(parts: readonly string[]) {
   )
 }
 
-function classifyRendererPath(rendererPath: string): RendererPathInfo {
+function classifyRendererPath(rendererPath: string) {
   const parts = rendererPath.split('/')
   const [root, featureName] = parts
 
@@ -115,15 +115,15 @@ function classifyRendererPath(rendererPath: string): RendererPathInfo {
       kind: 'feature',
       featureName,
       isFeaturePublicApi: isFeaturePublicRendererPath(parts),
-    }
+    } satisfies RendererPathInfo
   }
 
   if (root === 'shared') {
-    return { kind: 'shared' }
+    return { kind: 'shared' } satisfies RendererPathInfo
   }
 
   if (root === 'routes') {
-    return { kind: 'routes' }
+    return { kind: 'routes' } satisfies RendererPathInfo
   }
 
   if (root === 'shell') {
@@ -131,14 +131,14 @@ function classifyRendererPath(rendererPath: string): RendererPathInfo {
       kind: 'shell',
       isShellPublicApi:
         parts.length === 1 || parts[1] === 'index' || PUBLIC_SHELL_SEGMENTS.has(parts[1] ?? ''),
-    }
+    } satisfies RendererPathInfo
   }
 
   if (root === 'components' || root === 'hooks' || root === 'stores') {
-    return { kind: 'legacy', root }
+    return { kind: 'legacy', root } satisfies RendererPathInfo
   }
 
-  return { kind: 'other' }
+  return { kind: 'other' } satisfies RendererPathInfo
 }
 
 function isFeaturePublicApi(pathInfo: RendererPathInfo) {

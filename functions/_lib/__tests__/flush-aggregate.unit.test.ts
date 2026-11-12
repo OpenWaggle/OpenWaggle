@@ -48,7 +48,7 @@ const ONBOARDING = {
 type Contributors = ReadonlyMap<string, ReadonlySet<string>>
 
 /** The stored entries, by key, behind each value and each integer sum, as `[event, field, value]`. */
-function contributors(store: MemoryKeyValueStore): Contributors {
+function contributors(store: MemoryKeyValueStore) {
   const entries = new Map<string, Set<string>>()
   const add = (row: string, key: string) =>
     entries.set(row, new Set([...(entries.get(row) ?? []), key]))
@@ -297,14 +297,15 @@ describe('small-cell suppression', () => {
   })
 
   it('counts the entries behind each value, not its events', () => {
-    const entry = (os: string, runs: number): BufferEntry => ({
-      day: YESTERDAY,
-      counts: [
-        ['run.finished', '_count', '1', runs],
-        ['run.finished', 'os', os, runs],
-      ],
-      sums: [['run.finished', 'duration_s', runs * 10, runs]],
-    })
+    const entry = (os: string, runs: number) =>
+      ({
+        day: YESTERDAY,
+        counts: [
+          ['run.finished', '_count', '1', runs],
+          ['run.finished', 'os', os, runs],
+        ],
+        sums: [['run.finished', 'duration_s', runs * 10, runs]],
+      }) satisfies BufferEntry
     const totals = addUpEntries(YESTERDAY, [
       entry('linux', 37),
       ...Array.from({ length: 6 }, () => entry('darwin', 1)),

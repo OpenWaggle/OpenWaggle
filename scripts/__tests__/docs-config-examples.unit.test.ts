@@ -241,9 +241,10 @@ async function jsonExamples(page: string) {
   return (await fencedBlocks(page)).filter((block) => block.language === 'json')
 }
 
-function parseExample(page: string, block: FencedBlock): unknown {
+function parseExample(page: string, block: FencedBlock) {
   try {
-    return JSON.parse(block.code)
+    const parsed: unknown = JSON.parse(block.code)
+    return parsed
   } catch (error) {
     throw new Error(`${page}:${String(block.line)} is not valid JSON`, { cause: error })
   }

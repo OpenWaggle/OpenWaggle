@@ -4,8 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { TERMINAL } from '@shared/constants/resource-limits'
-import { terminalKeyOf } from '@shared/types/terminal'
 import type { TerminalEventPayload } from '@shared/types/terminal'
+import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import { makeNodePtyTerminalService } from '../src/main/adapters/node-pty-terminal-service'
 import type { TerminalEventSinkShape } from '../src/main/ports/terminal-event-sink'
@@ -40,10 +40,7 @@ process.once('beforeExit', () => {
   process.exitCode = 1
 })
 
-function makeSink(): {
-  readonly shape: TerminalEventSinkShape
-  readonly events: TerminalEventPayload[]
-} {
+function makeSink() {
   const events: TerminalEventPayload[] = []
   const shape: TerminalEventSinkShape = {
     emit: (payload) =>
@@ -123,7 +120,7 @@ function throughputCommand() {
   return `printf '${encodedStart}\\n'; yes '${OUTPUT_LINE}' | head -n ${OUTPUT_LINES}; printf '${encodedDone}\\n'\n`
 }
 
-async function main(): Promise<void> {
+async function main() {
   const logsDir = path.join(os.tmpdir(), `openwaggle-terminal-bench-${Date.now()}`)
   const { shape, events } = makeSink()
   const service = makeNodePtyTerminalService(shape, { logsDir, appVersion: '0.0.0-benchmark' })

@@ -38,7 +38,7 @@ export function compactTscLine(line: string) {
   return `${String(file)}:${String(lineNumber)}:${String(column)} ${String(code)} ${String(message)}`
 }
 
-export function parseFindings(format: FindingFormat, log: string): readonly string[] {
+export function parseFindings(format: FindingFormat, log: string) {
   const lines = logLines(log)
   const nonEmpty = lines.filter((line) => line.trim() !== '')
   if (format === 'lines' || format === 'vitest') {

@@ -41,7 +41,7 @@ const packageAliases = new Map(
  * Canonical URL for a docs slug. Package slugs such as `packages/pi-waggle` are noindex aliases,
  * so they resolve to the current version's page instead.
  */
-export function canonicalDocsPath(slug: string): string {
+export function canonicalDocsPath(slug: string) {
   const definition = packageAliases.get(slug)
   return definition
     ? packageDocumentationRoute(definition.slug, definition.currentVersion)

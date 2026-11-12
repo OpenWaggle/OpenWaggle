@@ -25,7 +25,7 @@ const GENERATED_ANNOTATIONS = new Set(['title', 'description', '$schema'])
 /** Keywords whose value maps names to schemas, so its own keys are names, not keywords. */
 const SCHEMA_MAPS = new Set(['properties', 'patternProperties', '$defs'])
 
-function cleanSchemaMap(value: unknown): unknown {
+function cleanSchemaMap(value: unknown) {
   if (!isNode(value)) return value
   return Object.fromEntries(
     Object.entries(value).map(([name, entry]) => [name, withoutGeneratedAnnotations(entry)]),
@@ -120,7 +120,7 @@ export function publishedSchemaRoot(header: PublishedSchemaHeader, body: JsonSch
 export function jsonSchemaFromEffect<A, I>(
   schema: Schema.Schema<A, I>,
   overlay: JsonSchemaOverlay,
-): JsonSchemaNode {
+) {
   const generated = withoutGeneratedAnnotations(
     JSONSchema.make(schema, { target: 'jsonSchema2020-12' }),
   )

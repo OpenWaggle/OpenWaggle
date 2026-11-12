@@ -39,9 +39,10 @@ const BASELINE = Symbol.for('openwaggle.test.reused-worker-baseline')
 const UNREACHABLE =
   'reused-worker-isolation.ts cannot reach Vitest 4 worker state (__vitest_worker__) or mocker (__vitest_mocker__); a reused worker would leak modules and mocks between files.'
 
-function field(value: unknown, key: PropertyKey): unknown {
+function field(value: unknown, key: PropertyKey) {
   const holdsFields = (typeof value === 'object' && value !== null) || typeof value === 'function'
-  return holdsFields ? Reflect.get(value, key) : undefined
+  const result: unknown = holdsFields ? Reflect.get(value, key) : undefined
+  return result
 }
 
 function vitestInternals() {

@@ -103,9 +103,7 @@ async function extractAppImage(appImagePath: string) {
   return path.join(workDirectory, 'squashfs-root')
 }
 
-export async function resolveFloorTargets(
-  args: readonly string[],
-): Promise<readonly FloorTarget[]> {
+export async function resolveFloorTargets(args: readonly string[]) {
   const { platform, paths } = parseFloorArguments(args)
   const appPaths = paths.length > 0 ? paths : await discoverPackagedApps(platform)
   const targets: FloorTarget[] = []

@@ -11,7 +11,6 @@ import {
   WEB_PRODUCTION_HOSTNAME,
   WEB_UTM_PARAMETERS,
   type WebBeacon,
-  type WebBeaconUtm,
   type WebDownloadTarget,
   type WebUtmParameter,
 } from '../../../functions/_lib/web-beacon-contract'
@@ -47,15 +46,17 @@ export interface PrivacySignals {
  * Whether this page may report: only on openwaggle.ai or a local development host, and never
  * with Do Not Track, Global Privacy Control or browser automation.
  */
-export function usageBeaconAllowed(hostname: string, signals: PrivacySignals): boolean {
+export function usageBeaconAllowed(hostname: string, signals: PrivacySignals) {
   if (hostname !== WEB_PRODUCTION_HOSTNAME && !LOCAL_HOSTNAMES.has(hostname)) return false
   if (signals.doNotTrack === '1' || signals.windowDoNotTrack === '1') return false
-  return signals.globalPrivacyControl !== true && signals.webdriver !== true
+  const result: boolean = signals.globalPrivacyControl !== true && signals.webdriver !== true
+  return result
 }
 
-function parsedUrl(href: string, base?: string): URL | undefined {
+function parsedUrl(href: string, base?: string) {
   try {
-    return new URL(href, base)
+    const result: URL | undefined = new URL(href, base)
+    return result
   } catch {
     return undefined
   }
@@ -66,28 +67,42 @@ function isGitHub(url: URL) {
 }
 
 /** What a link downloads, or `undefined` when it is not a download, release or install link. */
-export function downloadTarget(href: string, pageUrl: string): WebDownloadTarget | undefined {
+export function downloadTarget(href: string, pageUrl: string) {
   const url = parsedUrl(href, pageUrl)
   if (url === undefined) return undefined
-  if (isGitHub(url) && RELEASE_ASSET_PATH.test(url.pathname)) return 'release_asset'
-  if (isGitHub(url) && RELEASES_PATH.test(url.pathname)) return 'github_releases'
+  if (isGitHub(url) && RELEASE_ASSET_PATH.test(url.pathname)) {
+    const target: WebDownloadTarget | undefined = 'release_asset'
+    return target
+  }
+  if (isGitHub(url) && RELEASES_PATH.test(url.pathname)) {
+    const target: WebDownloadTarget | undefined = 'github_releases'
+    return target
+  }
   const scriptHost = isGitHub(url) || url.hostname === RAW_GITHUB_HOST
-  if (scriptHost && INSTALL_SCRIPT_PATH.test(url.pathname)) return 'install_script'
+  if (scriptHost && INSTALL_SCRIPT_PATH.test(url.pathname)) {
+    const target: WebDownloadTarget | undefined = 'install_script'
+    return target
+  }
   const sameSite = url.origin === parsedUrl(pageUrl)?.origin
-  if (sameSite && INSTALL_SHORTCUT_PATHS.has(url.pathname)) return 'install_script'
-  return sameSite && INSTALLATION_PAGE_PATH.test(url.pathname) ? 'installation_page' : undefined
+  if (sameSite && INSTALL_SHORTCUT_PATHS.has(url.pathname)) {
+    const target: WebDownloadTarget | undefined = 'install_script'
+    return target
+  }
+  const target: WebDownloadTarget | undefined =
+    sameSite && INSTALLATION_PAGE_PATH.test(url.pathname) ? 'installation_page' : undefined
+  return target
 }
 
 /** The origin of the referring page; its path and query never leave the browser. */
-export function referrerOrigin(referrer: string): string {
+export function referrerOrigin(referrer: string) {
   const url = parsedUrl(referrer)
-  return url !== undefined && (url.protocol === 'https:' || url.protocol === 'http:')
-    ? url.origin
-    : ''
+  const result: string =
+    url !== undefined && (url.protocol === 'https:' || url.protocol === 'http:') ? url.origin : ''
+  return result
 }
 
 /** UTM tags from a query string, without control characters and within the length limit. */
-export function campaignTags(search: string): WebBeaconUtm {
+export function campaignTags(search: string) {
   const parameters = new URLSearchParams(search)
   const tags: Partial<Record<WebUtmParameter, string>> = {}
   for (const parameter of WEB_UTM_PARAMETERS) {
@@ -111,12 +126,14 @@ function pageFields(page: PageContext) {
   }
 }
 
-export function pageviewBeacon(page: PageContext): WebBeacon {
-  return { type: 'pageview', ...pageFields(page) }
+export function pageviewBeacon(page: PageContext) {
+  const beacon: WebBeacon = { type: 'pageview', ...pageFields(page) }
+  return beacon
 }
 
-export function downloadClickBeacon(page: PageContext, target: WebDownloadTarget): WebBeacon {
-  return { type: 'download_click', target, ...pageFields(page) }
+export function downloadClickBeacon(page: PageContext, target: WebDownloadTarget) {
+  const beacon: WebBeacon = { type: 'download_click', target, ...pageFields(page) }
+  return beacon
 }
 
 export interface BeaconTransport {
@@ -130,7 +147,7 @@ export interface BeaconTransport {
  * credentials mode `include`, so it would carry cookies for openwaggle.ai if the site set any;
  * it sets none. The `fetch` fallback omits credentials.
  */
-export function sendUsageBeacon(beacon: WebBeacon, transport: BeaconTransport): void {
+export function sendUsageBeacon(beacon: WebBeacon, transport: BeaconTransport) {
   const body = JSON.stringify(beacon)
   if (transport.sendBeacon?.(WEB_BEACON_PATH, body) === true) return
   void transport
@@ -155,7 +172,7 @@ export interface BeaconEnvironment {
 }
 
 /** Reports this page view and every download link followed. Returns whether it reports. */
-export function startUsageBeacon(environment: BeaconEnvironment): boolean {
+export function startUsageBeacon(environment: BeaconEnvironment) {
   if (!usageBeaconAllowed(environment.hostname, environment.signals)) return false
   sendUsageBeacon(pageviewBeacon(environment.page()), environment.transport)
   environment.onLinkFollowed((href) => {
@@ -175,11 +192,11 @@ function followedLink(event: MouseEvent) {
 }
 
 /** The live page: `window.location`, `document.referrer` and the browser's beacon APIs. */
-export function browserBeaconEnvironment(): BeaconEnvironment {
+export function browserBeaconEnvironment() {
   // Neither signal is in the DOM types: `window.doNotTrack` is legacy, Global Privacy Control new.
   const browserWindow: object = window
   const browserNavigator: object = navigator
-  return {
+  const environment: BeaconEnvironment = {
     hostname: window.location.hostname,
     signals: {
       doNotTrack: navigator.doNotTrack,
@@ -204,4 +221,5 @@ export function browserBeaconEnvironment(): BeaconEnvironment {
       document.addEventListener('auxclick', handle, { capture: true })
     },
   }
+  return environment
 }

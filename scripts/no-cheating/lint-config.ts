@@ -126,15 +126,31 @@ interface ScanState {
 }
 
 /** One line further up: a verdict, or the state to carry on with. */
-function scanLine(text: string, previous: string, state: ScanState): boolean | ScanState {
-  if (text.trim() === '') return false
-  if (COMMENT_LINE.test(text)) return state.pastSibling ? state : true
+function scanLine(text: string, previous: string, state: ScanState) {
+  if (text.trim() === '') {
+    const result: boolean | ScanState = false
+    return result
+  }
+  if (COMMENT_LINE.test(text)) {
+    const result: boolean | ScanState = state.pastSibling ? state : true
+    return result
+  }
   const level = indent(text)
   // The top level ends the search; a parent key past a sibling counts only its own comment.
-  if (level < state.depth && level === 0) return false
-  if (level < state.depth && state.pastSibling) return COMMENT_LINE.test(previous)
+  if (level < state.depth && level === 0) {
+    const result: boolean | ScanState = false
+    return result
+  }
+  if (level < state.depth && state.pastSibling) {
+    const result: boolean | ScanState = COMMENT_LINE.test(previous)
+    return result
+  }
   const depth = Math.min(level, state.depth)
-  return { depth, pastSibling: state.pastSibling || (level === depth && OBJECT_END.test(text)) }
+  const result: boolean | ScanState = {
+    depth,
+    pastSibling: state.pastSibling || (level === depth && OBJECT_END.test(text)),
+  }
+  return result
 }
 
 function reasoned(lines: readonly string[], line: number) {
@@ -150,22 +166,26 @@ function reasoned(lines: readonly string[], line: number) {
   return false
 }
 
-function finding(file: string, line: number, message: string): Finding {
-  return {
+function finding(file: string, line: number, message: string) {
+  const result: Finding = {
     file,
     line,
     id: 'lint-config',
     message,
   }
+  return result
 }
 
 export function lintConfigFindings(
   file: string,
   before: string | undefined,
   after: string | undefined,
-): Finding[] {
+) {
   const config = LINT_CONFIGS[file]
-  if (config === undefined || before === undefined || after === undefined) return []
+  if (config === undefined || before === undefined || after === undefined) {
+    const result: Finding[] = []
+    return result
+  }
   const lines = after.split('\n')
   const added = addedLines(before, after)
   const removed = removedLines(before, after)
@@ -186,5 +206,6 @@ export function lintConfigFindings(
     .map((name) =>
       finding(file, 1, `${name} no longer set to error; keep it, or set it off with the reason`),
     )
-  return [...loose, ...dropped]
+  const result: Finding[] = [...loose, ...dropped]
+  return result
 }

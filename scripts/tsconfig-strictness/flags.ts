@@ -72,7 +72,7 @@ function rank(value: boolean) {
 }
 
 /** The rank of every strictness flag under one project's resolved compiler options. */
-export function strictnessRanks(options: StrictnessOptions): StrictnessRanks {
+export function strictnessRanks(options: StrictnessOptions) {
   const strict = options.strict ?? STRICT_DEFAULT
   const ranks = new Map<StrictnessFlag, number>([['strict', rank(strict === true)]])
   for (const flag of STRICT_FAMILY) ranks.set(flag, rank((options[flag] ?? strict) === true))
@@ -87,12 +87,14 @@ export function strictnessRanks(options: StrictnessOptions): StrictnessRanks {
     const value = options[flag]
     ranks.set(flag, value === false ? ERRORS : value === undefined ? WARNS : OFF)
   }
-  return ranks
+  const result: StrictnessRanks = ranks
+  return result
 }
 
 /** The stricter of two rank sets, flag by flag: a file checked by both gets both checks. */
-export function strictest(left: StrictnessRanks, right: StrictnessRanks): StrictnessRanks {
-  return new Map(
+export function strictest(left: StrictnessRanks, right: StrictnessRanks) {
+  const ranks: StrictnessRanks = new Map(
     STRICTNESS_FLAGS.map((flag) => [flag, Math.max(left.get(flag) ?? OFF, right.get(flag) ?? OFF)]),
   )
+  return ranks
 }

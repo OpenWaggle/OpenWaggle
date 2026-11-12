@@ -17,8 +17,9 @@ afterAll(() => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-function call(toolName: string, input: ToolCall['input']): ToolCall {
-  return { type: 'tool_call', toolCallId: 'call-1', toolName, input }
+function call(toolName: string, input: ToolCall['input']) {
+  const result: ToolCall = { type: 'tool_call', toolCallId: 'call-1', toolName, input }
+  return result
 }
 
 describe('git guardrails extension', () => {

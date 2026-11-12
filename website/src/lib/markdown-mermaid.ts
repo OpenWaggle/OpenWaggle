@@ -55,7 +55,7 @@ function prefixIds(svg: string, prefix: string) {
  * collapsed disclosure so it can be read or copied. The SVG is one image named `label`, so a
  * screen reader announces the label instead of the diagram's text nodes in layout order.
  */
-export function renderMermaidFigure(source: string, idPrefix: string, label: string): string {
+export function renderMermaidFigure(source: string, idPrefix: string, label: string) {
   if (NOTE_LINE.test(source)) {
     throw new Error(
       'It has a `note` line, which beautiful-mermaid does not draw. Put the note in the text instead.',

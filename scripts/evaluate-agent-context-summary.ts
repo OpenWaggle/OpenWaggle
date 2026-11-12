@@ -28,7 +28,7 @@ export interface TaskSummary {
 
 export const ALLOWED_TASK_PASS_DROP = 1
 
-function addRun(previous: TaskSummary | undefined, run: EvalRunSummaryInput): TaskSummary {
+function addRun(previous: TaskSummary | undefined, run: EvalRunSummaryInput) {
   const base = previous ?? {
     taskId: run.taskId,
     group: run.group,

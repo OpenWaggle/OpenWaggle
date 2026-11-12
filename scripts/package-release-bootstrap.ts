@@ -33,7 +33,7 @@ function parseMode(args: readonly string[]) {
 export async function runPackageReleaseBootstrap(
   input: PackageReleaseBootstrapInput,
   dependencies: BootstrapDependencies,
-): Promise<PackageReleaseBootstrapResult> {
+) {
   const mode = parseMode(input.args)
   const preflight = await inspectBootstrapPreflight(input.projectRoot, dependencies)
   const hasConflict = preflight.packages.some((item) => item.state === 'conflict')
@@ -50,7 +50,8 @@ export async function runPackageReleaseBootstrap(
       ? 'Run bun run package-release:bootstrap --execute.'
       : 'Resolve every blocker and rerun the preflight.'
   dependencies.writeLine(`Package namespace bootstrap ${mode}: ${ok ? 'ready' : 'blocked'}.`)
-  return { ...preflight, mode, nextAction, ok }
+  const result: PackageReleaseBootstrapResult = { ...preflight, mode, nextAction, ok }
+  return result
 }
 
 function printBootstrapResult(result: PackageReleaseBootstrapResult) {

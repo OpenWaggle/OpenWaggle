@@ -1,12 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
-interface ProcessRow {
-  readonly pid: number
-  readonly ppid: number
-  readonly command: string
-}
-
 export interface ProcessSample {
   readonly footprint: number
   readonly resident: number
@@ -22,7 +16,7 @@ const COMMAND_START_COLUMN = 2
 const APP_BUNDLE_SUFFIX = '.app/'
 const PRIVATE_PREFIX = '/private/'
 
-function listProcesses(withEnvironment: boolean): ProcessRow[] {
+function listProcesses(withEnvironment: boolean) {
   const output = execFileSync(
     '/bin/ps',
     [withEnvironment ? '-axwwE' : '-axww', '-o', 'pid=,ppid=,command='],
@@ -76,8 +70,8 @@ function isProcessSample(value: unknown): value is ProcessSample {
 }
 
 /** Physical footprint, resident size and CPU time per pid (macOS `proc_pid_rusage`). */
-export function sampleProcesses(pids: readonly number[]): Map<number, ProcessSample> {
-  if (pids.length === 0) return new Map()
+export function sampleProcesses(pids: readonly number[]) {
+  if (pids.length === 0) return new Map<number, ProcessSample>()
   const output = execFileSync('python3', [FOOTPRINT_SCRIPT, ...pids.map(String)], {
     encoding: 'utf8',
   })

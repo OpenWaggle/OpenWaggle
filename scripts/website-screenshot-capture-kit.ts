@@ -27,7 +27,7 @@ const PNG_COMPRESSION_LEVEL = 9
 const STABLE_POLL_MS = 200
 const STABLE_ATTEMPTS = 25
 
-export async function regionOf(locator: Locator): Promise<Region> {
+export async function regionOf(locator: Locator) {
   await locator.waitFor({ timeout: UI_TIMEOUT_MS })
   const box = await locator.boundingBox({ timeout: UI_TIMEOUT_MS })
   if (!box) throw new Error(`No bounding box for ${locator.toString()}.`)
@@ -38,7 +38,7 @@ export async function regionOf(locator: Locator): Promise<Region> {
 export function unionRegion(
   regions: readonly Region[],
   pad: number | { readonly x: number; readonly y: number } = 0,
-): Region {
+) {
   const padX = typeof pad === 'number' ? pad : pad.x
   const padY = typeof pad === 'number' ? pad : pad.y
   const left = Math.min(...regions.map((region) => region.x)) - padX
@@ -63,7 +63,7 @@ export function spanRegion(options: {
   readonly across: Region
   readonly pad: number
   readonly bottomPad?: number
-}): Region {
+}) {
   const { top, bottom, across, pad, bottomPad = pad } = options
   const y = top.y - pad
   return {
@@ -79,7 +79,7 @@ function windowSize(page: Page) {
   return page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
 }
 
-async function clipInWindow(page: Page, region: Region): Promise<Region> {
+async function clipInWindow(page: Page, region: Region) {
   const view = await windowSize(page)
   const x = Math.max(0, Math.floor(region.x))
   const y = Math.max(0, Math.floor(region.y))

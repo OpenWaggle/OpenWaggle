@@ -7,8 +7,8 @@ import { type CheckStep, validateStepGraph, withDependencies } from '../step-mod
 import { GATES, STEPS } from '../steps'
 import { validateCheckGate } from '../../package-release-validator-check-gate'
 
-function step(id: string, extra: Partial<CheckStep> = {}): CheckStep {
-  return {
+function step(id: string, extra: Partial<CheckStep> = {}) {
+  const result: CheckStep = {
     id,
     summary: id,
     commands: [['true', id]],
@@ -17,10 +17,20 @@ function step(id: string, extra: Partial<CheckStep> = {}): CheckStep {
     hint: `rerun ${id}`,
     ...extra,
   }
+  return result
 }
 
-function report(id: string, status: StepReport['status']): StepReport {
-  return { id, status, startMs: 0, durationMs: 1000, exitCode: 0, log: `${id}.log`, commands: [] }
+function report(id: string, status: StepReport['status']) {
+  const result: StepReport = {
+    id,
+    status,
+    startMs: 0,
+    durationMs: 1000,
+    exitCode: 0,
+    log: `${id}.log`,
+    commands: [],
+  }
+  return result
 }
 
 describe('the declared step graph', () => {

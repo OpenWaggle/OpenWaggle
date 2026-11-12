@@ -15,7 +15,7 @@ function counts(lines: readonly string[]) {
 }
 
 /** Each line of `after` beyond the copies of its trimmed text that `before` held. */
-export function addedLines(before: string | undefined, after: string): AddedLine[] {
+export function addedLines(before: string | undefined, after: string) {
   const remaining = counts((before ?? '').split('\n'))
   return after.split('\n').flatMap((text, index) => {
     const key = text.trim()
@@ -29,6 +29,6 @@ export function addedLines(before: string | undefined, after: string): AddedLine
 }
 
 /** The trimmed lines of `before` that `after` no longer holds as often. */
-export function removedLines(before: string | undefined, after: string): string[] {
+export function removedLines(before: string | undefined, after: string) {
   return addedLines(after, before ?? '').map((removed) => removed.text.trim())
 }

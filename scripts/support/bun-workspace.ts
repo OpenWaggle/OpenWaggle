@@ -46,12 +46,13 @@ const bunfigSchema = Schema.Struct({
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
-function stringRecord(value: unknown): Readonly<Record<string, string>> {
-  return Object.fromEntries(
+function stringRecord(value: unknown) {
+  const readonly: Readonly<Record<string, string>> = Object.fromEntries(
     (objectEntries(value) ?? []).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string',
     ),
   )
+  return readonly
 }
 
 function catalogRecord(value: unknown) {
@@ -61,7 +62,7 @@ function catalogRecord(value: unknown) {
 }
 
 /** Parses JSON with comments and trailing commas, the format of `bun.lock`. */
-export function parseJsoncText(text: string, label: string): unknown {
+export function parseJsoncText(text: string, label: string) {
   const errors: ParseError[] = []
   const value: unknown = parseJsonc(text, errors, {
     allowTrailingComma: true,
@@ -88,7 +89,7 @@ export function splitPackageSpecifier(specifier: string) {
  * workspace, `file:`, git and tarball entries resolve to something other than an exact version and
  * are skipped.
  */
-export function parseBunLockfile(text: string): BunLockfile {
+export function parseBunLockfile(text: string) {
   const lockfile = objectFields(lockfileSchema, parseJsoncText(text, BUN_LOCKFILE))
   const lockedEntries = objectEntries(lockfile?.packages)
   if (lockedEntries === undefined) {
@@ -107,11 +108,12 @@ export function parseBunLockfile(text: string): BunLockfile {
       integrity: typeof integrity === 'string' ? integrity : undefined,
     })
   }
-  return {
+  const result: BunLockfile = {
     packages,
     patchedDependencies: stringRecord(lockfile?.patchedDependencies),
     catalogs: catalogRecord(lockfile?.catalogs),
   }
+  return result
 }
 
 /** Every version of `name` the lockfile resolves. */
@@ -127,7 +129,7 @@ export interface RootWorkspaceConfig {
 }
 
 /** The catalogs (`catalog` is the unnamed `default` one) and patches of the root `package.json`. */
-export function parseRootWorkspaceConfig(manifestText: string): RootWorkspaceConfig {
+export function parseRootWorkspaceConfig(manifestText: string) {
   const manifest = objectFields(rootManifestSchema, JSON.parse(manifestText))
   if (manifest === undefined) throw new Error('package.json must contain an object.')
   const workspaces = objectFields(workspacesSchema, manifest.workspaces) ?? {}
@@ -135,7 +137,11 @@ export function parseRootWorkspaceConfig(manifestText: string): RootWorkspaceCon
     ...catalogRecord(workspaces.catalogs),
     ...(objectEntries(workspaces.catalog) ? { default: stringRecord(workspaces.catalog) } : {}),
   }
-  return { catalogs, patchedDependencies: stringRecord(manifest.patchedDependencies) }
+  const config: RootWorkspaceConfig = {
+    catalogs,
+    patchedDependencies: stringRecord(manifest.patchedDependencies),
+  }
+  return config
 }
 
 /** `install.minimumReleaseAgeExcludes` of `bunfig.toml`. */

@@ -42,7 +42,7 @@ export interface GitInvocation {
 }
 
 /** Splits `git [global options] <subcommand> [args]`. */
-export function parseGitInvocation(args: readonly string[]): GitInvocation {
+export function parseGitInvocation(args: readonly string[]) {
   const configs: string[] = []
   let index = 0
   while ((args[index] ?? '').startsWith('-')) {
@@ -59,10 +59,10 @@ export function parseGitInvocation(args: readonly string[]): GitInvocation {
     index += 1 + Number(takesNext)
   }
   const [subcommand = '', ...rest] = args.slice(index)
-  return { configs, subcommand, args: rest }
+  return { configs, subcommand, args: rest } satisfies GitInvocation
 }
 
-export function parseArgs(args: readonly string[], spec: OptionSpec): ParsedArgs {
+export function parseArgs(args: readonly string[], spec: OptionSpec) {
   const short = new Set<string>()
   const long: string[] = []
   const positionals: string[] = []
@@ -105,11 +105,13 @@ function readShortCluster(cluster: string, spec: OptionSpec, short: Set<string>)
 }
 
 /** `--name=value` as `['--name', 'value']`; any other word with no value. */
-export function splitLong(arg: string): [string, string | undefined] {
+export function splitLong(arg: string) {
   const equals = arg.indexOf('=')
-  return arg.startsWith('--') && equals !== -1
-    ? [arg.slice(0, equals), arg.slice(equals + 1)]
-    : [arg, undefined]
+  return (
+    arg.startsWith('--') && equals !== -1
+      ? [arg.slice(0, equals), arg.slice(equals + 1)]
+      : [arg, undefined]
+  ) satisfies [string, string | undefined]
 }
 
 export function isHelp(parsed: ParsedArgs) {

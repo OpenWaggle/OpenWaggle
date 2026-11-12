@@ -40,7 +40,7 @@ async function inspectorWebSocketUrl(port: number, deadline: number) {
   throw new Error(`No Node inspector on port ${String(port)}.`)
 }
 
-export async function connectInspector(port: number, timeoutMs: number): Promise<CdpClient> {
+export async function connectInspector(port: number, timeoutMs: number) {
   const socket = new WebSocket(await inspectorWebSocketUrl(port, Date.now() + timeoutMs))
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener('open', () => resolve(), { once: true })

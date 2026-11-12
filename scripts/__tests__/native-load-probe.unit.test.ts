@@ -85,20 +85,15 @@ class FakePty {
 
 function fakeNativeModules(platform: NodeJS.Platform) {
   const terminals: FakePty[] = []
-  const spawn = vi.fn(
-    (
-      _file: string,
-      args: readonly string[],
-      _options: Readonly<Record<string, unknown>>,
-    ): unknown => {
-      const terminal = new FakePty(
-        42 + terminals.length * 2,
-        args.some((argument) => argument.includes(FINAL_PREFIX)),
-      )
-      terminals.push(terminal)
-      return terminal
-    },
-  )
+  const spawn = vi.fn((_file: string, args: readonly string[], _options: unknown) => {
+    const terminal = new FakePty(
+      42 + terminals.length * 2,
+      args.some((argument) => argument.includes(FINAL_PREFIX)),
+    )
+    terminals.push(terminal)
+    const spawned: unknown = terminal
+    return spawned
+  })
   const native =
     platform === 'win32'
       ? null
@@ -118,7 +113,7 @@ function fakeNativeModules(platform: NodeJS.Platform) {
     open: vi.fn(),
     native,
   }
-  const loadModule = vi.fn((moduleName: string): unknown => {
+  const loadModule = vi.fn<(moduleName: string) => unknown>((moduleName: string) => {
     if (moduleName === 'better-sqlite3') return FakeDatabase
     if (moduleName === 'node-pty') return nodePty
     if (moduleName === 'sharp') return { versions: {} }

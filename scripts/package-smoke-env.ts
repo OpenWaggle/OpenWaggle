@@ -32,18 +32,17 @@ export function packageSmokeRequiredPackageManagers(value: string | undefined) {
   return required
 }
 
-export function readPackageSmokeEnvironment(
-  environment: NodeJS.ProcessEnv = process.env,
-): PackageSmokeEnvironment {
+export function readPackageSmokeEnvironment(environment: NodeJS.ProcessEnv = process.env) {
   const {
     OPENWAGGLE_PACKAGE_BROWSER_EXECUTABLE: executable,
     OPENWAGGLE_PACKAGE_BROWSER_SMOKE: browserSmoke,
     OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: requiredManagers,
   } = scriptEnv(environment)
 
-  return {
+  const result: PackageSmokeEnvironment = {
     browserExecutablePath: executable?.trim() || undefined,
     browserSmokeEnabled: packageBrowserSmokeEnabled(browserSmoke),
     requiredPackageManagers: packageSmokeRequiredPackageManagers(requiredManagers),
   }
+  return result
 }

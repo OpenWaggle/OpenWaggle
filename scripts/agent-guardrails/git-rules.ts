@@ -97,16 +97,17 @@ const HOOKS_PATH: GuardrailHit = {
 }
 
 /** Every git rule one command breaks. */
-export function gitRuleHits(command: ShellCommand, aliasDepth = 0): GuardrailHit[] {
-  return [
+export function gitRuleHits(command: ShellCommand, aliasDepth = 0) {
+  const hit: GuardrailHit[] = [
     ...environmentHits(command.assignments),
     ...(commandName(command.argv[0] ?? '') === 'git'
       ? gitHits(command.argv.slice(1), aliasDepth)
       : []),
   ]
+  return hit
 }
 
-function environmentHits(assignments: readonly string[]): GuardrailHit[] {
+function environmentHits(assignments: readonly string[]) {
   const hits: GuardrailHit[] = []
   if (assignments.includes('HUSKY=0')) {
     hits.push(HUSKY_OFF)
@@ -129,59 +130,62 @@ function environmentHits(assignments: readonly string[]): GuardrailHit[] {
   return hits
 }
 
-function gitHits(args: readonly string[], aliasDepth: number): GuardrailHit[] {
+function gitHits(args: readonly string[], aliasDepth: number) {
   const invocation = parseGitInvocation(args)
   const configHits = invocation.configs.flatMap((setting) => {
     const [key = '', ...valueParts] = setting.split('=')
     return settingHits(key, valueParts.join('='), aliasDepth)
   })
-  return [...configHits, ...subcommandHits(invocation.subcommand, invocation.args, aliasDepth)]
+  const hit: GuardrailHit[] = [
+    ...configHits,
+    ...subcommandHits(invocation.subcommand, invocation.args, aliasDepth),
+  ]
+  return hit
 }
 
-function subcommandHits(
-  subcommand: string,
-  args: readonly string[],
-  aliasDepth: number,
-): GuardrailHit[] {
+function subcommandHits(subcommand: string, args: readonly string[], aliasDepth: number) {
   if (subcommand === 'commit') {
-    return commitHits(args)
+    return commitHits(args) satisfies GuardrailHit[]
   }
   if (subcommand === 'config') {
     return configHits(args, aliasDepth)
   }
   if (!NO_VERIFY_SUBCOMMANDS.has(subcommand)) {
-    return []
+    return [] satisfies GuardrailHit[]
   }
   const parsed = parseArgs(args, subcommand === 'push' ? PUSH_OPTIONS : MERGE_OPTIONS)
   if (isHelp(parsed)) {
-    return []
+    return [] satisfies GuardrailHit[]
   }
   const noVerify: GuardrailHit[] = parsed.long.some(isNoVerify)
     ? [{ rule: 'git-no-verify', title: `git ${subcommand} --no-verify skips the git hooks.` }]
     : []
-  return subcommand === 'push'
-    ? [...noVerify, ...forcePushHits(parsed.short, parsed.long, parsed.positionals)]
-    : noVerify
+  return (
+    subcommand === 'push'
+      ? [...noVerify, ...forcePushHits(parsed.short, parsed.long, parsed.positionals)]
+      : noVerify
+  ) satisfies GuardrailHit[]
 }
 
-function commitHits(args: readonly string[]): GuardrailHit[] {
+function commitHits(args: readonly string[]) {
   const parsed = parseArgs(args, COMMIT_OPTIONS)
   if (isHelp(parsed) || !(parsed.short.has('n') || parsed.long.some(isNoVerify))) {
-    return []
+    return [] satisfies GuardrailHit[]
   }
   return [
     { rule: 'git-no-verify', title: 'git commit --no-verify (or -n) skips the commit hooks.' },
-  ]
+  ] satisfies GuardrailHit[]
 }
 
 function forcePushHits(
   short: ReadonlySet<string>,
   long: readonly string[],
   positionals: readonly string[],
-): GuardrailHit[] {
+) {
   // A dry run pushes nothing, so it rewrites nothing.
   if (short.has('n') || long.some((flag) => isAbbreviation(flag, '--dry-run', DRY_RUN_SHORTEST))) {
-    return []
+    const hit: GuardrailHit[] = []
+    return hit
   }
   const refspecs = positionals.slice(1)
   const forced =
@@ -193,7 +197,7 @@ function forcePushHits(
         isAbbreviation(flag, '--mirror', MIRROR_SHORTEST),
     ) ||
     refspecs.some((spec) => spec.startsWith('+'))
-  return forced
+  const hit: GuardrailHit[] = forced
     ? [
         {
           rule: 'force-push',
@@ -201,6 +205,7 @@ function forcePushHits(
         },
       ]
     : []
+  return hit
 }
 
 interface ConfigCall {
@@ -212,7 +217,7 @@ interface ConfigCall {
 }
 
 /** What a `git config` call does: which key, and whether it writes, unsets or opens an editor. */
-function readConfigCall(args: readonly string[]): ConfigCall {
+function readConfigCall(args: readonly string[]) {
   const parsed = parseArgs(args, CONFIG_OPTIONS)
   const [first = '', ...rest] = parsed.positionals
   const verb = CONFIG_VERBS.has(first) ? first : undefined
@@ -228,7 +233,7 @@ function readConfigCall(args: readonly string[]): ConfigCall {
     opensEditor,
     unsets,
     writes: verb === 'set' || opensEditor || unsets || writesFlag || implicitSet,
-  }
+  } satisfies ConfigCall
 }
 
 /** `--get`, `--get-all`, `--get-regexp` and `--list` read; `git config get` is handled by verb. */
@@ -236,30 +241,35 @@ function readsConfig(flags: readonly string[]) {
   return flags.some((flag) => flag.startsWith('--get') || flag === '--list')
 }
 
-function configHits(args: readonly string[], aliasDepth: number): GuardrailHit[] {
+function configHits(args: readonly string[], aliasDepth: number) {
   const call = readConfigCall(args)
   if (!call.writes) {
-    return []
+    return [] satisfies GuardrailHit[]
   }
   // `git config --edit` opens the whole file, hooksPath included.
   if (call.opensEditor || (call.unsets && call.key.toLowerCase() === HOOKS_PATH_KEY)) {
-    return [HOOKS_PATH]
+    return [HOOKS_PATH] satisfies GuardrailHit[]
   }
   return settingHits(call.key, call.value, aliasDepth)
 }
 
 /** A `key=value` set through `git -c`, `git config` or the environment. */
-function settingHits(key: string, value: string, aliasDepth: number): GuardrailHit[] {
+function settingHits(key: string, value: string, aliasDepth: number) {
   const lowered = key.toLowerCase()
   if (lowered === HOOKS_PATH_KEY) {
-    return value === HUSKY_HOOKS_PATH ? [] : [HOOKS_PATH]
+    const hit: GuardrailHit[] = value === HUSKY_HOOKS_PATH ? [] : [HOOKS_PATH]
+    return hit
   }
   if (!lowered.startsWith('alias.') || aliasDepth >= MAX_ALIAS_DEPTH) {
-    return []
+    const hit: GuardrailHit[] = []
+    return hit
   }
   // `!cmd` aliases run a shell command; the others are git arguments.
   const script = value.startsWith('!') ? value.slice(1) : `git ${value}`
-  return shellCommands(script).flatMap((command) => gitRuleHits(command, aliasDepth + 1))
+  const hit: GuardrailHit[] = shellCommands(script).flatMap((command) =>
+    gitRuleHits(command, aliasDepth + 1),
+  )
+  return hit
 }
 
 function isNoVerify(flag: string) {

@@ -16,7 +16,7 @@ const EU_REGION_HOST_SUFFIX = '.de.sentry.io'
  * `https://<host>[/<path>]/api/<projectId>/envelope/`. Returns `undefined` for anything else,
  * including a project outside Sentry's EU region, so a misconfigured DSN fails closed.
  */
-export function parseSentryDsn(dsn: string): SentryProject | undefined {
+export function parseSentryDsn(dsn: string) {
   let url: URL
   try {
     url = new URL(dsn)

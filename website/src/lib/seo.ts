@@ -16,7 +16,7 @@ export type JsonLd = Record<string, unknown>
 const ORGANIZATION_ID = `${SITE_URL}/#organization`
 const WEBSITE_ID = `${SITE_URL}/#website`
 
-export function organizationJsonLd(): JsonLd {
+export function organizationJsonLd() {
   return {
     '@type': 'Organization',
     '@id': ORGANIZATION_ID,
@@ -24,20 +24,20 @@ export function organizationJsonLd(): JsonLd {
     url: `${SITE_URL}/`,
     logo: `${SITE_URL}/apple-touch-icon.png`,
     sameAs: [GITHUB_URL],
-  }
+  } satisfies JsonLd
 }
 
-export function websiteJsonLd(): JsonLd {
+export function websiteJsonLd() {
   return {
     '@type': 'WebSite',
     '@id': WEBSITE_ID,
     name: SITE_NAME,
     url: `${SITE_URL}/`,
     publisher: { '@id': ORGANIZATION_ID },
-  }
+  } satisfies JsonLd
 }
 
-export function softwareApplicationJsonLd(): JsonLd {
+export function softwareApplicationJsonLd() {
   return {
     '@type': 'SoftwareApplication',
     name: SITE_NAME,
@@ -52,7 +52,7 @@ export function softwareApplicationJsonLd(): JsonLd {
     isAccessibleForFree: true,
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     publisher: { '@id': ORGANIZATION_ID },
-  }
+  } satisfies JsonLd
 }
 
 export interface Breadcrumb {
@@ -65,7 +65,7 @@ export function docsArticleJsonLd(input: {
   description: string
   path: string
   breadcrumbs: readonly Breadcrumb[]
-}): JsonLd[] {
+}) {
   const url = new URL(input.path, SITE_URL).href
   return [
     {
@@ -87,11 +87,11 @@ export function docsArticleJsonLd(input: {
         item: new URL(crumb.path, SITE_URL).href,
       })),
     },
-  ]
+  ] satisfies JsonLd[]
 }
 
 /** Serializes a JSON-LD graph for an inline script, escaping `<` so content cannot close the tag. */
-export function jsonLdScript(nodes: readonly JsonLd[]): string {
+export function jsonLdScript(nodes: readonly JsonLd[]) {
   return JSON.stringify({ '@context': 'https://schema.org', '@graph': nodes }).replaceAll(
     '<',
     '\\u003c',

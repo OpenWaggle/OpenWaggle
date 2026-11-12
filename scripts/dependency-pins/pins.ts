@@ -88,15 +88,27 @@ function splitSpec(spec: string) {
   return name && pin ? { name, pin } : undefined
 }
 
-function parseLine(text: string, line: number): DependencyLine | LineFinding {
+function parseLine(text: string, line: number) {
   const groups = PIN_LINE.exec(text)?.groups
   const spec = splitSpec(groups?.spec ?? '')
   const held = groups?.held?.trim() ?? ''
   const unblockedBy = groups?.unblockedBy?.trim() ?? ''
   if (spec === undefined || !held || !unblockedBy) {
-    return { line, kind: 'bad-line', message: `a pin line reads ${code(LINE_FORMAT)}` }
+    const result: DependencyLine | LineFinding = {
+      line,
+      kind: 'bad-line',
+      message: `a pin line reads ${code(LINE_FORMAT)}`,
+    }
+    return result
   }
-  return { package: spec.name, pin: spec.pin, held, unblockedBy, line }
+  const result: DependencyLine | LineFinding = {
+    package: spec.name,
+    pin: spec.pin,
+    held,
+    unblockedBy,
+    line,
+  }
+  return result
 }
 
 /** Every pin line of DEPENDENCIES.md, and what is wrong with them. */
@@ -145,7 +157,7 @@ function sectionPins(
   section: string,
   specs: Readonly<Record<string, string>> | undefined,
 ) {
-  return Object.entries(specs ?? {}).map(([name, spec]): ManifestPin => ({
+  return Object.entries(specs ?? {}).map(([name, spec]) => ({
     package: name,
     spec,
     manifest,
@@ -158,20 +170,27 @@ function sectionPins(
  * entries under `workspaces` (section `catalog:<name>`, `catalog:default` for `workspaces.catalog`).
  * Peer dependencies state what a published package accepts, so they are not pins.
  */
-export function manifestPins(manifestPath: string, manifestText: string): readonly ManifestPin[] {
+export function manifestPins(manifestPath: string, manifestText: string) {
   const decoded = safeDecodeUnknown(pinnedManifestSchema, JSON.parse(manifestText))
-  if (!decoded.success) return []
+  if (!decoded.success) {
+    const pin: readonly ManifestPin[] = []
+    return pin
+  }
   const manifest = decoded.data
   const pins = PINNED_SECTIONS.flatMap((section) =>
     sectionPins(manifestPath, section, manifest[section]),
   )
   const { workspaces } = manifest
-  if (workspaces === undefined) return pins
+  if (workspaces === undefined) {
+    const pin: readonly ManifestPin[] = pins
+    return pin
+  }
   pins.push(...sectionPins(manifestPath, 'catalog:default', workspaces.catalog))
   for (const [name, catalog] of Object.entries(workspaces.catalogs ?? {})) {
     pins.push(...sectionPins(manifestPath, `catalog:${name}`, catalog))
   }
-  return pins
+  const pin: readonly ManifestPin[] = pins
+  return pin
 }
 
 function pinKey(pin: ManifestPin) {
@@ -179,14 +198,12 @@ function pinKey(pin: ManifestPin) {
 }
 
 /** Pins added or given a new spec in `after`; `workspace:` and `catalog:` references are skipped. */
-export function changedPins(
-  before: readonly ManifestPin[],
-  after: readonly ManifestPin[],
-): readonly ManifestPin[] {
+export function changedPins(before: readonly ManifestPin[], after: readonly ManifestPin[]) {
   const previous = new Map(before.map((pin) => [pinKey(pin), pin.spec]))
-  return after.filter(
+  const result: readonly ManifestPin[] = after.filter(
     (pin) => !REFERENCE_SPEC.test(pin.spec) && previous.get(pinKey(pin)) !== pin.spec,
   )
+  return result
 }
 
 function lineViolations(lines: readonly DependencyLine[], all: readonly ManifestPin[]) {
@@ -195,7 +212,7 @@ function lineViolations(lines: readonly DependencyLine[], all: readonly Manifest
     if (REFERENCE_SPEC.test(pin.spec)) continue
     specs.set(pin.package, (specs.get(pin.package) ?? new Set()).add(pin.spec))
   }
-  return lines.flatMap((entry): PinViolation[] => {
+  return lines.flatMap<PinViolation>((entry) => {
     const pinned = specs.get(entry.package)
     const base = { package: entry.package, manifest: DEPENDENCIES_FILE, line: entry.line }
     if (!pinned) {
@@ -223,15 +240,16 @@ async function changedPinViolation(
   pin: ManifestPin,
   lines: readonly DependencyLine[],
   latest: (name: string) => Promise<string | undefined>,
-): Promise<PinViolation | undefined> {
+) {
   const base = { package: pin.package, manifest: pin.manifest, line: MANIFEST_LINE }
   const where = `${code(pin.package)} ${code(pin.spec)} in ${pin.section}`
   if (!EXACT_VERSION.test(pin.spec)) {
-    return {
+    const violation: PinViolation | undefined = {
       ...base,
       kind: 'not-exact',
       message: `${where} is a range; pin an exact version (docs/dependency-updates.md)`,
     }
+    return violation
   }
   if (lines.some((entry) => entry.package === pin.package && entry.pin === pin.spec)) {
     return undefined
@@ -239,17 +257,19 @@ async function changedPinViolation(
   const newest = await latest(pin.package)
   if (newest === pin.spec) return undefined
   if (newest === undefined) {
-    return {
+    const violation: PinViolation | undefined = {
       ...base,
       kind: 'latest-unknown',
       message: `${where} has no ${DEPENDENCIES_FILE} line and the registry's latest version could not be read; add a line or rerun online`,
     }
+    return violation
   }
-  return {
+  const violation: PinViolation | undefined = {
     ...base,
     kind: 'missing-line',
     message: `${where} is not the latest release (${code(newest)}); add a ${DEPENDENCIES_FILE} line for ${code(`${pin.package}@${pin.spec}`)}`,
   }
+  return violation
 }
 
 /**
@@ -262,14 +282,15 @@ export async function pinViolations(input: {
   readonly all: readonly ManifestPin[]
   readonly lines: readonly DependencyLine[]
   readonly latest: (name: string) => Promise<string | undefined>
-}): Promise<readonly PinViolation[]> {
+}) {
   const changed = await Promise.all(
     input.changed
       .filter((pin) => !REFERENCE_SPEC.test(pin.spec))
       .map((pin) => changedPinViolation(pin, input.lines, input.latest)),
   )
-  return [
+  const result: readonly PinViolation[] = [
     ...lineViolations(input.lines, input.all),
     ...changed.filter((violation) => violation !== undefined),
   ]
+  return result
 }

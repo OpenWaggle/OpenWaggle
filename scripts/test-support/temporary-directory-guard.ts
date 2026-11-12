@@ -30,7 +30,7 @@ const REMOVE_OPTIONS = {
 } as const
 
 /** The entries of a test file's temporary directory that the file should have removed. */
-export function temporaryDirectoryLeaks(entries: readonly string[]): string[] {
+export function temporaryDirectoryLeaks(entries: readonly string[]) {
   return entries.filter((entry) => !isToolCache(entry)).sort()
 }
 
@@ -71,7 +71,7 @@ function describeLeak(temporaryDirectory: string, entry: string) {
 export function createTestTemporaryDirectory(input: {
   readonly runRoot: string
   readonly environment: NodeJS.ProcessEnv
-}): TestTemporaryDirectory {
+}) {
   const root = fs.mkdtempSync(path.join(input.runRoot, 'f'))
   const temporaryDirectory = path.join(root, 'tmp')
   fs.mkdirSync(temporaryDirectory)
@@ -99,5 +99,5 @@ export function createTestTemporaryDirectory(input: {
           'Remove every temporary file and directory a test creates in its teardown.',
       )
     },
-  }
+  } satisfies TestTemporaryDirectory
 }

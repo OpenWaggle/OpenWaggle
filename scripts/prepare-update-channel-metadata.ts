@@ -8,19 +8,21 @@ import { updaterFeedChannel, type UpdateChannel } from '../src/shared/types/upda
 type ReleasePlatform = 'mac' | 'linux' | 'windows'
 type ReleaseFeedChannel = UpdateChannel | 'rc'
 
-function releaseFeedChannel(channel: BuildChannel): ReleaseFeedChannel {
-  if (channel === 'stable') return 'stable'
-  if (channel === 'alpha') return 'alpha'
-  if (channel === 'beta') return 'beta'
-  if (channel === 'rc') return 'rc'
+function releaseFeedChannel(channel: BuildChannel) {
+  if (channel === 'stable') return 'stable' as const
+  if (channel === 'alpha') return 'alpha' as const
+  if (channel === 'beta') return 'beta' as const
+  if (channel === 'rc') return 'rc' as const
   throw new Error('Development builds do not publish update metadata.')
 }
 
-function eligibleChannels(channel: ReleaseFeedChannel): readonly ReleaseFeedChannel[] {
-  if (channel === 'stable') return ['stable', 'beta', 'alpha']
-  if (channel === 'beta') return ['beta', 'alpha']
-  if (channel === 'rc') return ['rc', 'beta', 'alpha']
-  return ['alpha']
+function eligibleChannels(channel: ReleaseFeedChannel) {
+  if (channel === 'stable') {
+    return ['stable', 'beta', 'alpha'] satisfies readonly ReleaseFeedChannel[]
+  }
+  if (channel === 'beta') return ['beta', 'alpha'] satisfies readonly ReleaseFeedChannel[]
+  if (channel === 'rc') return ['rc', 'beta', 'alpha'] satisfies readonly ReleaseFeedChannel[]
+  return ['alpha'] satisfies readonly ReleaseFeedChannel[]
 }
 
 function metadataFilename(channel: ReleaseFeedChannel, platform: ReleasePlatform) {

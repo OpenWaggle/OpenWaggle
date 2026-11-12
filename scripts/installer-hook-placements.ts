@@ -79,7 +79,7 @@ const CONTEXT_BY_TEMPLATE: Readonly<Record<string, HookContext>> = {
  * glob hit would read templates from a copy electron-builder does not use - which is the opposite of this module's contract that the vendored
  * templates are the authority. The glob remains only as a fallback for an unusual layout.
  */
-export async function findNsisTemplates(repositoryRoot: string): Promise<string | null> {
+export async function findNsisTemplates(repositoryRoot: string) {
   const resolved = resolveTemplatesThroughNode(repositoryRoot)
   if (resolved !== null) return resolved
 
@@ -91,7 +91,7 @@ export async function findNsisTemplates(repositoryRoot: string): Promise<string 
   return matches[0] ?? null
 }
 
-function resolveTemplatesThroughNode(repositoryRoot: string): string | null {
+function resolveTemplatesThroughNode(repositoryRoot: string) {
   try {
     const rootRequire = createRequire(path.join(repositoryRoot, 'package.json'))
     // app-builder-lib is electron-builder's dependency, not the project's, so resolve it from there.
@@ -106,7 +106,7 @@ function resolveTemplatesThroughNode(repositoryRoot: string): string | null {
 const MACRO_DEFINITION = /^!macro\s+(?<name>\S+)/u
 
 /** Every macro the installer script defines, in file order. */
-export function parseDefinedMacros(scriptSource: string): readonly string[] {
+export function parseDefinedMacros(scriptSource: string) {
   const names: string[] = []
   for (const line of scriptSource.split('\n')) {
     const name = namedGroups(MACRO_DEFINITION.exec(line.trim()), ['name'])?.name
@@ -127,7 +127,7 @@ const MACRO_START = /^!macro\b/iu
  * in these templates is invoked from a function or section, so it is treated as a function - the
  * stricter of the two for StrFunc purposes.
  */
-function contextAt(lines: readonly string[], index: number): HookContext {
+function contextAt(lines: readonly string[], index: number) {
   let closed = 0
   for (let cursor = index; cursor >= 0; cursor -= 1) {
     const line = (lines[cursor] ?? '').trim()
@@ -142,9 +142,9 @@ function contextAt(lines: readonly string[], index: number): HookContext {
       closed -= 1
       continue
     }
-    return opensSection ? 'section' : 'function'
+    return opensSection ? ('section' as const) : ('function' as const)
   }
-  return 'top-level'
+  return 'top-level' as const
 }
 
 /**
@@ -153,7 +153,7 @@ function contextAt(lines: readonly string[], index: number): HookContext {
  * `!else` flips the polarity, which is how `customInit` is reached: it sits in the `!else` of an
  * `!ifdef BUILD_UNINSTALLER`, i.e. the installer pass. Ignoring `!else` reported the opposite.
  */
-function guardedForUninstaller(lines: readonly string[], index: number): boolean | null {
+function guardedForUninstaller(lines: readonly string[], index: number) {
   const stack: (boolean | null)[] = []
   for (let cursor = 0; cursor <= index; cursor += 1) {
     const line = (lines[cursor] ?? '').trim()
@@ -188,10 +188,7 @@ function guardedForUninstaller(lines: readonly string[], index: number): boolean
  * Returns `null` for a hook that appears in no template: that is a hook this version of
  * electron-builder does not support, which must fail the check rather than be skipped.
  */
-export async function derivePlacements(
-  templatesDir: string,
-  hooks: readonly string[],
-): Promise<ReadonlyMap<string, HookPlacement | null>> {
+export async function derivePlacements(templatesDir: string, hooks: readonly string[]) {
   const files = await fg('**/*.{nsh,nsi}', { cwd: templatesDir, absolute: true })
   const sources = await Promise.all(
     files.map(async (file) => ({ file, lines: (await readFile(file, 'utf8')).split('\n') })),
@@ -208,7 +205,7 @@ function findPlacement(
   sources: readonly { readonly file: string; readonly lines: readonly string[] }[],
   templatesDir: string,
   hook: string,
-): HookPlacement | null {
+) {
   const insertion = new RegExp(`!insertmacro\\s+${hook}\\b`, 'u')
   for (const { file, lines } of sources) {
     const index = lines.findIndex((line) => insertion.test(line))
@@ -230,7 +227,7 @@ function findPlacement(
       context:
         withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[templateKey] ?? 'top-level') : withinFile,
       source: `${relative}:${String(index + 1)}`,
-    }
+    } satisfies HookPlacement
   }
   return null
 }

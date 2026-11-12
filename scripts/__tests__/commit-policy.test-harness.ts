@@ -49,7 +49,7 @@ export function repositoryTemplate<T extends { readonly cwd: string }>(build: ()
     const built = await template?.catch(() => undefined)
     if (built) await fs.rm(built.cwd, { force: true, recursive: true })
   })
-  return async (): Promise<T> => {
+  return async () => {
     template ??= build()
     const source = await template
     const cwd = await temporaryRepositoryDirectory()

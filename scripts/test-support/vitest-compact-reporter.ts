@@ -22,12 +22,6 @@ interface Counts {
   skipped: number
 }
 
-interface Location {
-  readonly file: string
-  readonly line: number
-  readonly column: number
-}
-
 function relative(file: string) {
   return path.relative(process.cwd(), file).split(path.sep).join('/')
 }
@@ -40,7 +34,7 @@ function firstLines(text: string, count: number) {
 }
 
 /** Prefer the frame in the failing test file, then any frame outside node_modules. */
-function errorLocation(error: SerializedError, moduleFile: string): Location | undefined {
+function errorLocation(error: SerializedError, moduleFile: string) {
   const frames = error.stacks ?? []
   const frame =
     frames.find((candidate) => candidate.file === moduleFile) ??

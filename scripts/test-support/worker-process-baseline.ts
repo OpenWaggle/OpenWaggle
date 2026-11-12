@@ -62,8 +62,9 @@ const TIMER_FUNCTIONS = [
 ] as const
 
 /** A global read by a name the code holds at runtime (a timer function, a DOM singleton). */
-export function globalBinding(name: PropertyKey): unknown {
-  return Reflect.get(globalThis, name)
+export function globalBinding(name: PropertyKey) {
+  const result: unknown = Reflect.get(globalThis, name)
+  return result
 }
 
 /** Replaces the global `name`, as the timer tracking and the baseline marker do. */
@@ -81,13 +82,14 @@ export function isWorkerProcessBaseline(value: unknown): value is WorkerProcessB
   )
 }
 
-function snapshot(target: object): ObjectSnapshot {
+function snapshot(target: object) {
   const descriptors = new Map<PropertyKey, PropertyDescriptor>()
   for (const key of Reflect.ownKeys(target)) {
     const descriptor = Reflect.getOwnPropertyDescriptor(target, key)
     if (descriptor) descriptors.set(key, descriptor)
   }
-  return { target, descriptors }
+  const result: ObjectSnapshot = { target, descriptors }
+  return result
 }
 
 function restoreSnapshot(
@@ -189,11 +191,11 @@ function trackTimers() {
   return pending
 }
 
-export function captureWorkerProcessBaseline(): WorkerProcessBaseline {
+export function captureWorkerProcessBaseline() {
   // Before the global snapshot, so restoring the globals keeps the tracking functions.
   const timers = trackTimers()
   const clearDomListeners = trackDomListeners()
-  return {
+  const baseline: WorkerProcessBaseline = {
     brand: BASELINE_BRAND,
     env: { ...process.env },
     cwd: process.cwd(),
@@ -206,6 +208,7 @@ export function captureWorkerProcessBaseline(): WorkerProcessBaseline {
     timers,
     clearDomListeners,
   }
+  return baseline
 }
 
 /** Removes the process listeners a file added since the baseline. */

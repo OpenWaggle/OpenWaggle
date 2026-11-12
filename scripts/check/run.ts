@@ -134,11 +134,13 @@ export async function runGate(argv: readonly string[]) {
   const { reports, interrupted } = await executeSteps(planned, options, started)
   const durationMs = performance.now() - started
   const steps = await Promise.all(
-    planned.flatMap(({ step }): Promise<StepReport>[] => {
+    planned.flatMap(({ step }) => {
       const report = reports.get(step.id)
-      if (report === undefined) return []
-      if (step.advisory !== true) return [Promise.resolve(report)]
-      return [advisoryFindings(report).then((advisories) => ({ ...report, advisories }))]
+      if (report === undefined) return [] satisfies Promise<StepReport>[]
+      if (step.advisory !== true) return [Promise.resolve(report)] satisfies Promise<StepReport>[]
+      return [
+        advisoryFindings(report).then((advisories) => ({ ...report, advisories })),
+      ] satisfies Promise<StepReport>[]
     }),
   )
   const ok =

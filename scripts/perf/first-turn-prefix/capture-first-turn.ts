@@ -62,7 +62,7 @@ function messageText(pi: PiAi, message: Message) {
 }
 
 /** Splits a provider request into the leading system prompt, the tools and the Run's context. */
-export function prefixContentOf(pi: PiAi, context: TranscriptContext): PrefixContent {
+export function prefixContentOf(pi: PiAi, context: TranscriptContext) {
   const collapsed = pi.collapseSystemMessages(context)
   const leading = pi.getInitialSystemMessage(collapsed.messages)
   if (!leading) throw new Error('The provider request has no leading system message.')
@@ -84,7 +84,7 @@ export function prefixContentOf(pi: PiAi, context: TranscriptContext): PrefixCon
       parameters: tool.parameters,
     })),
     runContext,
-  }
+  } satisfies PrefixContent
 }
 
 function delay(milliseconds: number) {
@@ -95,9 +95,7 @@ function delay(milliseconds: number) {
  * Builds one first Run the way the Session Host does, against an offline provider that records
  * each request instead of answering from a model, and returns what the provider was sent.
  */
-export async function captureFirstTurnPrefix(
-  options: CaptureFirstTurnOptions,
-): Promise<CapturedFirstTurn> {
+export async function captureFirstTurnPrefix(options: CaptureFirstTurnOptions) {
   const sessionId = MEASURED_SESSION_ID
   const runId = MEASURED_RUN_ID
   const [pi, { SessionManager }] = await Promise.all([loadPiAi(), loadPiCodingAgent()])
@@ -160,5 +158,6 @@ export async function captureFirstTurnPrefix(
     await mcpPool.closeAll()
     await services.modelRuntime.refresh({ allowNetwork: false })
   }
-  return { requests }
+  const turn: CapturedFirstTurn = { requests }
+  return turn
 }

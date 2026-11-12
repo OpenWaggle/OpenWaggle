@@ -40,15 +40,19 @@ const headerNodeSchema = Schema.Struct({
 })
 type HeaderNode = Schema.Schema.Type<typeof headerNodeSchema>
 
-function fileEntry(node: HeaderNode, location: string): AsarFileEntry {
+function fileEntry(node: HeaderNode, location: string) {
   const { size, offset: offsetText } = node
   if (typeof size !== 'number') throw new Error(`asar entry ${location} has no size.`)
-  if (node.unpacked === true) return { size, offset: null }
+  if (node.unpacked === true) {
+    const entry: AsarFileEntry = { size, offset: null }
+    return entry
+  }
   const offset = Number(offsetText)
   if (typeof offsetText !== 'string' || !Number.isSafeInteger(offset)) {
     throw new Error(`asar entry ${location} has no valid offset.`)
   }
-  return { size, offset }
+  const entry: AsarFileEntry = { size, offset }
+  return entry
 }
 
 function collectFiles(value: unknown, location: string, files: Map<string, AsarFileEntry>) {
@@ -65,7 +69,7 @@ function collectFiles(value: unknown, location: string, files: Map<string, AsarF
   }
 }
 
-export async function readAsarArchive(asarPath: string): Promise<AsarArchive> {
+export async function readAsarArchive(asarPath: string) {
   const handle = await fs.open(asarPath, 'r')
   try {
     const prefix = Buffer.alloc(JSON_OFFSET)
@@ -79,7 +83,7 @@ export async function readAsarArchive(asarPath: string): Promise<AsarArchive> {
     const dataBase = DATA_BASE_OFFSET + prefix.readUInt32LE(HEADER_PICKLE_SIZE_OFFSET)
     const files = new Map<string, AsarFileEntry>()
     collectFiles(JSON.parse(json.toString('utf8')), '', files)
-    return {
+    const archive: AsarArchive = {
       files,
       async readFile(archivePath) {
         const entry = files.get(archivePath)
@@ -95,6 +99,7 @@ export async function readAsarArchive(asarPath: string): Promise<AsarArchive> {
         return contents
       },
     }
+    return archive
   } finally {
     await handle.close()
   }

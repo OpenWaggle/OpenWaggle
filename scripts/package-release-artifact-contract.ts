@@ -115,12 +115,12 @@ function isArtifactRecord(value: unknown): value is ArtifactRecord {
   return isJsonObject(value) && hasStringFields(value, ARTIFACT_STRING_FIELDS)
 }
 
-function decodeArtifact(value: unknown): PackageReleaseArtifact {
+function decodeArtifact(value: unknown) {
   if (!isArtifactRecord(value)) {
     throw new Error('Package release artifact manifest contains an invalid package.')
   }
   const dependency = value.dependency === undefined ? undefined : decodeDependency(value.dependency)
-  return {
+  const artifact: PackageReleaseArtifact = {
     ...(dependency === undefined ? {} : { dependency }),
     file: value.file,
     integrity: value.integrity,
@@ -131,6 +131,7 @@ function decodeArtifact(value: unknown): PackageReleaseArtifact {
     tag: value.tag,
     version: value.version,
   }
+  return artifact
 }
 
 interface ArtifactManifestRecord {
@@ -154,18 +155,17 @@ function isArtifactManifestRecord(value: unknown): value is ArtifactManifestReco
   )
 }
 
-export function decodePackageReleaseArtifactManifest(
-  value: unknown,
-): PackageReleaseArtifactManifest {
+export function decodePackageReleaseArtifactManifest(value: unknown) {
   if (!isArtifactManifestRecord(value)) {
     throw new Error('Package release artifact manifest is invalid.')
   }
-  return {
+  const manifest: PackageReleaseArtifactManifest = {
     packages: value.packages.map(decodeArtifact),
     schemaVersion: 1,
     sourceSha: value.sourceSha,
     sourceTree: value.sourceTree,
   }
+  return manifest
 }
 
 function runTar(args: readonly string[]) {

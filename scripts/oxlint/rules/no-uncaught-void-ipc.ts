@@ -12,7 +12,7 @@ const THEN_PROPERTY = 'then'
 const THEN_REJECTION_HANDLER_ARGUMENT_COUNT = 2
 
 /** The name of the identifier a member-call chain is rooted at, or `null` when it has none. */
-function bridgeRootName(operand: ESTree.Expression): string | null {
+function bridgeRootName(operand: ESTree.Expression) {
   let current: ESTree.Expression | ESTree.Super = operand
   while (true) {
     if (current.type === 'Identifier') return current.name
@@ -29,7 +29,7 @@ function bridgeRootName(operand: ESTree.Expression): string | null {
 }
 
 /** The static name a member call selects, or `null` for a computed member or a plain call. */
-function memberPropertyName({ callee }: ESTree.CallExpression): string | null {
+function memberPropertyName({ callee }: ESTree.CallExpression) {
   if (callee.type !== 'MemberExpression' || callee.computed) return null
   return callee.property.type === 'Identifier' ? callee.property.name : null
 }

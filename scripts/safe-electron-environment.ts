@@ -31,9 +31,7 @@ const SAFE_ELECTRON_ENVIRONMENT_KEYS = [
  * The inherited allow-listed variables, then the launcher's overrides. An override wins: a
  * launcher that isolates HOME or the Pi agent directory must not get the caller's real one back.
  */
-export function buildSafeElectronEnvironment(
-  overrides: Readonly<Record<string, string>>,
-): Record<string, string> {
+export function buildSafeElectronEnvironment(overrides: Readonly<Record<string, string>>) {
   const environment: Record<string, string> = {}
   for (const key of SAFE_ELECTRON_ENVIRONMENT_KEYS) {
     const value = process.env[key]

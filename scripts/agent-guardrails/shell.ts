@@ -93,29 +93,36 @@ export function commandName(word: string) {
 }
 
 /** Every command the shell would run for `script`, including the scripts it runs. */
-export function shellCommands(script: string, depth = 0): ShellCommand[] {
+export function shellCommands(script: string, depth = 0) {
   if (depth > MAX_SHELL_NESTING) {
-    return [
+    const command: ShellCommand[] = [
       { assignments: [], argv: [], writes: [], unreadable: 'a shell nested too deeply to read' },
     ]
+    return command
   }
-  return scanShell(script).flatMap((raw) => expand(raw, depth))
+  const command: ShellCommand[] = scanShell(script).flatMap((raw) => expand(raw, depth))
+  return command
 }
 
-function expand(raw: RawCommand, depth: number): ShellCommand[] {
+function expand(raw: RawCommand, depth: number) {
   const words = dropReservedWords(raw.words)
   if (DATA_COMMANDS.has(words[0] ?? '')) {
-    return raw.writes.length > 0 ? [{ assignments: [], argv: [], writes: raw.writes }] : []
+    const result: ShellCommand[] =
+      raw.writes.length > 0 ? [{ assignments: [], argv: [], writes: raw.writes }] : []
+    return result
   }
   const command: ShellCommand = { ...unwrap(words), writes: raw.writes }
   const inner = innerScript(command.argv, raw)
   if (inner === undefined) {
-    return [command]
+    const result: ShellCommand[] = [command]
+    return result
   }
   if ('unreadable' in inner) {
-    return [{ ...command, unreadable: inner.unreadable }]
+    const result: ShellCommand[] = [{ ...command, unreadable: inner.unreadable }]
+    return result
   }
-  return [command, ...shellCommands(inner.script, depth + 1)]
+  const result: ShellCommand[] = [command, ...shellCommands(inner.script, depth + 1)]
+  return result
 }
 
 function dropReservedWords(words: readonly string[]) {
@@ -123,7 +130,7 @@ function dropReservedWords(words: readonly string[]) {
   return start === -1 ? [] : words.slice(start)
 }
 
-function unwrap(words: readonly string[]): Pick<ShellCommand, 'assignments' | 'argv'> {
+function unwrap(words: readonly string[]) {
   const assignments: string[] = []
   let index = 0
   while (index < words.length) {
@@ -172,7 +179,7 @@ function skipRunnerOptions(words: readonly string[], start: number, runner: Runn
   return index + runner.operands
 }
 
-function innerScript(argv: readonly string[], raw: RawCommand): InnerScript | undefined {
+function innerScript(argv: readonly string[], raw: RawCommand) {
   const name = commandName(argv[0] ?? '')
   if (name === 'eval') {
     return { script: argv.slice(1).join(' ') }
@@ -187,7 +194,7 @@ function innerScript(argv: readonly string[], raw: RawCommand): InnerScript | un
 }
 
 /** `env -S 'git commit -n'` splits its string into a command. */
-function envSplitScript(argv: readonly string[]): InnerScript | undefined {
+function envSplitScript(argv: readonly string[]) {
   const split = argv.findIndex((arg) => arg === '-S' || arg === '--split-string')
   if (split !== -1) {
     return { script: argv.slice(split + 1).join(' ') }
@@ -206,7 +213,7 @@ function envSplitScript(argv: readonly string[]): InnerScript | undefined {
 }
 
 /** The commands `git rebase -x <cmd>` or `--exec <cmd>` runs after each commit. */
-function rebaseExecScript(argv: readonly string[]): InnerScript | undefined {
+function rebaseExecScript(argv: readonly string[]) {
   const rebase = argv.indexOf('rebase')
   if (rebase === -1) {
     return undefined
@@ -224,15 +231,8 @@ function rebaseExecScript(argv: readonly string[]): InnerScript | undefined {
   return scripts.length === 0 ? undefined : { script: scripts.join('\n') }
 }
 
-interface ShellOptions {
-  readonly runsCommandString: boolean
-  readonly readsStdin: boolean
-  /** The index of the first operand: the command string, or the script file. */
-  readonly operand: number
-}
-
 /** Reads `bash -euo pipefail -c ...`: which options are set and where the operands start. */
-function readShellOptions(argv: readonly string[]): ShellOptions {
+function readShellOptions(argv: readonly string[]) {
   let index = 1
   let flags = ''
   while (index < argv.length) {
@@ -253,17 +253,19 @@ function readShellOptions(argv: readonly string[]): ShellOptions {
   return { runsCommandString: flags.includes('c'), readsStdin: flags.includes('s'), operand: index }
 }
 
-function shellScript(argv: readonly string[], raw: RawCommand): InnerScript | undefined {
+function shellScript(argv: readonly string[], raw: RawCommand) {
   const options = readShellOptions(argv)
   if (options.runsCommandString) {
-    return { script: argv[options.operand] ?? '' }
+    return { script: argv[options.operand] ?? '' } satisfies InnerScript
   }
   const scriptFile = argv[options.operand]
   if (!options.readsStdin && scriptFile !== undefined && !STDIN_SCRIPTS.has(scriptFile)) {
     return undefined
   }
   if (raw.stdin !== undefined) {
-    return { script: raw.stdin }
+    return { script: raw.stdin } satisfies InnerScript
   }
-  return raw.piped ? { unreadable: `text piped into ${commandName(argv[0] ?? '')}` } : undefined
+  return (
+    raw.piped ? { unreadable: `text piped into ${commandName(argv[0] ?? '')}` } : undefined
+  ) satisfies InnerScript | undefined
 }

@@ -216,7 +216,7 @@ async function writeFiles(root: string, files: Readonly<Record<string, string>>)
 export async function createEssentialsProject(input: {
   readonly scratchRoot: string
   readonly homeDir: string
-}): Promise<EssentialsProject> {
+}) {
   const git = (cwd: string, args: readonly string[]) => fixtureGit(cwd, args, input.homeDir)
   const projectPath = path.join(input.scratchRoot, ESSENTIALS_PROJECT_NAME)
   const remotePath = path.join(input.scratchRoot, 'remotes', `${ESSENTIALS_PROJECT_NAME}.git`)

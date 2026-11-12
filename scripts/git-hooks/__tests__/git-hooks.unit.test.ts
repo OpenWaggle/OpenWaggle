@@ -15,8 +15,8 @@ const GIT: PushGit = {
     ancestor === descendant || (ancestor === OLD && descendant === NEW),
 }
 
-function update(remoteRef: string, localSha: string, remoteSha: string): RefUpdate {
-  return { localRef: 'refs/heads/feature', localSha, remoteRef, remoteSha }
+function update(remoteRef: string, localSha: string, remoteSha: string) {
+  return { localRef: 'refs/heads/feature', localSha, remoteRef, remoteSha } satisfies RefUpdate
 }
 
 describe('commit-msg', () => {

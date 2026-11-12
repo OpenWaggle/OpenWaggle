@@ -58,12 +58,12 @@ function percentile(values: readonly number[], percentileValue: number) {
   return sorted[index] ?? 0
 }
 
-function summary(values: readonly number[]): MetricSummary {
+function summary(values: readonly number[]) {
   return {
     medianMs: percentile(values, MEDIAN_PERCENTILE),
     p95Ms: percentile(values, P95_PERCENTILE),
     samples: values.length,
-  }
+  } satisfies MetricSummary
 }
 
 async function measure(samples: number, operation: () => void | Promise<void>) {
@@ -139,7 +139,7 @@ async function loadProfile(profilePath: string) {
   return parsed
 }
 
-function roundSummary(metric: MetricSummary): MetricSummary {
+function roundSummary(metric: MetricSummary) {
   return {
     medianMs: Number(metric.medianMs.toFixed(DECIMAL_PLACES)),
     p95Ms: Number(metric.p95Ms.toFixed(DECIMAL_PLACES)),

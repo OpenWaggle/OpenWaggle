@@ -33,9 +33,7 @@ const DUPLICATE_DECLARATION_THRESHOLD = 2
 
 const EXPORTED_TYPE_DECLARATION = /^export (?:interface|type) ([A-Za-z0-9_]+)/gmu
 
-export function collectDuplicateExportedTypes(
-  filesWithContents: ReadonlyMap<string, string>,
-): readonly Violation[] {
+export function collectDuplicateExportedTypes(filesWithContents: ReadonlyMap<string, string>) {
   const declarationsByName = new Map<string, string[]>()
   for (const [file, contents] of filesWithContents) {
     /*
@@ -56,12 +54,10 @@ export function collectDuplicateExportedTypes(
   return [
     ...findUnlistedDuplicates(declarationsByName),
     ...findStaleDuplicateExemptions(declarationsByName),
-  ]
+  ] satisfies readonly Violation[]
 }
 
-function findUnlistedDuplicates(
-  declarationsByName: ReadonlyMap<string, readonly string[]>,
-): readonly Violation[] {
+function findUnlistedDuplicates(declarationsByName: ReadonlyMap<string, readonly string[]>) {
   const violations: Violation[] = []
   for (const [name, declaringFiles] of [...declarationsByName].toSorted(([left], [right]) =>
     left.localeCompare(right),
@@ -79,9 +75,7 @@ function findUnlistedDuplicates(
 }
 
 /** The exemption list can only shrink: a resolved collision must be removed from it. */
-function findStaleDuplicateExemptions(
-  declarationsByName: ReadonlyMap<string, readonly string[]>,
-): readonly Violation[] {
+function findStaleDuplicateExemptions(declarationsByName: ReadonlyMap<string, readonly string[]>) {
   const violations: Violation[] = []
   for (const name of KNOWN_DUPLICATE_EXPORTED_TYPES) {
     const unique = new Set(declarationsByName.get(name) ?? [])

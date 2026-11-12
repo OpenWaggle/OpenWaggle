@@ -52,11 +52,11 @@ function chunk(delta: object, finishReason: string | null) {
   return `data: ${JSON.stringify(payload)}\n\n`
 }
 
-function writer(response: ServerResponse): StreamWriter {
+function writer(response: ServerResponse) {
   let finish = 'stop'
   response.writeHead(HTTP_OK, { 'content-type': 'text/event-stream' })
   response.write(chunk({ role: 'assistant', content: '' }, null))
-  return {
+  const result: StreamWriter = {
     text: (text) => response.write(chunk({ content: text }, null)),
     toolCalls: (calls) => {
       finish = 'tool_calls'
@@ -75,6 +75,7 @@ function writer(response: ServerResponse): StreamWriter {
       response.end('data: [DONE]\n\n')
     },
   }
+  return result
 }
 
 function readBody(request: IncomingMessage) {
@@ -85,12 +86,14 @@ function readBody(request: IncomingMessage) {
   })
 }
 
-function parsedBody(raw: string): ChatCompletionsBody {
+function parsedBody(raw: string) {
   try {
     const parsed: unknown = JSON.parse(raw)
-    return objectFields(chatCompletionsBodySchema, parsed) ?? {}
+    const body: ChatCompletionsBody = objectFields(chatCompletionsBodySchema, parsed) ?? {}
+    return body
   } catch {
-    return {}
+    const body: ChatCompletionsBody = {}
+    return body
   }
 }
 

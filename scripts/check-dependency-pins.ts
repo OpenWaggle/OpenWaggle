@@ -83,7 +83,7 @@ async function basePins(root: string, ref: string, files: readonly string[]) {
   return pins.flat()
 }
 
-async function readLatestCache(file: string): Promise<LatestCache> {
+async function readLatestCache(file: string) {
   let text: string
   try {
     text = await readFile(file, 'utf8')

@@ -93,7 +93,7 @@ function replySummary(comments: readonly ThreadComment[], viewer: string) {
   }))
 }
 
-function threadItem(thread: ReviewThread, first: ThreadComment, viewer: string): OpenItem {
+function threadItem(thread: ReviewThread, first: ThreadComment, viewer: string) {
   return {
     author: first.author.login,
     body: truncate(first.body, MAX_BODY_LENGTH),
@@ -104,11 +104,11 @@ function threadItem(thread: ReviewThread, first: ThreadComment, viewer: string):
     replies: replySummary(thread.comments.slice(1), viewer),
     reply: { commentId: first.id },
     url: first.url,
-  }
+  } satisfies OpenItem
 }
 
-function plainItem(entry: IssueComment | Review, kind: 'comment' | 'review'): OpenItem {
-  return {
+function plainItem(entry: IssueComment | Review, kind: 'comment' | 'review') {
+  const item: OpenItem = {
     author: entry.author.login,
     body: truncate(entry.body, MAX_BODY_LENGTH),
     kind,
@@ -119,6 +119,7 @@ function plainItem(entry: IssueComment | Review, kind: 'comment' | 'review'): Op
     reply: { marker: `<!-- babysit:reply-to:${kind}-${String(entry.id)} -->` },
     url: entry.url,
   }
+  return item
 }
 
 function collectThreads(threads: readonly ReviewThread[], viewer: string) {

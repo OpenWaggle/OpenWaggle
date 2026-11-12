@@ -73,7 +73,7 @@ function isRegisteredSource(projectRoot: string, path: string) {
   })
 }
 
-export function isolatedTailwindSourcePlugin(): Plugin {
+export function isolatedTailwindSourcePlugin() {
   const projectRoot = process.cwd()
   const sourcePath = isolatedSourcePath(projectRoot)
   return {
@@ -101,5 +101,5 @@ export function isolatedTailwindSourcePlugin(): Plugin {
       const cssPath = sourcePath.replaceAll('\\', '/')
       return code.replace(SOURCE_PLACEHOLDER, cssPath)
     },
-  }
+  } satisfies Plugin
 }

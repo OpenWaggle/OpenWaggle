@@ -22,11 +22,8 @@
 import { pathToFileURL } from 'node:url'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import {
-  type SnapshotDailyCount,
   type SnapshotNpmPackage,
-  type SnapshotPopularEntry,
   type SnapshotRelease,
-  type SnapshotTraffic,
   USAGE_STATS_SNAPSHOT_SCHEMA_VERSION,
   type UsageStatsSnapshot,
 } from '../functions/_lib/snapshot-contract'
@@ -71,7 +68,7 @@ const isReferrers = isMatching(P.array({ referrer: P.string, count: P.number, un
 const isPaths = isMatching(P.array({ path: P.string, count: P.number, uniques: P.number }))
 const isNpmRange = isMatching({ downloads: P.array({ day: P.string, downloads: P.number }) })
 
-function githubHeaders(token: string | undefined): Record<string, string> {
+function githubHeaders(token: string | undefined) {
   return {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
@@ -93,7 +90,7 @@ function nextPage(link: string | null) {
  * workflow's own token: the traffic token is never needed for public data, so an expired one
  * cannot stop the snapshot.
  */
-export async function collectReleases(options: SnapshotJobOptions): Promise<SnapshotRelease[]> {
+export async function collectReleases(options: SnapshotJobOptions) {
   const token = configured(options.env.GITHUB_TOKEN)
   const releases: SnapshotRelease[] = []
   let url: string | undefined =
@@ -121,7 +118,7 @@ export async function collectReleases(options: SnapshotJobOptions): Promise<Snap
 }
 
 function dailyCounts(days: readonly { timestamp: string; count: number; uniques: number }[]) {
-  return days.map((day): SnapshotDailyCount => ({
+  return days.map((day) => ({
     day: day.timestamp.slice(0, ISO_DAY_LENGTH),
     count: day.count,
     uniques: day.uniques,
@@ -129,7 +126,7 @@ function dailyCounts(days: readonly { timestamp: string; count: number; uniques:
 }
 
 function popular(entries: readonly { name: string; count: number; uniques: number }[]) {
-  return entries.map(({ name, count, uniques }): SnapshotPopularEntry => ({ name, count, uniques }))
+  return entries.map(({ name, count, uniques }) => ({ name, count, uniques }))
 }
 
 const TRAFFIC_PATHS = [
@@ -153,7 +150,7 @@ function trafficStatusWarning(status: number) {
  * cannot serve them (an error status, a timeout, a network failure). The 14-day lists refill on
  * the next run. An answer of an unexpected shape still fails the snapshot: the API changed.
  */
-export async function collectTraffic(options: SnapshotJobOptions): Promise<SnapshotTraffic | null> {
+export async function collectTraffic(options: SnapshotJobOptions) {
   const token = configured(options.env.STATS_GITHUB_TOKEN)
   if (token === undefined) {
     options.log('STATS_GITHUB_TOKEN is not set; the snapshot carries no repository traffic.')
@@ -194,9 +191,7 @@ export async function collectTraffic(options: SnapshotJobOptions): Promise<Snaps
 }
 
 /** One package's daily downloads, or why it is skipped. */
-function npmDays(
-  read: JsonRead,
-): { readonly days: SnapshotNpmPackage['days'] } | { readonly skipped: string } {
+function npmDays(read: JsonRead) {
   if (read.failure !== undefined) return { skipped: `could not be read (${read.failure})` }
   if (!read.response.ok) return { skipped: `answered ${String(read.response.status)}` }
   if (!isNpmRange(read.body)) return { skipped: 'returned an unexpected shape' }
@@ -210,9 +205,7 @@ function npmDays(
  * The endpoint keeps what it already forwarded for a skipped package, and the next snapshot's
  * month-long range catches up on an outage shorter than that month.
  */
-export async function collectNpmDownloads(
-  options: SnapshotJobOptions,
-): Promise<SnapshotNpmPackage[]> {
+export async function collectNpmDownloads(options: SnapshotJobOptions) {
   const packages: SnapshotNpmPackage[] = []
   for (const name of SNAPSHOT_NPM_PACKAGES) {
     const read = await readOptionalJson(options, `${NPM_DOWNLOADS_API}/${name}`, {
@@ -228,15 +221,18 @@ export async function collectNpmDownloads(
   return packages
 }
 
-export async function collectUsageStatsSnapshot(
-  options: SnapshotJobOptions,
-): Promise<UsageStatsSnapshot> {
+export async function collectUsageStatsSnapshot(options: SnapshotJobOptions) {
   const [releases, traffic, npm] = await Promise.all([
     collectReleases(options),
     collectTraffic(options),
     collectNpmDownloads(options),
   ])
-  return { schema: USAGE_STATS_SNAPSHOT_SCHEMA_VERSION, releases, traffic, npm }
+  return {
+    schema: USAGE_STATS_SNAPSHOT_SCHEMA_VERSION,
+    releases,
+    traffic,
+    npm,
+  } satisfies UsageStatsSnapshot
 }
 
 function summary(snapshot: UsageStatsSnapshot) {

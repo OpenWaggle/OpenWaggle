@@ -26,26 +26,26 @@ export interface TextEdit {
 const ALLOW: GuardrailDecision = { kind: 'allow' }
 
 /** Every guarded action in a shell command line. */
-export function bashCommandHits(command: string): GuardrailHit[] {
+export function bashCommandHits(command: string) {
   return shellCommands(command).flatMap(commandHits)
 }
 
-function commandHits(command: ShellCommand): GuardrailHit[] {
+function commandHits(command: ShellCommand) {
   if (command.unreadable !== undefined) {
     return [
       {
         rule: 'unreadable-script',
         title: `Running ${command.unreadable}, which the guardrail cannot read.`,
       },
-    ]
+    ] satisfies GuardrailHit[]
   }
-  return [...gitRuleHits(command), ...hookFileHits(command)]
+  return [...gitRuleHits(command), ...hookFileHits(command)] satisfies GuardrailHit[]
 }
 
 /** Block a shell command that skips the git hooks or force pushes; allow anything else. */
-export function bashCommandDecision(command: string): GuardrailDecision {
+export function bashCommandDecision(command: string) {
   const [hit] = bashCommandHits(command)
-  return hit === undefined ? ALLOW : blocked(hit)
+  return (hit === undefined ? ALLOW : blocked(hit)) satisfies GuardrailDecision
 }
 
 /**
@@ -57,10 +57,10 @@ export function fileToolDecision(input: {
   readonly content?: string
   readonly edits?: readonly TextEdit[]
   readonly currentText: string | undefined
-}): GuardrailDecision {
+}) {
   const resulting = input.content ?? applyEdits(input.currentText, input.edits ?? [])
   const [hit] = fileToolHits(input.path, resulting)
-  return hit === undefined ? ALLOW : blocked(hit)
+  return (hit === undefined ? ALLOW : blocked(hit)) satisfies GuardrailDecision
 }
 
 /** The text after the edit tool's exact, first-match replacements, or undefined if one misses. */
@@ -79,6 +79,10 @@ function applyEdits(text: string | undefined, edits: readonly TextEdit[]) {
   return result
 }
 
-function blocked(hit: GuardrailHit): GuardrailDecision {
-  return { kind: 'block', rule: hit.rule, reason: `Blocked: ${hit.title} ${guidanceFor(hit.rule)}` }
+function blocked(hit: GuardrailHit) {
+  return {
+    kind: 'block',
+    rule: hit.rule,
+    reason: `Blocked: ${hit.title} ${guidanceFor(hit.rule)}`,
+  } satisfies GuardrailDecision
 }

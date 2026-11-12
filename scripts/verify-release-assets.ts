@@ -137,7 +137,7 @@ function isRecord(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseAsset(value: unknown): RemoteReleaseAsset {
+function parseAsset(value: unknown) {
   if (
     isRecord(value) &&
     'id' in value &&
@@ -155,7 +155,7 @@ function parseAsset(value: unknown): RemoteReleaseAsset {
 }
 
 /** Lists every release, drafts included, because the tag lookup endpoint does not return drafts. */
-async function findRelease(repository: string, tag: string): Promise<RemoteRelease | null> {
+async function findRelease(repository: string, tag: string) {
   const pages: unknown = JSON.parse(
     (
       await gh(['api', '--paginate', '--slurp', `repos/${repository}/releases?per_page=100`])

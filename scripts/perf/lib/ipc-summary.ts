@@ -22,14 +22,18 @@ const invokeSchema = Schema.Struct({
 })
 const pushedTotalsSchema = Schema.Struct({ count: Schema.Number, bytes: Schema.Number })
 
-function invokesOf(log: unknown): InvokeRecord[] {
+function invokesOf(log: unknown) {
   const invokes = objectFields(ipcLogSchema, log)?.invokes
-  if (!Array.isArray(invokes)) return []
-  return invokes.flatMap((entry: unknown) =>
+  if (!Array.isArray(invokes)) {
+    const record: InvokeRecord[] = []
+    return record
+  }
+  const record: InvokeRecord[] = invokes.flatMap((entry: unknown) =>
     Schema.is(invokeSchema)(entry)
       ? [{ channel: entry.channel, bytes: entry.bytes, ms: entry.ms }]
       : [],
   )
+  return record
 }
 
 function pushedOf(log: unknown) {

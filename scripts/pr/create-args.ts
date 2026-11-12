@@ -47,7 +47,7 @@ function refusedFlag(args: readonly string[]) {
     .find((argument) => REFUSED_FLAGS.has(argument))
 }
 
-export function parseCreateArgs(args: readonly string[]): CreateRequest {
+export function parseCreateArgs(args: readonly string[]) {
   const refused = refusedFlag(args)
   if (refused !== undefined) {
     throw new PrScriptError(`${refused} is not supported. ${REFUSED_FLAGS.get(refused) ?? ''}`)

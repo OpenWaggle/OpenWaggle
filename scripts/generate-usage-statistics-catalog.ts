@@ -86,7 +86,7 @@ export function renderUsageStatisticsCatalog(source: UsageStatisticsCatalogSourc
 }
 
 /** Reads the three catalogs from Pi, the MCP catalog and the built-in skill list. */
-export async function loadUsageStatisticsCatalogSource(): Promise<UsageStatisticsCatalogSource> {
+export async function loadUsageStatisticsCatalogSource() {
   // A dynamic import: Pi publishes this entry point for ESM only.
   const { getBuiltinModels, getBuiltinProviders } =
     await import('@earendil-works/pi-ai/providers/all')

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { _electron as electron, type ElectronApplication } from '@playwright/test'
+import { _electron as electron } from '@playwright/test'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
 
 interface PlaywrightElectronLaunchInput {
@@ -77,9 +77,7 @@ export function playwrightElectronArguments(
   return [...appPath, ...credentialStoreSwitches]
 }
 
-export async function launchOpenWaggleElectron(
-  input: PlaywrightElectronLaunchInput,
-): Promise<ElectronApplication> {
+export async function launchOpenWaggleElectron(input: PlaywrightElectronLaunchInput) {
   // Tools the app starts expect the home and Pi agent directories to exist.
   await fs.mkdir(playwrightElectronHome(input).piAgentDir, { recursive: true })
   return electron.launch({

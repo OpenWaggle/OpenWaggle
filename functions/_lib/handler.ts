@@ -81,20 +81,22 @@ async function sendRequestEvent(
   )
 }
 
-function notFound(): RouteResult {
-  return {
+function notFound() {
+  const result: RouteResult = {
     response: jsonResponse(HTTP_STATUS.notFound, { error: 'not found' }),
     outcome: 'rejected',
   }
+  return result
 }
 
-function methodNotAllowed(): RouteResult {
+function methodNotAllowed() {
   const response = jsonResponse(
     HTTP_STATUS.methodNotAllowed,
     { error: 'use POST' },
     { Allow: 'POST' },
   )
-  return { response, outcome: 'rejected', field: 'method' }
+  const result: RouteResult = { response, outcome: 'rejected', field: 'method' }
+  return result
 }
 
 /**
@@ -108,7 +110,7 @@ export async function handleStatisticsRequest(
   environment: StatisticsEnvironment,
   tasks: BackgroundTasks,
   dependencies: StatisticsDependencies = runtimeDependencies(),
-): Promise<Response> {
+) {
   const startedAt = dependencies.now()
   const logOnly = (path: LoggedPath, refused: RouteResult) => {
     const status = refused.response.status

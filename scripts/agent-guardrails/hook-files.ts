@@ -84,7 +84,7 @@ const READERS: ReadonlyMap<string, ChangeReader> = new Map<string, ChangeReader>
 ])
 
 /** The hook-file rules one shell command breaks. */
-export function hookFileHits(command: ShellCommand): GuardrailHit[] {
+export function hookFileHits(command: ShellCommand) {
   const args = command.argv.slice(1)
   const operands = args.filter((arg) => !arg.startsWith('-'))
   const name = commandName(command.argv[0] ?? '')
@@ -105,16 +105,20 @@ export function hookFileHits(command: ShellCommand): GuardrailHit[] {
 }
 
 /** The rule a `write` or `edit` tool call on `file` breaks, given the file's text afterwards. */
-export function fileToolHits(file: string, resultingText: string | undefined): GuardrailHit[] {
+export function fileToolHits(file: string, resultingText: string | undefined) {
   if (isGitConfigFile(file)) {
-    return [GIT_CONFIG_FILE_HIT]
+    const hit: GuardrailHit[] = [GIT_CONFIG_FILE_HIT]
+    return hit
   }
   if (isHuskySwitch(file)) {
-    return [HOOK_FILES_HIT]
+    const hit: GuardrailHit[] = [HOOK_FILES_HIT]
+    return hit
   }
-  return isHookScript(file) && resultingText !== undefined && hookScriptDisabled(resultingText)
-    ? [{ rule: 'hook-files', title: `This change to ${file} makes the hook do nothing.` }]
-    : []
+  const hit: GuardrailHit[] =
+    isHookScript(file) && resultingText !== undefined && hookScriptDisabled(resultingText)
+      ? [{ rule: 'hook-files', title: `This change to ${file} makes the hook do nothing.` }]
+      : []
+  return hit
 }
 
 /**
@@ -164,42 +168,45 @@ function isGitConfigFile(file: string) {
   )
 }
 
-function moves(args: readonly string[], operands: readonly string[]): FileChanges {
+function moves(args: readonly string[], operands: readonly string[]) {
   const target = targetDirectory(args)
   return target.length > 0
     ? { written: target, removed: operands }
     : { written: operands.slice(-1), removed: operands.slice(0, -1) }
 }
 
-function inPlace(args: readonly string[], operands: readonly string[]): FileChanges {
+function inPlace(args: readonly string[], operands: readonly string[]) {
   const edits = args.some(
     (arg) =>
       arg.startsWith('-i') ||
       arg.startsWith('--in-place') ||
       (SHORT_CLUSTER.test(arg) && arg.includes('i')),
   )
-  return edits ? { written: operands, removed: [] } : NOTHING
+  const changes: FileChanges = edits ? { written: operands, removed: [] } : NOTHING
+  return changes
 }
 
 // `chmod -x`, `a-x`, `u=rw` or an octal mode without the owner's exec bit can stop a hook from
 // running; `+x` cannot. `-R` on `.husky` reaches `.husky/_`.
-function chmods(args: readonly string[]): FileChanges {
+function chmods(args: readonly string[]) {
   const recursive = args.some((arg) => SHORT_CLUSTER.test(arg) && arg.includes('R'))
   const [mode = '', ...files] = args.filter((arg) => !SHORT_CLUSTER.test(arg) || arg.includes('x'))
   const octal = OCTAL_MODE.test(mode) && NO_EXEC_DIGITS.has(mode.at(OWNER_DIGIT) ?? '')
   const symbolic = mode.includes('-') || mode.includes('=')
   const reached = files.flatMap((file) => (recursive ? [file, `${file}/_`] : [file]))
-  return symbolic || octal ? { written: reached, removed: [] } : NOTHING
+  const changes: FileChanges = symbolic || octal ? { written: reached, removed: [] } : NOTHING
+  return changes
 }
 
-function dd(args: readonly string[]): FileChanges {
-  return {
+function dd(args: readonly string[]) {
+  const changes: FileChanges = {
     written: args.filter((arg) => arg.startsWith('of=')).map((arg) => arg.slice('of='.length)),
     removed: [],
   }
+  return changes
 }
 
-function finds(args: readonly string[], operands: readonly string[]): FileChanges {
+function finds(args: readonly string[], operands: readonly string[]) {
   const changes =
     args.includes('-delete') ||
     args.some(
@@ -208,27 +215,32 @@ function finds(args: readonly string[], operands: readonly string[]): FileChange
         FIND_CHANGE_TOOLS.has(commandName(args[index + 1] ?? '')),
     )
   // Every operand counts, `-name .husky` included: it names what gets removed.
-  return changes ? { written: [], removed: operands } : NOTHING
+  const result: FileChanges = changes ? { written: [], removed: operands } : NOTHING
+  return result
 }
 
-function gitFileChanges(args: readonly string[]): FileChanges {
+function gitFileChanges(args: readonly string[]) {
   const { subcommand, args: rest } = parseGitInvocation(args)
   const paths = rest.filter((arg) => !arg.startsWith('-'))
   if (subcommand === 'rm') {
-    return { written: [], removed: paths }
+    const changes: FileChanges = { written: [], removed: paths }
+    return changes
   }
   if (subcommand === 'mv') {
-    return { written: paths.slice(-1), removed: paths.slice(0, -1) }
+    const changes: FileChanges = { written: paths.slice(-1), removed: paths.slice(0, -1) }
+    return changes
   }
   if (subcommand === 'update-index' && rest.includes('--chmod=-x')) {
-    return { written: paths, removed: [] }
+    const changes: FileChanges = { written: paths, removed: [] }
+    return changes
   }
-  return subcommand === 'clean' ? gitClean(rest, paths) : NOTHING
+  const changes: FileChanges = subcommand === 'clean' ? gitClean(rest, paths) : NOTHING
+  return changes
 }
 
 // `.husky/_/.gitignore` ignores everything in it, so `git clean -x` or `-X` removes `.husky/_`
 // unless every pathspec is outside `.husky`.
-function gitClean(rest: readonly string[], paths: readonly string[]): FileChanges {
+function gitClean(rest: readonly string[], paths: readonly string[]) {
   const ignored = rest.some(
     (arg) => SHORT_CLUSTER.test(arg) && (arg.includes('x') || arg.includes('X')),
   )
@@ -238,7 +250,8 @@ function gitClean(rest: readonly string[], paths: readonly string[]): FileChange
       const [first] = segments(spec)
       return first === undefined || isHuskyDir(first)
     })
-  return ignored && reaches ? { written: [], removed: ['.husky/_'] } : NOTHING
+  const changes: FileChanges = ignored && reaches ? { written: [], removed: ['.husky/_'] } : NOTHING
+  return changes
 }
 
 function targetDirectory(args: readonly string[]) {

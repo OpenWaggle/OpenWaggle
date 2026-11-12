@@ -14,7 +14,7 @@ export function json(body: unknown, init: ResponseInit = {}) {
 
 /** A route whose request fails before any answer, like a fetch that timed out or lost its connection. */
 export function throws(error: Error) {
-  return (): Response => {
+  return () => {
     throw error
   }
 }

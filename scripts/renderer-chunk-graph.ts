@@ -17,7 +17,7 @@ function isManifestChunk(value: unknown): value is RendererManifestChunk {
   return Schema.is(manifestChunkSchema)(value)
 }
 
-export function parseRendererManifest(value: unknown): RendererManifest {
+export function parseRendererManifest(value: unknown) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('The renderer build manifest is not an object.')
   }

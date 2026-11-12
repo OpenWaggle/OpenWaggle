@@ -123,7 +123,7 @@ export function promotionBase(input: {
   readonly targetVersion: string
   readonly gitHubReleaseLines: string | undefined
   readonly localTags: readonly string[]
-}): PromotionBase {
+}) {
   const { targetVersion } = input
   if (!APP_VERSION_PATTERN.test(targetVersion)) {
     throw new Error(`Invalid desktop app version: ${targetVersion}.`)
@@ -132,7 +132,7 @@ export function promotionBase(input: {
     return {
       kind: 'skip',
       reason: `${targetVersion} is a prerelease; the promotion guard applies to Stable only.`,
-    }
+    } satisfies PromotionBase
   }
   if (input.gitHubReleaseLines === undefined) {
     throw new Error(`Stable ${targetVersion} needs --releases with the GitHub release list.`)
@@ -162,10 +162,10 @@ export function promotionBase(input: {
     return {
       kind: 'skip',
       reason: `No published release candidate precedes ${targetVersion}; promotion guard skipped.`,
-    }
+    } satisfies PromotionBase
   }
   if (!localReleaseCandidateTags.includes(tag)) {
     throw new Error(`Published release candidate ${tag} has no tag in this checkout.`)
   }
-  return { kind: 'compare', tag, ignoredTags }
+  return { kind: 'compare', tag, ignoredTags } satisfies PromotionBase
 }

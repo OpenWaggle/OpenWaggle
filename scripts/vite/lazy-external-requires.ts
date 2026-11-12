@@ -31,7 +31,7 @@ export function lazyExternalModuleSource(specifier: string) {
  * already lazy. The externals this plugin owns must not also be in Rolldown's `external` list,
  * because a raw-id match there is decided before any `resolveId` hook runs.
  */
-export function lazyExternalRequiresPlugin(isLazyExternal: (specifier: string) => boolean): Plugin {
+export function lazyExternalRequiresPlugin(isLazyExternal: (specifier: string) => boolean) {
   return {
     name: 'openwaggle:lazy-external-requires',
     enforce: 'pre',
@@ -57,5 +57,5 @@ export function lazyExternalRequiresPlugin(isLazyExternal: (specifier: string) =
         moduleType: 'js',
       }
     },
-  }
+  } satisfies Plugin
 }

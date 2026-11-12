@@ -7,8 +7,8 @@ import type { CheckStep } from '../step-model'
 
 const ID = `advisory-test-${process.pid}`
 
-function step(id: string, extra: Partial<CheckStep> = {}): CheckStep {
-  return {
+function step(id: string, extra: Partial<CheckStep> = {}) {
+  const result: CheckStep = {
     id,
     summary: id,
     commands: [['true']],
@@ -17,6 +17,7 @@ function step(id: string, extra: Partial<CheckStep> = {}): CheckStep {
     hint: `about ${id}`,
     ...extra,
   }
+  return result
 }
 
 afterAll(async () => {

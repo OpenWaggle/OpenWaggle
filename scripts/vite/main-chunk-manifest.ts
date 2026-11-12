@@ -28,7 +28,7 @@ function sourceModule(root: string, id: string) {
  * (scripts/check-main-bundle.ts) can name the chunks the GUI, the Session Host and a CLI command
  * load at startup by their source entry rather than by a content-hashed file name.
  */
-export function mainChunkManifestPlugin(): Plugin {
+export function mainChunkManifestPlugin() {
   let root = ''
   let outDir = ''
   const entries: MainChunkManifestEntry[] = []
@@ -57,5 +57,5 @@ export function mainChunkManifestPlugin(): Plugin {
       await fs.mkdir(path.dirname(file), { recursive: true })
       await fs.writeFile(file, `${JSON.stringify(entries)}\n`)
     },
-  }
+  } satisfies Plugin
 }

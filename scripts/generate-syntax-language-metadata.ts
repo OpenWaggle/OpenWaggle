@@ -25,9 +25,7 @@ export interface SyntaxLanguageMetadata {
   readonly aliases?: readonly string[]
 }
 
-export function syntaxLanguageMetadata(
-  languages: readonly SyntaxLanguageMetadata[],
-): readonly SyntaxLanguageMetadata[] {
+export function syntaxLanguageMetadata(languages: readonly SyntaxLanguageMetadata[]) {
   return languages.map(({ id, name, aliases }) =>
     aliases && aliases.length > 0 ? { id, name, aliases: [...aliases] } : { id, name },
   )

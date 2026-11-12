@@ -84,8 +84,9 @@ const requestMessageSchema = Schema.Struct({ role: unknownField, content: unknow
 const textPartSchema = Schema.Struct({ text: Schema.String })
 const toolResultPartSchema = Schema.Struct({ type: Schema.Literal('tool_result') })
 
-function partsOf(content: unknown): readonly unknown[] {
-  return Array.isArray(content) ? content : []
+function partsOf(content: unknown) {
+  const result: readonly unknown[] = Array.isArray(content) ? content : []
+  return result
 }
 
 function textOf(content: unknown) {
@@ -108,10 +109,10 @@ function bodyMessages(body: unknown) {
 }
 
 /** A Chat Completions body: system and developer messages make up the system text. */
-export function parseOpenAiRequest(body: unknown): ModelRequest {
+export function parseOpenAiRequest(body: unknown) {
   const messages = bodyMessages(body)
   const isSystem = (role: unknown) => role === 'system' || role === 'developer'
-  return {
+  const request: ModelRequest = {
     model: modelOf(body),
     system: messages
       .filter((message) => isSystem(message.role))
@@ -123,15 +124,16 @@ export function parseOpenAiRequest(body: unknown): ModelRequest {
         : [],
     ),
   }
+  return request
 }
 
 /** An Anthropic Messages body: a user message made only of tool results counts as a tool turn. */
-export function parseAnthropicRequest(body: unknown): ModelRequest {
+export function parseAnthropicRequest(body: unknown) {
   const isToolResult = (part: unknown) => objectFields(toolResultPartSchema, part) !== undefined
-  return {
+  const request: ModelRequest = {
     model: modelOf(body),
     system: textOf(objectFields(requestBodySchema, body)?.system),
-    messages: bodyMessages(body).flatMap((message): ModelMessage[] => {
+    messages: bodyMessages(body).flatMap<ModelMessage>((message) => {
       if (message.role === 'assistant') {
         return [{ role: 'assistant', text: textOf(message.content) }]
       }
@@ -141,6 +143,7 @@ export function parseAnthropicRequest(body: unknown): ModelRequest {
       return [{ role: toolTurn ? 'tool' : 'user', text: textOf(message.content) }]
     }),
   }
+  return request
 }
 
 function findScenario(scenarios: readonly ModelScenario[], text: string) {
@@ -166,23 +169,25 @@ function isTitleRequest(request: ModelRequest) {
 }
 
 /** The reply a request gets: a title, the scenario's reply for its turn, or a fallback. */
-export function scriptedReply(
-  scenarios: readonly ModelScenario[],
-  request: ModelRequest,
-): ScriptedReply {
+export function scriptedReply(scenarios: readonly ModelScenario[], request: ModelRequest) {
   if (isTitleRequest(request)) {
     const title =
       request.messages
         .filter((message) => message.role === 'user')
         .map((message) => findScenario(scenarios, message.text))
         .find((scenario) => scenario !== null)?.title ?? FALLBACK_TITLE
-    return { kind: 'text', text: JSON.stringify({ title, needsRefinement: false }) }
+    const reply: ScriptedReply = {
+      kind: 'text',
+      text: JSON.stringify({ title, needsRefinement: false }),
+    }
+    return reply
   }
   const found = scenarioTurn(scenarios, request)
   if (!found) return FALLBACK_REPLY
   const { replies } = found.scenario
   if (typeof replies === 'function') return replies(request, found.turn)
-  return replies[found.turn] ?? replies.at(-1) ?? FALLBACK_REPLY
+  const reply: ScriptedReply = replies[found.turn] ?? replies.at(-1) ?? FALLBACK_REPLY
+  return reply
 }
 
 /** The text of the request's last user message, such as a Waggle turn's instructions. */
@@ -192,12 +197,18 @@ export function lastUserText(request: ModelRequest) {
 
 type WireFormat = 'openai' | 'anthropic'
 
-function wireFormatOf(request: http.IncomingMessage): WireFormat | null {
+function wireFormatOf(request: http.IncomingMessage) {
   if (request.method !== 'POST') return null
   // The Anthropic SDK may add a query, such as `?beta=true`.
   const { pathname } = new URL(request.url ?? '/', `http://${LOOPBACK_HOST}`)
-  if (pathname === '/v1/chat/completions') return 'openai'
-  if (pathname === '/v1/messages') return 'anthropic'
+  if (pathname === '/v1/chat/completions') {
+    const format: WireFormat | null = 'openai'
+    return format
+  }
+  if (pathname === '/v1/messages') {
+    const format: WireFormat | null = 'anthropic'
+    return format
+  }
   return null
 }
 
@@ -219,7 +230,7 @@ export async function startFixtureModelServer(
   scenarios: readonly ModelScenario[],
   /** Sees each request and the reply chosen for it, for diagnosing a capture. */
   onRequest?: (request: ModelRequest, reply: ScriptedReply) => void,
-): Promise<FixtureModelServer> {
+) {
   const sockets = new Set<Socket>()
   const held = new Set<HeldReply>()
   const released = new Set<string>()
@@ -262,7 +273,7 @@ export async function startFixtureModelServer(
   })
   const port = await listenOnLoopback(server, ANY_FREE_PORT)
   const origin = `http://${LOOPBACK_HOST}:${String(port)}`
-  return {
+  const result: FixtureModelServer = {
     openAiBaseUrl: `${origin}/v1`,
     anthropicBaseUrl: origin,
     release: (match) => {
@@ -279,4 +290,5 @@ export async function startFixtureModelServer(
         server.close(() => resolve())
       }),
   }
+  return result
 }

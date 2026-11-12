@@ -21,7 +21,7 @@ export function readRendererDesignTokenExemptions() {
 export function collectRendererDesignTokenExemptionViolations(
   repositoryFiles: ReadonlySet<string>,
   exemptions: readonly string[],
-): readonly Violation[] {
+) {
   const violations: Violation[] = []
   const sorted = [...exemptions].sort()
 

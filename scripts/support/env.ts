@@ -81,6 +81,7 @@ const scriptEnvSchema = Schema.Struct({
 export type ScriptEnv = SchemaType<typeof scriptEnvSchema>
 
 /** The variables a script reads, decoded from `source` (the current `process.env` by default). */
-export function scriptEnv(source: NodeJS.ProcessEnv = process.env): ScriptEnv {
-  return decodeUnknownOrThrow(scriptEnvSchema, source)
+export function scriptEnv(source: NodeJS.ProcessEnv = process.env) {
+  const result: ScriptEnv = decodeUnknownOrThrow(scriptEnvSchema, source)
+  return result
 }

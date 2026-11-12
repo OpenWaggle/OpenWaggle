@@ -21,10 +21,7 @@ function dependsOnAll(step: CheckStep | undefined, ids: readonly string[]) {
   return step !== undefined && ids.every((id) => (step.dependsOn ?? []).includes(id))
 }
 
-export function validateCheckGate(
-  steps: readonly CheckStep[],
-  gates: readonly CheckGate[],
-): string[] {
+export function validateCheckGate(steps: readonly CheckStep[], gates: readonly CheckGate[]) {
   const violations: string[] = []
   const byId = new Map(steps.map((step) => [step.id, step]))
   const smoke = byId.get(PACKAGE_SMOKE_STEP)

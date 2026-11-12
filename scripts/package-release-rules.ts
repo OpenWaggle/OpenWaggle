@@ -32,9 +32,10 @@ export interface PackageReleaseRules {
   readonly changelogSections: readonly ChangelogSectionRule[] | undefined
 }
 
-function setting(packageConfig: object, topLevelConfig: object, key: string): unknown {
+function setting(packageConfig: object, topLevelConfig: object, key: string) {
   const own: unknown = Reflect.get(packageConfig, key)
-  return own ?? Reflect.get(topLevelConfig, key)
+  const result: unknown = own ?? Reflect.get(topLevelConfig, key)
+  return result
 }
 
 const changelogSectionSchema = Schema.Struct({
@@ -43,13 +44,21 @@ const changelogSectionSchema = Schema.Struct({
   hidden: unknownField,
 })
 
-function changelogSections(value: unknown): readonly ChangelogSectionRule[] | undefined | string {
+function changelogSections(value: unknown) {
   if (value === undefined) return undefined
-  if (!Array.isArray(value)) return 'changelog-sections is not a list'
+  if (!Array.isArray(value)) {
+    const rule: readonly ChangelogSectionRule[] | undefined | string =
+      'changelog-sections is not a list'
+    return rule
+  }
   const sections: ChangelogSectionRule[] = []
   for (const entry of value) {
     const fields = objectFields(changelogSectionSchema, entry)
-    if (fields === undefined) return 'a changelog-sections entry has no type or section'
+    if (fields === undefined) {
+      const rule: readonly ChangelogSectionRule[] | undefined | string =
+        'a changelog-sections entry has no type or section'
+      return rule
+    }
     const { type, section, hidden } = fields
     sections.push(hidden === true ? { type, section, hidden } : { type, section })
   }
@@ -76,28 +85,42 @@ function unsupportedSetting(packageConfig: object, topLevelConfig: object) {
 }
 
 /** An optional version setting: absent or empty counts as unset, as Release Please's truthiness check does. */
-function optionalVersion(value: unknown): { readonly version: string | undefined } | undefined {
-  if (value === undefined || value === '') return { version: undefined }
-  return typeof value === 'string' ? { version: value } : undefined
+function optionalVersion(value: unknown) {
+  if (value === undefined || value === '') {
+    const result: { readonly version: string | undefined } | undefined = { version: undefined }
+    return result
+  }
+  const result: { readonly version: string | undefined } | undefined =
+    typeof value === 'string' ? { version: value } : undefined
+  return result
 }
 
 /**
  * The rules Release Please applies to one package, or why the guard cannot reproduce them. The
  * message names the setting so the guard can be taught it, instead of predicting the wrong line.
  */
-export function packageReleaseRules(
-  packageConfig: object,
-  topLevelConfig: object,
-): PackageReleaseRules | string {
+export function packageReleaseRules(packageConfig: object, topLevelConfig: object) {
   const unsupported = unsupportedSetting(packageConfig, topLevelConfig)
-  if (unsupported !== undefined) return unsupported
+  if (unsupported !== undefined) {
+    const rules: PackageReleaseRules | string = unsupported
+    return rules
+  }
   const releaseAs = optionalVersion(setting(packageConfig, topLevelConfig, 'release-as'))
-  if (releaseAs === undefined) return 'release-as is not a string'
+  if (releaseAs === undefined) {
+    const rules: PackageReleaseRules | string = 'release-as is not a string'
+    return rules
+  }
   const initialVersion = optionalVersion(setting(packageConfig, topLevelConfig, 'initial-version'))
-  if (initialVersion === undefined) return 'initial-version is not a string'
+  if (initialVersion === undefined) {
+    const rules: PackageReleaseRules | string = 'initial-version is not a string'
+    return rules
+  }
   const sections = changelogSections(setting(packageConfig, topLevelConfig, 'changelog-sections'))
-  if (typeof sections === 'string') return sections
-  return {
+  if (typeof sections === 'string') {
+    const rules: PackageReleaseRules | string = sections
+    return rules
+  }
+  const rules: PackageReleaseRules | string = {
     bumpMinorPreMajor: setting(packageConfig, topLevelConfig, 'bump-minor-pre-major') === true,
     bumpPatchForMinorPreMajor:
       setting(packageConfig, topLevelConfig, 'bump-patch-for-minor-pre-major') === true,
@@ -105,4 +128,5 @@ export function packageReleaseRules(
     initialVersion: initialVersion.version ?? DEFAULT_INITIAL_VERSION,
     changelogSections: sections,
   }
+  return rules
 }

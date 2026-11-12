@@ -8,6 +8,6 @@ const REDIRECT_ONLY_PATHS = new Set([
 ])
 
 /** Sitemap filter: keeps every page except redirect-only aliases. */
-export function isIndexablePage(page: string): boolean {
+export function isIndexablePage(page: string) {
   return !REDIRECT_ONLY_PATHS.has(new URL(page).pathname)
 }

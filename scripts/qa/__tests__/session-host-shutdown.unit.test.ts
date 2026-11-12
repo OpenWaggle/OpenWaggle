@@ -3,7 +3,7 @@ import type { LocalSessionHostPaths } from '../../../src/main/session-host/local
 import type { SessionHostOwnership } from '../../../src/main/session-host/session-host-ownership'
 import { shutdownSessionHostForQa } from '../session-host-shutdown'
 
-function paths(platform: NodeJS.Platform): LocalSessionHostPaths {
+function paths(platform: NodeJS.Platform) {
   const windows = platform === 'win32'
   return {
     stateRoot: 'qa-profile/session-host',
@@ -16,11 +16,14 @@ function paths(platform: NodeJS.Platform): LocalSessionHostPaths {
       : 'qa-profile/session-host/host.sock',
     endpointDirectory: windows ? null : 'qa-profile/session-host',
     endpointCapabilityPath: windows ? 'qa-profile/session-host/endpoint.capability' : null,
-  }
+  } satisfies LocalSessionHostPaths
 }
 
-function ownership(): SessionHostOwnership {
-  return { targetPath: 'qa-profile/session-host/session-host.sqlite', release: vi.fn() }
+function ownership() {
+  return {
+    targetPath: 'qa-profile/session-host/session-host.sqlite',
+    release: vi.fn(),
+  } satisfies SessionHostOwnership
 }
 
 describe('shutdownSessionHostForQa', () => {

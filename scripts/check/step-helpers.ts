@@ -26,19 +26,19 @@ function packageBinEntry(packageName: string, bin: string) {
 }
 
 /** The CLI run with Node, as `node_modules/.bin` would. */
-export function packageBin(packageName: string, bin: string): StepCommand {
-  return ['node', packageBinEntry(packageName, bin)]
+export function packageBin(packageName: string, bin: string) {
+  return ['node', packageBinEntry(packageName, bin)] satisfies StepCommand
 }
 
 /** The same CLI on the Bun runtime, where the Vitest tiers run (ADR 0064). */
-export function bunRuntimePackageBin(packageName: string, bin: string): StepCommand {
-  return [BUN, '--bun', packageBinEntry(packageName, bin)]
+export function bunRuntimePackageBin(packageName: string, bin: string) {
+  return [BUN, '--bun', packageBinEntry(packageName, bin)] satisfies StepCommand
 }
 
 const TSC = packageBin('typescript', 'tsc')
 
-export function bunScript(script: string, ...args: string[]): StepCommand {
-  return [BUN, script, ...args]
+export function bunScript(script: string, ...args: string[]) {
+  return [BUN, script, ...args] satisfies StepCommand
 }
 
 export const SOURCE_FILES = '**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'
@@ -61,7 +61,7 @@ export const STANDARDS_IMPLEMENTATION = [
 ]
 
 /** A package build: ESM and CommonJS output, as the package's own `build` script produces. */
-export function packageBuild(name: string, dependsOn: readonly string[] = []): CheckStep {
+export function packageBuild(name: string, dependsOn: readonly string[] = []) {
   const directory = `packages/${name}`
   return {
     id: `build:${name}`,
@@ -79,7 +79,7 @@ export function packageBuild(name: string, dependsOn: readonly string[] = []): C
     cache: { outputs: [`${directory}/dist`, `${directory}/dist-cjs/package.json`] },
     findings: 'tsc',
     hint: `bun run --filter @openwaggle/${name} build`,
-  }
+  } satisfies CheckStep
 }
 
 export const PACKAGE_BUILDS = [

@@ -12,15 +12,15 @@ export const OLD_SHA = 'b'.repeat(40)
 export const VIEWER = 'maintainer'
 export const NOW = Date.parse('2026-11-10T12:00:00Z')
 
-export function person(login: string): Actor {
-  return { isBot: false, login }
+export function person(login: string) {
+  return { isBot: false, login } satisfies Actor
 }
 
-export function bot(login: string): Actor {
-  return { isBot: true, login }
+export function bot(login: string) {
+  return { isBot: true, login } satisfies Actor
 }
 
-export function checkRun(overrides: Partial<CheckRun> = {}): CheckRun {
+export function checkRun(overrides: Partial<CheckRun> = {}) {
   return {
     appSlug: 'github-actions',
     conclusion: 'SUCCESS',
@@ -32,11 +32,11 @@ export function checkRun(overrides: Partial<CheckRun> = {}): CheckRun {
     url: 'https://github.com/o/r/actions/runs/7/job/100',
     workflowName: 'CI',
     ...overrides,
-  }
+  } satisfies CheckRun
 }
 
-export function issueComment(overrides: Partial<IssueComment> = {}): IssueComment {
-  return {
+export function issueComment(overrides: Partial<IssueComment> = {}) {
+  const comment: IssueComment = {
     author: person('reviewer'),
     body: 'Please rename this.',
     createdAt: '2026-11-10T11:00:00Z',
@@ -46,9 +46,10 @@ export function issueComment(overrides: Partial<IssueComment> = {}): IssueCommen
     url: 'https://github.com/o/r/pull/1#issuecomment-1',
     ...overrides,
   }
+  return comment
 }
 
-export function review(overrides: Partial<Review> = {}): Review {
+export function review(overrides: Partial<Review> = {}) {
   return {
     author: person('reviewer'),
     body: '',
@@ -58,10 +59,10 @@ export function review(overrides: Partial<Review> = {}): Review {
     submittedAt: '2026-11-10T11:00:00Z',
     url: 'https://github.com/o/r/pull/1#pullrequestreview-50',
     ...overrides,
-  }
+  } satisfies Review
 }
 
-export function thread(overrides: Partial<ReviewThread> = {}): ReviewThread {
+export function thread(overrides: Partial<ReviewThread> = {}) {
   return {
     comments: [
       {
@@ -78,7 +79,7 @@ export function thread(overrides: Partial<ReviewThread> = {}): ReviewThread {
     line: 12,
     path: 'src/main/x.ts',
     ...overrides,
-  }
+  } satisfies ReviewThread
 }
 
 export function codexStateComment(input: {
@@ -103,8 +104,8 @@ export function codexStateComment(input: {
   })
 }
 
-export function prState(overrides: Partial<PullRequestState> = {}): PullRequestState {
-  return {
+export function prState(overrides: Partial<PullRequestState> = {}) {
+  const result: PullRequestState = {
     checkRuns: [checkRun()],
     comments: [],
     headSha: HEAD_SHA,
@@ -121,4 +122,5 @@ export function prState(overrides: Partial<PullRequestState> = {}): PullRequestS
     viewer: VIEWER,
     ...overrides,
   }
+  return result
 }

@@ -20,7 +20,7 @@ function isObjectRecord(value: unknown): value is object {
 }
 
 /** Resolves the commit the working tree was built from, or null outside a git repository. */
-export async function resolveHeadCommit(): Promise<string | null> {
+export async function resolveHeadCommit() {
   try {
     const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
       maxBuffer: GIT_REV_PARSE_MAX_BUFFER_BYTES,
@@ -31,7 +31,7 @@ export async function resolveHeadCommit(): Promise<string | null> {
   }
 }
 
-export function parseBuildMeta(raw: string): BuildMeta | null {
+export function parseBuildMeta(raw: string) {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -45,10 +45,10 @@ export function parseBuildMeta(raw: string): BuildMeta | null {
   return {
     commit: typeof commit === 'string' && commit.length > 0 ? commit : null,
     builtAt: typeof builtAt === 'string' ? builtAt : '',
-  }
+  } satisfies BuildMeta
 }
 
-export async function readBuildMeta(outDirectory = OUT_DIRECTORY): Promise<BuildMeta | null> {
+export async function readBuildMeta(outDirectory = OUT_DIRECTORY) {
   try {
     return parseBuildMeta(await readFile(path.join(outDirectory, BUILD_META_FILENAME), 'utf8'))
   } catch {
@@ -56,7 +56,7 @@ export async function readBuildMeta(outDirectory = OUT_DIRECTORY): Promise<Build
   }
 }
 
-export async function writeBuildMeta(outDirectory = OUT_DIRECTORY): Promise<void> {
+export async function writeBuildMeta(outDirectory = OUT_DIRECTORY) {
   const meta: BuildMeta = {
     commit: await resolveHeadCommit(),
     builtAt: new Date().toISOString(),

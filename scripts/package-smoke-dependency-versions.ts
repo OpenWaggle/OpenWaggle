@@ -12,8 +12,9 @@ import { parseRootWorkspaceConfig } from './support/bun-workspace'
  * own manifests and the catalogs under `workspaces` in the root package.json.
  */
 
-async function readJsonFile(filePath: string): Promise<unknown> {
-  return JSON.parse(await fs.readFile(filePath, 'utf8'))
+async function readJsonFile(filePath: string) {
+  const parsed: unknown = JSON.parse(await fs.readFile(filePath, 'utf8'))
+  return parsed
 }
 
 /** Pins for registry packages the consumer smoke installs that the repository itself does not use. */

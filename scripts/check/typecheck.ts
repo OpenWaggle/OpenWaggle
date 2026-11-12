@@ -42,8 +42,8 @@ interface ProcessResult {
   readonly failed: boolean
 }
 
-function run(command: string, args: readonly string[]): Promise<ProcessResult> {
-  return new Promise((resolve, reject) => {
+function run(command: string, args: readonly string[]) {
+  return new Promise<ProcessResult>((resolve, reject) => {
     execFile(
       command,
       [...args],

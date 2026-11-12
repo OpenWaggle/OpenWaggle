@@ -14,9 +14,9 @@ function lineColumnForIndex(text: string, index: number) {
   return { line: before.split('\n').length, column: index - lineStart + 1 }
 }
 
-export function collectAstroRawButtonViolations(file: string, contents: string): Violation[] {
+export function collectAstroRawButtonViolations(file: string, contents: string) {
   if (!ASTRO_FILE.test(file) || RAW_BUTTON_OWNERS.has(file)) {
-    return []
+    return [] satisfies Violation[]
   }
 
   return [...contents.matchAll(RAW_BUTTON_PATTERN)].map((match) => {
@@ -26,5 +26,5 @@ export function collectAstroRawButtonViolations(file: string, contents: string):
       file,
       message: 'Use the shared website Button primitive instead of raw <button> in Astro files.',
     }
-  })
+  }) satisfies Violation[]
 }

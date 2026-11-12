@@ -53,7 +53,7 @@ esac
 `
 const FAKE_UNAME = '#!/bin/sh\n[ "$1" = "-s" ] && echo "${FAKE_OS:-Linux}" || echo x86_64\n'
 
-async function createPaths(): Promise<HarnessPaths> {
+async function createPaths() {
   const directory = await fs.realpath(
     await fs.mkdtemp(path.join(os.tmpdir(), 'installer-reinstall-')),
   )

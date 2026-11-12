@@ -32,7 +32,7 @@ export const WEB_BEACON_MAX_UTM_LENGTH = 128
 
 export type WebBeaconUtm = Readonly<Partial<Record<WebUtmParameter, string>>>
 
-interface WebBeaconPage extends WebBeaconUtm {
+export interface WebBeaconPage extends WebBeaconUtm {
   /** Page path, without query or fragment. */
   readonly path: string
   /** Origin of the referring page, without its path; empty when there is none. */

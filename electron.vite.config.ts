@@ -43,7 +43,7 @@ const MCP_CONFIG_WATCH_IGNORES = ['**/.mcp.json', '**/.openwaggle/mcp.json']
  * output and would otherwise erase to `{}`. Keep the transform scoped to the
  * known package metadata lookup instead of disabling import.meta diagnostics.
  */
-function unpdfCjsResolvePlugin(): Plugin {
+function unpdfCjsResolvePlugin() {
   return {
     name: 'openwaggle:unpdf-cjs-resolve',
     enforce: 'pre',
@@ -58,10 +58,10 @@ function unpdfCjsResolvePlugin(): Plugin {
 
       return code.replace(UNPDF_IMPORT_META_RESOLVE_LINE, UNPDF_CJS_RESOLVE_LINE)
     },
-  }
+  } satisfies Plugin
 }
 
-function disablePluginTimingWarningsPlugin(): Plugin {
+function disablePluginTimingWarningsPlugin() {
   return {
     name: 'openwaggle:disable-plugin-timing-warnings',
     enforce: 'post',
@@ -82,7 +82,7 @@ function disablePluginTimingWarningsPlugin(): Plugin {
         },
       }
     },
-  }
+  } satisfies Plugin
 }
 
 export default defineConfig({

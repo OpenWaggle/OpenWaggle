@@ -47,10 +47,7 @@ function readItem(bytes: Uint8Array, start: number) {
 }
 
 /** Parses an envelope, or returns `undefined` when it is malformed or has too many items. */
-export function parseSentryEnvelope(
-  bytes: Uint8Array,
-  maxItems: number,
-): SentryEnvelope | undefined {
+export function parseSentryEnvelope(bytes: Uint8Array, maxItems: number) {
   const headerEnd = lineEnd(bytes, 0)
   const header = jsonObjectLine(bytes, 0, headerEnd)
   if (header === undefined) return undefined
@@ -79,7 +76,7 @@ export interface OutgoingEnvelopeItem {
 export function serializeSentryEnvelope(
   header: Readonly<Record<string, unknown>>,
   items: readonly OutgoingEnvelopeItem[],
-): string {
+) {
   const lines = [JSON.stringify(header)]
   for (const item of items) {
     const payload = JSON.stringify(item.payload)

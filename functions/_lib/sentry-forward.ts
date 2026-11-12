@@ -13,7 +13,7 @@ export async function forwardSentryEnvelope(
   project: SentryProject,
   envelope: string,
   fetcher: OutboundFetch,
-): Promise<Response | undefined> {
+) {
   try {
     return await fetcher(project.envelopeUrl, {
       method: 'POST',

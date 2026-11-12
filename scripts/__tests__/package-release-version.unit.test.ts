@@ -16,7 +16,7 @@ const RULES: PackageReleaseRules = {
 }
 
 let commitCounter = 0
-function commit(subject: string, body = ''): ReleaseCommit {
+function commit(subject: string, body = '') {
   commitCounter += 1
   return {
     hash: commitCounter.toString(16).padStart(40, 'a'),
@@ -24,8 +24,8 @@ function commit(subject: string, body = ''): ReleaseCommit {
   }
 }
 
-function packageState(overrides: Partial<PackageReleaseLineState>): PackageReleaseLineState {
-  return {
+function packageState(overrides: Partial<PackageReleaseLineState>) {
+  const state: PackageReleaseLineState = {
     component: 'waggle-core',
     slug: 'waggle-core',
     releasedVersion: '0.1.1',
@@ -35,6 +35,7 @@ function packageState(overrides: Partial<PackageReleaseLineState>): PackageRelea
     hasPendingDocs: false,
     ...overrides,
   }
+  return state
 }
 
 function next(
