@@ -65,7 +65,9 @@ function findUnlistedDuplicates(
   declarationsByName: ReadonlyMap<string, readonly string[]>,
 ): readonly Violation[] {
   const violations: Violation[] = []
-  for (const [name, declaringFiles] of [...declarationsByName].sort()) {
+  for (const [name, declaringFiles] of [...declarationsByName].toSorted(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
     const unique = [...new Set(declaringFiles)].sort()
     if (unique.length < DUPLICATE_DECLARATION_THRESHOLD) continue
     if (KNOWN_DUPLICATE_EXPORTED_TYPES.includes(name)) continue

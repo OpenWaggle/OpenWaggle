@@ -14,7 +14,7 @@
  * scripts/electron-builder-native-prebuilds.ts should exclude. Every per-platform package that a
  * package in `app.asar` declares for the target in `optionalDependencies` must ship as well
  * (scripts/packaged-native-dependencies.ts), which catches a build that is missing entirely.
- * Run it after packaging and before upload: `pnpm exec tsx scripts/check-native-platform-floor.ts`.
+ * Run it after packaging and before upload: `bun scripts/check-native-platform-floor.ts`.
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -116,12 +116,14 @@ function evaluateMacos(
           (slice) => architectures.includes(slice.architecture) && slice.platform !== 'other',
         )
       : []
-  if (slices.length === 0)
+  if (slices.length === 0) {
     return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
+  }
   const supported = floor.macos.supportedVersion
   const violations = slices.flatMap((slice) => {
-    if (slice.minimumVersion === null)
+    if (slice.minimumVersion === null) {
       return [`${file} (${slice.architecture}) declares no minimum macOS version`]
+    }
     if (compareVersions(slice.minimumVersion, supported) <= 0) return []
     return [
       `${file} (${slice.architecture}) needs macOS ${slice.minimumVersion}, above the supported ${supported}`,

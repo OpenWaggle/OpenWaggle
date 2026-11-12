@@ -4,7 +4,7 @@
  * check fails on findings in the Waggle scope (`scripts/standards/waggle-dead-code.ts`); the rest of
  * the app has an existing backlog it does not gate.
  *
- * Usage: pnpm check:waggle-dead-code
+ * Usage: bun run check:waggle-dead-code
  */
 import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
@@ -38,10 +38,10 @@ async function runFallow() {
   } catch (error) {
     if (
       isRecord(error) &&
-      error.code === FALLOW_ISSUES_FOUND_EXIT_CODE &&
-      typeof error.stdout === 'string'
+      error['code'] === FALLOW_ISSUES_FOUND_EXIT_CODE &&
+      typeof error['stdout'] === 'string'
     ) {
-      return error.stdout
+      return error['stdout']
     }
     throw error
   }

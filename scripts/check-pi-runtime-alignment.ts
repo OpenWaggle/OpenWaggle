@@ -3,6 +3,15 @@ import path from 'node:path'
 import { z } from 'zod'
 import { EXPECTED_PATCH_PATHS } from './pi-runtime-patch-paths'
 import { releaseAgeExclusionProblems } from './pi-runtime-release-age'
+import {
+  BUN_LOCKFILE,
+  type BunLockfile,
+  lockedVersions,
+  parseBunLockfile,
+  parseRootWorkspaceConfig,
+  readRepositoryDependencyConfig,
+  type RootWorkspaceConfig,
+} from './support/bun-workspace'
 const PI_CATALOG = 'pi-runtime'
 const PI_PACKAGES = [
   'pi-agent-core',
@@ -26,16 +35,21 @@ const BEFORE_PATCH_PATH_CAPTURE = 1
 const AFTER_PATCH_PATH_CAPTURE = 2
 
 export interface PiRuntimeAlignmentInput {
-  readonly lockfile: string
+  /** `bunfig.toml`, for the temporary Pi release-age exclusions and their expiry marker. */
+  readonly bunfig: string
+  /** The catalogs of the root `package.json`. */
+  readonly catalogs: RootWorkspaceConfig['catalogs']
+  readonly lockfile: BunLockfile
   /** The current time, to retire temporary release-age exclusions. */
   readonly now: Date
   readonly patchContents: Readonly<Record<string, string>>
   readonly patchFiles: readonly string[]
   /** The installed pi-coding-agent's runtime dependencies: what Pi supplies to extensions. */
   readonly piCodingAgentDependencies: Readonly<Record<string, string>>
+  /** `patchedDependencies` of the root `package.json`. */
+  readonly patchedDependencies: Readonly<Record<string, string>>
   readonly piWaggleDevDependencies: Readonly<Record<string, string>>
   readonly rootDependencies: Readonly<Record<string, string>>
-  readonly workspace: string
 }
 
 function packageRef(packageName: string) {
@@ -55,25 +69,12 @@ function manifestDependencies(manifestText: string, field: 'dependencies' | 'dev
   return dependencies
 }
 
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+function catalogVersion(input: Pick<PiRuntimeAlignmentInput, 'catalogs'>, packageName: string) {
+  return input.catalogs[PI_CATALOG]?.[packageRef(packageName)]
 }
 
-function catalogVersion(workspace: string, packageName: string) {
-  const match = workspace.match(
-    new RegExp(`^    ["']?${escapeRegex(packageRef(packageName))}["']?: ([^\\s#]+)$`, 'm'),
-  )
-  return match?.[1]
-}
-
-function versionsFor(lockfile: string, packageName: string) {
-  return new Set(
-    [
-      ...lockfile.matchAll(
-        new RegExp(`${escapeRegex(packageRef(packageName))}@(\\d+\\.\\d+\\.\\d+)`, 'g'),
-      ),
-    ].map((match) => match[1]),
-  )
+function versionsFor(lockfile: BunLockfile, packageName: string) {
+  return lockedVersions(lockfile, packageRef(packageName))
 }
 
 function directPinProblems(input: PiRuntimeAlignmentInput) {
@@ -113,14 +114,8 @@ const PI_WASM_PACKAGES = [
 const PI_EXTENSION_HOST_CATALOG = 'pi-extension-host'
 const PI_EXTENSION_HOST_PACKAGES = ['typebox'] as const
 
-function extensionHostCatalogVersion(workspace: string, packageName: string) {
-  const section = workspace.match(
-    new RegExp(`^  ${PI_EXTENSION_HOST_CATALOG}:\\n((?: {4}.*\\n)*)`, 'm'),
-  )
-  const match = section?.[1]?.match(
-    new RegExp(`^ {4}["']?${escapeRegex(packageName)}["']?: ([^\\s#]+)$`, 'm'),
-  )
-  return match?.[1]
+function extensionHostCatalogVersion(input: PiRuntimeAlignmentInput, packageName: string) {
+  return input.catalogs[PI_EXTENSION_HOST_CATALOG]?.[packageName]
 }
 
 function extensionHostPackageProblems(input: PiRuntimeAlignmentInput) {
@@ -140,7 +135,7 @@ function extensionHostPackageProblems(input: PiRuntimeAlignmentInput) {
       )
       continue
     }
-    if (extensionHostCatalogVersion(input.workspace, name) !== piVersion) {
+    if (extensionHostCatalogVersion(input, name) !== piVersion) {
       problems.push(
         `catalogs.${PI_EXTENSION_HOST_CATALOG} must pin ${name} at pi-coding-agent's ${piVersion}.`,
       )
@@ -152,16 +147,10 @@ function extensionHostPackageProblems(input: PiRuntimeAlignmentInput) {
 function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
   const problems: string[] = []
   for (const { name, owner } of PI_WASM_PACKAGES) {
-    const versions = new Set(
-      [
-        ...input.lockfile.matchAll(
-          new RegExp(`^ {2}'?${escapeRegex(name)}@(\\d+\\.\\d+\\.\\d+)'?:`, 'gm'),
-        ),
-      ].map((match) => match[1]),
-    )
+    const versions = lockedVersions(input.lockfile, name)
     if (versions.size !== 1) {
       problems.push(
-        `pnpm-lock.yaml must resolve exactly one ${name} version, found ${versions.size}.`,
+        `${BUN_LOCKFILE} must resolve exactly one ${name} version, found ${versions.size}.`,
       )
       continue
     }
@@ -178,6 +167,7 @@ function changedPatchPaths(patch: string) {
   for (const match of patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)) {
     const before = match[BEFORE_PATCH_PATH_CAPTURE]
     const after = match[AFTER_PATCH_PATH_CAPTURE]
+    if (before === undefined || after === undefined) continue
     paths.push(before === after ? before : `${before} -> ${after}`)
   }
   return paths
@@ -211,17 +201,15 @@ function patchProblems(input: PiRuntimeAlignmentInput, version: string) {
     if (/^\+(?!\+\+\+).*(?:<<<<<<<|=======|>>>>>>>)/m.test(patch)) {
       problems.push(`${patchFile} contains added conflict markers.`)
     }
-    const registration = `  '${packageRef(packageName)}@${version}': patches/@earendil-works__${packageName}@${version}.patch`
-    if (!input.workspace.includes(registration)) {
-      problems.push(`pnpm-workspace.yaml must register the ${version} ${packageName} patch.`)
+    const key = `${packageRef(packageName)}@${version}`
+    const registration = `patches/${patchFile}`
+    if (input.patchedDependencies[key] !== registration) {
+      problems.push(
+        `package.json patchedDependencies must register the ${version} ${packageName} patch.`,
+      )
     }
-    if (
-      !new RegExp(
-        `^ {2}'${escapeRegex(packageRef(packageName))}@${escapeRegex(version)}': [a-f0-9]+$`,
-        'm',
-      ).test(input.lockfile)
-    ) {
-      problems.push(`pnpm-lock.yaml must register the ${version} ${packageName} patch hash.`)
+    if (input.lockfile.patchedDependencies[key] !== registration) {
+      problems.push(`${BUN_LOCKFILE} must register the ${version} ${packageName} patch.`)
     }
   }
   return problems
@@ -229,24 +217,24 @@ function patchProblems(input: PiRuntimeAlignmentInput, version: string) {
 
 export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput) {
   const problems: string[] = []
-  const version = catalogVersion(input.workspace, 'pi-ai')
-  if (!version) return ['pnpm-workspace.yaml is missing the pi-runtime catalog version.']
+  const version = catalogVersion(input, 'pi-ai')
+  if (!version) return ['package.json is missing the pi-runtime catalog version.']
 
   for (const packageName of PI_PACKAGES) {
-    if (catalogVersion(input.workspace, packageName) !== version) {
+    if (catalogVersion(input, packageName) !== version) {
       problems.push(`${packageRef(packageName)} must use ${version} in catalogs.${PI_CATALOG}.`)
     }
   }
 
   for (const packageName of RETIRED_PI_PACKAGES) {
-    if (catalogVersion(input.workspace, packageName) !== undefined) {
+    if (catalogVersion(input, packageName) !== undefined) {
       problems.push(
         `${packageRef(packageName)} is no longer part of the Pi release; remove it from catalogs.${PI_CATALOG}.`,
       )
     }
     if (versionsFor(input.lockfile, packageName).size > 0) {
       problems.push(
-        `pnpm-lock.yaml still resolves ${packageRef(packageName)}, which the Pi release no longer includes.`,
+        `${BUN_LOCKFILE} still resolves ${packageRef(packageName)}, which the Pi release no longer includes.`,
       )
     }
   }
@@ -275,37 +263,34 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
 
 async function main() {
   const root = process.cwd()
-  const [workspace, lockfile, patchFiles, rootPackageText, piWagglePackageText, piCodingAgentText] =
-    await Promise.all([
-      readFile(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
-      readFile(path.join(root, 'pnpm-lock.yaml'), 'utf8'),
-      readdir(path.join(root, 'patches')),
-      readFile(path.join(root, 'package.json'), 'utf8'),
-      readFile(path.join(root, 'packages/pi-waggle/package.json'), 'utf8'),
-      readFile(
-        path.join(root, 'node_modules/@earendil-works/pi-coding-agent/package.json'),
-        'utf8',
-      ),
-    ])
+  const [config, patchFiles, piWagglePackageText, piCodingAgentText] = await Promise.all([
+    readRepositoryDependencyConfig(root),
+    readdir(path.join(root, 'patches')),
+    readFile(path.join(root, 'packages/pi-waggle/package.json'), 'utf8'),
+    readFile(path.join(root, 'node_modules/@earendil-works/pi-coding-agent/package.json'), 'utf8'),
+  ])
   const patchContents: Record<string, string> = {}
   await Promise.all(
     patchFiles.map(async (file) => {
       patchContents[file] = await readFile(path.join(root, 'patches', file), 'utf8')
     }),
   )
+  const { catalogs, patchedDependencies } = parseRootWorkspaceConfig(config.manifestText)
   const problems = collectPiRuntimeAlignmentProblems({
-    lockfile,
+    bunfig: config.bunfigText,
+    catalogs,
+    lockfile: parseBunLockfile(config.lockfileText),
+    patchedDependencies,
     now: new Date(),
     patchContents,
     patchFiles,
     piCodingAgentDependencies: manifestDependencies(piCodingAgentText, 'dependencies'),
     piWaggleDevDependencies: manifestDependencies(piWagglePackageText, 'devDependencies'),
-    rootDependencies: manifestDependencies(rootPackageText, 'dependencies'),
-    workspace,
+    rootDependencies: manifestDependencies(config.manifestText, 'dependencies'),
   })
   if (problems.length > 0) throw new Error(problems.join('\n'))
   console.log(
-    `Pi runtime packages, direct pins, age exclusions, and patches align at ${catalogVersion(workspace, 'pi-ai')}.`,
+    `Pi runtime packages, direct pins, age exclusions, and patches align at ${catalogVersion({ catalogs }, 'pi-ai')}.`,
   )
 }
 
