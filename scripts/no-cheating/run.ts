@@ -1,9 +1,9 @@
 /**
  * The no-cheating verdict: every way a change can get through by checking less, comparing the
  * working tree with a base commit. New suppressions and silencing casts, a weaker tsconfig, a
- * loosened lint config, a raised budget or grown only-shrinks list, skipped or deleted tests, and
- * hand-edited generated files. Each finding names its kind (`no-cheating/<kind>`), which the
- * "No cheating" section of .agents/standards.md lists.
+ * loosened lint config, a raised budget or grown only-shrinks list, skipped or deleted tests,
+ * hand-edited generated files, and new open-record types. Each finding names its kind
+ * (`no-cheating/<kind>`), which the "No cheating" section of .agents/standards.md lists.
  */
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -11,6 +11,7 @@ import type { Finding } from './findings'
 import { generatedFileFindings } from './generated-files'
 import { changedSince, listing, movedSince, textsAt } from './git-files'
 import { lintConfigFindings } from './lint-config'
+import { openRecordFindings } from './open-records'
 import { ratchetFindings } from './ratchets'
 import { deletedTestFindings, skippedTestFindings } from './skipped-tests'
 import { newSuppressions } from './suppressions'
@@ -43,6 +44,7 @@ export async function noCheatingFindings(root: string, base: string): Promise<Fi
     ...lintConfigFindings(state.file, state.before, state.after),
     ...ratchetFindings(state.file, state.before, state.after),
     ...skippedTestFindings(state.file, state.before, state.after),
+    ...openRecordFindings(state.file, state.before, state.after),
   ])
   const present = new Set(listed.split('\0'))
   const [deleted, tsconfig, generated] = await Promise.all([

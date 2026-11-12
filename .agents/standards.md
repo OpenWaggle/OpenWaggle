@@ -145,6 +145,7 @@ The `no-cheating` check step (`bun run check:no-cheating`, `scripts/no-cheating/
 - `only-shrinks`: a new entry in a list that only shrinks: the design-token and renderer-test type exemptions, the legacy ADR numbers, and the files over the size limits (`OVERSIZED_FILES` in `oxlint.config.mts`). `scripts/no-cheating/ratchets.ts` lists what it watches.
 - `test`: a new `.skip`, `.only` or `.todo`, a `skipIf` or `runIf` with no comment saying when it runs, or a deleted test file whose code still exists.
 - `generated-file`: a published JSON Schema or the syntax language metadata that differs from what its generator writes.
+- `open-record`: a new `Record<string, unknown>`, `[key: string]: unknown` or `Schema.Record({ key: Schema.String, value: Schema.Unknown })`; decode outside data into a declared type, or give a genuine map its value type. A file is compared by how many it holds.
 
 ## Docs and memory
 
