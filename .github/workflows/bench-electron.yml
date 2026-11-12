@@ -87,7 +87,10 @@ jobs:
           echo "{\"packageSeconds\": $(( $(date +%s) - start ))}" > "$RESULTS/package.json"
           ls -la dist | tee "$RESULTS/dist.txt"
 
+      # Releases build Linux on Ubuntu 22.04 for the glibc floor (release.yml, nightly.yml); the bench
+      # builds where it measures, as the Electrobun proof does, so a newer glibc only warns here.
       - name: Check the package against the platform floor
+        continue-on-error: ${{ runner.os == 'Linux' }}
         run: bun scripts/check-native-platform-floor.ts | tee "$RESULTS/floor.txt"
 
       - name: Smoke the packaged runtime
@@ -102,7 +105,7 @@ jobs:
         run: |
           bun scripts/bench/electron-bench.ts measure --install "$RESULTS/install.json" --runs 4 \
             --work "$RUNNER_TEMP/bench" --label "${GITHUB_REF_NAME#bench/} @ ${GITHUB_SHA::9}" \
-            --out "$RESULTS/result.json" --screenshots "$RESULTS/screenshots"
+            --out "$RESULTS/result.json" --screenshots "$RESULTS/screenshots" --logs "$RESULTS/logs"
 
       - name: Summary
         if: ${{ !cancelled() }}
