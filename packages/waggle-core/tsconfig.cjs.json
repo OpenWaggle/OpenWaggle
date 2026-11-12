@@ -6,7 +6,6 @@
     "moduleResolution": "Bundler",
     "ignoreDeprecations": "6.0",
     "declaration": false,
-    "isolatedDeclarations": false,
     "verbatimModuleSyntax": false
   }
 }
