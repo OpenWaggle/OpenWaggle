@@ -173,8 +173,10 @@ function launchesWithPlaywright(code: string) {
 const DEV_SCRIPT = `['"\`](?:run['"\`]\\s*,\\s*['"\`])?dev(?::debug(?::headed)?)?['"\`]`
 /** `pnpm` called with a dev script (`dev`, `run dev`, `dev:debug`, `dev:debug:headed`) in its list. */
 const PNPM_DEV_CALL = new RegExp(`['"\`]pnpm['"\`]\\s*,\\s*\\[[^\\]]*?${DEV_SCRIPT}`, 'u')
-/** Such a list built first, holding only the script or the script and `--` before its switches. */
-const DEV_SCRIPT_LIST = new RegExp(`\\[\\s*${DEV_SCRIPT}\\s*(?:\\]|,\\s*['"\`]--['"\`])`, 'u')
+/** `pnpm` (or pnpm's own script, `npm_execpath`) as the argument right before a dev script. */
+const PNPM_DEV_ARGV = new RegExp(`(?:['"\`]pnpm['"\`]|\\bnpm_execpath\\b)\\s*,\\s*${DEV_SCRIPT}`, 'u')
+/** Such a list built first, holding only the script or the script and its switches. */
+const DEV_SCRIPT_LIST = new RegExp(`\\[\\s*${DEV_SCRIPT}\\s*(?:\\]|,\\s*['"\`]--)`, 'u')
 const PNPM_LITERAL = /['"`]pnpm['"`]/u
 /** A `pnpm dev` command string passed to exec or spawn. */
 const PNPM_DEV_COMMAND =
@@ -195,6 +197,7 @@ function launchesDevelopmentApp(code: string, checksPnpm: boolean) {
     // The app's own code runs a project's `pnpm dev` for the user (project actions), and shows it.
     (checksPnpm &&
       (PNPM_DEV_CALL.test(code) ||
+        PNPM_DEV_ARGV.test(code) ||
         (PNPM_LITERAL.test(code) && DEV_SCRIPT_LIST.test(code)) ||
         PNPM_DEV_COMMAND.test(code)))
   )
