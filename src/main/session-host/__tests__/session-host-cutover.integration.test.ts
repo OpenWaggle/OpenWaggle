@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-session-embedding-model'
 import { openHostSqliteDatabase } from '../host-sqlite-database'
@@ -10,6 +11,13 @@ import {
   readCutoverCatalogEvidence,
   seedLegacyDatabase,
 } from './session-host-cutover-test-support'
+
+const plannedWorkspaceRowSchema = Schema.Struct({
+  id: Schema.String,
+  working_path: Schema.String,
+  worktree_branch: Schema.NullOr(Schema.String),
+  lifecycle_state: Schema.String,
+})
 
 describe('Session Host full cutover', () => {
   let temporaryRoot = ''
@@ -233,12 +241,11 @@ describe('Session Host full cutover', () => {
           WHERE session_workspace_bindings.session_id = 'session-planned'
         `)
         .get()
-      if (typeof value !== 'object' || value === null) throw new Error('Workspace row missing.')
-      const row = Object.fromEntries(Object.entries(value))
+      const row = decodeUnknownOrThrow(plannedWorkspaceRowSchema, value)
 
       expect(row.lifecycle_state).toBe('pending')
-      expect(row.working_path).toContain(`/.openwaggle/worktrees/project/${String(row.id)}`)
-      expect(row.worktree_branch).toBe(`ow/session-${String(row.id)}`)
+      expect(row.working_path).toContain(`/.openwaggle/worktrees/project/${row.id}`)
+      expect(row.worktree_branch).toBe(`ow/session-${row.id}`)
       expect(row.working_path).not.toContain('pending://')
     } finally {
       target.close()

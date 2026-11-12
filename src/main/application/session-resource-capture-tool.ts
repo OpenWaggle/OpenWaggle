@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import {
@@ -33,7 +34,17 @@ function normalizedWebSearchQuery(value: unknown) {
   return query && query.length <= MAX_WEB_SEARCH_QUERY_CHARACTERS ? query : null
 }
 
-function explicitWebSearchQueries(toolName: string, args: Readonly<Record<string, unknown>>) {
+/** The search arguments a model wrote, each still unchecked. */
+interface WebSearchToolArgs {
+  readonly query?: unknown
+  readonly q?: unknown
+  readonly search_query?: unknown
+}
+
+const webSearchEntrySchema = Schema.Struct({ q: Schema.String })
+const toolDetailsSourceSchema = Schema.Struct({ source: Schema.String })
+
+function explicitWebSearchQueries(toolName: string, args: WebSearchToolArgs) {
   if (DIRECT_WEB_SEARCH_TOOL_NAMES.has(toolName)) {
     const query = normalizedWebSearchQuery(args.query) ?? normalizedWebSearchQuery(args.q)
     return query ? [query] : []
@@ -44,7 +55,7 @@ function explicitWebSearchQueries(toolName: string, args: Readonly<Record<string
   const queries: string[] = []
   for (const candidate of args.search_query) {
     if (queries.length >= MAX_WEB_SEARCHES_PER_TOOL) break
-    if (!isRecord(candidate) || typeof candidate.q !== 'string') continue
+    if (!isRecord(candidate) || !Schema.is(webSearchEntrySchema)(candidate)) continue
     const query = normalizedWebSearchQuery(candidate.q)
     if (query) queries.push(query)
   }
@@ -84,9 +95,11 @@ export function toolResultResourceLabel(toolResult: ToolCallResult) {
 
 /** The topic's source from the tool's details, which Pi keeps both beside and inside the result. */
 function docsTopicSource(toolResult: ToolCallResult) {
-  const result = isRecord(toolResult.result) ? toolResult.result : null
+  const result: { readonly details?: unknown } | null = isRecord(toolResult.result)
+    ? toolResult.result
+    : null
   for (const details of [toolResult.details, result?.details]) {
-    if (isRecord(details) && typeof details.source === 'string') return details.source
+    if (isRecord(details) && Schema.is(toolDetailsSourceSchema)(details)) return details.source
   }
   return null
 }
@@ -238,7 +251,8 @@ function capturedFileTitle(normalizedPath: string, workingPath: string | null) {
 }
 
 function captureFileResource(input: ToolMetadataCaptureInput, toolName: string) {
-  const filePath = input.toolResult.args.path
+  const fileArgs: { readonly path?: unknown } = input.toolResult.args
+  const filePath = fileArgs.path
   const activity = fileToolActivity(toolName)
   if (!activity || typeof filePath !== 'string') return Effect.void
   const normalizedPath = path.isAbsolute(filePath)

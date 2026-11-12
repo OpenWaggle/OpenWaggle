@@ -1,7 +1,9 @@
+import { Schema } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
 
 const SECRET_NAME_SEPARATORS = /[^A-Za-z0-9_]+/g
 const VALUE_MAPS = ['env', 'headers'] as const
+const secretReferenceSchema = Schema.Struct({ secret: Schema.String })
 
 /**
  * The vault secret one server's field reads: `<SERVER>_<FIELD>`, so two servers with an
@@ -15,7 +17,7 @@ function scopedValues(values: unknown, serverName: string, secrets: Set<string>)
   if (!isRecord(values)) return values
   return Object.fromEntries(
     Object.entries(values).map(([field, value]) => {
-      if (!isRecord(value) || typeof value.secret !== 'string') return [field, value]
+      if (!Schema.is(secretReferenceSchema)(value)) return [field, value]
       const secret = mcpServerSecretName(serverName, value.secret)
       secrets.add(secret)
       return [field, { secret }]

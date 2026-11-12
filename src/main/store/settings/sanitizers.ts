@@ -1,3 +1,4 @@
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/math'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
@@ -251,8 +252,10 @@ export function sanitizeProjectDisplayNames(raw: unknown) {
   return result
 }
 
-export function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
-  if (!isObjectRecord(raw) || typeof raw.key !== 'string') return null
+export function sanitizeShortcutBinding(value: unknown): ShortcutBinding | null {
+  if (!isObjectRecord(value)) return null
+  const raw: UncheckedFields<ShortcutBinding> = value
+  if (typeof raw.key !== 'string') return null
   const key = raw.key.trim()
   if (!key || key.length > SHORTCUT_RULE_LIMITS.KEY_LENGTH) return null
 
@@ -275,9 +278,10 @@ export function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
 export function sanitizeShortcutRules(raw: unknown): ShortcutRules | null {
   if (!Array.isArray(raw) || raw.length > SHORTCUT_RULE_LIMITS.RULES) return null
   const rules: ShortcutRule[] = []
-  for (const candidate of raw) {
+  for (const value of raw) {
+    const candidate: UncheckedFields<ShortcutRule> | null = isObjectRecord(value) ? value : null
     if (
-      !isObjectRecord(candidate) ||
+      !candidate ||
       typeof candidate.command !== 'string' ||
       !includes(SHORTCUT_COMMANDS, candidate.command)
     ) {

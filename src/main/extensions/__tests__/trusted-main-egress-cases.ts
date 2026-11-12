@@ -6,7 +6,8 @@ const WORKER = 'Worker threads can bypass trusted main network guards'
 const UDP = 'UDP sockets are not permitted'
 const DNS = 'Direct DNS resolution can bypass declared network origins'
 const CLIENT = 'Database, Redis and S3 clients connect outside the declared HTTPS origins'
-export const RUNS_ON_BUN = typeof Reflect.get(globalThis, 'Bun') === 'object'
+const runtimeGlobals: object = globalThis
+export const RUNS_ON_BUN = 'Bun' in runtimeGlobals && typeof runtimeGlobals.Bun === 'object'
 
 export interface EgressCase {
   readonly name: string

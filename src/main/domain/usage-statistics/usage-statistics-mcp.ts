@@ -15,7 +15,11 @@ export interface UsageStatisticsMcpServerLaunch {
 }
 
 /** The launch fields of a catalog entry, whatever else it holds. */
-function catalogLaunch(entry: Readonly<Record<string, unknown>>): UsageStatisticsMcpServerLaunch {
+function catalogLaunch(entry: {
+  readonly command?: unknown
+  readonly args?: unknown
+  readonly url?: unknown
+}): UsageStatisticsMcpServerLaunch {
   const args = Array.isArray(entry.args)
     ? entry.args.filter((arg): arg is string => typeof arg === 'string')
     : undefined

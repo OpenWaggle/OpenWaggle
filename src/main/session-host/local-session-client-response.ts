@@ -1,5 +1,10 @@
 import { match } from '@diegogbrisa/ts-match'
-import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import {
+  decodeUnknownExactOrThrow,
+  Schema,
+  safeDecodeUnknown,
+  type SchemaType,
+} from '@shared/schema'
 import { decodeDesktopServiceResponse } from '@shared/schemas/desktop-service'
 import { decodeHostUiV1Result } from '@shared/schemas/host-ui-protocol'
 import { decodeLocalHostResponse } from '@shared/schemas/local-host'
@@ -8,16 +13,17 @@ import { decodeLocalUpdateResponse } from '@shared/schemas/local-update'
 import { decodeScheduledTasksResponse } from '@shared/schemas/scheduled-task'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
 import { decodeSessionLifecycleResponse } from '@shared/schemas/session-lifecycle'
+import {
+  localCompactionCancellationResponseSchema,
+  localCompactionResponseSchema,
+  localSessionCommandResponsePayloadSchema,
+  localUiResponseSchema,
+  sessionQueryResponseSchema,
+  sessionWaggleCancellationResponseSchema,
+  sessionWaggleResponseSchema,
+} from '@shared/schemas/local-session-command-response'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
-import {
-  type LocalSessionCommandResult,
-  SESSION_WAGGLE_CONTRACT_VERSION,
-} from '@shared/types/local-session-protocol'
-import {
-  SESSION_QUERY_CONTRACT_VERSION,
-  type SessionQueryResponse,
-} from '@shared/types/session-query'
-import { isRecord } from './local-session-client-connection'
+import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import { localSessionClientProtocolError } from './local-session-client-protocol-error'
 
 const localAttachmentsResponseSchema = Schema.Struct({
@@ -25,117 +31,26 @@ const localAttachmentsResponseSchema = Schema.Struct({
   attachments: Schema.Array(preparedAttachmentSchema),
 })
 
-function isLocalUiResponse(
-  value: unknown,
-): value is Extract<LocalSessionCommandResult, { contract: 'local-ui-v1' }>['response'] {
-  return (
-    isRecord(value) &&
-    typeof value.requestId === 'string' &&
-    typeof value.effect === 'string' &&
-    [
-      'pinned',
-      'unpinned',
-      'pin-moved',
-      'interrupted-run-dismissed',
-      'tree-navigated',
-      'branch-renamed',
-      'branch-archived',
-      'branch-restored',
-      'tree-ui-state-updated',
-      'session-deleted',
-      'follow-up-edit-hold-renewed',
-      'follow-up-edit-hold-lost',
-    ].includes(value.effect) &&
-    typeof value.sessionId === 'string' &&
-    (value.navigation === undefined ||
-      (isRecord(value.navigation) && typeof value.navigation.cancelled === 'boolean'))
-  )
+type LocalSessionCommandResponsePayload = SchemaType<
+  typeof localSessionCommandResponsePayloadSchema
+>
+
+const commandFrameSchema = Schema.Struct({
+  kind: Schema.String,
+  requestId: Schema.optional(Schema.Unknown),
+  payload: Schema.optional(Schema.Unknown),
+})
+
+/** Decodes one contract's response, naming the fields that did not match. */
+function decodeResponse<A, I>(schema: Schema.Schema<A, I>, value: unknown, label: string): A {
+  const decoded = safeDecodeUnknown(schema, value)
+  if (!decoded.success) throw new Error(`Invalid ${label} response: ${decoded.issues.join('; ')}`)
+  return decoded.data
 }
 
-function isSessionQueryResponse(value: unknown): value is SessionQueryResponse {
-  return (
-    isRecord(value) &&
-    value.contractVersion === SESSION_QUERY_CONTRACT_VERSION &&
-    typeof value.requestId === 'string' &&
-    isRecord(value.outcome) &&
-    typeof value.outcome.operation === 'string'
-  )
-}
-
-function isAgentSendReport(value: unknown) {
-  return (
-    isRecord(value) &&
-    (value.outcome === 'delivered' ||
-      value.outcome === 'refused' ||
-      value.outcome === 'cancelled') &&
-    (value.message === undefined || typeof value.message === 'string') &&
-    (value.code === undefined || typeof value.code === 'string')
-  )
-}
-
-function isSessionWaggleResponse(
-  value: unknown,
-): value is Extract<LocalSessionCommandResult, { contract: 'session-waggle-v1' }>['response'] {
-  return (
-    isRecord(value) &&
-    value.contractVersion === SESSION_WAGGLE_CONTRACT_VERSION &&
-    typeof value.requestId === 'string' &&
-    typeof value.idempotencyKey === 'string' &&
-    typeof value.replayed === 'boolean' &&
-    isAgentSendReport(value.report)
-  )
-}
-
-function isSessionWaggleCancellationResponse(
-  value: unknown,
-): value is Extract<
-  LocalSessionCommandResult,
-  { contract: 'session-waggle-cancel-v1' }
->['response'] {
-  return (
-    isRecord(value) &&
-    value.contractVersion === SESSION_WAGGLE_CONTRACT_VERSION &&
-    typeof value.requestId === 'string' &&
-    typeof value.sessionId === 'string' &&
-    typeof value.cancelled === 'boolean'
-  )
-}
-
-function isContextCompactionResult(value: unknown) {
-  return (
-    isRecord(value) &&
-    typeof value.summary === 'string' &&
-    typeof value.firstKeptEntryId === 'string' &&
-    typeof value.tokensBefore === 'number'
-  )
-}
-
-function isLocalCompactionResponse(
-  value: unknown,
-): value is Extract<LocalSessionCommandResult, { contract: 'local-compaction-v1' }>['response'] {
-  return (
-    isRecord(value) &&
-    typeof value.requestId === 'string' &&
-    typeof value.sessionId === 'string' &&
-    isContextCompactionResult(value.result)
-  )
-}
-
-function isLocalCompactionCancellationResponse(
-  value: unknown,
-): value is Extract<
-  LocalSessionCommandResult,
-  { contract: 'local-compaction-cancel-v1' }
->['response'] {
-  return (
-    isRecord(value) &&
-    typeof value.requestId === 'string' &&
-    typeof value.sessionId === 'string' &&
-    typeof value.cancelled === 'boolean'
-  )
-}
-
-function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCommandResult {
+function decodeCommandPayload(
+  payload: LocalSessionCommandResponsePayload,
+): LocalSessionCommandResult {
   return match(payload.contract)
     .with('desktop-service-v1', () => ({
       contract: 'desktop-service-v1' as const,
@@ -145,10 +60,10 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
       const response = decodeUnknownExactOrThrow(localAttachmentsResponseSchema, payload.response)
       return { contract: 'local-attachments-v1' as const, response }
     })
-    .with('local-ui-v1', () => {
-      if (!isLocalUiResponse(payload.response)) throw new Error('Invalid Local UI response.')
-      return { contract: 'local-ui-v1' as const, response: payload.response }
-    })
+    .with('local-ui-v1', () => ({
+      contract: 'local-ui-v1' as const,
+      response: decodeResponse(localUiResponseSchema, payload.response, 'Local UI'),
+    }))
     .with('local-access-v1', () => ({
       contract: 'local-access-v1' as const,
       response: decodeLocalSessionProfileManagementResponse(payload.response),
@@ -161,10 +76,10 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
       contract: 'session-lifecycle-v2' as const,
       response: decodeSessionLifecycleResponse(payload.response),
     }))
-    .with('session-query-v2', () => {
-      if (!isSessionQueryResponse(payload.response)) throw new Error('Invalid query response.')
-      return { contract: 'session-query-v2' as const, response: payload.response }
-    })
+    .with('session-query-v2', () => ({
+      contract: 'session-query-v2' as const,
+      response: decodeResponse(sessionQueryResponseSchema, payload.response, 'query'),
+    }))
     .with('host-ui-v1', () => ({
       contract: 'host-ui-v1' as const,
       response: decodeHostUiV1Result(payload.response),
@@ -177,28 +92,30 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
       contract: 'local-host-v1' as const,
       response: decodeLocalHostResponse(payload.response),
     }))
-    .with('session-waggle-v1', () => {
-      if (!isSessionWaggleResponse(payload.response)) throw new Error('Invalid Waggle response.')
-      return { contract: 'session-waggle-v1' as const, response: payload.response }
-    })
-    .with('session-waggle-cancel-v1', () => {
-      if (!isSessionWaggleCancellationResponse(payload.response)) {
-        throw new Error('Invalid Waggle cancellation response.')
-      }
-      return { contract: 'session-waggle-cancel-v1' as const, response: payload.response }
-    })
-    .with('local-compaction-v1', () => {
-      if (!isLocalCompactionResponse(payload.response)) {
-        throw new Error('Invalid Local compaction response.')
-      }
-      return { contract: 'local-compaction-v1' as const, response: payload.response }
-    })
-    .with('local-compaction-cancel-v1', () => {
-      if (!isLocalCompactionCancellationResponse(payload.response)) {
-        throw new Error('Invalid Local compaction cancellation response.')
-      }
-      return { contract: 'local-compaction-cancel-v1' as const, response: payload.response }
-    })
+    .with('session-waggle-v1', () => ({
+      contract: 'session-waggle-v1' as const,
+      response: decodeResponse(sessionWaggleResponseSchema, payload.response, 'Waggle'),
+    }))
+    .with('session-waggle-cancel-v1', () => ({
+      contract: 'session-waggle-cancel-v1' as const,
+      response: decodeResponse(
+        sessionWaggleCancellationResponseSchema,
+        payload.response,
+        'Waggle cancellation',
+      ),
+    }))
+    .with('local-compaction-v1', () => ({
+      contract: 'local-compaction-v1' as const,
+      response: decodeResponse(localCompactionResponseSchema, payload.response, 'Local compaction'),
+    }))
+    .with('local-compaction-cancel-v1', () => ({
+      contract: 'local-compaction-cancel-v1' as const,
+      response: decodeResponse(
+        localCompactionCancellationResponseSchema,
+        payload.response,
+        'Local compaction cancellation',
+      ),
+    }))
     .with('scheduled-tasks-v1', () => ({
       contract: 'scheduled-tasks-v1' as const,
       response: decodeScheduledTasksResponse(payload.response),
@@ -209,20 +126,24 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
 }
 
 export function decodeLocalSessionCommandResponse(
-  frame: unknown,
+  value: unknown,
   requestId: string,
 ): LocalSessionCommandResult {
-  if (!isRecord(frame) || typeof frame.kind !== 'string') {
-    throw new Error('Local Session Host returned an invalid command frame.')
+  const frame = safeDecodeUnknown(commandFrameSchema, value)
+  if (!frame.success) throw new Error('Local Session Host returned an invalid command frame.')
+  if (frame.data.kind === 'error') {
+    throw localSessionClientProtocolError(value, 'Local Session command failed.')
   }
-  if (frame.kind === 'error') {
-    throw localSessionClientProtocolError(frame, 'Local Session command failed.')
-  }
-  if (frame.kind !== 'response' || frame.requestId !== requestId) {
+  if (frame.data.kind !== 'response' || frame.data.requestId !== requestId) {
     throw new Error('Local Session Host returned an unexpected command response.')
   }
-  if (!isRecord(frame.payload) || !('response' in frame.payload)) {
+  const { payload } = frame.data
+  // A payload without a `response` member is malformed even though the member is `unknown`.
+  const payloadHasResponse =
+    typeof payload === 'object' && payload !== null && 'response' in payload
+  const decoded = safeDecodeUnknown(localSessionCommandResponsePayloadSchema, payload)
+  if (!payloadHasResponse || !decoded.success) {
     throw new Error('Local Session Host returned an invalid command payload.')
   }
-  return decodeCommandPayload(frame.payload)
+  return decodeCommandPayload(decoded.data)
 }

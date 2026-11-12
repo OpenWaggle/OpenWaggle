@@ -3,13 +3,16 @@ import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
-import { isRecord } from '@shared/utils/validation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  isTestServerFrame,
+  TestFrameReader,
+} from './local-session-server-test-client'
 
 describe('Local Session global subscription budget', () => {
   let temporaryRoot = ''
@@ -69,21 +72,18 @@ describe('Local Session global subscription budget', () => {
     }
 
     const responses = await Promise.all([first.reader.next(), second.reader.next()])
+    expect(responses.filter((response) => isTestServerFrame(response, 'subscribed'))).toHaveLength(
+      1,
+    )
     expect(
-      responses.filter((response) => isRecord(response) && response.kind === 'subscribed'),
-    ).toHaveLength(1)
-    expect(
-      responses.filter(
-        (response) =>
-          isRecord(response) &&
-          response.kind === 'error' &&
-          response.code === 'subscription_limit_exceeded',
+      responses.filter((response) =>
+        isTestServerFrame(response, 'error', 'subscription_limit_exceeded'),
       ),
     ).toHaveLength(1)
     expect(eventHub.subscriberCount()).toBe(1)
 
-    const subscribedIndex = responses.findIndex(
-      (response) => isRecord(response) && response.kind === 'subscribed',
+    const subscribedIndex = responses.findIndex((response) =>
+      isTestServerFrame(response, 'subscribed'),
     )
     const subscribedSocket = subscribedIndex === 0 ? first.socket : second.socket
     const closed = new Promise<void>((resolve) => subscribedSocket.once('close', resolve))

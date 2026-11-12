@@ -15,7 +15,7 @@ describe('feedback:check-gh', () => {
 
     await expect(invoke('feedback:check-gh')).resolves.toEqual(expected)
     // gh never sees a token from the app's environment; it uses its own login.
-    for (const { env } of harness.spawned) expect(env?.GH_TOKEN).toBeUndefined()
+    for (const { env } of harness.spawned) expect(env ?? {}).not.toHaveProperty('GH_TOKEN')
   })
 })
 

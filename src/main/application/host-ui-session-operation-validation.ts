@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { isSessionInputTextWithinLimit, SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import { parseModelRef } from '@shared/types/llm'
@@ -10,6 +11,31 @@ import type {
 } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
+
+/** Each operation argument's members, still unchecked: each validator names the one it refuses. */
+const workspaceSelectionFields = Schema.Struct({
+  branchId: Schema.optional(Schema.Unknown),
+  nodeId: Schema.optional(Schema.Unknown),
+})
+const treeUiStatePatchFields = Schema.Struct({
+  expandedNodeIds: Schema.optional(Schema.Unknown),
+  branchesSidebarCollapsed: Schema.optional(Schema.Unknown),
+  lastVisitedAt: Schema.optional(Schema.Unknown),
+})
+const navigateTreeOptionsFields = Schema.Struct({
+  summarize: Schema.optional(Schema.Unknown),
+  customInstructions: Schema.optional(Schema.Unknown),
+})
+const worktreePlanFields = Schema.Struct({
+  environmentMode: Schema.optional(Schema.Unknown),
+  baseRef: Schema.optional(Schema.Unknown),
+  startFromOrigin: Schema.optional(Schema.Unknown),
+})
+const pinnedSessionMoveFields = Schema.Struct({
+  sessionId: Schema.optional(Schema.Unknown),
+  afterSessionId: Schema.optional(Schema.Unknown),
+  beforeSessionId: Schema.optional(Schema.Unknown),
+})
 
 export function invalid(message: string) {
   return Effect.fail(new Error(message))
@@ -95,7 +121,9 @@ function validateOptionalLastVisitedAt(value: unknown) {
 
 export function validateWorkspaceSelection(value: unknown) {
   if (value === undefined) return Effect.succeed(undefined)
-  if (!isRecord(value)) return invalid('Session workspace selection must be an object.')
+  if (!isRecord(value) || !Schema.is(workspaceSelectionFields)(value)) {
+    return invalid('Session workspace selection must be an object.')
+  }
   return Effect.gen(function* () {
     const branchId = yield* validateOptionalSessionBranchId(value.branchId)
     const nodeId = yield* validateOptionalSessionNodeId(value.nodeId)
@@ -104,7 +132,9 @@ export function validateWorkspaceSelection(value: unknown) {
 }
 
 export function validateTreeUiStatePatch(value: unknown) {
-  if (!isRecord(value)) return invalid('Session tree UI state patch must be an object.')
+  if (!isRecord(value) || !Schema.is(treeUiStatePatchFields)(value)) {
+    return invalid('Session tree UI state patch must be an object.')
+  }
   return Effect.gen(function* () {
     const hasExpandedNodeIds = value.expandedNodeIds !== undefined
     const hasBranchesSidebarCollapsed = value.branchesSidebarCollapsed !== undefined
@@ -139,7 +169,9 @@ export function validateTreeUiStatePatch(value: unknown) {
 
 export function validateNavigateTreeOptions(value: unknown) {
   if (value === undefined) return Effect.succeed(undefined)
-  if (!isRecord(value)) return invalid('Session navigation options must be an object.')
+  if (!isRecord(value) || !Schema.is(navigateTreeOptionsFields)(value)) {
+    return invalid('Session navigation options must be an object.')
+  }
   if (value.summarize !== undefined && typeof value.summarize !== 'boolean') {
     return invalid('Session navigation summarize must be a boolean.')
   }
@@ -159,7 +191,9 @@ export function validateNavigateTreeOptions(value: unknown) {
 
 export function validateWorktreePlan(value: unknown) {
   if (value === undefined) return Effect.succeed(undefined)
-  if (!isRecord(value)) return invalid('Session worktree plan must be an object.')
+  if (!isRecord(value) || !Schema.is(worktreePlanFields)(value)) {
+    return invalid('Session worktree plan must be an object.')
+  }
   if (value.environmentMode !== 'local' && value.environmentMode !== 'worktree') {
     return invalid('Session environment mode must be local or worktree.')
   }
@@ -177,7 +211,9 @@ export function validateWorktreePlan(value: unknown) {
 }
 
 export function validatePinnedSessionMove(value: unknown) {
-  if (!isRecord(value)) return invalid('Pinned Session move must be an object.')
+  if (!isRecord(value) || !Schema.is(pinnedSessionMoveFields)(value)) {
+    return invalid('Pinned Session move must be an object.')
+  }
   return Effect.gen(function* () {
     const sessionId = yield* validateSessionId(value.sessionId)
     const afterSessionId = yield* validateOptionalPinnedSessionId(value.afterSessionId)

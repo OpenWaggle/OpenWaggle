@@ -1,4 +1,4 @@
-import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownExactOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
 import { backgroundRunUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import {
   backgroundRunActivityEventsSchema,
@@ -9,7 +9,6 @@ import {
 } from '@shared/schemas/background-run'
 import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import { isRecord } from './local-session-client-connection'
 import {
   decodeAssistantMessageSnapshots,
   decodeStreamingParts,
@@ -18,29 +17,24 @@ import {
   withUndecodableParts,
 } from './local-session-snapshot-parts'
 
-function decodeStringArray(value: unknown) {
-  if (!Array.isArray(value)) return undefined
-  const strings = value.filter((item): item is string => typeof item === 'string')
-  return strings.length === value.length ? strings : undefined
-}
+const degradedSnapshotSchema = Schema.Struct({
+  reason: Schema.Literal('content-limit'),
+  omittedBytes: Schema.Number,
+  toolCallIds: Schema.optional(Schema.Array(Schema.String)),
+  messageCutShort: Schema.optional(Schema.Unknown),
+})
 
 function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded'] | undefined {
-  if (
-    !isRecord(value) ||
-    value.reason !== 'content-limit' ||
-    typeof value.omittedBytes !== 'number'
-  ) {
-    return undefined
-  }
-  const toolCallIds = value.toolCallIds === undefined ? [] : decodeStringArray(value.toolCallIds)
-  if (!toolCallIds) return undefined
+  const decoded = safeDecodeUnknown(degradedSnapshotSchema, value)
+  if (!decoded.success) return undefined
+  const { omittedBytes, toolCallIds = [], messageCutShort } = decoded.data
   return {
     reason: 'content-limit',
-    omittedBytes: value.omittedBytes,
+    omittedBytes,
     ...(toolCallIds.length > 0 ? { toolCallIds } : {}),
     // One that does not say whether the caps cut the streaming message counts as cut: its parts
     // must not pass for the whole message over a longer shown copy.
-    messageCutShort: value.messageCutShort !== false,
+    messageCutShort: messageCutShort !== false,
   }
 }
 
@@ -99,33 +93,35 @@ function decodeActivityEvents(value: unknown, context: SnapshotContext) {
   }
 }
 
-function isOptionalString(value: unknown) {
-  return value === undefined || typeof value === 'string'
-}
+/**
+ * The members every active Run snapshot has, and the others still undecoded: each of those is
+ * decoded on its own, so one this client cannot read costs only that member.
+ */
+const activeRunSnapshotCandidateSchema = Schema.Struct({
+  activity: Schema.Literal('agent-run'),
+  sessionId: Schema.String,
+  model: Schema.String,
+  mode: Schema.Literal('classic', 'waggle'),
+  startedAt: Schema.Number,
+  parts: Schema.Array(Schema.Unknown),
+  messageId: Schema.optional(Schema.String),
+  runId: Schema.optional(Schema.String),
+  messageStartedAt: Schema.optional(Schema.Unknown),
+  degraded: Schema.optional(Schema.Unknown),
+  worktreeLaunch: Schema.optional(Schema.Unknown),
+  activityEvents: Schema.optional(Schema.Unknown),
+  userMessages: Schema.optional(Schema.Unknown),
+  assistantMessages: Schema.optional(Schema.Unknown),
+})
 
-interface ActiveRunSnapshotCandidate extends Record<string, unknown> {
-  readonly activity: 'agent-run'
-  readonly sessionId: string
-  readonly model: string
-  readonly mode: 'classic' | 'waggle'
-  readonly startedAt: number
-  readonly parts: readonly unknown[]
-  readonly messageId?: string
-  readonly runId?: string
-}
+const snapshotSessionIdSchema = Schema.Struct({ sessionId: Schema.String })
 
-function hasActiveRunSnapshotShape(
-  candidate: Record<string, unknown>,
-): candidate is ActiveRunSnapshotCandidate {
-  return (
-    candidate.activity === 'agent-run' &&
-    typeof candidate.sessionId === 'string' &&
-    typeof candidate.model === 'string' &&
-    (candidate.mode === 'classic' || candidate.mode === 'waggle') &&
-    typeof candidate.startedAt === 'number' &&
-    Array.isArray(candidate.parts) &&
-    isOptionalString(candidate.messageId) &&
-    isOptionalString(candidate.runId)
+function invalidSnapshot(candidate: unknown, index: number) {
+  const session = Schema.is(snapshotSessionIdSchema)(candidate)
+    ? `, Session ${candidate.sessionId}`
+    : ''
+  return new Error(
+    `Local Session Host returned an invalid active Run snapshot (index ${String(index)}${session}).`,
   )
 }
 
@@ -138,15 +134,10 @@ function hasActiveRunSnapshotShape(
  */
 export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
-  return value.map((candidate, index) => {
-    if (!isRecord(candidate) || !hasActiveRunSnapshotShape(candidate)) {
-      const sessionId = isRecord(candidate) ? candidate.sessionId : undefined
-      throw new Error(
-        `Local Session Host returned an invalid active Run snapshot (index ${String(index)}${
-          typeof sessionId === 'string' ? `, Session ${sessionId}` : ''
-        }).`,
-      )
-    }
+  return value.map((value: unknown, index) => {
+    const decoded = safeDecodeUnknown(activeRunSnapshotCandidateSchema, value)
+    if (!decoded.success) throw invalidSnapshot(value, index)
+    const candidate = decoded.data
     const context: SnapshotContext = {
       sessionId: candidate.sessionId,
       ...(candidate.runId ? { runId: candidate.runId } : {}),

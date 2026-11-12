@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import type { DelegationState } from '@shared/types/session-collaboration'
@@ -40,14 +41,19 @@ function isThinkingLevel(value: unknown): value is ThinkingLevel {
   return THINKING_LEVELS.some((level) => level === value)
 }
 
+/** The execution profile members these facts read, each still unchecked. */
+const profileAgentFieldsSchema = Schema.Struct({
+  agentDefinitionName: Schema.optional(Schema.Unknown),
+  modelId: Schema.optional(Schema.Unknown),
+  thinkingLevel: Schema.optional(Schema.Unknown),
+})
+
 function profileAgentFacts(profileJson: string | null): ProfileAgentFacts {
   if (!profileJson) return {}
   try {
     const parsed: unknown = JSON.parse(profileJson)
-    if (typeof parsed !== 'object' || parsed === null) return {}
-    const name: unknown = Reflect.get(parsed, 'agentDefinitionName')
-    const modelId: unknown = Reflect.get(parsed, 'modelId')
-    const thinkingLevel: unknown = Reflect.get(parsed, 'thinkingLevel')
+    if (!Schema.is(profileAgentFieldsSchema)(parsed)) return {}
+    const { agentDefinitionName: name, modelId, thinkingLevel } = parsed
     return {
       ...(typeof name === 'string' ? { agentDefinitionName: name } : {}),
       ...(typeof modelId === 'string' && modelId ? { modelId } : {}),

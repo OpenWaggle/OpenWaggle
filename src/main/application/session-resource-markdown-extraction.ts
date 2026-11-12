@@ -18,6 +18,23 @@ const HTTP_URL_PATTERN = /^https?:\/\//iu
 const ROOT_RELATIVE_PATH_PATTERN = /^\/(?!\/)/u
 const markdownParser = unified().use(remarkParse)
 
+/**
+ * The mdast node members the walk reads, each still unchecked: the parser's tree is walked as
+ * plain objects, and each reader narrows the members it uses.
+ */
+interface MarkdownNodeFields {
+  readonly type?: unknown
+  readonly children?: unknown
+  readonly identifier?: unknown
+  readonly url?: unknown
+  readonly alt?: unknown
+  readonly value?: unknown
+}
+
+function markdownNode(value: unknown): MarkdownNodeFields | undefined {
+  return isRecord(value) ? value : undefined
+}
+
 function supportedHttpUrl(value: string) {
   if (value.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
   try {
@@ -30,13 +47,13 @@ function supportedHttpUrl(value: string) {
   }
 }
 
-function enqueueChildren(candidate: Readonly<Record<string, unknown>>, pending: unknown[]) {
+function enqueueChildren(candidate: MarkdownNodeFields, pending: unknown[]) {
   const children = candidate.children
   if (!Array.isArray(children)) return
   for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
 }
 
-function children(candidate: Readonly<Record<string, unknown>>): readonly unknown[] {
+function children(candidate: MarkdownNodeFields): readonly unknown[] {
   return Array.isArray(candidate.children) ? candidate.children : []
 }
 
@@ -44,8 +61,8 @@ function definitions(root: unknown) {
   const result = new Map<string, string>()
   const pending = [root]
   while (pending.length > 0) {
-    const candidate = pending.pop()
-    if (!isRecord(candidate)) continue
+    const candidate = markdownNode(pending.pop())
+    if (!candidate) continue
     if (
       candidate.type === 'definition' &&
       typeof candidate.identifier === 'string' &&
@@ -59,7 +76,7 @@ function definitions(root: unknown) {
   return result
 }
 
-function label(candidate: Readonly<Record<string, unknown>>) {
+function label(candidate: MarkdownNodeFields) {
   const directAlt = typeof candidate.alt === 'string' ? candidate.alt.trim() : ''
   if (directAlt) return directAlt.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
 
@@ -72,9 +89,9 @@ function label(candidate: Readonly<Record<string, unknown>>) {
     visited < SESSION_RESOURCE_EXTRACTION_LIMITS.maxVisitedNodes &&
     length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters
   ) {
-    const child = pending.pop()
+    const child = markdownNode(pending.pop())
     visited += 1
-    if (!isRecord(child)) continue
+    if (!child) continue
     if ((child.type === 'text' || child.type === 'inlineCode') && typeof child.value === 'string') {
       const fragment = child.value.slice(
         0,
@@ -89,10 +106,7 @@ function label(candidate: Readonly<Record<string, unknown>>) {
   return fragments.join('').trim()
 }
 
-function markdownUrl(
-  candidate: Readonly<Record<string, unknown>>,
-  knownDefinitions: ReadonlyMap<string, string>,
-) {
+function markdownUrl(candidate: MarkdownNodeFields, knownDefinitions: ReadonlyMap<string, string>) {
   const direct = candidate.type === 'link' || candidate.type === 'image'
   const reference = candidate.type === 'linkReference' || candidate.type === 'imageReference'
   const url = direct
@@ -137,12 +151,12 @@ function localImageFilePath(url: string): string | null {
   return isAbsolute ? url : null
 }
 
-function isImageNode(candidate: Readonly<Record<string, unknown>>) {
+function isImageNode(candidate: MarkdownNodeFields) {
   return candidate.type === 'image' || candidate.type === 'imageReference'
 }
 
 function localImage(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: MarkdownNodeFields,
   knownDefinitions: ReadonlyMap<string, string>,
   imageOrigin: MarkdownImageOrigin,
 ): CapturedLocalImage | null {
@@ -159,7 +173,7 @@ function localImage(
 /** A website image path as its absolute URL; every other destination is returned unchanged. */
 function resolvedImageUrl(
   url: string,
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: MarkdownNodeFields,
   imageOrigin: MarkdownImageOrigin,
 ) {
   if (imageOrigin.kind !== 'website' || !isImageNode(candidate)) return url
@@ -172,7 +186,7 @@ function resolvedImageUrl(
 }
 
 function httpLink(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: MarkdownNodeFields,
   knownDefinitions: ReadonlyMap<string, string>,
   imageOrigin: MarkdownImageOrigin,
 ): CapturedLink | null {

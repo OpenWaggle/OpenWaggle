@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import type {
   AgentTransportCustomEvent,
@@ -73,13 +74,16 @@ function parseJsonObject(raw: string): UnknownObject | null {
   }
 }
 
+const agentLoopSessionEventContentSchema = Schema.Struct({
+  customType: Schema.Literal(OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE),
+})
+
 function isDurableAgentLoopNode(node: DurableAgentLoopNodeSource) {
   if (node.kind !== 'custom') {
     return false
   }
 
-  const content = parseJsonObject(node.contentJson)
-  return content?.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+  return Schema.is(agentLoopSessionEventContentSchema)(parseJsonObject(node.contentJson))
 }
 
 function nextCreatedOrder(nodes: readonly ProjectedSessionNodeInput[]) {

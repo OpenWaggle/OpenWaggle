@@ -71,7 +71,9 @@ function storedRows(database: Database.Database) {
 function storedTools(json: string | null) {
   if (json === null) return null
   const parsed: unknown = JSON.parse(json)
-  return typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'tools') : undefined
+  return typeof parsed === 'object' && parsed !== null && 'tools' in parsed
+    ? parsed.tools
+    : undefined
 }
 
 describe('Hive tool name migration (ADR 0053)', () => {

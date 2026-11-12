@@ -137,7 +137,7 @@ function readFoundSession(read: unknown) {
   if (typeof outcome !== 'object' || outcome === null || !('error' in outcome)) return true
   const error = outcome.error
   if (typeof error !== 'object' || error === null) return false
-  if (Reflect.get(error, 'code') === 'session_not_found') return false
+  if ('code' in error && error.code === 'session_not_found') return false
   throw mcpQueryErrorRefusal(error)
 }
 

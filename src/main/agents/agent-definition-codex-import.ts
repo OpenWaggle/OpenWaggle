@@ -20,6 +20,17 @@ function record(value: unknown): Readonly<Record<string, unknown>> | undefined {
     : undefined
 }
 
+/** The Codex Agent config members the import maps, each still unchecked. */
+interface CodexAgentFields {
+  readonly agents?: unknown
+  readonly config_file?: unknown
+  readonly description?: unknown
+  readonly developer_instructions?: unknown
+  readonly instructions?: unknown
+  readonly model?: unknown
+  readonly model_reasoning_effort?: unknown
+}
+
 function normalizedName(value: string) {
   const normalized = value
     .toLocaleLowerCase()
@@ -35,7 +46,8 @@ interface CodexImportInput {
 
 async function selectedRecord(input: CodexImportInput, content: string) {
   const root = record(parse(content)) ?? {}
-  const agents = record(root.agents)
+  const rootFields: CodexAgentFields = root
+  const agents = record(rootFields.agents)
   if (!agents) return { selected: root, name: input.sourceName, additionalSources: [] }
   const names = Object.keys(agents).sort()
   const selectedName = input.sourceName ?? (names.length === 1 ? names[0] : undefined)
@@ -47,14 +59,16 @@ async function selectedRecord(input: CodexImportInput, content: string) {
     }
   }
   const selected = record(agents[selectedName])
-  if (!selected) {
+  const selectedFields: CodexAgentFields | undefined = selected
+  if (!selected || !selectedFields) {
     return {
       selected: undefined,
       diagnostic: `Codex Agent ${JSON.stringify(selectedName)} was not found.`,
       additionalSources: [],
     }
   }
-  const configFile = typeof selected.config_file === 'string' ? selected.config_file : undefined
+  const configFile =
+    typeof selectedFields.config_file === 'string' ? selectedFields.config_file : undefined
   if (!configFile) return { selected, name: selectedName, additionalSources: [] }
   const nestedSource = await readBoundedAgentDefinitionSource({
     sourcePath: configFile,
@@ -68,7 +82,7 @@ async function selectedRecord(input: CodexImportInput, content: string) {
   }
 }
 
-function description(source: Readonly<Record<string, unknown>>, name?: string) {
+function description(source: CodexAgentFields, name?: string) {
   const sourceValue = typeof source.description === 'string' ? source.description.trim() : ''
   return {
     sourceValue,
@@ -76,7 +90,7 @@ function description(source: Readonly<Record<string, unknown>>, name?: string) {
   }
 }
 
-function instructions(source: Readonly<Record<string, unknown>>) {
+function instructions(source: CodexAgentFields) {
   const sourceValue =
     typeof source.developer_instructions === 'string'
       ? source.developer_instructions
@@ -92,7 +106,7 @@ function instructions(source: Readonly<Record<string, unknown>>) {
 function identity(input: {
   readonly selectedName?: string
   readonly sourcePath: string
-  readonly source: Readonly<Record<string, unknown>>
+  readonly source: CodexAgentFields
   readonly fields: AgentDefinitionImportFieldPlan[]
   readonly diagnostics: string[]
 }) {
@@ -139,10 +153,7 @@ function identity(input: {
   }
 }
 
-function modelSettings(
-  source: Readonly<Record<string, unknown>>,
-  fields: AgentDefinitionImportFieldPlan[],
-) {
+function modelSettings(source: CodexAgentFields, fields: AgentDefinitionImportFieldPlan[]) {
   const modelValue = typeof source.model === 'string' ? source.model : undefined
   const model = modelValue?.includes('/') ? modelValue : undefined
   if (modelValue) {

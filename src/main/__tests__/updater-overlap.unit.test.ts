@@ -129,7 +129,7 @@ describe('updater overlapping checks', () => {
 
     expect(configureUpdaterFeedMock).toHaveBeenCalledTimes(1)
     expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
-    expect(Reflect.get(updaterRef.current ?? {}, 'channel')).toBe('latest')
+    expect(updaterRef.current).toHaveProperty('channel', 'latest')
   })
 
   it('waits for a cancelled download to settle before checking the replacement channel', async () => {
@@ -238,7 +238,7 @@ describe('updater overlapping checks', () => {
     })
     initAutoUpdater('alpha')
     updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
-    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
 
     checkForUpdates('stable')
     await Promise.resolve()
@@ -246,10 +246,10 @@ describe('updater overlapping checks', () => {
     updaterRef.current?.emit('update-downloaded', { version: '0.5.0' })
     await Promise.resolve()
 
-    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
     expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '0.5.0' })
     await installUpdate()
-    expect(Reflect.get(updaterRef.current ?? {}, 'quitAndInstall')).toHaveBeenCalledWith(true, true)
+    expect(quitAndInstallMock).toHaveBeenCalledWith(true, true)
   })
 
   it('reports and clears how many runs Restart when idle is waiting for', () => {
@@ -270,7 +270,7 @@ describe('updater overlapping checks', () => {
 
     expect(readChannel).toHaveBeenCalledOnce()
     expect(quitAndInstallMock).not.toHaveBeenCalled()
-    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
     expect(getUpdateStatus()).toEqual({ type: 'not-available' })
   })
 
@@ -280,6 +280,6 @@ describe('updater overlapping checks', () => {
     initAutoUpdater('stable')
     updaterRef.current?.emit('update-downloaded', { version: '0.4.1' })
 
-    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
   })
 })

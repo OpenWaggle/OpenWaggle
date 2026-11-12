@@ -1,5 +1,6 @@
 import type { Socket } from 'node:net'
 import type { LocalSessionProfileManagementResponse } from '@shared/types/local-session-profile-management'
+import { errorCode } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
@@ -64,7 +65,7 @@ function describeFailure(failure: unknown, depth = 0): string | undefined {
   const label = [tag, code].filter(Boolean).join(': ')
   const operation = stringField(failure, 'operation')
   if (!tag && !code && !operation) return describeDetails(failure)
-  const cause: unknown = Reflect.get(failure, 'cause')
+  const cause = 'cause' in failure ? failure.cause : undefined
   const reason = depth < MAX_DESCRIBED_CAUSES ? describeFailure(cause, depth + 1) : undefined
   const described = [
     label ? `${label}${operation ? ` (${operation})` : ''}` : operation,
@@ -99,8 +100,7 @@ const CLIENT_DISCONNECT_ERROR_CODES = new Set([
 ])
 
 function isClientDisconnect(error: unknown, socket: Socket) {
-  const code: unknown =
-    typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined
+  const code = errorCode(error)
   return (
     (typeof code === 'string' && CLIENT_DISCONNECT_ERROR_CODES.has(code)) ||
     socket.destroyed ||

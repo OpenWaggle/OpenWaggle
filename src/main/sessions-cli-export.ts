@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { decodeUnknownExactOrThrow } from '@shared/schema'
+import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { sessionExportManifestSchema } from '@shared/schemas/session-export-operation'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { sessionExportMarkdownHeading } from '@shared/utils/session-export-markdown'
@@ -9,6 +9,7 @@ import { hasFlag, type ParsedArguments } from './mcp-cli-arguments'
 import { pageQueryRefusal } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { FULL_TRANSCRIPT_PAGE_LIMIT } from './sessions-cli-payload'
+import { commandResponseOutcome, pageRefusalOf } from './sessions-cli-response-fields'
 
 type ClientInput = Awaited<ReturnType<typeof createLocalSessionCliClientInput>>
 type ExportFormat = 'jsonl' | 'markdown'
@@ -18,14 +19,19 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** The members of an export page outcome the CLI writes. */
+const exportPageSchema = Schema.Struct({
+  manifest: Schema.Unknown,
+  records: Schema.Array(Schema.Unknown),
+  nextCreatedOrder: Schema.optional(Schema.Unknown),
+})
+
 function exportPage(value: unknown) {
-  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) {
-    return undefined
-  }
-  const outcome = value.response.outcome
-  if (!isRecord(outcome)) return undefined
-  if ('error' in outcome && isRecord(outcome.error)) throw pageQueryRefusal(outcome.error)
-  if (!('manifest' in outcome) || !Array.isArray(outcome.records)) return undefined
+  const outcome = commandResponseOutcome(value)
+  if (!outcome) return undefined
+  const refusal = pageRefusalOf(outcome)
+  if (refusal) throw pageQueryRefusal(refusal)
+  if (!('manifest' in outcome) || !Schema.is(exportPageSchema)(outcome)) return undefined
   return {
     manifest: outcome.manifest,
     records: outcome.records,
@@ -34,9 +40,19 @@ function exportPage(value: unknown) {
   }
 }
 
+/** The manifest members the Markdown header shows, each still unchecked. */
+interface ExportManifestHeaderFields {
+  readonly title?: unknown
+  readonly sessionId?: unknown
+  readonly branchScope?: unknown
+  readonly activeTurnIncomplete?: unknown
+}
+
+const textContentSchema = Schema.Struct({ text: Schema.String })
+
 function markdownContent(content: unknown) {
   if (typeof content === 'string') return content
-  if (isRecord(content) && typeof content.text === 'string') return content.text
+  if (isRecord(content) && Schema.is(textContentSchema)(content)) return content.text
   return `\`\`\`json\n${JSON.stringify(content, null, JSON_INDENT_SPACES)}\n\`\`\``
 }
 
@@ -48,7 +64,7 @@ function writeHeader(manifest: unknown, format: ExportFormat) {
   if (format === 'jsonl') {
     return writeCliStdout(`${JSON.stringify({ record: 'manifest', manifest })}\n`)
   }
-  const value = isRecord(manifest) ? manifest : {}
+  const value: ExportManifestHeaderFields = isRecord(manifest) ? manifest : {}
   return writeCliStdout(
     `# ${textField(value.title, 'Session export')}\n\n` +
       `- Session: ${textField(value.sessionId, '')}\n` +
@@ -58,7 +74,11 @@ function writeHeader(manifest: unknown, format: ExportFormat) {
 }
 
 /** One exported record as Markdown: its heading (the Host's notice is not the user) and content. */
-export function markdownExportRecord(record: Record<string, unknown>) {
+export function markdownExportRecord(record: {
+  readonly role?: unknown
+  readonly metadata?: unknown
+  readonly content?: unknown
+}) {
   return `## ${sessionExportMarkdownHeading(record)}\n\n${markdownContent(record.content ?? record)}\n\n`
 }
 

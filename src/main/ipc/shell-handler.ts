@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
-import { isRecord } from '@shared/utils/validation'
+import { errorCode } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import {
   getDesktopNativeAdmissionIssue,
@@ -54,7 +54,7 @@ function requireExistingPath(targetPath: string) {
   return Effect.tryPromise(() => stat(targetPath)).pipe(
     Effect.asVoid,
     Effect.catchAll((failure) => {
-      const code = isRecord(failure.error) ? failure.error.code : undefined
+      const code = errorCode(failure.error)
       return MISSING_PATH_CODES.has(code)
         ? Effect.fail(new Error(missingPathMessage(targetPath)))
         : Effect.void

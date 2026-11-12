@@ -39,7 +39,7 @@ describe('Session discovery native term bulk validation', () => {
     const target = createCatalog()
     target.exec(SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS[0])
     const plan = target
-      .prepare<[], Record<string, unknown>>(
+      .prepare<[], { readonly detail: unknown }>(
         `EXPLAIN QUERY PLAN ${SESSION_DISCOVERY_TERM_GROUP_SQL}`,
       )
       .all()

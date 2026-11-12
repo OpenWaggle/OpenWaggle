@@ -19,6 +19,7 @@ import {
   flushMainCompileCacheOnceStarted,
   type MainCompileCache,
 } from './boot/main-compile-cache'
+import type { BootEnvironment } from './boot/boot-environment'
 import { mainCompileCacheLocation } from './boot/main-compile-cache-location'
 import { startSessionHostPrelaunch } from './boot/session-host-prelaunch'
 import { answerTopLevelCliInBoot } from './boot-top-level-cli'
@@ -39,10 +40,11 @@ function startCompileCache(): MainCompileCache | null {
   }
 }
 
+const bootEnvironment: BootEnvironment = process.env
 const compileCache = startCompileCache()
 const outcome = answerTopLevelCliInBoot({
   argv: process.argv,
-  cliOutputFd: process.env.OPENWAGGLE_CLI_OUTPUT_FD,
+  cliOutputFd: bootEnvironment.OPENWAGGLE_CLI_OUTPUT_FD,
   platform: process.platform,
 })
 if (outcome !== 'answered') {
