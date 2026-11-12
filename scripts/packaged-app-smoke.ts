@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { missingPackagedPiAssets } from './electron-builder-pi-assets'
 import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
 import { nodeRuntime } from './support/node-runtime'
+import { unusedChromiumFiles } from './electron-builder-after-pack'
 import { unshippedPackageIssues, prunedRuntimeIssues } from './electron-builder-runtime-trim'
 import { packagedRuntimePackages } from './packaged-runtime-packages'
 import { mainExternalPackages } from './vite/main-externals'
@@ -286,6 +287,21 @@ async function runPackagedPtyProbe(appPath: string, asarPath: string) {
   })
 }
 
+async function assertNoUnusedChromiumFiles(appPath: string) {
+  if (
+    process.platform !== 'darwin' &&
+    process.platform !== 'linux' &&
+    process.platform !== 'win32'
+  ) {
+    return
+  }
+  const files = unusedChromiumFiles(appPath, process.platform)
+  const shipped = (await Promise.all(files.map(pathExists))).flatMap((exists, index) =>
+    exists ? [files[index]] : [],
+  )
+  if (shipped.length > 0) throw new Error(`${appPath} ships ${shipped.join(', ')}.`)
+}
+
 async function smokePackagedApp(appPath: string) {
   const resourcesPath = await packagedAppResourcesPath(appPath)
   const asarPath = path.join(resourcesPath, ASAR_FILE)
@@ -298,6 +314,7 @@ async function smokePackagedApp(appPath: string) {
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
   await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
   await assertUnshipped(resourcesPath, UNSHIPPED_RESOURCES)
+  await assertNoUnusedChromiumFiles(appPath)
 
   if (packagedAppMatchesHostArchitecture(appPath)) {
     await runPackagedPtyProbe(appPath, asarPath)
