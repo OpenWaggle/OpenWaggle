@@ -1,0 +1,79 @@
+name: Install dependencies with Bun
+description: Restores Bun's package cache unless told not to, then runs bun install --frozen-lockfile with bounded retries against transient registry and postinstall network failures, and optionally fetches the Electron binary the same way.
+
+inputs:
+  electron-binary:
+    description: Fetch the Electron binary up front, with retries, instead of on its first use.
+    required: false
+    default: "false"
+  ignore-scripts:
+    description: Skip every lifecycle script, including the project's own postinstall.
+    required: false
+    default: "false"
+  package-cache:
+    description: Restore Bun's package cache. A job that signs, notarizes, attests or publishes sets "false".
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # Bun does not check files it finds in ~/.bun/install/cache against the integrity in bun.lock:
+    # a file edited in the cache installs without an error. A restored cache is therefore code
+    # every later step runs, written by any earlier run that shares the key. Only jobs whose output
+    # ships nowhere restore it; a job that signs, notarizes, attests or publishes passes
+    # `package-cache: "false"` and downloads every package from the registry.
+    - name: Restore the Bun package cache
+      if: ${{ inputs.package-cache == 'true' }}
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+      with:
+        path: ~/.bun/install/cache
+        key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          bun-install-${{ runner.os }}-${{ runner.arch }}-
+
+    # Both CPU architectures, like pnpm's supportedArchitectures before: one macOS run packages
+    # the arm64 and the x64 app, so it needs the x64 native optional packages too (#349).
+    - name: Install dependencies
+      shell: bash
+      env:
+        IGNORE_SCRIPTS: ${{ inputs.ignore-scripts }}
+      run: |
+        args=(install --frozen-lockfile --cpu=arm64 --cpu=x64)
+        if [ "$IGNORE_SCRIPTS" = "true" ]; then
+          args+=(--ignore-scripts)
+        fi
+        attempt=1
+        while true; do
+          if bun "${args[@]}"; then
+            exit 0
+          fi
+          if [ "$attempt" -ge 3 ]; then
+            echo "bun install failed after $attempt attempts." >&2
+            exit 1
+          fi
+          echo "bun install failed (attempt $attempt); retrying in 15s." >&2
+          attempt=$((attempt + 1))
+          sleep 15
+        done
+
+    # Electron 43 downloads its binary the first time anything requires `electron`, with no
+    # retry. A single 504 from GitHub's release CDN failed a whole job mid-check, and parallel
+    # test workers can each start that download. Fetch it once here, with retries.
+    - name: Fetch the Electron binary
+      if: ${{ inputs.electron-binary == 'true' }}
+      shell: bash
+      run: |
+        attempt=1
+        while true; do
+          if node node_modules/electron/install.js; then
+            exit 0
+          fi
+          if [ "$attempt" -ge 3 ]; then
+            echo "Electron binary download failed after $attempt attempts." >&2
+            exit 1
+          fi
+          echo "Electron binary download failed (attempt $attempt); retrying in 15s." >&2
+          attempt=$((attempt + 1))
+          sleep 15
+        done

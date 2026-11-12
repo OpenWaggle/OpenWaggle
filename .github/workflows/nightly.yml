@@ -1,4 +1,5 @@
-# Nightly cross-platform packaged-app canary, and the unit tier in a zone west of UTC.
+# Nightly cross-platform packaged-app canary, the unit tier in a zone west of UTC, and the
+# coverage-uniqueness index the per-PR advisory reads.
 #
 # E2E was removed from CI (ADR 0033): per-PR gating relies on unit + integration
 # + MCP conformance, mirroring pingdotgg/t3code. This scheduled canary is the
@@ -42,22 +43,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
       - name: Install dependencies
-        uses: ./.github/actions/pnpm-install
+        uses: ./.github/actions/bun-install
 
       - name: Unit tests
-        run: pnpm test:unit
+        run: bun run test:unit
 
   packaged-canary:
     name: Packaged canary ${{ matrix.label }}
@@ -88,34 +89,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
       - name: Install dependencies
         id: install
-        uses: ./.github/actions/pnpm-install
+        uses: ./.github/actions/bun-install
 
       - name: Build production bundle
-        run: pnpm build
+        run: bun run build
 
       - name: Package installers
-        run: pnpm exec electron-builder ${{ matrix.build_flags }}
+        run: bunx electron-builder ${{ matrix.build_flags }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Check native platform floor
-        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+        run: bun scripts/check-native-platform-floor.ts
 
       - name: Smoke packaged runtime
-        run: pnpm packaged-app:smoke
+        run: bun run packaged-app:smoke
 
       - name: Verify Windows installer
         if: matrix.label == 'Windows'
@@ -123,7 +124,7 @@ jobs:
         run: |
           $version = node -p "require('./package.json').version"
           $installerPath = Join-Path $PWD "dist/openwaggle-$version-x64.exe"
-          pnpm exec tsx scripts/verify-windows-installer.ts "$installerPath"
+          bun scripts/verify-windows-installer.ts "$installerPath"
 
       # The syntax performance budget previously ran only in the deleted macOS E2E
       # job. Kept alive here on the macOS canary as a non-gating regression signal.
@@ -137,11 +138,11 @@ jobs:
         if: ${{ !cancelled() && matrix.syntax_budget && steps.install.outcome == 'success' }}
         shell: bash
         run: |
-          if pnpm benchmark:syntax; then
+          if bun run benchmark:syntax; then
             exit 0
           fi
           echo "::warning::Syntax benchmark failed or exceeded its budget once; rerunning to tell a shared-runner outlier from a sustained regression."
-          pnpm benchmark:syntax
+          bun run benchmark:syntax
         env:
           SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
 
@@ -155,3 +156,79 @@ jobs:
             dist/*.log
           if-no-files-found: ignore
           retention-days: 7
+
+  # Coverage uniqueness: every tier test file alone under v8 coverage, in four shards, folded into the index
+  # the check runner's advisory `coverage-uniqueness` step compares a PR's new test files with
+  # (scripts/coverage-uniqueness.ts). Advisory like the rest of this workflow: it gates nothing.
+  coverage-uniqueness-shard:
+    name: Coverage uniqueness shard ${{ matrix.shard }}/4
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - name: Install dependencies
+        uses: ./.github/actions/bun-install
+        with:
+          electron-binary: 'true'
+
+      - name: Build native modules for Node
+        run: bun run prepare:native:node
+
+      - name: Measure each test file's coverage
+        run: bun scripts/coverage-uniqueness.ts index --shard ${{ matrix.shard }}/4 --concurrency 4 --out .tmp/coverage-uniqueness/shard-${{ matrix.shard }}.json
+
+      - name: Upload the shard
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-uniqueness-shard-${{ matrix.shard }}
+          path: .tmp/coverage-uniqueness/shard-${{ matrix.shard }}.json
+          retention-days: 1
+
+  coverage-uniqueness-index:
+    name: Coverage uniqueness index
+    needs: coverage-uniqueness-shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Download the shards
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: coverage-uniqueness-shard-*
+          path: .tmp/coverage-uniqueness/shards
+          merge-multiple: true
+
+      - name: Merge the shards
+        run: bun scripts/coverage-uniqueness.ts merge --out .tmp/coverage-uniqueness/index.json .tmp/coverage-uniqueness/shards/*.json
+
+      - name: Upload the index
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          # scripts/coverage-uniqueness.ts downloads the newest artifact of this name.
+          name: coverage-uniqueness-index
+          path: .tmp/coverage-uniqueness/index.json
+          retention-days: 14
