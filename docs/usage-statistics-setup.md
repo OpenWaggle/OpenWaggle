@@ -107,7 +107,7 @@ The endpoint is the Pages Function in `functions/`, deployed with the website by
    - Click **Deploy**.
    The rule processes client IP addresses for abuse protection, and Cloudflare lists blocked requests under **Analytics > Events** for up to 31 days. The privacy notice already discloses this; keep it that way if you change the rule.
 7. Check the KV limits for your plan. On the free plan, writes per day are limited, and each app report costs one write plus a delete at flush time. Move to Workers Paid when the install base grows.
-8. Deploy the website as you do today. A Git-connected Pages project redeploys on merge. Otherwise, run `pnpm website:build` and then `npx wrangler pages deploy`.
+8. Deploy the website as you do today. A Git-connected Pages project redeploys on merge. Otherwise, run `bun run website:build` and then `npx wrangler pages deploy`.
 
 ## 6. GitHub (the daily snapshot and flush)
 

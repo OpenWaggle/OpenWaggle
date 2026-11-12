@@ -57,7 +57,7 @@ Move issues through the triage labels documented in `docs/agents/triage-labels.m
 
 ## Pull Requests
 
-Do not create commits, push, or open PRs unless the maintainer explicitly approves. When a PR is approved for creation:
+Do not create commits, push, or open PRs unless the maintainer explicitly approves. When a PR is approved for creation, use the `/pr` skill (`.agents/skills/pr/SKILL.md`, `bun run pr:create`), then `/ready` to mark it ready after an independent review and `/babysit` once it leaves draft. The PR body:
 
 - link solving work with `Closes #<issue-number>`
 - link partial progress with `Part of #<issue-number>`
