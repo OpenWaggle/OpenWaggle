@@ -1,5 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionWorkspace, SessionWorkspaceSelection } from '@shared/types/session'
+import { TRANSCRIPT_WINDOW_PAGE_ENTRIES } from '@shared/types/session-transcript-window'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import {
@@ -8,7 +9,6 @@ import {
   NEWEST_TRANSCRIPT_WINDOW,
   restoreTranscriptWindow,
   sameWorkspaceSelection,
-  TRANSCRIPT_WINDOW_PAGE_ENTRIES,
   type TranscriptWindowTarget,
   transcriptWindowRequest,
 } from '../lib/session-workspace-window'
