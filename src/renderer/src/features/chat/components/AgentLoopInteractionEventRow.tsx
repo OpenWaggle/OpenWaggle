@@ -127,7 +127,7 @@ function textStatus(value: string | null): StatusView {
 
 function statusLabel(input: {
   readonly interaction: AgentLoopInteraction
-  readonly resolution?: AgentTransportInteractionResolvedEvent
+  readonly resolution?: AgentTransportInteractionResolvedEvent | undefined
 }): StatusView {
   const { interaction, resolution } = input
   if (!resolution) return pendingStatus()
@@ -174,7 +174,7 @@ function InteractionStatusBadge({
   resolution,
 }: {
   readonly interaction: AgentLoopInteraction
-  readonly resolution?: AgentTransportInteractionResolvedEvent
+  readonly resolution?: AgentTransportInteractionResolvedEvent | undefined
 }) {
   const status = statusLabel({ interaction, resolution })
   const displayLabel = useChatDisplayText(status.label)

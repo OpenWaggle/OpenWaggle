@@ -16,7 +16,6 @@ export function useBackgroundStart() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (typeof api.getBackgroundStart !== 'function') return
     let current = true
     api
       .getBackgroundStart()

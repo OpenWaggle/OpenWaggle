@@ -1,55 +1,53 @@
 import { SessionId } from '@shared/types/brand'
-import type {
-  ChatTextPart,
-  ChatThinkingPart,
-  ChatToolResultPart,
-  UIMessage,
-} from '@shared/types/chat-ui'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  clearInlineVisualizationStatesForTests,
+  latestInlineVisualizationContext,
+} from '../../state/inline-visualization-state'
+import { clearPinnedInlineVisualizationFramesForTests } from '../inline-visualization-frame-retention'
 
-vi.mock('@/features/session-summary', () => ({
-  SessionMessageImages: () => null,
-}))
-
-vi.mock('../StreamingText', () => ({
-  StreamingText: ({
-    text,
-    visualizationSessionId,
-    visualizationInteractionSessionId,
-  }: {
-    text: string
-    visualizationSessionId?: string
-    visualizationInteractionSessionId?: string
-  }) => (
-    <div
-      data-testid="streaming-text"
-      data-visualization-session={visualizationSessionId}
-      data-visualization-interaction-session={visualizationInteractionSessionId}
-    >
-      {text}
-    </div>
+const ipc = vi.hoisted(() => ({
+  registerInlineVisualizationFrame: vi.fn(
+    async (input: { readonly frameId: string; readonly sessionId: string }) => ({
+      frameUrl: `openwaggle-visualization://frame-${input.frameId}/document`,
+      registrationId: `registration-${input.frameId}`,
+    }),
   ),
+  unregisterInlineVisualizationFrame: vi.fn(async () => undefined),
 }))
 
-vi.mock('@/shared/ui/StructuredPayload', () => ({
-  StructuredPayload: ({ value }: { value: unknown }) => <div>{JSON.stringify(value)}</div>,
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(ipc),
 }))
 
-vi.mock('../ToolCallRouter', () => ({
-  ToolCallRouter: () => <div data-testid="tool-call-router" />,
+// The syntax service highlights in Web Workers, which jsdom lacks; nothing here highlights code.
+vi.mock('@/shared/lib/syntax/syntax-service', () => ({
+  syntaxService: { highlight: async () => ({ status: 'plain-text', lines: [], elapsedMs: 0 }) },
 }))
-
-vi.mock('../AgentLabel', () => ({ AgentLabel: () => null }))
 
 import { AssistantMessageBubble } from '../AssistantMessageBubble'
+import {
+  activateFrame,
+  dispatchFrameMessage,
+  visualizationFrame,
+} from './inline-visualization-test-helpers'
 
+/*
+ * Only the preload is replaced: the bubble, its Markdown and the inline visualization frame are the
+ * real ones, so a case asserts which Session the frame loads from and which one it reports to.
+ */
 const currentSessionId = SessionId('session-1')
 
-function renderMessage(message: UIMessage) {
+function visualize(title: string) {
+  return `visualize{"path":"/repo/${title}.html","title":"${title}"}`
+}
+
+function renderMessage(parts: UIMessagePart[], metadata?: UIMessage['metadata']) {
   return render(
     <AssistantMessageBubble
-      message={message}
+      message={{ id: 'message-1', role: 'assistant', parts, ...(metadata ? { metadata } : {}) }}
       runtime={{
         sessionId: currentSessionId,
         extensions: { registry: null, projectPaths: [] },
@@ -58,47 +56,57 @@ function renderMessage(message: UIMessage) {
   )
 }
 
-function textPart(content: string): ChatTextPart {
-  return { type: 'text', content }
-}
-
-function toolResultPart(toolCallId: string): ChatToolResultPart {
-  return { type: 'tool-result', toolCallId, content: 'ok', state: 'output-available' }
-}
-
-function thinkingPart(): ChatThinkingPart {
-  return { type: 'thinking', content: 'internal reasoning' }
-}
-
 describe('AssistantMessageBubble visualization ownership', () => {
-  it('uses persisted visualization ownership for a copied assistant message', () => {
-    renderMessage({
-      id: 'message-1',
-      role: 'assistant',
-      parts: [textPart('Copied visualization')],
-      metadata: { visualizationSessionId: SessionId('source-session') },
-    })
-
-    expect(screen.getByTestId('streaming-text')).toHaveAttribute(
-      'data-visualization-session',
-      'source-session',
-    )
-    expect(screen.getByTestId('streaming-text')).toHaveAttribute(
-      'data-visualization-interaction-session',
-      currentSessionId,
-    )
+  afterEach(() => {
+    ipc.registerInlineVisualizationFrame.mockClear()
+    clearInlineVisualizationStatesForTests()
+    clearPinnedInlineVisualizationFramesForTests()
   })
 
-  it('grants visualization ownership only to assistant-authored text', () => {
-    renderMessage({
-      id: 'message-1',
-      role: 'assistant',
-      parts: [textPart('Hello'), toolResultPart('tool-1'), thinkingPart()],
+  it('loads a copied message from its source Session and reports state to the current one', async () => {
+    renderMessage([{ type: 'text', content: visualize('Copied') }], {
+      visualizationSessionId: SessionId('source-session'),
     })
 
-    const streamedParts = screen.getAllByTestId('streaming-text')
-    expect(streamedParts[0]).toHaveAttribute('data-visualization-session', currentSessionId)
-    expect(streamedParts[1]).not.toHaveAttribute('data-visualization-session')
-    expect(streamedParts[2]).not.toHaveAttribute('data-visualization-session')
+    const frame = await visualizationFrame('Copied')
+    expect(ipc.registerInlineVisualizationFrame).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'source-session', sourcePath: '/repo/Copied.html' }),
+    )
+    await activateFrame(frame)
+    act(() => {
+      dispatchFrameMessage(frame, {
+        type: 'openwaggle:inline-visualization:state',
+        state: { selected: 'api' },
+      })
+    })
+
+    await waitFor(() => {
+      expect(latestInlineVisualizationContext(currentSessionId)).toEqual({
+        title: 'Copied',
+        sourcePath: '/repo/Copied.html',
+        state: { selected: 'api' },
+      })
+    })
+  })
+
+  it('mounts a visualization only from assistant-authored text', async () => {
+    renderMessage([
+      { type: 'text', content: visualize('Authored') },
+      {
+        type: 'tool-result',
+        toolCallId: 'tool-1',
+        content: visualize('Tool'),
+        state: 'output-available',
+      },
+      { type: 'thinking', content: visualize('Thinking') },
+    ])
+
+    await visualizationFrame('Authored')
+    expect(ipc.registerInlineVisualizationFrame).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: currentSessionId }),
+    )
+    expect(screen.getAllByRole('region')).toHaveLength(1)
+    expect(screen.queryByRole('region', { name: 'Tool' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Thinking' })).toBeNull()
   })
 })

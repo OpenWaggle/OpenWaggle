@@ -29,6 +29,7 @@ import {
   resolveUnifiedShortcut,
   workspaceShortcutContext,
 } from './unified-shortcut-resolver'
+import { createRendererLogger } from '@/shared/lib/logger'
 
 export type BuiltInShortcutHandlers = Readonly<Record<ShortcutCommand, () => void>>
 
@@ -45,6 +46,7 @@ interface UnifiedShortcutCaptureOptions {
 }
 
 /** A field, editor, or terminal that receives typed characters. */
+const logger = createRendererLogger('shortcuts')
 const TYPING_TARGET = 'input, textarea, select, [contenteditable="true"], [data-terminal-pane]'
 
 /**
@@ -138,7 +140,7 @@ function useBrowserPreviewShortcutBindingSync(
     sentBindingsRef.current = json
     void api.setBrowserPreviewShortcutBindings(bindings).catch((error: unknown) => {
       sentBindingsRef.current = null
-      console.error('[shortcuts] Failed to register browser preview bindings.', error)
+      logger.error('Failed to register browser preview bindings.', { error })
     })
   }, [actions, builtInRules, terminalOpen, extensionPanels])
 }

@@ -48,7 +48,7 @@ export function mergeVisibleSidebarSessions(input: {
     return currentState === undefined || currentState === input.filterState
   })
   // A loaded catalog entry is re-read whenever a Worker below it starts or settles a Run (ADR
-  // 0063); the Host's search or filter copy is not, so the loaded entry wins for the same id.
+  // 0065); the Host's search or filter copy is not, so the loaded entry wins for the same id.
   const loadedById = new Map(input.loadedSessions.map((session) => [String(session.id), session]))
   return appendUniqueSidebarSessions(
     loadedMatches,

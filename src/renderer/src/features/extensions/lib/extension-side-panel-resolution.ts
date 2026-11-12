@@ -5,12 +5,13 @@ import type {
   ExtensionContributionRuntime,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 
 export interface ExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string
-  readonly packagePath?: string
-  readonly contentHash?: string
+  readonly packagePath?: string | undefined
+  readonly contentHash?: string | undefined
 }
 
 export interface ResolvedExtensionSidePanelContribution {
@@ -64,37 +65,6 @@ function sidePanelEntriesForTarget(
   )
 }
 
-function disabledForRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
-  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
-}
-
-function missingRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const availableProjectPaths = new Set(entry.projectPaths)
-  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
-}
-
-function isBlockedSidePanelEntry(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  return (
-    !entry.eligibility.runtimeEnabled ||
-    !entry.eligibility.enabled ||
-    !entry.eligibility.trusted ||
-    entry.eligibility.sdkCompatible === false ||
-    entry.eligibility.updateAvailable ||
-    disabledForRequestedProject(entry, requestedProjectPaths) ||
-    missingRequestedProject(entry, requestedProjectPaths)
-  )
-}
-
 export function resolveExtensionSidePanelContribution({
   registry,
   target,
@@ -144,7 +114,7 @@ export function resolveExtensionSidePanelContribution({
     }
   }
 
-  if (isBlockedSidePanelEntry(entry, requestedProjectPaths)) {
+  if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
     return {
       status: 'blocked',
       title: 'Extension side panel blocked',

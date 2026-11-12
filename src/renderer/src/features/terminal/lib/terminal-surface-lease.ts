@@ -105,7 +105,9 @@ export function createTerminalSurfaceLeaseManager(detachSurface: DetachSurface) 
   return Object.assign(acquire, { migrateOwner })
 }
 
-const terminalSurfaceLeases = createTerminalSurfaceLeaseManager(api.detachTerminal)
+const terminalSurfaceLeases = createTerminalSurfaceLeaseManager((ownerKey, terminalId) =>
+  api.detachTerminal(ownerKey, terminalId),
+)
 
 export const acquireTerminalSurfaceLease = terminalSurfaceLeases
 export const migrateTerminalSurfaceLeases = terminalSurfaceLeases.migrateOwner

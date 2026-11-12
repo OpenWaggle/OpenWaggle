@@ -131,7 +131,7 @@ export function useProgressiveCodeViewItems(
 ) {
   // Pierre compares controlled item prefixes by reference. This per-view WeakMap cache is an
   // identity contract with that external API; old parsed snapshots are not retained by the cache.
-  const decorateItems = useMemo(createCodeViewItemDecorator, [])
+  const decorateItems = useMemo(() => createCodeViewItemDecorator(), [])
   const immediateItems = useMemo(
     () =>
       files.length <= SYNCHRONOUS_FILE_LIMIT && patchUnits(files) <= MAIN_THREAD_PATCH_UNIT_BUDGET

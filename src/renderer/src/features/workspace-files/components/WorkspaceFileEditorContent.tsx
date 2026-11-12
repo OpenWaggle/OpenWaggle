@@ -120,10 +120,11 @@ export function WorkspaceFileEditorContent({
   readonly onNormalizeLineEndings: (lineEnding: 'lf' | 'crlf') => void
 }) {
   if (editing.conflictDiskContent !== null) return <ConflictComparison editing={editing} />
-  if (focusedEdit && editing.normalizationRequired)
+  if (focusedEdit && editing.normalizationRequired) {
     return (
       <LineEndingNormalization editing={editing} onNormalizeLineEndings={onNormalizeLineEndings} />
     )
+  }
   if (editing.preview && file.previewKind === 'markdown') {
     return (
       <article className="min-h-0 flex-1 overflow-auto p-6">

@@ -35,21 +35,21 @@ export interface HiveSession {
   readonly title: string
   /** Siblings in the Hive panel's tree are ordered by creation (#377). */
   readonly createdAt?: number
-  readonly archived?: boolean
-  readonly lineage?: HiveLineage
+  readonly archived?: boolean | undefined
+  readonly lineage?: HiveLineage | undefined
   /** Where the Session works, shown as the row's Workspace placement (ADR 0051). */
-  readonly worktreePath?: string | null
-  readonly pendingInteractionAt?: number
+  readonly worktreePath?: string | null | undefined
+  readonly pendingInteractionAt?: number | undefined
   /** What the parked interactions ask of the person (ADR 0059). */
-  readonly pendingInteractionKind?: HivePendingRequest
-  readonly followUpEditHeldAt?: number
+  readonly pendingInteractionKind?: HivePendingRequest | undefined
+  readonly followUpEditHeldAt?: number | undefined
 }
 
 export interface HiveRelationsPage {
   readonly current: HiveSession | null
   readonly parent: HiveSession | null
   readonly workers: readonly HiveSession[]
-  readonly nextCursor?: string
+  readonly nextCursor?: string | undefined
 }
 
 export interface HiveCatalogPage {

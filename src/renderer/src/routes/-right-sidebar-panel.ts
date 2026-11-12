@@ -16,10 +16,10 @@ interface ChatRightSidebarSelection {
   readonly changeRequestUrl?: string | null
   readonly diffOpen: boolean
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
-  readonly resourcesTarget: unknown | null
+  readonly resourcesTarget: unknown
   readonly sessionTreeOpen: boolean
   readonly hiveOpen: boolean
-  readonly workspaceFile: unknown | null
+  readonly workspaceFile: unknown
 }
 
 export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): RightSidebarPanel {

@@ -72,8 +72,9 @@ function useSessionSummaryToggleFocus(
   const clearToggleFocus = useSessionSummaryUIStore((state) => state.clearToggleFocus)
   const panelAvailable = panel?.available
   useLayoutEffect(() => {
-    if (!activeSessionId || targetSessionId !== activeSessionId || panelAvailable === undefined)
+    if (!activeSessionId || targetSessionId !== activeSessionId || panelAvailable === undefined) {
       return
+    }
     if (panelAvailable) {
       document.getElementById(`session-summary-${activeSessionId}-toggle`)?.focus()
     }

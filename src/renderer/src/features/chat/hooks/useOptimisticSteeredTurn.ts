@@ -160,10 +160,7 @@ export function useOptimisticSteeredTurn(
 // ─── Helpers ─────────────────────────────────────────────────
 
 function createOptimisticTurnId() {
-  const randomUUID = globalThis.crypto?.randomUUID
-  if (typeof randomUUID === 'function') {
-    return randomUUID.call(globalThis.crypto)
-  }
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
   return `optimistic-steer-${Date.now()}`
 }
 

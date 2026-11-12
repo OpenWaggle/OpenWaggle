@@ -6,8 +6,8 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
 interface TurnReplyActionHandlers {
-  readonly onBranchFromMessage?: (messageId: string) => void
-  readonly onForkFromResponse?: (messageId: string) => void
+  readonly onBranchFromMessage?: ((messageId: string) => void) | undefined
+  readonly onForkFromResponse?: ((messageId: string) => void) | undefined
 }
 
 interface TurnReplyActionsProps {

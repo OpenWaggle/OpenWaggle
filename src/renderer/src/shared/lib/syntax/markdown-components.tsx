@@ -13,7 +13,7 @@ export function fencedCodeLanguage(children: ReactNode) {
 
 export function createSyntaxMarkdownComponents(
   overrides: Components = {},
-  options: { readonly theme?: string } = {},
+  options: { readonly theme?: string | undefined } = {},
 ): Components {
   return {
     ...safeMarkdownComponents,

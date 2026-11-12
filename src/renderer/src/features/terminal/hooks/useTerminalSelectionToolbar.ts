@@ -55,10 +55,12 @@ export function useTerminalSelectionToolbar(options: TerminalSelectionToolbarOpt
     }
   }, [options.surfaceRef, options.toolbarRef])
 
+  // A cleared selection hides the toolbar in the same render, not after a commit.
+  if (options.selectionText.length === 0 && position !== null) setPosition(null)
+
   useEffect(() => {
     if (options.selectionText.length === 0) {
       observerRef.current?.cancel()
-      setPosition(null)
       return
     }
     observerRef.current?.selectionChanged()

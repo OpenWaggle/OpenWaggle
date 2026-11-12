@@ -23,8 +23,9 @@ export function createTranscriptKnowledge(host: HostModel) {
      * compaction summary is only persisted, so the chat shows it from then on.
      */
     noteSettled() {
-      for (const entry of host.entries())
+      for (const entry of host.entries()) {
         if (host.isPersisted(entry)) settledRunIds.add(entry.runId)
+      }
     },
     /**
      * An event the renderer received; `tracked` when a render snapshot was there to hold it, and

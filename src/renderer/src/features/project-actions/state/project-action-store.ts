@@ -12,7 +12,7 @@ interface ProjectActionState {
 }
 
 function projectActionStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+  if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
     getItem: (key) => memory.get(key) ?? null,

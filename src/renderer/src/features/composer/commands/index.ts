@@ -5,11 +5,9 @@ export {
 export { parseCompactCommand } from './compact-command'
 export {
   type ExtensionSlashCommand,
-  type ExtensionSlashCommandPayload,
   extensionContributionMatches,
   extensionSlashCommandPayload,
   extensionSlashCommandText,
-  invokableExtensionSlashCommandEntries,
   isInvokableExtensionContributionCommand,
   isInvokableExtensionSlashCommandEntry,
   parseExtensionSlashCommand,

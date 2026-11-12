@@ -48,12 +48,13 @@ export interface PreparationEditorFormProps {
 }
 
 function removalCopy(entry: Entry, noun: string) {
-  if (entry.source === 'override')
+  if (entry.source === 'override') {
     return {
       label: 'Restore shared version',
       confirm: 'Restore shared version',
       consequence: `Your private version is removed and you’ll use the shared ${noun} again.`,
     }
+  }
   const kept = 'Worktrees that already have it keep their own copy.'
   return {
     label: `Remove this ${noun}`,
@@ -164,7 +165,7 @@ function PreparationBaseNotice(props: PreparationEditorFormProps & { readonly no
       />
     )
   }
-  if (state.kind === 'removed')
+  if (state.kind === 'removed') {
     return (
       <RemovedSinceNotice
         name={`The ${props.noun}`}
@@ -173,6 +174,7 @@ function PreparationBaseNotice(props: PreparationEditorFormProps & { readonly no
         onSaveAsNew={() => onChange({ ...draft, base: null, baseStorage: null })}
       />
     )
+  }
   if (!entry) return null
   return (
     <ChangedSinceNotice

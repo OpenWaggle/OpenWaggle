@@ -16,7 +16,7 @@ export interface ModelState {
   runs: number
   texts: number
   /** Promoted steers, in promotion order; several may wait, and with the same text. */
-  promotions: Array<{ readonly text: string; incorporated: boolean }>
+  promotions: { readonly text: string; incorporated: boolean }[]
 }
 
 export interface ModelAction {
@@ -85,7 +85,8 @@ const SHAPES = ['reasoning', 'emptyThought', 'toolBetween'] as const
 
 /** An answer's shape (`answerSegments`): two text segments around a thought or a tool call. */
 export function shapeOf(state: ModelState) {
-  return SHAPES[state.texts % SHAPES.length]
+  // The modulo keeps the index in range; the fallback only satisfies the index type.
+  return SHAPES[state.texts % SHAPES.length] ?? 'reasoning'
 }
 
 /**
@@ -93,7 +94,7 @@ export function shapeOf(state: ModelState) {
  * other one going on streaming after the resync.
  */
 export function gapAnswerOf(state: ModelState) {
-  const shape = (['plain', ...SHAPES] as const)[state.texts % (SHAPES.length + 1)]
+  const shape = (['plain', ...SHAPES] as const)[state.texts % (SHAPES.length + 1)] ?? 'plain'
   return { shape, holdLast: state.runs % 2 }
 }
 

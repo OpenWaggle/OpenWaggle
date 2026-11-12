@@ -24,11 +24,7 @@ import {
   type WorkspacePanelState,
 } from './workspace-panel-store-types'
 
-export type {
-  BrowserPreviewTabState,
-  WorkspacePanelGroupState,
-  WorkspacePanelSurface,
-} from './workspace-panel-model'
+export type { BrowserPreviewTabState, WorkspacePanelSurface } from './workspace-panel-model'
 
 function removeStoredGroup(set: WorkspacePanelSet, get: WorkspacePanelGet, ownerKey: string) {
   const groups = { ...get().groups }

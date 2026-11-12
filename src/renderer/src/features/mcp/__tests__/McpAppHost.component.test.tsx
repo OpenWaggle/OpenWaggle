@@ -136,7 +136,9 @@ describe('McpAppHost frame size', () => {
     vi.useFakeTimers()
     renderLoadedApp()
 
-    act(() => vi.advanceTimersByTime(15_000))
+    act(() => {
+      vi.advanceTimersByTime(15_000)
+    })
 
     expect(screen.getByRole('status')).toHaveTextContent('This MCP App did not start.')
     expect(screen.queryByTitle('Show weather MCP App')).not.toBeInTheDocument()
@@ -147,7 +149,9 @@ describe('McpAppHost frame size', () => {
     const frame = renderLoadedApp()
     act(() => readyBridgeInput().onHeightChange(200))
 
-    act(() => vi.advanceTimersByTime(30_000))
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(frame).toHaveStyle({ height: '200px' })

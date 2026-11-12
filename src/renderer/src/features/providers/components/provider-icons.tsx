@@ -25,7 +25,7 @@ import ZaiSvg from '@lobehub/icons-static-svg/icons/zai.svg?react'
 import type { Provider } from '@shared/types/settings'
 
 export interface IconProps {
-  className?: string
+  className?: string | undefined
   style?: React.CSSProperties
 }
 

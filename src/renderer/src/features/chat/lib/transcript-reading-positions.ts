@@ -34,7 +34,7 @@ export function loadReadingPositions(): Map<string, SavedReadingPosition> {
     if (!raw) return new Map()
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return new Map()
-    const entries: Array<[string, SavedReadingPosition]> = []
+    const entries: [string, SavedReadingPosition][] = []
     for (const candidate of parsed) {
       const entry = readEntry(candidate)
       if (entry) entries.push(entry)

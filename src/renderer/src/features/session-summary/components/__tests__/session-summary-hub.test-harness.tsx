@@ -57,13 +57,14 @@ export const invalidateVcsStatus: Mock<(workingPath: string) => Promise<void>> =
 export const refreshSourceControlStatus: Mock<OpenWaggleApi['refreshSourceControlStatus']> =
   mocks.refreshSourceControlStatus
 
+// The Hub asks to toggle the Session terminal; useTerminalCommands.component.test.tsx covers it.
 vi.mock('@/features/terminal', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/terminal')>()),
   useTerminalCommands: () => ({ toggleTerminal: mocks.toggleTerminal }),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     manageProjectActions: vi.fn<OpenWaggleApi['manageProjectActions']>(async ({ operation }) => {
       if (operation.type === 'runs') return { type: 'runs', runs: mocks.actionRuns }
       if (operation.type === 'preparation') return { type: 'preparation', preparation: null }
@@ -73,6 +74,9 @@ vi.mock('@/shared/lib/ipc', () => ({
       }
     }),
     listSessionResources: mocks.listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(mocks.listSessionResources),
     listArchivedSessions: mocks.listArchivedSessions,
     getSessionHiveRelations: vi
       .fn()
@@ -80,19 +84,22 @@ vi.mock('@/shared/lib/ipc', () => ({
     openExternal: mocks.openExternal,
     getChangeRequestOpenDestination: mocks.getChangeRequestOpenDestination,
     refreshSourceControlStatus: mocks.refreshSourceControlStatus,
-  },
+  }),
 }))
 
+// Git status polling is another feature; the Hub tests drive the status it shows through this.
 vi.mock('@/features/git/hooks', () => ({
   useGit: mocks.useGit,
 }))
 
+// The commit and push dialogs run Git operations; their own tests cover them.
 vi.mock('@/features/git/components', () => ({
   CommitOrPushDialog: mocks.commitOrPushDialog,
   CommitOrPushStatusDialog: () => null,
   CommitMessageDialog: () => null,
 }))
 
+// See '@/features/git/hooks' above: the combined VCS status and stacked actions are Git's.
 vi.mock('@/features/git', () => ({
   resolveQuickAction: () => ({
     label: 'Commit & push',
@@ -170,7 +177,7 @@ export function gitState(
   }
 }
 
-type HubProps = {
+interface HubProps {
   readonly activeSession?: SessionDetail | null
   readonly messageCount?: number
   readonly hiveAvailable?: boolean
@@ -271,6 +278,7 @@ export function setupSessionSummaryHubHarness() {
     isRunning: false,
     progress: null,
     run: vi.fn(),
+    start: vi.fn(),
     cancel: vi.fn(),
   })
   useCombinedVcsStatus.mockReset().mockReturnValue({

@@ -34,12 +34,14 @@ interface HeaderLeftProps {
   /** The selected Session, null for a new-session draft whose title cannot be renamed yet. */
   readonly sessionId: SessionId | null
   readonly title: string
-  readonly sessionIdentity?: {
-    readonly role?: 'queen' | 'worker'
-    readonly agentDefinitionName?: string
-    /** Workers below this Session with a live Run (ADR 0063); absent or zero hides the line. */
-    readonly runningWorkerCount?: number
-  }
+  readonly sessionIdentity?:
+    | {
+        readonly role?: 'queen' | 'worker' | undefined
+        readonly agentDefinitionName?: string | undefined
+        /** Workers below this Session with a live Run (ADR 0065); absent or zero hides the line. */
+        readonly runningWorkerCount?: number | undefined
+      }
+    | undefined
   readonly onToggleSidebar: () => void
 }
 
@@ -107,7 +109,7 @@ function HeaderSessionIdentity({
 }
 
 /**
- * Why a parent looks idle while its sidebar row reads Working (ADR 0063): its Workers still run.
+ * Why a parent looks idle while its sidebar row reads Working (ADR 0065): its Workers still run.
  * It opens the Hive panel, where they are listed, and offers no stop control: interrupting
  * descendants is a deliberate act, not a status line's.
  */

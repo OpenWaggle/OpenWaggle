@@ -36,7 +36,7 @@ export function pageHasOccludingDialog(ownerKey?: string) {
     ) !== null ||
     (ownerKey !== undefined &&
       [...document.querySelectorAll<HTMLElement>('[data-native-preview-occluder]')].some(
-        (element) => element.dataset.nativePreviewOccluder === ownerKey,
+        (element) => element.dataset['nativePreviewOccluder'] === ownerKey,
       ))
   )
 }

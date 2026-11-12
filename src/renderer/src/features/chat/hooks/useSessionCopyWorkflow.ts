@@ -159,10 +159,10 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
   return {
     forkSelectorOpen,
     forkTargets,
-    closeForkSelector() {
+    closeForkSelector: () => {
       setForkSelectorOpen(false)
     },
-    cloneCurrentSessionToNewSession() {
+    cloneCurrentSessionToNewSession: () => {
       if (!params.activeSessionId) {
         params.showToast('No active session to clone.')
         return Promise.resolve()
@@ -177,7 +177,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
       })
     },
     /** Fork from here: a new Session before the user message, its text drafted. */
-    forkMessageToNewSession(messageId: string) {
+    forkMessageToNewSession: (messageId: string) => {
       return copySessionAction(params, {
         copy: 'fork',
         position: 'before',
@@ -186,7 +186,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
       })
     },
     /** Fork from this response: a new Session through the turn's reply, as a clone at its node. */
-    forkResponseToNewSession(messageId: string) {
+    forkResponseToNewSession: (messageId: string) => {
       return copySessionAction(params, {
         copy: 'fork',
         position: 'at',
@@ -194,7 +194,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
         missingNode: SOURCE_NOT_LOADED,
       })
     },
-    openForkSelector() {
+    openForkSelector: () => {
       const sessionId = params.activeSessionId
       if (!sessionId) {
         params.showToast('No user messages are available to fork.')
@@ -210,7 +210,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
         setForkSelectorOpen(true)
       })
     },
-    selectForkTarget(target: SessionForkTarget) {
+    selectForkTarget: (target: SessionForkTarget) => {
       setForkSelectorOpen(false)
       void copySessionAction(params, {
         copy: 'fork',

@@ -57,15 +57,22 @@ function toVisibleNotifications(
 
 function notificationTone(level: AgentLoopNotifyLevel) {
   if (level === 'error') return { icon: 'text-error', border: 'border-error/40 bg-error/12' }
-  if (level === 'warning')
+  if (level === 'warning') {
     return { icon: 'text-warning', border: 'border-warning/30 bg-warning/10' }
+  }
   return { icon: 'text-info', border: 'border-border/60 bg-bg-secondary/92' }
 }
 
-function notificationIcon(level: AgentLoopNotifyLevel) {
-  if (level === 'error') return CircleAlert
-  if (level === 'warning') return TriangleAlert
-  return Info
+function NotificationIcon({
+  level,
+  className,
+}: {
+  readonly level: AgentLoopNotifyLevel
+  readonly className: string
+}) {
+  if (level === 'error') return <CircleAlert className={className} />
+  if (level === 'warning') return <TriangleAlert className={className} />
+  return <Info className={className} />
 }
 
 function notificationLabel(level: AgentLoopNotifyLevel) {
@@ -165,7 +172,6 @@ function NotificationCard({
   readonly onDismiss: (id: string) => void
 }) {
   const tone = notificationTone(notification.level)
-  const Icon = notificationIcon(notification.level)
   const displayMessage = useChatDisplayText(notification.message)
 
   return (
@@ -189,7 +195,10 @@ function NotificationCard({
       </div>
 
       <div className="flex min-w-0 gap-2">
-        <Icon className={cn('mt-0.5 size-4 shrink-0', tone.icon)} />
+        <NotificationIcon
+          level={notification.level}
+          className={cn('mt-0.5 size-4 shrink-0', tone.icon)}
+        />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-4">
           <p className="text-xs font-medium tracking-widest text-text-muted uppercase">
             {notificationLabel(notification.level)}

@@ -77,21 +77,25 @@ function removalConsequence(request: WorktreeRemovalRequest) {
     return `Each Session below is archived, then the folder is deleted.${lock} If it has uncommitted changes by then, it is kept instead. The branch is kept. ${RECREATE_NOTE}`
   }
   if (forcedFor(request)) return forcedConsequence(request)
-  if (request.force)
+  if (request.force) {
     return 'Its folder is deleted even if it has uncommitted changes or is locked, and Workspace cleanup is skipped. This cannot be undone.'
-  if (request.skipCleanup)
+  }
+  if (request.skipCleanup) {
     return 'Its folder is deleted without running the Workspace cleanup. This cannot be undone.'
+  }
   return 'Its folder is deleted, including ignored files such as .env and node_modules. Git refuses if it has uncommitted changes. The branch is kept.'
 }
 
 function unpublishedWarning(preview: WorktreeRemovalPreview) {
   const count = preview.unpublishedCommitCount
-  if (count === null)
+  if (count === null) {
     return 'OpenWaggle could not check whether this branch has commits that are not on a remote.'
+  }
   if (count === 0) return null
   const commits = count === 1 ? '1 commit that is' : `${String(count)} commits that are`
-  if (preview.branch === null)
+  if (preview.branch === null) {
     return `The detached HEAD has ${commits} not on any remote. With no branch, that work may be lost once the worktree is gone; create a branch for it first.`
+  }
   return `${preview.branch} has ${commits} not on any remote. The branch is kept, but push it first if you need that work elsewhere.`
 }
 
@@ -154,8 +158,9 @@ function PreviewDetails(props: {
 }
 
 function confirmLabel(request: WorktreeRemovalRequest) {
-  if (request.archiveSessions)
+  if (request.archiveSessions) {
     return request.discardsChanges ? 'Archive Sessions' : 'Archive & remove'
+  }
   if (forcedFor(request)) {
     return request.ignoresLock && !request.discardsChanges ? 'Unlock & remove' : 'Discard & remove'
   }

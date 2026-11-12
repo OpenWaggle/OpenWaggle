@@ -37,11 +37,11 @@ const APPEARANCE_OPTIONS = [
   { value: 'system', label: 'System', icon: Laptop },
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
-] as const satisfies ReadonlyArray<{
+] as const satisfies readonly {
   readonly value: BrowserPreviewAppearance
   readonly label: string
   readonly icon: typeof Laptop
-}>
+}[]
 
 function MenuSeparator() {
   return <hr className="my-1 border-0 border-t border-border" />

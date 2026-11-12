@@ -72,7 +72,7 @@ function registerResources(
 ) {
   const nextResourceKey = [
     `themes:${catalog.themes
-      .map((resource) => `${String(resource.id)}@${resource.revision}`)
+      .map((resource) => `${resource.id}@${resource.revision}`)
       .sort()
       .join(',')}`,
     `languages:${languages

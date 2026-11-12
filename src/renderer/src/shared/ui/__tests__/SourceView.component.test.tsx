@@ -107,7 +107,7 @@ describe('SourceView virtualization', () => {
   })
 
   it('keeps one source request alive across viewport changes and aborts it on unmount', async () => {
-    const pending: Array<() => void> = []
+    const pending: (() => void)[] = []
     syntaxMocks.highlight.mockImplementationOnce(
       ({ language, theme, lineRange }) =>
         new Promise((resolve) => {

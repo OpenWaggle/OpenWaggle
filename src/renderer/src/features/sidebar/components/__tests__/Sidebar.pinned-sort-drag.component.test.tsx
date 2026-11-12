@@ -37,8 +37,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/shell/useFullscreen', () => ({ useFullscreen: () => false }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     archiveSession: vi.fn(),
     cancelAgent: vi.fn(),
     deleteSession: vi.fn(),
@@ -60,7 +60,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     showConfirm: vi.fn(),
     unpinSession: unpinSessionMock,
     updateSettings: vi.fn(),
-  },
+  }),
 }))
 
 const PROJECT_PATH = '/repo/openwaggle'
@@ -265,7 +265,7 @@ describe('Pinned Manual order drag', () => {
     fireEvent.dragStart(dragged, { dataTransfer })
 
     // Feedback is on the node itself, so no render was needed to show it.
-    expect(dragged.dataset.dragging).toBe('true')
+    expect(dragged.dataset['dragging']).toBe('true')
     expect(pinnedRowFor('Pinned session')).toBe(dragged)
 
     // Force a React re-render of the list while the drag is in flight, and flush it.
@@ -276,7 +276,7 @@ describe('Pinned Manual order drag', () => {
     // Same node instance: React reused it, so a real browser drag would still be alive.
     expect(pinnedRowFor('Pinned session')).toBe(dragged)
     expect(dragged.isConnected).toBe(true)
-    expect(dragged.dataset.dragging).toBe('true')
+    expect(dragged.dataset['dragging']).toBe('true')
 
     fireEvent.drop(pinnedRowFor('Plain session'), { dataTransfer })
 

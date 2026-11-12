@@ -77,6 +77,7 @@ export function useBrowserPreviewAdvancedControls(options: AdvancedControlOption
     }
   }, [options.previewId, recording])
 
+  /** Never rejects: a failure reaches onError. Viewport resizes await it to settle their size. */
   const runState = useCallback(
     (action: () => Promise<BrowserPreviewState>, fallback: string) => {
       return action()
@@ -103,11 +104,12 @@ export function useBrowserPreviewAdvancedControls(options: AdvancedControlOption
       () => api.setBrowserPreviewViewport(options.previewId, viewport),
       'Preview viewport could not change.',
     )
-  const setAppearance = (appearance: BrowserPreviewAppearance) =>
-    runState(
+  const setAppearance = (appearance: BrowserPreviewAppearance) => {
+    void runState(
       () => api.setBrowserPreviewAppearance(options.previewId, appearance),
       'Preview appearance could not change.',
     )
+  }
   const zoom = (action: 'in' | 'out' | 'reset') => {
     void api.zoomBrowserPreview(options.previewId, action).catch((error: unknown) => {
       options.onError(errorMessage(error, 'Preview zoom could not change.'))
@@ -204,11 +206,11 @@ export function useBrowserPreviewAdvancedControls(options: AdvancedControlOption
     zoom,
     toggleDeviceToolbar: () => {
       if (options.controlState.viewport.mode === 'fixed') {
-        setViewport({ mode: 'fill' })
+        void setViewport({ mode: 'fill' })
         return
       }
       const bounds = options.viewportRef.current?.getBoundingClientRect()
-      setViewport(
+      void setViewport(
         responsiveBrowserPreviewViewport(
           {
             width: bounds?.width ?? FALLBACK_VIEWPORT_WIDTH,
@@ -218,11 +220,12 @@ export function useBrowserPreviewAdvancedControls(options: AdvancedControlOption
         ),
       )
     },
-    hardReload: () =>
-      runState(
+    hardReload: () => {
+      void runState(
         () => api.hardReloadBrowserPreview(options.previewId),
         'Preview could not hard reload.',
-      ),
+      )
+    },
     openDevTools: () =>
       runVoid(
         () => api.openBrowserPreviewDevTools(options.previewId),
@@ -240,14 +243,15 @@ export function useBrowserPreviewAdvancedControls(options: AdvancedControlOption
         'Preview cache could not be cleared.',
         'Preview cache cleared.',
       ),
-    togglePictureInPicture: () =>
-      runState(
+    togglePictureInPicture: () => {
+      void runState(
         () =>
           options.controlState.pictureInPicture
             ? api.closeBrowserPreviewPictureInPicture(options.previewId)
             : api.openBrowserPreviewPictureInPicture(options.previewId),
         'Picture-in-picture could not change.',
-      ),
+      )
+    },
   }
 }
 

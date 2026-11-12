@@ -63,21 +63,21 @@ function optionalString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-function withOptional<K extends string, V>(key: K, value: V | undefined) {
+function withOptional<V>(key: string, value: V | undefined) {
   return value === undefined ? {} : { [key]: value }
 }
 
 /** One row of codemode's own `details.calls` (CodemodeNestedCall). */
 function detailsCall(value: unknown, index: number): CodemodeCallView | null {
-  if (!isRecord(value) || typeof value.name !== 'string') return null
+  if (!isRecord(value) || typeof value['name'] !== 'string') return null
   return {
-    key: `${String(value.id)}:${String(index)}`,
-    name: value.name,
-    args: typeof value.args === 'string' ? value.args : '',
-    status: callStatus(value.status),
-    ...withOptional('durationMs', optionalNumber(value.durationMs)),
-    ...withOptional('error', optionalString(value.error)),
-    ...withOptional('cost', optionalNumber(value.cost)),
+    key: `${String(value['id'])}:${String(index)}`,
+    name: value['name'],
+    args: typeof value['args'] === 'string' ? value['args'] : '',
+    status: callStatus(value['status']),
+    ...withOptional('durationMs', optionalNumber(value['durationMs'])),
+    ...withOptional('error', optionalString(value['error'])),
+    ...withOptional('cost', optionalNumber(value['cost'])),
   }
 }
 
@@ -94,7 +94,7 @@ function rows(
 
 /** Codemode's own `details.calls`, republished while the script runs and kept on its result. */
 function callsOf(payload: Readonly<Record<string, unknown>>) {
-  return isRecord(payload.details) ? rows(payload.details.calls, detailsCall) : []
+  return isRecord(payload['details']) ? rows(payload['details']['calls'], detailsCall) : []
 }
 
 /** Whether a call is one of the script's `models.*` calls, which no tool call event reports. */
@@ -103,11 +103,11 @@ export function isCodemodeModelCall(call: CodemodeCallView) {
 }
 
 function contentBlocks(payload: Readonly<Record<string, unknown>>): readonly unknown[] {
-  return Array.isArray(payload.content) ? payload.content : []
+  return Array.isArray(payload['content']) ? payload['content'] : []
 }
 
 function drawableImage(block: unknown, index: number): CodemodeImageView | null {
-  if (!isRecord(block) || block.type !== 'image') return null
+  if (!isRecord(block) || block['type'] !== 'image') return null
   const { data, mimeType } = block
   if (typeof data !== 'string' || typeof mimeType !== 'string') return null
   if (!DRAWABLE_IMAGE_TYPES.has(mimeType) || !BASE64.test(data)) return null
@@ -136,13 +136,13 @@ export function codemodeToolView(args: JsonObject, result: unknown): CodemodeToo
   const blocks = contentBlocks(record)
   const calls = callsOf(record)
   const texts = blocks.flatMap((block) =>
-    isRecord(block) && block.type === 'text' ? [String(block.text)] : [],
+    isRecord(block) && block['type'] === 'text' ? [String(block['text'])] : [],
   )
   const errorBlock = [...texts].reverse().find((text) => text.startsWith(SCRIPT_ERROR_PREFIX))
   return {
     failed: texts[0]?.startsWith(SCRIPT_FAILED_HEADER) === true,
     ...withOptional('error', errorBlock?.slice(SCRIPT_ERROR_PREFIX.length)),
-    script: typeof args.code === 'string' ? args.code : null,
+    script: typeof args['code'] === 'string' ? args['code'] : null,
     // The card shows the error on its own, so the output leaves it out.
     output: texts.filter((text) => text !== errorBlock).join('\n'),
     images: imagesOf(blocks),

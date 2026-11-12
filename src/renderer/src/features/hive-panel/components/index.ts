@@ -3,5 +3,3 @@ export function loadHivePanel() {
     default: module.HivePanel,
   }))
 }
-
-export { HivePanel, type HivePanelProps } from './HivePanel'

@@ -58,46 +58,49 @@ function initialBranchName(repository: CommitOrPushRepositoryContext) {
   )
 }
 
+/** A name the dialog can reject without asking git: empty, or clashing with a listed ref. */
+function localBranchValidation(
+  branches: CommitOrPushRepositoryContext['branches'],
+  requested: string,
+): GitBranchValidationResult | null {
+  if (!requested) return { ok: false, code: 'required', message: 'Branch name is required.' }
+  const localConflict = findBranchRefConflict(branches, requested)
+  if (!localConflict) return null
+  return {
+    ok: false,
+    code: 'branch-exists',
+    message: `Branch "${requested}" conflicts with existing ref "${localConflict}".`,
+  }
+}
+
 function useBranchValidation(
   repository: CommitOrPushRepositoryContext,
   target: CommitBranchTarget,
   branchName: string,
-) {
-  const [validation, setValidation] = useState<BranchValidation>({ status: 'idle' })
+): BranchValidation {
+  const requested = branchName.trim()
+  const local = target === 'current' ? null : localBranchValidation(repository.branches, requested)
+  const asksGit = target !== 'current' && local === null
+  const [checked, setChecked] = useState<{
+    readonly workingPath: string
+    readonly requested: string
+    readonly result: GitBranchValidationResult
+  } | null>(null)
+  const { workingPath } = repository
 
   useEffect(() => {
-    if (target === 'current') return
-    const requested = branchName.trim()
-    if (!requested) {
-      setValidation({
-        status: 'settled',
-        result: { ok: false, code: 'required', message: 'Branch name is required.' },
-      })
-      return
-    }
-    const localConflict = findBranchRefConflict(repository.branches, requested)
-    if (localConflict) {
-      setValidation({
-        status: 'settled',
-        result: {
-          ok: false,
-          code: 'branch-exists',
-          message: `Branch "${requested}" conflicts with existing ref "${localConflict}".`,
-        },
-      })
-      return
-    }
+    if (!asksGit) return
     let current = true
-    setValidation({ status: 'checking' })
     void api
-      .validateGitBranchName(repository.workingPath, requested)
+      .validateGitBranchName(workingPath, requested)
       .then((result) => {
-        if (current) setValidation({ status: 'settled', result })
+        if (current) setChecked({ workingPath, requested, result })
       })
       .catch(() => {
         if (!current) return
-        setValidation({
-          status: 'settled',
+        setChecked({
+          workingPath,
+          requested,
           result: {
             ok: false,
             code: 'invalid-name',
@@ -108,9 +111,15 @@ function useBranchValidation(
     return () => {
       current = false
     }
-  }, [branchName, repository.branches, repository.workingPath, target])
+  }, [asksGit, requested, workingPath, repository.branches])
 
-  return validation
+  if (target === 'current') return { status: 'idle' }
+  if (local !== null) return { status: 'settled', result: local }
+  // Only the answer for the name and repository on screen counts; until it arrives git is asked.
+  if (checked?.workingPath !== workingPath || checked.requested !== requested) {
+    return { status: 'checking' }
+  }
+  return { status: 'settled', result: checked.result }
 }
 
 function resolveBranchReadiness(
@@ -178,13 +187,10 @@ export function useCommitOrPushDialogController(
   const [stopRequested, setStopRequested] = useState(false)
   const [preparedBranch, setPreparedBranch] = useState<PreparedBranchState | null>(null)
   const repositoryRef = repositoryBranchName(repository)
+  // Once the repository leaves the ref the branch was prepared from, its own ref is current
+  // again for good. Forgetting it while rendering re-renders before anything commits.
+  if (preparedBranch && repositoryRef !== preparedBranch.previousRef) setPreparedBranch(null)
   const currentRef = currentBranchName(repository, preparedBranch)
-
-  useEffect(() => {
-    if (preparedBranch && repositoryRef !== preparedBranch.previousRef) {
-      setPreparedBranch(null)
-    }
-  }, [preparedBranch, repositoryRef])
 
   const validation = useBranchValidation(repository, target, branchName)
   const branch = resolveBranchReadiness(currentRef, target, validation)

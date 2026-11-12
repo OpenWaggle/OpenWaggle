@@ -31,8 +31,9 @@ export function useActionOutput(scope: ActionManagementScope, runId: string) {
         if (disposed) return
         if (result.type !== 'output') throw new Error('Unexpected action output response.')
         const page = result.output
-        if (page.startOffset > offset && output)
+        if (page.startOffset > offset && output) {
           output += '\n[Output gap: older retained output was trimmed.]\n'
+        }
         if (page.endOffset < offset) output = ''
         output = (output + page.output).slice(-RETAINED_OUTPUT_CHARACTERS)
         truncated ||= page.truncated || output.length === RETAINED_OUTPUT_CHARACTERS
@@ -47,13 +48,14 @@ export function useActionOutput(scope: ActionManagementScope, runId: string) {
           error: error instanceof Error ? error.message : 'Connection interrupted.',
         }))
       }
-      if (!disposed && shouldPoll)
+      if (!disposed && shouldPoll) {
         timer = setTimeout(
           () => {
             void poll()
           },
           hasMore ? 0 : OUTPUT_REFRESH_MS,
         )
+      }
     }
     void poll()
     return () => {

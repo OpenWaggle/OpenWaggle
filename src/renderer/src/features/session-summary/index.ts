@@ -14,14 +14,9 @@ export {
   useSessionResourceBackfill,
   useSessionResourceInvalidation,
 } from './hooks/useSessionResources'
-export type {
-  SessionResourceBrowserTarget,
-  SessionResourceBrowserView,
-} from './model/session-resource-browser'
+export type { SessionResourceBrowserTarget } from './model/session-resource-browser'
 export { DEFAULT_SESSION_RESOURCE_BROWSER_TARGET } from './model/session-resource-browser'
 export {
-  SESSION_SUMMARY_MODE_ATTRIBUTE,
-  SESSION_SUMMARY_PERSISTENT_MODE,
   SESSION_SUMMARY_RIGHT_INSET_PX,
   SESSION_SUMMARY_WIDTH_PX,
 } from './model/session-summary-layout'

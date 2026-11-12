@@ -17,7 +17,7 @@ const PRIMARY_BAR_COLOR = '--color-text-primary'
 const SECONDARY_BAR_COLOR = '--color-text-muted'
 
 interface VoiceRecorderProps {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   fileInputRef: RefObject<HTMLInputElement | null>
   voice: VoiceCaptureController
 }

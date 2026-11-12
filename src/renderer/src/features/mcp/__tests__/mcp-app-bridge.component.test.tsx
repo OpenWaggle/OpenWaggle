@@ -74,6 +74,7 @@ type McpAppLayout = import('../mcp-app-bridge').McpAppLayout
 
 const BRIDGE_INPUT = {
   contentWindow: window,
+  documentLoad: 1,
   descriptor: {
     serverInstanceId: 'server-1',
     serverLabel: 'untrusted-weather',

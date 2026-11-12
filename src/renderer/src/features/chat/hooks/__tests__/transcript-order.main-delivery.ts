@@ -16,8 +16,6 @@ import { AgentEventDelivery } from '../../../../../../main/utils/agent-event-del
 
 const WINDOW_ID = 1
 
-export type MainDeliveryModel = ReturnType<typeof createMainDeliveryModel>
-
 export function createMainDeliveryModel(
   sessionId: SessionId,
   receive: (event: AgentTransportEvent) => void,

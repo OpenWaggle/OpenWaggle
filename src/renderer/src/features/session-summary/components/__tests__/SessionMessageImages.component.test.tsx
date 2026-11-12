@@ -5,13 +5,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { SessionMessageImages, SessionMessageResourcesProvider } from '../SessionMessageImages'
+import { required } from '@/test-utils/required'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
 const readSessionResourceThumbnail = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { listSessionResources, readSessionResource, readSessionResourceThumbnail },
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(listSessionResources),
+    readSessionResource,
+    readSessionResourceThumbnail,
+  }),
 }))
 
 function image(id: string, nodeId: string): SessionResource {
@@ -133,7 +141,7 @@ describe('SessionMessageImages', () => {
     )
     expect(buttons[0]).toHaveClass('aspect-[4/3]')
 
-    fireEvent.click(buttons[1])
+    fireEvent.click(required(buttons[1]))
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'second',
@@ -162,7 +170,7 @@ describe('SessionMessageImages', () => {
       'Open image agent-first.png',
       'Open image agent-second.png',
     ])
-    fireEvent.click(buttons[1])
+    fireEvent.click(required(buttons[1]))
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'agent-second',

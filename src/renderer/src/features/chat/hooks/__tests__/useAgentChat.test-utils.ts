@@ -29,9 +29,9 @@ const {
   pendingInteractionsBySessionId,
   runCompletedHandlers,
 } = vi.hoisted(() => {
-  const agentEventHandlers: Array<(payload: unknown) => void> = []
+  const agentEventHandlers: ((payload: unknown) => void)[] = []
   const pendingInteractionsBySessionId = new Map<string, readonly unknown[]>()
-  const runCompletedHandlers: Array<(payload: unknown) => void> = []
+  const runCompletedHandlers: ((payload: unknown) => void)[] = []
   const runRenderSnapshots = new Map<
     string,
     { readonly messages: readonly unknown[]; compactionStatus: unknown; updatedAt: number }
@@ -52,7 +52,7 @@ const {
     runRenderSnapshots.set(String(sessionId), { ...existing, compactionStatus })
   })
   const hasActiveRunMock = vi.fn((_id: SessionId) => false)
-  const firstSendRecoveryCalls: Array<readonly [SessionId, unknown]> = []
+  const firstSendRecoveryCalls: (readonly [SessionId, unknown])[] = []
   const setFirstSendRecoveryMock = vi.fn((id: SessionId, recovery: unknown) => {
     firstSendRecoveryCalls.push([id, recovery])
   })
@@ -139,8 +139,8 @@ const {
   }
 })
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: apiMock,
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMock),
 }))
 
 vi.mock('@/features/chat/state/background-run-store', () => ({

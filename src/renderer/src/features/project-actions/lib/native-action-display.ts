@@ -22,8 +22,9 @@ export function resolvedActionCommand(
 ): string {
   if (invocation.type === 'command') return invocation.command
   const words = [invocation.executable, ...invocation.args]
-  if (/Windows|Win32|Win64/i.test(platform))
+  if (/Windows|Win32|Win64/i.test(platform)) {
     return `& ${words.map(quotePowerShellArgument).join(' ')}`
+  }
   return words
     .map((word) =>
       /^[a-zA-Z0-9_./:@%+,-][a-zA-Z0-9_./:@%+=,-]*$/.test(word)

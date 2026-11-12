@@ -13,7 +13,9 @@ import { WelcomeScreen } from './WelcomeScreen'
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
-  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
+  readonly renderVisibleMessageRows?:
+    | ((nodeIds: readonly string[], rows: ReactNode) => ReactNode)
+    | undefined
 }
 
 function latestCompactionAnnouncement(rows: ChatTranscriptSectionState['chatRows']) {

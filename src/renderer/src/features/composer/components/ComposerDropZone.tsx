@@ -27,7 +27,7 @@ const COMPOSER_FOCUS_EXCLUSION_SELECTOR = [
 interface ComposerDropZoneProps {
   readonly fileAttachment: UseFileAttachmentResult
   readonly children: ReactNode
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly editorRef: RefObject<LexicalEditor | null>
 }
 

@@ -56,7 +56,7 @@ export function editedWaggle(
   queued: WaggleInvocation | undefined,
 ): WaggleInvocation | undefined {
   if (!preset) return undefined
-  if (queued && queued.presetId === String(preset.id)) return queued
+  if (queued?.presetId === String(preset.id)) return queued
   return { presetId: preset.id, presetName: preset.name, source: 'user', config: preset.config }
 }
 

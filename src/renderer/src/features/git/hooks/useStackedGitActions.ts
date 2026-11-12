@@ -14,7 +14,7 @@ const logger = createRendererLogger('git')
 
 interface UseStackedGitActionsOptions {
   readonly workingPath: WorkingPath | null
-  readonly sessionId?: SessionId
+  readonly sessionId?: SessionId | undefined
   readonly onCompleted?: () => void
 }
 
@@ -59,7 +59,6 @@ export function useStackedGitActions({
   const showToast = useUIStore((state) => state.showToast)
 
   useEffect(() => {
-    if (typeof api.onGitStackedActionProgress !== 'function') return
     return api.onGitStackedActionProgress((payload) => {
       if (
         payload.operationId === activeOperationId.current &&
@@ -74,7 +73,7 @@ export function useStackedGitActions({
     action: GitStackedAction,
     options?: Partial<GitRunStackedActionOptions>,
   ): Promise<GitRunStackedActionResult | undefined> {
-    if (!workingPath || runningRef.current || typeof api.runStackedGitAction !== 'function') return
+    if (!workingPath || runningRef.current) return
     const operationId = crypto.randomUUID()
     runningRef.current = true
     activeOperationId.current = operationId
@@ -104,9 +103,14 @@ export function useStackedGitActions({
 
   async function cancel() {
     const operationId = activeOperationId.current
-    if (!operationId || typeof api.cancelStackedGitAction !== 'function') return false
+    if (!operationId) return false
     return api.cancelStackedGitAction(operationId)
   }
 
-  return { isRunning, progress, run, cancel }
+  /** Runs `action` for a caller with no promise to handle: `run` reports a failure in a toast. */
+  function start(action: GitStackedAction, options?: Partial<GitRunStackedActionOptions>) {
+    void run(action, options)
+  }
+
+  return { isRunning, progress, run, start, cancel }
 }

@@ -49,13 +49,13 @@ export function useRowMenu() {
     open,
     pos,
     close: () => setOpen(false),
-    openAtPointer(event: React.MouseEvent) {
+    openAtPointer: (event: React.MouseEvent) => {
       event.preventDefault()
       event.stopPropagation()
       setPos({ x: event.clientX, y: event.clientY })
       setOpen(true)
     },
-    openUnderButton(event: React.MouseEvent<HTMLButtonElement>) {
+    openUnderButton: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation()
       const rect = event.currentTarget.getBoundingClientRect()
       setPos({ x: rect.left, y: rect.bottom })
@@ -67,7 +67,9 @@ export function useRowMenu() {
 export type HiveRowMenuState = ReturnType<typeof useRowMenu>
 
 /** The row's role glyph and label, from the lineage role. */
-function hiveRolePresentation(session: { readonly lineage?: { readonly role?: string } | null }) {
+function hiveRolePresentation(session: {
+  readonly lineage?: { readonly role?: string | undefined } | null | undefined
+}) {
   const isQueen = session.lineage?.role === 'queen'
   return { Icon: isQueen ? ChessQueen : Pickaxe, label: isQueen ? 'Queen' : 'Worker' }
 }

@@ -53,8 +53,9 @@ export function reconnectActiveRun(
   }
   const shownMessages = () => getMessagesForSession(context.messagesBySessionIdRef, input.sessionId)
   const merge = (result: ReconnectedRun | null) => {
-    if (result)
+    if (result) {
       handleActiveRunReconnectResult(request, result, input.cachedSettledMessageIds, context)
+    }
   }
   const reconnect = withTranscript
     ? reconnectToBackgroundRun(input, shownMessages)
@@ -194,8 +195,9 @@ async function readAroundDetail(sessionId: SessionId, shownMessages: () => reado
   const streamingBaseline = snapshot ? streamingBaselineOf(snapshot, shownMessages) : undefined
   const sameRun = before?.runId !== undefined && before.runId === snapshot?.runId
   const read = { snapshot, sameRunBuffered: sameRun, streamingBaseline, settledBuffer: undefined }
-  if (!before || sameRun || (snapshot && before.runId === undefined))
+  if (!before || sameRun || (snapshot && before.runId === undefined)) {
     return { ...read, fetchedSession }
+  }
   return { ...read, fetchedSession: await api.getSessionDetail(sessionId), settledBuffer: before }
 }
 

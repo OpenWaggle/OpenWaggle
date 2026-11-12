@@ -156,8 +156,9 @@ describe('canonical branch-summary prompt ownership before normal hydration', ()
         refreshSessionWorkspace,
       }
       mocks.navigateSessionTree.mockImplementation(async () => {
-        if (hydration === 'before-navigation-result')
+        if (hydration === 'before-navigation-result') {
           useSessionStore.setState({ activeWorkspace: source })
+        }
         return { cancelled: false }
       })
       await openBeforeNormalHydration(params, source)
@@ -246,8 +247,9 @@ describe('canonical branch-summary prompt ownership before normal hydration', ()
     const params: ReturnType<typeof workflowParams> = {
       ...workflowParams(),
       refreshSessionWorkspace: vi.fn(async (_sessionId, selection) => {
-        if (selection === undefined)
+        if (selection === undefined) {
           useSessionStore.setState({ activeWorkspace: workspace(SessionId('other-session')) })
+        }
       }),
     }
     await openBeforeNormalHydration(params, source)

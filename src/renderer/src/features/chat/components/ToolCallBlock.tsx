@@ -25,7 +25,7 @@ interface ToolCallBlockProps {
   name: string
   args: string
   state: string
-  result?: ToolCallResultPayload
+  result?: ToolCallResultPayload | undefined
   isStreaming?: boolean
   /** Pi kept no result for this call, as for the calls a script makes (`ctx.executeTool()`). */
   resultNotRecorded?: boolean

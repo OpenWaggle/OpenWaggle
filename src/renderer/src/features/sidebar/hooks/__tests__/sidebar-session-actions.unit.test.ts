@@ -8,17 +8,19 @@ const mocks = vi.hoisted(() => ({
   archiveSession: vi.fn(),
   showConfirm: vi.fn(),
   archiveWorkspaceOwner: vi.fn(),
+  deleteWorkspaceOwner: vi.fn(),
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api: mocks }))
 vi.mock('@/shell/workspace-panel-cleanup', () => ({
   archiveWorkspaceOwner: mocks.archiveWorkspaceOwner,
-  deleteWorkspaceOwner: vi.fn(),
+  deleteWorkspaceOwner: mocks.deleteWorkspaceOwner,
 }))
 
 beforeEach(() => {
   mocks.archiveSession.mockReset().mockResolvedValue(undefined)
   mocks.showConfirm.mockReset().mockResolvedValue(true)
   mocks.archiveWorkspaceOwner.mockReset().mockResolvedValue(undefined)
+  mocks.deleteWorkspaceOwner.mockReset().mockResolvedValue(undefined)
 })
 
 it('shows the deletion reason without transport details and does not navigate away', async () => {
@@ -214,6 +216,26 @@ it('keeps the current session open when a different session is archived', async 
   expect(selectSession).not.toHaveBeenCalled()
   expect(clearActiveSession).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
+})
+
+it('removes the workspace panels of a Session only once the Host deleted it', async () => {
+  const [kept, deleted] = [SessionId('kept'), SessionId('deleted')]
+  const { actions, showToast } = archiveActions({
+    activeSessionId: null,
+    visibleSessionIds: [kept, deleted],
+    deleteSession: async (id) => {
+      if (id === kept) throw new Error('The Host refused.')
+    },
+  })
+
+  actions.delete(kept)
+  actions.delete(deleted)
+
+  await vi.waitFor(() => expect(mocks.deleteWorkspaceOwner).toHaveBeenCalledWith('deleted'))
+  await vi.waitFor(() =>
+    expect(showToast).toHaveBeenCalledWith('Failed to delete session: The Host refused.'),
+  )
+  expect(mocks.deleteWorkspaceOwner).toHaveBeenCalledTimes(1)
 })
 
 it('opens the neighbour after deleting the open session, although deletion clears it first', async () => {

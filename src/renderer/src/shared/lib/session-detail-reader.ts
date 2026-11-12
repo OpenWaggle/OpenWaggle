@@ -101,7 +101,7 @@ export function createSessionDetailReader(read: DetailRead) {
   function remember(id: SessionId, detail: SessionDetail | null) {
     const key = String(id)
     heldBySession.delete(key)
-    if (!detail || detail.nodeMutationRevision === undefined) return
+    if (detail?.nodeMutationRevision === undefined) return
     heldBySession.set(key, {
       nodeMutationRevision: detail.nodeMutationRevision,
       messages: detail.messages,

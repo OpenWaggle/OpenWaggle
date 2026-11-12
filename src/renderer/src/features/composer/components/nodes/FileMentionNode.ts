@@ -20,11 +20,11 @@ export class FileMentionNode extends DecoratorNode<ReactNode> {
   __path: string
   __basename: string
 
-  static getType() {
+  static override getType() {
     return 'file-mention'
   }
 
-  static clone(node: FileMentionNode) {
+  static override clone(node: FileMentionNode) {
     return new FileMentionNode(node.__path, node.__basename, node.__key)
   }
 
@@ -34,31 +34,31 @@ export class FileMentionNode extends DecoratorNode<ReactNode> {
     this.__basename = basename
   }
 
-  createDOM(_config: EditorConfig) {
+  override createDOM(_config: EditorConfig) {
     const span = document.createElement('span')
     span.style.display = 'inline'
     return span
   }
 
-  updateDOM() {
+  override updateDOM() {
     return false
   }
 
-  exportDOM(): DOMExportOutput {
+  override exportDOM(): DOMExportOutput {
     const element = document.createElement('span')
     element.textContent = `@${this.__path}`
     return { element }
   }
 
-  static importDOM() {
+  static override importDOM() {
     return null
   }
 
-  static importJSON(serializedNode: SerializedFileMentionNode) {
+  static override importJSON(serializedNode: SerializedFileMentionNode) {
     return $createFileMentionNode(serializedNode.mentionPath, serializedNode.mentionBasename)
   }
 
-  exportJSON() {
+  override exportJSON() {
     return {
       ...super.exportJSON(),
       mentionPath: this.__path,
@@ -68,15 +68,15 @@ export class FileMentionNode extends DecoratorNode<ReactNode> {
     }
   }
 
-  getTextContent() {
+  override getTextContent() {
     return `@${this.__path}`
   }
 
-  isInline() {
+  override isInline() {
     return true
   }
 
-  decorate(): ReactNode {
+  override decorate(): ReactNode {
     return createElement(FileMentionChip, {
       path: this.__path,
       basename: this.__basename,

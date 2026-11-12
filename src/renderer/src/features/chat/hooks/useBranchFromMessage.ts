@@ -20,7 +20,7 @@ interface BranchFromMessageParams {
   readonly refreshSessionWorkspace: (
     sessionId: SessionId,
     selection?: {
-      readonly branchId?: SessionBranchId | null
+      readonly branchId?: SessionBranchId | null | undefined
       readonly nodeId?: SessionNodeId | null
     },
   ) => Promise<void>
@@ -135,10 +135,11 @@ export function useBranchFromMessage(params: BranchFromMessageParams) {
         applyBranchSelection(params, sessionId, resolvedWorkspace, resolvedSelection)
       })
       .catch((error: unknown) => {
-        if (isCurrent())
+        if (isCurrent()) {
           params.showToast(
             `Failed to load branch source: ${error instanceof Error ? error.message : String(error)}`,
           )
+        }
       })
   }
 }

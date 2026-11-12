@@ -99,7 +99,7 @@ export function installLayout() {
   return {
     setHeight: (key: string, height: number) => heights.set(key, height),
     rowTop,
-    mode: () => scroller()?.dataset.transcriptMode,
+    mode: () => scroller()?.dataset['transcriptMode'],
     distanceToBottom: () => maxScrollTop() - scrollTop(),
     get scrollTop() {
       return scrollTop()

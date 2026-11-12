@@ -1,3 +1,6 @@
+import type { SyntaxLanguageResource } from '@shared/types/syntax-resources'
+import { BUNDLED_SYNTAX_LANGUAGES } from './bundled-language-metadata.generated'
+
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   '.bash': 'bash',
   '.c': 'c',
@@ -230,6 +233,3 @@ export function languageFromPath(
   const dot = basename.lastIndexOf('.')
   return dot < 0 ? 'text' : (LANGUAGE_BY_EXTENSION[basename.slice(dot)] ?? 'text')
 }
-
-import type { SyntaxLanguageResource } from '@shared/types/syntax-resources'
-import { BUNDLED_SYNTAX_LANGUAGES } from './bundled-language-metadata.generated'

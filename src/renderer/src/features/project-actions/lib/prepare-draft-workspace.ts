@@ -10,18 +10,22 @@ export async function validateDraftWorkspacePreparation(
     scope: { projectPath },
     operation: { type: 'catalog' },
   })
-  if (result.type !== 'catalog')
+  if (result.type !== 'catalog') {
     throw new Error('Could not load this project’s Preparation profiles.')
+  }
   const profiles = result.catalog.profiles
-  if (profiles.length > 1 && !profileId)
+  if (profiles.length > 1 && !profileId) {
     throw new Error('Choose a Preparation profile for this worktree before sending.')
-  if (profileId && !profiles.some(({ definition }) => definition.id === profileId))
+  }
+  if (profileId && !profiles.some(({ definition }) => definition.id === profileId)) {
     throw new Error(
       'This Preparation profile is no longer available. Choose another before sending.',
     )
+  }
   const selectedProfileId = profileId ?? profiles[0]?.definition.id
-  if (!selectedProfileId)
+  if (!selectedProfileId) {
     throw new Error('This project has no Preparation profile. Add one before sending.')
+  }
   return selectedProfileId
 }
 
@@ -35,6 +39,7 @@ export async function selectDraftWorkspacePreparation(
     scope: { projectPath, sessionId },
     operation: { type: 'select-preparation', profileId, expectedRevision: 0 },
   })
-  if (result.type !== 'preparation' || !result.preparation)
+  if (result.type !== 'preparation' || !result.preparation) {
     throw new Error('Could not select this workspace’s Preparation profile.')
+  }
 }

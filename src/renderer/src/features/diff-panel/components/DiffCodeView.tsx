@@ -56,16 +56,16 @@ interface DiffCodeViewProps {
 type DiffCodeViewReadinessProps = Readonly<{ children: ReactNode; complete: boolean }>
 
 function DiffCodeViewReadiness(props: DiffCodeViewReadinessProps) {
-  const codeViewReady = useDiffCodeViewReady()
+  const { rootRef, ready } = useDiffCodeViewReady()
   return (
     <div
-      ref={codeViewReady.rootRef}
-      data-diff-code-ready={codeViewReady.ready ? 'true' : 'false'}
+      ref={rootRef}
+      data-diff-code-ready={ready ? 'true' : 'false'}
       data-diff-preparation-complete={props.complete ? 'true' : 'false'}
       className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
     >
       {props.children}
-      {!codeViewReady.ready ? (
+      {!ready ? (
         <div className="absolute inset-0 flex items-center justify-center bg-diff-bg">
           <Spinner />
         </div>
@@ -185,7 +185,7 @@ function buildAnnotationsByPath(
   return byPath
 }
 
-type ReviewAnnotationMetadataAnnotation = {
+interface ReviewAnnotationMetadataAnnotation {
   side: 'additions' | 'deletions'
   lineNumber: number
   metadata: ReviewAnnotationMetadata

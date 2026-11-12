@@ -37,12 +37,6 @@ function subscribe(listener: () => void) {
 
 function load(projectPath: string) {
   if (inFlight.has(projectPath)) return
-  if (typeof api.getProjectPreferences !== 'function') {
-    cache.set(projectPath, { mode: null })
-    emit()
-    return
-  }
-
   inFlight.add(projectPath)
   api
     .getProjectPreferences(projectPath)

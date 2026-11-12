@@ -213,7 +213,9 @@ describe('InlineVisualization frame parking', () => {
         window.dispatchEvent(new Event('blur'))
         dispatchIntersection(false)
       })
-      act(() => vi.runOnlyPendingTimers())
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
     } finally {
       vi.useRealTimers()
     }

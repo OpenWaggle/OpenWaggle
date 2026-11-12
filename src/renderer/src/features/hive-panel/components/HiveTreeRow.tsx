@@ -47,6 +47,7 @@ export function HiveTreeListItem({
   const view = useHiveRowView(row.session, isRoot)
   const menu = useRowMenu()
   const rename = useSessionTitleRename(view.sessionId, view.session.title)
+  const { isEditing, returnFocusRef } = rename
   const parent = row.parent
   // The whole chain from the Queen, this row included: `Queen › Worker › Worker`.
   const ancestry =
@@ -54,7 +55,7 @@ export function HiveTreeListItem({
 
   return (
     <div className="group relative">
-      {rename.isEditing ? (
+      {isEditing ? (
         // An input cannot live inside the row's button, so the editing row is a plain grid.
         <div className={HIVE_ROW_CLASS} style={HIVE_ROW_GRID_STYLE}>
           <span className="flex min-w-0 items-center">
@@ -65,7 +66,7 @@ export function HiveTreeListItem({
         </div>
       ) : (
         <Button
-          ref={rename.returnFocusRef}
+          ref={returnFocusRef}
           type="button"
           variant="unstyled"
           className={HIVE_ROW_CLASS}
@@ -92,9 +93,9 @@ export function HiveTreeListItem({
           <HiveStateCell view={view} />
         </Button>
       )}
-      {rename.isEditing ? null : <HiveSpawnedBy parent={parent} onSelect={onSelectParent} />}
+      {isEditing ? null : <HiveSpawnedBy parent={parent} onSelect={onSelectParent} />}
       {/* No row actions while renaming: the input owns the row, as in the sidebar. */}
-      {rename.isEditing ? null : <HiveRowMenu view={view} menu={menu} onRename={rename.start} />}
+      {isEditing ? null : <HiveRowMenu view={view} menu={menu} onRename={rename.start} />}
     </div>
   )
 }

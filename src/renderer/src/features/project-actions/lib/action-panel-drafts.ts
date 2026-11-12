@@ -227,17 +227,19 @@ export function isDraftDirty(draft: ActionPanelDraft) {
 
 /** Plain words for what is unfinished, for "Continue …" and the one-draft prompt. */
 export function draftDescription(draft: ActionPanelDraft) {
-  if (draft.kind === 'preparation')
+  if (draft.kind === 'preparation') {
     return draft.definition.phase === 'setup' ? 'your worktree setup' : 'your worktree cleanup'
+  }
   if (draft.base === null) return 'a new action'
   return `changes to ${draft.base.name}`
 }
 
 export function continueDraftLabel(draft: ActionPanelDraft) {
-  if (draft.kind === 'preparation')
+  if (draft.kind === 'preparation') {
     return draft.definition.phase === 'setup'
       ? 'Continue worktree setup'
       : 'Continue worktree cleanup'
+  }
   return draft.base === null ? 'Continue new action' : `Continue editing ${draft.base.name}`
 }
 

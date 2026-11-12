@@ -144,8 +144,9 @@ function createOwnerActions(set: TerminalStateSetter): OwnerActions {
     },
 
     migrateGroup: (fromOwnerKey, toOwnerKey) => {
-      if (fromOwnerKey === toOwnerKey || fromOwnerKey.length === 0 || toOwnerKey.length === 0)
+      if (fromOwnerKey === toOwnerKey || fromOwnerKey.length === 0 || toOwnerKey.length === 0) {
         return
+      }
       set((state) => {
         const source = state.groups[fromOwnerKey]
         if (source === undefined) return {}

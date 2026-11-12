@@ -197,11 +197,11 @@ export function buildTerminalContextPayload(
 ): TerminalContextPayload | null {
   assertLimits(limits)
 
-  const validSelections: Array<{
+  const validSelections: {
     readonly metadata: NonNullable<ReturnType<typeof normalizedEntryMetadata>>
     readonly text: string
     readonly metrics: TextMetrics
-  }> = []
+  }[] = []
   for (const selection of selections) {
     const metadata = normalizedEntryMetadata(selection, limits)
     const text = normalizeSelectedText(selection.selectedText)

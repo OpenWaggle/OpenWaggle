@@ -34,7 +34,7 @@ export function installHostReads(
 ) {
   let holding = false
   let answeredOnRelease = false
-  const held: Array<{ readonly deliver: () => void; readonly serve: () => void }> = []
+  const held: { readonly deliver: () => void; readonly serve: () => void }[] = []
   apiMock.getSessionDetail.mockImplementation(async (sessionId: string) => {
     let answer = sessionId === SESSION_ID ? host.detail() : OTHER_DETAIL
     if (!holding) return answer

@@ -92,8 +92,9 @@ export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean): G
   if (isBehind) return { label: 'Pull', disabled: false, kind: 'run_pull' }
   if (isAhead) return resolveAheadQuickAction({ hasOpenPr, isDefaultRef, terminology })
 
-  if (hasOpenPr)
+  if (hasOpenPr) {
     return { label: `View ${terminology.shortLabel}`, disabled: false, kind: 'open_pr' }
+  }
   if (hasDefaultBranchDelta && !isDefaultRef) {
     return {
       label: `Create ${terminology.shortLabel}`,

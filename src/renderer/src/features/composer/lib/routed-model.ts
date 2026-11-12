@@ -23,8 +23,9 @@ function catalogModel(providerModels: readonly ProviderInfo[], ref: SupportedMod
  * footer shows `auto → gpt-6-luna`. Null for a physical selection or before any response.
  */
 export function routedModelName({ selected, answeredBy, providerModels }: RoutedModelInput) {
-  if (!selected || !answeredBy || answeredBy === selected || providerModels.length === 0)
+  if (!selected || !answeredBy || answeredBy === selected || providerModels.length === 0) {
     return null
+  }
   const selectedModel = catalogModel(providerModels, selected)
   // A selection that is gone, such as a removed virtual model, answers on another model.
   if (selectedModel && selectedModel.virtual !== true) return null
@@ -40,8 +41,8 @@ export function routedModelName({ selected, answeredBy, providerModels }: Routed
 export function lastAnsweringModel(
   messages: readonly {
     readonly role: string
-    readonly model?: SupportedModelId
-    readonly metadata?: { readonly selectedModel?: SupportedModelId }
+    readonly model?: SupportedModelId | undefined
+    readonly metadata?: { readonly selectedModel?: SupportedModelId | undefined } | undefined
   }[],
   selected: SupportedModelId | undefined,
 ) {

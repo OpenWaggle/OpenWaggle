@@ -24,8 +24,9 @@ export function commandRepairProposalFrom(content: unknown): CommandRepairPropos
       typeof candidate !== 'object' ||
       !('type' in candidate) ||
       candidate.type !== COMMAND_REPAIR_PROPOSAL_TYPE
-    )
+    ) {
       continue
+    }
     const decoded = safeDecodeUnknown(commandRepairProposalSchema, candidate)
     if (decoded.success) return decoded.data
   }
