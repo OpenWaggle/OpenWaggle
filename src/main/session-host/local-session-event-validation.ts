@@ -2,16 +2,12 @@ import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import { worktreeLaunchProgressSchema } from '@shared/schemas/background-run'
 import { desktopNotificationSchema } from '@shared/schemas/desktop-notification'
+import { sessionHostEventCursorSchema } from '@shared/schemas/session-host-event-cursor'
 import type {
   SessionHostEventCursor,
   SessionHostEventEnvelope,
 } from '@shared/types/session-host-event'
 import { THINKING_LEVELS } from '@shared/types/settings'
-
-const eventCursorSchema: Schema.Schema<SessionHostEventCursor> = Schema.Struct({
-  hostInstanceId: Schema.String,
-  sequence: Schema.Number,
-})
 
 const worktreeLaunchEventSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('progress'), progress: worktreeLaunchProgressSchema }),
@@ -117,7 +113,7 @@ const eventPayloadSchema = Schema.Union(
 )
 
 const eventEnvelopeSchema = Schema.Struct({
-  cursor: eventCursorSchema,
+  cursor: sessionHostEventCursorSchema,
   timestamp: Schema.Number,
   payload: eventPayloadSchema,
 })
@@ -126,7 +122,7 @@ export function isSessionHostEventEnvelope(value: unknown): value is SessionHost
   return Schema.is(eventEnvelopeSchema)(value)
 }
 
-const envelopeCursorSchema = Schema.Struct({ cursor: eventCursorSchema })
+const envelopeCursorSchema = Schema.Struct({ cursor: sessionHostEventCursorSchema })
 
 const userMessageCarrierSchema = Schema.Struct({
   payload: Schema.Struct({

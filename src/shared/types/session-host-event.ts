@@ -1,3 +1,5 @@
+import type { SchemaType } from '@shared/schema'
+import type { sessionHostEventCursorSchema } from '@shared/schemas/session-host-event-cursor'
 import type { RunMode, WorktreeLaunchProgress } from './background-run'
 import type { SupportedModelId } from './brand'
 import type { DesktopNotification } from './desktop-notification'
@@ -16,10 +18,7 @@ export type SessionRunTerminalStatus =
   | 'interrupted'
   | 'interrupted-by-interaction-timeout'
 
-export interface SessionHostEventCursor {
-  readonly hostInstanceId: string
-  readonly sequence: number
-}
+export type SessionHostEventCursor = SchemaType<typeof sessionHostEventCursorSchema>
 
 export type SessionHostEventPayload =
   | {

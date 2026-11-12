@@ -1,7 +1,8 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
 import { parseJsonUnknown, Schema } from '@shared/schema'
-import type { AgentSendReport } from '@shared/types/agent'
+import { waggleSendReportSchema } from '@shared/schemas/local-session-command-response'
+import type { WaggleSendReport } from '@shared/types/local-session-waggle'
 import { Option } from 'effect'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -30,15 +31,10 @@ function commandJson(request: ExplicitWaggleRequest) {
 }
 
 /** The report a completed explicit Waggle operation stored for replay. */
-const decodeStoredReport = Schema.decodeUnknownOption(
-  Schema.Struct({
-    outcome: Schema.Literal('delivered', 'refused', 'cancelled'),
-    message: Schema.optional(Schema.String),
-    code: Schema.optional(Schema.String),
-  }),
-)
+const decodeStoredReport = Schema.decodeUnknownOption(waggleSendReportSchema)
 
-function decodeReport(raw: string | null): AgentSendReport {
+/** A replayed report says how the send ended; the Run it started belongs to the first answer. */
+function decodeReport(raw: string | null): WaggleSendReport {
   const report = Option.getOrUndefined(
     decodeStoredReport(raw === null ? null : parseJsonUnknown(raw)),
   )
