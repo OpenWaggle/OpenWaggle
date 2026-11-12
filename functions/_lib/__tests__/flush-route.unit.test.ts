@@ -128,7 +128,7 @@ describe('POST /api/v1/flush', () => {
       undeleted: 0,
     })
     const records = aggregatedRecords(first.requests)
-    expect(records.find((record) => record.properties['field'] === '_count')).toMatchObject({
+    expect(records.find((record) => record.properties.field === '_count')).toMatchObject({
       timestamp: `${SEVEN_DAYS_OLD}T12:00:00Z`,
       properties: { count: 2 },
     })

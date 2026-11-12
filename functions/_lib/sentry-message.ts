@@ -53,12 +53,12 @@ export function errorCode(text: unknown) {
 }
 
 function withCodeValue(exception: JsonRecord): JsonRecord {
-  return 'value' in exception ? { ...exception, value: errorCode(exception['value']) } : exception
+  return 'value' in exception ? { ...exception, value: errorCode(exception.value) } : exception
 }
 
 function messageCode(message: unknown) {
   if (!isRecord(message)) return errorCode(message)
-  return errorCode(message['formatted'] ?? message['message'])
+  return errorCode(message.formatted ?? message.message)
 }
 
 /** The event with only error types and codes left of its message text. */
@@ -66,9 +66,9 @@ export function withoutMessageText(event: JsonRecord): JsonRecord {
   const coded = updateRecord(event, 'exception', (exception) =>
     updateList(exception, 'values', withCodeValue),
   )
-  const message = 'message' in coded ? { message: messageCode(coded['message']) } : {}
-  const logentry = isRecord(coded['logentry'])
-    ? { logentry: { message: messageCode(coded['logentry']['message'] ?? coded['message']) } }
+  const message = 'message' in coded ? { message: messageCode(coded.message) } : {}
+  const logentry = isRecord(coded.logentry)
+    ? { logentry: { message: messageCode(coded.logentry.message ?? coded.message) } }
     : {}
   return { ...withoutKeys(coded, DROPPED_WITH_MESSAGES), ...message, ...logentry }
 }
