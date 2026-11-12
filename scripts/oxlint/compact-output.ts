@@ -12,8 +12,8 @@ function compactRuleName(rule: string) {
   // `eslint(no-debugger)` and `openwaggle(no-for-each)` read as `no-debugger` and
   // `openwaggle/no-for-each`, the names the config uses.
   const match = /^(?<plugin>[^(]+)\((?<name>[^)]+)\)$/u.exec(rule)
-  const plugin = match?.groups?.['plugin']
-  const name = match?.groups?.['name']
+  const plugin = match?.groups?.plugin
+  const name = match?.groups?.name
   if (plugin === undefined || name === undefined) return rule
   return plugin === 'eslint' ? name : `${plugin}/${name}`
 }
@@ -27,8 +27,8 @@ export function compactLintOutput(output: string) {
       lines.push(line)
       continue
     }
-    const rule = groups['rule'] === undefined ? 'lint' : compactRuleName(groups['rule'])
-    lines.push(`${groups['location']} ${rule} ${groups['message']}`)
+    const rule = groups.rule === undefined ? 'lint' : compactRuleName(groups.rule)
+    lines.push(`${groups.location} ${rule} ${groups.message}`)
   }
   return lines
 }

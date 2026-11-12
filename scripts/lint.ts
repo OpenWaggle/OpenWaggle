@@ -74,10 +74,7 @@ function lintCommand(runner: Runner, fix: boolean, paths: readonly string[]) {
   if (runner === 'oxlint') {
     // oxlint loads the TypeScript config and plugins through Node, which warns once that the
     // root package.json declares no module type.
-    const nodeOptions = [
-      process.env['NODE_OPTIONS'],
-      '--disable-warning=MODULE_TYPELESS_PACKAGE_JSON',
-    ]
+    const nodeOptions = [process.env.NODE_OPTIONS, '--disable-warning=MODULE_TYPELESS_PACKAGE_JSON']
     return {
       command: 'node',
       args: [packageBin('oxlint', 'oxlint'), ...shared],

@@ -128,11 +128,11 @@ export function collectManifestPackagePaths(manifest: unknown) {
     return []
   }
 
-  const piPaths = isObject(manifest['pi']) ? collectPackagePaths(manifest['pi']['extensions']) : []
+  const piPaths = isObject(manifest.pi) ? collectPackagePaths(manifest.pi.extensions) : []
 
   return uniqueSorted([
-    ...collectPackagePaths(manifest['exports']),
-    ...collectPackagePaths(manifest['types']),
+    ...collectPackagePaths(manifest.exports),
+    ...collectPackagePaths(manifest.types),
     ...piPaths,
   ])
 }
@@ -165,26 +165,26 @@ export function assertPackedPackageMetadata(manifest: unknown, packageDirectory:
     throw new Error(`${packageDirectory} packed manifest must be an object.`)
   }
 
-  if (manifest['license'] !== 'MIT') {
+  if (manifest.license !== 'MIT') {
     throw new Error(`${packageDirectory} packed manifest must declare MIT license.`)
   }
 
-  if (!isObject(manifest['engines']) || manifest['engines']['node'] !== '>=22.19.0') {
+  if (!isObject(manifest.engines) || manifest.engines.node !== '>=22.19.0') {
     throw new Error(`${packageDirectory} packed manifest must require Node.js >=22.19.0.`)
   }
 
-  if (!isObject(manifest['publishConfig']) || manifest['publishConfig']['access'] !== 'public') {
+  if (!isObject(manifest.publishConfig) || manifest.publishConfig.access !== 'public') {
     throw new Error(`${packageDirectory} packed manifest must publish with public access.`)
   }
 
-  if (!isObject(manifest['repository'])) {
+  if (!isObject(manifest.repository)) {
     throw new Error(`${packageDirectory} packed manifest must declare repository metadata.`)
   }
 
   if (
-    manifest['repository']['type'] !== 'git' ||
-    manifest['repository']['url'] !== REPOSITORY_URL ||
-    manifest['repository']['directory'] !== packageDirectory
+    manifest.repository.type !== 'git' ||
+    manifest.repository.url !== REPOSITORY_URL ||
+    manifest.repository.directory !== packageDirectory
   ) {
     throw new Error(`${packageDirectory} packed manifest has incorrect repository metadata.`)
   }
@@ -195,11 +195,11 @@ function stringProperty(value: unknown, key: string) {
 }
 
 export function assertDualModuleExports(packageName: string, manifest: unknown) {
-  if (!isObject(manifest) || !isObject(manifest['exports'])) {
+  if (!isObject(manifest) || !isObject(manifest.exports)) {
     throw new Error(`${packageName} packed manifest must declare exports.`)
   }
 
-  for (const [exportPath, target] of Object.entries(manifest['exports'])) {
+  for (const [exportPath, target] of Object.entries(manifest.exports)) {
     if (exportPath.endsWith('.css')) continue
 
     if (
@@ -228,7 +228,7 @@ export function assertPackedWorkspaceDependencyRanges(
         : undefined
   if (!dependencyName) return
 
-  if (!isObject(manifest) || !isObject(manifest['dependencies'])) {
+  if (!isObject(manifest) || !isObject(manifest.dependencies)) {
     throw new Error(`${packageName} packed manifest must declare dependencies.`)
   }
 
@@ -241,7 +241,7 @@ export function assertPackedWorkspaceDependencyRanges(
     )
   }
 
-  if (manifest['dependencies'][dependencyName] !== `^${packedDependency.version}`) {
+  if (manifest.dependencies[dependencyName] !== `^${packedDependency.version}`) {
     throw new Error(
       `${packageName} packed manifest must pack ${dependencyName} as a caret range for its packed version.`,
     )

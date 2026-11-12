@@ -88,7 +88,7 @@ async function outputLines(
   }
   lines.push(summaryLine(gateId, steps, durationMs))
   // On Actions the job summary turns them into annotations, and the green log stays one line.
-  if (process.env['GITHUB_ACTIONS'] !== 'true') lines.push(...advisories)
+  if (process.env.GITHUB_ACTIONS !== 'true') lines.push(...advisories)
   return lines
 }
 

@@ -87,15 +87,15 @@ export function advisoryAnnotations(report: unknown) {
   return summaryAdvisories(report).flatMap((line) => {
     const groups = LOCATED_ADVISORY.exec(line)?.groups
     if (groups === undefined) return []
-    const message = (groups['message'] ?? '').replaceAll('%', '%25').replaceAll('\n', '%0A')
-    return [`::notice file=${groups['file']},line=${groups['line']}::${message}`]
+    const message = (groups.message ?? '').replaceAll('%', '%25').replaceAll('\n', '%0A')
+    return [`::notice file=${groups.file},line=${groups.line}::${message}`]
   })
 }
 
 async function main() {
   const report = await readJsonFile(REPORT_FILE)
   const markdown = renderJobSummary(report, await readJsonFile(OUTPUT_TOKENS_FILE))
-  const target = process.env['GITHUB_STEP_SUMMARY']
+  const target = process.env.GITHUB_STEP_SUMMARY
   if (target === undefined || target === '') {
     process.stdout.write(markdown)
     return

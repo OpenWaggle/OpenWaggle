@@ -14,7 +14,7 @@ function trustedSentinel() {}
 const APPENDIX_SENTINEL = 'appendix added to the real Run path'
 
 vi.mock('electron', () => ({
-  app: { getPath: () => process.env['OPENWAGGLE_USER_DATA_DIR'] ?? tmpdir() },
+  app: { getPath: () => process.env.OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
   safeStorage: { isEncryptionAvailable: () => false },
   shell: {},
 }))

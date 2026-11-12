@@ -163,7 +163,7 @@ async function readIfPresent(filePath: string) {
   try {
     return await readFile(filePath, 'utf8')
   } catch (error) {
-    if (isJsonObject(error) && error['code'] === 'ENOENT') return undefined
+    if (isJsonObject(error) && error.code === 'ENOENT') return undefined
     throw error
   }
 }

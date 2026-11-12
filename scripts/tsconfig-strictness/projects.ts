@@ -44,10 +44,10 @@ function toRelative(root: string, file: string) {
 /** The configs a config's `references` name, repository-relative. */
 export function referencedConfigs(config: string, text: string): string[] {
   const parsed = parseJsonc(text)
-  const references = isRecord(parsed) ? parsed['references'] : undefined
+  const references = isRecord(parsed) ? parsed.references : undefined
   if (!Array.isArray(references)) return []
   return references.flatMap((reference: unknown) => {
-    const target = isRecord(reference) ? reference['path'] : undefined
+    const target = isRecord(reference) ? reference.path : undefined
     if (typeof target !== 'string') return []
     const joined = path.posix.normalize(path.posix.join(path.posix.dirname(config), target))
     return [joined.endsWith('.json') ? joined : path.posix.join(joined, ROOT_CONFIG)]
@@ -70,7 +70,7 @@ interface CacheEntry {
 async function readCache(root: string): Promise<CacheEntry[]> {
   try {
     const parsed: unknown = JSON.parse(await readFile(path.join(root, CACHE_FILE), 'utf8'))
-    const entries = isRecord(parsed) ? parsed['entries'] : undefined
+    const entries = isRecord(parsed) ? parsed.entries : undefined
     return Array.isArray(entries) ? entries.filter(isCacheEntry) : []
   } catch {
     return []
@@ -78,7 +78,7 @@ async function readCache(root: string): Promise<CacheEntry[]> {
 }
 
 function isCacheEntry(value: unknown): value is CacheEntry {
-  return isRecord(value) && typeof value['key'] === 'string' && Array.isArray(value['projects'])
+  return isRecord(value) && typeof value.key === 'string' && Array.isArray(value.projects)
 }
 
 async function writeCache(root: string, entries: readonly CacheEntry[]) {

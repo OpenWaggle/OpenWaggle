@@ -62,7 +62,7 @@ function enclosingKeys(lines: readonly string[], index: number) {
     const text = lines[above] ?? ''
     if (text.trim() === '' || indent(text) >= depth) continue
     depth = indent(text)
-    const key = KEY.exec(text)?.groups?.['key']
+    const key = KEY.exec(text)?.groups?.key
     if (key !== undefined) keys.push(key)
   }
   return keys
@@ -71,8 +71,8 @@ function enclosingKeys(lines: readonly string[], index: number) {
 function numbers(text: string, pattern: RegExp) {
   return new Map(
     [...text.matchAll(pattern)].map((match) => [
-      match.groups?.['key'] ?? '',
-      match.groups?.['value'] ?? '',
+      match.groups?.key ?? '',
+      match.groups?.value ?? '',
     ]),
   )
 }

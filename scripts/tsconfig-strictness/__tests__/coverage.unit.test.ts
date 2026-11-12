@@ -6,19 +6,18 @@ import { parseJsonc, referencedConfigs } from '../projects'
 
 describe('strictness ranks', () => {
   it('treats an unset strict as on, as TypeScript 7 does', () => {
-    expect(strictnessRanks({})['strictNullChecks']).toBe(1)
-    expect(strictnessRanks({ strict: false })['strictNullChecks']).toBe(0)
-    expect(strictnessRanks({ strict: false, strictNullChecks: true })['strictNullChecks']).toBe(1)
+    expect(strictnessRanks({}).strictNullChecks).toBe(1)
+    expect(strictnessRanks({ strict: false }).strictNullChecks).toBe(0)
+    expect(strictnessRanks({ strict: false, strictNullChecks: true }).strictNullChecks).toBe(1)
   })
 
   it('ranks allowUnreachableCode false over unset over true, and skipLibCheck on as weaker', () => {
     const ranks = (value: boolean | undefined) =>
-      strictnessRanks(value === undefined ? {} : { allowUnreachableCode: value })[
-        'allowUnreachableCode'
-      ]
+      strictnessRanks(value === undefined ? {} : { allowUnreachableCode: value })
+        .allowUnreachableCode
     expect([ranks(false), ranks(undefined), ranks(true)]).toEqual([2, 1, 0])
-    expect(strictnessRanks({ skipLibCheck: true })['skipLibCheck']).toBe(0)
-    expect(strictnessRanks({ noCheck: true })['noCheck']).toBe(0)
+    expect(strictnessRanks({ skipLibCheck: true }).skipLibCheck).toBe(0)
+    expect(strictnessRanks({ noCheck: true }).noCheck).toBe(0)
   })
 })
 
@@ -27,8 +26,8 @@ describe('coverage', () => {
   const loose = { config: 'b.json', files: ['src/a.ts', 'src/b.ts'], options: {} }
 
   it('gives a file the strictest rank of the projects that check it', () => {
-    expect(coverageOf([strict, loose]).get('src/a.ts')?.['noUnusedLocals']).toBe(1)
-    expect(coverageOf([strict, loose]).get('src/b.ts')?.['noUnusedLocals']).toBe(0)
+    expect(coverageOf([strict, loose]).get('src/a.ts')?.noUnusedLocals).toBe(1)
+    expect(coverageOf([strict, loose]).get('src/b.ts')?.noUnusedLocals).toBe(0)
   })
 
   it('leaves out build outputs and dependencies', () => {

@@ -52,25 +52,25 @@ export function parseAbbreviatedPackument(
   document: unknown,
   name: string,
 ): Record<string, boolean> {
-  if (!isRecord(document) || !isRecord(document['versions'])) {
+  if (!isRecord(document) || !isRecord(document.versions)) {
     throw new Error(`The registry metadata for ${name} has no versions object.`)
   }
   const versions: Record<string, boolean> = {}
-  for (const [version, manifest] of Object.entries(document['versions'])) {
-    const dist = isRecord(manifest) ? manifest['dist'] : undefined
-    const attestations = isRecord(dist) ? dist['attestations'] : undefined
-    versions[version] = isRecord(attestations) && isRecord(attestations['provenance'])
+  for (const [version, manifest] of Object.entries(document.versions)) {
+    const dist = isRecord(manifest) ? manifest.dist : undefined
+    const attestations = isRecord(dist) ? dist.attestations : undefined
+    versions[version] = isRecord(attestations) && isRecord(attestations.provenance)
   }
   return versions
 }
 
 /** The publish times of the full packument, by version. */
 export function parsePublishTimes(document: unknown, name: string): Record<string, string> {
-  if (!isRecord(document) || !isRecord(document['time'])) {
+  if (!isRecord(document) || !isRecord(document.time)) {
     throw new Error(`The registry metadata for ${name} has no time object.`)
   }
   return Object.fromEntries(
-    Object.entries(document['time']).filter(
+    Object.entries(document.time).filter(
       (entry): entry is [string, string] => VERSION.test(entry[0]) && typeof entry[1] === 'string',
     ),
   )

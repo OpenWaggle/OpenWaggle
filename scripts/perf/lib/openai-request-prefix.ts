@@ -15,7 +15,7 @@ function textOf(content: unknown) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
-    .map((part) => (isRecord(part) && typeof part['text'] === 'string' ? part['text'] : ''))
+    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
     .join('\n')
 }
 
@@ -36,13 +36,13 @@ export function systemSections(system: string) {
 }
 
 function toolOf(value: unknown): PrefixTool[] {
-  const fn = isRecord(value) && isRecord(value['function']) ? value['function'] : null
-  if (!fn || typeof fn['name'] !== 'string') return []
+  const fn = isRecord(value) && isRecord(value.function) ? value.function : null
+  if (!fn || typeof fn.name !== 'string') return []
   return [
     {
-      name: fn['name'],
-      description: typeof fn['description'] === 'string' ? fn['description'] : '',
-      parameters: fn['parameters'],
+      name: fn.name,
+      description: typeof fn.description === 'string' ? fn.description : '',
+      parameters: fn.parameters,
     },
   ]
 }
@@ -51,18 +51,18 @@ export function prefixContentOfOpenAiRequest(
   body: Record<string, unknown>,
   prompt: string,
 ): PrefixContent {
-  const messages = Array.isArray(body['messages']) ? body['messages'].filter(isRecord) : []
+  const messages = Array.isArray(body.messages) ? body.messages.filter(isRecord) : []
   const system = messages
-    .filter((message) => message['role'] === 'system' || message['role'] === 'developer')
-    .map((message) => textOf(message['content']))
+    .filter((message) => message.role === 'system' || message.role === 'developer')
+    .map((message) => textOf(message.content))
     .join('\n')
   const runContext = messages
-    .filter((message) => message['role'] === 'user')
-    .map((message) => textOf(message['content']))
+    .filter((message) => message.role === 'user')
+    .map((message) => textOf(message.content))
     .filter((text) => text.length > 0 && text !== prompt)
   return {
     sections: systemSections(system),
-    tools: Array.isArray(body['tools']) ? body['tools'].flatMap(toolOf) : [],
+    tools: Array.isArray(body.tools) ? body.tools.flatMap(toolOf) : [],
     runContext,
   }
 }

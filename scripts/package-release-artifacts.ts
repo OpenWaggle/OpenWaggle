@@ -65,8 +65,8 @@ function packedDependency(
   packedManifest: Readonly<Record<string, unknown>>,
 ) {
   if (plannedPackage.dependency === undefined) return undefined
-  const dependencyRange = isJsonObject(packedManifest['dependencies'])
-    ? packedManifest['dependencies'][plannedPackage.dependency]
+  const dependencyRange = isJsonObject(packedManifest.dependencies)
+    ? packedManifest.dependencies[plannedPackage.dependency]
     : undefined
   if (
     typeof dependencyRange !== 'string' ||

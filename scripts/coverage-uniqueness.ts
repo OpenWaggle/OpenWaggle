@@ -136,7 +136,7 @@ async function downloadIndex() {
 }
 
 async function loadIndex(args: readonly string[]) {
-  const file = option(args, '--index') ?? process.env['COVERAGE_UNIQUENESS_INDEX']
+  const file = option(args, '--index') ?? process.env.COVERAGE_UNIQUENESS_INDEX
   if (file !== undefined) return readIndex(file)
   return readIndex(DEFAULT_INDEX).catch(downloadIndex)
 }
@@ -157,7 +157,7 @@ async function advise(args: readonly string[]) {
   }
   const index = await loadIndex(args).catch((error: unknown) => {
     // CI's Typecheck & Lint job has no token to read the index; the Test advisory workflow does.
-    const tokenless = process.env['GITHUB_ACTIONS'] === 'true' && !process.env['GH_TOKEN']
+    const tokenless = process.env.GITHUB_ACTIONS === 'true' && !process.env.GH_TOKEN
     if (!tokenless) console.log(`${tests.length} new test files not checked: ${errorText(error)}`)
   })
   if (index === undefined) return

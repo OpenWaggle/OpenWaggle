@@ -37,9 +37,9 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 function location(value: unknown): Location | undefined {
-  const start = record(record(value)['start'])
-  const line = start['line']
-  const column = start['column']
+  const start = record(record(value).start)
+  const line = start.line
+  const column = start.column
   return typeof line === 'number' && typeof column === 'number' ? { line, column } : undefined
 }
 
@@ -51,16 +51,16 @@ export function coveredUnits(coverage: unknown, root: string): string[] {
     const file = absolute.startsWith(prefix) ? absolute.slice(prefix.length) : absolute
     if (!SOURCE.test(file) || TEST_CODE.test(file)) continue
     const entry = record(raw)
-    const statementMap = record(entry['statementMap'])
-    for (const [id, hits] of Object.entries(record(entry['s']))) {
+    const statementMap = record(entry.statementMap)
+    for (const [id, hits] of Object.entries(record(entry.s))) {
       const start = location(statementMap[id])
       if (typeof hits === 'number' && hits > 0 && start) {
         units.push(`${file}:${start.line}:${start.column}`)
       }
     }
-    const branchMap = record(entry['branchMap'])
-    for (const [id, arms] of Object.entries(record(entry['b']))) {
-      const start = location(record(branchMap[id])['loc'])
+    const branchMap = record(entry.branchMap)
+    for (const [id, arms] of Object.entries(record(entry.b))) {
+      const start = location(record(branchMap[id]).loc)
       if (!Array.isArray(arms) || !start) continue
       arms.forEach((hits: unknown, arm) => {
         if (typeof hits === 'number' && hits > 0) {
@@ -142,10 +142,10 @@ export function uniqueUnits(index: CoverageIndex, file: string, units: readonly 
 export function isCoverageIndex(value: unknown): value is CoverageIndex {
   const entry = record(value)
   return (
-    entry['version'] === COVERAGE_INDEX_VERSION &&
-    Array.isArray(entry['files']) &&
-    Array.isArray(entry['failed']) &&
-    typeof entry['units'] === 'object' &&
-    entry['units'] !== null
+    entry.version === COVERAGE_INDEX_VERSION &&
+    Array.isArray(entry.files) &&
+    Array.isArray(entry.failed) &&
+    typeof entry.units === 'object' &&
+    entry.units !== null
   )
 }

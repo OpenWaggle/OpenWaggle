@@ -33,14 +33,14 @@ export function releaseAssetRepairPlan(
   tag: string,
   expectedNames: readonly string[],
 ) {
-  if (!isJsonObject(value) || value['tagName'] !== tag || !Array.isArray(value['assets'])) {
+  if (!isJsonObject(value) || value.tagName !== tag || !Array.isArray(value.assets)) {
     throw new Error(`GitHub Release ${tag} does not match its immutable tag and assets.`)
   }
-  const assetNames = value['assets'].map((asset) => {
-    if (!isJsonObject(asset) || typeof asset['name'] !== 'string') {
+  const assetNames = value.assets.map((asset) => {
+    if (!isJsonObject(asset) || typeof asset.name !== 'string') {
       throw new Error(`GitHub Release ${tag} returned an invalid asset.`)
     }
-    return asset['name']
+    return asset.name
   })
   const uniqueNames = new Set(assetNames)
   if (
@@ -56,42 +56,37 @@ export function releaseAssetRepairPlan(
 }
 
 function decodeDependency(value: unknown) {
-  if (
-    !isJsonObject(value) ||
-    typeof value['name'] !== 'string' ||
-    typeof value['version'] !== 'string'
-  ) {
+  if (!isJsonObject(value) || typeof value.name !== 'string' || typeof value.version !== 'string') {
     throw new Error('Package release artifact manifest contains an invalid dependency.')
   }
-  return { name: value['name'], version: value['version'] }
+  return { name: value.name, version: value.version }
 }
 
 function decodeArtifact(value: unknown): PackageReleaseArtifact {
   if (
     !isJsonObject(value) ||
-    typeof value['file'] !== 'string' ||
-    typeof value['integrity'] !== 'string' ||
-    typeof value['key'] !== 'string' ||
-    typeof value['name'] !== 'string' ||
-    typeof value['releaseNotes'] !== 'string' ||
-    typeof value['sha256'] !== 'string' ||
-    typeof value['tag'] !== 'string' ||
-    typeof value['version'] !== 'string'
+    typeof value.file !== 'string' ||
+    typeof value.integrity !== 'string' ||
+    typeof value.key !== 'string' ||
+    typeof value.name !== 'string' ||
+    typeof value.releaseNotes !== 'string' ||
+    typeof value.sha256 !== 'string' ||
+    typeof value.tag !== 'string' ||
+    typeof value.version !== 'string'
   ) {
     throw new Error('Package release artifact manifest contains an invalid package.')
   }
-  const dependency =
-    value['dependency'] === undefined ? undefined : decodeDependency(value['dependency'])
+  const dependency = value.dependency === undefined ? undefined : decodeDependency(value.dependency)
   return {
     ...(dependency === undefined ? {} : { dependency }),
-    file: value['file'],
-    integrity: value['integrity'],
-    key: value['key'],
-    name: value['name'],
-    releaseNotes: value['releaseNotes'],
-    sha256: value['sha256'],
-    tag: value['tag'],
-    version: value['version'],
+    file: value.file,
+    integrity: value.integrity,
+    key: value.key,
+    name: value.name,
+    releaseNotes: value.releaseNotes,
+    sha256: value.sha256,
+    tag: value.tag,
+    version: value.version,
   }
 }
 
@@ -100,18 +95,18 @@ export function decodePackageReleaseArtifactManifest(
 ): PackageReleaseArtifactManifest {
   if (
     !isJsonObject(value) ||
-    value['schemaVersion'] !== 1 ||
-    typeof value['sourceSha'] !== 'string' ||
-    typeof value['sourceTree'] !== 'string' ||
-    !Array.isArray(value['packages'])
+    value.schemaVersion !== 1 ||
+    typeof value.sourceSha !== 'string' ||
+    typeof value.sourceTree !== 'string' ||
+    !Array.isArray(value.packages)
   ) {
     throw new Error('Package release artifact manifest is invalid.')
   }
   return {
-    packages: value['packages'].map(decodeArtifact),
+    packages: value.packages.map(decodeArtifact),
     schemaVersion: 1,
-    sourceSha: value['sourceSha'],
-    sourceTree: value['sourceTree'],
+    sourceSha: value.sourceSha,
+    sourceTree: value.sourceTree,
   }
 }
 
@@ -149,20 +144,20 @@ function isAllowedTarballEntry(entry: string) {
 function validatePackedManifest(value: unknown, artifact: PackageReleaseArtifact) {
   const validPublicManifest =
     isJsonObject(value) &&
-    value['name'] === artifact.name &&
-    value['version'] === artifact.version &&
-    isJsonObject(value['publishConfig']) &&
-    value['publishConfig']['access'] === 'public' &&
-    isJsonObject(value['repository']) &&
-    value['repository']['url'] === 'https://github.com/OpenWaggle/OpenWaggle.git' &&
+    value.name === artifact.name &&
+    value.version === artifact.version &&
+    isJsonObject(value.publishConfig) &&
+    value.publishConfig.access === 'public' &&
+    isJsonObject(value.repository) &&
+    value.repository.url === 'https://github.com/OpenWaggle/OpenWaggle.git' &&
     !JSON.stringify(value).includes('workspace:')
   if (!validPublicManifest) {
     throw new Error(`${artifact.name} packed manifest does not match the public release contract.`)
   }
   if (
     artifact.dependency !== undefined &&
-    (!isJsonObject(value['dependencies']) ||
-      value['dependencies'][artifact.dependency.name] !== `^${artifact.dependency.version}`)
+    (!isJsonObject(value.dependencies) ||
+      value.dependencies[artifact.dependency.name] !== `^${artifact.dependency.version}`)
   ) {
     throw new Error(`${artifact.name} packed dependency does not match the release artifact.`)
   }

@@ -95,17 +95,17 @@ export function createRegistryClient(
 
 export function parseProvenanceCache(text: string): ProvenanceCache {
   const value: unknown = JSON.parse(text)
-  if (!isRecord(value) || !isRecord(value['packages'])) return { packages: {} }
+  if (!isRecord(value) || !isRecord(value.packages)) return { packages: {} }
   const packages: Record<string, PackageProvenance> = {}
-  for (const [name, entry] of Object.entries(value['packages'])) {
-    if (!isRecord(entry) || !isRecord(entry['versions']) || !isRecord(entry['published'])) continue
+  for (const [name, entry] of Object.entries(value.packages)) {
+    if (!isRecord(entry) || !isRecord(entry.versions) || !isRecord(entry.published)) continue
     const versions = Object.fromEntries(
-      Object.entries(entry['versions']).filter(
+      Object.entries(entry.versions).filter(
         (item): item is [string, boolean] => typeof item[1] === 'boolean',
       ),
     )
     const published = Object.fromEntries(
-      Object.entries(entry['published']).filter(
+      Object.entries(entry.published).filter(
         (item): item is [string, string] => typeof item[1] === 'string',
       ),
     )

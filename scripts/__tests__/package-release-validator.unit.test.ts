@@ -131,7 +131,7 @@ describe('package release validation', () => {
       if (!isJsonObject(packageJson)) {
         throw new Error('Expected package fixture to be an object.')
       }
-      const scripts = packageJson['scripts']
+      const scripts = packageJson.scripts
       if (!isJsonObject(scripts)) {
         throw new Error('Expected package fixture scripts to be an object.')
       }

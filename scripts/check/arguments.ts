@@ -70,7 +70,7 @@ const SWITCHES: Readonly<Record<string, (options: Mutable<RunOptions>) => void>>
 }
 
 function initialConcurrency(environment: NodeJS.ProcessEnv) {
-  const fromEnvironment = Number(environment['CHECK_CONCURRENCY'])
+  const fromEnvironment = Number(environment.CHECK_CONCURRENCY)
   return Number.isInteger(fromEnvironment) && fromEnvironment > 0
     ? fromEnvironment
     : defaultConcurrency()

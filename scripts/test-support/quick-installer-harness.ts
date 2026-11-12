@@ -140,7 +140,7 @@ async function reportSavedChannel(paths: HarnessPaths, savedChannel: string) {
 async function runInstaller(paths: HarnessPaths, env: Readonly<Record<string, string>>) {
   const result = await execFileAsync('bash', ['scripts/install.sh', '--no-launch'], {
     env: {
-      PATH: `${paths.stubs}:${process.env['PATH'] ?? ''}`,
+      PATH: `${paths.stubs}:${process.env.PATH ?? ''}`,
       HOME: paths.home,
       TMPDIR: path.join(paths.directory, 'tmp'),
       FAKE_CALLS: path.join(paths.directory, 'calls'),

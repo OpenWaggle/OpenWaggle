@@ -108,7 +108,7 @@ const MACRO_DEFINITION = /^!macro\s+(?<name>\S+)/u
 export function parseDefinedMacros(scriptSource: string): readonly string[] {
   const names: string[] = []
   for (const line of scriptSource.split('\n')) {
-    const name = MACRO_DEFINITION.exec(line.trim())?.groups?.['name']
+    const name = MACRO_DEFINITION.exec(line.trim())?.groups?.name
     if (name !== undefined) names.push(name)
   }
   return names

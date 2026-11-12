@@ -68,14 +68,12 @@ function rank(value: boolean) {
 
 /** The rank of every strictness flag under one project's resolved compiler options. */
 export function strictnessRanks(options: Options): StrictnessRanks {
-  const strict = options['strict'] ?? STRICT_DEFAULT
+  const strict = options.strict ?? STRICT_DEFAULT
   const ranks: Record<string, number> = { strict: rank(strict === true) }
   for (const flag of STRICT_FAMILY) ranks[flag] = rank((options[flag] ?? strict) === true)
   for (const flag of STRICT_WHEN_ON) ranks[flag] = rank(options[flag] === true)
   // On by default since TypeScript 5.
-  ranks['forceConsistentCasingInFileNames'] = rank(
-    options['forceConsistentCasingInFileNames'] !== false,
-  )
+  ranks.forceConsistentCasingInFileNames = rank(options.forceConsistentCasingInFileNames !== false)
   for (const flag of WEAKER_WHEN_ON) ranks[flag] = rank(options[flag] !== true)
   for (const flag of ERROR_WHEN_FALSE) {
     const value = options[flag]

@@ -81,7 +81,7 @@ function githubHeaders(token: string | undefined): Record<string, string> {
 
 function nextPage(link: string | null) {
   for (const part of link?.split(',') ?? []) {
-    const url = NEXT_PAGE_LINK.exec(part)?.groups?.['url']
+    const url = NEXT_PAGE_LINK.exec(part)?.groups?.url
     if (url !== undefined) return url
   }
   return undefined

@@ -176,7 +176,7 @@ QUIT_MAC_APP='${quitMacApp}'
 ${section(source, HOST_STOP_START, HOST_STOP_END)}
 stop_session_host_for_update "$1" 1.0.0-beta.25`
     return execFileAsync('bash', ['-c', script, 'installer-host-stop-test', executable], {
-      env: { PATH: process.env['PATH'] ?? '', TMPDIR: directory },
+      env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
     }).catch(execFailure)
   }
 
