@@ -95,12 +95,12 @@ type AgentEditResult =
       readonly agent: WaggleAgentSlot
     }
 
-function agentEditMenu(ctx: ExtensionContext, agent: WaggleAgentSlot): AgentEditMenu {
+function agentEditMenu(ctx: ExtensionContext, agent: WaggleAgentSlot) {
   const modelBindingLabel = isWaggleInheritedModel(agent.model)
     ? 'Use standard-mode model — active'
     : 'Use standard-mode model — switch from pinned'
 
-  return {
+  const menu: AgentEditMenu = {
     modelBindingLabel,
     options: [
       `Edit label — ${agent.label}`,
@@ -111,6 +111,7 @@ function agentEditMenu(ctx: ExtensionContext, agent: WaggleAgentSlot): AgentEdit
       'Back',
     ],
   }
+  return menu
 }
 
 async function editSelectedAgentField(input: {
@@ -118,9 +119,10 @@ async function editSelectedAgentField(input: {
   readonly agent: WaggleAgentSlot
   readonly selected: string | undefined
   readonly modelBindingLabel: string
-}): Promise<AgentEditResult> {
+}) {
   if (!input.selected || input.selected === 'Back') {
-    return { action: 'done', agent: input.agent }
+    const result: AgentEditResult = { action: 'done', agent: input.agent }
+    return result
   }
 
   if (input.selected.startsWith('Edit label')) {
@@ -129,9 +131,11 @@ async function editSelectedAgentField(input: {
       title: `Agent label for ${input.agent.label}`,
       currentValue: input.agent.label,
     })
-    return label === null
-      ? { action: 'done', agent: input.agent }
-      : { action: 'continue', agent: { ...input.agent, label } }
+    const result: AgentEditResult =
+      label === null
+        ? { action: 'done', agent: input.agent }
+        : { action: 'continue', agent: { ...input.agent, label } }
+    return result
   }
 
   if (input.selected.startsWith('Edit role prompt')) {
@@ -140,39 +144,49 @@ async function editSelectedAgentField(input: {
       title: `Role prompt for ${input.agent.label}`,
       currentValue: input.agent.roleDescription,
     })
-    return roleDescription === null
-      ? { action: 'done', agent: input.agent }
-      : { action: 'continue', agent: { ...input.agent, roleDescription } }
+    const result: AgentEditResult =
+      roleDescription === null
+        ? { action: 'done', agent: input.agent }
+        : { action: 'continue', agent: { ...input.agent, roleDescription } }
+    return result
   }
 
   if (input.selected.startsWith('Change model')) {
-    return {
+    const result: AgentEditResult = {
       action: 'continue',
       agent: {
         ...input.agent,
         model: await editAgentModel({ ctx: input.ctx, agent: input.agent }),
       },
     }
+    return result
   }
 
   if (input.selected === input.modelBindingLabel) {
-    return { action: 'continue', agent: { ...input.agent, model: WAGGLE_INHERIT_MODEL } }
+    const result: AgentEditResult = {
+      action: 'continue',
+      agent: { ...input.agent, model: WAGGLE_INHERIT_MODEL },
+    }
+    return result
   }
 
   if (!input.selected.startsWith('Change color')) {
-    return { action: 'continue', agent: input.agent }
+    const result: AgentEditResult = { action: 'continue', agent: input.agent }
+    return result
   }
 
   const color = await promptColor(input.ctx, input.agent.color)
-  return color === null
-    ? { action: 'done', agent: input.agent }
-    : { action: 'continue', agent: { ...input.agent, color } }
+  const result: AgentEditResult =
+    color === null
+      ? { action: 'done', agent: input.agent }
+      : { action: 'continue', agent: { ...input.agent, color } }
+  return result
 }
 
 export async function editAgentSlot(input: {
   readonly ctx: ExtensionCommandContext
   readonly agent: WaggleAgentSlot
-}): Promise<WaggleAgentSlot> {
+}) {
   if (!input.ctx.hasUI) return input.agent
 
   let agent = input.agent
@@ -194,7 +208,7 @@ export async function editAgentSlot(input: {
 export async function promptAgentSlot(input: {
   readonly ctx: ExtensionCommandContext
   readonly agent: WaggleAgentSlot
-}): Promise<WaggleAgentSlot | null> {
+}) {
   const label = await promptPrefilledText({
     ctx: input.ctx,
     title: `Agent label for ${input.agent.label}`,
@@ -213,5 +227,6 @@ export async function promptAgentSlot(input: {
   const color = await promptColor(input.ctx, input.agent.color)
   if (color === null) return null
 
-  return { ...input.agent, label, roleDescription, model, color } satisfies WaggleAgentSlot
+  const slot: WaggleAgentSlot | null = { ...input.agent, label, roleDescription, model, color }
+  return slot
 }

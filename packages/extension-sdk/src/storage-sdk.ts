@@ -35,8 +35,8 @@ function createStorageScopeSdk(
   invoke: ExtensionSdkInvoke,
   storageKind: ExtensionStorageKind,
   storageScope: ExtensionStorageScopeSelector,
-): ExtensionStorageScopeSdk {
-  return {
+) {
+  const sdk: ExtensionStorageScopeSdk = {
     get: async (scope, key) =>
       toDecodedOperationResult(
         await invoke({
@@ -82,13 +82,11 @@ function createStorageScopeSdk(
         STORAGE_RESULT_ERROR,
       ),
   }
+  return sdk
 }
 
-function createStorageKindSdk(
-  invoke: ExtensionSdkInvoke,
-  storageKind: ExtensionStorageKind,
-): ExtensionPackageStorageKindSdk {
-  return {
+function createStorageKindSdk(invoke: ExtensionSdkInvoke, storageKind: ExtensionStorageKind) {
+  const sdk: ExtensionPackageStorageKindSdk = {
     global: createStorageScopeSdk(
       invoke,
       storageKind,
@@ -100,11 +98,13 @@ function createStorageKindSdk(
       OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND,
     ),
   }
+  return sdk
 }
 
-export function createPackageStorageSdk(invoke: ExtensionSdkInvoke): ExtensionPackageStorageSdk {
-  return {
+export function createPackageStorageSdk(invoke: ExtensionSdkInvoke) {
+  const sdk: ExtensionPackageStorageSdk = {
     packageState: createStorageKindSdk(invoke, OPENWAGGLE_EXTENSION.STORAGE.KIND.STATE),
     packageConfig: createStorageKindSdk(invoke, OPENWAGGLE_EXTENSION.STORAGE.KIND.CONFIG),
   }
+  return sdk
 }

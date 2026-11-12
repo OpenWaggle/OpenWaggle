@@ -32,20 +32,18 @@ function turnMetadata(input: Pick<WaggleRunState, 'config' | 'sessionId'>, turnN
 export function startWaggleRun(input: {
   readonly config: WaggleConfig
   readonly sessionId?: string
-}): WaggleRunState {
-  return {
+}) {
+  const state: WaggleRunState = {
     config: input.config,
     ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     status: 'running',
     currentTurn: turnMetadata(input, INITIAL_TURN_NUMBER),
     completedTurns: [],
   }
+  return state
 }
 
-export function completeWaggleTurn(
-  state: WaggleRunState,
-  completion: WaggleTurnCompletion,
-): WaggleRunState {
+export function completeWaggleTurn(state: WaggleRunState, completion: WaggleTurnCompletion) {
   const completedTurn = state.currentTurn
   const completedTurns = completedTurn
     ? [...state.completedTurns, completedTurn]
@@ -53,16 +51,17 @@ export function completeWaggleTurn(
   const decision = decideNextWaggleTurn(state.config, completion)
 
   if (!decision.continue || !decision.nextTurn) {
-    return {
+    const result: WaggleRunState = {
       ...state,
       status: 'complete',
       currentTurn: null,
       completedTurns,
       ...(decision.reason === undefined ? {} : { stopReason: decision.reason }),
     }
+    return result
   }
 
-  return {
+  const result: WaggleRunState = {
     ...state,
     currentTurn: metadataForWaggleTurn({
       turn: decision.nextTurn,
@@ -71,4 +70,5 @@ export function completeWaggleTurn(
     }),
     completedTurns,
   }
+  return result
 }

@@ -13,7 +13,7 @@ export async function viewAdvancedJson(input: {
   readonly ctx: ExtensionCommandContext
   readonly title: string
   readonly value: EditablePresetDraftJson | WaggleConfig | WagglePreset
-}): Promise<void> {
+}) {
   if (!input.ctx.hasUI) return
   await input.ctx.ui.editor(
     input.title,

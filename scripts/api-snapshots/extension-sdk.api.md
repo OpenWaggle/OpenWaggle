@@ -2953,7 +2953,7 @@ import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTra
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
-export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
+export declare const toInvokeInput: (identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest) => ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 ```
@@ -3993,7 +3993,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeFailure | ExtensionSchemaDecodeSuccess<TValue>;
 export {};
 ```
 
@@ -6472,7 +6472,7 @@ import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTra
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
-export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
+export declare const toInvokeInput: (identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest) => ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 ```
@@ -7526,7 +7526,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeFailure | ExtensionSchemaDecodeSuccess<TValue>;
 export {};
 ```
 
@@ -12272,7 +12272,7 @@ import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTra
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
-export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
+export declare const toInvokeInput: (identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest) => ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 ```
@@ -13326,7 +13326,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeFailure | ExtensionSchemaDecodeSuccess<TValue>;
 export {};
 ```
 
@@ -18548,7 +18548,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeFailure | ExtensionSchemaDecodeSuccess<TValue>;
 export {};
 ```
 
@@ -19463,7 +19463,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeFailure | ExtensionSchemaDecodeSuccess<TValue>;
 export {};
 ```
 
@@ -21650,7 +21650,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeFailure | ExtensionSchemaDecodeSuccess<TValue>;
 export {};
 ```
 
@@ -27620,7 +27620,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeFailure | ExtensionSchemaDecodeSuccess<TValue>;
 export {};
 ```
 

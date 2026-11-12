@@ -20,7 +20,7 @@ const NAMED_KEY_SEQUENCES: Readonly<Record<string, readonly string[]>> = {
 }
 
 /** Terminal sequences a key id may arrive as, legacy and Kitty (CSI u) encodings. */
-function keySequences(keyId: string): readonly string[] {
+function keySequences(keyId: string) {
   const parts = keyId.split('+')
   const key = parts.at(-1) ?? ''
   const modifiers = parts.slice(0, -1)
@@ -29,16 +29,21 @@ function keySequences(keyId: string): readonly string[] {
   if (named) {
     if (bits === 0) return named
     const final = named[0]?.at(-1) ?? ''
-    return [`${ESC}[1;${bits + 1}${final}`]
+    const result: readonly string[] = [`${ESC}[1;${bits + 1}${final}`]
+    return result
   }
-  if (key.length !== 1) return []
+  if (key.length !== 1) {
+    const result: readonly string[] = []
+    return result
+  }
   const sequences = [`${ESC}[${key.codePointAt(0)};${bits + 1}u`]
   if (bits === 0) sequences.push(key)
   if (bits === ALT_BIT) sequences.push(`${ESC}${key}`)
   if (bits === CTRL_BIT && /^[a-z]$/u.test(key)) {
     sequences.push(String.fromCharCode((key.codePointAt(0) ?? 0) & CONTROL_CHARACTER_MASK))
   }
-  return sequences
+  const result: readonly string[] = sequences
+  return result
 }
 
 /** The input that moves Pi's input cursor to the line end, under the user's own keybindings. */
@@ -54,13 +59,14 @@ export async function promptPrefilledText(input: {
   readonly ctx: ExtensionCommandContext
   readonly title: string
   readonly currentValue: string
-}): Promise<string | null> {
+}) {
   if (!input.ctx.hasUI) return input.currentValue
 
   if (typeof input.ctx.ui.custom !== 'function') {
     const next = await input.ctx.ui.input(input.title, input.currentValue)
     if (next === undefined) return null
-    return next.trim() || input.currentValue
+    const result: string | null = next.trim() || input.currentValue
+    return result
   }
 
   const next = await input.ctx.ui.custom<string | null>((_tui, theme, keybindings, done) => {
@@ -111,5 +117,6 @@ export async function promptPrefilledText(input: {
   })
 
   if (next === null) return null
-  return next.trim() || input.currentValue
+  const result: string | null = next.trim() || input.currentValue
+  return result
 }

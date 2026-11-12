@@ -74,7 +74,7 @@ export interface AlertProps {
     readonly role?: 'alert' | 'status' | 'note';
     readonly tone?: OpenWaggleExtensionUiTone;
 }
-export declare function Alert({ children, className, ref, role, tone, }: AlertProps): JSX.Element;
+export declare function Alert({ children, className, ref, role, tone }: AlertProps): JSX.Element;
 export interface FieldProps extends HTMLAttributes<HTMLDivElement> {
     readonly description?: ReactNode;
     readonly error?: ReactNode;

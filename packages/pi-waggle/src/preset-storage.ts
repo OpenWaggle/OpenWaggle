@@ -19,23 +19,27 @@ interface UncheckedPresetsFile {
   readonly hiddenBuiltInPresetIds?: unknown
 }
 
-function presetsFileFields(value: unknown): UncheckedPresetsFile {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : {}
+function presetsFileFields(value: unknown) {
+  const file: UncheckedPresetsFile =
+    typeof value === 'object' && value !== null && !Array.isArray(value) ? value : {}
+  return file
 }
 
-function uniqueStrings(values: readonly string[]): string[] {
+function uniqueStrings(values: readonly string[]) {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right))
 }
 
-function rawPresetValues(value: unknown): readonly unknown[] {
+function rawPresetValues(value: unknown) {
   const { wagglePresets } = presetsFileFields(value)
-  return Array.isArray(wagglePresets) ? wagglePresets : []
+  const result: readonly unknown[] = Array.isArray(wagglePresets) ? wagglePresets : []
+  return result
 }
 
-function rawHiddenBuiltInIds(value: unknown): readonly string[] {
+function rawHiddenBuiltInIds(value: unknown) {
   const { hiddenBuiltInPresetIds } = presetsFileFields(value)
   if (!Array.isArray(hiddenBuiltInPresetIds)) {
-    return []
+    const result: readonly string[] = []
+    return result
   }
 
   const ids: string[] = []
@@ -45,7 +49,7 @@ function rawHiddenBuiltInIds(value: unknown): readonly string[] {
   return ids
 }
 
-function parsePresetValues(rawPresets: readonly unknown[]): WagglePreset[] {
+function parsePresetValues(rawPresets: readonly unknown[]) {
   const presets: WagglePreset[] = []
   for (const rawPreset of rawPresets) {
     const result = parseWagglePreset(rawPreset)
@@ -58,40 +62,40 @@ function parsePresetValues(rawPresets: readonly unknown[]): WagglePreset[] {
 
 export function getPiWaggleUserPresetsPath(
   agentDir: string = join(homedir(), PI_CONFIG_DIR, PI_AGENT_DIR),
-): string {
+) {
   return join(agentDir, WAGGLE_PRESETS_FILE)
 }
 
-export function getPiWaggleProjectPresetsPath(projectPath: string): string {
+export function getPiWaggleProjectPresetsPath(projectPath: string) {
   return join(projectPath, PI_CONFIG_DIR, WAGGLE_PRESETS_FILE)
 }
 
-export async function readPiWagglePresetsFileData(
-  filePath: string,
-): Promise<PiWagglePresetsFileData> {
+export async function readPiWagglePresetsFileData(filePath: string) {
   try {
     const raw = await readFile(filePath, 'utf-8')
     const parsed: unknown = raw.trim().length > 0 ? JSON.parse(raw) : {}
-    return {
+    const data: PiWagglePresetsFileData = {
       wagglePresets: parsePresetValues(rawPresetValues(parsed)),
       hiddenBuiltInPresetIds: uniqueStrings(rawHiddenBuiltInIds(parsed)),
     }
+    return data
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      return { wagglePresets: [], hiddenBuiltInPresetIds: [] }
+      const data: PiWagglePresetsFileData = { wagglePresets: [], hiddenBuiltInPresetIds: [] }
+      return data
     }
     throw error
   }
 }
 
-export async function readPiWagglePresetsFile(filePath: string): Promise<readonly WagglePreset[]> {
+export async function readPiWagglePresetsFile(filePath: string) {
   return (await readPiWagglePresetsFileData(filePath)).wagglePresets
 }
 
 export async function writePiWagglePresetsFileData(
   filePath: string,
   data: PiWagglePresetsFileData,
-): Promise<void> {
+) {
   await mkdir(dirname(filePath), { recursive: true })
   await writeFile(
     filePath,
@@ -107,10 +111,7 @@ export async function writePiWagglePresetsFileData(
   )
 }
 
-export async function writePiWagglePresetsFile(
-  filePath: string,
-  presets: readonly WagglePreset[],
-): Promise<void> {
+export async function writePiWagglePresetsFile(filePath: string, presets: readonly WagglePreset[]) {
   await writePiWagglePresetsFileData(filePath, {
     wagglePresets: presets,
     hiddenBuiltInPresetIds: [],

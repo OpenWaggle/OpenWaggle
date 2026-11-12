@@ -24,10 +24,6 @@ function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning'
 
 type ContextMessage = ContextEvent['messages'][number]
 
-interface ContextResult {
-  readonly messages?: ContextEvent['messages']
-}
-
 function isWaggleDisplayMessage(message: ContextMessage) {
   return (
     message.role === 'custom' &&
@@ -65,7 +61,7 @@ function rewriteLatestUserMessage(input: {
     .reverse()
 }
 
-export default function defaultPiWaggleExtension(pi: ExtensionAPI): void {
+export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
   let activeRun: DefaultPiWaggleRunState | null = null
   const getActiveRun = () => activeRun
   const setActiveRun = (run: DefaultPiWaggleRunState | null) => {
@@ -92,7 +88,7 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI): void {
         startRun: startDefaultWaggleRun,
       }),
   })
-  pi.on('context', (event): ContextResult => {
+  pi.on('context', (event) => {
     const messagesWithoutWaggleDisplay = event.messages.filter(
       (message) => !isWaggleDisplayMessage(message),
     )

@@ -70,13 +70,13 @@ export function buildDefaultTurnMessage(
     turn.agent.model,
     run.inheritedModelReference,
   ),
-): {
-  customType: string
-  content: string
-  display: boolean
-  details: PiWaggleTurnDetails
-} {
-  return {
+) {
+  const result: {
+    customType: string
+    content: string
+    display: boolean
+    details: PiWaggleTurnDetails
+  } = {
     customType: PI_WAGGLE_TURN_CUSTOM_TYPE,
     content: buildWaggleTurnPrompt({
       config: run.config,
@@ -93,6 +93,7 @@ export function buildDefaultTurnMessage(
       agentColor: turn.agent.color,
     }),
   }
+  return result
 }
 
 function continuationPrompt(turn: WaggleTurn) {
@@ -241,8 +242,15 @@ function buildDefaultWaggleRunHandler(input: {
 export function createStartDefaultWaggleRun(input: {
   readonly getActiveRun: () => DefaultPiWaggleRunState | null
   readonly setActiveRun: (run: DefaultPiWaggleRunState | null) => void
-}): StartDefaultPiWaggleRun {
-  return async ({ pi, ctx, config, prompt, images, dispatchPrompt = true }) => {
+}) {
+  const result: StartDefaultPiWaggleRun = async ({
+    pi,
+    ctx,
+    config,
+    prompt,
+    images,
+    dispatchPrompt = true,
+  }) => {
     if (!ctx.model) {
       throw new Error('Select a Pi model before starting Waggle mode.')
     }
@@ -307,4 +315,5 @@ export function createStartDefaultWaggleRun(input: {
       throw error
     }
   }
+  return result
 }
