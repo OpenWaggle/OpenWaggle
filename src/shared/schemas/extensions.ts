@@ -5,7 +5,7 @@ import {
   openWaggleExtensionManifestSchema as publicOpenWaggleExtensionManifestSchema,
 } from '@openwaggle/extension-sdk'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { optionalExact, Schema } from '@shared/schema'
+import { Schema } from '@shared/schema'
 import { extensionRelativePathSchema } from './extension-contributions'
 import { isNonEmptyTrimmed } from './extension-schema-primitives'
 
@@ -49,12 +49,12 @@ export const extensionLifecycleScopeSchema = Schema.Union(
 const extensionViewProjectPathsSchema = Schema.Array(nonEmptyStringSchema)
 
 export const extensionListPackagesInputSchema = Schema.Struct({
-  projectPaths: optionalExact(extensionViewProjectPathsSchema),
+  projectPaths: Schema.optionalWith(extensionViewProjectPathsSchema, { exact: true }),
 })
 
 export const extensionListContributionsInputSchema = Schema.Struct({
-  projectPaths: optionalExact(extensionViewProjectPathsSchema),
-  sessionId: optionalExact(nonEmptyStringSchema),
+  projectPaths: Schema.optionalWith(extensionViewProjectPathsSchema, { exact: true }),
+  sessionId: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
 })
 
 /** What a runtime module request must prove before the Host serves an extension's module. */
@@ -62,18 +62,18 @@ export const extensionRuntimeModuleAccessInputSchema = Schema.Struct({
   packagePath: Schema.String.pipe(Schema.minLength(1)),
   contentHash: Schema.String.pipe(Schema.minLength(1)),
   projectPaths: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
-  sessionId: optionalExact(Schema.String.pipe(Schema.minLength(1))),
+  sessionId: Schema.optionalWith(Schema.String.pipe(Schema.minLength(1)), { exact: true }),
 })
 
 export const extensionPackageWorkflowActorSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal('agent'),
     agentId: nonEmptyStringSchema,
-    sessionId: optionalExact(nonEmptyStringSchema),
+    sessionId: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
   }),
   Schema.Struct({
     kind: Schema.Literal('user'),
-    userId: optionalExact(nonEmptyStringSchema),
+    userId: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
   }),
   Schema.Struct({
     kind: Schema.Literal('extension'),
@@ -104,7 +104,7 @@ export const extensionPackageWorkflowGlobalConfirmationSchema = Schema.Struct({
 const lifecycleTargetFields = {
   extensionId: extensionIdSchema,
   scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: optionalExact(extensionViewProjectPathsSchema),
+  viewProjectPaths: Schema.optionalWith(extensionViewProjectPathsSchema, { exact: true }),
 }
 
 export const extensionLifecycleMutationTargetSchema = Schema.Struct(lifecycleTargetFields)
@@ -118,7 +118,9 @@ const packageWriteFields = {
 
 const approvalFields = {
   userApproval: extensionPackageWorkflowUserApprovalSchema,
-  globalConfirmation: optionalExact(extensionPackageWorkflowGlobalConfirmationSchema),
+  globalConfirmation: Schema.optionalWith(extensionPackageWorkflowGlobalConfirmationSchema, {
+    exact: true,
+  }),
 }
 
 export const extensionProposePackageWriteInputSchema = Schema.Struct(packageWriteFields)

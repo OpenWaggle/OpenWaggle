@@ -54,45 +54,46 @@ export const scheduledTaskInputSchema = Schema.Struct({
   enabled: Schema.Boolean,
   schedule: taskScheduleSchema,
   /** Omitted: the machine's time zone. */
-  timeZone: Schema.optional(timeZoneSchema),
-  endsAt: Schema.optional(endsAtSchema),
-  maxRuns: Schema.optional(maxRunsSchema),
+  timeZone: Schema.optionalWith(timeZoneSchema, { exact: true }),
+  endsAt: Schema.optionalWith(endsAtSchema, { exact: true }),
+  maxRuns: Schema.optionalWith(maxRunsSchema, { exact: true }),
   target: scheduledTaskTargetSchema,
   /** Omitted: failures only for a Heartbeat, every run for a Launch schedule. */
-  notificationPolicy: Schema.optional(notificationPolicySchema),
+  notificationPolicy: Schema.optionalWith(notificationPolicySchema, { exact: true }),
   /** A Heartbeat needs `stopWhen`, `indefinite`, `endsAt` or `maxRuns` (#388). */
-  heartbeat: Schema.optional(heartbeatSettingsInputSchema),
+  heartbeat: Schema.optionalWith(heartbeatSettingsInputSchema, { exact: true }),
 })
 
 /** A partial update; the kind and Heartbeat target Session cannot change. */
 export const scheduledTaskPatchSchema = Schema.Struct({
-  name: Schema.optional(taskNameSchema),
-  prompt: Schema.optional(taskPromptSchema),
-  enabled: Schema.optional(Schema.Boolean),
-  schedule: Schema.optional(taskScheduleSchema),
-  timeZone: Schema.optional(timeZoneSchema),
-  endsAt: Schema.optional(endsAtSchema),
-  maxRuns: Schema.optional(maxRunsSchema),
-  target: Schema.optional(scheduledTaskTargetSchema),
-  notificationPolicy: Schema.optional(notificationPolicySchema),
-  heartbeat: Schema.optional(heartbeatSettingsInputSchema),
+  name: Schema.optionalWith(taskNameSchema, { exact: true }),
+  prompt: Schema.optionalWith(taskPromptSchema, { exact: true }),
+  enabled: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  schedule: Schema.optionalWith(taskScheduleSchema, { exact: true }),
+  timeZone: Schema.optionalWith(timeZoneSchema, { exact: true }),
+  endsAt: Schema.optionalWith(endsAtSchema, { exact: true }),
+  maxRuns: Schema.optionalWith(maxRunsSchema, { exact: true }),
+  target: Schema.optionalWith(scheduledTaskTargetSchema, { exact: true }),
+  notificationPolicy: Schema.optionalWith(notificationPolicySchema, { exact: true }),
+  heartbeat: Schema.optionalWith(heartbeatSettingsInputSchema, { exact: true }),
 })
 
 export const scheduledTasksCommandSchema = Schema.Union(
   Schema.Struct({
     operation: Schema.Literal('list'),
-    projectPath: Schema.optional(sessionInputPathSchema),
-    sessionId: Schema.optional(sessionInputIdSchema),
+    projectPath: Schema.optionalWith(sessionInputPathSchema, { exact: true }),
+    sessionId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
   }),
   Schema.Struct({ operation: Schema.Literal('read'), taskId: sessionInputIdSchema }),
   Schema.Struct({
     operation: Schema.Literal('runs'),
     taskId: sessionInputIdSchema,
-    limit: Schema.optional(
+    limit: Schema.optionalWith(
       Schema.Number.pipe(Schema.int(), Schema.between(1, SCHEDULED_TASK_RUN_PAGE_LIMIT)),
+      { exact: true },
     ),
     /** Runs fired before this time. */
-    before: Schema.optional(timestampSchema),
+    before: Schema.optionalWith(timestampSchema, { exact: true }),
   }),
   Schema.Struct({ operation: Schema.Literal('create'), input: scheduledTaskInputSchema }),
   Schema.Struct({
@@ -113,14 +114,14 @@ export const scheduledTasksCommandSchema = Schema.Union(
     operation: Schema.Literal('report-outcome'),
     runId: sessionInputIdSchema,
     outcome: heartbeatRunOutcomeSchema,
-    note: Schema.optional(heartbeatOutcomeNoteSchema),
+    note: Schema.optionalWith(heartbeatOutcomeNoteSchema, { exact: true }),
   }),
 )
 
 export const scheduledTasksRequestSchema = Schema.Struct({
   contractVersion: Schema.Literal(SCHEDULED_TASKS_CONTRACT_VERSION),
   requestId: sessionInputIdSchema,
-  idempotencyKey: Schema.optional(sessionInputIdSchema),
+  idempotencyKey: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
   command: scheduledTasksCommandSchema,
 })
 
