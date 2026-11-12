@@ -67,6 +67,7 @@ export const sessionResourceNodeIdsSchema = Schema.Array(sessionResourceNodeIdSc
   Schema.maxItems(MAX_TARGET_NODE_IDS),
 )
 
+/** The Session workspace path currently rendered in chat. */
 export const sessionResourceRouteSelectionSchema = Schema.Struct({
   branchId: Schema.NullOr(sessionResourceNodeIdSchema),
   pathNodeIds: sessionResourceNodeIdsSchema,
@@ -88,9 +89,18 @@ export const sessionResourceCatalogPageRequestSchema = Schema.Struct({
   }),
 })
 
-export const sessionResourceKindOrNullSchema = Schema.NullOr(
-  Schema.Literal('image', 'file', 'link', 'tool', 'web-search', 'site', 'commit', 'change-request'),
+export const sessionResourceKindSchema = Schema.Literal(
+  'image',
+  'file',
+  'link',
+  'tool',
+  'web-search',
+  'site',
+  'commit',
+  'change-request',
 )
+
+export const sessionResourceKindOrNullSchema = Schema.NullOr(sessionResourceKindSchema)
 
 export const sessionResourceTargetLimitSchema = Schema.Number.pipe(
   Schema.int(),

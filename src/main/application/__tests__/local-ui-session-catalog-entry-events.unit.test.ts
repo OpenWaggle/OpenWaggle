@@ -1,3 +1,4 @@
+import { SessionNodeId } from '@shared/types/brand'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -76,7 +77,7 @@ describe('Local UI commands that change only a Session’s catalog entry (sessio
       changesOnlySessionCatalogEntry({
         operation: 'update-tree-ui-state',
         sessionId: SESSION,
-        patch: { expandedNodeIds: ['node-1'] },
+        patch: { expandedNodeIds: [SessionNodeId('node-1')] },
       }),
     ).toBe(false)
     expect(
