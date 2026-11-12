@@ -71,6 +71,9 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 - PR workflow: `/pr` opens a draft, `/ready` gets an independent review and marks it ready, and `/babysit` runs as soon as a PR leaves draft (`.agents/skills/{pr,ready,babysit}`). Invoking one approves the commits and pushes it makes on the current branch; never merge.
 - Do not use destructive commands to resolve local conflicts. Ask if unrelated work blocks the task.
 - Prefer additive or isolated changes when another agent is active.
+- Add, remove or upgrade a dependency only with the maintainer's approval; a held pin gets its line in `DEPENDENCIES.md`.
+- A change that makes an ADR, doc, memory topic or skill wrong updates it in the same change.
+- After changing source, run the tests that cover it before the turn ends and leave them passing.
 - Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
 - Legacy agent memory files were removed; durable project memory lives in `.agents/memory/<topic>.md`, indexed by `MEMORY.md`.
 - `docs/agents/` is reserved for the adapted `/setup-matt-pocock-skills` workflow. Do not create those files manually during unrelated work.
