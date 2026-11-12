@@ -183,6 +183,19 @@ const config: DoctorConfig = {
         rules: ['react-doctor/no-json-parse-stringify-clone'],
       },
       {
+        // The test proves a coverage index still validates after a JSON round trip, the way
+        // it is written to and read from disk; structuredClone would skip that serialization.
+        files: ['scripts/coverage-uniqueness/__tests__/coverage-uniqueness.unit.test.ts'],
+        rules: ['react-doctor/no-json-parse-stringify-clone'],
+      },
+      {
+        // The Session embedding model downloads one file at a time: the 118 MB weights would
+        // otherwise share the link with the rest, and progress counts bytes in file order so a
+        // retry resumes from the first file that is not yet verified.
+        files: ['src/main/adapters/session-embedding-model-files.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
         // Every read here draws on one shared byte budget (`remainingBytes`), checked and
         // then decremented per file, so read order decides which file crosses the limit.
         // Reading the kinds concurrently would make the outcome depend on I/O timing.
