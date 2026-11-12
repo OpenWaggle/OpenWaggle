@@ -49,6 +49,13 @@ const config: DoctorConfig = {
         rules: ['react-doctor/async-await-in-loop'],
       },
       {
+        // The workspace environment is read only after the action's invocation resolved:
+        // reading it can finish a pending worktree's setup, which a launch that fails on its
+        // invocation must not do. action-launch-preflight.unit.test checks the order.
+        files: ['src/main/adapters/project-actions/action-launch-preflight.ts'],
+        rules: ['react-doctor/server-sequential-independent-await'],
+      },
+      {
         // The effect clears its recursive timeout and marks in-flight replies disposed.
         // action-run-reconnect.component.test verifies both queued and in-flight teardown.
         // The analyzer misses the timer assignment inside the async poll callback.
