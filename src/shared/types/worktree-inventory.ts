@@ -1,5 +1,8 @@
 import type { SchemaType } from '@shared/schema'
-import type { worktreeArchiveAndRemovePayloadSchema } from '@shared/schemas/worktree-inventory'
+import type {
+  automaticWorktreeRemovalSettingsSchema,
+  worktreeArchiveAndRemovePayloadSchema,
+} from '@shared/schemas/worktree-inventory'
 import type { WorkspacePreparation } from './workspace-preparation'
 import type { WorktreeRemovalBlocker, WorktreeSessionUsage } from './worktree-usage'
 
@@ -14,11 +17,9 @@ export function isAutomaticWorktreeRemovalDays(
 }
 
 /** Automatic worktree removal (CONTEXT.md): off until the user turns it on. */
-export interface AutomaticWorktreeRemovalSettings {
-  readonly enabled: boolean
-  /** How long every Session bound to a worktree has been archived before it is removed. */
-  readonly archivedDays: AutomaticWorktreeRemovalDays
-}
+export type AutomaticWorktreeRemovalSettings = SchemaType<
+  typeof automaticWorktreeRemovalSettingsSchema
+>
 
 export const DEFAULT_AUTOMATIC_WORKTREE_REMOVAL: AutomaticWorktreeRemovalSettings = {
   enabled: false,

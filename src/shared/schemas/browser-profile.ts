@@ -1,5 +1,4 @@
 import { Schema } from '@shared/schema'
-import type { BrowserProfile } from '@shared/types/browser-profile'
 import { BROWSER_PROFILE_KINDS, BROWSER_PROFILE_LIMITS } from '@shared/types/browser-profile'
 
 export function isBrowserProfileId(value: string) {
@@ -28,7 +27,7 @@ export const browserProfileNameSchema = Schema.String.pipe(
   ),
 )
 
-export const browserProfileSchema: Schema.Schema<BrowserProfile> = Schema.Struct({
+export const browserProfileSchema = Schema.Struct({
   id: browserProfileIdSchema,
   name: browserProfileNameSchema,
   kind: Schema.Literal(...BROWSER_PROFILE_KINDS),
