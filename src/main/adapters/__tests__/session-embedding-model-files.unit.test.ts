@@ -50,7 +50,9 @@ function modelHost(override: Partial<Record<string, Buffer | Error>> = {}) {
     const file = url.slice(url.indexOf(`/resolve/${REVISION}/`) + `/resolve/${REVISION}/`.length)
     const body = override[file] ?? SERVED[file]
     if (body instanceof Error) throw body
-    return body === undefined ? new Response(null, { status: 404 }) : new Response(body)
+    return body === undefined
+      ? new Response(null, { status: 404 })
+      : new Response(new Uint8Array(body))
   }
   return { fetch, requested }
 }
