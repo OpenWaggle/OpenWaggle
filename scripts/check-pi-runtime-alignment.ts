@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { z } from 'zod'
+import { Schema } from 'effect'
 import { EXPECTED_PATCH_PATHS } from './pi-runtime-patch-paths'
 import { releaseAgeExclusionProblems } from './pi-runtime-release-age'
 import {
@@ -56,15 +56,15 @@ function packageRef(packageName: string) {
   return `@earendil-works/${packageName}`
 }
 
-const dependencyMapSchema = z.record(z.string(), z.string())
-const packageManifestSchema = z.object({
-  dependencies: dependencyMapSchema.optional(),
-  devDependencies: dependencyMapSchema.optional(),
+const dependencyMapSchema = Schema.Record({ key: Schema.String, value: Schema.String })
+const packageManifestSchema = Schema.Struct({
+  dependencies: Schema.optional(dependencyMapSchema),
+  devDependencies: Schema.optional(dependencyMapSchema),
 })
 
 function manifestDependencies(manifestText: string, field: 'dependencies' | 'devDependencies') {
   const manifest: unknown = JSON.parse(manifestText)
-  const dependencies = packageManifestSchema.parse(manifest)[field]
+  const dependencies = Schema.decodeUnknownSync(packageManifestSchema)(manifest)[field]
   if (!dependencies) throw new Error(`Package manifest is missing ${field}.`)
   return dependencies
 }

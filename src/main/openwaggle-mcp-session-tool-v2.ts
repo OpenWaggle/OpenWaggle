@@ -39,7 +39,6 @@ export {
   buildMcpSessionPayloadV2,
   type SessionToolInputV2,
   sessionInputSchemaForGrantsV2,
-  sessionInputSchemaV2,
 } from './openwaggle-mcp-session-input-v2'
 
 function requireGrant(

@@ -1,7 +1,8 @@
 import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
 import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
 import { describe, expect, it } from 'vitest'
-import { sessionInputSchemaV2 } from '../openwaggle-mcp-session-tool-v2'
+
+import { acceptsSessionInput } from './openwaggle-mcp-session-input.test-support'
 
 function values(prefix: string, count: number) {
   return Array.from({ length: count }, (_, index) => `${prefix}-${String(index)}`)
@@ -15,31 +16,23 @@ describe('OpenWaggle MCP collaboration collection boundaries', () => {
       workerReference,
       message: 'Status.',
     })
-    expect(
-      sessionInputSchemaV2.safeParse(input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH)))
-        .success,
-    ).toBe(true)
-    expect(
-      sessionInputSchemaV2.safeParse(input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH + 1)))
-        .success,
-    ).toBe(false)
+    expect(acceptsSessionInput(input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH)))).toBe(true)
+    expect(acceptsSessionInput(input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH + 1)))).toBe(
+      false,
+    )
   })
 
   it('bounds unique report targets at the shared collaboration limit', () => {
     const sessionIds = values('session', SESSION_COLLABORATION_COLLECTION_LIMIT)
     const base = { operation: 'report', reportTarget: 'sessions', message: 'Status.' }
-    expect(sessionInputSchemaV2.safeParse({ ...base, targetSessionIds: sessionIds }).success).toBe(
-      true,
-    )
+    expect(acceptsSessionInput({ ...base, targetSessionIds: sessionIds })).toBe(true)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         ...base,
         targetSessionIds: [...sessionIds, 'one-too-many'],
-      }).success,
+      }),
     ).toBe(false)
-    expect(
-      sessionInputSchemaV2.safeParse({ ...base, targetSessionIds: ['same', 'same'] }).success,
-    ).toBe(false)
+    expect(acceptsSessionInput({ ...base, targetSessionIds: ['same', 'same'] })).toBe(false)
   })
 
   it('rejects oversized and duplicate evidence and claims', () => {
@@ -59,13 +52,9 @@ describe('OpenWaggle MCP collaboration collection boundaries', () => {
       },
       { input: { operation: 'delegation-claim', claims }, field: 'claims', items: claims },
     ] as const) {
-      expect(sessionInputSchemaV2.safeParse(input).success).toBe(true)
-      expect(
-        sessionInputSchemaV2.safeParse({ ...input, [field]: [...items, items[0]] }).success,
-      ).toBe(false)
-      expect(
-        sessionInputSchemaV2.safeParse({ ...input, [field]: [items[0], items[0]] }).success,
-      ).toBe(false)
+      expect(acceptsSessionInput(input)).toBe(true)
+      expect(acceptsSessionInput({ ...input, [field]: [...items, items[0]] })).toBe(false)
+      expect(acceptsSessionInput({ ...input, [field]: [items[0], items[0]] })).toBe(false)
     }
   })
 
@@ -81,10 +70,10 @@ describe('OpenWaggle MCP collaboration collection boundaries', () => {
       resourceReferences: [],
     }
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'delegation-amend',
         delegationSpecification: specification,
-      }).success,
+      }),
     ).toBe(false)
   })
 
@@ -99,21 +88,21 @@ describe('OpenWaggle MCP collaboration collection boundaries', () => {
         resourceReferences: [],
       },
     }
-    expect(sessionInputSchemaV2.safeParse(base).success).toBe(true)
+    expect(acceptsSessionInput(base)).toBe(true)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         ...base,
         revisedSpecification: {
           ...base.revisedSpecification,
           deliverables: [...deliverables, 'one-too-many'],
         },
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         ...base,
         revisedSpecification: { ...base.revisedSpecification, deliverables: ['same', 'same'] },
-      }).success,
+      }),
     ).toBe(false)
   })
 })

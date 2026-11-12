@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
-import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from '../openwaggle-mcp-session-input-v2'
+import { buildMcpSessionPayloadV2 } from '../openwaggle-mcp-session-input-v2'
 import { buildSessionsCliPayload } from '../sessions-cli'
+import {
+  acceptsSessionInput,
+  decodeSessionInput,
+} from './openwaggle-mcp-session-input.test-support'
 
 const SNAPSHOT_MANIFEST = {
   schemaVersion: 1 as const,
@@ -81,7 +85,7 @@ describe('Session export adapters', () => {
   })
 
   it('maps strict MCP export continuation from the immutable first-page manifest', () => {
-    const input = sessionInputSchemaV2.parse({
+    const input = decodeSessionInput({
       operation: 'export',
       sessionId: 'worker',
       limit: 100,
@@ -173,7 +177,7 @@ describe('Session export adapters', () => {
   it.each(['exports-list', 'exports-read', 'exports-wait'] as const)(
     'maps explicit queue-body access through the public MCP %s schema',
     (operation) => {
-      const input = sessionInputSchemaV2.parse({
+      const input = decodeSessionInput({
         operation,
         sessionId: 'worker',
         ...(operation === 'exports-list' ? {} : { exportOperationId: 'export-1' }),
@@ -196,18 +200,18 @@ describe('Session export adapters', () => {
     'rejects queue-body access on unrelated MCP %s inputs',
     (operation) => {
       expect(
-        sessionInputSchemaV2.safeParse({
+        acceptsSessionInput({
           operation,
           sessionId: 'worker',
           exportOperationId: 'export-1',
           includeQueueBodies: true,
-        }).success,
+        }),
       ).toBe(false)
     },
   )
 
   it('maps an explicit MCP export-history read after strict parsing', () => {
-    const input = sessionInputSchemaV2.parse({
+    const input = decodeSessionInput({
       operation: 'exports-read',
       sessionId: 'worker',
       exportOperationId: 'export-1',

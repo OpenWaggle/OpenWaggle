@@ -7,8 +7,21 @@ import type {
 } from '@shared/types/agent-definition'
 import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import { formatParseError } from '@shared/schema'
+import { Either, Schema } from 'effect'
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
-import { z } from 'zod'
+import {
+  boundedArray,
+  boundedString,
+  check,
+  enumeration,
+  integer,
+  literal,
+  optional,
+  patternString,
+  trimmedString,
+  uriString,
+} from '../json-schema-primitives'
 import { isAgentDefinitionName } from './agent-definition-name'
 
 const MAX_DOCUMENT_BYTES = 128 * 1024
@@ -17,26 +30,34 @@ const MAX_LIST_ITEMS = 128
 const MAX_DESCRIPTION_CHARACTERS = 500
 const MAX_MODEL_ID_CHARACTERS = 200
 
+const agentName = Schema.String.pipe(
+  check(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
+)
+const description = trimmedString({ min: 1, max: MAX_DESCRIPTION_CHARACTERS })
+const modelId = trimmedString({ min: 1, max: MAX_MODEL_ID_CHARACTERS })
+const nameList = boundedArray(trimmedString({ min: 1 }), MAX_LIST_ITEMS)
+const sha256Digest = patternString(/^[a-f0-9]{64}$/)
+const nonEmptyString = boundedString({ min: 1 })
+
 /** Agent definition v1 frontmatter. The published JSON Schema is checked against it in tests. */
-export const agentDefinitionFrontmatterSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  $schema: z.url().exactOptional(),
-  name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
-  description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
-  model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).exactOptional(),
-  reasoning: z.enum(THINKING_LEVELS).exactOptional(),
-  tools: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).exactOptional(),
-  skills: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).exactOptional(),
-  mcpServers: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).exactOptional(),
-  sessionCapabilities: z
-    .array(z.enum(SESSION_CAPABILITIES))
-    .max(SESSION_CAPABILITIES.length)
-    .exactOptional(),
-  authorizationMode: z.enum(AGENT_AUTHORIZATION_MODES).exactOptional(),
-  workspace: z.enum(['share-parent', 'local', 'new-worktree']).exactOptional(),
-  import: z
-    .strictObject({
-      sourceTool: z.enum([
+export const agentDefinitionFrontmatterSchema = Schema.Struct({
+  schemaVersion: literal(1),
+  $schema: optional(uriString),
+  name: agentName,
+  description,
+  model: optional(modelId),
+  reasoning: optional(enumeration(...THINKING_LEVELS)),
+  tools: optional(nameList),
+  skills: optional(nameList),
+  mcpServers: optional(nameList),
+  sessionCapabilities: optional(
+    boundedArray(enumeration(...SESSION_CAPABILITIES), SESSION_CAPABILITIES.length),
+  ),
+  authorizationMode: optional(enumeration(...AGENT_AUTHORIZATION_MODES)),
+  workspace: optional(enumeration('share-parent', 'local', 'new-worktree')),
+  import: optional(
+    Schema.Struct({
+      sourceTool: enumeration(
         'openwaggle',
         'codex',
         'claude-code',
@@ -44,30 +65,43 @@ export const agentDefinitionFrontmatterSchema = z.strictObject({
         'gemini-cli',
         'github-copilot',
         'opencode',
-      ]),
-      sourcePath: z.string().min(1),
-      sourceName: z.string().min(1).exactOptional(),
-      sourceDigest: z.string().regex(/^[a-f0-9]{64}$/),
-      importerVersion: z.literal(1),
-      baselineDigest: z.string().regex(/^[a-f0-9]{64}$/),
-      importedAt: z.number().int().nonnegative(),
-    })
-    .exactOptional(),
+      ),
+      sourcePath: nonEmptyString,
+      sourceName: optional(nonEmptyString),
+      sourceDigest: sha256Digest,
+      importerVersion: literal(1),
+      baselineDigest: sha256Digest,
+      importedAt: integer({ min: 0 }),
+    }),
+  ),
 })
 
-const piFrontmatterSchema = z.strictObject({
-  name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
-  description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
-  model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).optional(),
-  tools: z.union([z.string(), z.array(z.string())]).optional(),
+const piFrontmatterSchema = Schema.Struct({
+  name: agentName,
+  description,
+  model: Schema.optional(modelId),
+  tools: Schema.optional(Schema.Union(Schema.String, Schema.Array(Schema.String))),
 })
 
-const resolvedSnapshotSchema = agentDefinitionFrontmatterSchema.extend({
-  instructions: z.string().trim().min(1).max(MAX_INSTRUCTION_BYTES),
-  scope: z.enum(['project', 'portable-project', 'user']),
-  sourcePath: z.string().min(1),
-  contentDigest: z.string().regex(/^[a-f0-9]{64}$/),
+const resolvedSnapshotSchema = Schema.Struct({
+  ...agentDefinitionFrontmatterSchema.fields,
+  instructions: trimmedString({ min: 1, max: MAX_INSTRUCTION_BYTES }),
+  scope: enumeration('project', 'portable-project', 'user'),
+  sourcePath: nonEmptyString,
+  contentDigest: sha256Digest,
 })
+
+/** Decodes like the published schema: an undeclared key is refused, every issue named by path. */
+function decodeFrontmatter<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
+  const decoded = Schema.decodeUnknownEither(schema, {
+    errors: 'all',
+    onExcessProperty: 'error',
+  })(value)
+  if (Either.isLeft(decoded)) {
+    throw new Error(`Invalid Agent definition: ${formatParseError(decoded.left).join('; ')}`)
+  }
+  return decoded.right
+}
 
 function assertStandardYamlTag(node: object) {
   const tag = typeof node === 'object' && 'tag' in node ? node.tag : undefined
@@ -141,11 +175,11 @@ export function parseAgentDefinition(markdown: string): AgentDefinitionDocument 
   assertJsonCompatibleYaml(document.contents)
   const raw: unknown = document.toJS({ maxAliasCount: 0 })
   if (raw && typeof raw === 'object' && 'schemaVersion' in raw) {
-    const parsed = agentDefinitionFrontmatterSchema.parse(raw)
+    const parsed = decodeFrontmatter(agentDefinitionFrontmatterSchema, raw)
     return { ...parsed, instructions }
   }
 
-  const pi = piFrontmatterSchema.parse(raw)
+  const pi = decodeFrontmatter(piFrontmatterSchema, raw)
   const rawTools = Array.isArray(pi.tools)
     ? pi.tools
     : typeof pi.tools === 'string'
@@ -194,5 +228,5 @@ export function resolvedAgentDefinitionSnapshot(
 }
 
 export function parseResolvedAgentDefinitionSnapshot(value: unknown) {
-  return resolvedSnapshotSchema.parse(value) satisfies ResolvedAgentDefinitionSnapshot
+  return decodeFrontmatter(resolvedSnapshotSchema, value) satisfies ResolvedAgentDefinitionSnapshot
 }
