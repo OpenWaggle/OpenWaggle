@@ -1,15 +1,12 @@
 import { Schema } from '@shared/schema'
-import {
-  AUTOMATIC_WORKTREE_REMOVAL_DAY_OPTIONS,
-  type AutomaticWorktreeRemovalSettings,
-} from '@shared/types/worktree-inventory'
+import { AUTOMATIC_WORKTREE_REMOVAL_DAY_OPTIONS } from '@shared/types/worktree-inventory'
 
 /** The saved Automatic worktree removal setting; any other archive age is refused. */
-export const automaticWorktreeRemovalSettingsSchema: Schema.Schema<AutomaticWorktreeRemovalSettings> =
-  Schema.Struct({
-    enabled: Schema.Boolean,
-    archivedDays: Schema.Literal(...AUTOMATIC_WORKTREE_REMOVAL_DAY_OPTIONS),
-  })
+export const automaticWorktreeRemovalSettingsSchema = Schema.Struct({
+  enabled: Schema.Boolean,
+  /** How long every Session bound to a worktree has been archived before it is removed. */
+  archivedDays: Schema.Literal(...AUTOMATIC_WORKTREE_REMOVAL_DAY_OPTIONS),
+})
 
 const MAX_WORKTREE_PATH_LENGTH = 4096
 

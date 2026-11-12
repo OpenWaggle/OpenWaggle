@@ -1,49 +1,20 @@
-import type { PiSessionContinuationChoice } from '../pi-session-continuation'
-import { DEFAULT_SESSION_TITLE_MODEL, type SessionTitleModelSetting } from '../session-title-model'
-import {
-  type AgentAuthorizationMode,
-  DEFAULT_AGENT_AUTHORIZATION_MODE,
-} from './agent-authorization'
-import {
-  type AppearancePreferences,
-  DEFAULT_APPEARANCE_PREFERENCES,
-} from './appearance-preferences'
+import type { SchemaType } from '@shared/schema'
+import type { settingsSchema } from '@shared/schemas/settings'
+import { DEFAULT_SESSION_TITLE_MODEL } from '../session-title-model'
+import { DEFAULT_AGENT_AUTHORIZATION_MODE } from './agent-authorization'
+import { DEFAULT_APPEARANCE_PREFERENCES } from './appearance-preferences'
 import { SupportedModelId } from './brand'
 import {
-  type BrowserPreviewAppearance,
-  type BrowserPreviewRecordingFrameRate,
-  type BrowserPreviewViewport,
-  type BrowserPreviewZoomFactor,
   DEFAULT_BROWSER_PREVIEW_AUTO_SHOW_FLOATING,
   DEFAULT_BROWSER_PREVIEW_INITIAL_CONTROLS,
   DEFAULT_BROWSER_PREVIEW_RECORDING_FRAME_RATE,
 } from './browser-preview-controls'
-import type { BrowserProfile } from './browser-profile'
 import { DEFAULT_BROWSER_PROFILE_ID } from './browser-profile'
-import type { SourceControlProviderId } from './change-request'
-import {
-  DEFAULT_DESKTOP_NOTIFICATION_SETTINGS,
-  type DesktopNotificationSettings,
-} from './desktop-notification'
-import type { SessionEnvironmentMode } from './git'
-import {
-  DEFAULT_SHORTCUT_RULES,
-  type ExtensionPanelShortcutBindings,
-  type ShortcutBindings,
-  type ShortcutRules,
-  shortcutBindingsFromRules,
-} from './shortcuts'
-import type {
-  ChangeRequestOpenDestination,
-  SourceControlHostChoice,
-  SourceControlProjectDeclarationRecord,
-} from './source-control'
-import { DEFAULT_SYNTAX_THEME_SELECTIONS, type SyntaxThemeSelections } from './syntax'
-import { DEFAULT_UPDATE_CHANNEL, type UpdateChannel } from './update-channel'
-import {
-  type AutomaticWorktreeRemovalSettings,
-  DEFAULT_AUTOMATIC_WORKTREE_REMOVAL,
-} from './worktree-inventory'
+import { DEFAULT_DESKTOP_NOTIFICATION_SETTINGS } from './desktop-notification'
+import { DEFAULT_SHORTCUT_RULES, shortcutBindingsFromRules } from './shortcuts'
+import { DEFAULT_SYNTAX_THEME_SELECTIONS } from './syntax'
+import { DEFAULT_UPDATE_CHANNEL } from './update-channel'
+import { DEFAULT_AUTOMATIC_WORKTREE_REMOVAL } from './worktree-inventory'
 
 export type Provider = string
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
@@ -100,128 +71,8 @@ export const COMPACTION_MAX_THRESHOLD_TOKENS = 400_000
 export const PI_CACHE_WARMING_MODES = ['off', 'streaming', 'idle'] as const
 export type PiCacheWarmingMode = (typeof PI_CACHE_WARMING_MODES)[number]
 
-export interface Settings {
-  readonly selectedModel: SupportedModelId
-  readonly favoriteModels: readonly SupportedModelId[]
-  /** User-curated canonical Pi model refs ("provider/modelId") shown in the composer picker. */
-  readonly enabledModels: readonly SupportedModelId[]
-  readonly projectPath: string | null
-  /** Release channel followed by both desktop and CLI update checks. */
-  readonly updateChannel: UpdateChannel
-  /** Whether this install sends anonymous Usage statistics and error reports (ADR 0046). */
-  readonly usageStatisticsEnabled: boolean
-  /** Automatic worktree removal (ADR 0060): off by default, app-wide. */
-  readonly automaticWorktreeRemoval: AutomaticWorktreeRemovalSettings
-  /** Settings → Notifications (ADR 0062): on by default, app-wide. */
-  readonly desktopNotifications: DesktopNotificationSettings
-  readonly recentProjects: readonly string[]
-  readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
-  /** Named Agent definitions are enabled by default; false disables that name for one project. */
-  readonly agentDefinitionTogglesByProject: Readonly<
-    Record<string, Readonly<Record<string, boolean>>>
-  >
-  readonly projectDisplayNames: Readonly<Record<string, string>>
-  /** Per-project selected model refs. Stored in the app DB, never in the repo's project settings file. An empty value is a tombstone: the user explicitly cleared the override. */
-  readonly selectedModelsByProject: Readonly<Record<string, string>>
-  /** Aliased project paths recorded before canonicalization: alias -> canonical target. Lets removals resolve identities after the aliased path stops existing. */
-  readonly projectPathAliases: Readonly<Record<string, string>>
-  /** Canonical ordered built-in command rules. Later active rules win. */
-  readonly shortcutRules: ShortcutRules
-  /** Derived compatibility view for surfaces that display one representative binding. */
-  readonly shortcutBindings: ShortcutBindings
-  /** User shortcuts for extension side panels keyed by stable Right panel surface id (ADR 0043). */
-  readonly extensionPanelShortcutBindings: ExtensionPanelShortcutBindings
-  /** Default Session environment mode applied to new sessions (ADR 0010). */
-  readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
-  /** Default authorization mode applied to new sessions unless a project default overrides it. */
-  readonly defaultAuthorizationMode: AgentAuthorizationMode
-  /** Syntax theme for diff code text (ADR 0016). */
-  readonly diffSyntaxTheme: DiffSyntaxTheme
-  /** Syntax theme selection for every present and future app appearance variant. */
-  readonly syntaxThemeSelections: SyntaxThemeSelections
-  /** Diff view layout: unified or split. */
-  readonly diffView: DiffView
-  /** Wrap long diff lines instead of scrolling horizontally. */
-  readonly diffWrapLines: boolean
-  /** Keep the Panel rail on the window's right edge while the Right panel is closed (ADR 0043). */
-  readonly rightPanelRailVisibleWhenClosed: boolean
-  /** Default maximum number of active direct Worker Runs for one parent Session. */
-  readonly sessionHostParentConcurrencyLimit: number
-  /** Optional project-specific parent concurrency limits keyed by canonical project path. */
-  readonly sessionHostParentConcurrencyLimitsByProject: Readonly<Record<string, number>>
-  /**
-   * App-global maximum number of active Runs of agents' work: every Run of a Worker or of a root
-   * agents created, launched or forked, and an agent's Run in a Session the person made. The
-   * person's Runs in Sessions the person made never count toward it, and a Run the person starts
-   * is never refused by it.
-   */
-  readonly sessionHostRunCeiling: number
-  /** How long an idle Session Host remains alive after its final liveness owner disappears. */
-  readonly sessionHostIdleGracePeriodMs: number
-  /** Whether OpenWaggle-hosted agents receive launch and spawn operations by default. */
-  readonly multiAgentEnabled: boolean
-  /** Optional project overrides for model-initiated launch and spawn capability. */
-  readonly multiAgentEnabledByProject: Readonly<Record<string, boolean>>
-  /**
-   * The Pi continuation choice this person remembered per project (ADR 0051); a project without
-   * one asks. Kept in the app's own settings, never in a project's settings file.
-   */
-  readonly piSessionContinuationByProject: Readonly<Record<string, PiSessionContinuationChoice>>
-  /** Default destination for http(s) links opened from Session surfaces. */
-  readonly browserLinkTarget: BrowserLinkTarget
-  /** User-created persistent browser profiles; built-ins are resolved at runtime. */
-  readonly browserProfiles: readonly BrowserProfile[]
-  /** Storage profile used when opening a new in-app browser tab. */
-  readonly browserDefaultProfileId: string
-  /** Viewport applied before a new browser guest paints. */
-  readonly browserDefaultViewport: BrowserPreviewViewport
-  /** Page zoom applied before a new browser guest paints. */
-  readonly browserDefaultZoomFactor: BrowserPreviewZoomFactor
-  /** Preferred colour scheme applied before a new browser guest paints. */
-  readonly browserDefaultAppearance: BrowserPreviewAppearance
-  /** Capture rate for user and agent preview recordings. */
-  readonly browserRecordingFrameRate: BrowserPreviewRecordingFrameRate
-  /** Whether an agent-opened preview appears in the floating chat player by default. */
-  readonly browserAutoShowFloatingPreview: boolean
-  /** Whether Pi sessions receive the collaborative browser tools and instructions. */
-  readonly enableAgentBrowserAccess: boolean
-  /** Context-window usage percentage at which Pi automatically compacts. */
-  readonly compactionThresholdPercent: number
-  /** Whether every Session offers Pi's codemode tool, which runs scripts that call several tools. */
-  readonly codemodeEnabled: boolean
-  /** When Pi keeps provider prompt caches warm (Pi's `cacheWarming`). */
-  readonly cacheWarming: PiCacheWarmingMode
-  /**
-   * Which of the settings above the user chose in OpenWaggle. The others follow the user's own Pi
-   * settings, read again for each Run, and fall back to OpenWaggle's defaults. Read-only.
-   */
-  readonly piRuntimeSettingsChosen: {
-    readonly codemodeEnabled: boolean
-    readonly cacheWarming: boolean
-  }
-  /** Title model: Automatic, Off, or the model that generates Session titles. */
-  readonly sessionTitleModel: SessionTitleModelSetting
-  /** User overrides layered above the active Appearance package defaults. */
-  readonly appearancePreferences: AppearancePreferences
-  /** User-wide Change request open destination; null means the user never chose one. */
-  readonly changeRequestOpenDestination: ChangeRequestOpenDestination | null
-  /** Private per-project Change request open destination overrides, keyed by project path. */
-  readonly changeRequestOpenDestinationByProject: Readonly<
-    Record<string, ChangeRequestOpenDestination>
-  >
-  /** The user's own provider choice per Source control host (lowercase hostname). */
-  readonly sourceControlHostProviders: Readonly<Record<string, SourceControlHostChoice>>
-  /** Providers learned from a remote's change-request refs, cached per host. */
-  readonly sourceControlDetectedHostProviders: Readonly<Record<string, SourceControlProviderId>>
-  /** Provider account login that can see each repository (`host/owner/repo`). */
-  readonly sourceControlRepositoryAccounts: Readonly<Record<string, string>>
-  /** Repository holding a fork's change requests (`host/owner/repo` → `host/owner/repo`). */
-  readonly sourceControlChangeRequestRepositories: Readonly<Record<string, string>>
-  /** The user's local decision on each project's shared host declarations. */
-  readonly sourceControlProjectDeclarations: Readonly<
-    Record<string, SourceControlProjectDeclarationRecord>
-  >
-}
+/** Every setting, as the settings service resolves it: inferred from `settingsSchema`. */
+export type Settings = SchemaType<typeof settingsSchema>
 
 export const DEFAULT_SETTINGS: Settings = {
   selectedModel: DEFAULT_MODEL_REF,
