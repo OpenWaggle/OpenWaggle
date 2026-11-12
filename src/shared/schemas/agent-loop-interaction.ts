@@ -74,8 +74,6 @@ export const agentLoopResponseInputSchema = Schema.Struct({
 })
 
 /** The decoded input is already the service input; kept so the IPC handler's call still reads. */
-export function toAgentLoopResponseInput(
-  input: AgentLoopInteractionResponseInput,
-): AgentLoopInteractionResponseInput {
+export function toAgentLoopResponseInput(input: AgentLoopInteractionResponseInput) {
   return input
 }

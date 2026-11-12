@@ -132,12 +132,12 @@ function applyRules(text: string, rules: readonly TextRule[]) {
 }
 
 /** Replaces home directories and temporary and scratch folders in `text`. */
-export function scrubErrorReportPaths(text: string): string {
+export function scrubErrorReportPaths(text: string) {
   return applyRules(text, PATH_RULES)
 }
 
 /** Every text rule: paths first, then UUIDs and long hex runs. */
-export function scrubErrorReportText(text: string): string {
+export function scrubErrorReportText(text: string) {
   return applyRules(scrubErrorReportPaths(text), IDENTIFIER_RULES)
 }
 
@@ -145,16 +145,20 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\/]/gu, String.raw`\$&`)
 }
 
-function knownDirectoryRule(directory: string | undefined, replacement: string): TextRule[] {
+function knownDirectoryRule(directory: string | undefined, replacement: string) {
   const trimmed = directory?.trim().replace(/[\\/]+$/u, '') ?? ''
-  if (trimmed.length < MIN_KNOWN_DIRECTORY_LENGTH) return []
+  if (trimmed.length < MIN_KNOWN_DIRECTORY_LENGTH) {
+    const rule: TextRule[] = []
+    return rule
+  }
   const windows = /^[a-z]:[\\/]/iu.test(trimmed) || trimmed.includes('\\')
   const pattern = trimmed
     .split(/[\\/]+/u)
     .map(escapeRegExp)
     .join(windows ? SEPARATOR : String.raw`\/+`)
   // Case-insensitive: Windows and default macOS volumes treat `/users/Bob` as the same folder.
-  return [[new RegExp(`${pattern}${KNOWN_DIRECTORY_END}`, 'giu'), replacement]]
+  const rule: TextRule[] = [[new RegExp(`${pattern}${KNOWN_DIRECTORY_END}`, 'giu'), replacement]]
+  return rule
 }
 
 export interface ErrorReportKnownDirectories {
@@ -176,19 +180,19 @@ function knownDirectoryRules(known: ErrorReportKnownDirectories) {
  * Every text rule, after replacing the directories this machine is known to use. The app knows
  * them; the endpoint does not, and applies {@link scrubErrorReportText} alone.
  */
-export function createErrorReportTextScrubber(
-  known: ErrorReportKnownDirectories = {},
-): (text: string) => string {
+export function createErrorReportTextScrubber(known: ErrorReportKnownDirectories = {}) {
   const knownRules = knownDirectoryRules(known)
-  return (text) => scrubErrorReportText(applyRules(text, knownRules))
+  const result: (text: string) => string = (text) =>
+    scrubErrorReportText(applyRules(text, knownRules))
+  return result
 }
 
 /** The path rules alone, after the known directories, for fields that keep their identifiers. */
-export function createErrorReportPathScrubber(
-  known: ErrorReportKnownDirectories = {},
-): (text: string) => string {
+export function createErrorReportPathScrubber(known: ErrorReportKnownDirectories = {}) {
   const knownRules = knownDirectoryRules(known)
-  return (text) => scrubErrorReportPaths(applyRules(text, knownRules))
+  const result: (text: string) => string = (text) =>
+    scrubErrorReportPaths(applyRules(text, knownRules))
+  return result
 }
 
 /** Event fields Sentry needs verbatim: the event id and the release that groups reports. */
@@ -240,20 +244,23 @@ function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
-function exceptionValues(event: unknown): readonly unknown[] {
+function exceptionValues(event: unknown) {
   const exception = isObject(event) && 'exception' in event ? event.exception : undefined
   const values = isObject(exception) && 'values' in exception ? exception.values : undefined
-  return Array.isArray(values) ? values : []
+  const result: readonly unknown[] = Array.isArray(values) ? values : []
+  return result
 }
 
-function handledFlag(exception: unknown): unknown {
+function handledFlag(exception: unknown) {
   const mechanism =
     isObject(exception) && 'mechanism' in exception ? exception.mechanism : undefined
-  return isObject(mechanism) && 'handled' in mechanism ? mechanism.handled : undefined
+  const result: unknown =
+    isObject(mechanism) && 'handled' in mechanism ? mechanism.handled : undefined
+  return result
 }
 
 /** Whether nothing handled the error, such as an uncaught exception or unhandled rejection. */
-export function hasUnhandledErrorReportException(event: unknown): boolean {
+export function hasUnhandledErrorReportException(event: unknown) {
   return exceptionValues(event).some((exception) => handledFlag(exception) === false)
 }
 
@@ -263,11 +270,12 @@ export function hasUnhandledErrorReportException(event: unknown): boolean {
  * thrown error is the last exception. Crashes and tool or provider errors can quote user
  * content, so they keep only their error type and a code.
  */
-export function keepsErrorReportMessageText(event: unknown): boolean {
+export function keepsErrorReportMessageText(event: unknown) {
   const tags = isObject(event) && 'tags' in event ? event.tags : undefined
   if (!isObject(tags) || Reflect.get(tags, ERROR_REPORT_ORIGIN_TAG) !== 'application') return false
   if (hasUnhandledErrorReportException(event)) return false
-  return handledFlag(exceptionValues(event).at(-1)) === true
+  const result: boolean = handledFlag(exceptionValues(event).at(-1)) === true
+  return result
 }
 
 /** A Node.js error code such as `ENOENT` or `ERR_STREAM_PREMATURE_CLOSE`. */
@@ -277,7 +285,7 @@ export const HTTP_ERROR_CODE_PATTERN = /^http-\d{3}$/u
 const LEADING_NODE_ERROR_CODE_PATTERN = /^(?<code>E[A-Z0-9]{2,31}|ERR_[A-Z0-9_]{2,60})(?!\w)/u
 
 /** The Node.js error code a message starts with, as in `ENOENT: no such file or directory`. */
-export function leadingNodeErrorCode(text: string): string | undefined {
+export function leadingNodeErrorCode(text: string) {
   return namedGroups(LEADING_NODE_ERROR_CODE_PATTERN.exec(text), ['code'])?.code
 }
 

@@ -22,9 +22,8 @@ import { classifyErrorMessage, isAgentErrorCode } from '../domain/error-classifi
 import { isRecord } from '../utils/validation'
 import {
   ERROR_REPORT_ORIGIN_TAG,
-  type ErrorReportOrigin,
-  type ErrorReportTaggedOrigin,
   isErrorReportOrigin,
+  type ErrorReportTaggedOrigin,
 } from './error-report-constants'
 import {
   createErrorReportPathScrubber,
@@ -152,7 +151,7 @@ export function scrubStringsInPlace(
   scrub: (text: string) => string,
   seen = new WeakSet<object>(),
   verbatimKeys: ReadonlySet<string> = new Set(),
-): void {
+) {
   if (typeof value !== 'object' || value === null || seen.has(value)) return
   seen.add(value)
   if (isUnknownArray(value)) {
@@ -175,7 +174,7 @@ function isErrorReportCode(text: string) {
  * already is a code, OpenWaggle's error classification of the message, the error's own Node.js
  * error code or HTTP status, the Node.js error code the message starts with, or `unknown`.
  */
-export function errorReportCode(message: string | undefined, error?: unknown): string {
+export function errorReportCode(message: string | undefined, error?: unknown) {
   if (message !== undefined && isErrorReportCode(message)) return message
   const classified = message ? classifyErrorMessage(message).code : UNKNOWN_ERROR_CODE
   if (classified !== UNKNOWN_ERROR_CODE) return classified
@@ -205,7 +204,7 @@ function looksLikeProviderFailure(event: ErrorReportEvent) {
   )
 }
 
-function taggedOrigin(event: ErrorReportEvent): ErrorReportOrigin | undefined {
+function taggedOrigin(event: ErrorReportEvent) {
   const tagged = event.tags?.[ERROR_REPORT_ORIGIN_TAG]
   return isErrorReportOrigin(tagged) ? tagged : undefined
 }
@@ -216,12 +215,16 @@ function taggedOrigin(event: ErrorReportEvent): ErrorReportOrigin | undefined {
  * classification or the error class marks a failed provider request, else the `application`
  * origin its reporter tagged. An error reported without an origin has none.
  */
-export function errorReportOrigin(event: ErrorReportEvent): ErrorReportTaggedOrigin | undefined {
-  if (hasUnhandledErrorReportException(event)) return 'unhandled'
+export function errorReportOrigin(event: ErrorReportEvent) {
+  if (hasUnhandledErrorReportException(event)) return 'unhandled' as const
   const tagged = taggedOrigin(event)
-  if (tagged === 'tool-execution' || tagged === 'provider-response') return tagged
-  if (looksLikeProviderFailure(event)) return 'provider-response'
-  return tagged
+  if (tagged === 'tool-execution' || tagged === 'provider-response') {
+    const origin: ErrorReportTaggedOrigin | undefined = tagged
+    return origin
+  }
+  if (looksLikeProviderFailure(event)) return 'provider-response' as const
+  const origin: ErrorReportTaggedOrigin | undefined = tagged
+  return origin
 }
 
 function dropMessageText(event: ErrorReportEvent, originalException: unknown) {
@@ -299,7 +302,7 @@ function scrubText(event: ErrorReportEvent, options: ErrorReportScrubOptions) {
 export function scrubErrorReportEvent(
   event: ErrorReportEvent,
   options: ErrorReportScrubOptions = {},
-): void {
+) {
   for (const key of ERROR_REPORT_DROPPED_EVENT_KEYS) Reflect.deleteProperty(event, key)
   if (event.extra) delete event.extra[SERIALIZED_THROWN_VALUE_KEY]
   scrubCodeLocations(event)

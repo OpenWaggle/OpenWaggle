@@ -1,18 +1,14 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { createExtensionBrokerSdk, type ExtensionBrokerTransport } from '@shared/extension-sdk'
-import type {
-  ExtensionCapabilityAuditEntry,
-  ExtensionInvokeInput,
-  ExtensionInvokeResult,
-} from '@shared/types/extension-broker'
+import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import { describe, expect, it, vi } from 'vitest'
 
 const PROJECT_SCOPE = { kind: 'project', projectPath: '/tmp/project' } as const
 const APP_SCOPE = { kind: 'app' } as const
 const TIMESTAMP = 1234
 
-function auditFor(input: ExtensionInvokeInput): ExtensionCapabilityAuditEntry {
+function auditFor(input: ExtensionInvokeInput) {
   return {
     extensionId: input.extensionId,
     contributionId: input.contributionId,
@@ -24,7 +20,7 @@ function auditFor(input: ExtensionInvokeInput): ExtensionCapabilityAuditEntry {
   }
 }
 
-function storageTransportResult(input: ExtensionInvokeInput): ExtensionInvokeResult {
+function storageTransportResult(input: ExtensionInvokeInput) {
   const audit = auditFor(input)
 
   if (input.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.GET) {
@@ -44,7 +40,7 @@ function storageTransportResult(input: ExtensionInvokeInput): ExtensionInvokeRes
         value: { enabled: true },
       },
       audit,
-    }
+    } satisfies ExtensionInvokeResult
   }
 
   return {
@@ -65,7 +61,7 @@ function storageTransportResult(input: ExtensionInvokeInput): ExtensionInvokeRes
       updatedAt: TIMESTAMP,
     },
     audit,
-  }
+  } satisfies ExtensionInvokeResult
 }
 
 describe('createExtensionBrokerSdk storage helpers', () => {

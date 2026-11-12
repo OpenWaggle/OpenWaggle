@@ -31,7 +31,7 @@ export type WaggleAgentColor = CoreWaggleAgentColor
 export type WaggleStopCondition = CoreWaggleStopCondition
 export type WaggleModelBinding = typeof WAGGLE_INHERIT_MODEL | SupportedModelIdType
 
-export function createWaggleModelBinding(model: string): WaggleModelBinding {
+export function createWaggleModelBinding(model: string) {
   return model === WAGGLE_INHERIT_MODEL ? WAGGLE_INHERIT_MODEL : SupportedModelId(model)
 }
 

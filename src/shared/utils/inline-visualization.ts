@@ -51,11 +51,11 @@ const decodeReferenceJson = Schema.decodeUnknownOption(referenceJsonSchema, {
   onExcessProperty: 'error',
 })
 
-export function parseInlineVisualizationReference(
-  value: string,
-): InlineVisualizationReference | null {
+export function parseInlineVisualizationReference(value: string) {
   const reference = decodeReferenceJson(value)
-  return reference._tag === 'Some' ? reference.value : null
+  const result: InlineVisualizationReference | null =
+    reference._tag === 'Some' ? reference.value : null
+  return result
 }
 
 export interface InlineVisualizationReferenceMatch {
@@ -68,30 +68,33 @@ export type NextVisualizationReferenceMatch =
   | ({ readonly kind: 'complete' } & InlineVisualizationReferenceMatch)
   | { readonly kind: 'unterminated'; readonly start: number }
 
-function findNextDelimitedReferenceMatch(
-  text: string,
-  from: number,
-): NextVisualizationReferenceMatch | null {
+function findNextDelimitedReferenceMatch(text: string, from: number) {
   let offset = from
   while (offset < text.length) {
     const start = text.indexOf(VISUALIZE_REFERENCE_START, offset)
     if (start === -1) return null
     const payloadStart = start + VISUALIZE_REFERENCE_START.length
     const end = text.indexOf(VISUALIZE_REFERENCE_END, payloadStart)
-    if (end === -1) return { kind: 'unterminated', start }
+    if (end === -1) {
+      const match: NextVisualizationReferenceMatch | null = { kind: 'unterminated', start }
+      return match
+    }
     const reference = parseInlineVisualizationReference(text.slice(payloadStart, end))
     if (reference) {
-      return { kind: 'complete', start, end: end + VISUALIZE_REFERENCE_END.length, reference }
+      const match: NextVisualizationReferenceMatch | null = {
+        kind: 'complete',
+        start,
+        end: end + VISUALIZE_REFERENCE_END.length,
+        reference,
+      }
+      return match
     }
     offset = end + VISUALIZE_REFERENCE_END.length
   }
   return null
 }
 
-function findNextBareReferenceMatch(
-  text: string,
-  from: number,
-): InlineVisualizationReferenceMatch | null {
+function findNextBareReferenceMatch(text: string, from: number) {
   let searchFrom = from
   while (searchFrom < text.length) {
     const candidate = text.indexOf(BARE_REFERENCE_PREFIX, searchFrom)
@@ -105,25 +108,37 @@ function findNextBareReferenceMatch(
       const end = lineEnd === -1 ? text.length : lineEnd
       const payload = BARE_REFERENCE_PATTERN.exec(text.slice(lineStart, end).trim())?.[1]
       const reference = payload ? parseInlineVisualizationReference(payload) : null
-      if (reference) return { start: lineStart, end, reference }
+      if (reference) {
+        const match: InlineVisualizationReferenceMatch | null = { start: lineStart, end, reference }
+        return match
+      }
     }
     searchFrom = candidate + 1
   }
   return null
 }
 
-export function findNextVisualizationReferenceMatch(
-  text: string,
-  from: number,
-): NextVisualizationReferenceMatch | null {
+export function findNextVisualizationReferenceMatch(text: string, from: number) {
   const delimited = findNextDelimitedReferenceMatch(text, from)
   const bare = findNextBareReferenceMatch(text, from)
-  if (!delimited) return bare ? { kind: 'complete', ...bare } : null
-  if (delimited.kind === 'unterminated') {
-    return !bare || bare.start >= delimited.start ? delimited : { kind: 'complete', ...bare }
+  if (!delimited) {
+    const match: NextVisualizationReferenceMatch | null = bare
+      ? { kind: 'complete', ...bare }
+      : null
+    return match
   }
-  if (!bare) return delimited
-  return bare.start < delimited.start ? { kind: 'complete', ...bare } : delimited
+  if (delimited.kind === 'unterminated') {
+    const match: NextVisualizationReferenceMatch | null =
+      !bare || bare.start >= delimited.start ? delimited : { kind: 'complete', ...bare }
+    return match
+  }
+  if (!bare) {
+    const match: NextVisualizationReferenceMatch | null = delimited
+    return match
+  }
+  const match: NextVisualizationReferenceMatch | null =
+    bare.start < delimited.start ? { kind: 'complete', ...bare } : delimited
+  return match
 }
 
 export function containsInlineVisualizationReference(text: string) {
@@ -142,10 +157,13 @@ const decodeContentParts = Schema.decodeUnknownOption(
 )
 const isTextPart = Schema.is(Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }))
 
-function readContentTextParts(text: string): string[] | null {
+function readContentTextParts(text: string) {
   const content = decodeContentParts(text)
   if (content._tag === 'None') return null
-  return content.value.parts.flatMap((part) => (isTextPart(part) ? [part.text] : []))
+  const result: string[] | null = content.value.parts.flatMap((part) =>
+    isTextPart(part) ? [part.text] : [],
+  )
+  return result
 }
 
 /** Withholds a trailing, not-yet-parseable reference while streaming so partial markers or JSON never flash. */

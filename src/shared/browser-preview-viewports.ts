@@ -40,7 +40,7 @@ export const BROWSER_PREVIEW_VIEWPORT_PRESETS: readonly BrowserPreviewViewportPr
 export function browserPreviewPresetViewport(
   presetId: BrowserPreviewViewportPresetId,
   orientation: 'portrait' | 'landscape' = 'portrait',
-): BrowserPreviewFixedViewport {
+) {
   const preset = BROWSER_PREVIEW_VIEWPORT_PRESETS.find((candidate) => candidate.id === presetId)
   if (preset === undefined) throw new Error(`Unknown browser preview preset: ${presetId}`)
   const nativePortrait = preset.height >= preset.width
@@ -50,10 +50,10 @@ export function browserPreviewPresetViewport(
     width: shouldRotate ? preset.height : preset.width,
     height: shouldRotate ? preset.width : preset.height,
     presetId,
-  }
+  } satisfies BrowserPreviewFixedViewport
 }
 
-export function isValidBrowserPreviewViewportSize(width: number, height: number): boolean {
+export function isValidBrowserPreviewViewportSize(width: number, height: number) {
   return (
     Number.isInteger(width) &&
     Number.isInteger(height) &&
@@ -65,8 +65,6 @@ export function isValidBrowserPreviewViewportSize(width: number, height: number)
   )
 }
 
-export function rotateBrowserPreviewViewport(
-  viewport: BrowserPreviewFixedViewport,
-): BrowserPreviewFixedViewport {
+export function rotateBrowserPreviewViewport(viewport: BrowserPreviewFixedViewport) {
   return { ...viewport, width: viewport.height, height: viewport.width }
 }

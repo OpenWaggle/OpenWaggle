@@ -7,11 +7,11 @@ import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
  * Self-contained by design: counts +/- hunk lines and ignores the +++/--- file
  * headers, so it needs no git invocation and no diff library.
  */
-export function parseTurnDiffFilesFromUnifiedDiff(diff: string): TurnDiffFileSummary[] {
+export function parseTurnDiffFilesFromUnifiedDiff(diff: string) {
   const normalized = diff.replace(/\r\n/g, '\n').trim()
-  if (normalized.length === 0) return []
-
   const files: TurnDiffFileSummary[] = []
+  if (normalized.length === 0) return files
+
   const chunks = normalized.split(/^diff --git /m).filter((chunk) => chunk.trim().length > 0)
 
   for (const chunk of chunks) {
@@ -19,14 +19,17 @@ export function parseTurnDiffFilesFromUnifiedDiff(diff: string): TurnDiffFileSum
     if (summary) files.push(summary)
   }
 
-  return files.toSorted((left, right) => left.path.localeCompare(right.path))
+  const sorted: TurnDiffFileSummary[] = files.toSorted((left, right) =>
+    left.path.localeCompare(right.path),
+  )
+  return sorted
 }
 
-export function sumInsertions(files: readonly TurnDiffFileSummary[]): number {
+export function sumInsertions(files: readonly TurnDiffFileSummary[]) {
   return files.reduce((total, file) => total + file.additions, 0)
 }
 
-export function sumDeletions(files: readonly TurnDiffFileSummary[]): number {
+export function sumDeletions(files: readonly TurnDiffFileSummary[]) {
   return files.reduce((total, file) => total + file.deletions, 0)
 }
 
@@ -34,11 +37,11 @@ export function sumDeletions(files: readonly TurnDiffFileSummary[]): number {
  * Split a unified diff into per-file GitFileDiff entries (path + that file's
  * diff block + counts), so a Turn diff can render in the file-oriented panel.
  */
-export function splitUnifiedDiffIntoFileDiffs(diff: string): GitFileDiff[] {
+export function splitUnifiedDiffIntoFileDiffs(diff: string) {
   const normalized = diff.replace(/\r\n/g, '\n').trim()
-  if (normalized.length === 0) return []
-
   const files: GitFileDiff[] = []
+  if (normalized.length === 0) return files
+
   const chunks = normalized.split(/^diff --git /m).filter((chunk) => chunk.trim().length > 0)
   for (const chunk of chunks) {
     const summary = summarizeChunk(chunk)
@@ -51,10 +54,11 @@ export function splitUnifiedDiffIntoFileDiffs(diff: string): GitFileDiff[] {
       })
     }
   }
-  return files.toSorted((left, right) => left.path.localeCompare(right.path))
+  const sorted: GitFileDiff[] = files.toSorted((left, right) => left.path.localeCompare(right.path))
+  return sorted
 }
 
-function summarizeChunk(chunk: string): TurnDiffFileSummary | null {
+function summarizeChunk(chunk: string) {
   const lines = chunk.split('\n')
   const path = resolveChunkPath(lines)
   if (!path) return null
@@ -68,7 +72,7 @@ function summarizeChunk(chunk: string): TurnDiffFileSummary | null {
   return { path, additions, deletions }
 }
 
-function resolveChunkPath(lines: readonly string[]): string | null {
+function resolveChunkPath(lines: readonly string[]) {
   for (const line of lines) {
     const added = /^\+\+\+ b\/(.+)$/.exec(line)
     if (added?.[1] && added[1] !== '/dev/null') return added[1]

@@ -48,7 +48,7 @@ export function isWorkspaceExternalEditorId(value: string): value is WorkspaceEx
   return WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS.some((editor) => editor.id === value)
 }
 
-export function workspaceExternalEditorLabel(editorId: WorkspaceExternalEditorId): string {
+export function workspaceExternalEditorLabel(editorId: WorkspaceExternalEditorId) {
   return (
     WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS.find((editor) => editor.id === editorId)?.label ??
     'External editor'

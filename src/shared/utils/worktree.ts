@@ -5,7 +5,7 @@ import type { SessionSummary } from '../types/session'
  * Pure display helper for Session worktree paths, shared between the main
  * process worktree service and the renderer worktree surface (ADR 0010).
  */
-export function formatWorktreePathForDisplay(worktreePath: string): string {
+export function formatWorktreePathForDisplay(worktreePath: string) {
   const trimmed = worktreePath.trim()
   if (!trimmed) return worktreePath
   const normalized = trimmed.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -27,7 +27,7 @@ export function formatWorktreePathForDisplay(worktreePath: string): string {
 export function resolveSessionWorkingDir(
   session: Pick<SessionSummary, 'environmentMode' | 'worktreePath'> | null,
   openedProjectPath: string | null,
-): WorkingPath | null {
+) {
   if (session?.environmentMode === 'worktree' && session.worktreePath) {
     return WorkingPath(session.worktreePath)
   }
@@ -53,7 +53,7 @@ const LEGACY_SESSION_WORKTREE_SHORT_ID_LENGTH = 8
 export const SESSION_WORKTREE_BRANCH_PREFIX = 'ow/session-'
 
 /** Branch for an already-derived worktree id, whatever scheme produced it. */
-export function sessionWorktreeBranchForId(worktreeId: string): string {
+export function sessionWorktreeBranchForId(worktreeId: string) {
   return `${SESSION_WORKTREE_BRANCH_PREFIX}${worktreeId}`
 }
 
@@ -73,7 +73,7 @@ export function sessionWorktreeBranchForId(worktreeId: string): string {
  * session unable to run or - if the first session's worktree had been removed while its
  * branch survived - silently attached the second session to the first session's commits.
  */
-export function sessionWorktreeBranch(sessionId: string): string {
+export function sessionWorktreeBranch(sessionId: string) {
   return sessionWorktreeBranchForId(sessionId)
 }
 
@@ -84,6 +84,6 @@ export function sessionWorktreeBranch(sessionId: string): string {
  * of their id, and that branch may carry commits. Recreation checks for it so those commits
  * are reattached instead of stranded; nothing should ever *create* this name.
  */
-export function legacySessionWorktreeBranch(sessionId: string): string {
+export function legacySessionWorktreeBranch(sessionId: string) {
   return sessionWorktreeBranchForId(sessionId.slice(0, LEGACY_SESSION_WORKTREE_SHORT_ID_LENGTH))
 }

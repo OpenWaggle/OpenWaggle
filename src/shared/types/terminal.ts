@@ -192,7 +192,7 @@ export type TerminalCloseAssessment =
       readonly ports: readonly number[]
     }
 
-export function terminalKeyOf(ownerKey: TerminalOwnerKey, terminalId: TerminalId): TerminalKey {
+export function terminalKeyOf(ownerKey: TerminalOwnerKey, terminalId: TerminalId) {
   if (terminalId.includes(TERMINAL_KEY_SEPARATOR)) {
     throw new Error(`Terminal ids cannot contain "${TERMINAL_KEY_SEPARATOR}".`)
   }

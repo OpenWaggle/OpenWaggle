@@ -127,13 +127,14 @@ export const PUBLIC_SOURCE_CONTROL_HOSTS: Readonly<Record<string, SourceControlP
 }
 
 /** github.com, gitlab.com, and GitHub Enterprise Cloud data-residency hosts (`*.ghe.com`). */
-export function publicSourceControlProvider(host: string): SourceControlProviderId | undefined {
+export function publicSourceControlProvider(host: string) {
   const key = sourceControlHostKey(host)
-  return PUBLIC_SOURCE_CONTROL_HOSTS[key] ?? (key.endsWith('.ghe.com') ? 'github' : undefined)
+  return (PUBLIC_SOURCE_CONTROL_HOSTS[key] ??
+    (key.endsWith('.ghe.com') ? 'github' : undefined)) satisfies SourceControlProviderId | undefined
 }
 
-export function sourceControlCliForProvider(provider: SourceControlProviderId): SourceControlCli {
-  return provider === 'github' ? 'gh' : 'glab'
+export function sourceControlCliForProvider(provider: SourceControlProviderId) {
+  return provider === 'github' ? ('gh' as const) : ('glab' as const)
 }
 
 /**

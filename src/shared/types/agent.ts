@@ -184,7 +184,7 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
   return part.type === 'tool-call'
 }
 
-export function getMessageText(message: Message): string {
+export function getMessageText(message: Message) {
   return message.parts.reduce((text, part) => (isTextPart(part) ? text + part.text : text), '')
 }
 

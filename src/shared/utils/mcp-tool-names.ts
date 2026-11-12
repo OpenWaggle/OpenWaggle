@@ -17,14 +17,8 @@ export const LEGACY_MCP_GATEWAY_TOOL_NAMES = ['mcp', 'mcp_run'] as const
 const MCP_TOOL_PREFIX = 'mcp__'
 const MCP_NAME_SEPARATOR = '__'
 
-interface McpToolName {
-  /** The server's Pi namespace without the `mcp__` prefix, such as `chrome_devtools`. */
-  readonly server: string
-  readonly tool: string
-}
-
 /** Splits `mcp__<namespace>__<tool>` at the first `__` after the prefix. Null for anything else. */
-export function parseMcpToolName(name: string): McpToolName | null {
+export function parseMcpToolName(name: string) {
   if (!name.startsWith(MCP_TOOL_PREFIX)) return null
   const separator = name.indexOf(MCP_NAME_SEPARATOR, MCP_TOOL_PREFIX.length)
   if (separator <= MCP_TOOL_PREFIX.length) return null

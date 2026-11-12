@@ -45,6 +45,6 @@ function jsonValue(value: unknown, ancestors: Set<object>): HostUiJsonValue {
   }
 }
 
-export function toHostUiJsonValue(value: unknown): HostUiJsonValue {
+export function toHostUiJsonValue(value: unknown) {
   return jsonValue(value, new Set())
 }

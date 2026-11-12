@@ -8,7 +8,7 @@
 export function namedGroups<const TName extends string>(
   match: RegExpMatchArray | RegExpExecArray | null | undefined,
   names: readonly TName[],
-): Partial<Record<TName, string>> | null {
+) {
   const groups = match?.groups
   if (groups === undefined) return null
   const captured: Partial<Record<TName, string>> = {}

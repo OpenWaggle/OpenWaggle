@@ -1,5 +1,4 @@
 export type {
-  OpenWaggleExtensionColorScheme,
   OpenWaggleExtensionTheme,
   OpenWaggleExtensionThemeCssVariables,
   OpenWaggleExtensionThemeTokens,

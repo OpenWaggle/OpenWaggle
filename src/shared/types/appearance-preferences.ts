@@ -41,7 +41,7 @@ export type AppearanceTerminalPalettePreferences = SchemaType<
 >
 
 /** Accepts CSS hex colours and canonicalizes short/upper-case forms for persistence. */
-export function normalizeTerminalPaletteColor(value: unknown): string | null {
+export function normalizeTerminalPaletteColor(value: unknown) {
   if (typeof value !== 'string') return null
   const normalized = value.trim().toLowerCase()
   if (!TERMINAL_PALETTE_COLOR_PATTERN.test(normalized)) return null

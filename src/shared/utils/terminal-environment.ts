@@ -50,10 +50,11 @@ export interface ProjectActionContextEnvironment {
   readonly OPENWAGGLE_WORKTREE_PATH?: string
 }
 
-export function normalizeTerminalEnvironment(
-  environment: Readonly<Record<string, string>> = {},
-): Readonly<Record<string, string>> {
-  return Object.fromEntries(Object.entries(environment).sort(compareEnvironmentNames))
+export function normalizeTerminalEnvironment(environment: Readonly<Record<string, string>> = {}) {
+  const readonly: Readonly<Record<string, string>> = Object.fromEntries(
+    Object.entries(environment).sort(compareEnvironmentNames),
+  )
+  return readonly
 }
 
 export function terminalEnvironmentsEqual(
