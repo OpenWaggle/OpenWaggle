@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Thu, 12 Nov 2026 01:36:36 +0100
+Subject: [PATCH] launcher: hand the forwarded arguments to the app's Worker
+
+Patch 0006 runs main.js with the launcher's arguments, but main.js starts
+the app in a Bun Worker, and a Worker's process.argv holds only the
+runtime and its script unless the Worker is given the rest. The app
+never saw a protocol link or a command it was launched with.
+
+main.js now passes its arguments after the script to the Worker.
+---
+ package/src/launcher/main.ts | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/package/src/launcher/main.ts b/package/src/launcher/main.ts
+index 5394af5f..1daf8914 100644
+--- a/package/src/launcher/main.ts
++++ b/package/src/launcher/main.ts
+@@ -251,6 +251,9 @@ ${fileData.toString("utf8")}
+ 	process.on("SIGTERM", () => {});
+ 
+ 	new Worker(appEntrypointPath, {
++		// A Bun Worker sees only the runtime and its script in process.argv unless it is handed
++		// the rest: the arguments the launcher forwarded to main.js (forwarded_args.zig).
++		argv: process.argv.slice(2),
+ 		// consider adding a preload with error handling
+ 		// preload: [''];
+ 	});

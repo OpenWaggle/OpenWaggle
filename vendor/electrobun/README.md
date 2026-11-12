@@ -7,9 +7,9 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0006 to 0009, Zig tools and Dawn rebuilt for 13.4 |
-| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007 and 0009, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007 and 0009, plus the WebView2 Evergreen bootstrapper |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0006 to 0010, Zig tools and Dawn rebuilt for 13.4 |
+| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007, 0009 and 0010, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007, 0009 and 0010, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -78,6 +78,11 @@ release targets (docs/release-and-versioning.md), so they are not built.
    new in-memory context for every webview, so two webviews of one partition shared no cookies.
    Named partitions now keep one context for the process, as Electron's do; an omitted partition
    still gets its own.
+10. **launcher: hand the forwarded arguments to the app's Worker.** `main.js` starts the app in a
+   Bun Worker, whose `process.argv` holds only the runtime and its script unless the Worker is
+   given `argv`, so the arguments patch 0006 forwards stopped there: a protocol link, a file or an
+   `openwaggle` command the launcher was started with never reached the app. The Worker now gets
+   `process.argv.slice(2)`.
 
 ## Building
 
