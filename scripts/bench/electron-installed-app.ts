@@ -9,6 +9,7 @@ import { type ChildProcessByStdio, execFileSync, spawn } from 'node:child_proces
 import fs from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
+import { createInterface } from 'node:readline'
 import type { Readable } from 'node:stream'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
 import { listProcesses, selectAppProcesses } from './app-processes'
@@ -188,16 +189,7 @@ export function freePort() {
 }
 
 function forwardLines(stream: Readable, onLine: (line: string) => void) {
-  let buffered = ''
-  stream.on('data', (chunk: Buffer) => {
-    buffered += chunk.toString('utf8')
-    let newline = buffered.indexOf('\n')
-    while (newline >= 0) {
-      onLine(buffered.slice(0, newline))
-      buffered = buffered.slice(newline + 1)
-      newline = buffered.indexOf('\n')
-    }
-  })
+  createInterface({ input: stream, crlfDelay: Infinity }).on('line', onLine)
 }
 
 /** Starts the installed app hidden, in its own process group on macOS and Linux. */
