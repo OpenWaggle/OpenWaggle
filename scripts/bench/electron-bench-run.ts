@@ -36,6 +36,7 @@ const LAUNCH_TIMEOUT_MS = 120_000
 const CLI_TIMEOUT_MS = 180_000
 const STARTUP_TIMING_PATTERN = /Startup timing.*label: '([^']+)'/u
 const LOG_TAIL_LINES = 30
+const HOST_EXIT_TIMEOUT_MS = 15_000
 const APPIMAGE_MOUNT = /(\/tmp\/\.mount_[^/\s]+)/u
 
 function step(message: string) {
@@ -104,10 +105,29 @@ function memory(app: InstalledElectronApp, connected: Connected): AppMemory {
   })
 }
 
+function hostRunning(app: InstalledElectronApp) {
+  const paths = installPaths(app).map((entry) => entry.toLowerCase())
+  return listProcesses().some(
+    (row) =>
+      row.command.includes('session-host-internal') &&
+      paths.some((entry) => row.command.toLowerCase().includes(entry)),
+  )
+}
+
+/**
+ * Quits the window, then stops the Host and waits for it to exit, as one that idles out does: a
+ * Host killed mid-exit leaves its socket, and the next launch then skips the boot shim's Host
+ * prelaunch for a profile no user has. Only what is still running after that is killed.
+ */
 async function stop(app: InstalledElectronApp, profile: ScratchProfile, connected: Connected) {
   await connected.browser.close().catch(() => undefined)
   await stopElectronApp(connected.started)
   await runAppCli(app, profile, ['host', 'stop'], CLI_TIMEOUT_MS).catch(() => undefined)
+  await waitUntil(
+    'the Session Host to exit',
+    HOST_EXIT_TIMEOUT_MS,
+    async () => !hostRunning(app),
+  ).catch(() => undefined)
   stopProcessesUnder(installPaths(app))
 }
 
@@ -136,12 +156,20 @@ async function screenshot(page: Page, directory: string | undefined, name: strin
   await page.screenshot({ path: path.join(directory, name) }).catch(() => undefined)
 }
 
+/** Copies the run's app and Host logs, which hold their startup timings, next to the results. */
+function keepLogs(profile: ScratchProfile, directory: string | undefined, index: number) {
+  const logs = path.join(profile.userData, 'logs')
+  if (!directory || !fs.existsSync(logs)) return
+  fs.cpSync(logs, path.join(directory, `run-${String(index)}`), { recursive: true })
+}
+
 export async function measureRun(input: {
   readonly app: InstalledElectronApp
   readonly root: string
   readonly index: number
   readonly prove: boolean
   readonly screenshots: string | undefined
+  readonly logs: string | undefined
 }) {
   const { app } = input
   const profile = createScratchProfile(path.join(input.root, `run-${String(input.index)}`))
@@ -208,5 +236,6 @@ export async function measureRun(input: {
     }
   } finally {
     await provider.close()
+    keepLogs(profile, input.logs, input.index)
   }
 }
