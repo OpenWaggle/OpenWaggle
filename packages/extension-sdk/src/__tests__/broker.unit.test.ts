@@ -152,6 +152,7 @@ describe('createExtensionBrokerSdk', () => {
       error: {
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
         message: 'Extension broker returned an invalid session resource result.',
+        issues: ['sessionId: Must be the Session the request named.'],
       },
     })
   })
@@ -261,6 +262,7 @@ describe('createExtensionBrokerSdk', () => {
       error: {
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
         message: 'Extension broker returned an invalid OpenWaggle docs result.',
+        issues: [expect.stringMatching(/^docs: /u)],
       },
       audit: {
         extensionId: 'sample-extension',

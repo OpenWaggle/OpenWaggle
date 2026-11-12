@@ -1,8 +1,8 @@
 import {
-  isStorageDeleteResult,
-  isStorageGetResult,
-  isStorageListResult,
-  isStorageSetResult,
+  storageDeleteResultSchema,
+  storageGetResultSchema,
+  storageListResultSchema,
+  storageSetResultSchema,
   toDecodedOperationResult,
 } from './broker-validation.js'
 import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
@@ -13,14 +13,7 @@ import type {
   ExtensionSdkInvoke,
   ExtensionStorageScopeSdk,
 } from './sdk-types.js'
-import type {
-  ExtensionStorageDeleteResult,
-  ExtensionStorageGetResult,
-  ExtensionStorageKind,
-  ExtensionStorageListResult,
-  ExtensionStorageScopeSelector,
-  ExtensionStorageSetResult,
-} from './types.js'
+import type { ExtensionStorageKind, ExtensionStorageScopeSelector } from './types.js'
 
 const STORAGE_RESULT_ERROR = 'Extension broker returned an invalid storage result.'
 
@@ -45,47 +38,47 @@ function createStorageScopeSdk(
 ): ExtensionStorageScopeSdk {
   return {
     get: async (scope, key) =>
-      toDecodedOperationResult<ExtensionStorageGetResult>(
+      toDecodedOperationResult(
         await invoke({
           capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
           method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET,
           scope,
           payload: storagePayload(storageKind, storageScope, key),
         }),
-        isStorageGetResult,
+        storageGetResultSchema,
         STORAGE_RESULT_ERROR,
       ),
     set: async (scope, key, value) =>
-      toDecodedOperationResult<ExtensionStorageSetResult>(
+      toDecodedOperationResult(
         await invoke({
           capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
           method: OPENWAGGLE_EXTENSION_BROKER.METHOD.SET,
           scope,
           payload: storagePayload(storageKind, storageScope, key, value),
         }),
-        isStorageSetResult,
+        storageSetResultSchema,
         STORAGE_RESULT_ERROR,
       ),
     delete: async (scope, key) =>
-      toDecodedOperationResult<ExtensionStorageDeleteResult>(
+      toDecodedOperationResult(
         await invoke({
           capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
           method: OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE,
           scope,
           payload: storagePayload(storageKind, storageScope, key),
         }),
-        isStorageDeleteResult,
+        storageDeleteResultSchema,
         STORAGE_RESULT_ERROR,
       ),
     list: async (scope) =>
-      toDecodedOperationResult<ExtensionStorageListResult>(
+      toDecodedOperationResult(
         await invoke({
           capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
           method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST,
           scope,
           payload: storagePayload(storageKind, storageScope),
         }),
-        isStorageListResult,
+        storageListResultSchema,
         STORAGE_RESULT_ERROR,
       ),
   }
