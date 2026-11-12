@@ -49,7 +49,7 @@ interface PopoverProps {
    * trigger on close. Declaring the role without that model tells a screen reader user to press
    * keys that do nothing, so the two are deliberately not separable.
    */
-  role?: 'menu' | 'listbox' | 'dialog' | undefined
+  role?: 'menu' | 'listbox' | 'dialog'
   /** Accessible name for non-menu popup panels such as searchable picker dialogs. */
   ariaLabel?: string
 }
@@ -122,7 +122,7 @@ export function Popover({
     containerRef,
   } = usePopover({
     onClose: () => onOpenChange?.(false),
-    isActive: isControlled ? controlledOpen : undefined,
+    ...(isControlled ? { isActive: controlledOpen } : {}),
   })
 
   const isOpen = isControlled ? controlledOpen : popoverIsOpen

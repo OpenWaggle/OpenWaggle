@@ -36,9 +36,10 @@ export function buildInteractionTranscriptItems(
       if (!itemsByInteractionId.has(interactionId)) {
         orderedInteractionIds.push(interactionId)
       }
+      const resolution = itemsByInteractionId.get(interactionId)?.resolution
       itemsByInteractionId.set(interactionId, {
         request: event,
-        resolution: itemsByInteractionId.get(interactionId)?.resolution,
+        ...(resolution === undefined ? {} : { resolution }),
       })
       continue
     }

@@ -19,14 +19,14 @@ export function StructuredPayload({
   serialized,
 }: {
   readonly value: unknown
-  readonly ariaLabel?: string | undefined
-  readonly className?: string | undefined
-  readonly theme?: string | undefined
-  readonly serialized?: string | null | undefined
+  readonly ariaLabel?: string
+  readonly className?: string
+  readonly theme?: string
+  readonly serialized?: string | null
 }) {
   if (typeof value === 'string') {
     return (
-      <PlainTextBlock reason="prose" className={className}>
+      <PlainTextBlock reason="prose" {...(className === undefined ? {} : { className })}>
         {value}
       </PlainTextBlock>
     )
@@ -34,7 +34,7 @@ export function StructuredPayload({
   const source = serialized ?? serializeStructuredPayload(value)
   if (source === null) {
     return (
-      <PlainTextBlock reason="unknown-language" className={className}>
+      <PlainTextBlock reason="unknown-language" {...(className === undefined ? {} : { className })}>
         {String(value)}
       </PlainTextBlock>
     )
@@ -43,9 +43,9 @@ export function StructuredPayload({
     <SyntaxBlock
       source={source ?? 'null'}
       language="json"
-      theme={theme}
+      {...(theme === undefined ? {} : { theme })}
       ariaLabel={ariaLabel}
-      className={className}
+      {...(className === undefined ? {} : { className })}
       wrap
     />
   )

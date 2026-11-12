@@ -20,7 +20,6 @@ function messageRow(message: UIMessage): MessageChatRow {
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-    turnDividerProps: undefined,
   }
 }
 

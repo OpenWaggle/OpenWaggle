@@ -28,26 +28,26 @@ interface BuildChatRowsParams {
   customMessages?: readonly AgentTransportCustomEvent[]
   interactionEvents?: readonly AgentInteractionEvent[]
   /** The message each persisted agent-loop event follows (`readAgentLoopEventsFromWorkspace`). */
-  agentLoopAnchorMessageIds?: ReadonlyMap<string, string> | undefined
+  agentLoopAnchorMessageIds?: ReadonlyMap<string, string>
   isLoading: boolean
-  isFinishing?: boolean | undefined
+  isFinishing?: boolean
   error: Error | undefined
   lastUserMessage: string | null
   dismissedError: string | null
   sessionId: string | null
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: StreamingPhaseState
-  interruptedRun?: SessionInterruptedRun | undefined
-  worktreeLaunch?: WorktreeLaunchSnapshot | null | undefined
+  interruptedRun?: SessionInterruptedRun
+  worktreeLaunch?: WorktreeLaunchSnapshot | null
   /** A first send is on its way to a Session that has not started running yet. */
-  firstSendPending?: boolean | undefined
-  compactionStatus?: AgentCompactionStatus | null | undefined
+  firstSendPending?: boolean
+  compactionStatus?: AgentCompactionStatus | null
   /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
-  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number> | undefined
+  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
   /** Turn keys the user expanded in this session (fold state is in-memory). */
-  expandedTurnKeys?: ReadonlySet<string> | undefined
+  expandedTurnKeys?: ReadonlySet<string>
   /** What the Run's Pi extensions say they are doing, shown on its status row. */
-  extensionStatus?: ExtensionStatusRowInput | undefined
+  extensionStatus?: ExtensionStatusRowInput
 }
 
 /** A first send that nothing (no launch step, no run, no reply) has answered yet. */
@@ -90,7 +90,9 @@ function placeCards(params: BuildChatRowsParams) {
     messages: params.messages,
     customMessages: (params.customMessages ?? []).filter((event) => !isWorktreeCreatedEvent(event)),
     interactionEvents: params.interactionEvents ?? [],
-    anchorMessageIdByEventKey: params.agentLoopAnchorMessageIds,
+    ...(params.agentLoopAnchorMessageIds === undefined
+      ? {}
+      : { anchorMessageIdByEventKey: params.agentLoopAnchorMessageIds }),
   })
 }
 
@@ -105,7 +107,7 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   const appendCompactionRowsAt = createCompactionRowAppender(rows, compactionRows)
   const launchRows = createWorktreeLaunchRows({
     sessionId: params.sessionId,
-    liveLaunch: params.worktreeLaunch,
+    ...(params.worktreeLaunch === undefined ? {} : { liveLaunch: params.worktreeLaunch }),
     customMessages: params.customMessages ?? [],
   })
   let didAppendLaunchRows = false

@@ -21,7 +21,7 @@ export type VoiceRecorderMode = 'idle' | 'recording' | 'transcribing'
 export type VoiceVisualizerControls = ReturnType<typeof useVoiceVisualizer>
 
 interface UseVoiceCaptureOptions {
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   insertText: (text: string) => void
   sendComposed: (text: string) => boolean | Promise<boolean>
   /** When set, stop-and-send inserts the transcript and calls this instead of `sendComposed`. */

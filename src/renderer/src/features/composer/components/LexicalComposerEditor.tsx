@@ -23,8 +23,8 @@ import { SyncPlugin } from './plugins/SyncPlugin'
 
 interface LexicalComposerEditorProps {
   onSubmit: (text: string) => void
-  onEscape?: (() => void) | undefined
-  disabled?: boolean | undefined
+  onEscape?: () => void
+  disabled?: boolean
   placeholder: string
   editorRef: RefObject<LexicalEditor | null>
   checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
@@ -77,8 +77,8 @@ export function LexicalComposerEditor({
       />
       <HistoryPlugin />
       <ComposerAutoFocusPlugin />
-      <EditablePlugin disabled={disabled} />
-      <KeyboardPlugin onSubmit={onSubmit} onEscape={onEscape} />
+      <EditablePlugin {...(disabled === undefined ? {} : { disabled })} />
+      <KeyboardPlugin onSubmit={onSubmit} {...(onEscape === undefined ? {} : { onEscape })} />
       <SyncPlugin />
       <SlashCommandPlugin />
       <AutoResizePlugin />

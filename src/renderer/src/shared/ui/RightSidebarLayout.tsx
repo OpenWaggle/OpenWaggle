@@ -124,7 +124,7 @@ export function RightSidebarLayout({
             bounds={{ maxWidth, mainMinWidth, minWidth }}
             handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
             state={{ open, width }}
-            shouldAcceptWidth={shouldAcceptWidth}
+            {...(shouldAcceptWidth === undefined ? {} : { shouldAcceptWidth })}
           />
         )
       }

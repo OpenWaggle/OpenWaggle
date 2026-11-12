@@ -5,9 +5,9 @@ import { LexicalComposerEditor } from './LexicalComposerEditor'
 interface ComposerEditorAreaProps {
   readonly onSubmit: (text?: string) => void
   /** Escape in the input, when the composer has something to back out of. */
-  readonly onEscape?: (() => void) | undefined
-  readonly disabled?: boolean | undefined
-  readonly placeholder?: string | undefined
+  readonly onEscape?: () => void
+  readonly disabled?: boolean
+  readonly placeholder?: string
   readonly isLoading: boolean
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
@@ -26,8 +26,8 @@ export function ComposerEditorArea({
     <div className="relative px-4 py-4">
       <LexicalComposerEditor
         onSubmit={onSubmit}
-        onEscape={onEscape}
-        disabled={disabled}
+        {...(onEscape === undefined ? {} : { onEscape })}
+        {...(disabled === undefined ? {} : { disabled })}
         placeholder={placeholder ?? getDefaultPlaceholder(isLoading)}
         editorRef={editorRef}
         checkAndConvertPaste={checkAndConvertPaste}

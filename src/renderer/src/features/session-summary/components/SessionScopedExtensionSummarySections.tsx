@@ -25,7 +25,7 @@ export interface ExtensionSessionSummarySectionsProps {
   readonly placement: SessionSummaryPlacement
   readonly resources: readonly SessionResource[]
   readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
-  readonly onOpenSidePanel?: ((target: SessionSummaryExtensionSidePanelTarget) => void) | undefined
+  readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
 }
 
 function entryMatchesSession(entry: ExtensionContributionRegistryEntry, sessionId: string) {
@@ -58,7 +58,7 @@ export function SessionScopedExtensionSummarySections({
     messageCount,
     resources: sessionResources,
     onOpenResources,
-    onOpenSidePanel,
+    ...(onOpenSidePanel === undefined ? {} : { onOpenSidePanel }),
   })
   if (!registry) return null
 

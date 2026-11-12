@@ -102,7 +102,7 @@ export function ProjectFilePicker() {
           files.map((file, index) => (
             <Button
               key={file.path}
-              ref={index === boundedSelectedIndex ? selectedRowRef : undefined}
+              {...(index === boundedSelectedIndex ? { ref: selectedRowRef } : {})}
               variant="unstyled"
               onMouseMove={() => setSelectedIndex(index)}
               onClick={() => choose(file.path)}

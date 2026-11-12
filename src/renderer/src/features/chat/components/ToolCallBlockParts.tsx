@@ -147,7 +147,7 @@ function HighlightedFileContent({
         <div style={{ height: maxHeight, maxHeight }}>
           <SourceView
             source={content}
-            language={language}
+            {...(language === undefined ? {} : { language })}
             ariaLabel="Large file source preview"
             className="h-full rounded-md bg-bg text-sm leading-relaxed"
           />
@@ -159,7 +159,7 @@ function HighlightedFileContent({
     <div className="tool-result-code overflow-y-auto" style={{ maxHeight }}>
       <SyntaxBlock
         source={content}
-        language={language}
+        {...(language === undefined ? {} : { language })}
         className="rounded-md bg-bg text-sm leading-relaxed"
       />
     </div>

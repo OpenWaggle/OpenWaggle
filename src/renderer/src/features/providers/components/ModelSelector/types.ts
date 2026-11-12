@@ -7,5 +7,5 @@ export interface FlatModel {
   readonly name: string
   readonly provider: Provider
   readonly providerName: string
-  readonly contextWindowLabel?: string | undefined
+  readonly contextWindowLabel?: string
 }

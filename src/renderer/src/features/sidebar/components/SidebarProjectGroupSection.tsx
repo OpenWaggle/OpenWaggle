@@ -173,7 +173,8 @@ function ProjectSessionRow({
     session,
     activeSessionTree: state.activeSessionTree,
     activeBranchId:
-      session.id === state.activeSessionId ? state.activeBranchId : session.lastActiveBranchId,
+      (session.id === state.activeSessionId ? state.activeBranchId : session.lastActiveBranchId) ??
+      null,
     branchesCollapsed: disclosure.rowsCollapsed,
     draftBranch: state.draftBranch,
   })

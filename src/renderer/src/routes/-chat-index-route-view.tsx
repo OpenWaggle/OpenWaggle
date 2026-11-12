@@ -86,10 +86,7 @@ function useChatIndexSidebarActions() {
     })
   }
 
-  function setWorkspaceFileOpen(
-    open: boolean,
-    target?: { path: string; line?: number | null | undefined },
-  ) {
+  function setWorkspaceFileOpen(open: boolean, target?: { path: string; line?: number | null }) {
     const panel: ChatRouteSearch['panel'] = open ? 'file' : undefined
     void navigate({
       to: '/',

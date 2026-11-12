@@ -6,7 +6,7 @@ import { extensionContributionsQueryOptions } from '@/queries/extensions'
 interface UseExtensionSidePanelContributionsInput {
   readonly enabled: boolean
   readonly projectPath: string | null
-  readonly sessionId?: string | null | undefined
+  readonly sessionId?: string | null
 }
 
 interface ExtensionSidePanelContributionsResult {
@@ -27,7 +27,9 @@ export function useExtensionSidePanelContributions({
   sessionId,
 }: UseExtensionSidePanelContributionsInput): ExtensionSidePanelContributionsResult {
   const projectPaths = activeProjectPaths(projectPath)
-  const queryOptions = extensionContributionsQueryOptions(projectPaths, { sessionId })
+  const queryOptions = extensionContributionsQueryOptions(projectPaths, {
+    ...(sessionId === undefined ? {} : { sessionId }),
+  })
   const query = useQuery({
     ...queryOptions,
     enabled,

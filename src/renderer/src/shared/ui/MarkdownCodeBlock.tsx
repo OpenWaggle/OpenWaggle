@@ -29,10 +29,10 @@ export function MarkdownCodeBlock({
   theme,
 }: {
   readonly children: ReactNode
-  readonly language?: string | undefined
-  readonly className?: string | undefined
-  readonly highlight?: boolean | undefined
-  readonly theme?: string | undefined
+  readonly language?: string
+  readonly className?: string
+  readonly highlight?: boolean
+  readonly theme?: string
 }) {
   const [copied, setCopied] = useState(false)
   const source = textContent(children).replace(/\n$/, '')
@@ -67,7 +67,7 @@ export function MarkdownCodeBlock({
           key="complete"
           source={source}
           language={language ?? 'text'}
-          theme={theme}
+          {...(theme === undefined ? {} : { theme })}
           ariaLabel={`${language ?? 'Plain text'} source`}
           className="bg-transparent text-sm leading-relaxed"
         />

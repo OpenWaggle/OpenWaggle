@@ -38,7 +38,7 @@ interface ChatComposerStackProps {
     interaction: AgentLoopInteraction,
     response: AgentLoopInteractionResponse,
   ) => Promise<void>
-  readonly onOpenSessionTree?: (() => void) | undefined
+  readonly onOpenSessionTree?: () => void
 }
 
 const EMPTY_AGENT_INTERACTIONS: readonly AgentLoopInteraction[] = []
@@ -53,7 +53,11 @@ function runStatusTone(status: ChatComposerSectionState['status']) {
 }
 
 /** A finishing Run offers Stop while its agent still works on, such as an extension's check. */
-function composerRunFinishing(status: ChatComposerSectionState['status'], stoppable: boolean) {
+function useComposerRunFinishing(
+  status: ChatComposerSectionState['status'],
+  sessionId: SessionId | null,
+) {
+  const stoppable = useIsFinishingRunStoppable(sessionId)
   if (status !== 'finishing') return undefined
   return stoppable ? ('stoppable' as const) : ('settling' as const)
 }
@@ -81,19 +85,20 @@ function branchSummaryComposerMode(
   branchSummaryMode: 'choice' | 'summarizing' | 'custom' | null,
   sessionDetailPending: boolean,
 ) {
+  const placeholder = sessionDetailPending
+    ? 'Loading session draft…'
+    : branchSummaryMode === 'custom'
+      ? 'Custom instructions for the branch summary'
+      : undefined
   return {
     disabled:
       sessionDetailPending || branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing',
-    placeholder: sessionDetailPending
-      ? 'Loading session draft…'
-      : branchSummaryMode === 'custom'
-        ? 'Custom instructions for the branch summary'
-        : undefined,
+    ...(placeholder === undefined ? {} : { placeholder }),
     requiresText: branchSummaryMode === 'custom',
     clearOnSubmit: branchSummaryMode !== 'custom',
     recordHistory: branchSummaryMode !== 'custom',
     allowEnqueue: branchSummaryMode !== 'custom',
-    sendTitle: branchSummaryMode === 'custom' ? 'Summarize branch' : undefined,
+    ...(branchSummaryMode === 'custom' ? { sendTitle: 'Summarize branch' } : {}),
   }
 }
 
@@ -102,7 +107,7 @@ function ComposerOverlays({
   onOpenSessionTree,
 }: {
   readonly section: ChatComposerSectionState
-  readonly onOpenSessionTree?: (() => void) | undefined
+  readonly onOpenSessionTree?: () => void
 }) {
   const {
     activeSessionId,
@@ -131,7 +136,7 @@ function ComposerOverlays({
         slashSkills={slashSkills}
         onSelectSkill={onSelectSkill}
         onStartWaggle={onStartWaggle}
-        onOpenSessionTree={onOpenSessionTree}
+        {...(onOpenSessionTree === undefined ? {} : { onOpenSessionTree })}
         onForkToNewSession={onOpenForkSelector}
         onCloneToNewSession={onCloneToNewSession}
       />
@@ -190,7 +195,7 @@ export function ChatComposerStack({
   extensionRegistry = null,
   extensionProjectPaths = EMPTY_EXTENSION_PROJECT_PATHS,
   onRespondAgentInteraction,
-  onOpenSessionTree,
+  ...sessionTree
 }: ChatComposerStackProps) {
   const {
     activeSessionId,
@@ -217,11 +222,11 @@ export function ChatComposerStack({
     send: guardedSend,
   })
   const followUpQueue = useSessionFollowUpQueue(activeSessionId)
-  const finishingStoppable = useIsFinishingRunStoppable(activeSessionId)
+  const finishing = useComposerRunFinishing(section.status, activeSessionId)
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
   return (
     <>
-      <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
+      <ComposerOverlays section={section} {...sessionTree} />
 
       <div className={`${CHAT_CONTENT_FRAME_CLASS} pb-5`} data-chat-composer-form="true">
         <QueuedMessages
@@ -289,7 +294,7 @@ export function ChatComposerStack({
             }
             onCancel={section.onCancel}
             isLoading={isLoading}
-            finishing={composerRunFinishing(section.status, finishingStoppable)}
+            {...(finishing === undefined ? {} : { finishing })}
             mode={{
               ...branchSummaryComposerMode(
                 branchSummaryMode,

@@ -112,7 +112,9 @@ export function useFeedback(
             message: 'Issue created successfully',
             variant: 'success',
             persistent: true,
-            action: result.issueUrl ? { label: 'View on GitHub', url: result.issueUrl } : undefined,
+            ...(result.issueUrl
+              ? { action: { label: 'View on GitHub', url: result.issueUrl } }
+              : {}),
           })
           closeFeedbackModal()
           startFeedbackCooldown()

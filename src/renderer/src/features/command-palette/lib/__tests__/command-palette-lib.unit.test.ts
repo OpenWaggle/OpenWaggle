@@ -35,7 +35,7 @@ function item(id: string, section?: string): CommandPaletteItem {
     id,
     label: id,
     icon: id,
-    section,
+    ...(section === undefined ? {} : { section }),
     action: vi.fn(),
   }
 }

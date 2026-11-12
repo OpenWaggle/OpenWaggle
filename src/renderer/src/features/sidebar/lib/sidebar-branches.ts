@@ -22,7 +22,7 @@ export type SidebarBranchRow =
 interface BuildSidebarBranchRowsInput {
   readonly session: SessionSummary
   readonly activeSessionTree?: SessionTree | null
-  readonly activeBranchId?: SessionBranchId | null | undefined
+  readonly activeBranchId?: SessionBranchId | null
   readonly branchesCollapsed?: boolean
   readonly draftBranch: SidebarDraftBranchInput | null
 }

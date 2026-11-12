@@ -17,7 +17,7 @@ interface BuildSessionTreePanelRowsInput {
   /** The node the workspace shows; its path from the root is highlighted. */
   readonly activeNodeId: SessionNodeId | null | undefined
   /** Node ids whose full text the Host matched for `searchQuery` (`sessions:search-tree`). */
-  readonly textMatchNodeIds?: ReadonlySet<string> | undefined
+  readonly textMatchNodeIds?: ReadonlySet<string>
   readonly filterMode: SessionTreeFilterMode
   readonly searchQuery: string
   readonly focusIndex: number

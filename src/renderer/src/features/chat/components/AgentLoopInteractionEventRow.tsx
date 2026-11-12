@@ -127,7 +127,7 @@ function textStatus(value: string | null): StatusView {
 
 function statusLabel(input: {
   readonly interaction: AgentLoopInteraction
-  readonly resolution?: AgentTransportInteractionResolvedEvent | undefined
+  readonly resolution?: AgentTransportInteractionResolvedEvent
 }): StatusView {
   const { interaction, resolution } = input
   if (!resolution) return pendingStatus()
@@ -174,9 +174,9 @@ function InteractionStatusBadge({
   resolution,
 }: {
   readonly interaction: AgentLoopInteraction
-  readonly resolution?: AgentTransportInteractionResolvedEvent | undefined
+  readonly resolution?: AgentTransportInteractionResolvedEvent
 }) {
-  const status = statusLabel({ interaction, resolution })
+  const status = statusLabel({ interaction, ...(resolution === undefined ? {} : { resolution }) })
   const displayLabel = useChatDisplayText(status.label)
   const Icon = status.icon
   return (
@@ -268,7 +268,10 @@ function StandardInteractionRow({
               </h3>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <InteractionStatusBadge interaction={interaction} resolution={item.resolution} />
+              <InteractionStatusBadge
+                interaction={interaction}
+                {...(item.resolution === undefined ? {} : { resolution: item.resolution })}
+              />
               <span className="text-xs text-text-muted tabular-nums">
                 {eventTimeLabel(item.request.timestamp)}
               </span>

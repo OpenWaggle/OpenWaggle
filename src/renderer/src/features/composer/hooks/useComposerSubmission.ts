@@ -33,9 +33,9 @@ interface UseComposerSubmissionInput {
   readonly onEnqueue: (
     payload: AgentSendPayload,
   ) => Promise<boolean | undefined> | boolean | undefined
-  readonly onSendFailure?: ((cause: unknown) => SendFailureDisposition) | undefined
+  readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
   readonly isLoading: boolean
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   readonly requiresText: boolean
   readonly clearOnSubmit: boolean
   readonly recordHistory: boolean
@@ -45,7 +45,7 @@ interface UseComposerSubmissionInput {
    * Waggle now would overtake the held message.
    */
   readonly enqueueWaggle?: boolean
-  readonly onToast?: ((message: string) => void) | undefined
+  readonly onToast?: (message: string) => void
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly projectPath: string | null
   readonly attachments: readonly PreparedAttachment[]
@@ -120,7 +120,7 @@ export function useComposerSubmission({
   onEnqueue,
   onSendFailure,
   isLoading,
-  disabled,
+  disabled = false,
   requiresText,
   clearOnSubmit,
   recordHistory,

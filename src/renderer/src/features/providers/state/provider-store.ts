@@ -53,7 +53,7 @@ function selectionUsable(
 
 /** The model of a Session's latest response, which a gone selection's Runs fall back to. */
 export function latestAnsweringModel(
-  messages: readonly { readonly role: string; readonly model?: SupportedModelId | undefined }[],
+  messages: readonly { readonly role: string; readonly model?: SupportedModelId }[],
 ) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]

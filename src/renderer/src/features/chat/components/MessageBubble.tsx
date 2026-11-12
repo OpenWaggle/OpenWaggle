@@ -17,29 +17,25 @@ export interface MessageBubbleRuntime {
 interface MessageBubbleProps {
   message: UIMessage
   runtime: MessageBubbleRuntime
-  waggle?: WaggleInfo | undefined
-  run?:
-    | {
-        readonly isStreaming?: boolean | undefined
-        readonly isRunActive?: boolean | undefined
-        readonly assistantModel?: SupportedModelId | undefined
-      }
-    | undefined
-  presentation?:
-    | {
-        readonly hideAgentLabel?: boolean | undefined
-        /** Terminal message of a folded turn: render only its final text part. */
-        readonly turnFolded?: boolean | undefined
-        /** The settled turn's reply, whose actions sit at the end of its turn. */
-        readonly replyActions?: boolean | undefined
-      }
-    | undefined
+  waggle?: WaggleInfo
+  run?: {
+    readonly isStreaming?: boolean
+    readonly isRunActive?: boolean
+    readonly assistantModel?: SupportedModelId
+  }
+  presentation?: {
+    readonly hideAgentLabel?: boolean
+    /** Terminal message of a folded turn: render only its final text part. */
+    readonly turnFolded?: boolean
+    /** The settled turn's reply, whose actions sit at the end of its turn. */
+    readonly replyActions?: boolean
+  }
   actions?: {
-    readonly onBranchFromMessage?: ((messageId: string) => void) | undefined
-    readonly onForkFromMessage?: ((messageId: string) => void) | undefined
-    readonly copiesBlocked?: boolean | undefined
-    readonly onViewTurnDiff?: ((messageId: string) => void) | undefined
-    readonly turnAnchorMessageIds?: ReadonlySet<string> | undefined
+    readonly onBranchFromMessage?: (messageId: string) => void
+    readonly onForkFromMessage?: (messageId: string) => void
+    readonly copiesBlocked?: boolean
+    readonly onViewTurnDiff?: (messageId: string) => void
+    readonly turnAnchorMessageIds?: ReadonlySet<string>
   }
 }
 
@@ -55,8 +51,12 @@ function UserMessageRow({
   return (
     <UserMessageBubble
       message={message}
-      onBranchFromMessage={actions?.onBranchFromMessage}
-      onForkFromMessage={actions?.onForkFromMessage}
+      {...(actions?.onBranchFromMessage === undefined
+        ? {}
+        : { onBranchFromMessage: actions?.onBranchFromMessage })}
+      {...(actions?.onForkFromMessage === undefined
+        ? {}
+        : { onForkFromMessage: actions?.onForkFromMessage })}
     />
   )
 }
@@ -88,9 +88,9 @@ export function MessageBubble({
     <AssistantMessageBubble
       message={message}
       runtime={runtime}
-      run={run}
-      waggle={waggle}
-      presentation={presentation}
+      {...(run === undefined ? {} : { run })}
+      {...(waggle === undefined ? {} : { waggle })}
+      {...(presentation === undefined ? {} : { presentation })}
       actions={headerTurnDiff}
     />
   )

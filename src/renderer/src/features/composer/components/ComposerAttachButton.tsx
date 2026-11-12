@@ -10,7 +10,7 @@ import { Popover } from '@/shared/ui/Popover'
 import { ComposerSessionMcpSwitch } from './ComposerSessionMcpSwitch'
 
 interface ComposerAttachButtonProps {
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   fileInputRef: React.RefObject<HTMLInputElement | null>
 }
 

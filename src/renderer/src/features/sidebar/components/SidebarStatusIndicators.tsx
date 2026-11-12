@@ -14,7 +14,7 @@ function StateIcon({
   className,
 }: {
   readonly state: SidebarRowState
-  readonly className?: string | undefined
+  readonly className?: string
 }) {
   const iconName = sidebarRowStateIcon(state)
   if (iconName === null) return null

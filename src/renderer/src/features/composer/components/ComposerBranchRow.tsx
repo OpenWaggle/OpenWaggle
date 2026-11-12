@@ -45,5 +45,5 @@ export function ComposerBranchRow({ strip, onToast }: ComposerBranchRowProps) {
 
   // Row layout is owned by the parent so this shares one row with the session
   // context row: mode on the left, the single run-target picker on the right.
-  return <RunTargetPicker strip={strip} onToast={onToast} />
+  return <RunTargetPicker strip={strip} {...(onToast === undefined ? {} : { onToast })} />
 }

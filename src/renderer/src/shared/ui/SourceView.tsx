@@ -85,14 +85,14 @@ export function SourceView({
   style,
 }: {
   readonly source: string
-  readonly language?: string | undefined
-  readonly path?: string | undefined
-  readonly className?: string | undefined
-  readonly ariaLabel?: string | undefined
-  readonly targetLine?: number | null | undefined
-  readonly theme?: string | undefined
-  readonly showLineNumbers?: boolean | undefined
-  readonly style?: CSSProperties | undefined
+  readonly language?: string
+  readonly path?: string
+  readonly className?: string
+  readonly ariaLabel?: string
+  readonly targetLine?: number | null
+  readonly theme?: string
+  readonly showLineNumbers?: boolean
+  readonly style?: CSSProperties
 }) {
   const { shikiTheme: activeTheme } = useSyntaxTheme()
   const shikiTheme = theme ?? activeTheme
@@ -104,7 +104,7 @@ export function SourceView({
   const { containerRef, range, updateScroll } = useSourceViewViewport({
     lineCount: sourceAnalysis.lineStarts.length,
     lineHeight: codeLineHeight,
-    targetLine,
+    ...(targetLine === undefined ? {} : { targetLine }),
   })
   const lineRange = useMemo(
     () => ({ start: range.start, end: range.end }),
@@ -150,7 +150,7 @@ export function SourceView({
             range={range}
             highlighted={highlighted}
             loading={showLoading}
-            targetLine={targetLine}
+            {...(targetLine === undefined ? {} : { targetLine })}
             lineHeight={codeLineHeight}
             showLineNumbers={showLineNumbers}
           />

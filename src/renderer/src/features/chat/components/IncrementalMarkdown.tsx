@@ -47,7 +47,7 @@ interface IncrementalMarkdownProps {
   isStreaming: boolean
   rehypePlugins: RehypePlugins
   /** Lightweight plugins for the streaming tail (e.g. sanitize-only, no Shiki). */
-  tailRehypePlugins?: RehypePlugins | undefined
+  tailRehypePlugins?: RehypePlugins
 }
 
 /**
@@ -59,14 +59,16 @@ const markdownComponents: Components = {
   img: NonFetchingMarkdownImage,
   pre({ children }: { children?: ReactNode }) {
     const language = fencedCodeLanguage(children)
-    return <CodeBlock language={language}>{children}</CodeBlock>
+    return <CodeBlock {...(language === undefined ? {} : { language })}>{children}</CodeBlock>
   },
   code({
     className,
     children,
     ...props
   }: {
+    // explicit undefined: react-markdown's element props type className as string | undefined
     className?: string | undefined
+    // explicit undefined: react-markdown's element props type children as ReactNode | undefined
     children?: ReactNode | undefined
   }) {
     return (
@@ -82,7 +84,7 @@ const streamingTailMarkdownComponents: Components = {
   pre({ children }: { children?: ReactNode }) {
     const language = fencedCodeLanguage(children)
     return (
-      <CodeBlock language={language} highlight={false}>
+      <CodeBlock {...(language === undefined ? {} : { language })} highlight={false}>
         {children}
       </CodeBlock>
     )

@@ -82,7 +82,7 @@ export interface ChatRightSidebarRouteActions {
   readonly onHiveOpenChange: (open: boolean) => void
   readonly onWorkspaceFileOpenChange: (
     open: boolean,
-    target?: { readonly path: string; readonly line?: number | null | undefined },
+    target?: { readonly path: string; readonly line?: number | null },
   ) => void
 }
 
@@ -98,7 +98,7 @@ export interface ChatRouteSurfaceHandlers {
   readonly handleHiveOpenChange: (open: boolean) => void
   readonly handleWorkspaceFileOpenChange: (
     open: boolean,
-    target?: { readonly path: string; readonly line?: number | null | undefined },
+    target?: { readonly path: string; readonly line?: number | null },
   ) => void
 }
 
@@ -262,9 +262,7 @@ export function ChatRouteSurface({
             rightSidebarOpen={rightSidebarOpen}
             onOpenDiff={() => handleDiffOpenChange(true)}
             onOpenChangeRequest={(url) => handleChangeRequestOpenChange(true, url)}
-            onOpenResources={(target = DEFAULT_SESSION_RESOURCE_BROWSER_TARGET) =>
-              handleResourcesTargetChange(target)
-            }
+            onOpenResources={(target) => handleResourcesTargetChange(target)}
             onOpenSessionTree={() => handleSessionTreeOpenChange(true)}
             onOpenExtensionSidePanel={(target) => handleExtensionSidePanelOpenChange(true, target)}
           />

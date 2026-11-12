@@ -17,7 +17,7 @@ function ExtensionAgentLoopStatusWidget({
   onSurfaceAction,
 }: {
   readonly auxiliary: ExtensionAgentLoopAuxiliaryContribution
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
 }) {
   const entry = auxiliary.contribution.entry
 
@@ -34,7 +34,7 @@ function ExtensionAgentLoopStatusWidget({
           entry={entry}
           maxAutoHeight={STATUS_WIDGET_MAX_HEIGHT}
           minAutoHeight={STATUS_WIDGET_MIN_HEIGHT}
-          onSurfaceAction={onSurfaceAction}
+          {...(onSurfaceAction === undefined ? {} : { onSurfaceAction })}
           surfacePayload={auxiliary.surfacePayload}
         />
       </section>
@@ -51,7 +51,7 @@ export function ExtensionAgentLoopStatusWidgets({
   readonly input: ExtensionAgentLoopSurfaceInput
   readonly registry: ExtensionContributionRegistryView | null
   readonly projectPaths: readonly string[]
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
 }) {
   const widgets = resolveExtensionAgentLoopAuxiliaryContributions({
     input,
@@ -70,7 +70,7 @@ export function ExtensionAgentLoopStatusWidgets({
         <ExtensionAgentLoopStatusWidget
           auxiliary={auxiliary}
           key={`${auxiliary.contribution.entry.packagePath}:${auxiliary.contribution.entry.contentHash}:${auxiliary.contribution.entry.contributionId}`}
-          onSurfaceAction={onSurfaceAction}
+          {...(onSurfaceAction === undefined ? {} : { onSurfaceAction })}
         />
       ))}
     </section>

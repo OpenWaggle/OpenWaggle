@@ -12,7 +12,7 @@ interface CommandPaletteProps {
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly onSelectSkill: (skillId: string, skillName?: string) => void
   readonly onStartWaggle: (preset: WagglePreset) => void
-  readonly onOpenSessionTree?: (() => void) | undefined
+  readonly onOpenSessionTree?: () => void
   readonly onForkToNewSession?: () => void
   readonly onCloneToNewSession?: () => void
 }
@@ -41,9 +41,9 @@ export function CommandPalette({
     slashSkills,
     onSelectSkill,
     onStartWaggle,
-    onOpenSessionTree,
-    onForkToNewSession,
-    onCloneToNewSession,
+    ...(onOpenSessionTree === undefined ? {} : { onOpenSessionTree }),
+    ...(onForkToNewSession === undefined ? {} : { onForkToNewSession }),
+    ...(onCloneToNewSession === undefined ? {} : { onCloneToNewSession }),
   })
   function dismiss() {
     setDismissedSlashToken(activeSlashCommand?.token ?? null)

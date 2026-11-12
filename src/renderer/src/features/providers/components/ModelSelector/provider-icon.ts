@@ -8,5 +8,7 @@ interface ProviderModelIconProps {
 }
 
 export function ProviderModelIcon({ provider, className }: ProviderModelIconProps): ReactElement {
-  return createElement(getProviderIcon(provider), { className })
+  return createElement(getProviderIcon(provider), {
+    ...(className === undefined ? {} : { className }),
+  })
 }

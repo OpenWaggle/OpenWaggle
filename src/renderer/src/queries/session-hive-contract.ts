@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import type { HiveAttentionCause, HivePendingRequest } from '@shared/types/hive-next-actor'
+import type { HiveAttentionCause } from '@shared/types/hive-next-actor'
 import type { SessionSummary } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 
@@ -30,26 +30,30 @@ export interface HiveLineage {
   readonly historical?: boolean
 }
 
-export interface HiveSession {
-  readonly id: SessionId
-  readonly title: string
+/** The SessionSummary fields the Hive reads; the Session Host catalog sends SessionSummary. */
+type HiveSessionSummaryFields = Pick<
+  SessionSummary,
+  | 'id'
+  | 'title'
+  | 'archived'
+  | 'worktreePath'
+  | 'pendingInteractionAt'
+  | 'pendingInteractionKind'
+  | 'followUpEditHeldAt'
+>
+
+export interface HiveSession extends HiveSessionSummaryFields {
   /** Siblings in the Hive panel's tree are ordered by creation (#377). */
   readonly createdAt?: number
-  readonly archived?: boolean | undefined
+  // explicit undefined: SessionSummary, which the Host catalog sends, still types lineage with undefined
   readonly lineage?: HiveLineage | undefined
-  /** Where the Session works, shown as the row's Workspace placement (ADR 0051). */
-  readonly worktreePath?: string | null | undefined
-  readonly pendingInteractionAt?: number | undefined
-  /** What the parked interactions ask of the person (ADR 0059). */
-  readonly pendingInteractionKind?: HivePendingRequest | undefined
-  readonly followUpEditHeldAt?: number | undefined
 }
 
 export interface HiveRelationsPage {
   readonly current: HiveSession | null
   readonly parent: HiveSession | null
   readonly workers: readonly HiveSession[]
-  readonly nextCursor?: string | undefined
+  readonly nextCursor?: string
 }
 
 export interface HiveCatalogPage {

@@ -148,7 +148,7 @@ export function createPresetItems(
       icon: presetIcon(preset),
       section: 'Waggle Mode',
       trailing: 'Sequential',
-      trailingBadge: preset.isBuiltIn ? undefined : 'Custom',
+      ...(preset.isBuiltIn ? {} : { trailingBadge: 'Custom' }),
       action: () => selectPreset(preset),
     })
   }

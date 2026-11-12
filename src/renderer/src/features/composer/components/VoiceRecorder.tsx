@@ -17,7 +17,7 @@ const PRIMARY_BAR_COLOR = '--color-text-primary'
 const SECONDARY_BAR_COLOR = '--color-text-muted'
 
 interface VoiceRecorderProps {
-  readonly disabled?: boolean | undefined
+  readonly disabled?: boolean
   fileInputRef: RefObject<HTMLInputElement | null>
   voice: VoiceCaptureController
 }
@@ -28,7 +28,10 @@ export function VoiceRecorder({ fileInputRef, voice, disabled }: VoiceRecorderPr
   return (
     <div className="flex h-11 items-center justify-between px-4">
       <div className="flex size-full items-center gap-3">
-        <ComposerAttachButton fileInputRef={fileInputRef} disabled={disabled} />
+        <ComposerAttachButton
+          fileInputRef={fileInputRef}
+          {...(disabled === undefined ? {} : { disabled })}
+        />
 
         <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
           <div className="relative flex h-9 flex-1 items-center overflow-hidden">

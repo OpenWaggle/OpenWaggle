@@ -109,15 +109,15 @@ export function HiveSummarySection({ sessionId }: { readonly sessionId: string }
         </>
       }
       // Historical (pre-Spawn) Hives are not Spawn lineage, so the Hive panel cannot list them.
-      target={
-        model.lineage.historical === true
-          ? undefined
-          : {
+      {...(model.lineage.historical === true
+        ? {}
+        : {
+            target: {
               label: OPEN_HIVE_PANEL,
               accessibleName,
               onOpen: () => showRightPanelSurface('hive'),
-            }
-      }
+            },
+          })}
     />
   )
 }

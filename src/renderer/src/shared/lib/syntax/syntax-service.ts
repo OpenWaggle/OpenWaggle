@@ -50,7 +50,12 @@ export class SyntaxService {
       this.importedLanguages.get(input.language.toLowerCase())?.revision ?? 'bundled'
     const { sourceKey, admission } = this.sourceState.resolve(input, languageRevision)
     if (!admission.admitted) {
-      return Promise.resolve(plainSyntaxResult({ ...input, diagnostic: admission.diagnostic }))
+      return Promise.resolve(
+        plainSyntaxResult({
+          ...input,
+          ...(admission.diagnostic === undefined ? {} : { diagnostic: admission.diagnostic }),
+        }),
+      )
     }
     if (this.languageQuarantine.isQuarantined(input.language)) {
       return Promise.resolve(

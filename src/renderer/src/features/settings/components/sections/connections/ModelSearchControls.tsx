@@ -18,7 +18,7 @@ export function ModelSearchField({ inputRef, value, onChange }: ModelSearchField
         aria-hidden="true"
       />
       <TextInput
-        ref={inputRef}
+        {...(inputRef === undefined ? {} : { ref: inputRef })}
         type="search"
         inputSize="sm"
         aria-label="Search models"

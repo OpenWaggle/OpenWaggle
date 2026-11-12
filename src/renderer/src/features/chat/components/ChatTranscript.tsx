@@ -13,9 +13,7 @@ import { WelcomeScreen } from './WelcomeScreen'
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
-  readonly renderVisibleMessageRows?:
-    | ((nodeIds: readonly string[], rows: ReactNode) => ReactNode)
-    | undefined
+  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
 }
 
 function latestCompactionAnnouncement(rows: ChatTranscriptSectionState['chatRows']) {
@@ -148,7 +146,7 @@ export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTransc
             rowsLength={rows.length}
           />
         }
-        renderVisibleMessageRows={renderVisibleMessageRows}
+        {...(renderVisibleMessageRows === undefined ? {} : { renderVisibleMessageRows })}
       />
     </>
   )

@@ -49,9 +49,9 @@ export function FocusedSourceEditor({
   readonly path: string
   readonly language: string
   readonly cacheKey: string
-  readonly targetLine?: number | null | undefined
+  readonly targetLine?: number | null
   readonly wordWrap: boolean
-  readonly className?: string | undefined
+  readonly className?: string
   readonly ariaLabel: string
   readonly onChange: (changes: readonly WorkspaceDocumentChange[], readSource: () => string) => void
   readonly onSave: () => void

@@ -1,4 +1,5 @@
 import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
+import type { WorktreeCleanupFailure } from '@shared/types/worktree-inventory'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
@@ -25,11 +26,16 @@ function cleanupAlertMessage(
   )
 }
 
+/** Whether the Workspace changed generation since the failure, and the Host's message. */
+type CleanupMismatch = Pick<
+  WorktreeCleanupFailure,
+  'generationMismatch' | 'generationMismatchMessage'
+>
+
 export function WorkspaceCleanupFailure(props: {
   readonly projectPath: string
   readonly initial: WorkspacePreparation
-  readonly generationMismatch?: boolean | undefined
-  readonly generationMismatchMessage?: string | undefined
+  readonly mismatch: CleanupMismatch
   readonly busy: boolean
   readonly onRetry: () => void
   readonly onDeleteAnyway: () => void
@@ -46,7 +52,7 @@ export function WorkspaceCleanupFailure(props: {
   const preparation = state.data ?? props.initial
   const cleanupCompleted =
     preparation.cleanup.status === 'succeeded' || preparation.cleanup.status === 'skipped'
-  const required = props.generationMismatch
+  const required = props.mismatch.generationMismatch
     ? undefined
     : preparation.snapshot.definitions.find(
         (entry) => entry.definition.phase === 'cleanup' && entry.review === 'required',
@@ -92,8 +98,8 @@ export function WorkspaceCleanupFailure(props: {
       <p role="alert" className="text-xs text-error-text">
         {cleanupAlertMessage(
           preparation,
-          props.generationMismatch === true,
-          props.generationMismatchMessage,
+          props.mismatch.generationMismatch === true,
+          props.mismatch.generationMismatchMessage,
         )}
       </p>
       {preparation.cleanup.output ? (
@@ -108,7 +114,7 @@ export function WorkspaceCleanupFailure(props: {
         </details>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        {props.generationMismatch ? null : required ? (
+        {props.mismatch.generationMismatch ? null : required ? (
           <Button disabled={busy} onClick={() => openReview(false)}>
             Check the cleanup
           </Button>

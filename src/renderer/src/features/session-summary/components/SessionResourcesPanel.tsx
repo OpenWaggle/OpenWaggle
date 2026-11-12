@@ -86,7 +86,7 @@ interface BoundSessionResourcesPanelProps {
   readonly activePathNodeIds: ReadonlySet<string>
   readonly target: SessionResourceBrowserTarget
   readonly onClose: () => void
-  readonly onTargetChange?: ((target: SessionResourceBrowserTarget) => void) | undefined
+  readonly onTargetChange?: (target: SessionResourceBrowserTarget) => void
 }
 
 function BoundSessionResourcesPanel({
@@ -197,7 +197,7 @@ export function SessionResourcesPanel({
       activePathNodeIds={activePathNodeIds}
       target={target}
       onClose={onClose}
-      onTargetChange={onTargetChange}
+      {...(onTargetChange === undefined ? {} : { onTargetChange })}
     />
   )
 }

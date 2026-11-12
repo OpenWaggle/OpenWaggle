@@ -17,7 +17,7 @@ type ButtonRadius = 'none' | 'sm' | 'md' | 'lg' | 'full'
 type ButtonAlign = 'center' | 'start' | 'between'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  readonly ref?: Ref<HTMLButtonElement> | undefined
+  readonly ref?: Ref<HTMLButtonElement>
   readonly variant?: ButtonVariant
   readonly size?: ButtonSize
   readonly radius?: ButtonRadius

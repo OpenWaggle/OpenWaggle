@@ -30,8 +30,8 @@ interface ChatRowRendererProps {
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onDismissError?: (message: string) => void
-  onDismissInterruptedRun?: ChatRowRenderContext['actions']['onDismissInterruptedRun'] | undefined
-  onBranchFromMessage?: ((messageId: string) => void) | undefined
+  onDismissInterruptedRun?: ChatRowRenderContext['actions']['onDismissInterruptedRun']
+  onBranchFromMessage?: (messageId: string) => void
   onForkFromMessage?: (messageId: string) => void
   onToggleTurnFold?: (turnKey: string) => void
 }
@@ -46,13 +46,19 @@ function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
     extensions,
     turnsByAnchorNodeId: new Map(),
     actions: {
-      onDismissInterruptedRun: props.onDismissInterruptedRun,
-      onBranchFromMessage: props.onBranchFromMessage,
-      onForkFromMessage: props.onForkFromMessage,
-      onToggleTurnFold: props.onToggleTurnFold,
+      ...(props.onDismissInterruptedRun === undefined
+        ? {}
+        : { onDismissInterruptedRun: props.onDismissInterruptedRun }),
+      ...(props.onBranchFromMessage === undefined
+        ? {}
+        : { onBranchFromMessage: props.onBranchFromMessage }),
+      ...(props.onForkFromMessage === undefined
+        ? {}
+        : { onForkFromMessage: props.onForkFromMessage }),
+      ...(props.onToggleTurnFold === undefined ? {} : { onToggleTurnFold: props.onToggleTurnFold }),
     },
-    onOpenSettings: props.onOpenSettings,
-    onRetry: props.onRetry,
+    ...(props.onOpenSettings === undefined ? {} : { onOpenSettings: props.onOpenSettings }),
+    ...(props.onRetry === undefined ? {} : { onRetry: props.onRetry }),
     onDismissError: props.onDismissError ?? (() => undefined),
   }
 }
@@ -91,17 +97,19 @@ function MessageRow({
           turnNumber={row.turnDividerProps.turnNumber}
           agentLabel={row.turnDividerProps.agentLabel}
           agentColor={row.turnDividerProps.agentColor}
-          agentModel={row.turnDividerProps.agentModel}
+          {...(row.turnDividerProps.agentModel === undefined
+            ? {}
+            : { agentModel: row.turnDividerProps.agentModel })}
         />
       )}
       <MessageBubble
         message={row.message}
         runtime={context.runtime}
-        waggle={row.waggle}
+        {...(row.waggle === undefined ? {} : { waggle: row.waggle })}
         run={{
           isStreaming: row.isStreaming,
           isRunActive: row.isRunActive,
-          assistantModel: row.assistantModel,
+          ...(row.assistantModel === undefined ? {} : { assistantModel: row.assistantModel }),
         }}
         presentation={{
           turnFolded: row.turnPresentation === 'folded',
@@ -144,7 +152,9 @@ function WaggleTurnRow({
         turnNumber={row.turnDividerProps.turnNumber}
         agentLabel={row.turnDividerProps.agentLabel}
         agentColor={row.turnDividerProps.agentColor}
-        agentModel={row.turnDividerProps.agentModel}
+        {...(row.turnDividerProps.agentModel === undefined
+          ? {}
+          : { agentModel: row.turnDividerProps.agentModel })}
       />
       <div className={cn('flex flex-col gap-5 border-l-2 pl-4', AGENT_BORDER_LEFT[row.agentColor])}>
         {row.foldRow && context.actions.onToggleTurnFold ? (
@@ -163,11 +173,13 @@ function WaggleTurnRow({
             key={messageRow.message.id}
             message={messageRow.message}
             runtime={context.runtime}
-            waggle={messageRow.waggle}
+            {...(messageRow.waggle === undefined ? {} : { waggle: messageRow.waggle })}
             run={{
               isStreaming: messageRow.isStreaming,
               isRunActive: messageRow.isRunActive,
-              assistantModel: messageRow.assistantModel,
+              ...(messageRow.assistantModel === undefined
+                ? {}
+                : { assistantModel: messageRow.assistantModel }),
             }}
             presentation={{
               hideAgentLabel: true,
@@ -203,7 +215,9 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
         runMode={row.runMode}
         model={row.model}
         interruptedAt={row.interruptedAt}
-        onDismiss={context.actions.onDismissInterruptedRun}
+        {...(context.actions.onDismissInterruptedRun === undefined
+          ? {}
+          : { onDismiss: context.actions.onDismissInterruptedRun })}
       />
     ))
     .with('message', (row) => <MessageRow row={row} context={context} />)
@@ -251,8 +265,10 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
         dismissedError={row.dismissedError}
         sessionId={row.sessionId}
         onDismiss={context.onDismissError}
-        onOpenSettings={context.onOpenSettings}
-        onRetry={context.onRetry}
+        {...(context.onOpenSettings === undefined
+          ? {}
+          : { onOpenSettings: context.onOpenSettings })}
+        {...(context.onRetry === undefined ? {} : { onRetry: context.onRetry })}
       />
     ))
     .exhaustive()

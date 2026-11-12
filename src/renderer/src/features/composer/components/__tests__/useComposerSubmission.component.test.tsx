@@ -42,8 +42,8 @@ function renderSubmission(input: {
       projectPath: '/repo',
       attachments: useComposerStore.getState().attachments,
       hasPreparingTextAttachment: false,
-      onSendFailure: input.onSendFailure,
-      onToast: input.onToast,
+      ...(input.onSendFailure === undefined ? {} : { onSendFailure: input.onSendFailure }),
+      ...(input.onToast === undefined ? {} : { onToast: input.onToast }),
     }),
   )
 }

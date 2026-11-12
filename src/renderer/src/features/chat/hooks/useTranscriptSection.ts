@@ -90,7 +90,7 @@ export interface TranscriptSectionParams {
   readonly turnAnchorMessageIds: ReadonlySet<string>
   readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
   /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
-  readonly turnDurationsByAnchorMessageId?: ReadonlyMap<string, number> | undefined
+  readonly turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
   readonly pendingSend: PendingSend | null
   readonly onPendingSendConsumed: () => void
   readonly compactionStatus: AgentCompactionStatus | null
@@ -160,7 +160,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   useReplacedTranscriptRefresh({ activeSessionId, activeSession, activeWorkspace, isLoading })
   const transcriptMessages = resolveTranscriptMessages({
     activeSessionId,
-    activeSessionUpdatedAt: activeSession?.updatedAt,
+    ...(activeSession ? { activeSessionUpdatedAt: activeSession.updatedAt } : {}),
     activeWorkspace,
     messages,
     draftBranchSourceNodeId,

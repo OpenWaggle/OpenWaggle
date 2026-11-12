@@ -24,7 +24,7 @@ interface TerminalPanelProps {
   readonly defaultProvenance?: TerminalContextProvenance
   readonly onClose: () => void
   readonly closePanelLabel?: string
-  readonly onDockActiveTab?: ((tabId: string) => void) | undefined
+  readonly onDockActiveTab?: (tabId: string) => void
 }
 
 /** The Session terminal panel: tab strip, split panes, search, port previews. */

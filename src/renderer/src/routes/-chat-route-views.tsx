@@ -19,7 +19,7 @@ type ChatRouteSurfaceInput = ComponentProps<typeof ChatRouteSurface>
 
 function useSessionWorkspaceFileOpen(sessionId: string) {
   const navigate = useNavigate()
-  return (open: boolean, target?: { path: string; line?: number | null | undefined }) => {
+  return (open: boolean, target?: { path: string; line?: number | null }) => {
     const panel: ChatRouteSearch['panel'] = open ? 'file' : undefined
     void navigate({
       to: '/sessions/$sessionId',

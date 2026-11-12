@@ -4,8 +4,9 @@ import { create } from 'zustand'
 /** User overrides for a session's worktree plan, layered over the session defaults. */
 export interface WorktreePlanOverride {
   readonly envMode?: SessionEnvironmentMode
-  readonly baseRef?: string | null | undefined
+  readonly baseRef?: string | null
   readonly startFromOrigin?: boolean
+  // explicit undefined: setOverride merges a patch, and undefined clears the chosen profile
   readonly preparationProfileId?: string | undefined
 }
 

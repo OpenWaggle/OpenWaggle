@@ -18,7 +18,7 @@ export interface WorktreeSendPlanInput {
    * False when a worktree path is recorded for this session but no longer exists on
    * disk. Undefined while unknown (not yet checked), which must not block a send.
    */
-  readonly worktreeExists?: boolean | undefined
+  readonly worktreeExists?: boolean
 }
 
 export type WorktreeSendPlan =
