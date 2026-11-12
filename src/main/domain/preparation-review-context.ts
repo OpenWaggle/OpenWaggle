@@ -8,7 +8,7 @@ import type {
   PreparationReview,
 } from '@shared/types/action-definitions'
 
-export function preparationExecutionKey(definition: PreparationDefinition): string {
+export function preparationExecutionKey(definition: PreparationDefinition) {
   const invocation = match(definition.invocation)
     .with({ type: 'command' }, ({ command, directory }) => ({
       type: 'command',
@@ -31,10 +31,7 @@ const reviewedProfileSchema = Schema.parseJson(
   Schema.Struct({ profileId: actionDefinitionIdSchema }),
 )
 
-export function reviewedProfile(
-  review: PreparationReview,
-  profiles: ActionCatalog['profiles'],
-): PreparationReview {
+export function reviewedProfile(review: PreparationReview, profiles: ActionCatalog['profiles']) {
   if (review.profileId) return review
   const parsed = safeDecodeUnknown(reviewedProfileSchema, review.fingerprint)
   if (!parsed.success) return review
@@ -57,7 +54,7 @@ export function preparationReview(
   definition: PreparationDefinition,
   enabled: boolean,
   profileName: string,
-): PreparationReview {
+) {
   return {
     definitionId: definition.id,
     fingerprint: preparationExecutionKey(definition),

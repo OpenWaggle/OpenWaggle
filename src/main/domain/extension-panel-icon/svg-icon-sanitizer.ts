@@ -67,16 +67,26 @@ function referencesOnlyLocalFragments(value: string) {
   return !RESOURCE_CSS.test(value.replace(LOCAL_URL_REFERENCE, ''))
 }
 
-function sanitizeAttribute(attribute: SvgMarkupAttribute): readonly SvgMarkupAttribute[] {
+function sanitizeAttribute(attribute: SvgMarkupAttribute) {
   if (REFERENCE_ATTRIBUTES.has(attribute.name)) {
-    return isLocalFragmentReference(attribute.value)
+    const result: readonly SvgMarkupAttribute[] = isLocalFragmentReference(attribute.value)
       ? [{ name: REFERENCE_ATTRIBUTE, value: trimAsciiWhitespace(attribute.value) }]
       : []
+    return result
   }
-  if (!ALLOWED_ATTRIBUTES.has(attribute.name)) return []
+  if (!ALLOWED_ATTRIBUTES.has(attribute.name)) {
+    const result: readonly SvgMarkupAttribute[] = []
+    return result
+  }
   // An id is a name, not a value the renderer resolves, so it may hold any character.
-  if (attribute.name === ID_ATTRIBUTE) return [attribute]
-  return referencesOnlyLocalFragments(attribute.value) ? [attribute] : []
+  if (attribute.name === ID_ATTRIBUTE) {
+    const result: readonly SvgMarkupAttribute[] = [attribute]
+    return result
+  }
+  const result: readonly SvgMarkupAttribute[] = referencesOnlyLocalFragments(attribute.value)
+    ? [attribute]
+    : []
+  return result
 }
 
 /** `href` and `xlink:href` both become `href`; only the first usable reference is kept. */
@@ -191,27 +201,47 @@ function byteLength(value: string) {
  * attributes, event handlers, external references and values that name resources are removed. An
  * icon left without any shape is rejected.
  */
-export function sanitizeSvgIcon(source: string): SvgIconSanitizeResult {
+export function sanitizeSvgIcon(source: string) {
   if (byteLength(source) > SVG_ICON_MAX_BYTES) {
-    return { ok: false, reason: `The SVG file is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.` }
+    return {
+      ok: false,
+      reason: `The SVG file is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.`,
+    } satisfies SvgIconSanitizeResult
   }
   const parsed = parseSvgMarkup(source)
-  if (!parsed.ok) return { ok: false, reason: `The SVG file is not well-formed: ${parsed.reason}` }
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      reason: `The SVG file is not well-formed: ${parsed.reason}`,
+    } satisfies SvgIconSanitizeResult
+  }
   if (parsed.root.name !== ROOT_ELEMENT) {
-    return { ok: false, reason: 'The SVG file must have a single <svg> root element.' }
+    return {
+      ok: false,
+      reason: 'The SVG file must have a single <svg> root element.',
+    } satisfies SvgIconSanitizeResult
   }
   const rejected = findRejectedElement(parsed.root)
   if (rejected !== null) {
-    return { ok: false, reason: `The SVG file contains a <${rejected}> element.` }
+    return {
+      ok: false,
+      reason: `The SVG file contains a <${rejected}> element.`,
+    } satisfies SvgIconSanitizeResult
   }
   const viewBox = rootViewBox(parsed.root)
   if (viewBox === null) {
-    return { ok: false, reason: 'The SVG root needs a viewBox or numeric width and height.' }
+    return {
+      ok: false,
+      reason: 'The SVG root needs a viewBox or numeric width and height.',
+    } satisfies SvgIconSanitizeResult
   }
 
   const sanitized = sanitizeElement(parsed.root)
   if (sanitized === null || !containsShape(sanitized)) {
-    return { ok: false, reason: 'The SVG file has no usable shapes.' }
+    return {
+      ok: false,
+      reason: 'The SVG file has no usable shapes.',
+    } satisfies SvgIconSanitizeResult
   }
   const svg = serializeSvgIconRoot({
     ...sanitized,
@@ -220,7 +250,12 @@ export function sanitizeSvgIcon(source: string): SvgIconSanitizeResult {
       ...sanitized.attributes.filter((attribute) => attribute.name !== 'viewBox'),
     ],
   })
-  return byteLength(svg) > SVG_ICON_MAX_BYTES
-    ? { ok: false, reason: `The sanitized SVG is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.` }
-    : { ok: true, svg }
+  return (
+    byteLength(svg) > SVG_ICON_MAX_BYTES
+      ? {
+          ok: false,
+          reason: `The sanitized SVG is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.`,
+        }
+      : { ok: true, svg }
+  ) satisfies SvgIconSanitizeResult
 }

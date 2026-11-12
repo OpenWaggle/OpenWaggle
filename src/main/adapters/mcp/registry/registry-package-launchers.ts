@@ -44,7 +44,7 @@ function takesValue(argument: RegistryInput) {
  * secret, and the server would not start without it.
  */
 function commandLineArguments(list: RegistryInputList) {
-  return list.flatMap((argument): string[] => {
+  return list.flatMap((argument) => {
     const named = argument.type === 'named'
     const { name } = argument
     const required = argument.isRequired === true
@@ -143,14 +143,14 @@ function withEnvironment(entry: PackageEntry, launcher: Omit<RegistryPackageLaun
   return { ...launcher, ...(env ? { env } : {}) }
 }
 
-function npmLauncher(entry: PackageEntry): RegistryPackageLauncher {
+function npmLauncher(entry: PackageEntry) {
   const identifier = packageIdentifier(entry.identifier, 'npm')
   const version = exactPackageVersion(entry.version)
   assertRuntimeHint(entry, 'npx')
   assertPublicPackageRegistry(entry, 'https://registry.npmjs.org')
   const runnerArgs = runtimeArguments(entry, new Set(['-y', '--yes', '--quiet']))
   const confirmed = runnerArgs.some((argument) => argument === '-y' || argument === '--yes')
-  return withEnvironment(entry, {
+  const launcher: RegistryPackageLauncher = withEnvironment(entry, {
     command: 'npx',
     args: [
       ...(confirmed ? runnerArgs : ['--yes', ...runnerArgs]),
@@ -158,14 +158,15 @@ function npmLauncher(entry: PackageEntry): RegistryPackageLauncher {
       ...commandLineArguments(entry.packageArguments),
     ],
   })
+  return launcher
 }
 
-function pypiLauncher(entry: PackageEntry): RegistryPackageLauncher {
+function pypiLauncher(entry: PackageEntry) {
   const identifier = packageIdentifier(entry.identifier, 'pypi')
   const version = exactPackageVersion(entry.version)
   assertRuntimeHint(entry, 'uvx')
   assertPublicPackageRegistry(entry, 'https://pypi.org')
-  return withEnvironment(entry, {
+  const launcher: RegistryPackageLauncher = withEnvironment(entry, {
     command: 'uvx',
     args: [
       ...runtimeArguments(entry, new Set(['--quiet', '--no-cache'])),
@@ -173,14 +174,15 @@ function pypiLauncher(entry: PackageEntry): RegistryPackageLauncher {
       ...commandLineArguments(entry.packageArguments),
     ],
   })
+  return launcher
 }
 
-function nugetLauncher(entry: PackageEntry): RegistryPackageLauncher {
+function nugetLauncher(entry: PackageEntry) {
   const identifier = packageIdentifier(entry.identifier, 'nuget')
   const version = exactPackageVersion(entry.version)
   assertRuntimeHint(entry, 'dnx')
   assertPublicPackageRegistry(entry, 'https://api.nuget.org/v3/index.json')
-  return withEnvironment(entry, {
+  const launcher: RegistryPackageLauncher = withEnvironment(entry, {
     command: 'dnx',
     args: [
       ...runtimeArguments(entry, new Set(['-y', '--yes'])),
@@ -189,13 +191,11 @@ function nugetLauncher(entry: PackageEntry): RegistryPackageLauncher {
       ...commandLineArguments(entry.packageArguments),
     ],
   })
+  return launcher
 }
 
 /** Docker flags could mount host directories or the Docker socket, so none are accepted. */
-async function ociLauncher(
-  entry: PackageEntry,
-  resolveOciImage: OciImageResolver,
-): Promise<RegistryPackageLauncher> {
+async function ociLauncher(entry: PackageEntry, resolveOciImage: OciImageResolver) {
   const identifier = packageIdentifier(entry.identifier, 'oci')
   if (commandLineArguments(entry.runtimeArguments).length > 0) {
     throw new Error('Registry OCI packages may not pass Docker options.')
@@ -208,7 +208,7 @@ async function ociLauncher(
     throw new Error('Docker did not report an exact sha256 digest for the OCI image.')
   }
   const env = environment(entry)
-  return {
+  const launcher: RegistryPackageLauncher = {
     command: 'docker',
     args: [
       'run',
@@ -220,12 +220,10 @@ async function ociLauncher(
     ],
     ...(env ? { env } : {}),
   }
+  return launcher
 }
 
-async function mcpbLauncher(
-  entry: PackageEntry,
-  input: RegistryPackageLauncherInput,
-): Promise<RegistryPackageLauncher> {
+async function mcpbLauncher(entry: PackageEntry, input: RegistryPackageLauncherInput) {
   const identifier = packageIdentifier(entry.identifier, 'mcpb')
   if (commandLineArguments(entry.runtimeArguments).length > 0) {
     throw new Error(
@@ -240,12 +238,13 @@ async function mcpbLauncher(
     ...(input.fetchResource ? { fetchResource: input.fetchResource } : {}),
   })
   const env = { ...piLiteralMap(installed.env), ...environment(entry) }
-  return {
+  const launcher: RegistryPackageLauncher = {
     command: installed.command,
     args: [...installed.args, ...commandLineArguments(entry.packageArguments)],
     cwd: installed.cwd,
     ...(Object.keys(env).length > 0 ? { env } : {}),
   }
+  return launcher
 }
 
 export interface RegistryPackageLauncherInput {
@@ -258,9 +257,7 @@ export interface RegistryPackageLauncherInput {
   readonly resolveOciImage?: OciImageResolver
 }
 
-export async function createRegistryPackageLauncher(
-  input: RegistryPackageLauncherInput,
-): Promise<RegistryPackageLauncher> {
+export async function createRegistryPackageLauncher(input: RegistryPackageLauncherInput) {
   if (input.type === 'npm') return npmLauncher(input.entry)
   if (input.type === 'pypi') return pypiLauncher(input.entry)
   if (input.type === 'nuget') return nugetLauncher(input.entry)

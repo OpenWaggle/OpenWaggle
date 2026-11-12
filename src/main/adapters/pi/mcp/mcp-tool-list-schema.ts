@@ -70,9 +70,10 @@ const toolCallResultSchema = Schema.Struct({
 export type McpToolCallResultFields = SchemaType<typeof toolCallResultSchema>
 
 /** The result's fields; a result that is not an object has none. */
-export function mcpToolCallResultFields(result: unknown): McpToolCallResultFields {
-  return Option.getOrElse(
+export function mcpToolCallResultFields(result: unknown) {
+  const fields: McpToolCallResultFields = Option.getOrElse(
     Schema.decodeUnknownOption(toolCallResultSchema)(result),
-    (): McpToolCallResultFields => ({}),
+    () => ({}),
   )
+  return fields
 }

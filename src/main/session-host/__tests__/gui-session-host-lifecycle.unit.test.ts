@@ -17,9 +17,9 @@ const {
   UpgradePendingError: class extends Error {},
   releaseSessionHostForUpdateMock: vi.fn(async () => 'stopped'),
   configureGuiSessionCommandClientMock: vi.fn(),
-  ensureLocalSessionHostMock: vi.fn(
-    async (_input: { readonly onLaunched?: () => void }): Promise<void> => undefined,
-  ),
+  ensureLocalSessionHostMock: vi.fn<
+    (_input: { readonly onLaunched?: () => void }) => Promise<void>
+  >(async (_input: { readonly onLaunched?: () => void }) => undefined),
   prepareLocalSessionHostPathsMock: vi.fn(async (paths: object) => paths),
   probeLocalSessionHostMock: vi.fn(async () => undefined),
   startRemoteSessionHostRendererBridgeMock: vi.fn(),

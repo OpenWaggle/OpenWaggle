@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import { decodeUnknownOrThrow } from '@shared/schema'
-import type { RegistryServerRecord } from '../registry-client'
 import { createRegistryEntry } from '../registry-entry'
 import { registryServerSchema } from '../registry-server-schema'
 
@@ -26,7 +25,7 @@ const PACKAGE_ARGUMENTS = [
 ]
 const EXPECTED_ARGUMENTS = ['--port=8080', 'serve', '--read-only', '-m=fast mode']
 
-function server(registryType: string, identifier: string, extra: object): RegistryServerRecord {
+function server(registryType: string, identifier: string, extra: object) {
   const pkg = {
     registryType,
     identifier,

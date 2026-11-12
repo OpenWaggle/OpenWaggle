@@ -22,7 +22,7 @@ export function applyNestedToolExecutionToParts(
   parts: readonly MessagePart[],
   event: NestedToolExecutionEvent,
   parentToolCallId: string,
-): readonly MessagePart[] {
+) {
   const index = parts.findIndex((part) => ownsNestedCall(part, parentToolCallId))
   const owner = parts[index]
   if (owner?.type !== 'tool-call') return parts
@@ -33,5 +33,9 @@ export function applyNestedToolExecutionToParts(
       nestedCalls: recordNestedToolExecution(owner.toolCall.nestedCalls, event),
     },
   }
-  return [...parts.slice(0, index), updated, ...parts.slice(index + 1)]
+  return [
+    ...parts.slice(0, index),
+    updated,
+    ...parts.slice(index + 1),
+  ] satisfies readonly MessagePart[]
 }

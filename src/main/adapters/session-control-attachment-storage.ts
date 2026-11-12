@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { AttachmentKind, AttachmentOrigin, PreparedAttachment } from '@shared/types/agent'
+import type { AttachmentKind, AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import type { SessionControlAttachmentServiceShape } from '../ports/session-control-attachment-service'
 import {
@@ -92,7 +92,7 @@ function stableAttachmentId(input: {
     .digest('hex')}`
 }
 
-function attachmentFromRow(row: PreparedAttachmentRow): PreparedAttachment {
+function attachmentFromRow(row: PreparedAttachmentRow) {
   return {
     id: row.id,
     kind: row.kind,

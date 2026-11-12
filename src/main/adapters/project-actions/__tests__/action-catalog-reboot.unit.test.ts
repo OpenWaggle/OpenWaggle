@@ -4,7 +4,10 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { action, catalog, installActionCatalogFixture, scope } from './action-catalog.test-harness'
 
 /** The device number the next identity read reports, as after a reboot renumbers the volume. */
-const reportedDevice = vi.hoisted((): { value: string | null } => ({ value: null }))
+const reportedDevice = vi.hoisted(() => {
+  const result: { value: string | null } = { value: null }
+  return result
+})
 vi.mock('../action-manifest-file', async (importOriginal) => {
   const original = await importOriginal<typeof import('../action-manifest-file')>()
   return {

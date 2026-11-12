@@ -2,14 +2,6 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import { RunId, SessionId } from '@shared/types/brand'
 import type { SessionLifecycleResponse } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
-import type { AgentSteeringService } from '../ports/agent-steering-service'
-import type { SessionControlIdentityService } from '../ports/session-control-identity-service'
-import type { SessionControlRunExecutor } from '../ports/session-control-run-executor'
-import type { SessionControlRunLifecycleRepository } from '../ports/session-control-run-lifecycle-repository'
-import type { SessionLifecycleIdentityService } from '../ports/session-lifecycle-identity-service'
-import type { SessionLifecyclePreparationService } from '../ports/session-lifecycle-preparation-service'
-import type { SessionLifecycleRepository } from '../ports/session-lifecycle-repository'
-import type { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { reserveActiveSessionRun } from './active-session-runs'
 import { coordinateSessionRuns } from './session-control-run-coordinator'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
@@ -18,19 +10,6 @@ import {
   executeSessionLifecycle,
 } from './session-lifecycle-service'
 import { forkSupervisedSessionRuns } from './session-run-coordinator-supervision'
-
-type SessionLifecycleDispatchDependencies =
-  | AgentSteeringService
-  | SessionControlIdentityService
-  | SessionControlRunExecutor
-  | SessionControlRunLifecycleRepository
-  | SessionOrchestrationUpdateDeliveryService
-
-type SessionLifecycleCommandDependencies =
-  | SessionLifecycleIdentityService
-  | SessionLifecyclePreparationService
-  | SessionLifecycleRepository
-  | SessionLifecycleDispatchDependencies
 
 export function dispatchAcceptedLifecycleRun(
   response: SessionLifecycleResponse,
@@ -81,9 +60,7 @@ type ExecuteSessionLifecycleCommandOptions = ExecuteSessionLifecycleCommandInput
   ) => Effect.Effect<void, unknown>
 }
 
-export function executeSessionLifecycleCommand(
-  input: ExecuteSessionLifecycleCommandOptions,
-): Effect.Effect<SessionLifecycleResponse, unknown, SessionLifecycleCommandDependencies> {
+export function executeSessionLifecycleCommand(input: ExecuteSessionLifecycleCommandOptions) {
   return Effect.gen(function* () {
     const mayStartRun =
       input.request.command.operation === 'launch' || input.request.command.operation === 'spawn'

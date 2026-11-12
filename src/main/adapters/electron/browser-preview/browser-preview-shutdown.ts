@@ -13,21 +13,21 @@ export class BrowserPreviewShutdown {
     this.closeRecord = closeRecord
   }
 
-  assertCanOpen(ownerKey: string): void {
+  assertCanOpen(ownerKey: string) {
     if (this.shuttingDown) throw new Error('Browser previews are shutting down.')
     if (this.closingOwners.has(ownerKey)) throw new Error('Browser previews are closing.')
   }
 
-  track(record: BrowserPreviewRecord): void {
+  track(record: BrowserPreviewRecord) {
     this.records.add(record)
     record.view.webContents.once('destroyed', () => this.records.delete(record))
   }
 
-  beginShutdown(): void {
+  beginShutdown() {
     this.shuttingDown = true
   }
 
-  closeForOwner(ownerKey: string): Promise<void> {
+  closeForOwner(ownerKey: string) {
     const existing = this.closingOwners.get(ownerKey)
     if (existing) return existing
     const completion = Promise.withResolvers<void>()
@@ -38,12 +38,12 @@ export class BrowserPreviewShutdown {
     return completion.promise
   }
 
-  closeAll(): Promise<void> {
+  closeAll() {
     this.beginShutdown()
     return this.closeRecords([...this.records])
   }
 
-  private async closeRecords(records: readonly BrowserPreviewRecord[]): Promise<void> {
+  private async closeRecords(records: readonly BrowserPreviewRecord[]) {
     const results = await Promise.allSettled(records.map((record) => this.close(record)))
     const failures = results.flatMap((result) => {
       if (result.status !== 'rejected') return []
@@ -58,7 +58,7 @@ export class BrowserPreviewShutdown {
     }
   }
 
-  private close(record: BrowserPreviewRecord): Promise<void> {
+  private close(record: BrowserPreviewRecord) {
     const existing = this.closing.get(record)
     if (existing) return existing
     const operation = this.closeRecord(record)

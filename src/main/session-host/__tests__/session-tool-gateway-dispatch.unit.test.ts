@@ -5,8 +5,8 @@ import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 
-function launch(projectPath: string): LocalSessionCommandPayload {
-  return {
+function launch(projectPath: string) {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     request: {
       contractVersion: 2,
@@ -21,6 +21,7 @@ function launch(projectPath: string): LocalSessionCommandPayload {
       },
     },
   }
+  return payload
 }
 
 const mocks = vi.hoisted(() => {

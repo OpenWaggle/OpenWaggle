@@ -10,7 +10,7 @@ type SessionResourceInvalidationListener = (event: SessionResourceInvalidation) 
 
 const listeners = new Set<SessionResourceInvalidationListener>()
 
-export function publishSessionResourceInvalidation(sessionId: SessionId): void {
+export function publishSessionResourceInvalidation(sessionId: SessionId) {
   const event = { sessionId } satisfies SessionResourceInvalidation
   for (const listener of listeners) {
     try {
@@ -23,7 +23,7 @@ export function publishSessionResourceInvalidation(sessionId: SessionId): void {
 
 export function subscribeToSessionResourceInvalidations(
   listener: SessionResourceInvalidationListener,
-): () => void {
+) {
   listeners.add(listener)
   return () => {
     listeners.delete(listener)

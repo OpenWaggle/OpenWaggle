@@ -77,11 +77,10 @@ function currentTimestamp(dependencies: TrustedMainActivationDependencies) {
   return dependencies.now?.() ?? Date.now()
 }
 
-function makeBrokerTransport(
-  runtime: Runtime.Runtime<TrustedMainActivationServices>,
-): ExtensionBrokerTransport {
+function makeBrokerTransport(runtime: Runtime.Runtime<TrustedMainActivationServices>) {
   const runBroker = Runtime.runPromise(runtime)
-  return (invocation) => runBroker(invokeExtensionCapability(invocation))
+  return ((invocation) =>
+    runBroker(invokeExtensionCapability(invocation))) satisfies ExtensionBrokerTransport
 }
 
 function clearTrustedMainContributionRegistrations(
@@ -103,7 +102,7 @@ function deactivateTrustedMainActivationKeys(activationKeys: readonly string[]) 
 
 export function deactivateTrustedMainExtensionPackage(
   extensionPackage: DiscoveredExtensionPackage,
-): Effect.Effect<void> {
+) {
   return Effect.gen(function* () {
     const deactivatedPackages =
       yield* deactivateTrustedMainExtensionPackageInState(extensionPackage)
@@ -118,7 +117,7 @@ export function activateTrustedMainExtensionPackage(
     readonly activationProjectPath?: string | null
   },
   dependencies: TrustedMainActivationDependencies = {},
-): Effect.Effect<TrustedMainActivationResult, never, TrustedMainActivationServices> {
+) {
   return Effect.gen(function* () {
     const extensionPackage = input.extensionPackage
     const contentHash = extensionPackage.contentHash

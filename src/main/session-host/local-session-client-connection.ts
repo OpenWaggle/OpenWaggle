@@ -89,10 +89,10 @@ export class LocalSessionFrameReader {
     waiter(new ReaderFailure(error))
   }
 
-  async next(timeoutMs?: number): Promise<unknown> {
+  async next(timeoutMs?: number) {
     if (this.pending.length > 0) return this.pending.shift()
     if (this.failure) throw this.failure
-    return new Promise((resolve, reject) => {
+    return new Promise<unknown>((resolve, reject) => {
       const timer =
         timeoutMs === undefined
           ? undefined
@@ -147,11 +147,11 @@ export interface ResolvedLocalSessionClientAuthentication {
 export async function resolveLocalSessionClientAuthentication(
   input: Pick<LocalSessionClientConnectionInput, 'paths' | 'profile' | 'profileCredential'>,
   readLocalUserCredential: (path: string) => Promise<string> = (path) => readFile(path, 'utf8'),
-): Promise<ResolvedLocalSessionClientAuthentication> {
+) {
   if (input.profile !== undefined) {
     if (input.profile.length === 0) throw new Error('A Local Session profile name is required.')
     if (!input.profileCredential) throw new Error('A Local Session credential is required.')
-    return {
+    const authentication: ResolvedLocalSessionClientAuthentication = {
       credential: input.profileCredential,
       ...(isWindowsPipe(input.paths.endpoint)
         ? {
@@ -162,13 +162,15 @@ export async function resolveLocalSessionClientAuthentication(
           }
         : {}),
     }
+    return authentication
   }
   const credential = (await readLocalUserCredential(input.paths.credentialPath)).trim()
   if (!credential) throw new Error('A Local Session credential is required.')
-  return {
+  const authentication: ResolvedLocalSessionClientAuthentication = {
     credential,
     ...(isWindowsPipe(input.paths.endpoint) ? { serverAuthentication: { credential } } : {}),
   }
+  return authentication
 }
 
 export async function authenticateLocalSessionServer(input: {

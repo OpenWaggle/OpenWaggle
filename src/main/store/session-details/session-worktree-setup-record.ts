@@ -34,18 +34,17 @@ export type SessionWorktreeSetupDispatch =
   | ClaimedSessionWorktreeSetup
   | AcceptedSessionWorktreeSetup
 
-function invalidDispatchRow(row: SessionWorktreeSetupRow): never {
+/** An arrow, so its inferred type is `never` and a branch that calls it narrows away. */
+const invalidDispatchRow = (row: SessionWorktreeSetupRow) => {
   throw new Error(
     `Invalid Session worktree Setup dispatch state for generation ${row.generation}: ${row.dispatch_state}`,
   )
 }
 
-export function hydrateSetupDispatch(
-  row: SessionWorktreeSetupRow | undefined,
-): SessionWorktreeSetupDispatch | null {
+export function hydrateSetupDispatch(row: SessionWorktreeSetupRow | undefined) {
   if (!row) return null
   const base = { worktreePath: row.worktree_path, generation: row.generation }
-  return match(row.dispatch_state)
+  const dispatch: SessionWorktreeSetupDispatch | null = match(row.dispatch_state)
     .with('pending', () => {
       if (row.claim_token !== null || row.accepted_at !== null) return invalidDispatchRow(row)
       return { ...base, state: 'pending' as const }
@@ -64,4 +63,5 @@ export function hydrateSetupDispatch(
       }
     })
     .otherwise(() => invalidDispatchRow(row))
+  return dispatch
 }

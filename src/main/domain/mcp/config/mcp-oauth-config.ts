@@ -35,8 +35,10 @@ function optionalString(value: unknown) {
 
 type OAuthRule = (value: OAuthFields) => string | undefined
 
-function stringField(field: 'clientId' | 'clientSecret' | 'scope'): OAuthRule {
-  return (value) => (optionalString(value[field]) ? undefined : `oauth.${field} must be a string`)
+function stringField(field: 'clientId' | 'clientSecret' | 'scope') {
+  const rule: OAuthRule = (value) =>
+    optionalString(value[field]) ? undefined : `oauth.${field} must be a string`
+  return rule
 }
 
 const callbackPortRule: OAuthRule = ({ callbackPort: port }) =>
@@ -104,7 +106,7 @@ const OAUTH_RULES: readonly OAuthRule[] = [
   metadataUrlRule,
 ]
 
-function oauthConfig(value: OAuthFields): McpOAuthConfig {
+function oauthConfig(value: OAuthFields) {
   const config: McpOAuthConfig = {}
   if (typeof value.clientId === 'string') config.clientId = value.clientId
   if (typeof value.clientSecret === 'string') config.clientSecret = value.clientSecret
@@ -125,13 +127,26 @@ export type McpOAuthValidation =
   | { readonly ok: true; readonly oauth: McpOAuthConfig | undefined }
   | { readonly ok: false; readonly error: string }
 
-export function validateMcpOAuthConfig(name: string, value: unknown): McpOAuthValidation {
-  if (value === undefined) return { ok: true, oauth: undefined }
-  if (!isJsonRecord(value)) return { ok: false, error: `server "${name}": oauth must be an object` }
+export function validateMcpOAuthConfig(name: string, value: unknown) {
+  if (value === undefined) {
+    const validation: McpOAuthValidation = { ok: true, oauth: undefined }
+    return validation
+  }
+  if (!isJsonRecord(value)) {
+    const validation: McpOAuthValidation = {
+      ok: false,
+      error: `server "${name}": oauth must be an object`,
+    }
+    return validation
+  }
   const fields = decodeUnknownOrThrow(oauthFieldsSchema, value)
   for (const rule of OAUTH_RULES) {
     const error = rule(fields)
-    if (error) return { ok: false, error: `server "${name}": ${error}` }
+    if (error) {
+      const validation: McpOAuthValidation = { ok: false, error: `server "${name}": ${error}` }
+      return validation
+    }
   }
-  return { ok: true, oauth: oauthConfig(fields) }
+  const validation: McpOAuthValidation = { ok: true, oauth: oauthConfig(fields) }
+  return validation
 }

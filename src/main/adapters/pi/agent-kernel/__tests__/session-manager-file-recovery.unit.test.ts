@@ -54,7 +54,7 @@ afterEach(async () => {
  * The Session as preparation records it: Pi session id and the file of a manager created in the
  * opened checkout. Pi writes a file only on the first assistant message, so that file never exists.
  */
-function preparedSession(): SessionDetail {
+function preparedSession() {
   const prepared = SessionManager.create(projectPath)
   return fromPartial<SessionDetail>({
     messages: [],

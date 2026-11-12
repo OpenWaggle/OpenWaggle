@@ -11,7 +11,7 @@ import { registerGitWorktreeHandlers } from './worktree-handler'
 
 export { invalidateGitStatusCache, normalizeGitPath } from './status-handler'
 
-export function registerGitHandlers(): void {
+export function registerGitHandlers() {
   registerGitStatusHandlers()
   registerGitCommitHandlers()
   registerGitBranchHandlers()

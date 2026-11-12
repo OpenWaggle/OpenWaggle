@@ -74,7 +74,7 @@ function characterClassToken(glob: readonly string[], opening: number) {
   }
 }
 
-function globTokens(glob: string): readonly GlobToken[] | null {
+function globTokens(glob: string) {
   if (glob.length > MAX_WORKSPACE_ASSOCIATION_GLOB_CODE_UNITS) return null
   const characters = Array.from(glob)
   const tokens: GlobToken[] = []

@@ -1,6 +1,5 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ClientIdentity } from '@earendil-works/pi-ai'
 import type { SettingsManager } from '@earendil-works/pi-coding-agent'
 
 // Pi does not export the function it builds each request's identity with (sdk.js,
@@ -10,7 +9,7 @@ const PI_CLIENT_IDENTITY_MODULE = path.resolve(
 )
 
 /** The identity Pi gives a request of a runtime with these settings. */
-export async function piRequestIdentity(settingsManager: SettingsManager): Promise<ClientIdentity> {
+export async function piRequestIdentity(settingsManager: SettingsManager) {
   const piModule: unknown = await import(pathToFileURL(PI_CLIENT_IDENTITY_MODULE).href)
   const getClientIdentity: unknown =
     typeof piModule === 'object' && piModule !== null && 'getClientIdentity' in piModule

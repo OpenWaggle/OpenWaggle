@@ -1,4 +1,3 @@
-import type { McpAppDescriptor } from '@shared/types/mcp-apps'
 import { type ListedMcpTool, mcpToolAppResourceUri, mcpToolListPage } from './mcp-tool-list-schema'
 
 /**
@@ -85,7 +84,7 @@ export function mcpAppDescriptor(input: {
   readonly serverIdentity: string
   readonly toolName: string
   readonly piToolName: string
-}): McpAppDescriptor | undefined {
+}) {
   const tool = mcpAppTool(input.sessionId, input.serverName, input.toolName)
   if (!tool) return undefined
   return {

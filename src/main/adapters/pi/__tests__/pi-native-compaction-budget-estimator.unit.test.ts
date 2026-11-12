@@ -12,7 +12,7 @@ import {
   NATIVE_DETAILS,
 } from './pi-native-compaction-test-fixtures'
 
-function makeSmallTargetModel(): Model<'openai-responses'> {
+function makeSmallTargetModel() {
   return withoutCompat(
     makeNativeModel({
       id: 'target-model',
@@ -21,7 +21,7 @@ function makeSmallTargetModel(): Model<'openai-responses'> {
       contextWindow: 100,
       maxTokens: 40,
     }),
-  )
+  ) satisfies Model<'openai-responses'>
 }
 
 describe('Pi native compaction budget estimator', () => {

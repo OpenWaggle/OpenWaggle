@@ -45,7 +45,7 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
 }
 
-function decodeQueueState(raw: string): 'running' | 'paused' {
+function decodeQueueState(raw: string) {
   if (raw === 'running' || raw === 'paused') return raw
   throw new Error(`Invalid Follow-up queue state: ${raw}`)
 }
@@ -56,40 +56,50 @@ function decodePauseReason(state: 'running' | 'paused', raw: string | null) {
   throw new Error(`Invalid Follow-up queue pause reason: ${raw}`)
 }
 
-function decodeRun(row: SessionRunRow | undefined): SessionControlRunState {
-  if (!row) return { state: 'idle' }
+function decodeRun(row: SessionRunRow | undefined) {
+  if (!row) return { state: 'idle' } satisfies SessionControlRunState
   if (row.status === 'starting') {
     if (row.intent_json === null) throw new Error(`Starting Run ${row.id} has no intent snapshot.`)
-    return { state: 'starting', runId: RunId(row.id), intent: decodeRunIntent(row.intent_json) }
+    return {
+      state: 'starting',
+      runId: RunId(row.id),
+      intent: decodeRunIntent(row.intent_json),
+    } satisfies SessionControlRunState
   }
-  if (row.status === 'active') return { state: 'active', runId: RunId(row.id) }
-  if (row.status === 'stopping') return { state: 'stopping', runId: RunId(row.id) }
+  if (row.status === 'active') {
+    return { state: 'active', runId: RunId(row.id) } satisfies SessionControlRunState
+  }
+  if (row.status === 'stopping') {
+    return { state: 'stopping', runId: RunId(row.id) } satisfies SessionControlRunState
+  }
   throw new Error(`Invalid active Run status: ${row.status}`)
 }
 
-function decodeFollowUp(row: SessionFollowUpRow): SessionControlFollowUp {
+function decodeFollowUp(row: SessionFollowUpRow) {
   // A Follow-up blocked on an authorization override it no longer carries is simply pending.
   if (
     (row.delivery_state === 'pending' && row.attention_reason === null) ||
     (row.delivery_state === 'needs_attention' &&
       row.attention_reason === LEGACY_AUTHORIZATION_BLOCK_REASON)
   ) {
-    return {
+    const result: SessionControlFollowUp = {
       id: FollowUpId(row.id),
       deliveryState: 'pending',
       intent: decodeFollowUpIntent(row.intent_json),
     }
+    return result
   }
   if (
     row.delivery_state === 'needs_attention' &&
     (row.attention_reason === 'profile_revoked' || row.attention_reason === 'authority_changed')
   ) {
-    return {
+    const result: SessionControlFollowUp = {
       id: FollowUpId(row.id),
       deliveryState: 'needs_attention',
       attentionReason: row.attention_reason,
       intent: decodeFollowUpIntent(row.intent_json),
     }
+    return result
   }
   throw new Error(
     `Invalid Follow-up delivery state: ${row.delivery_state}/${row.attention_reason ?? 'none'}`,
@@ -125,9 +135,9 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
     `
 
     const state = yield* Effect.try({
-      try: (): SessionControlSessionState => {
+      try: () => {
         const queueState = decodeQueueState(stateRow.queue_state)
-        return {
+        const result: SessionControlSessionState = {
           sessionId: SessionId(stateRow.session_id),
           revision: stateRow.state_revision,
           run: decodeRun(runRows[0]),
@@ -138,6 +148,7 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
             items: followUpRows.map(decodeFollowUp),
           },
         }
+        return result
       },
       catch: (cause) => repositoryError('decode-session-state', cause),
     })

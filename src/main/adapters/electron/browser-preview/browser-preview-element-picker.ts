@@ -37,7 +37,7 @@ interface ElementPickerArtifactStore {
 
 const PICKER_CONTROL_TIMEOUT_MS = 1_000
 
-async function executePickerControl(contents: WebContents, code: string): Promise<void> {
+async function executePickerControl(contents: WebContents, code: string) {
   if (contents.isDestroyed()) return
   await new Promise<void>((resolve) => {
     let settled = false
@@ -54,7 +54,7 @@ async function executePickerControl(contents: WebContents, code: string): Promis
   })
 }
 
-function captureClip(payload: BrowserPreviewElementPickPayload, scale: number): Rectangle {
+function captureClip(payload: BrowserPreviewElementPickPayload, scale: number) {
   const rect = payload.captureRect
   const boundedScale = Number.isFinite(scale) && scale > 0 ? scale : 1
   const x = Math.floor(rect.x * boundedScale)
@@ -67,7 +67,7 @@ function captureClip(payload: BrowserPreviewElementPickPayload, scale: number): 
   }
 }
 
-function decodePickPayload(value: unknown): BrowserPreviewElementPickPayload | null {
+function decodePickPayload(value: unknown) {
   if (value === null) return null
   const decoded = safeDecodeUnknown(browserPreviewElementPickPayloadSchema, value)
   if (decoded.success) return decoded.data
@@ -77,7 +77,7 @@ function decodePickPayload(value: unknown): BrowserPreviewElementPickPayload | n
 }
 
 /** Waits for `work`, then for `release` whether `work` succeeded or not. */
-async function settledBefore<T>(work: Promise<T>, release: () => Promise<void>): Promise<T> {
+async function settledBefore<T>(work: Promise<T>, release: () => Promise<void>) {
   try {
     return await work
   } finally {
@@ -94,12 +94,7 @@ export class BrowserPreviewElementPicker {
     this.artifacts = artifacts
   }
 
-  async pick(
-    pickKey: string,
-    previewId: string,
-    contents: WebContents,
-    captureScale = 1,
-  ): Promise<BrowserPreviewAnnotation | null> {
+  async pick(pickKey: string, previewId: string, contents: WebContents, captureScale = 1) {
     assertBrowserPreviewContentsAvailable(contents)
     if (contents.isDestroyed()) throw new Error('Browser preview content is no longer available.')
     if (this.active.has(pickKey)) await this.cancel(pickKey)
@@ -152,14 +147,14 @@ export class BrowserPreviewElementPicker {
         createdAt: new Date().toISOString(),
         screenshot,
         attachment,
-      }
+      } satisfies BrowserPreviewAnnotation
     } finally {
       await releaseOverlay()
       if (this.active.get(pickKey)?.token === token) this.active.delete(pickKey)
     }
   }
 
-  async cancel(pickKey: string): Promise<void> {
+  async cancel(pickKey: string) {
     const active = this.active.get(pickKey)
     if (active === undefined) return
     this.active.delete(pickKey)
@@ -167,7 +162,7 @@ export class BrowserPreviewElementPicker {
     await executePickerControl(active.contents, BROWSER_PREVIEW_ELEMENT_PICKER_CANCEL_SCRIPT)
   }
 
-  private getArtifacts(): ElementPickerArtifactStore {
+  private getArtifacts() {
     this.artifacts ??= getBrowserPreviewArtifactStore()
     return this.artifacts
   }

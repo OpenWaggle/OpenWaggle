@@ -4,10 +4,6 @@ import { inlineVisualizationContextSchema } from '@shared/schemas/validation'
 import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { THINKING_LEVELS } from '@shared/types/settings'
-import type {
-  SessionControlIntentSnapshot,
-  SessionControlRunIntent,
-} from '../domain/session-control/message-aggregate'
 
 const followUpIntentFields = {
   text: Schema.String,
@@ -40,7 +36,7 @@ const storedIntentSchema = Schema.Struct({
   hiveWake: Schema.optionalWith(Schema.Literal(true), { exact: true }),
 })
 
-export function decodeRunIntent(raw: string): SessionControlRunIntent {
+export function decodeRunIntent(raw: string) {
   const { waggle, ...intent } = decodeUnknownExactOrThrow(storedIntentSchema, parseJsonUnknown(raw))
   return {
     ...intent,
@@ -48,7 +44,7 @@ export function decodeRunIntent(raw: string): SessionControlRunIntent {
   }
 }
 
-export function decodeFollowUpIntent(raw: string): SessionControlIntentSnapshot {
+export function decodeFollowUpIntent(raw: string) {
   const {
     thinkingLevel: _thinkingLevel,
     runAuthorizationOverride: _runAuthorizationOverride,

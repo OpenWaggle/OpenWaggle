@@ -68,11 +68,11 @@ const HEARTBEAT = fromPartial<ScheduledTask>({
   },
 })
 
-function answer(outcome: ScheduledTasksOutcome): LocalScheduledTasksCommandResult {
+function answer(outcome: ScheduledTasksOutcome) {
   return {
     contract: 'scheduled-tasks-v1',
     response: { contractVersion: 1, requestId: 'request', operation: 'list', outcome },
-  }
+  } satisfies LocalScheduledTasksCommandResult
 }
 
 /** A Host call that creates a Scheduled task. */

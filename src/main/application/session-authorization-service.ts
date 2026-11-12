@@ -2,7 +2,6 @@ import { SessionId } from '@shared/types/brand'
 import type {
   SessionAuthorizationSetMutationRequest,
   SessionControlMutationOutcome,
-  SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { SessionControlOperationPendingError } from '../errors'
@@ -15,7 +14,7 @@ function response(
   request: SessionAuthorizationSetMutationRequest,
   replayed: boolean,
   outcome: SessionControlMutationOutcome,
-): SessionControlMutationResponse {
+) {
   return {
     contractVersion: request.contractVersion,
     requestId: request.requestId,

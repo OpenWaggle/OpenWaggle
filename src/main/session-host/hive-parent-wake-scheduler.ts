@@ -22,7 +22,7 @@ export function createHiveParentWakeScheduler(input: {
     done: (outcome: HiveParentWakeOutcome | undefined) => void,
   ) => void
   readonly onDeferredFull?: (parentSessionId: string) => void
-}): HiveParentWakeScheduler {
+}) {
   const inFlight = new Set<string>()
   const queued = new Set<string>()
   const deferred = new Set<string>()
@@ -61,5 +61,5 @@ export function createHiveParentWakeScheduler(input: {
         if (parentSessionId !== request.parentSessionId) run(parentSessionId)
       }
     },
-  }
+  } satisfies HiveParentWakeScheduler
 }

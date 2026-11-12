@@ -1,7 +1,6 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
-import type { McpJsonValue } from '@shared/types/mcp'
 import { isRecord } from '@shared/utils/validation'
 import type { McpConnectionHooks } from '../../mcp/pool/mcp-connection-pool-api'
 import { recordMcpAppTools } from './mcp-app-registry'
@@ -54,7 +53,7 @@ export function withOpenWaggleClientCapabilities(params: unknown) {
   }
 }
 
-function jsonRequest(params: unknown): McpJsonValue {
+function jsonRequest(params: unknown) {
   const decoded = safeDecodeUnknown(mcpConfigValueSchema, params ?? null)
   if (!decoded.success) throw new Error('The MCP server sent a request OpenWaggle cannot read.')
   return decoded.data
@@ -77,8 +76,8 @@ export function openWaggleMcpConnectionHooks(
   sessionId: string,
   serverName: string,
   identity?: string,
-): McpConnectionHooks {
-  return {
+) {
+  const hooks: McpConnectionHooks = {
     augmentInitializeParams: withOpenWaggleClientCapabilities,
     // Pi drops a tool's `_meta`, where an MCP App names its `ui://` resource, so it is read here.
     // The same listing is what Settings > MCP shows for the server without connecting to it.
@@ -126,4 +125,5 @@ export function openWaggleMcpConnectionHooks(
       return undefined
     },
   }
+  return hooks
 }

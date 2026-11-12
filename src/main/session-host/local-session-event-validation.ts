@@ -159,17 +159,31 @@ export type SessionHostEventDecision =
  * that does not decode costs only itself. Only an event without a cursor fails the subscription,
  * since nothing says where to resume.
  */
-export function decideSessionHostEvent(value: unknown): SessionHostEventDecision {
+export function decideSessionHostEvent(value: unknown) {
   if (isSessionHostEventEnvelope(value)) {
-    return { action: 'relay', envelope: value, droppedUserMessage: false }
+    const decision: SessionHostEventDecision = {
+      action: 'relay',
+      envelope: value,
+      droppedUserMessage: false,
+    }
+    return decision
   }
-  if (!Schema.is(envelopeCursorSchema)(value)) return { action: 'invalid' }
+  if (!Schema.is(envelopeCursorSchema)(value)) {
+    const decision: SessionHostEventDecision = { action: 'invalid' }
+    return decision
+  }
   const withoutMessage = withoutUserMessage(value)
   if (withoutMessage && isSessionHostEventEnvelope(withoutMessage)) {
-    return { action: 'relay', envelope: withoutMessage, droppedUserMessage: true }
+    const decision: SessionHostEventDecision = {
+      action: 'relay',
+      envelope: withoutMessage,
+      droppedUserMessage: true,
+    }
+    return decision
   }
-  return {
+  const decision: SessionHostEventDecision = {
     action: 'skip',
     cursor: { hostInstanceId: value.cursor.hostInstanceId, sequence: value.cursor.sequence },
   }
+  return decision
 }

@@ -51,19 +51,19 @@ export interface BrowserPreviewPopupPolicy {
 export function installBrowserPreviewPopupPolicy(
   contents: WebContents,
   options: BrowserPreviewPopupPolicyOptions,
-): BrowserPreviewPopupPolicy {
+) {
   const popups = new Set<BrowserWindow>()
   let pendingPopups = 0
 
-  const windowOpen = (details: HandlerDetails): WindowOpenHandlerResponse => {
+  const windowOpen = (details: HandlerDetails) => {
     const action = browserPreviewWindowOpenAction(details)
     if (action === 'navigate') {
       options.navigate(normalizeBrowserPreviewUrl(details.url))
-      return { action: 'deny' }
+      return { action: 'deny' } satisfies WindowOpenHandlerResponse
     }
     if (action !== 'popup' || popups.size + pendingPopups >= MAX_POPUPS_PER_PREVIEW) {
       options.onBlocked(details.url)
-      return { action: 'deny' }
+      return { action: 'deny' } satisfies WindowOpenHandlerResponse
     }
     pendingPopups += 1
     return {
@@ -75,7 +75,7 @@ export function installBrowserPreviewPopupPolicy(
           session: contents.session,
         },
       },
-    }
+    } satisfies WindowOpenHandlerResponse
   }
 
   const windowCreated = (popup: BrowserWindow) => {
@@ -107,7 +107,7 @@ export function installBrowserPreviewPopupPolicy(
   contents.setWindowOpenHandler(windowOpen)
   contents.on('did-create-window', windowCreated)
 
-  return {
+  const policy: BrowserPreviewPopupPolicy = {
     dispose: () => {
       contents.removeListener('did-create-window', windowCreated)
       contents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -119,4 +119,5 @@ export function installBrowserPreviewPopupPolicy(
     },
     popupCount: () => popups.size + pendingPopups,
   }
+  return policy
 }

@@ -35,7 +35,7 @@ import { rememberRunExtensionCommands } from './run-extension-commands'
 function withoutInheritedEvidenceDirectory(
   environment: NodeJS.ProcessEnv,
   evidenceDirectory: string | undefined,
-): NodeJS.ProcessEnv {
+) {
   if (evidenceDirectory) return environment
   const { [SESSION_EVIDENCE_DIRECTORY_ENV]: _inherited, ...rest } = environment
   return rest

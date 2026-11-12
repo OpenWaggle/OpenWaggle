@@ -40,16 +40,16 @@ function record(phase: SessionDeletionRecord['phase'], piSessionFile: string | n
 }
 
 const mocks = vi.hoisted(() => ({
-  getSessionDetail: vi.fn(async (): Promise<StoredSession | null> => null),
-  getSessionDeletion: vi.fn(async (): Promise<SessionDeletionRecord | null> => null),
+  getSessionDetail: vi.fn<() => Promise<StoredSession | null>>(async () => null),
+  getSessionDeletion: vi.fn<() => Promise<SessionDeletionRecord | null>>(async () => null),
   prepareSessionDeletion: vi.fn(),
   commitSessionDeletion: vi.fn(),
   prepareSessionPiFileCleanup: vi.fn(),
   markSessionPiFileCleanupComplete: vi.fn(async () => undefined),
   abandonSessionDeletion: vi.fn(async () => undefined),
-  listPendingSessionDeletions: vi.fn(async (): Promise<SessionId[]> => []),
-  listTranscriptFiles: vi.fn(
-    (_location: SessionTranscriptLocation): readonly string[] | Error => [],
+  listPendingSessionDeletions: vi.fn<() => Promise<SessionId[]>>(async () => []),
+  listTranscriptFiles: vi.fn<(_location: SessionTranscriptLocation) => readonly string[] | Error>(
+    (_location: SessionTranscriptLocation) => [],
   ),
 }))
 

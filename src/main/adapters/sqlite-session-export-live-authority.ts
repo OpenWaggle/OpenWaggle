@@ -160,16 +160,14 @@ function loadSessionAgentCaller(sql: SqlClient.SqlClient, callerId: string) {
   })
 }
 
-function loadExportCaller(
-  sql: SqlClient.SqlClient,
-  callerId: string,
-): Effect.Effect<LocalSessionCallerIdentity, unknown> {
-  return callerId.startsWith('profile:')
+function loadExportCaller(sql: SqlClient.SqlClient, callerId: string) {
+  const effect: Effect.Effect<LocalSessionCallerIdentity, unknown> = callerId.startsWith('profile:')
     ? loadNamedProfileCaller(sql, callerId)
     : loadSessionAgentCaller(sql, callerId)
+  return effect
 }
 
-function makeAuthority(sql: SqlClient.SqlClient): SessionExportLiveAuthorityShape {
+function makeAuthority(sql: SqlClient.SqlClient) {
   return {
     liveAuthorityBlockReason: (callerId, targetSessionId) =>
       normalizeAuthorityError(liveSessionAuthorityBlockReason(sql, callerId, targetSessionId)),
@@ -177,7 +175,7 @@ function makeAuthority(sql: SqlClient.SqlClient): SessionExportLiveAuthorityShap
     loadCaller: (callerId) => normalizeAuthorityError(loadExportCaller(sql, callerId)),
     resolveOriginProfileId: (callerId) =>
       normalizeAuthorityError(resolveOriginProfileId(sql, callerId)),
-  }
+  } satisfies SessionExportLiveAuthorityShape
 }
 
 export const SqliteSessionExportLiveAuthorityLive = Layer.effect(

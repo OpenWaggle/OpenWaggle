@@ -1,8 +1,8 @@
 import type {
   UsageCostQuery,
   UsageCostSessionQuery,
-  UsageCostSessionsResult,
   UsageCostView,
+  UsageCostSessionsResult,
 } from '@shared/types/usage-cost'
 import {
   aggregateUsageCostView,
@@ -35,8 +35,8 @@ export interface UsageCostServiceContext extends UsageCostDisplayContext {
 export function createUsageCostService(
   scanner: UsageCostScanner,
   context: UsageCostServiceContext,
-): UsageCostService {
-  const getView = async (query: UsageCostQuery): Promise<UsageCostView> => {
+) {
+  const getView = async (query: UsageCostQuery) => {
     const now = new Date()
     const collected = await scanner.collectSessions({
       rangeStartMs: rangeStartForPreset(query.preset, now),
@@ -45,7 +45,7 @@ export function createUsageCostService(
     return aggregateUsageCostView({ ...collected, display: context }, query, now)
   }
 
-  const getSessions = async (query: UsageCostSessionQuery): Promise<UsageCostSessionsResult> => {
+  const getSessions = async (query: UsageCostSessionQuery) => {
     const now = new Date()
     const collected = await scanner.collectSessions({
       rangeStartMs: rangeStartForPreset(query.preset, now),
@@ -55,5 +55,6 @@ export function createUsageCostService(
     return { query, sessions, generatedAtMs: now.getTime() }
   }
 
-  return { getView, getSessions }
+  const service: UsageCostService = { getView, getSessions }
+  return service
 }

@@ -35,8 +35,8 @@ export function runCredentialHelper(
   args: readonly string[],
   input?: string,
   options: CredentialHelperOptions = {},
-): Promise<CredentialHelperResult> {
-  return new Promise((resolve, reject) => {
+) {
+  return new Promise<CredentialHelperResult>((resolve, reject) => {
     let child: ChildProcessWithoutNullStreams
     try {
       child = spawn(command, [...args], {

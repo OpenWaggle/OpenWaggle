@@ -47,7 +47,7 @@ function createPage(sourceImage: NativeImage, accessibility: unknown) {
   const contentsEvents = new EventEmitter()
   const debuggerEvents = new EventEmitter()
   let attached = false
-  const sendCommand = vi.fn(async (method: string): Promise<unknown> => {
+  const sendCommand = vi.fn<(method: string) => Promise<unknown>>(async (method: string) => {
     if (method === 'Runtime.evaluate') return { result: { value: pageData() } }
     if (method === 'Accessibility.getFullAXTree') return accessibility
     return {}

@@ -25,7 +25,7 @@ export function attributeCopiedVisualizationSources(
   },
   /** The source node a copied node came from, when the copy has ids of its own. */
   sourceNodeIdByNodeId?: ReadonlyMap<string, string>,
-): AgentKernelSessionSnapshot {
+) {
   const previousOwners = new Map(
     sourceSession.nodes.flatMap((node) => {
       try {

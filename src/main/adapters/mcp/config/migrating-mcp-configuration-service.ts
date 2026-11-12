@@ -38,12 +38,12 @@ export function migrateBeforeEachCall(
     /** The last migration lock timeout (`McpLockTimeouts`), to tell whether a call waited. */
     readonly lockTimeouts?: McpLockTimeouts
   } = {},
-): McpConfigurationServiceShape {
+) {
   /** Migrates the viewed scope, then `call` with whether that hit a lock timeout. */
   function first<A, E>(
     input: McpConfigurationScopeInput,
     call: (waitedForLock: boolean) => Effect.Effect<A, E>,
-  ): Effect.Effect<A, E> {
+  ) {
     return Effect.promise(() =>
       migrateNoting(options.lockTimeouts, () => migrate(input.projectPath)),
     ).pipe(Effect.flatMap((waitedForLock) => Effect.suspend(() => call(waitedForLock))))
@@ -115,7 +115,7 @@ export function migrateBeforeEachCall(
       ),
     changed: (filePath) => service.changed(filePath),
     onChange: (listener) => service.onChange(listener),
-  }
+  } satisfies McpConfigurationServiceShape
 }
 
 /**
@@ -132,18 +132,19 @@ export function withRuntimeConfigErrors(
     /** The servers they leave out. */
     readonly missingSecretServers?: readonly string[]
   }>,
-): McpConfigurationServiceShape {
+) {
   return {
     ...service,
     getView: (input) =>
       Effect.gen(function* () {
         const view = yield* service.getView(input)
         const extra = yield* Effect.promise(() =>
-          runtimeErrors(input.projectPath).catch(
-            (error: unknown): Awaited<ReturnType<typeof runtimeErrors>> => ({
+          runtimeErrors(input.projectPath).catch((error: unknown) => {
+            const awaited: Awaited<ReturnType<typeof runtimeErrors>> = {
               errors: [error instanceof Error ? error.message : String(error)],
-            }),
-          ),
+            }
+            return awaited
+          }),
         )
         // A file's own line goes when a notice quotes it: the notice names the file and what to do.
         const quoted = (error: string) =>
@@ -162,5 +163,5 @@ export function withRuntimeConfigErrors(
           ...(servers.length > 0 ? { missingSecretServers: servers } : {}),
         }
       }),
-  }
+  } satisfies McpConfigurationServiceShape
 }

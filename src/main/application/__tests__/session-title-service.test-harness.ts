@@ -27,8 +27,14 @@ export const HANG = 'hang'
 export const SESSION_ID = SessionId('session-1')
 export const SESSION_MODEL = SupportedModelId('anthropic/claude-opus')
 
-export function text(role: Message['role'], body: string, id: string): Message {
-  return { id: MessageId(id), role, parts: [{ type: 'text', text: body }], createdAt: Date.now() }
+export function text(role: Message['role'], body: string, id: string) {
+  const message: Message = {
+    id: MessageId(id),
+    role,
+    parts: [{ type: 'text', text: body }],
+    createdAt: Date.now(),
+  }
+  return message
 }
 
 export interface World {
@@ -49,7 +55,7 @@ export interface World {
 let currentWorld: World | null = null
 
 /** The scripted state one test drives; reset with `resetWorld` before each test. */
-export function world(): World {
+export function world() {
   if (!currentWorld) throw new Error('Call resetWorld() before using the title test world().')
   return currentWorld
 }
@@ -60,8 +66,8 @@ export function resetWorld(overrides: Partial<SessionTitleState> = {}) {
   return currentWorld
 }
 
-function makeWorld(overrides: Partial<SessionTitleState> = {}): World {
-  return {
+function makeWorld(overrides: Partial<SessionTitleState> = {}) {
+  const world: World = {
     state: {
       sessionId: SESSION_ID,
       title: 'I would like a short title that describes',
@@ -80,6 +86,7 @@ function makeWorld(overrides: Partial<SessionTitleState> = {}): World {
     requests: [],
     cleared: [],
   }
+  return world
 }
 
 const TestRepository = Layer.succeed(
@@ -147,7 +154,7 @@ const TestSettings = Layer.succeed(
   }),
 )
 
-function projectedSession(): SessionDetail {
+function projectedSession() {
   const messages = [...world().messages]
   world().duringRead?.()
   return {
@@ -157,7 +164,7 @@ function projectedSession(): SessionDetail {
     messages,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies SessionDetail
 }
 
 const TestProjection = Layer.succeed(

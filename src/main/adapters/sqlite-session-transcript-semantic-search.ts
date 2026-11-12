@@ -149,7 +149,7 @@ export class SqliteSessionTranscriptSemanticSearch {
     })
   }
 
-  readiness(scope: TranscriptSemanticScope): Effect.Effect<SemanticDiscoveryReadiness, SqlError> {
+  readiness(scope: TranscriptSemanticScope) {
     return Effect.gen(this, function* () {
       const staleSessionIds = yield* staleTranscriptScopeSessionIds(this.sql, scope.sessionIds)
       if (staleSessionIds.length > 0) {

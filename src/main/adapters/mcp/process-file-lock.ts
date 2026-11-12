@@ -62,7 +62,7 @@ async function runWithProcessFileLock<T>(
     })
   let attempt = 0
   const deadline = maxWaitMs === undefined ? undefined : Date.now() + maxWaitMs
-  const acquireUntilAvailable = async (): Promise<() => Promise<void>> => {
+  const acquireUntilAvailable = async () => {
     while (true) {
       try {
         return await acquireOnce()
@@ -133,7 +133,7 @@ export function withProcessFileLockSync<T>(
   targetPath: string,
   operation: () => T,
   maxWaitMs = SYNC_LOCK_WAIT_MS,
-): T {
+) {
   mkdirSync(path.dirname(targetPath), { recursive: true })
   const deadline = Date.now() + maxWaitMs
   let release: () => void

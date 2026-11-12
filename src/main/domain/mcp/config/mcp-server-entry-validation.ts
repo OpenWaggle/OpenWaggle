@@ -53,8 +53,8 @@ interface Failure {
   readonly error: string
 }
 
-function failure(name: string, message: string): Failure {
-  return { ok: false, error: `server "${name}": ${message}` }
+function failure(name: string, message: string) {
+  return { ok: false, error: `server "${name}": ${message}` } satisfies Failure
 }
 
 const EXPOSURE_LIST = MCP_EXPOSURES.map((exposure) => `"${exposure}"`).join(', ')
@@ -76,8 +76,8 @@ function validateValueMap(
   field: 'env' | 'headers',
   value: unknown,
   options: McpServerValidationOptions,
-): ValueMapResult {
-  if (value === undefined) return { ok: true, values: undefined }
+) {
+  if (value === undefined) return { ok: true, values: undefined } satisfies ValueMapResult
   const shapeError = `${field} must map names to strings`
   if (!isJsonRecord(value)) return failure(name, shapeError)
   const values: Record<string, McpConfiguredValue> = {}
@@ -95,15 +95,16 @@ function validateValueMap(
     }
     values[key] = { secret: entry.secret }
   }
-  return { ok: true, values }
+  const result: ValueMapResult = { ok: true, values }
+  return result
 }
 
 type ExposureResult =
   | { readonly ok: true; readonly toolExposure: Record<string, McpExposure> | undefined }
   | Failure
 
-function validateToolExposure(name: string, value: unknown): ExposureResult {
-  if (value === undefined) return { ok: true, toolExposure: undefined }
+function validateToolExposure(name: string, value: unknown) {
+  if (value === undefined) return { ok: true, toolExposure: undefined } satisfies ExposureResult
   if (!isJsonRecord(value)) return failure(name, 'toolExposure must map tool names to exposures')
   const toolExposure: Record<string, McpExposure> = {}
   for (const [tool, entry] of Object.entries(value)) {
@@ -113,12 +114,13 @@ function validateToolExposure(name: string, value: unknown): ExposureResult {
     }
     toolExposure[tool] = resolved
   }
-  return { ok: true, toolExposure }
+  const result: ExposureResult = { ok: true, toolExposure }
+  return result
 }
 
 type BaseResult = { readonly ok: true; readonly base: McpServerConfigBase } | Failure
 
-function scalarBaseError(name: string, value: McpServerEntryFields): Failure | undefined {
+function scalarBaseError(name: string, value: McpServerEntryFields) {
   if (value.enabled !== undefined && typeof value.enabled !== 'boolean') {
     return failure(name, 'enabled must be a boolean')
   }
@@ -131,7 +133,7 @@ function scalarBaseError(name: string, value: McpServerEntryFields): Failure | u
   return undefined
 }
 
-function validateBase(name: string, value: McpServerEntryFields): BaseResult {
+function validateBase(name: string, value: McpServerEntryFields) {
   const exposure = resolveMcpExposureAlias(value.exposure)
   if (exposure !== undefined && !isMcpExposure(exposure)) {
     return failure(name, `exposure must be one of ${EXPOSURE_LIST}`)
@@ -149,7 +151,7 @@ function validateBase(name: string, value: McpServerEntryFields): BaseResult {
       ...(typeof value.description === 'string' ? { description: value.description } : {}),
       ...(typeof value.timeout === 'number' ? { timeout: value.timeout } : {}),
     },
-  }
+  } satisfies BaseResult
 }
 
 type UrlTransport = McpTransportKind | 'invalid' | 'unsupported'
@@ -157,24 +159,26 @@ type UrlTransport = McpTransportKind | 'invalid' | 'unsupported'
 const HTTP_PROTOCOLS = ['http:', 'https:']
 const WEBSOCKET_PROTOCOLS = ['ws:', 'wss:']
 
-function protocolTransport(type: unknown, protocol: string): UrlTransport {
+function protocolTransport(type: unknown, protocol: string) {
   if (HTTP_PROTOCOLS.includes(protocol)) return 'http'
-  return type === undefined && WEBSOCKET_PROTOCOLS.includes(protocol) ? 'websocket' : 'invalid'
+  return (
+    type === undefined && WEBSOCKET_PROTOCOLS.includes(protocol) ? 'websocket' : 'invalid'
+  ) satisfies UrlTransport
 }
 
-function urlTransport(type: unknown, url: string): UrlTransport {
+function urlTransport(type: unknown, url: string) {
   if (!URL.canParse(url)) return 'invalid'
   const protocol = new URL(url).protocol
   if (type === 'sse') return HTTP_PROTOCOLS.includes(protocol) ? 'sse' : 'invalid'
   if (type === 'websocket') return WEBSOCKET_PROTOCOLS.includes(protocol) ? 'websocket' : 'invalid'
   if (type !== undefined && type !== 'http' && type !== 'streamable-http') return 'unsupported'
-  return protocolTransport(type, protocol)
+  return protocolTransport(type, protocol) satisfies UrlTransport
 }
 
 type AuthResult = { readonly ok: true; readonly auth: { provider: string } | undefined } | Failure
 
-function validateProviderAuth(name: string, value: unknown, url: string): AuthResult {
-  if (value === undefined) return { ok: true, auth: undefined }
+function validateProviderAuth(name: string, value: unknown, url: string) {
+  if (value === undefined) return { ok: true, auth: undefined } satisfies AuthResult
   if (!isJsonRecord(value) || !Schema.is(providerAuthSchema)(value)) {
     return failure(name, 'auth.provider must be a provider name')
   }
@@ -182,7 +186,8 @@ function validateProviderAuth(name: string, value: unknown, url: string): AuthRe
   if (parsed.protocol !== 'https:' && !MCP_LOOPBACK_HOSTS.includes(parsed.hostname)) {
     return failure(name, 'auth requires an https URL, or http on localhost, 127.0.0.1, or [::1]')
   }
-  return { ok: true, auth: { provider: value.provider } }
+  const result: AuthResult = { ok: true, auth: { provider: value.provider } }
+  return result
 }
 
 function validateUrlServer(
@@ -191,10 +196,10 @@ function validateUrlServer(
   url: string,
   base: McpServerConfigBase,
   options: McpServerValidationOptions,
-): McpServerValidation | undefined {
+) {
   const transport = urlTransport(value.type, url)
   if (transport === 'unsupported') return undefined
-  if (transport === 'invalid' || transport === 'stdio') {
+  if (transport === 'invalid') {
     const plainHttp =
       value.type === 'sse' || value.type === 'http' || value.type === 'streamable-http'
     return failure(
@@ -215,7 +220,7 @@ function validateUrlServer(
     ...(oauth.oauth ? { oauth: oauth.oauth } : {}),
     ...(auth.auth ? { auth: auth.auth } : {}),
   }
-  return { ok: true, server: { config, transport } }
+  return { ok: true, server: { config, transport } } satisfies McpServerValidation | undefined
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -228,7 +233,7 @@ function validateStdioServer(
   command: string,
   base: McpServerConfigBase,
   options: McpServerValidationOptions,
-): McpServerValidation {
+) {
   if (value.args !== undefined && !isStringArray(value.args)) {
     return failure(name, 'args must be an array of strings')
   }
@@ -244,7 +249,7 @@ function validateStdioServer(
     ...(env.values ? { env: env.values } : {}),
     ...(typeof value.cwd === 'string' ? { cwd: value.cwd } : {}),
   }
-  return { ok: true, server: { config, transport: 'stdio' } }
+  return { ok: true, server: { config, transport: 'stdio' } } satisfies McpServerValidation
 }
 
 /**
@@ -255,11 +260,19 @@ export function validateMcpServerEntry(
   name: string,
   raw: unknown,
   options: McpServerValidationOptions,
-): McpServerValidation {
+) {
   if (!MCP_SERVER_NAME.test(name)) {
-    return { ok: false, error: `invalid server name "${name}" (use letters, digits, "_" and "-")` }
+    return {
+      ok: false,
+      error: `invalid server name "${name}" (use letters, digits, "_" and "-")`,
+    } satisfies McpServerValidation
   }
-  if (!isJsonRecord(raw)) return { ok: false, error: `server "${name}" must be an object` }
+  if (!isJsonRecord(raw)) {
+    return {
+      ok: false,
+      error: `server "${name}" must be an object`,
+    } satisfies McpServerValidation
+  }
   const entry = decodeUnknownOrThrow(mcpServerEntryFieldsSchema, raw)
   const base = validateBase(name, entry)
   if (!base.ok) return base
@@ -270,8 +283,9 @@ export function validateMcpServerEntry(
   if (typeof entry.command === 'string' && (entry.type === undefined || entry.type === 'stdio')) {
     return validateStdioServer(name, entry, entry.command, base.base, options)
   }
-  return {
+  const validation: McpServerValidation = {
     ok: false,
     error: `server "${name}" needs either "command" (stdio) or "url" (streamable HTTP)`,
   }
+  return validation
 }

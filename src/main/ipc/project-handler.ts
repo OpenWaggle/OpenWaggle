@@ -8,14 +8,14 @@ import { takeOpenSessionLinkRequest } from '../session-link-requests'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
 
-function createProjectFolderDialogOptions(): OpenDialogRequest {
+function createProjectFolderDialogOptions() {
   return {
     properties: ['openDirectory'],
     title: 'Select Project Folder',
-  }
+  } satisfies OpenDialogRequest
 }
 
-export function registerProjectHandlers(): void {
+export function registerProjectHandlers() {
   typedHandle('project:select-folder', (event) =>
     Effect.gen(function* () {
       const ownerWindow = browserWindowFromWebContents(event.sender)

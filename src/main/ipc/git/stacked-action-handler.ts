@@ -59,8 +59,8 @@ function releaseActiveOperation(operationId: string | undefined, token: ActiveGi
   if (activeGitOperations.get(key) === token) activeGitOperations.delete(key)
 }
 
-function createStackedActionDeps(): StackedActionDeps {
-  return {
+function createStackedActionDeps() {
+  const deps: StackedActionDeps = {
     hasWorkingTreeChanges: async (projectPath) => {
       const result = await runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1', '-z'])
       if (result.code !== 0) {
@@ -141,16 +141,18 @@ function createStackedActionDeps(): StackedActionDeps {
       resolveLiveRemoteUrlRepository(path, url, sourceControlSettingsAccess()),
     buildChangeRequestFallbackUrl,
   }
+  return deps
 }
 
-function approvedPushDestination(target: GitPinnedPushTarget | null): GitPushDestination | null {
+function approvedPushDestination(target: GitPinnedPushTarget | null) {
   if (!target) return null
-  return {
+  const destination: GitPushDestination | null = {
     remote: target.remote,
     branch: target.branch,
     remoteUrl: target.pushUrls.length === 1 ? (target.pushUrls[0] ?? null) : null,
     multiplePushUrls: target.pushUrls.length > 1,
   }
+  return destination
 }
 
 function registerGitStackedActionCancelHandler() {
@@ -165,7 +167,7 @@ function registerGitStackedActionCancelHandler() {
   )
 }
 
-export function registerGitStackedActionHandlers(): void {
+export function registerGitStackedActionHandlers() {
   const deps = createStackedActionDeps()
   registerGitStackedActionCancelHandler()
   typedHandle('git:stacked-action:run', (event, rawPath: unknown, rawOptions: unknown) =>

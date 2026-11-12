@@ -1,10 +1,10 @@
-import type { ExtensionAPI, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 /**
  * An inline extension registering the virtual model `router/auto`, which routes every request to
  * the physical `test-provider/<target>` model, as a user's router extension would.
  */
-export function autoRouterExtension(target: string): ExtensionFactory {
+export function autoRouterExtension(target: string) {
   return (pi: ExtensionAPI) => {
     pi.registerVirtualModel({
       provider: 'router',

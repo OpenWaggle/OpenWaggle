@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentSession, ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
-import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
+import type { SessionUsageSummary } from '@shared/types/context-usage'
 import type { SessionDetail } from '@shared/types/session'
 import {
   AgentKernelMissingEntryError,
@@ -37,10 +37,7 @@ import { projectPiSessionSnapshot } from './session-projection'
 import { createPiSessionRuntime, withPiSession, withReadOnlyPiSession } from './session-runtime'
 import { piSessionFileField } from './pi-session-file-field'
 
-function toContextUsageSnapshot(
-  usage: ContextUsage | undefined,
-  session: SessionUsageSummary,
-): ContextUsageSnapshot | null {
+function toContextUsageSnapshot(usage: ContextUsage | undefined, session: SessionUsageSummary) {
   if (!usage) {
     return null
   }

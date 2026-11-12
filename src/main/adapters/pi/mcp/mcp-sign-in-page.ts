@@ -16,16 +16,12 @@ import { mcpOAuthUrl } from './pi-mcp-server-oauth'
 
 const logger = createLogger('mcp-sign-in')
 
-type PendingMcpSignIn = McpAuthorizationOrigin & { readonly oauthState?: string }
-
 function configuredMetadataUrl(entry: McpServerEntry) {
   return 'url' in entry.config ? entry.config.oauth?.authServerMetadataUrl : undefined
 }
 
 /** What OpenWaggle knows about where `entry` signs in, including what Pi discovered so far. */
-export async function mcpAuthorizationOrigin(
-  entry: McpServerEntry,
-): Promise<PendingMcpSignIn | undefined> {
+export async function mcpAuthorizationOrigin(entry: McpServerEntry) {
   const serverUrl = mcpOAuthUrl(entry)
   if (!serverUrl) return undefined
   const state = await getOpenWaggleMcpCredentials().forServer(entry.name, serverUrl).load()
@@ -43,7 +39,7 @@ export async function mcpAuthorizationOrigin(
  * The authorization servers configured or discovered for `entry`: requests to them (discovery,
  * token refresh) may go to a private network or plain HTTP, as requests to the server may.
  */
-export async function mcpAuthorizationServerUrls(entry: McpServerEntry): Promise<string[]> {
+export async function mcpAuthorizationServerUrls(entry: McpServerEntry) {
   const origin = await mcpAuthorizationOrigin(entry).catch(() => undefined)
   if (!origin) return []
   const discovery = origin.discovery
@@ -101,24 +97,27 @@ export type McpSignInPageOutcome =
   | { readonly kind: 'refused'; readonly error: Error }
 
 /** The Host-owned sign-in's page: checked against `entry`, then opened or handed back. */
-export async function showSignInPage(
-  entry: McpServerEntry,
-  href: string,
-): Promise<McpSignInPageOutcome> {
+export async function showSignInPage(entry: McpServerEntry, href: string) {
   const origin = await mcpAuthorizationOrigin(entry)
   if (!origin) {
-    return { kind: 'refused', error: new Error('This server does not sign in with OAuth.') }
+    return {
+      kind: 'refused',
+      error: new Error('This server does not sign in with OAuth.'),
+    } satisfies McpSignInPageOutcome
   }
   let page: URL
   try {
     page = checkMcpAuthorizationUrl(href, origin)
   } catch (error) {
-    return { kind: 'refused', error: error instanceof Error ? error : new Error(String(error)) }
+    return {
+      kind: 'refused',
+      error: error instanceof Error ? error : new Error(String(error)),
+    } satisfies McpSignInPageOutcome
   }
   try {
     await openExternal(page.href)
-    return { kind: 'opened' }
+    return { kind: 'opened' } satisfies McpSignInPageOutcome
   } catch {
-    return { kind: 'not-opened', href: page.href }
+    return { kind: 'not-opened', href: page.href } satisfies McpSignInPageOutcome
   }
 }

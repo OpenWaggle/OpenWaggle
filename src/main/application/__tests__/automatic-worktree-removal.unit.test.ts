@@ -27,11 +27,8 @@ const { AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS, runAutomaticWorktreeRemovalPass 
 const NOW = 10 * AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS
 const MEASURED_BYTES = 2048
 
-function entry(
-  path: string,
-  automaticRemoval: WorktreeInventoryEntry['automaticRemoval'],
-): WorktreeInventoryEntry {
-  return {
+function entry(path: string, automaticRemoval: WorktreeInventoryEntry['automaticRemoval']) {
+  const result: WorktreeInventoryEntry = {
     path,
     projectPath: '/repo',
     branch: `branch${path}`,
@@ -54,6 +51,7 @@ function entry(
     attention: [],
     automaticRemoval,
   }
+  return result
 }
 
 function layer(options: {
@@ -113,8 +111,9 @@ function runPass(options: Parameters<typeof layer>[0], isDraining = () => false)
   return Effect.runPromise(pass(options, isDraining))
 }
 
-function listing(...entries: WorktreeInventoryEntry[]): WorktreeInventory {
-  return { projects: [], problems: [], entries }
+function listing(...entries: WorktreeInventoryEntry[]) {
+  const inventory: WorktreeInventory = { projects: [], problems: [], entries }
+  return inventory
 }
 
 describe('Automatic worktree removal pass', () => {

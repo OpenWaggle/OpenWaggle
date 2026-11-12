@@ -1,7 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
 import type { DesktopDialogsShape } from '../../ports/desktop-shell/dialogs'
-import type * as GitHandlers from '../git'
 
 type TestMock = ReturnType<typeof vi.fn>
 type ShowMessageBoxMock = Mock<DesktopDialogsShape['showMessageBox']>
@@ -67,6 +66,6 @@ export function resetGitHandlerMocks() {
   showMessageBoxMock.mockResolvedValue({ response: 0 })
 }
 
-export function loadGitHandlers(): Promise<typeof GitHandlers> {
+export function loadGitHandlers() {
   return import('../git')
 }

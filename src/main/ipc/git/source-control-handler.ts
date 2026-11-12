@@ -16,7 +16,7 @@ const pathSchema = Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MAX_
 const projectPathArgumentSchema = Schema.NullOr(pathSchema)
 
 /** Settings, the Session Summary, and the inspector read and change source control here. */
-export function registerSourceControlHandlers(): void {
+export function registerSourceControlHandlers() {
   typedHandle('source-control:hosts', () =>
     Effect.promise(() => listSourceControlHosts(sourceControlSettingsAccess())),
   )

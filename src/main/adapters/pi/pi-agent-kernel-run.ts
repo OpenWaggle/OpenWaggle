@@ -122,7 +122,7 @@ export function createRunSessionsExtension(
   workingDirectory: string,
   projectPath: string,
   scratchDirectory: string | undefined,
-): SynchronousExtensionFactory {
+) {
   const hive = createSessionsToolExtension({
     sessionId: input.session.id,
     ...(scratchDirectory ? { scratchDirectory } : {}),
@@ -150,12 +150,14 @@ export function createRunSessionsExtension(
     ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
     ...(input.mcpServerAllowlist ? { mcpServerAllowlist: input.mcpServerAllowlist } : {}),
   })
-  return availableAgents
-    ? (pi) => {
-        hive(pi)
-        availableAgents(pi)
-      }
-    : hive
+  return (
+    availableAgents
+      ? (pi) => {
+          hive(pi)
+          availableAgents(pi)
+        }
+      : hive
+  ) satisfies SynchronousExtensionFactory
 }
 
 /** The Run's trusted first-party tools: browser preview, project actions, source control, docs. */

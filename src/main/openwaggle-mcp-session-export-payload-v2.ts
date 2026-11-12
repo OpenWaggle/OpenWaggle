@@ -44,14 +44,12 @@ function continuationSelection(input: SessionToolInputV2) {
   }
 }
 
-export function buildMcpSessionExportPayloadV2(
-  input: SessionToolInputV2,
-): LocalSessionCommandPayload {
+export function buildMcpSessionExportPayloadV2(input: SessionToolInputV2) {
   const manifest = input.snapshotManifest
   if (input.afterCreatedOrder !== undefined && !manifest) {
     throw new Error('MCP export continuation requires the first page snapshotManifest.')
   }
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: {
       contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -77,4 +75,5 @@ export function buildMcpSessionExportPayloadV2(
       },
     },
   }
+  return payload
 }

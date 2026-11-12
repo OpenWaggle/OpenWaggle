@@ -24,12 +24,17 @@ const HIVE_WAKE_START_GRACE_MS = 30_000
 const SETTLED_SWEEP_GRACE_MS = 10_000
 
 /** Who a Run acts for, as notifications judge it. */
-export function originOfRun(run: DesktopNotificationRunFacts | null): DesktopNotificationRunOrigin {
-  if (!run) return { kind: 'person' }
+export function originOfRun(run: DesktopNotificationRunFacts | null) {
+  if (!run) return { kind: 'person' } satisfies DesktopNotificationRunOrigin
   if (run.scheduledTaskPolicy !== null) {
-    return { kind: 'scheduled-task', policy: run.scheduledTaskPolicy }
+    return {
+      kind: 'scheduled-task',
+      policy: run.scheduledTaskPolicy,
+    } satisfies DesktopNotificationRunOrigin
   }
-  return desktopNotificationOriginOfCaller(run.originCallerId)
+  return desktopNotificationOriginOfCaller(
+    run.originCallerId,
+  ) satisfies DesktopNotificationRunOrigin
 }
 
 export const READY_TO_READ: DesktopNotificationCandidate = {

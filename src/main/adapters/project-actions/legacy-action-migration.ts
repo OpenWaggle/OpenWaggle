@@ -13,9 +13,7 @@ const legacySchema = Schema.Struct({
   actions: Schema.optionalWith(storedProjectActionsSchema, { exact: true }),
 })
 
-export async function migrateLegacyActionDocument(
-  projectPath: string,
-): Promise<LocalActionDocument> {
+export async function migrateLegacyActionDocument(projectPath: string) {
   const legacySource = await readActionConfigSource(projectPath, '.openwaggle/settings.json')
   const legacy =
     legacySource === null
@@ -51,5 +49,5 @@ export async function migrateLegacyActionDocument(
       profileName: 'Default',
     })),
     migration: { version: 1, legacySource },
-  }
+  } satisfies LocalActionDocument
 }

@@ -11,8 +11,8 @@ import {
   returnUndeliveredSteersReportingDrops,
 } from '../undelivered-steering'
 
-function followUp(id: string, text = `Text ${id}`): SessionControlFollowUp {
-  return {
+function followUp(id: string, text = `Text ${id}`) {
+  const result: SessionControlFollowUp = {
     id: FollowUpId(id),
     deliveryState: 'pending',
     intent: {
@@ -23,15 +23,17 @@ function followUp(id: string, text = `Text ${id}`): SessionControlFollowUp {
       idempotencyKey: `key-${id}`,
     },
   }
+  return result
 }
 
-function state(items: readonly SessionControlFollowUp[]): SessionControlSessionState {
-  return {
+function state(items: readonly SessionControlFollowUp[]) {
+  const result: SessionControlSessionState = {
     sessionId: SessionId('session-target'),
     revision: 7,
     run: { state: 'stopping', runId: RunId('run-stopped') },
     followUpQueue: { state: 'running', revision: 3, items },
   }
+  return result
 }
 
 describe('returning Undelivered steering messages', () => {

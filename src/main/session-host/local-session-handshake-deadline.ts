@@ -35,15 +35,15 @@ export class LocalSessionHandshakeDeadline {
   }
 
   /** The deadline passed and the connection was told so; late handshake work must not admit it. */
-  get expired(): boolean {
+  get expired() {
     return this.didExpire
   }
 
-  markHelloReceived(): void {
+  markHelloReceived() {
     this.helloReceived = true
   }
 
-  clear(): void {
+  clear() {
     this.settled = true
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined

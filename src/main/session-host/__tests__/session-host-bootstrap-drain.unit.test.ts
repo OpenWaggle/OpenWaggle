@@ -41,7 +41,7 @@ const paths: LocalSessionHostPaths = {
 describe('Session Host bootstrap', () => {
   it('interrupts every Run through the app runtime when a drain reaches its deadline', async () => {
     const ranEffects: unknown[] = []
-    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> => {
+    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>) => {
       ranEffects.push(effect)
       // The first effect reads the settings; nothing else needs a value here.
       return fromAny<A, unknown>(ranEffects.length === 1 ? DEFAULT_SETTINGS : undefined)
@@ -103,7 +103,7 @@ describe('Session Host bootstrap', () => {
       blockingOperations: [{ operationId: '1', operation: 'message', targetScope: 'session-a' }],
     }
     const ranEffects: unknown[] = []
-    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> => {
+    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>) => {
       ranEffects.push(effect)
       return fromAny<A, unknown>(
         effect === readSessionHostUpgradeBlockers ? blockers : DEFAULT_SETTINGS,

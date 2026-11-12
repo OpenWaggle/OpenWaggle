@@ -179,7 +179,7 @@ async function requestedPackageSource(
   workspace: string,
   manifest: NonNullable<Awaited<ReturnType<typeof packageManifest>>>,
   reference: ProjectTaskReference,
-): Promise<string[]> {
+) {
   const directory = reference.directory
   if (reference.source !== posix.join(directory, 'package.json')) return []
   if (directory === '.') return ['package.json']
@@ -259,19 +259,19 @@ async function packageSourceTasks(
   }
 }
 
-async function list(
-  workspace: string,
-  requested?: ProjectTaskReference,
-): Promise<ProjectTaskDiscovery> {
+async function list(workspace: string, requested?: ProjectTaskReference) {
   const tasks: DiscoveredProjectTask[] = []
   const diagnostics: { source: string; message: string }[] = []
   let root: Awaited<ReturnType<typeof packageManifest>>
   try {
     root = await packageManifest(workspace, 'package.json')
   } catch (error) {
-    return { tasks, diagnostics: [taskReadError('package.json', error)] }
+    return {
+      tasks,
+      diagnostics: [taskReadError('package.json', error)],
+    } satisfies ProjectTaskDiscovery
   }
-  if (root === null) return { tasks, diagnostics }
+  if (root === null) return { tasks, diagnostics } satisfies ProjectTaskDiscovery
   let sources = ['package.json']
   try {
     sources = requested
@@ -296,7 +296,10 @@ async function list(
       diagnostics.push(taskReadError(result.source, error))
     }
   }
-  return { tasks: tasks.slice(0, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS), diagnostics }
+  return {
+    tasks: tasks.slice(0, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS),
+    diagnostics,
+  } satisfies ProjectTaskDiscovery
 }
 
 export const packageScriptReader: ProjectTaskReader = { provider: 'package-script', list }

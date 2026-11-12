@@ -49,7 +49,7 @@ export function worktreeArchivedAt(sessions: readonly WorktreeInventorySession[]
   return latest
 }
 
-export function worktreeAttention(facts: WorktreeFacts): readonly WorktreeAttention[] {
+export function worktreeAttention(facts: WorktreeFacts) {
   const attention: WorktreeAttention[] = []
   const open = openSessions(facts).length
   if (open > 0) attention.push({ kind: 'open-sessions', count: open })
@@ -77,11 +77,16 @@ export function worktreeAttention(facts: WorktreeFacts): readonly WorktreeAttent
  * Safe to remove, Needs a decision, or In use (ADR 0060). A worktree that open Sessions work in
  * is In use, not a decision: it is current work, which Archive & remove can still end.
  */
-export function classifyWorktree(facts: WorktreeFacts): {
-  readonly group: WorktreeInventoryGroup
-  readonly attention: readonly WorktreeAttention[]
-} {
+export function classifyWorktree(facts: WorktreeFacts) {
   const attention = worktreeAttention(facts)
-  if (inUse(facts) || openSessions(facts).length > 0) return { group: 'in-use', attention }
-  return { group: attention.length === 0 ? 'safe' : 'decide', attention }
+  if (inUse(facts) || openSessions(facts).length > 0) {
+    return { group: 'in-use', attention } satisfies {
+      readonly group: WorktreeInventoryGroup
+      readonly attention: readonly WorktreeAttention[]
+    }
+  }
+  return { group: attention.length === 0 ? 'safe' : 'decide', attention } satisfies {
+    readonly group: WorktreeInventoryGroup
+    readonly attention: readonly WorktreeAttention[]
+  }
 }

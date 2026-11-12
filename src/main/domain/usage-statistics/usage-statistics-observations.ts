@@ -136,36 +136,32 @@ function runFinishedPropertiesAreValid(properties: UsageStatisticsRunFinishedPro
   })
 }
 
-function withEvent(day: UsageStatisticsDay, event: UsageStatisticsQueuedEvent): UsageStatisticsDay {
+function withEvent(day: UsageStatisticsDay, event: UsageStatisticsQueuedEvent) {
   if (day.events.length >= USAGE_STATISTICS_DAY_LIMITS.runEvents) return day
-  return { ...day, events: [...day.events, event] }
+  return { ...day, events: [...day.events, event] } satisfies UsageStatisticsDay
 }
 
-function withListItem(
-  day: UsageStatisticsDay,
-  list: 'mcpServers' | 'skills',
-  identifier: string,
-): UsageStatisticsDay {
+function withListItem(day: UsageStatisticsDay, list: 'mcpServers' | 'skills', identifier: string) {
   const item = usageStatisticsIdentifierOrCustom(identifier)
   return { ...day, [list]: withItem(day[list], item, USAGE_STATISTICS_DAY_LIMITS.listItems) }
 }
 
-function withExtensionsEnabled(day: UsageStatisticsDay, count: number): UsageStatisticsDay {
+function withExtensionsEnabled(day: UsageStatisticsDay, count: number) {
   if (!Number.isSafeInteger(count) || count < 0) return day
   return { ...day, extensionsEnabled: Math.max(day.extensionsEnabled ?? 0, count) }
 }
 
-function withUpdate(day: UsageStatisticsDay, previousVersion: string): UsageStatisticsDay {
+function withUpdate(day: UsageStatisticsDay, previousVersion: string) {
   if (!isUsageStatisticsVersion(previousVersion)) return day
   if (day.updates.length >= USAGE_STATISTICS_DAY_LIMITS.updates) return day
-  return { ...day, updates: [...day.updates, previousVersion] }
+  return { ...day, updates: [...day.updates, previousVersion] } satisfies UsageStatisticsDay
 }
 
 /** Applies one observation to a day. Invalid or over-limit observations leave it unchanged. */
 export function applyUsageStatisticsObservation(
   day: UsageStatisticsDay,
   observation: UsageStatisticsObservation,
-): UsageStatisticsDay {
+) {
   const unlimited = Number.POSITIVE_INFINITY
   return matchBy(observation, 'kind')
     .with('run-started', ({ entryPoint }) => ({
@@ -200,10 +196,7 @@ function union<T extends string>(left: readonly T[], right: readonly T[], limit:
 }
 
 /** Combines what the GUI and the Session Host observed for the same day. */
-export function mergeUsageStatisticsDays(
-  left: UsageStatisticsDay,
-  right: UsageStatisticsDay,
-): UsageStatisticsDay {
+export function mergeUsageStatisticsDays(left: UsageStatisticsDay, right: UsageStatisticsDay) {
   const unlimited = Number.POSITIVE_INFINITY
   const extensionsEnabled =
     left.extensionsEnabled === null && right.extensionsEnabled === null
@@ -236,7 +229,7 @@ export function recordUsageStatisticsObservation(
   days: Readonly<Record<string, UsageStatisticsDay>>,
   day: string,
   observation: UsageStatisticsObservation,
-): Readonly<Record<string, UsageStatisticsDay>> {
+) {
   const before = days[day] ?? EMPTY_USAGE_STATISTICS_DAY
   const after = applyUsageStatisticsObservation(before, observation)
   const recorded = sameDay(before, after) ? days : { ...days, [day]: after }
@@ -251,7 +244,7 @@ export function recordUsageStatisticsObservation(
 export function pruneUsageStatisticsDays(
   days: Readonly<Record<string, UsageStatisticsDay>>,
   today: string,
-): Readonly<Record<string, UsageStatisticsDay>> {
+) {
   const todayEpochDay = usageStatisticsEpochDay(today)
   if (todayEpochDay === undefined) return days
   const kept: Record<string, UsageStatisticsDay> = {}

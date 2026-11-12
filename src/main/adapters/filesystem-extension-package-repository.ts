@@ -4,7 +4,6 @@ import { appPaths } from '../desktop-shell/app-paths'
 import { ExtensionPackageRepositoryError } from '../errors'
 import {
   ExtensionPackageRepository,
-  type ExtensionPackageRepositoryShape,
   type RemoveExtensionPackageInput,
   type WriteExtensionPackageInput,
 } from '../ports/extension-package-repository'
@@ -18,9 +17,7 @@ function mapPackageRepositoryError(operation: string, cause: unknown) {
   return new ExtensionPackageRepositoryError({ operation, cause })
 }
 
-export function makeFilesystemExtensionPackageRepository(
-  globalRootPath: string,
-): ExtensionPackageRepositoryShape {
+export function makeFilesystemExtensionPackageRepository(globalRootPath: string) {
   return ExtensionPackageRepository.of({
     writePackage: (input: WriteExtensionPackageInput) =>
       Effect.tryPromise({

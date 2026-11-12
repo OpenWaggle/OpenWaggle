@@ -54,7 +54,7 @@ const hasAction = isMatching({ action: P.string })
  * `powershell`, `codemode`, every MCP or extension tool, every unknown tool, and every action not
  * listed above count as possibly mutating.
  */
-export function isReadOnlyToolCall(toolName: string, args: unknown): boolean {
+export function isReadOnlyToolCall(toolName: string, args: unknown) {
   if (READ_ONLY_TOOLS.has(toolName)) return true
   const actions = READ_ONLY_ACTIONS.get(toolName)
   if (!actions || !hasAction(args)) return false
@@ -107,14 +107,15 @@ export interface RunWorkspaceMutationObserver {
 export function observeRunWorkspaceMutations(
   session: Pick<AgentSession, 'subscribe' | 'resourceLoader'>,
   promptText: string,
-): RunWorkspaceMutationObserver {
+) {
   let mutated = mayRunExtensionCommand(promptText) || diskExtensionHandlesEvents(session)
   const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     if (mutated || event.type !== 'tool_execution_start') return
     if (!isReadOnlyToolCall(event.toolName, event.args)) mutated = true
   })
-  return {
+  const observer: RunWorkspaceMutationObserver = {
     mayHaveChangedWorkspace: () => mutated,
     dispose: unsubscribe,
   }
+  return observer
 }

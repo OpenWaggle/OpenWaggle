@@ -36,15 +36,16 @@ export function adoptSessionFollowUp(input: AdoptSessionFollowUpInput) {
     const repository = yield* SessionControlRepository
     const nextRunId = yield* identities.nextRunId
     const command = input.request.command
-    const rejected = (code: SessionHostRefusalCode): SessionControlMutationDecision => ({
-      accepted: false,
-      outcome: {
-        operation: command.operation,
-        effect: 'rejected',
-        sessionId: command.sessionId,
-        ...sessionHostRefusal(code),
-      },
-    })
+    const rejected = (code: SessionHostRefusalCode) =>
+      ({
+        accepted: false,
+        outcome: {
+          operation: command.operation,
+          effect: 'rejected',
+          sessionId: command.sessionId,
+          ...sessionHostRefusal(code),
+        },
+      }) satisfies SessionControlMutationDecision
     const execution = yield* repository.executeMutation({
       callerId: input.callerId,
       ...(input.hostRunCeiling ? { hostRunCeiling: input.hostRunCeiling } : {}),

@@ -26,7 +26,7 @@ export function makeDesktopNativeAdmission() {
   let recovery: DesktopNativeRecovery | null = null
   let recovering: Promise<DesktopNativeRecoveryOutcome> | null = null
 
-  async function attempt(offered: DesktopNativeRecovery): Promise<DesktopNativeRecoveryOutcome> {
+  async function attempt(offered: DesktopNativeRecovery) {
     try {
       await offered()
     } catch (error) {
@@ -37,11 +37,11 @@ export function makeDesktopNativeAdmission() {
           error instanceof Error ? error.message : 'Desktop tools could not be recovered.',
         ),
         retryable: !(error instanceof DesktopNativeRecoveryUnavailableError),
-      }
+      } satisfies DesktopNativeRecoveryOutcome
     }
     issue = null
     recovery = null
-    return { outcome: 'recovered' }
+    return { outcome: 'recovered' } satisfies DesktopNativeRecoveryOutcome
   }
 
   return {
@@ -55,17 +55,21 @@ export function makeDesktopNativeAdmission() {
     assertAdmission: () => {
       if (issue !== null) throw new Error(issue)
     },
-    getIssue: (): string | null => issue,
+    getIssue: () => issue,
     /** Runs the offered recovery one at a time; a failed attempt stays quarantined. */
-    recover: (): Promise<DesktopNativeRecoveryOutcome> => {
-      if (issue === null) return Promise.resolve({ outcome: 'recovered' })
+    recover: () => {
+      if (issue === null) {
+        return Promise.resolve({
+          outcome: 'recovered',
+        }) satisfies Promise<DesktopNativeRecoveryOutcome>
+      }
       const offered = recovery
       if (offered === null) {
         return Promise.resolve({
           outcome: 'failed',
           message: NO_RECOVERY_MESSAGE,
           retryable: false,
-        })
+        }) satisfies Promise<DesktopNativeRecoveryOutcome>
       }
       recovering ??= attempt(offered).finally(() => {
         recovering = null

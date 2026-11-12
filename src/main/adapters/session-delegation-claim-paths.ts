@@ -42,10 +42,7 @@ async function detectCaseSensitive(root: string, exists: boolean) {
   }
 }
 
-async function workspaceContext(
-  workingPath: string,
-  caseSensitiveOverride: boolean | undefined,
-): Promise<WorkspacePathContext> {
+async function workspaceContext(workingPath: string, caseSensitiveOverride: boolean | undefined) {
   let root: string
   let exists = true
   try {

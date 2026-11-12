@@ -45,7 +45,7 @@ export async function runPiOperationWithinAbortGrace(input: {
   readonly signal: AbortSignal
   readonly session: AgentSession
   readonly graceMs?: number
-}): Promise<PiOperationWithinAbortGraceOutcome> {
+}) {
   const graceMs = input.graceMs ?? PI_ABORTED_RUN_SETTLE_GRACE_MS
   let timer: ReturnType<typeof setTimeout> | undefined
   let onAbort: (() => void) | undefined

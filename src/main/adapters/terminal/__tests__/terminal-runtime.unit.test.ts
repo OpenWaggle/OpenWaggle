@@ -22,7 +22,6 @@ describe('makeTerminalRuntime spawn lifecycle', () => {
     const fake = makeFakePty(FAKE_PID)
     const { runtime, spawn } = makeRuntime(fake)
     const outcome = successfulOutcome(fake)
-    if (!outcome.ok) throw outcome.error
     spawn.mockResolvedValue({
       ...outcome,
       processIdentity: { pid: FAKE_PID, startedAt: 'darwin:123:456' },

@@ -63,9 +63,9 @@ export interface ResolvedSessionsCliInput {
   readonly payload?: LocalSessionCommandPayload
 }
 
-export function readCliStdin(): Promise<string> {
+export function readCliStdin() {
   process.stdin.setEncoding('utf8')
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     let text = ''
     process.stdin.on('data', (chunk: string) => {
       text += chunk
@@ -123,7 +123,7 @@ export async function readUtf8File(
   }
 }
 
-function withResolvedText(arguments_: ParsedArguments, text: string): ParsedArguments {
+function withResolvedText(arguments_: ParsedArguments, text: string) {
   if (text.trim().length === 0) throw new Error('Message input must not be empty.')
   if (!isSessionInputTextWithinLimit(text)) throw new Error('CLI input exceeds 16 MiB.')
   const options = new Map(arguments_.options)
@@ -249,13 +249,17 @@ export async function resolveSessionsCliMessageInput(
     readonly readFile?: (filePath: string) => Promise<string>
     readonly workingDirectory?: string
   } = {},
-): Promise<ResolvedSessionsCliInput> {
+) {
   const sources = inputSources(arguments_)
   // request-respond takes --text, --stdin and --input-file as an answer, read with the request.
-  if (command === 'request-respond') return { arguments: arguments_ }
+  if (command === 'request-respond') {
+    const input: ResolvedSessionsCliInput = { arguments: arguments_ }
+    return input
+  }
   if (!MESSAGE_INPUT_COMMANDS.has(command)) {
     if (sources.length > 0) throw new Error(`${command} does not accept message input.`)
-    return { arguments: arguments_ }
+    const input: ResolvedSessionsCliInput = { arguments: arguments_ }
+    return input
   }
   if (sources.length !== 1) {
     throw new Error(
@@ -276,7 +280,8 @@ export async function resolveSessionsCliMessageInput(
       consumeFile,
       workingDirectory: dependencies.workingDirectory ?? process.cwd(),
     })
-    return { arguments: arguments_, payload }
+    const input: ResolvedSessionsCliInput = { arguments: arguments_, payload }
+    return input
   }
   const text = await resolveTextSource({
     source: source ?? '',
@@ -284,5 +289,6 @@ export async function resolveSessionsCliMessageInput(
     consumeStdin,
     consumeFile,
   })
-  return { arguments: withResolvedText(arguments_, text) }
+  const input: ResolvedSessionsCliInput = { arguments: withResolvedText(arguments_, text) }
+  return input
 }

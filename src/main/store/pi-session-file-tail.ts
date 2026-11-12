@@ -75,7 +75,7 @@ function lineStartBefore(descriptor: number, offset: number) {
   return end === 0 ? 0 : null
 }
 
-function tailEndingAt(descriptor: number, offset: number): PiSessionFileTail | null {
+function tailEndingAt(descriptor: number, offset: number) {
   if (offset <= 0) return null
   if (readRange(descriptor, offset - 1, offset)[0] !== NEWLINE) return null
   const lineStart = lineStartBefore(descriptor, offset)
@@ -87,7 +87,7 @@ function tailEndingAt(descriptor: number, offset: number): PiSessionFileTail | n
   return { offset, lineStart, digest: digestOf(head, lastLine), lastEntryId }
 }
 
-function withFile<A>(file: string, read: (descriptor: number) => A): A | null {
+function withFile<A>(file: string, read: (descriptor: number) => A) {
   let descriptor: number | undefined
   try {
     descriptor = openSync(file, 'r')
@@ -109,7 +109,7 @@ export function readPiSessionFileTail(file: string) {
 }
 
 /** The tail of the first `size` bytes of a file's content, as `readPiSessionFileTail` reads it. */
-export function piSessionFileTailOf(content: Buffer): PiSessionFileTail | null {
+export function piSessionFileTailOf(content: Buffer) {
   const offset = content.length
   if (offset === 0 || content[offset - 1] !== NEWLINE) return null
   const lastLineEnd = offset - 1
@@ -149,7 +149,7 @@ export async function readPiSessionFileAfterTail(
   file: string,
   tail: PiSessionFileTail,
   end: number,
-): Promise<Buffer | null> {
+) {
   let handle: Awaited<ReturnType<typeof open>> | undefined
   try {
     handle = await open(file, 'r')

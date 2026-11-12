@@ -43,7 +43,7 @@ interface WarmerDependencies {
   readonly getMode: () => 'streaming'
 }
 
-async function createCacheWarmer(dependencies: WarmerDependencies): Promise<Warmer> {
+async function createCacheWarmer(dependencies: WarmerDependencies) {
   const piModule: unknown = await import(pathToFileURL(PI_CACHE_WARMER_MODULE).href)
   const CacheWarmer: unknown =
     typeof piModule === 'object' && piModule !== null && 'CacheWarmer' in piModule
@@ -58,7 +58,7 @@ async function createCacheWarmer(dependencies: WarmerDependencies): Promise<Warm
   return warmer
 }
 
-function reply(model: Model<Api>, prompt: number): AssistantMessage {
+function reply(model: Model<Api>, prompt: number) {
   return {
     role: 'assistant',
     content: [{ type: 'text', text: 'ok' }],
@@ -75,7 +75,7 @@ function reply(model: Model<Api>, prompt: number): AssistantMessage {
     },
     stopReason: 'stop',
     timestamp: 0,
-  }
+  } satisfies AssistantMessage
 }
 
 const PROMPT_TOKENS = 200_000

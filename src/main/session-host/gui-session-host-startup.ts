@@ -4,12 +4,10 @@ import {
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
 } from './local-session-paths'
-import type * as SessionHostCutover from './session-host-cutover'
 import { sessionHostTargetExists } from './session-host-cutover-presence'
 
 /** Loaded only when a legacy store may need moving: the cutover opens SQLite (A-F5). */
-const importSessionHostCutover = (): Promise<typeof SessionHostCutover> =>
-  import('./session-host-cutover')
+const importSessionHostCutover = () => import('./session-host-cutover')
 
 /**
  * Moves a legacy store into a new Session Host store when this profile has no Host store yet,
@@ -44,9 +42,7 @@ export async function prepareGuiSessionHostStartup(input: {
    * lifecycle moves one itself if that Host ends first (`moveLegacySessionStoreIfNeeded`).
    */
   readonly hostPrelaunched?: boolean
-}): Promise<{
-  readonly paths: LocalSessionHostPaths
-}> {
+}) {
   const paths = await prepareLocalSessionHostPaths(
     resolveLocalSessionHostPaths({ userDataRoot: input.userDataRoot }),
   )

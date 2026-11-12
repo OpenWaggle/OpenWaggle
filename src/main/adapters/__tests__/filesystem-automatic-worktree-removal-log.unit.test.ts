@@ -12,8 +12,8 @@ const { AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT, createAutomaticWorktreeRemovalLogS
 
 const CHECKED = { checked: true }
 
-function run(id: string, removed: number): AutomaticWorktreeRemovalRun {
-  return {
+function run(id: string, removed: number) {
+  const result: AutomaticWorktreeRemovalRun = {
     id,
     startedAt: 1,
     finishedAt: 2,
@@ -27,6 +27,7 @@ function run(id: string, removed: number): AutomaticWorktreeRemovalRun {
     })),
     failed: [],
   }
+  return result
 }
 
 describe('Automatic worktree removal record', () => {

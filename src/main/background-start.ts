@@ -20,8 +20,8 @@ const HOST_START_ARGUMENTS = ['--', 'host', 'start'] as const
 /** Login items are read by the system, written only by their user. */
 const LOGIN_ITEM_FILE_MODE = 0o644
 
-function unsupported(reason: string): BackgroundStartStatus {
-  return { supported: false, enabled: false, reason }
+function unsupported(reason: string) {
+  return { supported: false, enabled: false, reason } satisfies BackgroundStartStatus
 }
 
 function launchExecutable() {
@@ -109,7 +109,7 @@ function unavailableReason() {
   return null
 }
 
-export async function readBackgroundStart(): Promise<BackgroundStartStatus> {
+export async function readBackgroundStart() {
   const reason = unavailableReason()
   if (reason) return unsupported(reason)
   const executable = launchExecutable()
@@ -117,18 +117,18 @@ export async function readBackgroundStart(): Promise<BackgroundStartStatus> {
     return {
       supported: true,
       enabled: await fileHas(macLaunchAgentPath(), macLaunchAgentPlist(executable)),
-    }
+    } satisfies BackgroundStartStatus
   }
   if (process.platform === 'linux') {
     return {
       supported: true,
       enabled: await fileHas(linuxAutostartPath(), linuxAutostartEntry(executable)),
-    }
+    } satisfies BackgroundStartStatus
   }
   return {
     supported: true,
     enabled: systemIntegration.loginItemOpensAtLogin(windowsLoginItem()),
-  }
+  } satisfies BackgroundStartStatus
 }
 
 async function registerFile(filePath: string, contents: string, enabled: boolean) {
@@ -149,7 +149,7 @@ async function register(enabled: boolean) {
   systemIntegration.setLoginItemOpensAtLogin(windowsLoginItem(), enabled)
 }
 
-export async function writeBackgroundStart(enabled: boolean): Promise<BackgroundStartStatus> {
+export async function writeBackgroundStart(enabled: boolean) {
   const reason = unavailableReason()
   if (reason) return unsupported(reason)
   await register(enabled)

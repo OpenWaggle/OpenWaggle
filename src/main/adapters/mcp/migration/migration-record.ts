@@ -161,13 +161,13 @@ export class McpMigrationRecord {
   }
 
   /** Old instance ID to server name; see `legacyServerNames` in the schema. */
-  get legacyServerNames(): ReadonlyMap<string, string> {
-    return new Map(Object.entries(this.serverNames))
+  get legacyServerNames() {
+    return new Map<string, string>(Object.entries(this.serverNames))
   }
 
   /** Old instance ID to what its server was; see `legacyServerIdentities` in the schema. */
-  get legacyServerIdentities(): ReadonlyMap<string, McpLegacyServerIdentity> {
-    return new Map(Object.entries(this.serverIdentities))
+  get legacyServerIdentities() {
+    return new Map<string, McpLegacyServerIdentity>(Object.entries(this.serverIdentities))
   }
 
   noteLegacyServerIdentities(identities: ReadonlyMap<string, McpLegacyServerIdentity>) {

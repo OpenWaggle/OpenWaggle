@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { hydrateSessionMessage, hydrateSessionMessages } from '../message-hydration'
 import type { SessionNodeRow } from '../types'
 
-function userRow(createdOrder: number): SessionNodeRow {
+function userRow(createdOrder: number) {
   return {
     id: 'durable-user',
     session_id: 'session',
@@ -19,7 +19,7 @@ function userRow(createdOrder: number): SessionNodeRow {
     branch_hint_id: null,
     path_depth: 1,
     created_order: createdOrder,
-  }
+  } satisfies SessionNodeRow
 }
 
 describe('authoritative message created order', () => {

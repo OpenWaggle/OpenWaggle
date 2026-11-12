@@ -41,10 +41,7 @@ function appendEnabledWaggleModeState(input: {
   )
 }
 
-function withTransportEventModel(
-  event: AgentTransportEvent,
-  meta: WaggleStreamMetadata,
-): AgentTransportEvent {
+function withTransportEventModel(event: AgentTransportEvent, meta: WaggleStreamMetadata) {
   return { ...event, model: meta.agentModel }
 }
 

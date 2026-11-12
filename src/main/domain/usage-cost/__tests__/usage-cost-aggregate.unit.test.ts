@@ -15,7 +15,7 @@ const NOW = new Date('2026-10-14T12:00:00')
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-function record(overrides: Partial<UsageCostRecord> & { timestampMs: number }): UsageCostRecord {
+function record(overrides: Partial<UsageCostRecord> & { timestampMs: number }) {
   return {
     provider: 'anthropic',
     modelId: 'claude-opus-5-5',
@@ -24,13 +24,11 @@ function record(overrides: Partial<UsageCostRecord> & { timestampMs: number }): 
     recordedCostUsd: null,
     estimatedCostUsd: null,
     ...overrides,
-  }
+  } satisfies UsageCostRecord
 }
 
-function session(
-  overrides: Partial<UsageCostScanSession> & { readonly file: string },
-): UsageCostScanSession {
-  return {
+function session(overrides: Partial<UsageCostScanSession> & { readonly file: string }) {
+  const result: UsageCostScanSession = {
     sessionId: null,
     title: null,
     cwd: null,
@@ -41,6 +39,7 @@ function session(
     records: [],
     ...overrides,
   }
+  return result
 }
 
 const DISPLAY = {

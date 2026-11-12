@@ -1,6 +1,6 @@
-import { Schema, type SchemaType } from '@shared/schema'
-import type { AgentTransportAgentEndEvent } from '@shared/types/stream'
+import { Schema } from '@shared/schema'
 import { Option } from 'effect'
+import type { AgentTransportAgentEndEvent } from '@shared/types/stream'
 
 function isAgentEndReason(
   value: unknown,
@@ -22,8 +22,6 @@ const agentEndAssistantMessageSchema = Schema.Struct({
   errorMessage: Schema.optional(Schema.Unknown),
 })
 
-type AgentEndAssistantMessage = SchemaType<typeof agentEndAssistantMessageSchema>
-
 const isAgentEndAssistantMessage = Schema.is(agentEndAssistantMessageSchema)
 
 /** The token counts of an assistant message's `usage`, all three or none. */
@@ -31,9 +29,7 @@ const decodeAgentEndUsage = Schema.decodeUnknownOption(
   Schema.Struct({ input: Schema.Number, output: Schema.Number, totalTokens: Schema.Number }),
 )
 
-function getAgentEndAssistantMessage(
-  messages: readonly unknown[],
-): AgentEndAssistantMessage | null {
+function getAgentEndAssistantMessage(messages: readonly unknown[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (isAgentEndAssistantMessage(message)) {
@@ -51,9 +47,7 @@ export function getAgentEndReason(messages: readonly unknown[]) {
   return isAgentEndReason(assistantMessage.stopReason) ? assistantMessage.stopReason : null
 }
 
-export function getAgentEndUsage(
-  messages: readonly unknown[],
-): AgentTransportAgentEndEvent['usage'] | undefined {
+export function getAgentEndUsage(messages: readonly unknown[]) {
   const assistantMessage = getAgentEndAssistantMessage(messages)
   const usage = Option.getOrUndefined(decodeAgentEndUsage(assistantMessage?.usage))
   if (!usage) {
@@ -61,11 +55,12 @@ export function getAgentEndUsage(
   }
   const { input, output, totalTokens } = usage
 
-  return {
+  const event: AgentTransportAgentEndEvent['usage'] | undefined = {
     promptTokens: input,
     completionTokens: output,
     totalTokens,
   }
+  return event
 }
 
 export function getAgentEndError(messages: readonly unknown[]) {

@@ -70,26 +70,30 @@ export type TrustedMainExtensionModuleLoader = (
   contentHash: string,
 ) => Promise<LoadedTrustedMainExtensionModule>
 
-function activateExport(value: object): unknown {
+function activateExport(value: object) {
   const descriptor = Object.getOwnPropertyDescriptor(value, 'activate')
   if (!descriptor) {
     return undefined
   }
   if ('value' in descriptor) {
-    return descriptor.value
+    const result: unknown = descriptor.value
+    return result
   }
-  return descriptor.get?.call(value)
+  const result: unknown = descriptor.get?.call(value)
+  return result
 }
 
-function defaultExport(value: object): unknown {
+function defaultExport(value: object) {
   const descriptor = Object.getOwnPropertyDescriptor(value, 'default')
   if (!descriptor) {
     return undefined
   }
   if ('value' in descriptor) {
-    return descriptor.value
+    const result: unknown = descriptor.value
+    return result
   }
-  return descriptor.get?.call(value)
+  const result: unknown = descriptor.get?.call(value)
+  return result
 }
 
 export function hasTrustedMainRuntime(extensionPackage: DiscoveredExtensionPackage) {
@@ -100,7 +104,7 @@ function isDirectTrustedMainExtensionModule(value: unknown): value is TrustedMai
   return typeof value === 'object' && value !== null && typeof activateExport(value) === 'function'
 }
 
-export function trustedMainExtensionModule(value: unknown): TrustedMainExtensionModule | null {
+export function trustedMainExtensionModule(value: unknown) {
   if (isDirectTrustedMainExtensionModule(value)) {
     return value
   }
@@ -112,7 +116,7 @@ export function trustedMainExtensionModule(value: unknown): TrustedMainExtension
   return isDirectTrustedMainExtensionModule(defaultValue) ? defaultValue : null
 }
 
-function trustedMainModuleImport(moduleUrl: string): Promise<unknown> {
+function trustedMainModuleImport(moduleUrl: string) {
   return import(/* @vite-ignore */ moduleUrl).then((moduleNamespace: unknown) => moduleNamespace)
 }
 
@@ -226,7 +230,7 @@ export async function resolveTrustedMainEntryFilePath(
 export async function importTrustedMainExtensionModule(
   extensionPackage: DiscoveredExtensionPackage,
   contentHash: string,
-): Promise<LoadedTrustedMainExtensionModule> {
+) {
   const entryPath = await resolveTrustedMainEntryFilePath(extensionPackage, contentHash)
   if (!entryPath) {
     throw new Error(`Trusted main runtime entry for "${extensionPackage.id}" is unavailable.`)
@@ -254,7 +258,7 @@ export function createTrustedMainExtensionContext(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly contentHash: string
   readonly transport: ExtensionBrokerTransport
-}): TrustedMainExtensionContext {
+}) {
   const manifest = input.extensionPackage.manifest
   const invoke: ExtensionSdkInvoke = (request) =>
     input.transport({
@@ -276,7 +280,7 @@ export function createTrustedMainExtensionContext(input: {
       contentHash: input.contentHash,
     },
     sdk: createExtensionBrokerSdkFromInvoke(invoke),
-  }
+  } satisfies TrustedMainExtensionContext
 }
 
 export async function activateTrustedMainExtension(input: {

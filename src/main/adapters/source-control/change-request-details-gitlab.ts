@@ -53,21 +53,38 @@ interface GlabPipeline {
 
 type GlabFields = UncheckedFields<GlabMergeRequestDetails>
 
-function mapPipelineStatus(value: unknown): ChangeRequestCheckStatus {
+function mapPipelineStatus(value: unknown) {
   const status = asString(value)?.toLowerCase()
-  if (status === 'success' || status === 'passed') return 'passed'
-  if (status === 'failed') return 'failed'
-  if (status === 'canceled' || status === 'cancelled') return 'cancelled'
-  if (status === 'skipped' || status === 'manual') return 'skipped'
-  if (status === 'created' || status === 'waiting_for_resource' || status === 'preparing') {
-    return 'pending'
+  if (status === 'success' || status === 'passed') {
+    const result: ChangeRequestCheckStatus = 'passed'
+    return result
   }
-  if (status === 'pending' || status === 'running' || status === 'scheduled') return 'pending'
-  return 'unknown'
+  if (status === 'failed') {
+    const result: ChangeRequestCheckStatus = 'failed'
+    return result
+  }
+  if (status === 'canceled' || status === 'cancelled') {
+    const result: ChangeRequestCheckStatus = 'cancelled'
+    return result
+  }
+  if (status === 'skipped' || status === 'manual') {
+    const result: ChangeRequestCheckStatus = 'skipped'
+    return result
+  }
+  if (status === 'created' || status === 'waiting_for_resource' || status === 'preparing') {
+    const result: ChangeRequestCheckStatus = 'pending'
+    return result
+  }
+  if (status === 'pending' || status === 'running' || status === 'scheduled') {
+    const result: ChangeRequestCheckStatus = 'pending'
+    return result
+  }
+  const result: ChangeRequestCheckStatus = 'unknown'
+  return result
 }
 
-function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
-  return boundedObjects(value).flatMap((entry) => {
+function mapFiles(value: unknown) {
+  const file: readonly VcsChangeRequestFile[] = boundedObjects(value).flatMap((entry) => {
     const record: UncheckedFields<GlabFileStats> = entry
     const path = asString(record.path) ?? asString(record.new_path)
     if (!path) return []
@@ -79,38 +96,61 @@ function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
       },
     ]
   })
+  return file
 }
 
-function mapMergeability(record: GlabFields): ChangeRequestMergeability {
-  if (record.has_conflicts === true) return 'conflicting'
+function mapMergeability(record: GlabFields) {
+  if (record.has_conflicts === true) {
+    const mergeability: ChangeRequestMergeability = 'conflicting'
+    return mergeability
+  }
   const status = (
     asString(record.detailed_merge_status) ?? asString(record.merge_status)
   )?.toLowerCase()
-  if (status === 'conflict' || status === 'cannot_be_merged') return 'conflicting'
-  if (status === 'mergeable' || status === 'can_be_merged') return 'mergeable'
-  if (status === 'unchecked' || !status) return 'unknown'
-  return 'blocked'
-}
-
-function mapReviewDecision(record: GlabFields): ChangeRequestReviewDecision {
-  if (record.approved === true || asNumericCount(record.approvals_left) === 0) {
-    return 'approved'
+  if (status === 'conflict' || status === 'cannot_be_merged') {
+    const mergeability: ChangeRequestMergeability = 'conflicting'
+    return mergeability
   }
-  if ((asNumericCount(record.approvals_left) ?? 0) > 0) return 'review-required'
-  return 'none'
+  if (status === 'mergeable' || status === 'can_be_merged') {
+    const mergeability: ChangeRequestMergeability = 'mergeable'
+    return mergeability
+  }
+  if (status === 'unchecked' || !status) {
+    const mergeability: ChangeRequestMergeability = 'unknown'
+    return mergeability
+  }
+  const mergeability: ChangeRequestMergeability = 'blocked'
+  return mergeability
 }
 
-function pipelineChecks(record: GlabFields): readonly VcsChangeRequestCheck[] {
+function mapReviewDecision(record: GlabFields) {
+  if (record.approved === true || asNumericCount(record.approvals_left) === 0) {
+    const decision: ChangeRequestReviewDecision = 'approved'
+    return decision
+  }
+  if ((asNumericCount(record.approvals_left) ?? 0) > 0) {
+    const decision: ChangeRequestReviewDecision = 'review-required'
+    return decision
+  }
+  const decision: ChangeRequestReviewDecision = 'none'
+  return decision
+}
+
+function pipelineChecks(record: GlabFields) {
   const object = asObject(record.head_pipeline)
-  if (!object) return []
+  if (!object) {
+    const check: readonly VcsChangeRequestCheck[] = []
+    return check
+  }
   const pipeline: UncheckedFields<GlabPipeline> = object
-  return [
+  const check: readonly VcsChangeRequestCheck[] = [
     {
       name: asString(pipeline.name) ?? asString(pipeline.ref) ?? 'Pipeline',
       status: mapPipelineStatus(pipeline.status),
       url: asString(pipeline.web_url),
     },
   ]
+  return check
 }
 
 function discussionCounts(record: GlabFields) {
@@ -136,7 +176,7 @@ function fileTotals(files: readonly VcsChangeRequestFile[]) {
 }
 
 /** Map one bounded `glab mr view -F json --comments` response into lifecycle detail. */
-export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetails | null {
+export function mapGlabMergeRequestDetails(raw: unknown) {
   const object = asObject(raw)
   const summary = mapGlabMergeRequest(raw)
   if (!object || !summary) return null
@@ -158,7 +198,7 @@ export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetail
     mergeability,
     rulesBlocked: false,
   })
-  return {
+  const details: VcsChangeRequestDetails | null = {
     ...summary,
     reference: String(reference),
     headCommit,
@@ -177,4 +217,5 @@ export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetail
     ...discussionCounts(record),
     merge: { allowed: reason === null, reason, methods: CHANGE_REQUEST_MERGE_METHODS },
   }
+  return details
 }

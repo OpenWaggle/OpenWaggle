@@ -18,10 +18,7 @@ import {
 /** Most repositories whose fork parent is remembered in memory. */
 const FORK_PARENT_CACHE_LIMIT = 500
 
-function parseRepositoryKey(
-  key: string,
-  provider: SourceControlRepositoryIdentity['provider'],
-): SourceControlRepositoryIdentity | null {
+function parseRepositoryKey(key: string, provider: SourceControlRepositoryIdentity['provider']) {
   const [host, ...rest] = key.split('/')
   const repository = rest.at(-1)
   const owner = rest.slice(0, -1).join('/')
@@ -35,10 +32,7 @@ export function clearForkParentLookupsForTests() {
   forkParentLookups.clear()
 }
 
-async function forkParent(
-  key: string,
-  lookup: () => Promise<ForkParentLookup>,
-): Promise<SourceControlRepositoryIdentity | null> {
+async function forkParent(key: string, lookup: () => Promise<ForkParentLookup>) {
   if (forkParentLookups.has(key)) return forkParentLookups.get(key) ?? null
   const answer = await lookup()
   if (!answer.ok) return null
@@ -56,15 +50,13 @@ export type UpstreamRepositoryResolver = (
 ) => Promise<SourceControlRepositoryIdentity | null>
 
 /** The `upstream` remote through the shared resolver, so SSH aliases resolve like `origin`. */
-export function liveUpstreamRepository(
-  access: SourceControlSettingsAccess,
-): UpstreamRepositoryResolver {
-  return async (workingPath) => {
+export function liveUpstreamRepository(access: SourceControlSettingsAccess) {
+  return (async (workingPath) => {
     const result = await runGit(workingPath, ['remote', 'get-url', 'upstream'])
     const url = result.code === 0 ? result.stdout.trim() : ''
     if (!url) return null
     return (await resolveLiveRemoteUrlRepository(workingPath, url, access))?.repository ?? null
-  }
+  }) satisfies UpstreamRepositoryResolver
 }
 
 async function forkTargets(
@@ -112,7 +104,7 @@ export async function findCurrentChangeRequest(
   access: SourceControlSettingsAccess,
   resolveUpstream: UpstreamRepositoryResolver = liveUpstreamRepository(access),
   createProvider: typeof providerForRepository = providerForRepository,
-): Promise<CurrentChangeRequest> {
+) {
   const own = await sourceControl.provider.resolveChangeRequestForRef(workingPath, branch)
   const fallback = {
     result: own,
@@ -141,7 +133,8 @@ export async function findCurrentChangeRequest(
     if (settings.sourceControlChangeRequestRepositories[originKey] !== reference) {
       await access.patch({ sourceControlChangeRequestRepositories: { [originKey]: reference } })
     }
-    return { result, provider, repository: target }
+    const request: CurrentChangeRequest = { result, provider, repository: target }
+    return request
   }
   return fallback
 }

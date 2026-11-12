@@ -2,9 +2,9 @@ import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { desktopMenus } from './desktop-shell/desktop-menus'
 import type { ShellMenuItem } from './ports/desktop-shell/menus'
 
-function buildDevViewMenu(): ShellMenuItem[] {
+function buildDevViewMenu() {
   if (appLifecycle.isPackaged()) {
-    return []
+    return [] satisfies ShellMenuItem[]
   }
 
   return [
@@ -22,7 +22,7 @@ function buildDevViewMenu(): ShellMenuItem[] {
         { role: 'togglefullscreen' },
       ],
     },
-  ]
+  ] satisfies ShellMenuItem[]
 }
 
 export function configureApplicationMenu(appName: string, enabled = true) {

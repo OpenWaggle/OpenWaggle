@@ -8,7 +8,7 @@ import { ProviderService } from '../../ports/provider-service'
 export function resolveInitialWaggleRuntimeModel(input: {
   readonly config: WaggleConfig
   readonly selectedModel: SupportedModelId
-}): SupportedModelId {
+}) {
   const firstAgentModel = input.config.agents[0].model
   return isInheritedWaggleModelBinding(firstAgentModel)
     ? input.selectedModel

@@ -6,8 +6,9 @@ import {
   receiptForTerminalInput,
 } from '../terminal-input-idempotency'
 
-function inputState(generation: string | null = null): TerminalInputIdentityState {
-  return { inputGeneration: generation, lastInputReceipt: null }
+function inputState(generation: string | null = null) {
+  const state: TerminalInputIdentityState = { inputGeneration: generation, lastInputReceipt: null }
+  return state
 }
 
 describe('terminal input idempotency', () => {

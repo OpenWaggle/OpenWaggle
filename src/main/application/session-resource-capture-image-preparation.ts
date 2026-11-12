@@ -42,8 +42,10 @@ export function localImageCaptureRoots(workingPath: string | null, sessionId: st
   ]
 }
 
-export function generatedImageInput(image: CapturedImage): CapturedGeneratedImage {
-  return 'data' in image ? image : { data: '', mimeType: image.mimeType, title: image.title }
+export function generatedImageInput(image: CapturedImage) {
+  return (
+    'data' in image ? image : { data: '', mimeType: image.mimeType, title: image.title }
+  ) satisfies CapturedGeneratedImage
 }
 
 /** The `sourcePath` of a captured local image, to spread into a capture; none for other images. */

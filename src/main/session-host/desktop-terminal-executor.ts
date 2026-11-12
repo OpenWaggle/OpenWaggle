@@ -25,7 +25,7 @@ function voidResponse<K extends DesktopTerminalResult['operation']>(
 export function executeDesktopTerminalCommand(
   service: TerminalServiceShape,
   input: DesktopTerminalCommand,
-): Effect.Effect<DesktopTerminalResult, Error> {
+) {
   const result: Effect.Effect<DesktopTerminalResult, Error> = matchBy(input, 'operation')
     .with('getActivitySnapshot', () =>
       response('getActivitySnapshot', service.getActivitySnapshot()),

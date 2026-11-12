@@ -118,29 +118,36 @@ function modifierMask(modifiers: readonly BrowserPreviewAutomationModifier[]) {
   )
 }
 
-function functionKeyDefinition(key: string): KeyDefinition | null {
+function functionKeyDefinition(key: string) {
   const functionKey = /^F([1-9]|1[0-2])$/u.exec(key)
   if (functionKey?.[1]) {
-    return {
+    const definition: KeyDefinition = {
       code: key,
       key,
       keyCode: FUNCTION_KEY_CODE_OFFSET + Number(functionKey[1]),
     }
+    return definition
   }
   return null
 }
 
-function letterKeyDefinition(input: BrowserPreviewAutomationPressInput): KeyDefinition | null {
+function letterKeyDefinition(input: BrowserPreviewAutomationPressInput) {
   if (/^[a-z]$/iu.test(input.key)) {
     const upper = input.key.toUpperCase()
     const shifted = input.modifiers?.includes('Shift') ?? false
     const key = shifted || input.key === upper ? upper : input.key
-    return { code: `Key${upper}`, key, keyCode: upper.charCodeAt(0), text: key }
+    const definition: KeyDefinition = {
+      code: `Key${upper}`,
+      key,
+      keyCode: upper.charCodeAt(0),
+      text: key,
+    }
+    return definition
   }
   return null
 }
 
-function printableKeyDefinition(input: BrowserPreviewAutomationPressInput): KeyDefinition | null {
+function printableKeyDefinition(input: BrowserPreviewAutomationPressInput) {
   const printable = PRINTABLE_KEYS.find(
     (definition) => definition.key === input.key || definition.shiftedKey === input.key,
   )
@@ -155,7 +162,7 @@ function printableKeyDefinition(input: BrowserPreviewAutomationPressInput): KeyD
   return null
 }
 
-function resolveKeyDefinition(input: BrowserPreviewAutomationPressInput): KeyDefinition {
+function resolveKeyDefinition(input: BrowserPreviewAutomationPressInput) {
   const known =
     NAMED_KEYS[input.key] ??
     functionKeyDefinition(input.key) ??
@@ -167,7 +174,7 @@ function resolveKeyDefinition(input: BrowserPreviewAutomationPressInput): KeyDef
     key: input.key,
     keyCode: 0,
     ...(input.key.length === 1 ? { text: input.key } : {}),
-  }
+  } satisfies KeyDefinition
 }
 
 function macEditingCommands(code: string, modifiers: readonly BrowserPreviewAutomationModifier[]) {
@@ -182,7 +189,7 @@ function macEditingCommands(code: string, modifiers: readonly BrowserPreviewAuto
 export function makeBrowserPreviewAutomationKeySequence(
   input: BrowserPreviewAutomationPressInput,
   options: { readonly isMac: boolean },
-): BrowserPreviewAutomationKeySequence {
+) {
   const definition = resolveKeyDefinition(input)
   const inputModifiers = input.modifiers ?? []
   const modifiers = modifierMask(inputModifiers)
@@ -206,5 +213,5 @@ export function makeBrowserPreviewAutomationKeySequence(
       ...(commands.length > 0 ? { commands } : {}),
     },
     keyUp: { type: 'keyUp', ...shared },
-  }
+  } satisfies BrowserPreviewAutomationKeySequence
 }

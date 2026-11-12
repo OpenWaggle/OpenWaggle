@@ -34,13 +34,13 @@ export async function promptPiSessionForHiveWake(session: AgentSession) {
  * The wake message's transcript node: a user-role row holding the Host's notice, so the chat
  * folds the wake Run as its own turn and shows it as a notice rather than a user message.
  */
-export function hiveWakeProjection(): PiEntryProjection {
+export function hiveWakeProjection() {
   return {
     kind: 'user_message',
     role: 'user',
     contentJson: buildMessageNodeContentJson([{ type: 'text', text: HIVE_WAKE_NOTICE_TEXT }], null),
     metadataJson: buildRawNodeContentJson({ hiveWake: true }),
-  }
+  } satisfies PiEntryProjection
 }
 
 export function isHiveWakeEntry(entry: Extract<SessionEntry, { type: 'custom_message' }>) {
@@ -48,10 +48,10 @@ export function isHiveWakeEntry(entry: Extract<SessionEntry, { type: 'custom_mes
 }
 
 /** The live row for the wake message, matching its persisted node (`hiveWakeProjection`). */
-export function hiveWakeDisplay(sessionNodeCreatedOrder: number): AgentTransportUserMessage {
+export function hiveWakeDisplay(sessionNodeCreatedOrder: number) {
   return {
     parts: [{ type: 'text', text: HIVE_WAKE_NOTICE_TEXT }],
     sessionNodeCreatedOrder,
     hiveWake: true,
-  }
+  } satisfies AgentTransportUserMessage
 }

@@ -1,7 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { WAGGLE_INHERIT_MODEL, type WaggleConfig } from '@shared/types/waggle'
 
-export function inheritedFirstAgentConfig(): WaggleConfig {
+export function inheritedFirstAgentConfig() {
   return {
     mode: 'sequential',
     agents: [
@@ -19,5 +19,5 @@ export function inheritedFirstAgentConfig(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
+  } satisfies WaggleConfig
 }

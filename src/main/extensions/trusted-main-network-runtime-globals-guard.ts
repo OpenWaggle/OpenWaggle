@@ -197,9 +197,10 @@ interface RuntimeGlobals {
   readonly bun: unknown
 }
 
-function currentRuntimeGlobals(): RuntimeGlobals {
+function currentRuntimeGlobals() {
   const globals: object = globalThis
-  return { globals, bun: 'Bun' in globals ? globals.Bun : undefined }
+  const result: RuntimeGlobals = { globals, bun: 'Bun' in globals ? globals.Bun : undefined }
+  return result
 }
 
 /**

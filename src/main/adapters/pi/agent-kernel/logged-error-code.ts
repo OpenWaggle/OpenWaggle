@@ -1,7 +1,8 @@
 import { errorCode } from '@shared/utils/node-error'
 
 /** A filesystem error's `code` for a log line, or `unknown` when it has none. */
-export function loggedErrorCode(error: unknown): string {
+export function loggedErrorCode(error: unknown) {
   const code = errorCode(error)
-  return typeof code === 'string' ? code : 'unknown'
+  const result: string = typeof code === 'string' ? code : 'unknown'
+  return result
 }

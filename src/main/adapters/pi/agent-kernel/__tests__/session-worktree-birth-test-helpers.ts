@@ -13,8 +13,8 @@ export function unrelatedWorktreeGitResult(cwd: string, args: readonly string[])
   return Promise.resolve({ code: 0, stdout: 'main\n', stderr: '' })
 }
 
-export function setupSession(extra: Partial<SessionDetail> = {}): SessionDetail {
-  return {
+export function setupSession(extra: Partial<SessionDetail> = {}) {
+  const detail: SessionDetail = {
     id: SessionId('setup-session'),
     title: 'Setup session',
     projectPath: '/repo',
@@ -24,6 +24,7 @@ export function setupSession(extra: Partial<SessionDetail> = {}): SessionDetail 
     updatedAt: 1,
     ...extra,
   }
+  return detail
 }
 
 export function session(
@@ -34,8 +35,8 @@ export function session(
     worktreeBaseRef?: string | null
     worktreeStartFromOrigin?: boolean
   } = {},
-): SessionDetail {
-  return {
+) {
+  const detail: SessionDetail = {
     id: SessionId('sess-abcdef12'),
     title: 'S',
     projectPath: '/repo',
@@ -44,4 +45,5 @@ export function session(
     updatedAt: 1,
     ...extra,
   }
+  return detail
 }

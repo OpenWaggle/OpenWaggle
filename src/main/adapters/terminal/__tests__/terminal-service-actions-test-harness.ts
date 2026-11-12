@@ -104,7 +104,7 @@ export interface FakePty {
   >['resourceDrain']
 }
 
-function makeFakePty(pid: number): FakePty {
+function makeFakePty(pid: number) {
   const dataListeners: ((data: string) => void)[] = []
   const nativeLifecycle = makeTerminalLifecycleHarness()
   const { exitListeners } = nativeLifecycle
@@ -150,7 +150,7 @@ function makeFakePty(pid: number): FakePty {
   }
 }
 
-export function successfulOutcome(fake: FakePty): PtySpawnOutcome {
+export function successfulOutcome(fake: FakePty) {
   return {
     ok: true,
     pty: fake.pty,
@@ -170,7 +170,7 @@ export function successfulOutcome(fake: FakePty): PtySpawnOutcome {
     resourceDrain: fake.resourceDrain,
     pauseOutput: fake.pauseOutput,
     resumeOutput: fake.resumeOutput,
-  }
+  } satisfies PtySpawnOutcome
 }
 
 function makeRecordingSink() {
@@ -227,13 +227,14 @@ export let ptys: FakePty[]
 export let heldSpawns: ((outcome: PtySpawnOutcome) => void)[]
 export let activitySnapshots: TerminalActivitySnapshot[]
 
-export const openInput = (cwd: string): TerminalOpenInput => ({
-  ownerKey: OWNER,
-  terminalId: TERMINAL_ID,
-  cwd,
-  cols: 120,
-  rows: 40,
-})
+export const openInput = (cwd: string) =>
+  ({
+    ownerKey: OWNER,
+    terminalId: TERMINAL_ID,
+    cwd,
+    cols: 120,
+    rows: 40,
+  }) satisfies TerminalOpenInput
 
 export const open = (cwd: string) => Effect.runPromise(service.open(openInput(cwd)))
 export const settle = () => vi.advanceTimersByTimeAsync(0)
@@ -269,16 +270,18 @@ export async function setupTerminalServiceActionsTest(options: RetentionOptions 
   ptys = []
   heldSpawns = []
   holdSpawns = false
-  spawn = vi.fn((_request: PtySpawnRequest): Promise<PtySpawnOutcome> => {
-    const fake = makeFakePty(FAKE_PID + ptys.length)
-    ptys.push(fake)
-    if (holdSpawns) {
-      return new Promise<PtySpawnOutcome>((resolve) => {
-        heldSpawns.push(resolve)
-      })
-    }
-    return Promise.resolve(successfulOutcome(fake))
-  })
+  spawn = vi.fn<(_request: PtySpawnRequest) => Promise<PtySpawnOutcome>>(
+    (_request: PtySpawnRequest) => {
+      const fake = makeFakePty(FAKE_PID + ptys.length)
+      ptys.push(fake)
+      if (holdSpawns) {
+        return new Promise<PtySpawnOutcome>((resolve) => {
+          heldSpawns.push(resolve)
+        })
+      }
+      return Promise.resolve(successfulOutcome(fake))
+    },
+  )
   runnerRef.current = {
     spawn,
     load: () => new Promise<never>(() => undefined),

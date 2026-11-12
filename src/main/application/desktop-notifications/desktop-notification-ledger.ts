@@ -40,8 +40,8 @@ export interface DesktopNotificationShowInput {
   readonly occurredAt: number
 }
 
-export function sessionNotificationTarget(sessionId: string): DesktopNotificationTarget {
-  return { kind: 'session', sessionId }
+export function sessionNotificationTarget(sessionId: string) {
+  return { kind: 'session', sessionId } satisfies DesktopNotificationTarget
 }
 
 /**
@@ -60,8 +60,8 @@ export class DesktopNotificationLedger {
   }
 
   /** Every notification still outstanding, oldest first. */
-  list(): readonly DesktopNotification[] {
-    return [...this.outstanding.values()]
+  list() {
+    return [...this.outstanding.values()] satisfies readonly DesktopNotification[]
   }
 
   get(target: DesktopNotificationTarget) {

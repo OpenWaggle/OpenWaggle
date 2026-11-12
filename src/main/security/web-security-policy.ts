@@ -102,7 +102,7 @@ interface SessionWithHeadersHandler {
 
 const sessionCspInstallState = new WeakSet<SessionWithHeadersHandler>()
 
-export function buildContentSecurityPolicy(): string {
+export function buildContentSecurityPolicy() {
   return CSP_DIRECTIVES.map(([name, values]) => `${name} ${values.join(VALUE_SEPARATOR)}`).join(
     DIRECTIVE_SEPARATOR,
   )
@@ -110,13 +110,11 @@ export function buildContentSecurityPolicy(): string {
 
 export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy()
 
-export function applyContentSecurityPolicyHeader(
-  responseHeaders: CspResponseHeaders | undefined,
-): CspResponseHeaders {
+export function applyContentSecurityPolicyHeader(responseHeaders: CspResponseHeaders | undefined) {
   return {
     ...responseHeaders,
     'Content-Security-Policy': [CONTENT_SECURITY_POLICY],
-  }
+  } satisfies CspResponseHeaders
 }
 
 function hasProtocolManagedContentSecurityPolicy(url: string) {
@@ -197,7 +195,7 @@ export function shouldBlockInlineVisualizationDocumentRequest(input: {
   )
 }
 
-export function assertSecureWebPreferences(preferences: SecurityWebPreferences): void {
+export function assertSecureWebPreferences(preferences: SecurityWebPreferences) {
   for (const expectation of SECURITY_PREFERENCE_EXPECTATIONS) {
     const actualValue = preferences[expectation.key]
     if (actualValue !== expectation.expected) {
@@ -208,7 +206,7 @@ export function assertSecureWebPreferences(preferences: SecurityWebPreferences):
   }
 }
 
-export function installCspHeaders(session: SessionWithHeadersHandler): void {
+export function installCspHeaders(session: SessionWithHeadersHandler) {
   if (sessionCspInstallState.has(session)) {
     return
   }

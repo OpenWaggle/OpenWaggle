@@ -22,12 +22,12 @@ export function describePiRunError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export async function runPiOperation(operation: () => Promise<void>): Promise<PiOperationOutcome> {
+export async function runPiOperation(operation: () => Promise<void>) {
   try {
     await operation()
-    return { status: 'completed' }
+    return { status: 'completed' } satisfies PiOperationOutcome
   } catch (error) {
-    return { status: 'failed', error }
+    return { status: 'failed', error } satisfies PiOperationOutcome
   }
 }
 
@@ -36,7 +36,7 @@ export interface PiMessageBoundary {
   readonly messageCount: number
 }
 
-export function capturePiMessageBoundary(session: AgentSession): PiMessageBoundary {
+export function capturePiMessageBoundary(session: AgentSession) {
   return {
     entryIds: new Set(session.sessionManager.getBranch().map((entry) => entry.id)),
     messageCount: session.agent.state.messages.length,
@@ -64,7 +64,7 @@ function buildFailedRunResult(input: {
   readonly newMessages: readonly Message[]
   readonly aborted: boolean
   readonly message: string
-}): AgentKernelRunResult {
+}) {
   return {
     newMessages: input.newMessages,
     piSessionId: input.session.sessionId,
@@ -74,7 +74,7 @@ function buildFailedRunResult(input: {
       piEntryNodeIds(input.runInput.session),
     ),
     ...(input.aborted ? { aborted: true } : { terminalError: input.message }),
-  }
+  } satisfies AgentKernelRunResult
 }
 
 /** Classified as the Host classifies the run's terminal error, since this is its only report. */

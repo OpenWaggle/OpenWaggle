@@ -246,7 +246,7 @@ async function carryOverSessionMcpOff(sessionId: string) {
 async function migrateKnownScopes(migrate: (projectPath: string | null) => Promise<unknown>) {
   const timeoutBefore = lastLockTimeout
   await migrate(null)
-  const projects = await durableMcpProjectPaths().catch((error: unknown): readonly string[] => {
+  const projects = await durableMcpProjectPaths().catch((error: unknown) => {
     logger.error('MCP migration could not list the known projects at Host start', {
       error: describeError(error),
     })

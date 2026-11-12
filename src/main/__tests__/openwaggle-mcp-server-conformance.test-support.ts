@@ -175,8 +175,8 @@ export function createMcpConformanceHost() {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   }
 
-  function serveOptions(overrides: Partial<ServeOptions> = {}): ServeOptions {
-    return {
+  function serveOptions(overrides: Partial<ServeOptions> = {}) {
+    const options: ServeOptions = {
       transport: 'stdio',
       grants: new Set<SessionCapability>(['sessions:discover']),
       workspaceRoots: [repoA, repoB],
@@ -186,6 +186,7 @@ export function createMcpConformanceHost() {
       version: 'conformance',
       ...overrides,
     }
+    return options
   }
 
   async function connect(options: ServeOptions, versions: readonly string[] = ['2025-11-25']) {

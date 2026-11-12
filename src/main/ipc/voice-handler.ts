@@ -97,7 +97,7 @@ function assertTransformersModule(value: unknown): asserts value is Transformers
   }
 }
 
-function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
+function pcm16BytesToFloat32(bytes: Uint8Array) {
   const sampleCount = Math.floor(bytes.byteLength / DOUBLE_FACTOR)
   const normalized = new Float32Array(sampleCount)
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
@@ -141,7 +141,7 @@ function mapTranscriptionError(error: unknown) {
   return `Local voice transcription failed: ${message}`
 }
 
-async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
+async function loadTranscriber(model: VoiceModel) {
   const existing = transcriberPromises[model]
   if (existing) return existing
 
@@ -195,7 +195,7 @@ function markModelUsed(model: VoiceModel) {
   scheduleEviction(model)
 }
 
-export function resetVoiceHandlerForTests(): void {
+export function resetVoiceHandlerForTests() {
   for (const model of VOICE_MODELS) {
     delete transcriberPromises[model]
     delete lastUsedAt[model]
@@ -205,7 +205,7 @@ export function resetVoiceHandlerForTests(): void {
   }
 }
 
-export function registerVoiceHandlers(): void {
+export function registerVoiceHandlers() {
   typedHandle('voice:transcribe-local', (_event, rawPayload: unknown) =>
     Effect.gen(function* () {
       const payload = decodeUnknownOrThrow(voiceTranscriptionRequestSchema, rawPayload)

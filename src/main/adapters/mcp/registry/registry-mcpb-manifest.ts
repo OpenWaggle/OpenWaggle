@@ -64,7 +64,7 @@ interface McpbManifest {
   readonly source: McpbManifestSource
 }
 
-async function readManifest(root: string): Promise<McpbManifest> {
+async function readManifest(root: string) {
   const manifestPath = path.join(root, 'manifest.json')
   const metadata = await lstat(manifestPath)
   if (
@@ -261,7 +261,7 @@ export async function loadMcpbLauncher(input: {
   readonly root: string
   readonly homeDir: string
   readonly platform: NodeJS.Platform
-}): Promise<McpbCachedLauncher> {
+}) {
   const manifest = await readManifest(input.root)
   assertPlatformCompatibility(manifest, input.platform)
   const { type, entryPoint } = serverLaunchDetails(manifest, input.platform)

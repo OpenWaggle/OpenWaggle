@@ -9,7 +9,7 @@ export const ROOT_PID = 72_001
 export const CHILD_PID = 72_002
 export const CLOSED_TTY = 'openwaggle-definitely-closed-test-tty'
 
-export function row(pid: number, ppid: number, name: string): ProcessRow {
+export function row(pid: number, ppid: number, name: string) {
   return {
     pid,
     ppid,
@@ -21,7 +21,7 @@ export function row(pid: number, ppid: number, name: string): ProcessRow {
     zombie: false,
     startedAt: `start-${pid}`,
     name,
-  }
+  } satisfies ProcessRow
 }
 
 export function table(...rows: readonly ProcessRow[]) {

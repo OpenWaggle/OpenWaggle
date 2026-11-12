@@ -81,6 +81,6 @@ export function installScheduledTaskHooks(hooks: Partial<ScheduledTaskHooks>) {
   }
 }
 
-export function scheduledTaskHooks(): ScheduledTaskHooks {
+export function scheduledTaskHooks() {
   return installed ?? DEFAULT_HOOKS
 }

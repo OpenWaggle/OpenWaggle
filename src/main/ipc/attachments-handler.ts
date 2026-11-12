@@ -172,7 +172,7 @@ function registerDiscardAttachmentHandler() {
   )
 }
 
-export function registerAttachmentHandlers(): void {
+export function registerAttachmentHandlers() {
   configurePreparedAttachmentRegistry(appPaths.userData())
   void cleanupTempAttachments().catch((error: unknown) => {
     logger.warn('Temp prompt attachment cleanup failed during startup', describeUnknownError(error))

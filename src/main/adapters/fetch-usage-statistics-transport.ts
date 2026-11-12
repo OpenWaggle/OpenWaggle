@@ -50,14 +50,18 @@ export type UsageStatisticsFetch = (
   },
 ) => Promise<UsageStatisticsFetchResponse>
 
-export function classifyUsageStatisticsResponse(status: number): UsageStatisticsDelivery {
+export function classifyUsageStatisticsResponse(status: number) {
   if (status >= HTTP_SUCCESS_MIN && status < HTTP_REDIRECT_MIN) {
-    return { outcome: 'accepted', status }
+    return { outcome: 'accepted', status } satisfies UsageStatisticsDelivery
   }
   if (status >= HTTP_SERVER_ERROR_MIN || status === HTTP_TOO_MANY_REQUESTS) {
-    return { outcome: 'retry', reason: 'endpoint-unavailable', status }
+    return {
+      outcome: 'retry',
+      reason: 'endpoint-unavailable',
+      status,
+    } satisfies UsageStatisticsDelivery
   }
-  return { outcome: 'rejected', status }
+  return { outcome: 'rejected', status } satisfies UsageStatisticsDelivery
 }
 
 /** What a failed fetch carries: Node's system error fields, inner failures, and a cause. */
@@ -83,12 +87,14 @@ function failedBeforeSending(error: unknown, depth = 0): boolean {
 }
 
 /** A thrown fetch failure: retryable only when the request certainly never left. */
-export function classifyUsageStatisticsFailure(error: unknown): UsageStatisticsDelivery {
-  if (failedBeforeSending(error)) return { outcome: 'retry', reason: 'not-connected' }
+export function classifyUsageStatisticsFailure(error: unknown) {
+  if (failedBeforeSending(error)) {
+    return { outcome: 'retry', reason: 'not-connected' } satisfies UsageStatisticsDelivery
+  }
   return {
     outcome: 'unknown',
     reason: error instanceof Error ? error.name : 'network failure',
-  }
+  } satisfies UsageStatisticsDelivery
 }
 
 export const USAGE_STATISTICS_EVENTS_URL = new URL(
@@ -98,12 +104,12 @@ export const USAGE_STATISTICS_EVENTS_URL = new URL(
 
 export function createFetchUsageStatisticsTransport(
   input: { readonly fetch?: UsageStatisticsFetch; readonly timeoutMs?: number } = {},
-): UsageStatisticsTransportShape {
+) {
   const send = input.fetch ?? ((url, init) => fetch(url, init))
   const timeoutMs = input.timeoutMs ?? USAGE_STATISTICS_REQUEST_TIMEOUT_MS
-  return {
+  const shape: UsageStatisticsTransportShape = {
     send: (request) =>
-      Effect.promise(async (): Promise<UsageStatisticsDelivery> => {
+      Effect.promise(async () => {
         let response: UsageStatisticsFetchResponse
         try {
           response = await send(USAGE_STATISTICS_EVENTS_URL, {
@@ -121,6 +127,7 @@ export function createFetchUsageStatisticsTransport(
         return classifyUsageStatisticsResponse(response.status)
       }),
   }
+  return shape
 }
 
 export const FetchUsageStatisticsTransportLive = Layer.sync(UsageStatisticsTransport, () =>

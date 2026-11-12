@@ -47,7 +47,7 @@ const INSPECT_TIMEOUT_MS = 30_000
 /** How long a Host-owned sign-in waits for the browser to come back. */
 const SIGN_IN_TIMEOUT_MS = 300_000
 
-function defaultMcpServerRuntimeRoots(): PiMcpServerRuntimeRoots {
+function defaultMcpServerRuntimeRoots() {
   return { homeDir: homedir(), piAgentDir: getPiAgentDir() }
 }
 
@@ -106,14 +106,20 @@ async function findServer(
 export async function inspectMcpServer(
   input: McpServerScopeInput,
   roots: PiMcpServerRuntimeRoots = defaultMcpServerRuntimeRoots(),
-): Promise<McpServerInspection> {
+) {
   let found: Awaited<ReturnType<typeof findServer>>
   try {
     found = await findServer(input, roots, 'checked')
   } catch (error) {
     // A vault secret that cannot be read fails this server's check, not the whole list.
     if (!(error instanceof McpConfigurationError) || error.reason !== 'validation') throw error
-    return { name: input.name, state: 'failed', tools: [], error: error.message }
+    const result: McpServerInspection = {
+      name: input.name,
+      state: 'failed',
+      tools: [],
+      error: error.message,
+    }
+    return result
   }
   const { entry, transport, forgetCatalog } = found
   const inspection = await connectAndList(entry, transport, input.projectPath ?? homedir())
@@ -123,17 +129,16 @@ export async function inspectMcpServer(
   return inspection
 }
 
-async function connectAndList(
-  entry: McpServerEntry,
-  transport: McpTransportKind,
-  cwd: string,
-): Promise<McpServerInspection> {
+async function connectAndList(entry: McpServerEntry, transport: McpTransportKind, cwd: string) {
   const signedInState = mcpSignedIn(entry)
   const base = {
     name: entry.name,
     ...(signedInState === undefined ? {} : { signedIn: signedInState }),
   }
-  if (entry.config.enabled === false) return { ...base, state: 'disabled', tools: [] }
+  if (entry.config.enabled === false) {
+    const inspection: McpServerInspection = { ...base, state: 'disabled', tools: [] }
+    return inspection
+  }
   const url = mcpOAuthUrl(entry)
   const authProvider = url
     ? createMcpAuthProvider({
@@ -164,16 +169,22 @@ async function connectAndList(
     })
     await client.connect(upstream.transport)
     const tools = client.serverCapabilities?.tools ? await client.listTools() : []
-    return { ...base, state: 'connected', tools: toolViews(entry, tools) }
+    const inspection: McpServerInspection = {
+      ...base,
+      state: 'connected',
+      tools: toolViews(entry, tools),
+    }
+    return inspection
   } catch (error) {
     const stderrTail = upstream?.stderrTail?.()
-    return {
+    const inspection: McpServerInspection = {
       ...base,
       state: needsSignIn(error) ? 'needs-sign-in' : 'failed',
       tools: [],
       error: error instanceof Error ? error.message : String(error),
       ...(stderrTail ? { stderrTail } : {}),
     }
+    return inspection
   } finally {
     await client.close().catch(() => undefined)
     await upstream?.close?.().catch(() => undefined)
@@ -186,10 +197,7 @@ async function connectAndList(
  * against OpenWaggle's sign-in store and opens the authorization page in the browser. When the
  * page cannot be opened (non-disruptive automation), it gives up at once and returns the URL.
  */
-async function signIn(
-  pool: McpConnectionPool,
-  input: McpServerScopeInput,
-): Promise<McpSignInResult> {
+async function signIn(pool: McpConnectionPool, input: McpServerScopeInput) {
   const { entry, forgetCatalog } = await findServer(input, defaultMcpServerRuntimeRoots(), 'unread')
   const url = mcpOAuthUrl(entry)
   if (!url) {
@@ -234,7 +242,10 @@ async function signIn(
   } catch (error) {
     if (refused) throw refused
     if (error instanceof McpSignInCancelledError) {
-      return { signedIn: false, ...(authorizationUrl ? { authorizationUrl } : {}) }
+      return {
+        signedIn: false,
+        ...(authorizationUrl ? { authorizationUrl } : {}),
+      } satisfies McpSignInResult
     }
     throw error
   } finally {
@@ -246,7 +257,7 @@ async function signIn(
   await pool.closeServerIdentity(identity)
   forgetKnownMcpServerState(identity)
   forgetCatalog()
-  return { signedIn: true }
+  return { signedIn: true } satisfies McpSignInResult
 }
 
 async function signOut(pool: McpConnectionPool, input: McpServerScopeInput) {
@@ -273,10 +284,8 @@ function attempt<A>(operation: () => Promise<A>) {
 }
 
 /** Settings' and the CLI's MCP server operations over the given connection pool. */
-export function createPiMcpServerRuntimeService(
-  pool: McpConnectionPool,
-): McpServerRuntimeServiceShape {
-  return {
+export function createPiMcpServerRuntimeService(pool: McpConnectionPool) {
+  const shape: McpServerRuntimeServiceShape = {
     inspectServer: (input) => attempt(() => inspectMcpServer(input)),
     getServerStatuses: (input) =>
       attempt(async () => {
@@ -299,4 +308,5 @@ export function createPiMcpServerRuntimeService(
         if (!enabled) await pool.closeSession(sessionId)
       }),
   }
+  return shape
 }

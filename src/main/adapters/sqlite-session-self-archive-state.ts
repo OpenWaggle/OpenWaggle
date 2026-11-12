@@ -2,7 +2,6 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionLatestRunSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
-import type { SessionSelfArchiveState } from '../ports/session-organization-repository'
 
 /** Every Run status, as an object so a status added to the union must be listed here too. */
 const RUN_STATUSES: Readonly<Record<SessionLatestRunSummary['status'], true>> = {
@@ -85,7 +84,7 @@ export function readSessionSelfArchiveState(
     LIMIT 1
   `.pipe(
     Effect.flatMap((rows) =>
-      Effect.try((): SessionSelfArchiveState | null => {
+      Effect.try(() => {
         const row = rows[0]
         if (!row) return null
         return {

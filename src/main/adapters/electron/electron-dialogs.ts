@@ -1,4 +1,4 @@
-import type { MessageBoxOptions, OpenDialogOptions, SaveDialogOptions } from 'electron'
+import type { MessageBoxOptions, OpenDialogOptions } from 'electron'
 import { dialog } from 'electron'
 import type {
   DesktopDialogsShape,
@@ -16,7 +16,7 @@ function filters(list: readonly FileFilter[] | undefined) {
     : {}
 }
 
-function messageBoxOptions(request: MessageBoxRequest): MessageBoxOptions {
+function messageBoxOptions(request: MessageBoxRequest) {
   return {
     message: request.message,
     ...(request.type === undefined ? {} : { type: request.type }),
@@ -26,20 +26,20 @@ function messageBoxOptions(request: MessageBoxRequest): MessageBoxOptions {
     ...(request.defaultId === undefined ? {} : { defaultId: request.defaultId }),
     ...(request.cancelId === undefined ? {} : { cancelId: request.cancelId }),
     ...(request.noLink === undefined ? {} : { noLink: request.noLink }),
-  }
+  } satisfies MessageBoxOptions
 }
 
-function openDialogOptions(request: OpenDialogRequest): OpenDialogOptions {
+function openDialogOptions(request: OpenDialogRequest) {
   return {
     ...(request.title === undefined ? {} : { title: request.title }),
     ...(request.defaultPath === undefined ? {} : { defaultPath: request.defaultPath }),
     ...(request.buttonLabel === undefined ? {} : { buttonLabel: request.buttonLabel }),
     ...filters(request.filters),
     ...(request.properties === undefined ? {} : { properties: [...request.properties] }),
-  }
+  } satisfies OpenDialogOptions
 }
 
-function saveDialogOptions(request: SaveDialogRequest): SaveDialogOptions {
+function saveDialogOptions(request: SaveDialogRequest) {
   return {
     ...(request.title === undefined ? {} : { title: request.title }),
     ...(request.defaultPath === undefined ? {} : { defaultPath: request.defaultPath }),

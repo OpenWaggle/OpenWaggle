@@ -62,9 +62,9 @@ interface PiExtensionLoadErrorFixture {
   readonly error: string
 }
 
-function discoveredPackage(projectPath: string): DiscoveredExtensionPackage {
+function discoveredPackage(projectPath: string) {
   const packagePath = `${projectPath}/.openwaggle/extensions/broken-extension`
-  return {
+  const result: DiscoveredExtensionPackage = {
     id: 'broken-extension',
     scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
     packagePath,
@@ -87,10 +87,11 @@ function discoveredPackage(projectPath: string): DiscoveredExtensionPackage {
     },
     diagnostics: [],
   }
+  return result
 }
 
-function lifecycleState(projectPath: string): ExtensionLifecycleState {
-  return {
+function lifecycleState(projectPath: string) {
+  const state: ExtensionLifecycleState = {
     extensionId: 'broken-extension',
     scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
     enabled: true,
@@ -109,6 +110,7 @@ function lifecycleState(projectPath: string): ExtensionLifecycleState {
     installedAt: 1000,
     updatedAt: 2000,
   }
+  return state
 }
 
 function piServices(loadErrors: readonly PiExtensionLoadErrorFixture[] = []) {

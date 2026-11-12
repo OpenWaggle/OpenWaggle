@@ -136,15 +136,16 @@ function requestsForbiddenCeilingMutation(
   return command.operation === 'steer' || command.operation === 'promote'
 }
 
-function requestedCeilings(
-  caller: LocalSessionCallerIdentity,
-  target: unknown,
-): readonly (string | undefined)[] {
+function requestedCeilings(caller: LocalSessionCallerIdentity, target: unknown) {
   const targetCeiling = targetAuthorizationCeiling(target)
   const derivedCeiling = isAuthorizationTarget(target)
     ? derivedAuthorityForTarget(caller, target)?.authorizationCeiling
     : undefined
-  return [caller.profileAuthority?.authorizationCeiling, targetCeiling, derivedCeiling]
+  return [
+    caller.profileAuthority?.authorizationCeiling,
+    targetCeiling,
+    derivedCeiling,
+  ] satisfies readonly (string | undefined)[]
 }
 
 function authorizeCeiling(

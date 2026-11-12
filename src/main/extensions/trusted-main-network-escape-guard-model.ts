@@ -46,19 +46,19 @@ function definePatchedValue(target: object, propertyName: string, value: unknown
 /** Replaces a function, a module export or a prototype method, keeping its receiver. */
 export function callablePatch<Args extends readonly unknown[], Result>(
   patch: CallablePatch<Args, Result>,
-): TrustedMainNetworkEscapePatchInstaller {
-  return (guard) => {
+) {
+  return ((guard) => {
     definePatchedValue(
       patch.target,
       patch.propertyName,
-      function guardedCallable(this: unknown, ...args: Args): Result {
+      function guardedCallable(this: unknown, ...args: Args) {
         if (!(patch.allowsAuthorizedHostname === true && guard.isAuthorizedHostname(args[0]))) {
           guard.enforceBlockedApi(patch.api, patch.reason)
         }
         return Reflect.apply(patch.original, this, args)
       },
     )
-  }
+  }) satisfies TrustedMainNetworkEscapePatchInstaller
 }
 
 /**
@@ -70,7 +70,7 @@ export function prototypeMethodPatch(patch: {
   readonly propertyName: string
   readonly api: string
   readonly reason: string
-}): TrustedMainNetworkEscapePatchInstaller {
+}) {
   const original: unknown = Reflect.get(patch.target, patch.propertyName)
   if (!isMethod(original)) {
     throw new TypeError(`${patch.api} is unavailable.`)
@@ -80,15 +80,15 @@ export function prototypeMethodPatch(patch: {
 
 export function constructablePatch<Args extends readonly unknown[], Result extends object>(
   patch: ConstructablePatch<Args, Result>,
-): TrustedMainNetworkEscapePatchInstaller {
-  return (guard) => {
+) {
+  return ((guard) => {
     function patchedConstructable(...args: Args) {
       guard.enforceBlockedApi(patch.api, patch.reason)
       return new patch.original(...args)
     }
 
     definePatchedValue(patch.target, patch.propertyName, patchedConstructable)
-  }
+  }) satisfies TrustedMainNetworkEscapePatchInstaller
 }
 
 /**
@@ -103,8 +103,8 @@ export function superclassPatch(patch: {
   readonly base: new (...args: never[]) => object
   readonly api: string
   readonly reason: string
-}): TrustedMainNetworkEscapePatchInstaller {
-  return (guard) => {
+}) {
+  return ((guard) => {
     const currentBase: unknown = Object.getPrototypeOf(patch.derived)
     if (
       !isConstructor(currentBase) ||
@@ -113,7 +113,7 @@ export function superclassPatch(patch: {
       throw new TypeError(`${patch.api} no longer extends the class its guard wraps.`)
     }
     const superclass: Constructor = currentBase
-    function GuardedBase(this: unknown, ...args: readonly unknown[]): object {
+    function GuardedBase(this: unknown, ...args: readonly unknown[]) {
       guard.enforceBlockedApi(patch.api, patch.reason)
       const instance: unknown = Reflect.construct(superclass, args, new.target)
       if (typeof instance !== 'object' || instance === null) {
@@ -125,5 +125,5 @@ export function superclassPatch(patch: {
     Object.setPrototypeOf(GuardedBase, superclass)
     GuardedBase.prototype = basePrototype
     Object.setPrototypeOf(patch.derived, GuardedBase)
-  }
+  }) satisfies TrustedMainNetworkEscapePatchInstaller
 }

@@ -28,11 +28,11 @@ type IdentityDecision =
 function rejected(
   identity: TerminalInputIdentity,
   reason: Extract<TerminalWriteResult, { status: 'rejected' }>['reason'],
-): IdentityDecision {
+) {
   return {
     kind: 'result',
     result: { status: 'rejected', acceptedBytes: 0, reason, identity },
-  }
+  } satisfies IdentityDecision
 }
 
 /** Activate a renderer stream without discarding input already accepted by main. */
@@ -54,23 +54,25 @@ export function decideTerminalInputIdentity(
   data: string,
   identity: TerminalInputIdentity | undefined,
   intent?: TerminalInputIntent,
-): IdentityDecision {
-  if (identity === undefined) return { kind: 'accept' }
+) {
+  if (identity === undefined) return { kind: 'accept' } satisfies IdentityDecision
   if (identity.incarnation !== undefined && identity.incarnation !== state.inputIncarnation) {
-    return rejected(identity, 'stale-generation')
+    return rejected(identity, 'stale-generation') satisfies IdentityDecision
   }
   if (state.inputGeneration === null) state.inputGeneration = identity.generation
   if (state.inputGeneration !== identity.generation) {
-    return rejected(identity, 'stale-generation')
+    return rejected(identity, 'stale-generation') satisfies IdentityDecision
   }
 
   const receipt = state.lastInputReceipt
   if (receipt === null) {
-    return identity.sequence === 0 ? { kind: 'accept' } : rejected(identity, 'sequence-gap')
+    return (
+      identity.sequence === 0 ? { kind: 'accept' } : rejected(identity, 'sequence-gap')
+    ) satisfies IdentityDecision
   }
   if (identity.sequence === receipt.identity.sequence) {
     if (data !== receipt.data || !sameTerminalInputIntent(intent, receipt.intent)) {
-      return rejected(identity, 'sequence-conflict')
+      return rejected(identity, 'sequence-conflict') satisfies IdentityDecision
     }
     return {
       kind: 'result',
@@ -82,15 +84,15 @@ export function decideTerminalInputIdentity(
         acceptedBytes: receipt.acceptedBytes,
         identity,
       },
-    }
+    } satisfies IdentityDecision
   }
   if (identity.sequence < receipt.identity.sequence) {
-    return rejected(identity, 'stale-sequence')
+    return rejected(identity, 'stale-sequence') satisfies IdentityDecision
   }
   if (identity.sequence !== receipt.identity.sequence + 1) {
-    return rejected(identity, 'sequence-gap')
+    return rejected(identity, 'sequence-gap') satisfies IdentityDecision
   }
-  return { kind: 'accept' }
+  return { kind: 'accept' } satisfies IdentityDecision
 }
 
 export function receiptForTerminalInput(
@@ -122,6 +124,6 @@ function sameTerminalInputIntent(
 export function echoTerminalInputIdentity(
   result: TerminalWriteResult,
   identity: TerminalInputIdentity | undefined,
-): TerminalWriteResult {
+) {
   return identity === undefined ? result : { ...result, identity }
 }

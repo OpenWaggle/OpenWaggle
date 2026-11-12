@@ -66,10 +66,8 @@ export function explicitWaggleTerminalResult(result: ExplicitWaggleCommandResult
   }
 }
 
-export function describeExplicitWaggleOutcome(
-  result: ExplicitWaggleCommandResult,
-): WaggleSendReport {
-  return matchBy(result, 'outcome')
+export function describeExplicitWaggleOutcome(result: ExplicitWaggleCommandResult) {
+  const report: WaggleSendReport = matchBy(result, 'outcome')
     .with('success', () => ({ outcome: 'delivered' as const }))
     .with('aborted', () => ({ outcome: 'cancelled' as const }))
     .with('error', (value) =>
@@ -82,6 +80,7 @@ export function describeExplicitWaggleOutcome(
       message: value.message,
       code: value.code,
     }))
+  return report
 }
 
 export function publishExplicitWaggleResult(

@@ -18,7 +18,7 @@ const MAX_LOGICAL_CHUNKS = Math.ceil(
   MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES / LOGICAL_CHUNK_PAYLOAD_BYTES,
 )
 
-function encodePhysicalFrame(payload: Buffer): Buffer {
+function encodePhysicalFrame(payload: Buffer) {
   if (payload.byteLength > MAX_LOCAL_SESSION_FRAME_BYTES) {
     throw new Error(`Local Session frame exceeds ${MAX_LOCAL_SESSION_FRAME_BYTES} bytes.`)
   }
@@ -28,7 +28,7 @@ function encodePhysicalFrame(payload: Buffer): Buffer {
   return frame
 }
 
-function frameHeader(payloadBytes: number): Buffer {
+function frameHeader(payloadBytes: number) {
   if (payloadBytes > MAX_LOCAL_SESSION_FRAME_BYTES) {
     throw new Error(`Local Session frame exceeds ${MAX_LOCAL_SESSION_FRAME_BYTES} bytes.`)
   }
@@ -56,7 +56,7 @@ function chunkEnvelope(input: {
   )
 }
 
-export function encodeLocalSessionPayload(value: unknown): Buffer {
+export function encodeLocalSessionPayload(value: unknown) {
   const json = value instanceof SerializedLocalSessionFrame ? value.json : JSON.stringify(value)
   const payload = Buffer.from(json, 'utf8')
   if (payload.byteLength > MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES) {
@@ -67,7 +67,7 @@ export function encodeLocalSessionPayload(value: unknown): Buffer {
   return payload
 }
 
-export function* encodeLocalSessionFrameSegments(payload: Buffer): Generator<Buffer> {
+export function* encodeLocalSessionFrameSegments(payload: Buffer) {
   if (payload.byteLength <= MAX_LOCAL_SESSION_FRAME_BYTES) {
     yield frameHeader(payload.byteLength)
     yield payload
@@ -93,7 +93,7 @@ export function* encodeLocalSessionFrameSegments(payload: Buffer): Generator<Buf
   }
 }
 
-export function encodeLocalSessionFrame(value: unknown): Buffer {
+export function encodeLocalSessionFrame(value: unknown) {
   const payload = encodeLocalSessionPayload(value)
   if (payload.byteLength <= MAX_LOCAL_SESSION_FRAME_BYTES) return encodePhysicalFrame(payload)
   return Buffer.concat([...encodeLocalSessionFrameSegments(payload)])
@@ -274,7 +274,7 @@ export class LocalSessionFrameDecoder {
     else values.push(value)
   }
 
-  push(chunk: Buffer, maxFrames = Number.POSITIVE_INFINITY): unknown[] {
+  push(chunk: Buffer, maxFrames = Number.POSITIVE_INFINITY) {
     if (
       !(
         maxFrames === Number.POSITIVE_INFINITY ||

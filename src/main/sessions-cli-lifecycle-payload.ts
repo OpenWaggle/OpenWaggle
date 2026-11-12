@@ -27,7 +27,7 @@ export function rootLifecyclePayload(
   command: 'create' | 'launch',
   arguments_: ParsedArguments,
   workingDirectory = process.cwd(),
-): LocalSessionCommandPayload {
+) {
   const projectPath = resolveCliProjectPath(
     required(arguments_.positionals[0], 'Project path'),
     workingDirectory,
@@ -35,7 +35,7 @@ export function rootLifecyclePayload(
   const workspace = launchWorkspace(arguments_)
   const selectedSpecialization = specialization(arguments_)
   if (command === 'create') {
-    return {
+    const payload: LocalSessionCommandPayload = {
       contract: 'session-lifecycle-v2',
       request: {
         ...lifecycleRequest(arguments_),
@@ -48,12 +48,13 @@ export function rootLifecyclePayload(
         },
       },
     }
+    return payload
   }
   const authorization = runAuthorization(arguments_)
   const interactionTimeoutMs = option(arguments_, 'interaction-timeout-ms')
     ? positiveInteger(option(arguments_, 'interaction-timeout-ms'), '--interaction-timeout-ms')
     : undefined
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     ...(arguments_.options.has('attach')
       ? { transport: { attachmentPaths: arguments_.options.get('attach') ?? [] } }
@@ -73,16 +74,17 @@ export function rootLifecyclePayload(
       },
     },
   }
+  return payload
 }
 
-export function spawnLifecyclePayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
+export function spawnLifecyclePayload(arguments_: ParsedArguments) {
   const workspace = spawnWorkspace(arguments_)
   const selectedSpecialization = specialization(arguments_)
   const authorization = runAuthorization(arguments_)
   const interactionTimeoutMs = option(arguments_, 'interaction-timeout-ms')
     ? positiveInteger(option(arguments_, 'interaction-timeout-ms'), '--interaction-timeout-ms')
     : undefined
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     ...(arguments_.options.has('attach')
       ? { transport: { attachmentPaths: arguments_.options.get('attach') ?? [] } }
@@ -109,16 +111,17 @@ export function spawnLifecyclePayload(arguments_: ParsedArguments): LocalSession
       },
     },
   }
+  return payload
 }
 
-export function forkLifecyclePayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
+export function forkLifecyclePayload(arguments_: ParsedArguments) {
   const workspace = forkWorkspace(arguments_)
   const position = option(arguments_, 'position')
   if (position && position !== 'before' && position !== 'at') {
     throw new Error('--position must be before or at.')
   }
   const selectedPosition = position === 'before' || position === 'at' ? position : undefined
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     request: {
       ...lifecycleRequest(arguments_),
@@ -132,4 +135,5 @@ export function forkLifecyclePayload(arguments_: ParsedArguments): LocalSessionC
       },
     },
   }
+  return payload
 }

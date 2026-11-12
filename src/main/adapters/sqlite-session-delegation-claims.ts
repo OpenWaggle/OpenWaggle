@@ -10,7 +10,6 @@ import * as Effect from 'effect/Effect'
 import {
   type NormalizedClaim,
   type ResolvedClaim,
-  type ResolvedStoredClaim,
   recordDelegationClaimConflicts,
   type StoredClaimRow,
 } from './session-delegation-claim-conflicts'
@@ -49,7 +48,7 @@ function normalizeWorkspacePath(target: Extract<DelegationClaimTarget, { path: s
   return normalized
 }
 
-function normalizeClaim(claim: DelegationScopeClaimInput): NormalizedClaim | undefined {
+function normalizeClaim(claim: DelegationScopeClaimInput) {
   if (claim.target.type === 'named-resource') {
     const namespace = claim.target.namespace.trim()
     const name = claim.target.name.trim()
@@ -114,7 +113,7 @@ async function resolveClaims(
 
 function resolveStoredClaims(rows: readonly StoredClaimRow[], resolvePath: ClaimPathResolver) {
   return Promise.all(
-    rows.map(async (row): Promise<ResolvedStoredClaim> => {
+    rows.map(async (row) => {
       const target =
         row.target_kind === 'named-resource'
           ? { targetKey: row.target_value, caseSensitive: true }
@@ -171,7 +170,7 @@ function claimsOutcome(
   input: ExecuteDelegationInput,
   claimRevision: number,
   conflictIds: readonly string[],
-): Extract<SessionControlMutationOutcome, { readonly effect: 'delegation-claims-updated' }> {
+) {
   return {
     operation: 'delegation-claim',
     effect: 'delegation-claims-updated',
@@ -179,7 +178,10 @@ function claimsOutcome(
     delegationId: input.request.command.delegationId,
     claimRevision,
     conflictIds,
-  }
+  } satisfies Extract<
+    SessionControlMutationOutcome,
+    { readonly effect: 'delegation-claims-updated' }
+  >
 }
 
 export function updateDelegationClaims(

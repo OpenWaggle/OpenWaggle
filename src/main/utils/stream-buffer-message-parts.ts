@@ -6,8 +6,9 @@ function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function jsonObjectOrEmpty(value: JsonValue | undefined): Readonly<JsonObject> {
-  return isJsonObject(value) ? value : {}
+function jsonObjectOrEmpty(value: JsonValue | undefined) {
+  const readonly: Readonly<JsonObject> = isJsonObject(value) ? value : {}
+  return readonly
 }
 
 /**
@@ -33,13 +34,17 @@ export function appendTextDeltaPart(
   type: 'text' | 'reasoning',
   delta: string,
   contentIndex: number,
-): MessagePart[] {
+) {
   const index = textDeltaTargetIndex(parts, type, contentIndex)
   const target = parts[index]
-  if (target?.type !== type) return [...parts, { type, text: delta, contentIndex }]
-  return parts.map((part, partIndex) =>
+  if (target?.type !== type) {
+    const result: MessagePart[] = [...parts, { type, text: delta, contentIndex }]
+    return result
+  }
+  const result: MessagePart[] = parts.map((part, partIndex) =>
     partIndex === index && part.type === type ? { ...part, text: part.text + delta } : part,
   )
+  return result
 }
 
 function findToolCallPartIndex(parts: readonly MessagePart[], toolCallId: string) {
@@ -53,7 +58,7 @@ export function upsertToolCallPart(input: {
   readonly toolCallId: string
   readonly toolName?: string
   readonly args?: JsonValue
-}): MessagePart[] {
+}) {
   const index = findToolCallPartIndex(input.parts, input.toolCallId)
   const existingPart = index === -1 ? null : input.parts[index]
   const toolName =
@@ -70,8 +75,16 @@ export function upsertToolCallPart(input: {
         : {}),
     },
   }
-  if (index === -1) return [...input.parts, toolCallPart]
-  return [...input.parts.slice(0, index), toolCallPart, ...input.parts.slice(index + 1)]
+  if (index === -1) {
+    const part: MessagePart[] = [...input.parts, toolCallPart]
+    return part
+  }
+  const part: MessagePart[] = [
+    ...input.parts.slice(0, index),
+    toolCallPart,
+    ...input.parts.slice(index + 1),
+  ]
+  return part
 }
 
 export function appendToolResultPart(input: {
@@ -81,11 +94,11 @@ export function appendToolResultPart(input: {
   readonly args?: JsonValue
   readonly result: JsonValue
   readonly isError: boolean
-}): MessagePart[] {
+}) {
   const withoutPreviousResult = input.parts.filter(
     (part) => part.type !== 'tool-result' || String(part.toolResult.id) !== input.toolCallId,
   )
-  return [
+  const value: MessagePart[] = [
     ...withoutPreviousResult,
     {
       type: 'tool-result',
@@ -99,4 +112,5 @@ export function appendToolResultPart(input: {
       },
     },
   ]
+  return value
 }

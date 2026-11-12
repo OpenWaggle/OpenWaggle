@@ -3,8 +3,8 @@ import type { WebContents } from 'electron'
 const NATIVE_CLOSE_TIMEOUT_MS = 5_000
 
 /** A successful close call is not evidence that Chromium destroyed the contents. */
-export function closeBrowserPreviewContents(contents: WebContents): Promise<void> {
-  return new Promise((resolve, reject) => {
+export function closeBrowserPreviewContents(contents: WebContents) {
+  return new Promise<void>((resolve, reject) => {
     if (contents.isDestroyed()) {
       resolve()
       return

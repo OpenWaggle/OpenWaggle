@@ -74,12 +74,12 @@ function linesWithinBudget(lines: readonly string[], startIndex: number) {
  * Lines from `startLine` (1-based) within Pi `read`'s budget of 2000 lines or 50 KB. A single
  * line over the budget is cut rather than returned whole.
  */
-export function docsReadWindow(content: string, startLine: number): DocsReadWindow {
+export function docsReadWindow(content: string, startLine: number) {
   // Counted as Pi counts them: a final newline ends the last line rather than starting another.
   const lines = content === '' ? [] : content.replace(/\n$/, '').split('\n')
   const totalLines = lines.length
   if (totalLines === 0 && startLine === 1) {
-    return { content: '', startLine, endLine: 0, totalLines }
+    return { content: '', startLine, endLine: 0, totalLines } satisfies DocsReadWindow
   }
   if (startLine > totalLines) {
     throw new Error(
@@ -98,7 +98,7 @@ export function docsReadWindow(content: string, startLine: number): DocsReadWind
     totalLines,
     ...(lineCut ? { lineCut: true } : {}),
     ...(endLine < totalLines ? { nextOffset: endLine + 1 } : {}),
-  }
+  } satisfies DocsReadWindow
 }
 
 /** The text the model gets: a short header, then the Markdown itself rather than JSON. */

@@ -48,7 +48,7 @@ function apply(caller: LocalSessionCallerIdentity) {
 function profileCaller(
   scope: NonNullable<LocalSessionCallerIdentity['profileAuthority']>['scope'],
   limits: LocalSessionCallerIdentity['authorityLimits'],
-): LocalSessionCallerIdentity {
+) {
   return {
     callerId: 'profile:ci',
     ...(limits === undefined ? {} : { authorityLimits: limits }),
@@ -62,7 +62,7 @@ function profileCaller(
     derivedSessionAuthorities: [
       { sessionId: 'worker', capabilities: ['sessions:read'], authorizationCeiling: 'yolo' },
     ],
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 describe('applyAuthorityLimits', () => {

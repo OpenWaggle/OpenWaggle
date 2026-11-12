@@ -10,7 +10,7 @@ import { PNG_BASE64, sessionResourceTestLayer } from './session-resource-capture
 
 const SESSION_ID = SessionId('session-1')
 
-function imageToolPart(): Message['parts'][number] {
+function imageToolPart() {
   return {
     type: 'tool-result',
     toolResult: {
@@ -25,7 +25,7 @@ function imageToolPart(): Message['parts'][number] {
       isError: false,
       duration: 10,
     },
-  }
+  } satisfies Message['parts'][number]
 }
 
 describe('session image occurrence display metadata', () => {

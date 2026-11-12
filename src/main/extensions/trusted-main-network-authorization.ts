@@ -20,7 +20,7 @@ function bareHostname(hostname: string) {
   return IPV6_HOST_PATTERN.exec(hostname)?.[1] ?? hostname
 }
 
-export function runWithAuthorizedNetworkTarget<T>(url: URL, operation: () => T): T {
+export function runWithAuthorizedNetworkTarget<T>(url: URL, operation: () => T) {
   return authorizedTargetStorage.run(
     { hostname: bareHostname(url.hostname), port: url.port || HTTPS_DEFAULT_PORT },
     operation,
@@ -28,7 +28,7 @@ export function runWithAuthorizedNetworkTarget<T>(url: URL, operation: () => T):
 }
 
 /** Runs a trusted main activation without an authorization it could inherit from its caller. */
-export function runWithoutAuthorizedNetworkTarget<T>(operation: () => T): T {
+export function runWithoutAuthorizedNetworkTarget<T>(operation: () => T) {
   return authorizedTargetStorage.exit(operation)
 }
 

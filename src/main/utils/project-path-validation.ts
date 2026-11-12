@@ -2,14 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
 
-export function isPathInsideDirectory(parentPath: string, childPath: string): boolean {
+export function isPathInsideDirectory(parentPath: string, childPath: string) {
   const relativePath = path.relative(parentPath, childPath)
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
 }
 
-export function validateProjectPath(
-  projectPath: string | null | undefined,
-): Effect.Effect<string | undefined, Error> {
+export function validateProjectPath(projectPath: string | null | undefined) {
   return Effect.gen(function* () {
     if (projectPath == null) {
       return undefined
@@ -38,9 +36,7 @@ export function validateProjectPath(
   })
 }
 
-export function validateRequiredProjectPath(
-  projectPath: string | null | undefined,
-): Effect.Effect<string, Error> {
+export function validateRequiredProjectPath(projectPath: string | null | undefined) {
   return Effect.gen(function* () {
     const validated = yield* validateProjectPath(projectPath)
     if (!validated) {
@@ -53,7 +49,7 @@ export function validateRequiredProjectPath(
 export function validateAuthorizedProjectPath(
   projectPath: string | null | undefined,
   authorizedProjectPaths: readonly (string | null | undefined)[],
-): Effect.Effect<string, Error> {
+) {
   return Effect.gen(function* () {
     const validatedProjectPath = yield* validateRequiredProjectPath(projectPath)
     const exactMatch = authorizedProjectPaths.some((candidate) => {

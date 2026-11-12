@@ -34,10 +34,13 @@ async function gitignoreMatchers(
     files
       .map((file) => file.replaceAll('\\', '/'))
       .sort((left, right) => left.split('/').length - right.split('/').length)
-      .map(async (file): Promise<GitignoreMatcher> => ({
-        base: path.posix.dirname(file) === '.' ? '' : path.posix.dirname(file),
-        matcher: ignore().add(await fs.readFile(path.join(projectRoot, file), 'utf8')),
-      })),
+      .map(
+        async (file) =>
+          ({
+            base: path.posix.dirname(file) === '.' ? '' : path.posix.dirname(file),
+            matcher: ignore().add(await fs.readFile(path.join(projectRoot, file), 'utf8')),
+          }) satisfies GitignoreMatcher,
+      ),
   )
 }
 

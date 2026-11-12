@@ -16,10 +16,11 @@ let tmpRoot = ''
 /** Pi's global settings, in memory: `configured` is what they name as `defaultThinkingLevel`. */
 function piDefaults(initial: ThinkingLevel | undefined) {
   let configured = initial
-  const setDefault = vi.fn((level: ThinkingLevel): Effect.Effect<void, Error> =>
-    Effect.sync(() => {
-      configured = level
-    }),
+  const setDefault = vi.fn<(level: ThinkingLevel) => Effect.Effect<void, Error>>(
+    (level: ThinkingLevel) =>
+      Effect.sync(() => {
+        configured = level
+      }),
   )
   return {
     setDefault,

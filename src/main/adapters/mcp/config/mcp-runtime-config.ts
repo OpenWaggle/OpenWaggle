@@ -103,7 +103,7 @@ export interface LoadMcpRuntimeConfigInput {
  * `updateConfig` saves changes, so Pi is given it as the source, and `/mcp` says "Saved to" the
  * file that is actually written.
  */
-function runtimeEntry(server: McpMergedServer, config: McpServerConfig): McpRuntimeServerEntry {
+function runtimeEntry(server: McpMergedServer, config: McpServerConfig) {
   const projectOverrideOfGlobal =
     server.override !== undefined &&
     server.scope === 'global' &&
@@ -117,10 +117,7 @@ function runtimeEntry(server: McpMergedServer, config: McpServerConfig): McpRunt
   }
 }
 
-export function loadMcpMergedConfig(
-  roots: McpConfigFileRoots,
-  reader?: McpConfigFileReader,
-): McpMergedConfig {
+export function loadMcpMergedConfig(roots: McpConfigFileRoots, reader?: McpConfigFileReader) {
   return mergeMcpConfigLayers(readMcpConfigLayers(mcpConfigFileLocations(roots), reader))
 }
 
@@ -185,9 +182,7 @@ export function mcpLeftOutServerNotice(
  * The configuration one Pi session receives: the merged file set with vault references resolved,
  * narrowed by the Session's MCP switch and an Agent definition's allowlist.
  */
-export async function loadMcpRuntimeConfig(
-  input: LoadMcpRuntimeConfigInput,
-): Promise<McpRuntimeConfig> {
+export async function loadMcpRuntimeConfig(input: LoadMcpRuntimeConfigInput) {
   const merged = withProjectServerPolicy(
     loadConnectableMcpConfig(input.roots, input.reader),
     input.connectProjectServers ?? connectsProjectMcpServers(),

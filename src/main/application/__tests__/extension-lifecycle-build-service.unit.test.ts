@@ -41,7 +41,7 @@ function localBuildPackage(
   overrides: Partial<
     Pick<DiscoveredExtensionPackage, 'contentHash' | 'diagnostics' | 'sdkCompatibility'>
   > = {},
-): DiscoveredExtensionPackage {
+) {
   return {
     ...discoveredPackage,
     ...overrides,
@@ -52,7 +52,7 @@ function localBuildPackage(
       approvalRequired: true,
       inputHash: 'build-plan-hash',
     },
-  }
+  } satisfies DiscoveredExtensionPackage
 }
 
 function makeTestHarness({

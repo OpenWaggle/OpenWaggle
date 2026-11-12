@@ -39,7 +39,7 @@ export async function captureTurnCheckpoint(input: {
    * The worktree snapshot is skipped then; absent means it may have changed.
    */
   readonly workspaceMayHaveChanged?: boolean
-}): Promise<void> {
+}) {
   try {
     const sessionId = SessionId(String(input.session.id))
     const previousRef = await getLatestSnapshotRef(sessionId)
@@ -115,7 +115,7 @@ export async function deleteTurnCheckpointRefs(
   projectPath: string,
   sessionId: string,
   turnIds: readonly string[],
-): Promise<void> {
+) {
   await Promise.all(
     turnIds.map(async (turnId) => {
       const result = await runGit(projectPath, [
@@ -169,7 +169,7 @@ export function turnDiffForTests(
 }
 
 /** Test seam for the snapshot primitive (see turn-capture.integration.test.ts). */
-export function captureWorktreeSnapshotForTests(projectPath: string): Promise<string | null> {
+export function captureWorktreeSnapshotForTests(projectPath: string) {
   return createWorktreeSnapshot(projectPath)
 }
 
@@ -179,7 +179,7 @@ export function captureWorktreeSnapshotForTests(projectPath: string): Promise<st
  * index file. Returns the snapshot commit SHA, or null when there is nothing to
  * snapshot or the repo has no commits.
  */
-async function createWorktreeSnapshot(projectPath: string): Promise<string | null> {
+async function createWorktreeSnapshot(projectPath: string) {
   const head = await runGit(projectPath, ['rev-parse', '--verify', 'HEAD'])
   if (head.code !== 0) return null
 
@@ -235,7 +235,7 @@ async function createWorktreeSnapshot(projectPath: string): Promise<string | nul
  *
  * Returns false when there is no index to copy (a fresh repository), and the caller falls back.
  */
-async function seedScratchIndex(projectPath: string, indexFile: string): Promise<boolean> {
+async function seedScratchIndex(projectPath: string, indexFile: string) {
   const located = await runGit(projectPath, [
     'rev-parse',
     '--path-format=absolute',
@@ -265,7 +265,7 @@ async function computeIncrementalDiff(
   previousRef: string | null,
   currentRef: string | null,
   excludedFolders: readonly string[] = [],
-): Promise<string> {
+) {
   const from = (await resolvableRef(projectPath, previousRef)) ?? 'HEAD'
   const to = currentRef ?? 'HEAD'
   if (from === to) return ''
@@ -287,7 +287,7 @@ async function computeIncrementalDiff(
 }
 
 /** null when the ref is missing or no longer resolvable (e.g. pruned snapshot). */
-async function resolvableRef(projectPath: string, ref: string | null): Promise<string | null> {
+async function resolvableRef(projectPath: string, ref: string | null) {
   if (!ref) return null
   const result = await runGit(projectPath, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
   if (result.code === 0) return ref

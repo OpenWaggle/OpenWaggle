@@ -28,14 +28,14 @@ function destinationPath(input: string, source: SessionsToolSource) {
 function exportControlPayload(
   input: Extract<ExportOperationInput, { action: 'export_create' | 'export_cancel' }>,
   source: SessionsToolSource,
-): LocalSessionCommandPayload {
+) {
   const base = {
     contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
     requestId: randomUUID(),
     idempotencyKey: input.idempotencyKey ?? randomUUID(),
   }
   if (input.action === 'export_cancel') {
-    return {
+    const payload: LocalSessionCommandPayload = {
       contract: 'session-control-v2',
       request: {
         ...base,
@@ -46,13 +46,14 @@ function exportControlPayload(
         },
       },
     }
+    return payload
   }
   const branchScope = input.branchScope ?? 'active-branch'
   assertSessionExportBranchSelection({
     branchScope,
     ...(input.branchId ? { branchId: input.branchId } : {}),
   })
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       ...base,
@@ -76,6 +77,7 @@ function exportControlPayload(
       },
     },
   }
+  return payload
 }
 
 function exportQueryPayload(
@@ -83,7 +85,7 @@ function exportQueryPayload(
     ExportOperationInput,
     { action: 'exports_list' | 'exports_read' | 'exports_wait' }
   >,
-): LocalSessionCommandPayload {
+) {
   const query =
     input.action === 'exports_list'
       ? {
@@ -109,10 +111,11 @@ function exportQueryPayload(
             ...(input.after ? { after: input.after } : {}),
             ...(input.includeQueueBodies ? { includeQueueBodies: true } : {}),
           }
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: randomUUID(), query },
   }
+  return payload
 }
 
 export function isSessionsToolExportOperation(

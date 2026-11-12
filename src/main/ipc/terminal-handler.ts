@@ -57,7 +57,7 @@ function registerTerminalSurfaceLifecycle(sender: object, service: TerminalServi
  * calling window as the terminal's event surface, and delegate everything else
  * to the TerminalService.
  */
-export function registerTerminalHandlers(): void {
+export function registerTerminalHandlers() {
   registerTerminalLifecycleHandlers()
   registerTerminalStreamHandlers()
 }
@@ -270,7 +270,7 @@ function registerTerminalStreamHandlers() {
 }
 
 /** Kill every terminal; wired into app shutdown by the IPC module. */
-export function cleanupTerminals(): Promise<void> {
+export function cleanupTerminals() {
   return runGuiEffect(
     Effect.gen(function* () {
       const service = yield* TerminalService

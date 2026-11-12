@@ -4,18 +4,13 @@
  * the week or month) comes from these locally kept markers, never from an identifier (ADR 0044).
  */
 import {
-  type USAGE_STATISTICS_EXTENSION_BUCKETS,
   USAGE_STATISTICS_FEATURE_FLAGS,
-  type USAGE_STATISTICS_INSTALL_AGES,
   type UsageStatisticsEvent,
   type UsageStatisticsValue,
 } from '@shared/usage-statistics/contract'
 import { usageStatisticsEpochDay } from '@shared/usage-statistics/validation'
 import type { UsageStatisticsInstallState } from './usage-statistics-host-state'
 import type { UsageStatisticsDay } from './usage-statistics-observations'
-
-type InstallAge = (typeof USAGE_STATISTICS_INSTALL_AGES)[number]
-type ExtensionsBucket = (typeof USAGE_STATISTICS_EXTENSION_BUCKETS)[number]
 
 const DAYS_PER_WEEK = 7
 const INSTALL_AGE_FIRST_WEEK_MAX_DAYS = 7
@@ -32,19 +27,19 @@ function epochDayOrThrow(day: string) {
   return epochDay
 }
 
-export function usageStatisticsInstallAge(firstSeenDay: string, day: string): InstallAge {
+export function usageStatisticsInstallAge(firstSeenDay: string, day: string) {
   const age = Math.max(0, epochDayOrThrow(day) - epochDayOrThrow(firstSeenDay))
-  if (age <= INSTALL_AGE_FIRST_WEEK_MAX_DAYS) return '0-7d'
-  if (age <= INSTALL_AGE_FIRST_MONTH_MAX_DAYS) return '8-30d'
-  if (age <= INSTALL_AGE_FIRST_QUARTER_MAX_DAYS) return '31-90d'
-  if (age <= INSTALL_AGE_FIRST_YEAR_MAX_DAYS) return '91-365d'
-  return '>365d'
+  if (age <= INSTALL_AGE_FIRST_WEEK_MAX_DAYS) return '0-7d' as const
+  if (age <= INSTALL_AGE_FIRST_MONTH_MAX_DAYS) return '8-30d' as const
+  if (age <= INSTALL_AGE_FIRST_QUARTER_MAX_DAYS) return '31-90d' as const
+  if (age <= INSTALL_AGE_FIRST_YEAR_MAX_DAYS) return '91-365d' as const
+  return '>365d' as const
 }
 
-export function usageStatisticsExtensionsBucket(count: number): ExtensionsBucket {
-  if (count <= 0) return '0'
-  if (count === 1) return '1'
-  return count <= EXTENSIONS_SMALL_BUCKET_MAX ? '2-5' : '>5'
+export function usageStatisticsExtensionsBucket(count: number) {
+  if (count <= 0) return '0' as const
+  if (count === 1) return '1' as const
+  return count <= EXTENSIONS_SMALL_BUCKET_MAX ? ('2-5' as const) : ('>5' as const)
 }
 
 /** The ISO (Monday-based) week of a UTC day, as the epoch day of that week's Monday. */
@@ -105,7 +100,7 @@ export function buildUsageStatisticsDayReport(input: {
   readonly day: string
   readonly observations: UsageStatisticsDay
   readonly install: UsageStatisticsInstallState
-}): UsageStatisticsDayReport {
+}) {
   const { day, observations, install } = input
   const events: UsageStatisticsEvent[] = []
   const hasOwnEvents =

@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { describe, expect, it } from 'vitest'
 import { openWagglePiAppSettingsFrom } from '../openwaggle-pi-app-settings'
 
-function settings(overrides: Partial<Settings>): Settings {
+function settings(overrides: Partial<Settings>) {
   return { ...DEFAULT_SETTINGS, ...overrides }
 }
 

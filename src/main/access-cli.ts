@@ -41,7 +41,7 @@ async function prepareProfileCredential(input: {
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
   readonly stateRoot: string
   readonly idempotencyKey: string
-}): Promise<StagedProfileCredential | undefined> {
+}) {
   if (input.operation !== 'create' && input.operation !== 'rotate') return
   return stageProfileCredential({
     destination: destination(input.arguments_, input.stateRoot),

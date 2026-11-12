@@ -28,7 +28,7 @@ const abortedEmptyResponse = {
   },
 } satisfies SessionEntry
 
-function row(overrides: Partial<SessionNodeRow> & Pick<SessionNodeRow, 'id'>): SessionNodeRow {
+function row(overrides: Partial<SessionNodeRow> & Pick<SessionNodeRow, 'id'>) {
   return {
     session_id: 'session-1',
     parent_id: null,
@@ -42,7 +42,7 @@ function row(overrides: Partial<SessionNodeRow> & Pick<SessionNodeRow, 'id'>): S
     path_depth: 0,
     created_order: 1,
     ...overrides,
-  }
+  } satisfies SessionNodeRow
 }
 
 describe('an interrupted response that streamed nothing', () => {

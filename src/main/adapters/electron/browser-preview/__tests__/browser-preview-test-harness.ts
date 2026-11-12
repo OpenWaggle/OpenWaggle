@@ -72,23 +72,23 @@ const electronMocks: BrowserPreviewElectronMocks = vi.hoisted(() => {
   }
 })
 
-const browserPreviewOwnerRegistryMock = vi.hoisted(() => ({
+interface BrowserPreviewOwnerRegistryMock {
+  readonly assertRegistered: Mock
+  readonly notifyMaterialized: Mock
+  readonly requestOpen: Mock<BrowserPreviewOwnerRegistry['requestOpen']>
+}
+
+const browserPreviewOwnerRegistryMock = vi.hoisted<BrowserPreviewOwnerRegistryMock>(() => ({
   assertRegistered: vi.fn(),
   notifyMaterialized: vi.fn(),
   requestOpen: vi.fn<BrowserPreviewOwnerRegistry['requestOpen']>(),
 }))
 
-interface BrowserPreviewOwnerRegistryMock {
-  readonly assertRegistered: ReturnType<typeof vi.fn>
-  readonly notifyMaterialized: ReturnType<typeof vi.fn>
-  readonly requestOpen: Mock<BrowserPreviewOwnerRegistry['requestOpen']>
-}
-
-export function getBrowserPreviewOwnerRegistryMock(): BrowserPreviewOwnerRegistryMock {
+export function getBrowserPreviewOwnerRegistryMock() {
   return browserPreviewOwnerRegistryMock
 }
 
-export function getBrowserPreviewElectronMocks(): BrowserPreviewElectronMocks {
+export function getBrowserPreviewElectronMocks() {
   return electronMocks
 }
 
@@ -209,8 +209,8 @@ const browserPreviewModule = await import('../browser-preview')
 export const BrowserPreviewManager = browserPreviewModule.BrowserPreviewManager
 export const browserPreviewShortcutForInput = browserPreviewModule.browserPreviewShortcutForInput
 
-export function previewInput(overrides: Partial<Input> = {}): Input {
-  return {
+export function previewInput(overrides: Partial<Input> = {}) {
+  const input: Input = {
     type: 'keyDown',
     key: 'l',
     code: 'KeyL',
@@ -224,6 +224,7 @@ export function previewInput(overrides: Partial<Input> = {}): Input {
     modifiers: [],
     ...overrides,
   }
+  return input
 }
 
 export interface BrowserPreviewOwnerFixture {
@@ -233,7 +234,7 @@ export interface BrowserPreviewOwnerFixture {
   readonly send: ReturnType<typeof vi.fn>
 }
 
-export function createOwner(id = 17): BrowserPreviewOwnerFixture {
+export function createOwner(id = 17) {
   const emitter = new EventEmitter()
   const focus = vi.fn()
   const send = vi.fn()
@@ -246,7 +247,8 @@ export function createOwner(id = 17): BrowserPreviewOwnerFixture {
     once: emitter.once.bind(emitter),
     removeListener: emitter.removeListener.bind(emitter),
   })
-  return { emitter, focus, owner, send }
+  const fixture: BrowserPreviewOwnerFixture = { emitter, focus, owner, send }
+  return fixture
 }
 
 export interface BrowserPreviewWindowFixture {
@@ -264,11 +266,11 @@ export interface BrowserPreviewWindowFixture {
   }
 }
 
-export function createWindow(): BrowserPreviewWindowFixture {
+export function createWindow() {
   const emitter = new EventEmitter()
   const addChildView = vi.fn()
   const removeChildView = vi.fn()
-  return {
+  const fixture: BrowserPreviewWindowFixture = {
     addChildView,
     emitter,
     removeChildView,
@@ -279,12 +281,11 @@ export function createWindow(): BrowserPreviewWindowFixture {
       removeListener: emitter.removeListener.bind(emitter),
     },
   }
+  return fixture
 }
 
-export function openInput(
-  overrides: Partial<BrowserPreviewOpenInput> = {},
-): BrowserPreviewOpenInput {
-  return {
+export function openInput(overrides: Partial<BrowserPreviewOpenInput> = {}) {
+  const input: BrowserPreviewOpenInput = {
     previewId: 'preview-1',
     ownerKey: 'session-1',
     profileId: 'default',
@@ -293,6 +294,7 @@ export function openInput(
     visible: true,
     ...overrides,
   }
+  return input
 }
 
 export function firstView() {

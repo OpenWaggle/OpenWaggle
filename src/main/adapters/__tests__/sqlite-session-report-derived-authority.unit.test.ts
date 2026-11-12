@@ -15,7 +15,7 @@ import {
   spawnLifecycleInput,
 } from './sqlite-session-lifecycle-test-support'
 
-function reportInput(authority: LocalSessionProfileAuthority): ExecuteSessionReportInput {
+function reportInput(authority: LocalSessionProfileAuthority) {
   return {
     callerId: 'profile:reporter',
     authority,
@@ -33,7 +33,7 @@ function reportInput(authority: LocalSessionProfileAuthority): ExecuteSessionRep
     reportId: 'report-derived-only',
     correlationId: 'correlation-derived-only',
     now: 3000,
-  }
+  } satisfies ExecuteSessionReportInput
 }
 
 function derivedOnlyReportAuthority() {

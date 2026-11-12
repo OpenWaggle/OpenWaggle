@@ -25,7 +25,7 @@ function decodeUnregisterInput(input: unknown) {
   return Effect.succeed(decoded.data)
 }
 
-export function registerExtensionFrameHandlers(): void {
+export function registerExtensionFrameHandlers() {
   typedHandle('extensions:register-frame', (_event, input: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decodeRegisterInput(input)

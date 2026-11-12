@@ -73,7 +73,7 @@ export class ManagedActionRuns {
       }, METADATA_FLUSH_MS),
     )
   }
-  private finish(entry: LiveAction, exitCode: number | null, closeError?: string): Promise<void> {
+  private finish(entry: LiveAction, exitCode: number | null, closeError?: string) {
     if (entry.finishing) return entry.finishing
     entry.finishing = (async () => {
       // Natural shell exit alone does not prove that all of its children stopped.

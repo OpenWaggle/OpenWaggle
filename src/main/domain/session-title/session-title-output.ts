@@ -91,15 +91,17 @@ export function sanitizeGeneratedSessionTitle(raw: string) {
  * Reads a Title model reply. Models are asked for JSON, but some wrap it in a code fence or a
  * thinking block, and some answer with the bare title; all three are accepted.
  */
-export function parseGeneratedSessionTitle(raw: string): GeneratedSessionTitle | null {
+export function parseGeneratedSessionTitle(raw: string) {
   const text = raw.replace(THINKING_BLOCK, '').trim().replace(CODE_FENCE, '').trim()
   if (!text) return null
   const decoded = decodeJsonTitle(text)
   if (decoded) {
     const title = sanitizeGeneratedSessionTitle(decoded.title)
-    return title ? { title, needsRefinement: decoded.needsRefinement === true } : null
+    return (
+      title ? { title, needsRefinement: decoded.needsRefinement === true } : null
+    ) satisfies GeneratedSessionTitle | null
   }
   if (text.startsWith('{')) return null
   const title = sanitizeGeneratedSessionTitle(text)
-  return title ? { title, needsRefinement: false } : null
+  return (title ? { title, needsRefinement: false } : null) satisfies GeneratedSessionTitle | null
 }

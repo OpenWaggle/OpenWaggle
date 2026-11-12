@@ -2,11 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
-import type {
-  SessionResource,
-  SessionResourceKind,
-  SessionResourceOccurrence,
-} from '@shared/types/session-resource'
+import type { SessionResource, SessionResourceKind } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import {
   SessionResourceRepository,
@@ -46,17 +42,13 @@ export function attachmentOccurrenceId(input: CaptureAttachmentInput) {
   })
 }
 
-function attachmentKind(
-  input: CaptureAttachmentInput,
-  imageBytesValidated: boolean,
-): SessionResourceKind {
-  return input.attachment.kind === 'image' && imageBytesValidated ? 'image' : 'file'
+function attachmentKind(input: CaptureAttachmentInput, imageBytesValidated: boolean) {
+  return input.attachment.kind === 'image' && imageBytesValidated
+    ? ('image' as const)
+    : ('file' as const)
 }
 
-function attachmentOccurrence(
-  input: CaptureAttachmentInput,
-  id: string,
-): SessionResourceOccurrence {
+function attachmentOccurrence(input: CaptureAttachmentInput, id: string) {
   return occurrence({
     id,
     nodeId: input.nodeId,

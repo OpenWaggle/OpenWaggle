@@ -26,16 +26,12 @@ export class BrowserPreviewControlOperations {
     this.broker = broker
   }
 
-  register(
-    tabId: string,
-    contents: ControlledWebContents,
-    appearance: BrowserPreviewAppearance,
-  ): Promise<void> {
+  register(tabId: string, contents: ControlledWebContents, appearance: BrowserPreviewAppearance) {
     this.appearanceByTabId.set(tabId, appearance)
     return this.applyAppearance(tabId, contents, appearance)
   }
 
-  hardReload(contents: ControlledWebContents): void {
+  hardReload(contents: ControlledWebContents) {
     contents.reloadIgnoringCache()
   }
 
@@ -43,12 +39,12 @@ export class BrowserPreviewControlOperations {
     tabId: string,
     contents: ControlledWebContents,
     appearance: BrowserPreviewAppearance,
-  ): Promise<void> {
+  ) {
     this.appearanceByTabId.set(tabId, appearance)
     await this.applyAppearance(tabId, contents, appearance)
   }
 
-  async openDevTools(tabId: string, contents: ControlledWebContents): Promise<void> {
+  async openDevTools(tabId: string, contents: ControlledWebContents) {
     if (contents.isDevToolsOpened()) {
       contents.devToolsWebContents?.focus()
       return
@@ -62,15 +58,15 @@ export class BrowserPreviewControlOperations {
     contents.openDevTools({ mode: 'detach' })
   }
 
-  async clearCookies(contents: ControlledWebContents): Promise<void> {
+  async clearCookies(contents: ControlledWebContents) {
     await contents.session.clearStorageData({ storages: ['cookies'] })
   }
 
-  async clearCache(contents: ControlledWebContents): Promise<void> {
+  async clearCache(contents: ControlledWebContents) {
     await contents.session.clearCache()
   }
 
-  dispose(tabId: string): void {
+  dispose(tabId: string) {
     this.appearanceByTabId.delete(tabId)
     this.broker.releaseForDevTools(tabId)
   }
@@ -79,7 +75,7 @@ export class BrowserPreviewControlOperations {
     tabId: string,
     contents: ControlledWebContents,
     appearance: BrowserPreviewAppearance,
-  ): Promise<void> {
+  ) {
     if (contents.isDestroyed() || contents.isDevToolsOpened()) return
     await this.broker.sendControl({ tabId, contents }, 'Emulation.setEmulatedMedia', {
       features: [

@@ -37,13 +37,13 @@ export interface TerminalBackendNative {
 }
 
 /** A spawned process's backend members, each unchecked. */
-export function terminalBackendProcess(spawned: IPty): UncheckedFields<TerminalBackendProcess> {
-  return spawned
+export function terminalBackendProcess(spawned: IPty) {
+  const fields: UncheckedFields<TerminalBackendProcess> = spawned
+  return fields
 }
 
 /** The backend module's added exports, each unchecked. */
-export function terminalBackendModule(
-  pty: typeof NodePtyModule,
-): UncheckedFields<TerminalBackendModule> {
-  return pty
+export function terminalBackendModule(pty: typeof NodePtyModule) {
+  const fields: UncheckedFields<TerminalBackendModule> = pty
+  return fields
 }

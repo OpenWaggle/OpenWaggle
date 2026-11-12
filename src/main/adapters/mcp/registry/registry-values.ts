@@ -9,8 +9,11 @@ const ENVIRONMENT_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 const INVALID_SECRET_CHARACTERS = /[^A-Za-z0-9._-]+/g
 
-function secretReference(name: string): RegistryEntryValue {
-  return { secret: name.replace(INVALID_SECRET_CHARACTERS, '_').toUpperCase() }
+function secretReference(name: string) {
+  const value: RegistryEntryValue = {
+    secret: name.replace(INVALID_SECRET_CHARACTERS, '_').toUpperCase(),
+  }
+  return value
 }
 
 function isRequiredInput(candidate: RegistryInput, resolved: RegistryInputResolution) {
@@ -43,12 +46,21 @@ export function isOptionalRegistrySecret(
  * or default (with `{variables}` filled) is known; a vault reference for a required value it has
  * none for; left out otherwise, as is an optional secret.
  */
-function declaredValue(name: string, candidate: RegistryInput): RegistryEntryValue | undefined {
+function declaredValue(name: string, candidate: RegistryInput) {
   const resolved = resolveRegistryInput(candidate)
   if (isOptionalRegistrySecret(candidate, resolved)) return undefined
-  if (isSecretInput(candidate, resolved)) return secretReference(name)
-  if (resolved.kind === 'value') return piLiteral(resolved.value)
-  return isRequiredInput(candidate, resolved) ? secretReference(name) : undefined
+  if (isSecretInput(candidate, resolved)) {
+    const result: RegistryEntryValue | undefined = secretReference(name)
+    return result
+  }
+  if (resolved.kind === 'value') {
+    const result: RegistryEntryValue | undefined = piLiteral(resolved.value)
+    return result
+  }
+  const result: RegistryEntryValue | undefined = isRequiredInput(candidate, resolved)
+    ? secretReference(name)
+    : undefined
+  return result
 }
 
 /** The names of the optional secrets in Registry inputs, which an install leaves out. */

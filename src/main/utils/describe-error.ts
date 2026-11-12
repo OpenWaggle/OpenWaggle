@@ -41,13 +41,13 @@ function describeOne(error: unknown) {
  * (ADR 0037). This keeps the tag, the repository operation, and every cause, including the one an
  * Effect `FiberFailure` hides behind a symbol.
  */
-export function describeError(error: unknown): string {
+export function describeError(error: unknown) {
   if (error === undefined || error === null) return String(error)
   return errorCauseChain(error).map(describeOne).join(' <- ')
 }
 
 /** The error and each of its causes, outermost first, unwrapping Effect `FiberFailure`s. */
-export function errorCauseChain(error: unknown): unknown[] {
+export function errorCauseChain(error: unknown) {
   const chain: unknown[] = []
   const seen = new Set<unknown>()
   let current: unknown = error

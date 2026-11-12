@@ -8,7 +8,6 @@ import { SessionTitleRepositoryError } from '../errors'
 import {
   SessionTitleRepository,
   type SessionTitleRepositoryShape,
-  type SessionTitleState,
 } from '../ports/session-title-repository'
 import { persistSessionReportTitleReference } from './sqlite-session-report-reference-catalog'
 
@@ -28,7 +27,7 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionTitleRepositoryError({ operation, cause })
 }
 
-function toState(row: SessionTitleRow): SessionTitleState {
+function toState(row: SessionTitleRow) {
   if (!isSessionTitleSource(row.title_source)) {
     throw new Error(`Session ${row.id} has an unknown title source: ${row.title_source}`)
   }

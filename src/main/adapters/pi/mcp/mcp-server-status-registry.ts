@@ -48,13 +48,14 @@ function remember(identity: string, state: McpKnownServerState) {
   }
 }
 
-function knownTool(tool: ListedMcpTool): McpKnownTool {
-  return {
+function knownTool(tool: ListedMcpTool) {
+  const result: McpKnownTool = {
     name: tool.name,
     ...(tool.title === undefined ? {} : { title: tool.title }),
     ...(tool.description === undefined ? {} : { description: tool.description }),
     hasApp: mcpToolAppResourceUri(tool) !== undefined,
   }
+  return result
 }
 
 /** Records the result of connecting to a server and listing its tools. */

@@ -8,7 +8,6 @@ import {
   withCookieDatabaseSnapshot,
 } from './browser-cookie-database'
 import {
-  type BrowserCookieReadResult,
   bareCookieHost,
   boundedSkippedDomains,
   cookieScope,
@@ -160,22 +159,7 @@ interface DecodedChromiumRow {
   readonly needsV11: boolean
 }
 
-interface ChromiumCookieColumns {
-  readonly host: string
-  readonly name: string
-  readonly clearValue: string
-  readonly encryptedValue: Uint8Array
-  readonly cookiePath: string
-  readonly expiresSeconds: number
-}
-
-interface ChromiumCookieColumnRead {
-  readonly columns: ChromiumCookieColumns | null
-  readonly host: string
-  readonly needsV11: boolean
-}
-
-function readChromiumCookieColumns(row: Record<string, unknown>): ChromiumCookieColumnRead {
+function readChromiumCookieColumns(row: Record<string, unknown>) {
   const host = stringColumn(row, 'host_key') ?? ''
   const name = stringColumn(row, 'name')
   const clearValue = stringColumn(row, 'value')
@@ -210,9 +194,9 @@ function decodeCookieRow(
   keys: ChromiumKeyMaterial,
   schemaVersion: number,
   platform: NodeJS.Platform,
-): DecodedChromiumRow {
+) {
   const { columns, host, needsV11 } = readChromiumCookieColumns(row)
-  if (columns === null) return { cookie: null, host, needsV11 }
+  if (columns === null) return { cookie: null, host, needsV11 } satisfies DecodedChromiumRow
   const { name, clearValue, encryptedValue, cookiePath, expiresSeconds } = columns
   const value =
     encryptedValue.length === 0
@@ -221,7 +205,7 @@ function decodeCookieRow(
   const secure = numberColumn(row, 'is_secure') === 1
   const scope = cookieScope(host, cookiePath, secure)
   if (value === null || !validCookieText(value) || scope === null) {
-    return { cookie: null, host, needsV11 }
+    return { cookie: null, host, needsV11 } satisfies DecodedChromiumRow
   }
   const expirationDate = chromiumExpiration(expiresSeconds)
   return {
@@ -237,14 +221,14 @@ function decodeCookieRow(
     },
     host,
     needsV11,
-  }
+  } satisfies DecodedChromiumRow
 }
 
 export function readChromiumCookieDatabase(
   database: DatabaseSync,
   keys: ChromiumKeyMaterial,
   platform: NodeJS.Platform,
-): BrowserCookieReadResult {
+) {
   const schemaVersion = readSchemaVersion(database)
   const rows = queryCookieRows(database, schemaVersion)
   if (rows.length > BROWSER_IMPORT_LIMITS.COOKIES) {

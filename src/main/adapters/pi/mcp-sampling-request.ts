@@ -13,7 +13,7 @@ import { providerToolParameters } from './provider-tool-parameter-schema'
 
 const logger = createLogger('mcp-client-interactions')
 
-export function toSamplingTools(request: JsonObject): Tool[] | undefined {
+export function toSamplingTools(request: JsonObject) {
   const requested = mcpRequestFields(request).tools
   if (!Array.isArray(requested)) return undefined
   const tools: Tool[] = []
@@ -36,7 +36,8 @@ export function toSamplingTools(request: JsonObject): Tool[] | undefined {
       parameters: Type.Unsafe<object>(schema),
     })
   }
-  return tools.length > 0 ? tools : undefined
+  const result: Tool[] | undefined = tools.length > 0 ? tools : undefined
+  return result
 }
 
 function samplingPrompt(request: JsonObject) {
@@ -48,7 +49,7 @@ function samplingPrompt(request: JsonObject) {
   ].join('\n')
 }
 
-export function samplingContext(request: JsonObject): Context {
+export function samplingContext(request: JsonObject) {
   const message: UserMessage = {
     role: 'user',
     content: samplingPrompt(request),
@@ -56,17 +57,18 @@ export function samplingContext(request: JsonObject): Context {
   }
   const tools = toSamplingTools(request)
   const systemPrompt = stringValue(mcpRequestFields(request).systemPrompt)
-  return {
+  const context: Context = {
     ...(systemPrompt ? { systemPrompt } : {}),
     messages: [message],
     ...(tools ? { tools } : {}),
   }
+  return context
 }
 
 export function samplingContent(
   response: Awaited<ReturnType<typeof complete>>,
   supportsTools: boolean,
-): McpSamplingContent | McpSamplingContent[] {
+) {
   const content: McpSamplingContent[] = []
   for (const item of response.content) {
     if (item.type === 'text') {
@@ -77,8 +79,15 @@ export function samplingContent(
       content.push({ type: 'tool_use', id: item.id, name: item.name, input: item.arguments })
     }
   }
-  if (supportsTools) return content.length > 0 ? content : [{ type: 'text', text: '' }]
-  return content.find((item) => item.type === 'text') ?? { type: 'text', text: '' }
+  if (supportsTools) {
+    const result: McpSamplingContent | McpSamplingContent[] =
+      content.length > 0 ? content : [{ type: 'text', text: '' }]
+    return result
+  }
+  const result: McpSamplingContent | McpSamplingContent[] = content.find(
+    (item) => item.type === 'text',
+  ) ?? { type: 'text', text: '' }
+  return result
 }
 
 export function stopReason(reason: Awaited<ReturnType<typeof complete>>['stopReason']) {
@@ -95,8 +104,8 @@ export function samplingStreamOptions(
   signal: AbortSignal | undefined,
   maxTokens: number,
   temperature: number | undefined,
-): SamplingStreamOptions {
-  return {
+) {
+  const options: SamplingStreamOptions = {
     ...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
     ...(auth.headers ? { headers: auth.headers } : {}),
     ...(auth.env ? { env: auth.env } : {}),
@@ -104,4 +113,5 @@ export function samplingStreamOptions(
     maxTokens,
     ...(temperature === undefined ? {} : { temperature }),
   }
+  return options
 }

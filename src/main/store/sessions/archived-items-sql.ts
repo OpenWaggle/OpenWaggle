@@ -43,12 +43,12 @@ export function foldSearchText(value: string | null) {
   return (value ?? '').normalize('NFC').toLowerCase().replaceAll(DOTTED_I, 'i')
 }
 
-export function archivedWithinBounds(now: number): ArchivedWithinBounds {
+export function archivedWithinBounds(now: number) {
   return { day: now - DAY_MS, week: now - WEEK_DAYS * DAY_MS, month: now - MONTH_DAYS * DAY_MS }
 }
 
 /** Whitespace-separated, deduplicated, capped at {@link ARCHIVED_ITEMS_MAX_TERMS}. */
-export function archivedSearchTerms(text: string | undefined): readonly ArchivedSearchTerm[] {
+export function archivedSearchTerms(text: string | undefined) {
   const words = [
     ...new Set(
       (text ?? '')

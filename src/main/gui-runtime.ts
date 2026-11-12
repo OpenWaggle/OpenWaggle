@@ -50,7 +50,7 @@ export type GuiServices =
 let currentRuntime = ManagedRuntime.make(GuiLayer)
 
 /** Source control reads and patches its Settings through the Session Host from the window. */
-export async function initializeGuiRuntime(): Promise<void> {
+export async function initializeGuiRuntime() {
   await currentRuntime.runPromise(
     Effect.gen(function* () {
       const settings = yield* SettingsService
@@ -59,7 +59,7 @@ export async function initializeGuiRuntime(): Promise<void> {
   )
 }
 
-export function runGuiEffect<A, E>(effect: EffectType<A, E, GuiServices>): Promise<A> {
+export function runGuiEffect<A, E>(effect: EffectType<A, E, GuiServices>) {
   return currentRuntime.runPromise(effect)
 }
 
@@ -68,11 +68,11 @@ export function runGuiEffectExit<A, E>(effect: EffectType<A, E, GuiServices>) {
   return currentRuntime.runPromiseExit(effect)
 }
 
-export async function disposeGuiRuntime(): Promise<void> {
+export async function disposeGuiRuntime() {
   await currentRuntime.dispose()
 }
 
-export async function resetGuiRuntimeForTests(): Promise<void> {
+export async function resetGuiRuntimeForTests() {
   await currentRuntime.dispose()
   currentRuntime = ManagedRuntime.make(GuiLayer)
 }

@@ -148,7 +148,7 @@ function visitUnquoted(scan: FishExecScan) {
 }
 
 /** Fish reserves `exec` and `eval`, so helpers must be selected while parsing Setup text. */
-export function captureFishExec(code: string): string {
+export function captureFishExec(code: string) {
   const scan: FishExecScan = {
     code,
     output: '',

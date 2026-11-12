@@ -22,28 +22,31 @@ export function exposeInMainWorld(key: string, value: unknown) {
   contextBridge.exposeInMainWorld(key, value)
 }
 
-export function invoke<C extends IpcInvokeChannel>(
-  channel: C,
-): (...args: IpcInvokeArgs<C>) => Promise<IpcInvokeReturn<C>> {
-  return (...args: IpcInvokeArgs<C>) => ipcRenderer.invoke(channel, ...args)
+export function invoke<C extends IpcInvokeChannel>(channel: C) {
+  const result: (...args: IpcInvokeArgs<C>) => Promise<IpcInvokeReturn<C>> = (
+    ...args: IpcInvokeArgs<C>
+  ) => ipcRenderer.invoke(channel, ...args)
+  return result
 }
 
-export function send<C extends IpcSendChannel>(channel: C): (...args: IpcSendArgs<C>) => void {
-  return (...args: IpcSendArgs<C>) => {
+export function send<C extends IpcSendChannel>(channel: C) {
+  const result: (...args: IpcSendArgs<C>) => void = (...args: IpcSendArgs<C>) => {
     ipcRenderer.send(channel, ...args)
   }
+  return result
 }
 
-export function on<C extends IpcEventChannel>(
-  channel: C,
-): (callback: (payload: IpcEventPayload<C>) => void) => () => void {
-  return (callback: (payload: IpcEventPayload<C>) => void) => {
+export function on<C extends IpcEventChannel>(channel: C) {
+  const result: (callback: (payload: IpcEventPayload<C>) => void) => () => void = (
+    callback: (payload: IpcEventPayload<C>) => void,
+  ) => {
     const handler = (_event: IpcRendererEvent, payload: IpcEventPayload<C>) => {
       callback(payload)
     }
     ipcRenderer.on(channel, handler)
     return () => ipcRenderer.removeListener(channel, handler)
   }
+  return result
 }
 
 const invokePrepareAttachments = invoke('attachments:prepare')

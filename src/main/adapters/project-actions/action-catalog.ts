@@ -66,7 +66,7 @@ async function restorePreparationReviewState(
 async function serializedActionCatalog<T>(
   scope: ActionCatalogScope,
   operation: (canonical: ActionCatalogScope) => Promise<T>,
-): Promise<T> {
+) {
   const [projectPath, workspacePath] = await Promise.all([
     realpath(scope.projectPath),
     realpath(scope.workspacePath),

@@ -99,10 +99,7 @@ export function flush() {
   return new Promise<void>((resolve) => setImmediate(resolve))
 }
 
-export function initializeRequest(
-  id: number,
-  capabilities: Record<string, unknown> = {},
-): JsonRpcRequest {
+export function initializeRequest(id: number, capabilities: Record<string, unknown> = {}) {
   return {
     jsonrpc: '2.0',
     id,
@@ -112,5 +109,5 @@ export function initializeRequest(
       capabilities,
       clientInfo: { name: 'pi', version: '1' },
     },
-  }
+  } satisfies JsonRpcRequest
 }

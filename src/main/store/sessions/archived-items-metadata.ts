@@ -34,11 +34,11 @@ interface FoldedMetadata {
   readonly context: readonly string[]
 }
 
-function foldMetadata(row: ArchivedMetadataText): FoldedMetadata {
+function foldMetadata(row: ArchivedMetadataText) {
   return {
     title: foldSearchText(row.title),
     context: [foldSearchText(row.parent_title), foldSearchText(row.project_path)],
-  }
+  } satisfies FoldedMetadata
 }
 
 function titleScore(title: string, text: string) {

@@ -9,12 +9,10 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
-import type { PiSessionFileUnavailability } from '@shared/domain/pi-session-file-messages'
 import type { SessionDetail } from '@shared/types/session'
 import { Effect, Layer } from 'effect'
 import {
   type PiSessionContinuation,
-  type PiSessionFileFingerprint,
   type PiSessionFileRead,
   PiSessionFiles,
   type PiSessionFilesShape,
@@ -50,29 +48,27 @@ function errorCode(cause: unknown) {
  * not be read (`file`). A file out of reach is never taken as a deletion, which would remove a
  * discovered Session.
  */
-async function fileAvailability(
-  file: string,
-): Promise<'present' | 'deleted' | PiSessionFileUnavailability> {
+async function fileAvailability(file: string) {
   try {
     await stat(file)
     await access(file, constants.R_OK)
-    return 'present'
+    return 'present' as const
   } catch (cause) {
-    if (errorCode(cause) !== 'ENOENT') return 'file'
+    if (errorCode(cause) !== 'ENOENT') return 'file' as const
   }
   // `stat` follows a link; `lstat` finds a link whose target is gone.
   const entry = await lstat(file).then(
     () => true,
     () => false,
   )
-  if (entry) return 'file'
+  if (entry) return 'file' as const
   return stat(path.dirname(file)).then(
     (folder) => (folder.isDirectory() ? 'deleted' : 'folder'),
     () => 'folder',
   )
 }
 
-async function fingerprintOf(file: string): Promise<PiSessionFileFingerprint | null> {
+async function fingerprintOf(file: string) {
   try {
     const stats = await stat(file)
     return { size: stats.size, mtimeMs: stats.mtimeMs }
@@ -209,12 +205,13 @@ async function projectionBaseFor(input: ReadSnapshotInput, content: Buffer) {
  * The fingerprint is taken first: a write that lands while the file is read leaves it stale, so
  * the next check reads again. Reading is asynchronous; only the parse runs on the event loop.
  */
-async function readSnapshot(input: ReadSnapshotInput): Promise<PiSessionFileRead> {
+async function readSnapshot(input: ReadSnapshotInput) {
   const file = input.piSessionFile
   const fingerprint = await fingerprintOf(file)
   if (!fingerprint) throw new Error(`Pi session file is missing: ${file}`)
   if (await onlyUsageAppendedAfterTail(input, fingerprint.size)) {
-    return { kind: 'unchanged', fingerprint }
+    const read: PiSessionFileRead = { kind: 'unchanged', fingerprint }
+    return read
   }
   const content = await readFile(file)
   const fileEntries = parseSessionEntries(content.toString('utf8'))
@@ -224,11 +221,12 @@ async function readSnapshot(input: ReadSnapshotInput): Promise<PiSessionFileRead
   const sessionManager = SessionManager.inMemory(input.cwd, undefined, fileEntries)
   const entries = sessionManager.getEntries()
   if (holdsOnlyProjectedEntries(entries, input)) {
-    return { kind: 'unchanged', fingerprint }
+    const read: PiSessionFileRead = { kind: 'unchanged', fingerprint }
+    return read
   }
   const branch = sessionManager.getBranch()
   const name = sessionManager.getSessionName()?.trim()
-  return {
+  const read: PiSessionFileRead = {
     kind: 'changed',
     piSessionId: sessionManager.getSessionId(),
     piSessionFile: file,
@@ -244,6 +242,7 @@ async function readSnapshot(input: ReadSnapshotInput): Promise<PiSessionFileRead
     ...folderDefaultThinkingLevel(fileEntries, input.cwd),
     ...(name ? { name } : {}),
   }
+  return read
 }
 
 /**
@@ -251,12 +250,18 @@ async function readSnapshot(input: ReadSnapshotInput): Promise<PiSessionFileRead
  * and recorded folders in any case. A copy found is continued; a folder that cannot be read may
  * hold a newer one, so without one found what a Run would continue is unknown.
  */
-function continuationOf(session: SessionDetail): PiSessionContinuation {
+function continuationOf(session: SessionDetail) {
   const runDirectory = runDirectoryOf(session)
   const file = findExistingPiSessionFile(session, runDirectory)
-  if (file) return { kind: 'file', file }
+  if (file) {
+    const continuation: PiSessionContinuation = { kind: 'file', file }
+    return continuation
+  }
   const folder = unsearchablePiSessionFolder(session, runDirectory)
-  return folder ? { kind: 'unsearchable', folder } : { kind: 'new' }
+  const continuation: PiSessionContinuation = folder
+    ? { kind: 'unsearchable', folder }
+    : { kind: 'new' }
+  return continuation
 }
 
 export function createPiSessionFiles(options: { readonly sessionsRoot?: string } = {}) {

@@ -262,7 +262,7 @@ function lifecycleDiagnostics(input: MakeLifecycleStateInput) {
   return input.diagnostics ?? input.extensionPackage.diagnostics
 }
 
-export function makeLifecycleState(input: MakeLifecycleStateInput): ExtensionLifecycleState {
+export function makeLifecycleState(input: MakeLifecycleStateInput) {
   const now = Date.now()
   return {
     extensionId: input.extensionPackage.id,

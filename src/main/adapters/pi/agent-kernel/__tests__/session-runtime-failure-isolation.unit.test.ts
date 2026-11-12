@@ -96,11 +96,11 @@ function input() {
   }
 }
 
-function enabledExtensionPackage(): RuntimeEnabledOpenWaggleExtensionPackage {
+function enabledExtensionPackage() {
   const packagePath = '/repo/.openwaggle/extensions/broken-extension'
   const scope = { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: '/repo' } as const
 
-  return {
+  const result: RuntimeEnabledOpenWaggleExtensionPackage = {
     extensionPackage: {
       id: 'broken-extension',
       scope,
@@ -145,19 +145,21 @@ function enabledExtensionPackage(): RuntimeEnabledOpenWaggleExtensionPackage {
     },
     packagePath,
   }
+  return result
 }
 
 function runtimeServices(
   enabledOpenWaggleExtensionPackagePaths: readonly string[],
   errors: readonly PiExtensionLoadErrorFixture[] = [],
-): TestRuntimeServices {
-  return {
+) {
+  const services: TestRuntimeServices = {
     diagnostics: { records: [] },
     enabledOpenWaggleExtensionPackagePaths,
     resourceLoader: {
       getExtensions: () => ({ errors }),
     },
   }
+  return services
 }
 
 describe('Pi session runtime extension failure isolation', () => {

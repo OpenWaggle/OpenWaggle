@@ -20,7 +20,7 @@ function hasPipes(child: ChildProcess): child is PipedChildProcess {
  * Defines the pipes as own properties. Assigning them does not work everywhere: on Bun they are
  * getters without setters on `ChildProcess.prototype`.
  */
-export function pipedChildProcess(): PipedChildProcess {
+export function pipedChildProcess() {
   const child = new ChildProcess()
   const pipe = () => ({ value: new PassThrough(), configurable: true, enumerable: true })
   Object.defineProperties(child, { stdin: pipe(), stdout: pipe(), stderr: pipe() })

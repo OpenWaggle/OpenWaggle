@@ -6,7 +6,7 @@ const mockCheckForUpdates = vi.fn()
 const mockInstallUpdate = vi.fn()
 const mockGetUpdateStatus = vi.fn()
 const mockAppGetVersion = vi.fn((_arg?: string) => '0.1.0')
-const mockListActiveRuns = vi.fn((): unknown[] => [])
+const mockListActiveRuns = vi.fn<() => unknown[]>(() => [])
 const mockShowMessageBoxOptions: { readonly message?: string }[] = []
 const mockShowMessageBox = vi.fn(() => Promise.resolve({ response: 2 }))
 const mockInterruptSessionRun = vi.fn((_sessionId: string) => Effect.void)

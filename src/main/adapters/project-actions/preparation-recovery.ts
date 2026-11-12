@@ -4,7 +4,7 @@ import type { PreparationPersistence, StoredWorkspacePreparation } from './prepa
 
 const logger = createLogger('workspace-preparation')
 
-function interruptRunningPhases(state: StoredWorkspacePreparation): StoredWorkspacePreparation {
+function interruptRunningPhases(state: StoredWorkspacePreparation) {
   if (state.setup.status !== 'running' && state.cleanup.status !== 'running') return state
   const interrupt = (phase: PreparationPhase) =>
     state[phase].status === 'running'
@@ -26,7 +26,7 @@ function interruptRunningPhases(state: StoredWorkspacePreparation): StoredWorksp
 function clearLocalBirthFlag(
   state: StoredWorkspacePreparation,
   localWorkspaceIds: ReadonlySet<string>,
-): StoredWorkspacePreparation {
+) {
   if (state.awaitingWorktreeBirth === undefined || !localWorkspaceIds.has(state.workspaceId)) {
     return state
   }

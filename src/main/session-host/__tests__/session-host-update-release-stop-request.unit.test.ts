@@ -17,11 +17,13 @@ const { executeLocalSessionCommand, LocalSessionHostUpgradePendingError } =
 const { LocalSessionClientProtocolError } = await import('../local-session-client-protocol-error')
 const { defaultReleaseDependencies } = await import('../session-host-update-release')
 
-const stopped = (processId?: number): LocalSessionCommandResult =>
-  fromPartial({
+const stopped = (processId?: number) => {
+  const result: LocalSessionCommandResult = fromPartial({
     contract: 'local-host-v1',
     response: { hostInstanceId: 'host-1', ...(processId ? { processId } : {}) },
   })
+  return result
+}
 
 function sentPurposes() {
   return vi

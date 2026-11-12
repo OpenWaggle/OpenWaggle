@@ -36,11 +36,11 @@ function renderer() {
   return { sender, clearStorageData }
 }
 
-function handler(channel: string): Handler {
+function handler(channel: string) {
   const call = typedHandleMock.mock.calls.find(([name]) => name === channel)
   const registered: unknown = call?.[1]
   if (typeof registered !== 'function') throw new Error(`No handler for ${channel}`)
-  return (event, input) => registered(event, input)
+  return ((event, input) => registered(event, input)) satisfies Handler
 }
 
 async function register(sender: unknown) {

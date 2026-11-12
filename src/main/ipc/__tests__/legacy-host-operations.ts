@@ -120,10 +120,8 @@ import { legacySessionResourceOperations } from './legacy-host-session-resource-
 
 export type { LegacyHostOperationDependencies } from './legacy-host-operation-types'
 
-export function legacyHostOperations(
-  dependencies: LegacyHostOperationDependencies = {},
-): LegacyHostOperationTable {
-  return {
+export function legacyHostOperations(dependencies: LegacyHostOperationDependencies = {}) {
+  const table: LegacyHostOperationTable = {
     ...legacySessionResourceOperations,
     'agent-definitions:list-display': (_event, projectPath) =>
       listAgentDefinitionDisplayOperation(projectPath),
@@ -236,6 +234,7 @@ export function legacyHostOperations(
     'skills:get-preview': (_event, rawProjectPath: string, rawSkillId: string) =>
       getSkillPreviewOperation(rawProjectPath, rawSkillId),
   } satisfies LegacyHostOperationTable
+  return table
 }
 
 let configuredDependencies: LegacyHostOperationDependencies = {}
@@ -246,17 +245,17 @@ export function setLegacyHostOperationDependencies(dependencies: LegacyHostOpera
 }
 
 /** The operation a Host-backed channel ran in the window before A-F5. */
-export function legacyHostOperation<C extends HostBackedGuiChannel>(
-  channel: C,
-): LegacyHostOperation<C> {
+export function legacyHostOperation<C extends HostBackedGuiChannel>(channel: C) {
   const operation = legacyHostOperations(configuredDependencies)[channel]
   if (!operation && isHostBackedSessionGuiChannel(channel)) {
     // Every other `sessions:*` channel ran the Host's own Session operation.
-    return (_event, ...args) => dispatchHostBackedSessionGuiOperation(channel, args)
+    return ((_event, ...args) =>
+      dispatchHostBackedSessionGuiOperation(channel, args)) satisfies LegacyHostOperation<C>
   }
   if (!operation && isHostUiWorktreesChannel(channel)) {
     // Settings > Worktrees came after A-F5; its channels run the Host's own operation.
-    return (_event, ...args) => dispatchHostUiWorktreesOperation(channel, args)
+    return ((_event, ...args) =>
+      dispatchHostUiWorktreesOperation(channel, args)) satisfies LegacyHostOperation<C>
   }
   if (!operation) throw new Error(`No legacy Host operation for ${channel}`)
   return operation

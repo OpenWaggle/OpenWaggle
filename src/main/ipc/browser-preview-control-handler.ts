@@ -188,7 +188,7 @@ function registerBrowserPreviewCaptureControlHandlers() {
   )
 }
 
-export function registerBrowserPreviewControlHandlers(): void {
+export function registerBrowserPreviewControlHandlers() {
   registerBrowserPreviewDisplayControlHandlers()
   registerBrowserPreviewCaptureControlHandlers()
 }

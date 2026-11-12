@@ -9,10 +9,12 @@ const commandOutcomeSchema = Schema.Struct({
 })
 
 /** The result's `response.outcome` object, or `undefined` when the result carries none. */
-export function commandResponseOutcome(value: unknown): object | undefined {
-  return Schema.is(commandOutcomeSchema)(value) && !Array.isArray(value.response.outcome)
-    ? value.response.outcome
-    : undefined
+export function commandResponseOutcome(value: unknown) {
+  const result: object | undefined =
+    Schema.is(commandOutcomeSchema)(value) && !Array.isArray(value.response.outcome)
+      ? value.response.outcome
+      : undefined
+  return result
 }
 
 /** The members of a refused page's `error` the CLI reports. */
@@ -23,8 +25,10 @@ export interface PageQueryRefusalFields {
 }
 
 /** A page outcome's `error`, when the Host refused the page. */
-export function pageRefusalOf(outcome: object): PageQueryRefusalFields | undefined {
+export function pageRefusalOf(outcome: object) {
   if (!('error' in outcome)) return undefined
   const { error } = outcome
-  return typeof error === 'object' && error !== null && !Array.isArray(error) ? error : undefined
+  const fields: PageQueryRefusalFields | undefined =
+    typeof error === 'object' && error !== null && !Array.isArray(error) ? error : undefined
+  return fields
 }

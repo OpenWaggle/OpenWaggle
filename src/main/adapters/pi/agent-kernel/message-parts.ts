@@ -1,33 +1,34 @@
 import { match, P } from '@diegogbrisa/ts-match'
 import type { MessagePart, TextPart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
-import type { JsonObject, JsonValue } from '@shared/types/json'
+import type { JsonValue } from '@shared/types/json'
 import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
 import { toJsonObject, toJsonValue } from '../pi-message-mapper'
 import type { PiPromptInput } from '../pi-runtime-input'
 import { stripAtomicVisualizationContext } from '../pi-runtime-input'
 import { piToolResultDetails } from '../pi-tool-result-details'
 
-function textMessagePart(text: string): TextPart {
-  return { type: 'text', text }
+function textMessagePart(text: string) {
+  const part: TextPart = { type: 'text', text }
+  return part
 }
 
-function emptyTextMessagePart(): TextPart {
+function emptyTextMessagePart() {
   return textMessagePart('')
 }
 
-function piTextOrImageBlockToPart(block: unknown): TextPart | null {
-  return match(block)
+function piTextOrImageBlockToPart(block: unknown) {
+  const part: TextPart | null = match(block)
     .with({ type: 'text', text: P.select('text', P.string) }, ({ text }) =>
       textMessagePart(stripAtomicVisualizationContext(text)),
     )
     .otherwise(() => null)
+  return part
 }
 
-function nonEmptyMessageParts<Part extends MessagePart>(
-  parts: readonly Part[],
-): (Part | TextPart)[] {
-  return parts.length > 0 ? [...parts] : [emptyTextMessagePart()]
+function nonEmptyMessageParts<Part extends MessagePart>(parts: readonly Part[]) {
+  const result: (Part | TextPart)[] = parts.length > 0 ? [...parts] : [emptyTextMessagePart()]
+  return result
 }
 
 export function piTextAndImageContentToParts(content: unknown) {
@@ -65,11 +66,15 @@ export function piTextAndImageContentToParts(content: unknown) {
 const SYNTHESIZED_ATTACHMENT_BLOCK = /(?:^|\n\n)\[Attachment: [^\n]*\](?=\n|$)/u
 
 /** The typed text of a Pi user prompt, without the attachment blocks OpenWaggle appended to it. */
-function withoutSynthesizedAttachments(part: TextPart): TextPart[] {
+function withoutSynthesizedAttachments(part: TextPart) {
   const marker = SYNTHESIZED_ATTACHMENT_BLOCK.exec(part.text)
-  if (!marker) return [part]
+  if (!marker) {
+    const result: TextPart[] = [part]
+    return result
+  }
   const text = part.text.slice(0, marker.index).trim()
-  return text ? [textMessagePart(text)] : []
+  const result: TextPart[] = text ? [textMessagePart(text)] : []
+  return result
 }
 
 /**
@@ -83,20 +88,22 @@ export function piUserContentToDisplayParts(content: unknown) {
   )
 }
 
-function assistantTextPart(text: string): MessagePart {
-  return { type: 'text', text }
+function assistantTextPart(text: string) {
+  const part: MessagePart = { type: 'text', text }
+  return part
 }
 
-function assistantReasoningPart(thinking: string): MessagePart {
-  return { type: 'reasoning', text: thinking }
+function assistantReasoningPart(thinking: string) {
+  const part: MessagePart = { type: 'reasoning', text: thinking }
+  return part
 }
 
 function assistantToolCallPart(input: {
   readonly id: string
   readonly name: string
   readonly toolArguments: unknown
-}): MessagePart {
-  return {
+}) {
+  const part: MessagePart = {
     type: 'tool-call',
     toolCall: {
       id: ToolCallId(input.id),
@@ -105,10 +112,11 @@ function assistantToolCallPart(input: {
       state: 'input-complete',
     },
   }
+  return part
 }
 
-function piAssistantBlockToPart(block: unknown): MessagePart | null {
-  return match(block)
+function piAssistantBlockToPart(block: unknown) {
+  const part: MessagePart | null = match(block)
     .with({ type: 'text', text: P.select('text', P.string) }, ({ text }) => assistantTextPart(text))
     .with({ type: 'thinking', thinking: P.select('thinking', P.string) }, ({ thinking }) =>
       assistantReasoningPart(thinking),
@@ -123,6 +131,7 @@ function piAssistantBlockToPart(block: unknown): MessagePart | null {
       assistantToolCallPart,
     )
     .otherwise(() => null)
+  return part
 }
 
 export function piAssistantContentToParts(content: readonly unknown[]) {
@@ -142,7 +151,7 @@ function getToolResultDuration(details: unknown) {
   return piToolResultDetails(details).duration ?? 0
 }
 
-function getToolResultArgs(details: unknown): JsonObject {
+function getToolResultArgs(details: unknown) {
   return toJsonObject(piToolResultDetails(details).args)
 }
 
@@ -156,8 +165,8 @@ interface PiNestedToolCallRecord {
   readonly error?: string
 }
 
-function nestedToolCallRecord(record: PiNestedToolCallRecord): NestedToolCallRecord {
-  return {
+function nestedToolCallRecord(record: PiNestedToolCallRecord) {
+  const result: NestedToolCallRecord = {
     id: record.id,
     name: record.name,
     ...(record.arguments !== undefined ? { args: toJsonObject(record.arguments) } : {}),
@@ -166,14 +175,19 @@ function nestedToolCallRecord(record: PiNestedToolCallRecord): NestedToolCallRec
     ...(record.durationMs !== undefined ? { durationMs: record.durationMs } : {}),
     ...(record.error !== undefined ? { error: record.error } : {}),
   }
+  return result
 }
 
 /** Pi records the calls a tool made through `ctx.executeTool()` on its result as `nestedCalls`. */
 function nestedToolCalls(nestedCalls: {
   readonly calls: readonly PiNestedToolCallRecord[]
   readonly complete: boolean
-}): NestedToolCalls {
-  return { calls: nestedCalls.calls.map(nestedToolCallRecord), complete: nestedCalls.complete }
+}) {
+  const result: NestedToolCalls = {
+    calls: nestedCalls.calls.map(nestedToolCallRecord),
+    complete: nestedCalls.complete,
+  }
+  return result
 }
 
 export function piToolResultContentToPart(message: {
@@ -186,9 +200,9 @@ export function piToolResultContentToPart(message: {
     readonly calls: readonly PiNestedToolCallRecord[]
     readonly complete: boolean
   }
-}): MessagePart {
+}) {
   const details = toJsonValue(message.details ?? null)
-  return {
+  const part: MessagePart = {
     type: 'tool-result',
     toolResult: {
       id: ToolCallId(message.toolCallId),
@@ -204,6 +218,7 @@ export function piToolResultContentToPart(message: {
       ...(message.nestedCalls ? { nestedCalls: nestedToolCalls(message.nestedCalls) } : {}),
     },
   }
+  return part
 }
 
 export function buildMessageNodeContentJson(parts: readonly MessagePart[], model: string | null) {

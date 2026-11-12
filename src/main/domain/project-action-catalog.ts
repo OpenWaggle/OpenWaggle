@@ -61,7 +61,7 @@ export function resolveActionCatalog(
   document: LocalActionDocument,
   shared: ActionManifest,
   revision: string,
-): ActionCatalog {
+) {
   validateSharedProfiles(shared)
   const actions = effective(document.manifest.actions, shared.actions)
   const shortcutRules = actions.reduce(
@@ -103,13 +103,16 @@ export function resolveActionCatalog(
     }
     phases.add(phase)
   }
-  return { revision, actions, profiles, preparation }
+  const catalog: ActionCatalog = { revision, actions, profiles, preparation }
+  return catalog
 }
 
-function upsert<T extends { readonly id: string }>(entries: readonly T[], value: T): readonly T[] {
-  return entries.some((entry) => entry.id === value.id)
-    ? entries.map((entry) => (entry.id === value.id ? value : entry))
-    : [...entries, value]
+function upsert<T extends { readonly id: string }>(entries: readonly T[], value: T) {
+  return (
+    entries.some((entry) => entry.id === value.id)
+      ? entries.map((entry) => (entry.id === value.id ? value : entry))
+      : [...entries, value]
+  ) satisfies readonly T[]
 }
 
 function validateSharedProfiles(shared: ActionManifest) {

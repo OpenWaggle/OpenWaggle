@@ -1,12 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import {
-  type AssistantMessage,
-  fauxAssistantMessage,
-  fauxProvider,
-  InMemoryCredentialStore,
-} from '@earendil-works/pi-ai'
+import { fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
   type AgentSession,
   createAgentSession,
@@ -111,8 +106,8 @@ const notes = {
   source: null,
 }
 
-function payload(text: string): HydratedAgentSendPayload {
-  return { text, attachments: [notes] }
+function payload(text: string) {
+  return { text, attachments: [notes] } satisfies HydratedAgentSendPayload
 }
 
 describe('published user messages against a real Pi session', () => {
@@ -120,7 +115,7 @@ describe('published user messages against a real Pi session', () => {
     const { session, faux, model, events } = await createRealPiSession()
     const control = createPiRunControl(session, new AbortController().signal)
     faux.setResponses([
-      async (): Promise<AssistantMessage> => {
+      async () => {
         await control.steer(payload('Use the other API'))
         return fauxAssistantMessage('first answer')
       },
@@ -213,7 +208,7 @@ describe('published user messages against a real Pi session', () => {
     const { session, faux, model, events } = await createRealPiSession()
     const waggleInvocation = { presetId: 'preset-2', presetName: 'Pair', source: 'agent' }
     faux.setResponses([
-      async (): Promise<AssistantMessage> => {
+      async () => {
         // Streaming: Pi queues the request and appends it only after notifying its end.
         await session.sendCustomMessage(
           {

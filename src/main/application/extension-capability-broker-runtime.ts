@@ -12,7 +12,6 @@ import type {
 } from '@shared/types/extension-broker'
 import type { DiscoveredExtensionPackage, ExtensionDiagnostic } from '../extensions/types'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
-import type { ContributionRegistrationEntry } from './extension-contribution-registration-model'
 import {
   registerRuntimePackageContribution,
   unregisterRuntimePackageContribution,
@@ -87,23 +86,25 @@ function targetValuesStayWithinScope(values: readonly string[] | undefined, requ
 function scopeContributionTarget(input: {
   readonly scope: ExtensionInvokeScope
   readonly contribution: RuntimeContribution
-}): ScopedContributionResult {
+}) {
   const projectPath = scopeProjectPath(input.scope)
   const sessionId = scopeSessionId(input.scope)
   if (input.scope.kind === 'branch') {
-    return {
+    const result: ScopedContributionResult = {
       _tag: 'rejected',
       issues: [
         'Branch-scoped runtime contribution registration is not supported until contribution targets can persist branch scope.',
       ],
     }
+    return result
   }
 
   if (projectPath === undefined && sessionId === undefined) {
-    return {
+    const result: ScopedContributionResult = {
       _tag: 'ok',
       contribution: input.contribution,
     }
+    return result
   }
 
   const issues: string[] = []
@@ -117,10 +118,11 @@ function scopeContributionTarget(input: {
     issues.push('Runtime contribution target is outside the invocation session scope.')
   }
   if (issues.length > 0) {
-    return { _tag: 'rejected', issues }
+    const result: ScopedContributionResult = { _tag: 'rejected', issues }
+    return result
   }
 
-  return {
+  const result: ScopedContributionResult = {
     _tag: 'ok',
     contribution: {
       ...input.contribution,
@@ -131,12 +133,13 @@ function scopeContributionTarget(input: {
       },
     },
   }
+  return result
 }
 
 function scopedRuntimeContributionRegistration(input: {
   readonly scope: ExtensionInvokeScope
   readonly registration: ExtensionRuntimeRegisterContributionPayload
-}): ScopedRegistrationResult {
+}) {
   const scopedContribution = scopeContributionTarget({
     scope: input.scope,
     contribution: input.registration.contribution,
@@ -150,14 +153,14 @@ function scopedRuntimeContributionRegistration(input: {
     contribution: scopedContribution.contribution,
   })
 
-  return decoded.success
-    ? { _tag: 'ok', registration: decoded.data }
-    : { _tag: 'rejected', issues: decoded.issues }
+  return (
+    decoded.success
+      ? { _tag: 'ok', registration: decoded.data }
+      : { _tag: 'rejected', issues: decoded.issues }
+  ) satisfies ScopedRegistrationResult
 }
 
-function registrationEntry(
-  registration: ExtensionRuntimeRegisterContributionPayload,
-): ContributionRegistrationEntry {
+function registrationEntry(registration: ExtensionRuntimeRegisterContributionPayload) {
   return {
     family: registration.family,
     contribution: registration.contribution,

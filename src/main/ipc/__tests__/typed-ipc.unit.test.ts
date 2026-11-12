@@ -46,8 +46,8 @@ vi.mock('../../gui-runtime', () => ({
 import { EventEmitter } from 'node:events'
 import { hostHandle, typedHandle, typedOn } from '../typed-ipc'
 
-function okResult(): { readonly ok: true } {
-  return { ok: true }
+function okResult() {
+  return { ok: true } satisfies { readonly ok: true }
 }
 
 describe('typedOn', () => {
@@ -292,7 +292,7 @@ describe('the backend gate (A-F2)', () => {
   })
 })
 
-function fromPartialEvent(): IpcInvocation {
+function fromPartialEvent() {
   return fromAny<IpcInvocation, { readonly sender: FakeSender }>({ sender: new FakeSender() })
 }
 

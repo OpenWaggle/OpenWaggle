@@ -68,7 +68,7 @@ const isObject = Schema.is(anyObjectSchema)
 const decodeListEntry = Schema.decodeUnknownOption(registryListEntrySchema)
 const decodeServer = Schema.decodeUnknownOption(registryServerSchema)
 
-function serverRecord(value: unknown): RegistryServerRecord | null {
+function serverRecord(value: unknown) {
   const listEntry = Option.getOrUndefined(decodeListEntry(value))
   if (!listEntry) return null
   const wrapped = isObject(listEntry.server) ? listEntry.server : value
@@ -77,7 +77,7 @@ function serverRecord(value: unknown): RegistryServerRecord | null {
   if (!source || !name || !version) return null
   const { title, description } = source
   const repositoryUrl = source.repository?.url
-  return {
+  const record: RegistryServerRecord | null = {
     name,
     version,
     ...(title ? { title } : {}),
@@ -85,6 +85,7 @@ function serverRecord(value: unknown): RegistryServerRecord | null {
     ...(repositoryUrl ? { repositoryUrl } : {}),
     source,
   }
+  return record
 }
 
 function isLatest(value: unknown) {

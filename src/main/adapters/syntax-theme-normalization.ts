@@ -14,19 +14,22 @@ type ThemeSource = SchemaType<typeof themeSourceSchema>
 
 const RUNTIME_REVISION_LENGTH = 16
 
-function tokenRules(value: unknown): SyntaxThemeTokenRule[] {
-  return decodeUnknownOrThrow(themeTokenRulesSchema, value).map((candidate) => {
-    const { foreground, background, fontStyle } = candidate.settings
-    return {
-      ...(candidate.name === undefined ? {} : { name: candidate.name }),
-      ...(candidate.scope ? { scope: candidate.scope } : {}),
-      settings: {
-        ...(foreground === undefined ? {} : { foreground }),
-        ...(background === undefined ? {} : { background }),
-        ...(fontStyle === undefined ? {} : { fontStyle }),
-      },
-    }
-  })
+function tokenRules(value: unknown) {
+  const rule: SyntaxThemeTokenRule[] = decodeUnknownOrThrow(themeTokenRulesSchema, value).map(
+    (candidate) => {
+      const { foreground, background, fontStyle } = candidate.settings
+      return {
+        ...(candidate.name === undefined ? {} : { name: candidate.name }),
+        ...(candidate.scope ? { scope: candidate.scope } : {}),
+        settings: {
+          ...(foreground === undefined ? {} : { foreground }),
+          ...(background === undefined ? {} : { background }),
+          ...(fontStyle === undefined ? {} : { fontStyle }),
+        },
+      }
+    },
+  )
+  return rule
 }
 
 function inferredThemeType(source: ThemeSource, label: string) {
@@ -36,10 +39,15 @@ function inferredThemeType(source: ThemeSource, label: string) {
   return 'dark' as const
 }
 
-function inferredVariant(type: 'light' | 'dark', label: string): SyntaxAppearanceVariant {
+function inferredVariant(type: 'light' | 'dark', label: string) {
   const highContrast = /high[ -]?contrast|\bhc\b/i.test(label)
-  if (highContrast) return type === 'light' ? 'high-contrast-light' : 'high-contrast-dark'
-  return type
+  if (highContrast) {
+    const variant: SyntaxAppearanceVariant =
+      type === 'light' ? 'high-contrast-light' : 'high-contrast-dark'
+    return variant
+  }
+  const variant: SyntaxAppearanceVariant = type
+  return variant
 }
 
 export function normalizedTheme(input: {
@@ -52,7 +60,7 @@ export function normalizedTheme(input: {
   readonly scope: SyntaxResourceScope
   readonly forcedVariant?: SyntaxAppearanceVariant
   readonly declaredIdentity?: string
-}): SyntaxThemeResource {
+}) {
   if (!isSourceObject(input.raw)) throw new Error('Theme declaration must be an object.')
   const original = toJsonObject(input.originalRaw ?? input.raw)
   const resolved = toJsonObject(input.raw)
@@ -67,7 +75,7 @@ export function normalizedTheme(input: {
     : ''
   const id = `theme:${syntaxResourceSlug(input.packageId)}${declaredIdentity}:${variant}`
   const runtimeName = `${id}:${revision.slice(0, RUNTIME_REVISION_LENGTH)}`
-  return {
+  const resource: SyntaxThemeResource = {
     id,
     packageId: input.packageId,
     revision,
@@ -85,4 +93,5 @@ export function normalizedTheme(input: {
     },
     original,
   }
+  return resource
 }

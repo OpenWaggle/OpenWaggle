@@ -47,7 +47,7 @@ export interface FakePty {
   >['resourceDrain']
 }
 
-export function makeFakePty(pid: number): FakePty {
+export function makeFakePty(pid: number) {
   const dataListeners: ((data: string) => void)[] = []
   const nativeLifecycle = makeTerminalLifecycleHarness()
   const { exitListeners } = nativeLifecycle
@@ -75,7 +75,7 @@ export function makeFakePty(pid: number): FakePty {
   Object.assign(pty, { _socket: { destroy } })
   Object.assign(pty, { closeDescriptor: () => destroy() })
   const lifecycle = nativeLifecycle.install(pty)
-  return {
+  const result: FakePty = {
     pty,
     dataListeners,
     exitListeners,
@@ -92,10 +92,11 @@ export function makeFakePty(pid: number): FakePty {
     resumeOutput,
     ...lifecycle,
   }
+  return result
 }
 
-export function successfulOutcome(fake: FakePty, tty: string | null = null): PtySpawnOutcome {
-  return {
+export function successfulOutcome(fake: FakePty, tty: string | null = null) {
+  const outcome: PtySpawnOutcome = {
     ok: true,
     pty: fake.pty,
     pid: fake.pty.pid,
@@ -110,6 +111,7 @@ export function successfulOutcome(fake: FakePty, tty: string | null = null): Pty
     pauseOutput: fake.pauseOutput,
     resumeOutput: fake.resumeOutput,
   }
+  return outcome
 }
 
 let logsDir: string
@@ -139,9 +141,9 @@ export function makeRuntime(
   fake: FakePty,
   deliveryCount = 1,
   options: Pick<TerminalRuntimeDeps, 'shutdownDetachedProcess'> = {},
-): RuntimeTestResult {
-  const spawn = vi.fn(async (_request: PtySpawnRequest): Promise<PtySpawnOutcome> =>
-    successfulOutcome(fake),
+) {
+  const spawn = vi.fn<(_request: PtySpawnRequest) => Promise<PtySpawnOutcome>>(
+    async (_request: PtySpawnRequest) => successfulOutcome(fake),
   )
   const runner: PtyRunner = {
     spawn,
@@ -160,7 +162,8 @@ export function makeRuntime(
     onLivePidsChanged,
     ...options,
   })
-  return { runtime, spawn, emit, emitted, onLivePidsChanged }
+  const result: RuntimeTestResult = { runtime, spawn, emit, emitted, onLivePidsChanged }
+  return result
 }
 
 export function addRecord(runtime: TerminalRuntime) {

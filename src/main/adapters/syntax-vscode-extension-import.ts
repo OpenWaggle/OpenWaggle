@@ -118,7 +118,7 @@ async function mapExtensionResources<Input, Output>(
   return results
 }
 
-function extensionManifest(raw: unknown, fallbackName: string): ExtensionManifest {
+function extensionManifest(raw: unknown, fallbackName: string) {
   const manifest = decodeSource(extensionManifestSourceSchema, raw)
   const contributes = manifest?.contributes
   if (!contributes) throw new Error('VS Code extension does not declare contributions.')

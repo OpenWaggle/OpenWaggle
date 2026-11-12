@@ -5,8 +5,8 @@ import type {
   ScheduledTasksOutcome,
 } from '@shared/types/scheduled-task'
 
-export function task(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
-  return {
+export function task(overrides: Partial<ScheduledTask> = {}) {
+  const result: ScheduledTask = {
     id: 'task-1',
     name: 'Check CI',
     prompt: 'Check whether CI is green.',
@@ -33,6 +33,7 @@ export function task(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
     updatedAt: 0,
     ...overrides,
   }
+  return result
 }
 
 export function result(

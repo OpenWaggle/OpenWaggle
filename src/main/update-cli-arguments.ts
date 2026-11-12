@@ -1,4 +1,4 @@
-import { UPDATE_CHANNELS, type UpdateChannel } from '@shared/types/update-channel'
+import { UPDATE_CHANNELS } from '@shared/types/update-channel'
 import {
   isFlagValue,
   isOptionWithoutValue,
@@ -51,7 +51,7 @@ export function validateArguments(args: ParsedArguments) {
   }
 }
 
-export function parseChannel(value: string | undefined): UpdateChannel | undefined {
+export function parseChannel(value: string | undefined) {
   if (value === undefined) return undefined
   const channel = UPDATE_CHANNELS.find((candidate) => candidate === value)
   if (!channel) {

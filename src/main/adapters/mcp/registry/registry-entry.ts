@@ -3,8 +3,6 @@ import {
   MCP_REGISTRY_PACKAGE_TYPES,
   type McpRegistryInstallMethod,
   type McpRegistryInstallOptionView,
-  type McpRegistryPackageType,
-  type McpRegistryServerView,
 } from '@shared/types/mcp-registry'
 import type { McpRegistryEntry } from '../../../ports/mcp-registry-service'
 import { piServerName } from '../import/import-identity'
@@ -27,11 +25,11 @@ interface RegistryRemote {
   readonly headers: RegistryInputList
 }
 
-export function mcpRegistryPackageType(value: unknown): McpRegistryPackageType | undefined {
+export function mcpRegistryPackageType(value: unknown) {
   return MCP_REGISTRY_PACKAGE_TYPES.find((candidate) => candidate === value)
 }
 
-function remotes(server: RegistryServerRecord): RegistryRemote[] {
+function remotes(server: RegistryServerRecord) {
   return server.source.remotes.flatMap(({ url, type, headers }) =>
     // A URL with `{variables}` needs values the user types in; it is left to `mcp add`.
     url && type && !url.includes('{') ? [{ url, type, headers }] : [],
@@ -57,7 +55,7 @@ export function suggestedServerName(server: RegistryServerRecord) {
   return piServerName(server.name.split('/').at(-1) ?? server.name)
 }
 
-export function registryServerView(server: RegistryServerRecord): McpRegistryServerView {
+export function registryServerView(server: RegistryServerRecord) {
   const installOptions: McpRegistryInstallOptionView[] = [
     ...remotes(server).map((remote) => ({
       method: 'remote' as const,
@@ -148,14 +146,14 @@ async function packageEntry(server: RegistryServerRecord, options: RegistryEntry
 export async function createRegistryEntry(
   server: RegistryServerRecord,
   options: RegistryEntryOptions,
-): Promise<McpRegistryEntry> {
+) {
   const remote =
     options.method === undefined || options.method === 'remote' ? remotes(server)[0] : undefined
   if (options.method === 'remote' && !remote) {
     throw new Error(`Registry server ${server.name} has no hosted URL.`)
   }
   const built = remote ? remoteEntry(remote) : await packageEntry(server, options)
-  return {
+  const result: McpRegistryEntry = {
     suggestedName: suggestedServerName(server),
     entry: {
       ...built.entry,
@@ -166,6 +164,7 @@ export async function createRegistryEntry(
     optionalSecretArguments: built.optionalSecretArguments,
     optionalSecretsNeedContainerEnv: built.optionalSecretsNeedContainerEnv,
   }
+  return result
 }
 
 /** `~/.openwaggle/mcp/registry-cache`, where verified MCPB bundles are unpacked. */

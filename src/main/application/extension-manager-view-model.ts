@@ -1,14 +1,10 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributions } from '@shared/schemas/extensions'
 import type {
-  ExtensionBuildPlanView,
-  ExtensionDiagnosticView,
   ExtensionLifecycleView,
   ExtensionManifestSummary,
   ExtensionPackageScopeView,
-  ExtensionPackageSummary,
   ExtensionProjectOverrideView,
-  ExtensionSdkCompatibilityView,
 } from '@shared/types/extensions'
 import {
   isExtensionBuildPlanApproved,
@@ -24,19 +20,19 @@ import type {
 } from '../extensions/types'
 import { requirementsToView } from './extension-requirements-view-model'
 
-function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
+function scopeToView(scope: ExtensionPackageScope) {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
     return {
       kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
       label: 'Global',
-    }
+    } satisfies ExtensionPackageScopeView
   }
 
   return {
     kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
     label: 'Project',
     projectPath: scope.projectPath,
-  }
+  } satisfies ExtensionPackageScopeView
 }
 
 function contributionCount(entries: readonly unknown[] | undefined) {
@@ -64,9 +60,7 @@ function countContributionFamilies(contributions: ExtensionContributions | undef
   )
 }
 
-function manifestToSummary(
-  manifest: NonNullable<DiscoveredExtensionPackage['manifest']>,
-): ExtensionManifestSummary {
+function manifestToSummary(manifest: NonNullable<DiscoveredExtensionPackage['manifest']>) {
   return {
     id: manifest.id,
     name: manifest.name,
@@ -80,13 +74,13 @@ function manifestToSummary(
     trustedMain: manifest.trusted?.main !== undefined,
     trustedRenderer: manifest.trusted?.renderer !== undefined,
     runtimeRequirementCount: manifest.runtimeRequirements?.length ?? 0,
-  }
+  } satisfies ExtensionManifestSummary
 }
 
 function buildPlanToView(
   extensionPackage: DiscoveredExtensionPackage,
   lifecycle: ExtensionLifecycleState | null,
-): ExtensionBuildPlanView | null {
+) {
   const buildPlan = extensionPackage.buildPlan
   if (!buildPlan) {
     return null
@@ -102,9 +96,7 @@ function buildPlanToView(
   }
 }
 
-function diagnosticsToView(
-  diagnostics: readonly ExtensionDiagnostic[],
-): readonly ExtensionDiagnosticView[] {
+function diagnosticsToView(diagnostics: readonly ExtensionDiagnostic[]) {
   return diagnostics.map((diagnostic) => ({
     severity: diagnostic.severity,
     code: diagnostic.code,
@@ -117,11 +109,11 @@ function lifecycleToView(
   state: ExtensionLifecycleState,
   extensionPackage: DiscoveredExtensionPackage,
   projectOverride: { readonly disabled: boolean } | null,
-): ExtensionLifecycleView {
+) {
   const trusted = isExtensionCurrentTrustPin({ extensionPackage, lifecycle: state })
   const enabled = state.enabled && trusted && projectOverride?.disabled !== true
 
-  return {
+  const view: ExtensionLifecycleView = {
     enabled,
     trusted,
     updateAvailable: isExtensionUpdateAvailable({ extensionPackage, lifecycle: state }),
@@ -139,32 +131,29 @@ function lifecycleToView(
     installedAt: state.installedAt,
     updatedAt: state.updatedAt,
   }
+  return view
 }
 
 export function projectOverrideToView(
   projectPath: string,
   projectOverride: ExtensionProjectOverrideState | null,
-): ExtensionProjectOverrideView {
+) {
   return {
     projectPath,
     disabled: projectOverride?.disabled ?? false,
     updatedAt: projectOverride?.updatedAt ?? null,
-  }
+  } satisfies ExtensionProjectOverrideView
 }
 
-export function unavailableProjectOverrideToView(
-  projectPath: string,
-): ExtensionProjectOverrideView {
+export function unavailableProjectOverrideToView(projectPath: string) {
   return {
     projectPath,
     disabled: true,
     updatedAt: null,
-  }
+  } satisfies ExtensionProjectOverrideView
 }
 
-function sdkCompatibilityToView(
-  compatibility: DiscoveredExtensionPackage['sdkCompatibility'],
-): ExtensionSdkCompatibilityView | null {
+function sdkCompatibilityToView(compatibility: DiscoveredExtensionPackage['sdkCompatibility']) {
   if (!compatibility) {
     return null
   }
@@ -182,7 +171,7 @@ export function packageToSummary(input: {
   readonly lifecycle: ExtensionLifecycleState | null
   readonly projectOverride: ExtensionProjectOverrideView | null
   readonly projectOverrides: readonly ExtensionProjectOverrideView[]
-}): ExtensionPackageSummary {
+}) {
   return {
     id: input.extensionPackage.id,
     scope: scopeToView(input.extensionPackage.scope),

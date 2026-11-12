@@ -38,7 +38,7 @@ export function mcpQueryErrorRefusal(error: object) {
 }
 
 /** A refusal the Session Host threw, worded like the outcomes it rejects. */
-export function mcpThrownRefusal(error: unknown): unknown {
+export function mcpThrownRefusal(error: unknown) {
   if (!(error instanceof LocalSessionClientProtocolError)) return error
   const kind = error.errorKind ?? sessionHostErrorKindForThrownCode(error.code)
   return new Error(mcpRefusalMessage(error.code, kind, error.message), { cause: error })

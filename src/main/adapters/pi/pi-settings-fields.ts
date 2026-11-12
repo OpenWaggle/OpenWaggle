@@ -27,15 +27,16 @@ export type PiSettingsFields = SchemaType<typeof piSettingsFieldsSchema>
 
 type PiSettingName = keyof PiSettingsFields
 
-export function piSettingsFields(settings: JsonObject): PiSettingsFields {
-  return decodeUnknownOrThrow(piSettingsFieldsSchema, settings)
+export function piSettingsFields(settings: JsonObject) {
+  const fields: PiSettingsFields = decodeUnknownOrThrow(piSettingsFieldsSchema, settings)
+  return fields
 }
 
 /** The settings with these changed: a value replaces a setting, `undefined` removes it. */
 export function withPiSettings(
   settings: JsonObject,
   changes: Partial<Record<PiSettingName, JsonValue | undefined>>,
-): JsonObject {
+) {
   const next: JsonObject = { ...settings }
   for (const [name, value] of Object.entries(changes)) {
     if (value === undefined) delete next[name]
@@ -47,9 +48,13 @@ export function withPiSettings(
 const packageSourceSchema = Schema.Struct({ source: Schema.String })
 
 /** A `packages` entry's source: the entry itself, or the `source` of an object entry. */
-export function piPackageSource(value: JsonValue): string | null {
-  if (typeof value === 'string') return value
-  return Schema.is(packageSourceSchema)(value) ? value.source : null
+export function piPackageSource(value: JsonValue) {
+  if (typeof value === 'string') {
+    const result: string | null = value
+    return result
+  }
+  const result: string | null = Schema.is(packageSourceSchema)(value) ? value.source : null
+  return result
 }
 
 const compactionFieldsSchema = Schema.Struct({ modelOverrides: setting })

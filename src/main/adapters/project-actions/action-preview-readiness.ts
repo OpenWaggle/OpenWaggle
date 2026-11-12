@@ -1,7 +1,7 @@
 const PROBE_TIMEOUT_MS = 1_000
 const PROBE_INTERVAL_MS = 750
 
-export async function probeActionPreview(url: string, signal: AbortSignal): Promise<boolean> {
+export async function probeActionPreview(url: string, signal: AbortSignal) {
   try {
     const response = await fetch(url, {
       method: 'HEAD',

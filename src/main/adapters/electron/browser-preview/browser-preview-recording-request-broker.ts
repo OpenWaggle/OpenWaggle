@@ -39,26 +39,20 @@ export class BrowserPreviewRecordingRequestBroker {
   private readonly pendingById = new Map<string, PendingRecordingRequest>()
   private readonly pendingByPreview = new Map<string, PendingRecordingRequest>()
 
-  async start(
-    record: BrowserPreviewRecord,
-    options?: BrowserPreviewRecordingRequestOptions,
-  ): Promise<void> {
+  async start(record: BrowserPreviewRecord, options?: BrowserPreviewRecordingRequestOptions) {
     const result = await this.request(record, 'start', options)
     assertBrowserPreviewContentsAvailable(record.view.webContents)
     if (result !== undefined) throw new Error('Recording start returned an unexpected artifact.')
   }
 
-  async stop(
-    record: BrowserPreviewRecord,
-    options?: BrowserPreviewRecordingRequestOptions,
-  ): Promise<BrowserPreviewRecordingArtifact> {
+  async stop(record: BrowserPreviewRecord, options?: BrowserPreviewRecordingRequestOptions) {
     const result = await this.request(record, 'stop', options)
     assertBrowserPreviewContentsAvailable(record.view.webContents)
     if (result === undefined) throw new Error('Recording stop did not return an artifact.')
     return result
   }
 
-  respond(sender: WebContents, response: BrowserPreviewRecordingRequestResponse): void {
+  respond(sender: WebContents, response: BrowserPreviewRecordingRequestResponse) {
     const pending = this.pendingById.get(response.requestId)
     if (pending === undefined) throw new Error('Browser preview recording request was not found.')
     if (pending.record.owner.sender !== sender || pending.record.previewId !== response.previewId) {
@@ -88,7 +82,7 @@ export class BrowserPreviewRecordingRequestBroker {
     pending.reject(new Error('Browser preview recording response did not match its action.'))
   }
 
-  dispose(record: BrowserPreviewRecord): void {
+  dispose(record: BrowserPreviewRecord) {
     const pending = this.pendingByPreview.get(browserPreviewAutomationPage(record).tabId)
     this.sendCancel(record, pending?.request.requestId ?? null, 'preview-closed')
     if (pending === undefined) return
@@ -100,7 +94,7 @@ export class BrowserPreviewRecordingRequestBroker {
     record: BrowserPreviewRecord,
     action: BrowserPreviewRecordingRequestAction,
     options?: BrowserPreviewRecordingRequestOptions,
-  ): Promise<BrowserPreviewRecordingArtifact | undefined> {
+  ) {
     if (
       record.disposed ||
       record.owner.sender.isDestroyed() ||
@@ -121,7 +115,7 @@ export class BrowserPreviewRecordingRequestBroker {
       action,
     }
     const timeoutMs = requestTimeout(options)
-    return new Promise((resolve, reject) => {
+    return new Promise<BrowserPreviewRecordingArtifact | undefined>((resolve, reject) => {
       const abort = () => this.cancelPending(request.requestId, 'aborted')
       options?.signal?.addEventListener('abort', abort, { once: true })
       const timer = setTimeout(() => this.cancelPending(request.requestId, 'timeout'), timeoutMs)
@@ -145,10 +139,7 @@ export class BrowserPreviewRecordingRequestBroker {
     })
   }
 
-  private cancelPending(
-    requestId: string,
-    reason: BrowserPreviewRecordingCancelRequest['reason'],
-  ): void {
+  private cancelPending(requestId: string, reason: BrowserPreviewRecordingCancelRequest['reason']) {
     const pending = this.pendingById.get(requestId)
     if (pending === undefined) return
     this.release(pending)
@@ -166,7 +157,7 @@ export class BrowserPreviewRecordingRequestBroker {
     record: BrowserPreviewRecord,
     requestId: string | null,
     reason: BrowserPreviewRecordingCancelRequest['reason'],
-  ): void {
+  ) {
     if (record.owner.sender.isDestroyed()) return
     try {
       record.owner.sender.send('browser-preview:recording-cancel', {
@@ -179,7 +170,7 @@ export class BrowserPreviewRecordingRequestBroker {
     }
   }
 
-  private release(pending: PendingRecordingRequest): void {
+  private release(pending: PendingRecordingRequest) {
     clearTimeout(pending.timer)
     pending.removeAbort()
     this.pendingById.delete(pending.request.requestId)

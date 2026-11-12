@@ -24,7 +24,7 @@ export const OPENWAGGLE_PROVIDER_ATTRIBUTION = {
 export function openWaggleClientIdentity(
   piIdentity: ClientIdentity,
   isStatisticsEnabled: () => boolean,
-): ClientIdentity {
+) {
   return {
     ...piIdentity,
     get attribution() {

@@ -68,18 +68,12 @@ const PACKAGE_FLAGS = new Set(['-p', '--package'])
 /** `flag=value` splits into its two parts. */
 const FLAG_AND_VALUE_PARTS = 2
 
-interface RunnerOptions {
-  readonly packageSpec: string | undefined
-  /** Index of the first argument after the runner's options. */
-  readonly next: number
-}
-
 /**
  * The runner's own options: `--package <spec>` once, and flags that change nothing about the bin
  * that runs. Undefined for any other option, or several packages (the runner's PATH would hold
  * them all, which a direct spawn would not).
  */
-function runnerOptions(runner: PackageRunner, rest: readonly string[]): RunnerOptions | undefined {
+function runnerOptions(runner: PackageRunner, rest: readonly string[]) {
   let packageSpec: string | undefined
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index] ?? ''
@@ -127,7 +121,7 @@ export function parsePackageRunnerCommand(
   command: string,
   args: readonly string[] = [],
   cwd?: string,
-): PackageRunnerLaunch | undefined {
+) {
   const found = runnerOf(command, args)
   if (!found) return undefined
   const { runner, rest } = found
@@ -154,7 +148,7 @@ export function packageBinPath(
   packageJson: { readonly bin?: unknown },
   packageName: string,
   binName: string | undefined,
-): string | undefined {
+) {
   const unscoped = packageName.replace(/^@[^/]+\//u, '')
   const { bin } = packageJson
   if (typeof bin === 'string') {

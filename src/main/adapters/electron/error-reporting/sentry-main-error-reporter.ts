@@ -119,16 +119,16 @@ function reportProcessExit(exitedProcess: string, reason: string) {
  */
 export function processExitIntegration(
   listen: (listener: ProcessExitListener) => void = listenToElectronProcessExits,
-): SentryIntegration {
+) {
   return {
     name: 'OpenWaggleProcessExit',
     setupOnce() {
       listen(reportProcessExit)
     },
-  }
+  } satisfies SentryIntegration
 }
 
-function reportedOrigin(hint: EventHint): ErrorReportOrigin | undefined {
+function reportedOrigin(hint: EventHint) {
   const data: unknown = hint.data
   const origin: unknown =
     typeof data === 'object' && data !== null
@@ -152,7 +152,7 @@ function scrubbedWhileEnabled<Report extends Event>(
   input: SentryMainErrorReporterInput,
   scrubbed: WeakSet<object>,
 ) {
-  return (event: Report, hint: EventHint): Report | null => {
+  return (event: Report, hint: EventHint) => {
     if (!input.isEnabled()) return null
     keepReportedOriginOnly(event, hint)
     scrubErrorReportEvent(event, {
@@ -166,12 +166,12 @@ function scrubbedWhileEnabled<Report extends Event>(
 }
 
 /** The complete Sentry options for a main process. */
-export function createSentryMainOptions(input: SentryMainErrorReporterInput): ElectronMainOptions {
+export function createSentryMainOptions(input: SentryMainErrorReporterInput) {
   // The events `beforeSend` scrubbed; the transport sends no other event.
   const scrubbed = new WeakSet<object>()
   const wasScrubbed = (event: unknown) =>
     typeof event === 'object' && event !== null && scrubbed.has(event)
-  return {
+  const options: ElectronMainOptions = {
     dsn: ERROR_REPORTING_PLACEHOLDER_DSN,
     tunnel: ERROR_REPORTING_TUNNEL_URL,
     release: input.release,
@@ -213,6 +213,7 @@ export function createSentryMainOptions(input: SentryMainErrorReporterInput): El
     beforeSend: scrubbedWhileEnabled(input, scrubbed),
     beforeSendTransaction: scrubbedWhileEnabled(input, scrubbed),
   }
+  return options
 }
 
 /** Waits for the SDK's flush, which can take up to twice its timeout, for `timeoutMs` at most. */
@@ -229,7 +230,7 @@ async function flushWithin(timeoutMs: number) {
 }
 
 /** Initializes Sentry in this main process and returns the error reporting port. */
-export function startSentryMainErrorReporter(input: SentryMainErrorReporterInput): ErrorReporter {
+export function startSentryMainErrorReporter(input: SentryMainErrorReporterInput) {
   init(createSentryMainOptions(input))
   // A page script could otherwise set tags, extras, the user or attachments on every report.
   ipcMain.removeAllListeners(RENDERER_SCOPE_CHANNEL)
@@ -248,5 +249,5 @@ export function startSentryMainErrorReporter(input: SentryMainErrorReporterInput
         logger.warn('Pending error reports were not sent', describeError(flushError))
       }
     },
-  }
+  } satisfies ErrorReporter
 }

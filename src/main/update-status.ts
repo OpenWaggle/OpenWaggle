@@ -11,7 +11,7 @@ export function setUpdateStatus(status: UpdateStatus) {
   broadcastToWindows('updater:status-changed', status)
 }
 
-export function getUpdateStatus(): UpdateStatus {
+export function getUpdateStatus() {
   return currentStatus
 }
 

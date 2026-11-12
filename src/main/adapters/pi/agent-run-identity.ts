@@ -61,21 +61,19 @@ function isPrompt(message: ContextMessage, prompt: RunIdentityEntryData['prompt'
  * extension command starts a turn with (`pi.sendMessage(..., { triggerTurn: true })`). Never an
  * earlier Run's prompt, whose request would then change.
  */
-export function runIdentityEntryData(
-  content: string,
-  messages: readonly ContextMessage[],
-): RunIdentityEntryData | undefined {
+export function runIdentityEntryData(content: string, messages: readonly ContextMessage[]) {
   const turn = messages.slice(messages.findLastIndex((message) => message.role === 'assistant') + 1)
   const prompt = turn.findLast(isPromptMessage) ?? turn.find(isAnchorMessage)
   if (!prompt) return undefined
   const digest = promptDigest(prompt)
-  return {
+  const data: RunIdentityEntryData | undefined = {
     content,
     prompt:
       prompt.role === 'custom'
         ? { timestamp: prompt.timestamp, digest, customType: prompt.customType }
         : { timestamp: prompt.timestamp, digest },
   }
+  return data
 }
 
 /** The Run identity entry as an earlier OpenWaggle wrote it; an entry that differs is not one. */
@@ -90,17 +88,18 @@ const decodeStoredRunIdentity = Schema.decodeUnknownOption(
   }),
 )
 
-function storedRunIdentity(entry: SessionEntry): RunIdentityEntryData | undefined {
+function storedRunIdentity(entry: SessionEntry) {
   if (entry.type !== 'custom' || entry.customType !== OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE) {
     return undefined
   }
   const data = Option.getOrUndefined(decodeStoredRunIdentity(entry.data))
   if (!data) return undefined
   const { timestamp, digest, customType } = data.prompt
-  return {
+  const result: RunIdentityEntryData | undefined = {
     content: data.content,
     prompt: customType === undefined ? { timestamp, digest } : { timestamp, digest, customType },
   }
+  return result
 }
 
 function runIdentityContent(entry: SessionEntry) {
@@ -121,8 +120,8 @@ export function latestRunIdentityContent(branch: readonly SessionEntry[]) {
   return undefined
 }
 
-function runIdentityMessage(identity: RunIdentityEntryData): CustomMessage {
-  return {
+function runIdentityMessage(identity: RunIdentityEntryData) {
+  const message: CustomMessage = {
     role: 'custom',
     customType: OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE,
     content: identity.content,
@@ -130,20 +129,25 @@ function runIdentityMessage(identity: RunIdentityEntryData): CustomMessage {
     details: RUN_IDENTITY_DETAILS,
     timestamp: identity.prompt.timestamp,
   }
+  return message
 }
 
 /** The message a branch entry gives the model, when it is one an identity can follow. */
-function entryMessage(entry: SessionEntry): ContextMessage | undefined {
-  if (entry.type === 'message') return entry.message
+function entryMessage(entry: SessionEntry) {
+  if (entry.type === 'message') {
+    const result: ContextMessage | undefined = entry.message
+    return result
+  }
   if (entry.type !== 'custom_message') return undefined
   // Only the custom type and content name a custom prompt (see `isPrompt`).
-  return {
+  const result: ContextMessage | undefined = {
     role: 'custom',
     customType: entry.customType,
     content: entry.content,
     display: entry.display,
     timestamp: 0,
   }
+  return result
 }
 
 /**

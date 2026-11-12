@@ -29,10 +29,12 @@ const delegationReadCursorSchema = Schema.Struct({
   through: historyHighWaterSchema,
 })
 
-export function readDelegationCursor(
-  request: DelegationReadRequest,
-): DelegationReadCursor | null | 'invalid' {
-  return decodeSessionQueryCursor(request.query.cursor, delegationReadCursorSchema)
+export function readDelegationCursor(request: DelegationReadRequest) {
+  const result: DelegationReadCursor | null | 'invalid' = decodeSessionQueryCursor(
+    request.query.cursor,
+    delegationReadCursorSchema,
+  )
+  return result
 }
 
 export function readDelegationListCursor(request: DelegationsListRequest) {

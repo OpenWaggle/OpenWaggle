@@ -2,10 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
-import type {
-  AutomaticWorktreeRemovalLog,
-  AutomaticWorktreeRemovalRun,
-} from '@shared/types/worktree-inventory'
+import type { AutomaticWorktreeRemovalRun } from '@shared/types/worktree-inventory'
 import { isEnoent } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -53,7 +50,7 @@ type StoredLog = typeof storedLogSchema.Type
 
 const EMPTY_LOG: StoredLog = { version: 1, lastCheckedAt: null, runs: [] }
 
-function toLog(stored: StoredLog): AutomaticWorktreeRemovalLog {
+function toLog(stored: StoredLog) {
   const runs = stored.runs.map(({ announced: _announced, ...run }) => run)
   const unannouncedRunIds = stored.runs
     .filter((run) => !run.announced && run.removed.length > 0)
@@ -61,7 +58,7 @@ function toLog(stored: StoredLog): AutomaticWorktreeRemovalLog {
   return { lastCheckedAt: stored.lastCheckedAt, runs, unannouncedRunIds }
 }
 
-async function readStoredLog(file: string): Promise<StoredLog> {
+async function readStoredLog(file: string) {
   let text: string
   try {
     text = await readFile(file, 'utf8')
@@ -101,9 +98,7 @@ async function writeStoredLog(file: string, log: StoredLog) {
 /** A JSON record under the user data folder; writes are serialized and atomic. */
 export function createAutomaticWorktreeRemovalLogStore(resolveFile: () => string) {
   let writes: Promise<unknown> = Promise.resolve()
-  function update<A>(
-    change: (log: StoredLog) => { readonly log: StoredLog; readonly result: A },
-  ): Promise<A> {
+  function update<A>(change: (log: StoredLog) => { readonly log: StoredLog; readonly result: A }) {
     const next = writes
       .catch(() => undefined)
       .then(async () => {

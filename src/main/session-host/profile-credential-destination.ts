@@ -71,9 +71,7 @@ function validateCredential(credential: string) {
  * The destination directory through one handle: `directoryIdentity` (`dev:ino`) pins it for the
  * installer in this process; the durable identity goes into the receipt that a later boot reads.
  */
-async function readDestinationDirectoryIdentity(
-  targetPath: string,
-): Promise<ObservedReceiptDirectory> {
+async function readDestinationDirectoryIdentity(targetPath: string) {
   const handle = await open(path.dirname(targetPath), 'r')
   try {
     const stats = await handle.stat()

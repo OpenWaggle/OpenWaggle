@@ -1,8 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type {
-  ExtensionContributionRegistryEntry,
-  ExtensionDiagnosticView,
-} from '@shared/types/extensions'
+import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import {
   isExtensionCurrentTrustPin,
   isExtensionRuntimeEnabled,
@@ -29,9 +26,7 @@ import { validateSessionSummaryActionEntries } from './extension-session-summary
 
 export type { ExtensionContributionProjectOverrideLookup } from './extension-contribution-registry-types'
 
-function diagnosticsToView(
-  diagnostics: readonly ExtensionDiagnostic[],
-): readonly ExtensionDiagnosticView[] {
+function diagnosticsToView(diagnostics: readonly ExtensionDiagnostic[]) {
   return diagnostics.map((diagnostic) => ({
     severity: diagnostic.severity,
     code: diagnostic.code,
@@ -80,7 +75,7 @@ function buildPackageEligibility(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState | null
   readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
-}): ContributionPackageEligibility | null {
+}) {
   const { enabled, enabledProjectPaths, disabledProjectPaths } = getEnabledProjectPaths(input)
   if (!enabled || input.extensionPackage.contentHash === null) {
     return null
@@ -93,7 +88,7 @@ function buildPackageEligibility(input: {
       })
     : false
 
-  return {
+  const result: ContributionPackageEligibility = {
     contentHash: input.extensionPackage.contentHash,
     projectPaths: enabledProjectPaths,
     diagnostics: diagnosticsToView([
@@ -113,6 +108,7 @@ function buildPackageEligibility(input: {
       disabledProjectPaths,
     },
   }
+  return result
 }
 
 function declaredPanelIcon(registration: ContributionRegistrationEntry) {

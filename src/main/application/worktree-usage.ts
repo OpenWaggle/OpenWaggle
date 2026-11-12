@@ -1,12 +1,7 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { isActiveActionRun } from '@shared/types/action-runs'
-import type {
-  WorktreeRemovalBlocker,
-  WorktreeRemovalPreview,
-  WorktreeSessionUsage,
-  WorktreeUsage,
-} from '@shared/types/worktree-usage'
+import type { WorktreeRemovalBlocker, WorktreeRemovalPreview } from '@shared/types/worktree-usage'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { ActionRunService } from '../ports/action-run-service'
@@ -68,7 +63,7 @@ export function sessionUsesWorktree(occupant: CanonicalOccupant, worktreePath: s
   )
 }
 
-function sessionUsage(occupant: CanonicalOccupant, worktreePath: string): WorktreeSessionUsage {
+function sessionUsage(occupant: CanonicalOccupant, worktreePath: string) {
   return {
     sessionId: occupant.sessionId,
     title: occupant.title,
@@ -85,12 +80,12 @@ function terminalBlocker(
   facts: WorktreeUsageFacts,
   worktreePath: string,
   sessionIds: ReadonlySet<string>,
-): WorktreeRemovalBlocker | null {
+) {
   if (facts.terminalOwnerKeys === null) {
     return {
       kind: 'terminal',
       message: 'OpenWaggle could not check every open terminal. Try again in a moment.',
-    }
+    } satisfies WorktreeRemovalBlocker
   }
   const open = [...facts.terminalOwnerKeys].some(
     (ownerKey) =>
@@ -98,13 +93,15 @@ function terminalBlocker(
       (ownerKey.startsWith(DRAFT_TERMINAL_OWNER_PREFIX) &&
         isWithin(path.resolve(ownerKey.slice(DRAFT_TERMINAL_OWNER_PREFIX.length)), worktreePath)),
   )
-  return open
-    ? { kind: 'terminal', message: 'A terminal is open in it. Close that terminal first.' }
-    : null
+  return (
+    open
+      ? { kind: 'terminal', message: 'A terminal is open in it. Close that terminal first.' }
+      : null
+  ) satisfies WorktreeRemovalBlocker | null
 }
 
 /** Who uses one worktree and why it may not be removed (issue #353). Pure over `facts`. */
-export function usageOfWorktree(worktreePath: string, facts: WorktreeUsageFacts): WorktreeUsage {
+export function usageOfWorktree(worktreePath: string, facts: WorktreeUsageFacts) {
   const occupants = facts.occupants.filter((occupant) =>
     sessionUsesWorktree(occupant, worktreePath),
   )
@@ -194,7 +191,7 @@ export function gatherWorktreeUsageFacts(
     const rawOccupants = yield* repository.listWorkspaceOccupants()
     const occupants = yield* Effect.promise(() =>
       Promise.all(
-        rawOccupants.map(async (occupant): Promise<CanonicalOccupant> => ({
+        rawOccupants.map(async (occupant) => ({
           ...occupant,
           canonicalWorkingPath: occupant.workspace
             ? await canonical(occupant.workspace.workingPath)

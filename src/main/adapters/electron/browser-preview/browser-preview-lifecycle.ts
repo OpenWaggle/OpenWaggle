@@ -35,11 +35,11 @@ export class BrowserPreviewLifecycle {
     this.host = host
   }
 
-  close(record: BrowserPreviewRecord | undefined): Promise<void> {
+  close(record: BrowserPreviewRecord | undefined) {
     return closeBrowserPreviewRecord(record, (closed) => this.detachDestroyed(closed))
   }
 
-  retire(record: BrowserPreviewRecord): void {
+  retire(record: BrowserPreviewRecord) {
     if (this.retired.has(record) || this.released.has(record)) return
     this.retired.add(record)
     quarantineBrowserPreviewContents(record.view.webContents)
@@ -56,19 +56,19 @@ export class BrowserPreviewLifecycle {
     this.retirementCleanup.start(record)
   }
 
-  dispose(record: BrowserPreviewRecord): void {
+  dispose(record: BrowserPreviewRecord) {
     this.detach(record)
     attemptCleanup(() => {
       if (!record.view.webContents.isDestroyed()) record.view.webContents.close()
     })
   }
 
-  disposeAndWait(record: BrowserPreviewRecord): Promise<void> {
+  disposeAndWait(record: BrowserPreviewRecord) {
     this.detach(record)
     return closeBrowserPreviewContents(record.view.webContents)
   }
 
-  private detach(record: BrowserPreviewRecord): void {
+  private detach(record: BrowserPreviewRecord) {
     if (!this.release(record)) return
     attemptCleanup(() => {
       if (!record.owner.window.isDestroyed()) record.view.setVisible(false)
@@ -98,7 +98,7 @@ export class BrowserPreviewLifecycle {
     })
   }
 
-  detachDestroyed(record: BrowserPreviewRecord): void {
+  detachDestroyed(record: BrowserPreviewRecord) {
     this.retirementCleanup.cancel(record)
     if (!this.release(record)) return
     this.detachView(record)

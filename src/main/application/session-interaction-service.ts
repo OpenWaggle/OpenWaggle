@@ -2,7 +2,6 @@ import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { SessionId } from '@shared/types/brand'
 import type {
   SessionControlMutationOutcome,
-  SessionControlMutationResponse,
   SessionInteractionResponseMutationRequest,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
@@ -14,7 +13,7 @@ function response(
   request: SessionInteractionResponseMutationRequest,
   replayed: boolean,
   outcome: SessionControlMutationOutcome,
-): SessionControlMutationResponse {
+) {
   return {
     contractVersion: request.contractVersion,
     requestId: request.requestId,

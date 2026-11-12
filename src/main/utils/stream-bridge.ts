@@ -41,7 +41,7 @@ const LAUNCH_COMPLETION_STAGES: ReadonlySet<WorktreeLaunchProgress['stage']> = n
   'starting-task',
 ])
 
-function closeStep(step: WorktreeLaunchStep, now: number): WorktreeLaunchStep {
+function closeStep(step: WorktreeLaunchStep, now: number) {
   return step.completedAt === undefined ? { ...step, completedAt: now } : step
 }
 
@@ -56,10 +56,12 @@ function nextLaunchSteps(
   existing: readonly WorktreeLaunchStep[] | undefined,
   progress: WorktreeLaunchProgress,
   now: number,
-): readonly WorktreeLaunchStep[] | undefined {
+) {
   const steps = existing ?? []
   if (LAUNCH_COMPLETION_STAGES.has(progress.stage)) {
-    return steps.length > 0 ? steps.map((step) => closeStep(step, now)) : existing
+    return (steps.length > 0 ? steps.map((step) => closeStep(step, now)) : existing) satisfies
+      | readonly WorktreeLaunchStep[]
+      | undefined
   }
   if (progress.completesStep) {
     // A closing report may relabel its step with how it ended.
@@ -67,19 +69,22 @@ function nextLaunchSteps(
       step.stage === progress.stage && step.completedAt === undefined
         ? closeStep(progress.label ? { ...step, label: progress.label } : step, now)
         : step,
-    )
+    ) satisfies readonly WorktreeLaunchStep[] | undefined
   }
   if (!progress.label) return existing
   const open = steps.find((step) => step.stage === progress.stage && step.completedAt === undefined)
   if (open?.label === progress.label) return steps
   const settled = progress.parallel ? steps : steps.map((step) => closeStep(step, now))
-  return [...settled, { stage: progress.stage, label: progress.label, startedAt: now }]
+  return [
+    ...settled,
+    { stage: progress.stage, label: progress.label, startedAt: now },
+  ] satisfies readonly WorktreeLaunchStep[]
 }
 
 function worktreeLaunchProgressSnapshot(
   existing: WorktreeLaunchSnapshot | undefined,
   progress: WorktreeLaunchProgress,
-): WorktreeLaunchSnapshot {
+) {
   const now = Date.now()
   const { label: _label, parallel: _parallel, completesStep, ...fields } = progress
   const steps = nextLaunchSteps(existing?.steps, progress, now)

@@ -39,10 +39,8 @@ const invalidRequests: readonly (readonly [string, () => EffectType<unknown, Err
   ],
 ]
 
-function automationOperations(
-  service: BrowserPreviewAutomationServiceShape,
-): readonly (readonly [string, () => EffectType<unknown, Error>])[] {
-  return [
+function automationOperations(service: BrowserPreviewAutomationServiceShape) {
+  const result: readonly (readonly [string, () => EffectType<unknown, Error>])[] = [
     ['status', () => service.status(scope, {})],
     ['open', () => service.open(scope, { url: 'localhost:5173' })],
     ['navigate', () => service.navigate(scope, { url: 'localhost:5173' })],
@@ -58,6 +56,7 @@ function automationOperations(
     ['recording start', () => service.startRecording(scope, {})],
     ['recording stop', () => service.stopRecording(scope, {})],
   ]
+  return result
 }
 
 describe('Electron browser preview automation service', () => {

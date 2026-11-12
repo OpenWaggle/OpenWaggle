@@ -12,9 +12,7 @@ interface BrowserPreviewRecordInput {
   readonly onCreated: (record: BrowserPreviewRecord) => void
 }
 
-export function createBrowserPreviewRecord(
-  options: BrowserPreviewRecordInput,
-): BrowserPreviewRecord {
+export function createBrowserPreviewRecord(options: BrowserPreviewRecordInput) {
   const { canonicalUrl, input, owner, onOwnerEventFailure } = options
   const controls = {
     ...DEFAULT_BROWSER_PREVIEW_CONTROL_STATE,

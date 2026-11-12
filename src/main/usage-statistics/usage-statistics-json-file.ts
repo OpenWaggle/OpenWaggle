@@ -86,7 +86,7 @@ export function readUsageStatisticsJsonFile<T>(input: {
   readonly label: string
   readonly decode: (value: unknown) => T
   readonly fallback: T
-}): T {
+}) {
   return loadValue({ ...input, initial: input.fallback, recover: () => input.fallback }).value
 }
 
@@ -176,7 +176,7 @@ export function openUsageStatisticsJsonFile<T>(input: {
   /** The value that replaces an unreadable or undecodable file; `initial` when omitted. */
   readonly recover?: () => T
   readonly writeDelayMs?: number
-}): UsageStatisticsJsonFile<T> {
+}) {
   const writeDelayMs = input.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
   removeStaleTemporaryFiles(input.filePath, input.label)
   const loaded = loadValue({ ...input, recover: input.recover ?? (() => input.initial) })
@@ -265,5 +265,5 @@ export function openUsageStatisticsJsonFile<T>(input: {
     },
     flush,
     flushSync,
-  }
+  } satisfies UsageStatisticsJsonFile<T>
 }

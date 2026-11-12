@@ -36,7 +36,7 @@ function nullableIdentity(value: unknown): value is string | null {
   return value === null || (typeof value === 'string' && value.length > 0)
 }
 
-function parseKernelProcessInfo(pid: number, value: unknown): TerminalKernelProcessInfo | null {
+function parseKernelProcessInfo(pid: number, value: unknown) {
   const {
     pid: observedPid,
     startedAt,
@@ -63,7 +63,17 @@ function parseKernelProcessInfo(pid: number, value: unknown): TerminalKernelProc
   ) {
     return null
   }
-  return { pid, startedAt, ppid, pgid, tpgid, ttyIdentity, zombie, name }
+  const info: TerminalKernelProcessInfo | null = {
+    pid,
+    startedAt,
+    ppid,
+    pgid,
+    tpgid,
+    ttyIdentity,
+    zombie,
+    name,
+  }
+  return info
 }
 
 /** Install the already-loaded node-pty kernel API without defeating lazy native loading. */
@@ -96,11 +106,16 @@ export function installTerminalProcessKernelApi(pty: typeof NodePtyModule) {
   }
 }
 
-export function readTerminalKernelProcessInfo(pid: number): TerminalKernelProcessRead {
+export function readTerminalKernelProcessInfo(pid: number) {
   const result = readTerminalKernelProcessInfos([pid])
-  if (result === null) return { status: 'unavailable' }
+  if (result === null) {
+    const read: TerminalKernelProcessRead = { status: 'unavailable' }
+    return read
+  }
   const info = result.get(pid)
-  return info === undefined ? { status: 'absent' } : { status: 'found', info }
+  const read: TerminalKernelProcessRead =
+    info === undefined ? { status: 'absent' } : { status: 'found', info }
+  return read
 }
 
 function addKernelProcessInfo(
@@ -179,20 +194,35 @@ export function readStableTerminalKernelProcessInfos(
 export function signalTerminalProcessIdentity(
   identity: TerminalProcessIdentity,
   signal: 'SIGKILL',
-): TerminalIdentitySignalResult {
+) {
   if (!positiveInteger(identity.pid) || installedApi?.signal === null || installedApi === null) {
-    return 'unavailable'
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
   }
   const signalNumber = osConstants.signals[signal]
-  if (!positiveInteger(signalNumber)) return 'unavailable'
+  if (!positiveInteger(signalNumber)) {
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
+  }
   try {
     const result = installedApi.signal(identity.pid, identity.startedAt, signalNumber)
-    if (result === 1) return 'signaled'
-    if (result === 0) return 'absent'
-    if (result === -1) return 'mismatch'
-    return 'unavailable'
+    if (result === 1) {
+      const value: TerminalIdentitySignalResult = 'signaled'
+      return value
+    }
+    if (result === 0) {
+      const value: TerminalIdentitySignalResult = 'absent'
+      return value
+    }
+    if (result === -1) {
+      const value: TerminalIdentitySignalResult = 'mismatch'
+      return value
+    }
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
   } catch {
-    return 'unavailable'
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
   }
 }
 

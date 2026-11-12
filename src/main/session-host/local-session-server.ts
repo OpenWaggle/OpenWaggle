@@ -168,7 +168,7 @@ function outboundBudgetFor(dependencies: LocalSessionServerDependencies) {
 export async function listenLocalSessionServer(
   endpoint: string,
   dependencies: LocalSessionServerDependencies,
-): Promise<LocalSessionServerHandle> {
+) {
   await prepareLocalSessionEndpoint(endpoint)
   const connections = new Set<LocalSessionConnection>()
   const inboundBudget = new LocalSessionInboundByteBudget(dependencies.maxPendingInboundBytesGlobal)

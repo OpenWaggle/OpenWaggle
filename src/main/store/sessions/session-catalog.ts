@@ -3,11 +3,7 @@ import { sessionSummaryRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
 import type { HivePendingRequest } from '@shared/types/hive-next-actor'
-import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from '@shared/types/session'
-import type {
-  HiveSessionCatalogPage,
-  HiveTreeSessionCatalogPage,
-} from '@shared/types/session-hive-catalog'
+import type { SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { countHiveNeedsYou } from './hive-needs-you-count'
@@ -20,11 +16,6 @@ import {
 import { hydrateSessionNavigationRows, loadArchivedBranchRows } from './session-list'
 import { searchProjectPage } from './session-project-catalog-cache'
 import type { SessionSummaryRow } from './types'
-
-interface SessionCatalogCursor {
-  readonly updatedAt: number
-  readonly sessionId: string
-}
 
 function projectPathsPage(rows: readonly { readonly project_path: string }[], limit: number) {
   const paths = rows.slice(0, limit).map((row) => row.project_path)
@@ -51,7 +42,7 @@ function queryUnfilteredProjectPage(
   })
 }
 
-function decodeCatalogCursor(cursor?: string): SessionCatalogCursor | null {
+function decodeCatalogCursor(cursor?: string) {
   if (!cursor) return null
   try {
     const value: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
@@ -77,7 +68,7 @@ function encodeCatalogCursor(session: SessionSummary) {
   ).toString('base64url')
 }
 
-function catalogPage(sessions: readonly SessionSummary[], limit: number): SessionCatalogPage {
+function catalogPage(sessions: readonly SessionSummary[], limit: number) {
   const page = sessions.slice(0, limit)
   const last = page.at(-1)
   return {
@@ -98,7 +89,7 @@ export async function listSessionCatalogPage(
   archived: boolean,
   limit: number,
   encodedCursor?: string,
-): Promise<SessionCatalogPage> {
+) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {
@@ -122,7 +113,7 @@ export async function listSessionProjectPage(
   afterPath?: string,
   search?: string,
   matchingDisplayNamePaths: readonly string[] = [],
-): Promise<SessionProjectPage> {
+) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -134,7 +125,7 @@ export async function listSessionProjectPage(
 }
 
 /** Exact active-project authorization without hydrating an unbounded Session list. */
-export async function hasActiveSessionProjectPath(paths: readonly string[]): Promise<boolean> {
+export async function hasActiveSessionProjectPath(paths: readonly string[]) {
   if (paths.length === 0) return false
   return runStoreEffect(
     Effect.gen(function* () {
@@ -170,7 +161,7 @@ export async function listHiveSessionCatalogPage(
   sessionId: SessionId,
   limit: number,
   encodedCursor?: string,
-): Promise<HiveSessionCatalogPage> {
+) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {
@@ -218,7 +209,7 @@ export async function listHiveTreeSessionCatalogPage(
   limit: number,
   encodedCursor?: string,
   pendingRequests: ReadonlyMap<string, HivePendingRequest> = new Map(),
-): Promise<HiveTreeSessionCatalogPage> {
+) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {
@@ -258,10 +249,7 @@ export async function listHiveTreeSessionCatalogPage(
 }
 
 /** Keyset page of active Sessions that contain at least one archived branch. */
-export async function listArchivedSessionBranchCatalogPage(
-  limit: number,
-  encodedCursor?: string,
-): Promise<SessionCatalogPage> {
+export async function listArchivedSessionBranchCatalogPage(limit: number, encodedCursor?: string) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {

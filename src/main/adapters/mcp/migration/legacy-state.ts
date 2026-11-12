@@ -38,7 +38,7 @@ export const EMPTY_LEGACY_STATE: LegacyStateFile = {
 }
 
 /** Parse `~/.openwaggle/mcp/state.json`. Throws on invalid content. */
-export function parseLegacyState(rawJson: string | undefined): LegacyStateFile {
+export function parseLegacyState(rawJson: string | undefined) {
   if (!rawJson?.trim()) return EMPTY_LEGACY_STATE
   const parsed: unknown = JSON.parse(rawJson)
   return decodeUnknownOrThrow(legacyStateFileSchema, parsed)

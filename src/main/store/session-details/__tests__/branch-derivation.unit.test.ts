@@ -9,7 +9,7 @@ function node(
   kind: ProjectedSessionNodeInput['kind'],
   createdOrder: number,
   text?: string,
-): ProjectedSessionNodeInput {
+) {
   return {
     id,
     parentId,
@@ -21,7 +21,7 @@ function node(
     metadataJson: '{}',
     pathDepth: 0,
     createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function branchRow(
@@ -30,7 +30,7 @@ function branchRow(
   name: string,
   headNodeId: string,
   isMain: boolean,
-): SessionBranchRow {
+) {
   return {
     id,
     session_id: sessionId,
@@ -41,7 +41,7 @@ function branchRow(
     archived_at: null,
     created_at: 1,
     updated_at: 1,
-  }
+  } satisfies SessionBranchRow
 }
 
 describe('deriveSessionBranchesForSnapshot', () => {

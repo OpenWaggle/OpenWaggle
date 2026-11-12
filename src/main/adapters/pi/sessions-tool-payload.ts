@@ -76,7 +76,7 @@ function catalogFilter(input: CatalogScopedInput, source: SessionsToolSource) {
 function catalogPayload(
   input: Extract<SessionsToolParameters, { action: 'list' | 'search' }>,
   source: SessionsToolSource,
-): LocalSessionCommandPayload {
+) {
   const filter = catalogFilter(input, source)
   const query =
     input.action === 'list'
@@ -101,10 +101,11 @@ function catalogPayload(
           ...(input.waitTimeoutMs === undefined ? {} : { waitTimeoutMs: input.waitTimeoutMs }),
           ...filter,
         }
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: randomUUID(), query },
   }
+  return payload
 }
 
 function readPayload(
@@ -112,7 +113,7 @@ function readPayload(
     SessionsToolParameters,
     { action: 'read' | 'turns' | 'status' | 'queue_list' | 'requests_list' }
   >,
-): LocalSessionCommandPayload {
+) {
   const query =
     input.action === 'queue_list'
       ? {
@@ -130,16 +131,15 @@ function readPayload(
               ...(input.cursor ? { cursor: input.cursor } : {}),
             }
           : { operation: input.action, sessionId: input.sessionId }
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: randomUUID(), query },
   }
+  return payload
 }
 
-function itemsPayload(
-  input: Extract<SessionsToolParameters, { action: 'items' }>,
-): LocalSessionCommandPayload {
-  return {
+function itemsPayload(input: Extract<SessionsToolParameters, { action: 'items' }>) {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: {
       contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -162,6 +162,7 @@ function itemsPayload(
       },
     },
   }
+  return payload
 }
 
 type DelegationListInput = Extract<SessionsToolParameters, { action: 'delegations_list' }>
@@ -199,7 +200,7 @@ function delegationQueryPayload(
     { action: 'delegations_list' | 'delegations_read' | 'delegations_conflicts' }
   >,
   source: SessionsToolSource,
-): LocalSessionCommandPayload {
+) {
   const query =
     input.action === 'delegations_read'
       ? {
@@ -211,10 +212,11 @@ function delegationQueryPayload(
       : input.action === 'delegations_conflicts'
         ? delegationConflictsQuery(input, source)
         : delegationListQuery(input, source)
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: randomUUID(), query },
   }
+  return payload
 }
 
 function isDelegationQueryAction(
@@ -246,7 +248,7 @@ function basicReadPayload(input: SessionsToolParameters) {
 export function buildSessionsToolPayload(
   input: SessionsToolParameters,
   source: SessionsToolSource,
-): LocalSessionCommandPayload {
+) {
   if (isSessionsToolLifecycleAction(input)) {
     return buildSessionsToolLifecyclePayload(input, source)
   }

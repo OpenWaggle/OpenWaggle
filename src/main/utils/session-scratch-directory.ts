@@ -300,7 +300,7 @@ export function removeUnretainedScratchDirectory(directory: string) {
  * Host's own temp directory is kept alongside so an `openwaggle` CLI run by the agent still finds
  * a Session Host socket that fell back to it.
  */
-export function sessionScratchEnvironment(directory: string): Readonly<Record<string, string>> {
+export function sessionScratchEnvironment(directory: string) {
   return {
     TMPDIR: directory,
     TMP: directory,

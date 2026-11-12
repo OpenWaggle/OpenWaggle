@@ -66,21 +66,21 @@ async function importFixtureModule(relativePath: string) {
   return importedModule
 }
 
-function successfulStorageResult(value: unknown): FixtureBrokerResult {
+function successfulStorageResult(value: unknown) {
   return {
     ok: true,
     value: { value },
-  }
+  } satisfies FixtureBrokerResult
 }
 
-function projectStorage(store: Map<string, unknown>): FixtureProjectStorage {
+function projectStorage(store: Map<string, unknown>) {
   return {
     get: async (_scope, key) => successfulStorageResult(store.get(key) ?? null),
     set: async (_scope, key, value) => {
       store.set(key, value)
       return successfulStorageResult(value)
     },
-  }
+  } satisfies FixtureProjectStorage
 }
 
 function createContext() {

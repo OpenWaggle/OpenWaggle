@@ -16,17 +16,9 @@ import {
   closeRejectedSpawn,
 } from './terminal-pty-contract'
 import { createNativeTtyMemberSignal } from './terminal-pty-native-signal'
-import type {
-  PtyRunner,
-  PtyRunnerOptions,
-  PtySpawnOutcome,
-  PtySpawnRequest,
-} from './terminal-pty-types'
+import type { PtyRunnerOptions, PtySpawnOutcome, PtySpawnRequest } from './terminal-pty-types'
 import { existingShells, type TerminalShellCandidate } from './terminal-shell'
-import {
-  type PreparedTerminalShellLaunch,
-  prepareTerminalShellLaunch,
-} from './terminal-shell-integration'
+import { prepareTerminalShellLaunch } from './terminal-shell-integration'
 
 export type {
   PtyRunner,
@@ -141,7 +133,7 @@ function preparePtyLaunch(
   request: PtySpawnRequest,
   candidate: TerminalShellCandidate,
   environment: Record<string, string>,
-): Promise<PreparedTerminalShellLaunch> {
+) {
   return request.execution
     ? Promise.resolve({
         args: candidate.args,
@@ -156,7 +148,7 @@ function assertLaunchNotCanceled(request: PtySpawnRequest) {
   if (request.signal?.aborted) throw new Error('Action launch canceled.')
 }
 
-export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
+export function makePtyRunner(options: PtyRunnerOptions) {
   const loadPtyModule = makePtyModuleLoader(options)
   const spawn = async (request: PtySpawnRequest) => {
     let pty: typeof NodePtyModule

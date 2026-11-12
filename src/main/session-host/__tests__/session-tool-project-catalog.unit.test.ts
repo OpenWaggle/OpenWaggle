@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { assertSessionAgentLifecycleProjectKnown } from '../session-tool-project-catalog'
 
-function launch(projectPath: string): LocalSessionCommandPayload {
-  return {
+function launch(projectPath: string) {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     request: {
       contractVersion: 2,
@@ -25,9 +25,10 @@ function launch(projectPath: string): LocalSessionCommandPayload {
       },
     },
   }
+  return payload
 }
 
-function create(projectPath: string): LocalSessionCommandPayload {
+function create(projectPath: string) {
   return {
     contract: 'session-lifecycle-v2',
     request: {
@@ -36,7 +37,7 @@ function create(projectPath: string): LocalSessionCommandPayload {
       idempotencyKey: 'create-once',
       command: { operation: 'create', projectPath },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 describe('Session agent lifecycle project catalog check', () => {

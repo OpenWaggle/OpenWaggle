@@ -14,13 +14,12 @@ const storedExtensionPanelShortcutBindingsSchema = lenientRecord(storedShortcutB
  * Keeps well-formed extension panel bindings keyed by their canonical surface id. Bindings for
  * panels whose extension is not installed are kept on purpose: a reinstall gets them back.
  */
-export function sanitizeExtensionPanelShortcutBindings(
-  raw: unknown,
-): ExtensionPanelShortcutBindings {
+export function sanitizeExtensionPanelShortcutBindings(raw: unknown) {
   const bindings = decodeUnknownOrThrow(storedExtensionPanelShortcutBindingsSchema, raw)
-  return Object.fromEntries(
+  const result: ExtensionPanelShortcutBindings = Object.fromEntries(
     Object.entries(bindings)
       .filter(([surfaceId]) => isExtensionRightPanelSurfaceId(surfaceId))
       .slice(0, EXTENSION_PANEL_SHORTCUT_LIMITS.BINDINGS),
   )
+  return result
 }

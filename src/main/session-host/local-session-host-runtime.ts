@@ -97,11 +97,11 @@ export class LocalSessionHostRuntime {
     })
   }
 
-  waitUntilStopped(): Promise<void> {
+  waitUntilStopped() {
     return this.stoppedPromise
   }
 
-  stop(): Promise<void> {
+  stop() {
     if (this.stopPromise) return this.stopPromise
     this.stopPromise = this.stopOnce()
     return this.stopPromise
@@ -182,7 +182,7 @@ function createServerDependencies(input: {
   readonly eventHub: SessionHostEventHub
   readonly liveness: SessionHostLiveness
   readonly inflightCommands: LocalSessionInflightCommands
-}): LocalSessionServerDependencies {
+}) {
   const { host, eventHub, liveness, inflightCommands } = input
   return {
     hostInstanceId: eventHub.hostInstanceId,
@@ -203,9 +203,7 @@ function createServerDependencies(input: {
   }
 }
 
-export async function startLocalSessionHost(
-  input: StartLocalSessionHostInput,
-): Promise<LocalSessionHostRuntime> {
+export async function startLocalSessionHost(input: StartLocalSessionHostInput) {
   const ownership =
     input.externalOwnership ?? (await acquireSessionHostOwnership(input.databasePath))
   const releaseOwnershipOnStop = input.externalOwnership === undefined

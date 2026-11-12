@@ -51,13 +51,12 @@ export function scheduledTaskRecord(value: string | null | undefined) {
  * What a Heartbeat Run is told about its task (#388), from the run record's Host-authored context.
  * A context that does not decode is dropped with a warning: the Run still starts, without it.
  */
-export function scheduledTaskRunContext(
-  record: ScheduledTaskRunFields,
-): HeartbeatRunContext | undefined {
+export function scheduledTaskRunContext(record: ScheduledTaskRunFields) {
   const { context } = record
   if (typeof context !== 'string') return undefined
   try {
-    return decodeHeartbeatRunContext(context)
+    const result: HeartbeatRunContext | undefined = decodeHeartbeatRunContext(context)
+    return result
   } catch (error) {
     logger.warn('Ignored an unreadable Heartbeat run context', {
       error: error instanceof Error ? error.message : String(error),
@@ -70,11 +69,14 @@ export function scheduledTaskRunContext(
  * The Scheduled task a Run's prompt message records, so the transcript names its origin. Like the
  * Run identity it comes from the Host's Scheduled task run record, never from the prompt text.
  */
-export function scheduledTaskMessageOrigin(
-  value: string | null | undefined,
-): MessageScheduledTaskOrigin | undefined {
+export function scheduledTaskMessageOrigin(value: string | null | undefined) {
   const task = scheduledTaskRecord(value)
   if (!task?.id || !task.name) return undefined
   const kind = SCHEDULED_TASK_KINDS.find((candidate) => candidate === task.record.kind)
-  return { taskId: task.id, name: task.name, ...(kind ? { kind } : {}) }
+  const origin: MessageScheduledTaskOrigin | undefined = {
+    taskId: task.id,
+    name: task.name,
+    ...(kind ? { kind } : {}),
+  }
+  return origin
 }

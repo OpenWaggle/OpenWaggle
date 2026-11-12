@@ -7,7 +7,6 @@ import {
 import { SessionId } from '@shared/types/brand'
 import type {
   InlineVisualizationFrameRegisterInput,
-  InlineVisualizationFrameRegisterResult,
   InlineVisualizationFrameUnregisterInput,
   InlineVisualizationReadResult,
 } from '@shared/types/inline-visualization'
@@ -110,7 +109,7 @@ function serializedRestoredState(state: InlineVisualizationFrameRegisterInput['r
 export function registerInlineVisualizationFrame(
   input: InlineVisualizationFrameRegisterInput,
   ownerId: number,
-): InlineVisualizationFrameRegisterResult {
+) {
   if (!FRAME_ID_PATTERN.test(input.frameId)) throw new Error('Invalid visualization frame id')
   if (!input.sessionId || input.sessionId.length > MAX_SESSION_ID_LENGTH) {
     throw new Error('Invalid visualization session id')

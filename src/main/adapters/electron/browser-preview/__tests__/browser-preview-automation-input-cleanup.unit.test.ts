@@ -8,7 +8,7 @@ function createPage() {
   const contentsEvents = new EventEmitter()
   const debuggerEvents = new EventEmitter()
   let attached = false
-  const sendCommand = vi.fn(async (): Promise<unknown> => ({}))
+  const sendCommand = vi.fn<() => Promise<unknown>>(async () => ({}))
   const browserDebugger = fromPartial<Debugger>({
     on: debuggerEvents.on.bind(debuggerEvents),
     removeListener: debuggerEvents.removeListener.bind(debuggerEvents),

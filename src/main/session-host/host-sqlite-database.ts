@@ -18,12 +18,12 @@ export type HostSqliteDatabase = Database.Database
  */
 const NO_BUSY_TIMEOUT_MS = 0
 
-export function openHostSqliteDatabase(
+/** Typed as a value: declarations cannot name better-sqlite3's inferred `Database` type. */
+export const openHostSqliteDatabase: (
   filePath: string,
-  options: { readonly readonly?: boolean } = {},
-): HostSqliteDatabase {
-  return new Database(filePath, {
+  options?: { readonly readonly?: boolean },
+) => HostSqliteDatabase = (filePath, options = {}) =>
+  new Database(filePath, {
     readonly: options.readonly ?? false,
     timeout: NO_BUSY_TIMEOUT_MS,
   })
-}

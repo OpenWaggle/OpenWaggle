@@ -51,11 +51,11 @@ export async function pruneSessionWorktree(
     readonly validateOnly?: boolean
   },
   deps: PruneSessionWorktreeDeps,
-): Promise<PruneSessionWorktreeResult> {
+) {
   try {
     const worktreePath = input.worktreePath?.trim()
     if (!worktreePath || !input.projectPath) {
-      return { status: 'ready-for-deletion' }
+      return { status: 'ready-for-deletion' } satisfies PruneSessionWorktreeResult
     }
 
     /*
@@ -69,13 +69,16 @@ export async function pruneSessionWorktree(
      * genuinely unwanted can be removed in Settings.
      */
     if (input.reason === 'archive') {
-      return { status: 'ready-for-deletion' }
+      return { status: 'ready-for-deletion' } satisfies PruneSessionWorktreeResult
     }
 
     const refs = await deps.listWorktreeRefs()
     const hasTargetReference = refs.some((ref) => ref.sessionId === input.sessionId)
     if (!hasTargetReference && !input.allowMissingWorkspaceReference) {
-      return { status: 'retained', reason: 'workspace-reference-missing' }
+      return {
+        status: 'retained',
+        reason: 'workspace-reference-missing',
+      } satisfies PruneSessionWorktreeResult
     }
     const normalizedWorktreePath = normalizeWorktreePath(worktreePath)
     const orphaned = hasTargetReference
@@ -93,13 +96,16 @@ export async function pruneSessionWorktree(
         )
       : false
     if (removalFailed) {
-      return { status: 'retained', reason: 'worktree-removal-refused' }
+      return {
+        status: 'retained',
+        reason: 'worktree-removal-refused',
+      } satisfies PruneSessionWorktreeResult
     }
     if (!input.validateOnly) await deps.clearWorktree(input.sessionId)
-    return { status: 'ready-for-deletion' }
+    return { status: 'ready-for-deletion' } satisfies PruneSessionWorktreeResult
   } catch (error) {
     logger.warn('Failed to prune Session worktree', { error: String(error) })
-    return { status: 'retained', reason: 'cleanup-failed' }
+    return { status: 'retained', reason: 'cleanup-failed' } satisfies PruneSessionWorktreeResult
   }
 }
 
@@ -116,7 +122,7 @@ async function removalFailedFor(
   allowMissingWorktree: boolean,
   validateOnly: boolean,
   removeWorktree: typeof removeGitWorktree,
-): Promise<boolean> {
+) {
   const result = await (validateOnly ? validateGitWorktreeRemoval : removeWorktree)(projectPath, {
     path: worktreePath,
   })

@@ -98,15 +98,14 @@ describe('queue-list Follow-up sources', () => {
   })
 
   it('titles an agent Session source the caller may see, archived or in another project', async () => {
-    const scoped = (
-      scope: LocalSessionProfileAuthority['scope'],
-    ): LocalSessionProfileAuthority => ({
-      profileId: 'profile-reader',
-      profileName: 'reader',
-      capabilities: ['sessions:read'],
-      scope,
-      authorizationCeiling: 'ask-for-approval',
-    })
+    const scoped = (scope: LocalSessionProfileAuthority['scope']) =>
+      ({
+        profileId: 'profile-reader',
+        profileName: 'reader',
+        capabilities: ['sessions:read'],
+        scope,
+        authorizationCeiling: 'ask-for-approval',
+      }) satisfies LocalSessionProfileAuthority
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient

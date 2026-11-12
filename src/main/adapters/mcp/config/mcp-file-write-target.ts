@@ -8,7 +8,7 @@ import path from 'node:path'
  * go to the file the link points to (also when that file does not exist yet), with the temporary
  * file next to it.
  */
-export function mcpFileWriteTarget(filePath: string): string {
+export function mcpFileWriteTarget(filePath: string) {
   try {
     return realpathSync(filePath)
   } catch {
@@ -22,7 +22,7 @@ export function mcpFileWriteTarget(filePath: string): string {
 }
 
 /** `mcpFileWriteTarget` for async callers. */
-export async function mcpFileWriteTargetAsync(filePath: string): Promise<string> {
+export async function mcpFileWriteTargetAsync(filePath: string) {
   try {
     return await realpath(filePath)
   } catch {

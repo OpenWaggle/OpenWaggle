@@ -70,8 +70,15 @@ function mapped(
   sourceValue: unknown,
   mappedValue: unknown,
   detail = 'Mapped directly.',
-): AgentDefinitionImportFieldPlan {
-  return { sourceField, targetField, disposition: 'mapped', detail, sourceValue, mappedValue }
+) {
+  return {
+    sourceField,
+    targetField,
+    disposition: 'mapped',
+    detail,
+    sourceValue,
+    mappedValue,
+  } satisfies AgentDefinitionImportFieldPlan
 }
 
 function dropped(sourceField: string, _sourceValue: unknown, detail: string) {
@@ -208,7 +215,7 @@ export function mapForeignMarkdownAgent(input: {
   readonly sourceTool: Exclude<AgentDefinitionImportSource, 'openwaggle' | 'codex'>
   readonly sourcePath: string
   readonly markdown: string
-}): ForeignMarkdownMapping {
+}) {
   const { metadata, body } = split(input.markdown)
   const fields: AgentDefinitionImportFieldPlan[] = []
   const diagnostics: string[] = []
@@ -216,7 +223,7 @@ export function mapForeignMarkdownAgent(input: {
   const instructions = mapInstructions({ metadata, body, fields, diagnostics })
   const { model, reasoning, workspace } = mapOptionalMetadata(metadata, fields)
   dropForeignCapabilities(metadata, fields)
-  return {
+  const mapping: ForeignMarkdownMapping = {
     ...(name && description && instructions
       ? {
           document: {
@@ -233,4 +240,5 @@ export function mapForeignMarkdownAgent(input: {
     fields,
     diagnostics,
   }
+  return mapping
 }

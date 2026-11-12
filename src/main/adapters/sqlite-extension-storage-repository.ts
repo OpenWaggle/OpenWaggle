@@ -10,7 +10,6 @@ import {
   type ExtensionStorageItem,
   type ExtensionStorageKey,
   type ExtensionStorageKeyListInput,
-  type ExtensionStorageKind,
   ExtensionStorageRepository,
   type ExtensionStorageScope,
 } from '../ports/extension-storage-repository'
@@ -40,7 +39,7 @@ function packageScopeToCols(scope: ExtensionPackageScope) {
       }
 }
 
-function packageScopeFromCols(kind: string, id: string): ExtensionPackageScope {
+function packageScopeFromCols(kind: string, id: string) {
   if (kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
     return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND }
   }
@@ -62,7 +61,7 @@ function storageScopeToCols(scope: ExtensionStorageScope) {
       }
 }
 
-function storageScopeFromCols(kind: string, id: string): ExtensionStorageScope {
+function storageScopeFromCols(kind: string, id: string) {
   if (kind === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND) {
     return { kind: OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND }
   }
@@ -72,7 +71,7 @@ function storageScopeFromCols(kind: string, id: string): ExtensionStorageScope {
   throw new Error(`Unknown extension storage scope kind "${kind}".`)
 }
 
-function decodeStorageKind(raw: string): ExtensionStorageKind {
+function decodeStorageKind(raw: string) {
   if (raw === OPENWAGGLE_EXTENSION.STORAGE.KIND.STATE) {
     return OPENWAGGLE_EXTENSION.STORAGE.KIND.STATE
   }
@@ -90,7 +89,7 @@ function decodeValue(raw: string) {
   return decoded.data
 }
 
-function rowToItem(row: ExtensionStorageRow): ExtensionStorageItem {
+function rowToItem(row: ExtensionStorageRow) {
   return {
     extensionId: row.extension_id,
     packageScope: packageScopeFromCols(row.package_scope_kind, row.package_scope_id),

@@ -23,7 +23,7 @@ export function isOrphanedModelDownload(
   file: ModelDownloadTempFile,
   now: number,
   currentPid: number,
-): boolean {
+) {
   const match = MODEL_DOWNLOAD_TEMP_NAME.exec(file.name)
   if (!match) return false
   // This process may still be writing it, however slowly.
@@ -44,7 +44,7 @@ export async function sweepOrphanedModelDownloads(
   modelsRoot: string,
   now: number,
   currentPid: number = process.pid,
-): Promise<ModelDownloadSweepResult> {
+) {
   let removedFiles = 0
   let removedBytes = 0
   const pending = [modelsRoot]
@@ -75,5 +75,6 @@ export async function sweepOrphanedModelDownloads(
       removedBytes += stats.size
     }
   }
-  return { removedFiles, removedBytes }
+  const result: ModelDownloadSweepResult = { removedFiles, removedBytes }
+  return result
 }

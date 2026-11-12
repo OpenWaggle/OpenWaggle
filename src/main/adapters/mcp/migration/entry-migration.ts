@@ -108,24 +108,37 @@ function winningLowerLayer(context: EntryMigrationContext, name: string) {
   return context.lowerLayers.findLast((layer) => isFullEntry(layer.servers[name]))?.path
 }
 
-function decidePiCopy(
-  name: string,
-  entry: JsonEntry,
-  context: EntryMigrationContext,
-): PiCopyDecision {
+function decidePiCopy(name: string, entry: JsonEntry, context: EntryMigrationContext) {
   const provenance = piProvenance(entry)
-  if (!provenance) return { kind: 'not-a-pi-copy' }
+  if (!provenance) {
+    const decision: PiCopyDecision = { kind: 'not-a-pi-copy' }
+    return decision
+  }
   // The Pi entry reads those values from the environment, which a Dock-launched app may lack.
   if (holdsVaultSecret(entry)) {
-    return { kind: 'kept', reason: 'the copy reads vault secrets, which the Pi entry does not.' }
+    const decision: PiCopyDecision = {
+      kind: 'kept',
+      reason: 'the copy reads vault secrets, which the Pi entry does not.',
+    }
+    return decision
   }
   const sourcePath = path.resolve(provenance.sourcePath)
   const config = context.livePiConfigs.get(sourcePath)
-  if (!config) return { kind: 'kept', reason: `${provenance.sourcePath} is not read live here.` }
+  if (!config) {
+    const decision: PiCopyDecision = {
+      kind: 'kept',
+      reason: `${provenance.sourcePath} is not read live here.`,
+    }
+    return decision
+  }
   const servers = mcpConfigServerMaps(config).mcpServers ?? {}
   const piEntry = servers[name]
   if (!isFullEntry(piEntry) || disabledInPiFile(config, name)) {
-    return { kind: 'kept', reason: `${provenance.sourcePath} no longer defines it.` }
+    const decision: PiCopyDecision = {
+      kind: 'kept',
+      reason: `${provenance.sourcePath} no longer defines it.`,
+    }
+    return decision
   }
   const normalized = legacyNormalizeImportedServer(name, piEntry)
   const fingerprint = legacyImportFingerprint({
@@ -135,15 +148,27 @@ function decidePiCopy(
     definition: normalized,
   })
   if (fingerprint !== provenance.fingerprint) {
-    return { kind: 'kept', reason: `the entry in ${provenance.sourcePath} changed after import.` }
+    const decision: PiCopyDecision = {
+      kind: 'kept',
+      reason: `the entry in ${provenance.sourcePath} changed after import.`,
+    }
+    return decision
   }
   const copyHash = legacyDefinitionHash(withoutKeys(entry, ['provenance', 'directTools']))
   const sourceHash = legacyDefinitionHash(withoutKeys(normalized ?? {}, ['directTools']))
-  if (copyHash !== sourceHash) return { kind: 'kept', reason: 'the copy was edited after import.' }
-  if (winningLowerLayer(context, name) !== sourcePath) {
-    return { kind: 'kept', reason: 'another file would define it instead of the Pi file.' }
+  if (copyHash !== sourceHash) {
+    const decision: PiCopyDecision = { kind: 'kept', reason: 'the copy was edited after import.' }
+    return decision
   }
-  return { kind: 'live', entry: piEntry }
+  if (winningLowerLayer(context, name) !== sourcePath) {
+    const decision: PiCopyDecision = {
+      kind: 'kept',
+      reason: 'another file would define it instead of the Pi file.',
+    }
+    return decision
+  }
+  const decision: PiCopyDecision = { kind: 'live', entry: piEntry }
+  return decision
 }
 
 export interface MigratedEntry {
@@ -153,12 +178,11 @@ export interface MigratedEntry {
 }
 
 /** Decide what one entry of an OpenWaggle MCP file becomes. */
-export function migrateLegacyEntry(
-  name: string,
-  value: unknown,
-  context: EntryMigrationContext,
-): MigratedEntry {
-  if (!isRecord(value)) return { entry: value }
+export function migrateLegacyEntry(name: string, value: unknown, context: EntryMigrationContext) {
+  if (!isRecord(value)) {
+    const result: MigratedEntry = { entry: value }
+    return result
+  }
   const decision = decidePiCopy(name, value, context)
   if (decision.kind === 'live') {
     const override = directToolsOverride(
@@ -166,7 +190,7 @@ export function migrateLegacyEntry(
       liveExposureOf(decision.entry),
     )
     const kept = Object.keys(override)
-    return {
+    const result: MigratedEntry = {
       entry: kept.length > 0 ? override : undefined,
       change: {
         server: name,
@@ -174,6 +198,7 @@ export function migrateLegacyEntry(
         details: kept.length > 0 ? [`kept as an override of ${kept.join(', ')}`] : [],
       },
     }
+    return result
   }
   const converted = convertKeptLegacyEntry(value, {
     dropProvenance: piProvenance(value) !== undefined,
@@ -184,7 +209,9 @@ export function migrateLegacyEntry(
     ...converted.notes,
   ]
   const changed = JSON.stringify(entry) !== JSON.stringify(value)
-  return changed || details.length > 0
-    ? { entry, change: { server: name, action: 'converted', details } }
-    : { entry }
+  const result: MigratedEntry =
+    changed || details.length > 0
+      ? { entry, change: { server: name, action: 'converted', details } }
+      : { entry }
+  return result
 }

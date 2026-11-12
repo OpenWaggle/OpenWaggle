@@ -1,5 +1,5 @@
 import { hostHandle } from './typed-ipc'
 
-export function registerProvidersHandlers(): void {
+export function registerProvidersHandlers() {
   hostHandle('providers:get-models')
 }

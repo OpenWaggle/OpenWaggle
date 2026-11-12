@@ -66,28 +66,41 @@ export interface SessionHostPrelaunchDecisionInput {
   readonly legacyStorePresent: (databasePath: string) => boolean
 }
 
-function skip(reason: SessionHostPrelaunchSkipReason): SessionHostPrelaunchDecision {
-  return { kind: 'skip', reason }
+function skip(reason: SessionHostPrelaunchSkipReason) {
+  const decision: SessionHostPrelaunchDecision = { kind: 'skip', reason }
+  return decision
 }
 
-export function sessionHostPrelaunchDecision(
-  input: SessionHostPrelaunchDecisionInput,
-): SessionHostPrelaunchDecision {
-  if (!input.desktopApp) return skip('not-desktop-app')
+export function sessionHostPrelaunchDecision(input: SessionHostPrelaunchDecisionInput) {
+  if (!input.desktopApp) {
+    const decision: SessionHostPrelaunchDecision = skip('not-desktop-app')
+    return decision
+  }
   // The Windows endpoint is a named pipe whose name the Host rotates; the GUI reads it.
-  if (input.platform === 'win32') return skip('windows-named-pipe')
-  if (!path.isAbsolute(input.userDataRoot)) return skip('relative-profile')
+  if (input.platform === 'win32') {
+    const decision: SessionHostPrelaunchDecision = skip('windows-named-pipe')
+    return decision
+  }
+  if (!path.isAbsolute(input.userDataRoot)) {
+    const decision: SessionHostPrelaunchDecision = skip('relative-profile')
+    return decision
+  }
   const { endpoint } = unixSessionHostEndpoint(input.userDataRoot, input.temporaryRoot)
   // A running Host, a Host handing over to an update, or a crashed Host's stale socket.
-  if (input.pathExists(endpoint)) return skip('host-socket-present')
+  if (input.pathExists(endpoint)) {
+    const decision: SessionHostPrelaunchDecision = skip('host-socket-present')
+    return decision
+  }
   // The GUI moves a legacy store under its single-instance lock before any Host starts.
   if (
     !input.pathExists(sessionHostDatabasePath(input.userDataRoot)) &&
     input.legacyStorePresent(legacySessionDatabasePath(input.userDataRoot))
   ) {
-    return skip('legacy-store-to-move')
+    const decision: SessionHostPrelaunchDecision = skip('legacy-store-to-move')
+    return decision
   }
-  return { kind: 'launch' }
+  const decision: SessionHostPrelaunchDecision = { kind: 'launch' }
+  return decision
 }
 
 /** The app identity and paths the prelaunch reads (`AppLifecycle`, `AppPaths`); paths work before `ready`. */
@@ -123,8 +136,9 @@ function isLogLevel(value: string | undefined): value is SessionHostLogLevel {
 }
 
 /** The launch environment's variables this start reads. */
-function launchEnvironment(input: SessionHostPrelaunchInput): BootEnvironment {
-  return input.environment
+function launchEnvironment(input: SessionHostPrelaunchInput) {
+  const result: BootEnvironment = input.environment
+  return result
 }
 
 function legacyStorePresent(databasePath: string) {
@@ -168,7 +182,7 @@ function prelaunchEnvironment(input: SessionHostPrelaunchInput, userDataRoot: st
   })
 }
 
-function trackLaunchedHost(child: ChildProcess, userDataRoot: string): SessionHostPrelaunch {
+function trackLaunchedHost(child: ChildProcess, userDataRoot: string) {
   let ended = false
   const { promise, resolve } = Promise.withResolvers<void>()
   const end = () => {
@@ -178,16 +192,15 @@ function trackLaunchedHost(child: ChildProcess, userDataRoot: string): SessionHo
   child.once('spawn', () => child.unref())
   child.once('error', end)
   child.once('exit', end)
-  return { userDataRoot, ended: promise, hasEnded: () => ended }
+  const prelaunch: SessionHostPrelaunch = { userDataRoot, ended: promise, hasEnded: () => ended }
+  return prelaunch
 }
 
 /**
  * Launches the Session Host now when this start would launch one anyway, and records it for the
  * GUI. Never throws: the GUI's usual Host start covers every case this one leaves out or fails.
  */
-export function startSessionHostPrelaunch(
-  input: SessionHostPrelaunchInput,
-): SessionHostPrelaunchDecision | null {
+export function startSessionHostPrelaunch(input: SessionHostPrelaunchInput) {
   try {
     const userDataRoot =
       launchEnvironment(input).OPENWAGGLE_USER_DATA_DIR || input.app.getPath('userData')
@@ -201,7 +214,10 @@ export function startSessionHostPrelaunch(
       pathExists: input.pathExists ?? existsSync,
       legacyStorePresent: input.legacyStorePresent ?? legacyStorePresent,
     })
-    if (decision.kind !== 'launch') return decision
+    if (decision.kind !== 'launch') {
+      const result: SessionHostPrelaunchDecision | null = decision
+      return result
+    }
     const command = sessionHostLaunchCommandFor({
       platform: input.platform,
       isPackaged: input.app.isPackaged,
@@ -215,7 +231,8 @@ export function startSessionHostPrelaunch(
       environment: prelaunchEnvironment(input, userDataRoot),
     })
     ;(input.record ?? recordSessionHostPrelaunch)(trackLaunchedHost(child, userDataRoot))
-    return decision
+    const result: SessionHostPrelaunchDecision | null = decision
+    return result
   } catch {
     return null
   }

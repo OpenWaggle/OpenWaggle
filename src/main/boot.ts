@@ -25,9 +25,9 @@ import { startSessionHostPrelaunch } from './boot/session-host-prelaunch'
 import { answerTopLevelCliInBoot } from './boot-top-level-cli'
 import { bootShell } from './desktop-shell/boot-shell'
 
-function startCompileCache(): MainCompileCache | null {
+function startCompileCache() {
   try {
-    return enableMainCompileCache(
+    const cache: MainCompileCache | null = enableMainCompileCache(
       mainCompileCacheLocation({
         platform: process.platform,
         env: process.env,
@@ -35,6 +35,7 @@ function startCompileCache(): MainCompileCache | null {
         channel: BUILD_CHANNEL,
       }),
     )
+    return cache
   } catch {
     return null
   }

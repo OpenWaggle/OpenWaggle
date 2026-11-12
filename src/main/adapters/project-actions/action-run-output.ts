@@ -1,6 +1,6 @@
 import { isIPv4 } from 'node:net'
 import { stripVTControlCharacters } from 'node:util'
-import type { ActionOutputSnapshot, ActionRun } from '@shared/types/action-runs'
+import type { ActionRun } from '@shared/types/action-runs'
 import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
 
 const OUTPUT_PAGE_BYTES = 64 * 1_024
@@ -17,7 +17,7 @@ export function actionOutputPage(
   output: string,
   afterOffset: number,
   retainedEndOffset: number | null = null,
-): ActionOutputSnapshot {
+) {
   const retained = Buffer.from(output)
   const knownTotal = Math.max(run.outputBytes, retainedEndOffset ?? 0, retained.length)
   // A crash can also lose an unflushed tail that the renderer already saw.
@@ -40,7 +40,7 @@ export function actionOutputPage(
 }
 
 /** Only a loopback endpoint printed by this run is eligible for automatic preview. */
-export function previewFromActionOutput(text: string): string | null {
+export function previewFromActionOutput(text: string) {
   let detected: string | null = null
   for (const match of stripVTControlCharacters(text).matchAll(/https?:\/\/[^\s<>"'`]+/g)) {
     const value = match[0].replace(/[),.;\]}]+$/, '')

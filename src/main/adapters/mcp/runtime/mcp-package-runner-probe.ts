@@ -83,10 +83,10 @@ function killProbeTree(child: ChildProcess, platform: NodeJS.Platform) {
 /** A probe with its bound: tests pass a short one. */
 export function createExecProbe(
   options: { readonly timeoutMs?: number; readonly platform?: NodeJS.Platform } = {},
-): PackageRunnerProbe {
+) {
   const timeoutMs = options.timeoutMs ?? PROBE_TIMEOUT_MS
   const platform = options.platform ?? process.platform
-  return (input) =>
+  return ((input) =>
     new Promise((resolve, reject) => {
       const spawned = probeSpawnOf(input, platform)
       const child = spawn(spawned.file, spawned.args, {
@@ -131,7 +131,7 @@ export function createExecProbe(
           )
         }
       })
-    })
+    })) satisfies PackageRunnerProbe
 }
 
 export const execProbe: PackageRunnerProbe = createExecProbe()

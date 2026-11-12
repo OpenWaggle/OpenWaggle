@@ -24,11 +24,7 @@ export function scopeToColumns(scope: ExtensionPackageScope) {
  * Reads an extension package scope back from its columns. `recordName` names the stored record
  * in the error for an unknown scope kind.
  */
-export function scopeFromColumns(
-  scopeKind: string,
-  scopeId: string,
-  recordName: string,
-): ExtensionPackageScope {
+export function scopeFromColumns(scopeKind: string, scopeId: string, recordName: string) {
   if (scopeKind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
     return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND }
   }

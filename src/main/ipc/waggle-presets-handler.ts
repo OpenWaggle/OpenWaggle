@@ -4,7 +4,7 @@ import * as Effect from 'effect/Effect'
 import { WagglePresetsRepository } from '../ports/waggle-presets-repository'
 import { typedHandle } from './typed-ipc'
 
-export function registerWagglePresetsHandlers(): void {
+export function registerWagglePresetsHandlers() {
   typedHandle('waggle-presets:list', (_event, projectPath?: string | null) =>
     Effect.gen(function* () {
       const repo = yield* WagglePresetsRepository

@@ -8,7 +8,6 @@ import {
 } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
-import type { SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { attentionCauseSql, parentWillActSql } from '../../adapters/sqlite-hive-next-actor-facts'
 import { runStoreEffect } from '../store-runtime'
@@ -25,7 +24,7 @@ import type { SessionSummaryRow } from './types'
 
 export { attachSessionLineage } from './session-lineage-hydration'
 
-export async function listSessions(limit?: number): Promise<SessionSummary[]> {
+export async function listSessions(limit?: number) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -172,7 +171,7 @@ export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: rea
   `
 }
 
-export async function listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]> {
+export async function listArchivedSessionBranches(limit?: number) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

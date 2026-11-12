@@ -24,7 +24,7 @@ interface WorkspaceFilesHarness {
   handlers: Map<string, (...args: unknown[]) => unknown>
 }
 
-const hoistedHarness = vi.hoisted((): WorkspaceFilesHarness => ({
+const hoistedHarness = vi.hoisted<WorkspaceFilesHarness>(() => ({
   calls: [],
   saveStatus: 'saved',
   invalidated: [],

@@ -154,7 +154,7 @@ export class PackageRunnerBypass {
    * resolves the bin for the next launch. `refresh` (Settings' check) always runs the runner and
    * probes again, so a tag such as `@latest` picks up a new version.
    */
-  launch(input: StdioLaunch, options: { readonly refresh?: boolean } = {}): StdioLaunch {
+  launch(input: StdioLaunch, options: { readonly refresh?: boolean } = {}) {
     const launch = runnerLaunchOf(input)
     if (!launch) return input
     const key = this.key(launch, input)
@@ -168,7 +168,7 @@ export class PackageRunnerBypass {
         command: entry.command,
         args: [...entry.prefixArgs, ...launch.serverArgs],
         env: { ...input.env, PATH },
-      }
+      } satisfies StdioLaunch
     }
     if (options.refresh) this.failedAt.delete(key)
     if (!this.failedRecently(key)) this.resolveInBackground(key, launch, input)

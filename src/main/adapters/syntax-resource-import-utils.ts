@@ -41,15 +41,14 @@ export interface SyntaxReadBudget {
   remainingBytes: number
 }
 
-export function createThemeIncludeBudget(): ThemeIncludeBudget {
-  return { bytes: 0, jsonValues: 0 }
+export function createThemeIncludeBudget() {
+  const budget: ThemeIncludeBudget = { bytes: 0, jsonValues: 0 }
+  return budget
 }
 
-export function createSyntaxReadBudget(
-  maximumBytes: number,
-  exceededMessage: string,
-): SyntaxReadBudget {
-  return { exceededMessage, remainingBytes: maximumBytes }
+export function createSyntaxReadBudget(maximumBytes: number, exceededMessage: string) {
+  const budget: SyntaxReadBudget = { exceededMessage, remainingBytes: maximumBytes }
+  return budget
 }
 
 export function chargeSyntaxReadBudget(budget: SyntaxReadBudget, bytes: number) {
@@ -94,8 +93,9 @@ export interface MutableSyntaxCatalog {
   readonly appearances: SyntaxAppearanceResource[]
 }
 
-export function emptySyntaxCatalog(): MutableSyntaxCatalog {
-  return { themes: [], languages: [], appearances: [] }
+export function emptySyntaxCatalog() {
+  const catalog: MutableSyntaxCatalog = { themes: [], languages: [], appearances: [] }
+  return catalog
 }
 
 export function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -122,7 +122,7 @@ export function toJsonValue(value: unknown): JsonValue | undefined {
   return object
 }
 
-export function toJsonObject(value: unknown): JsonObject {
+export function toJsonObject(value: unknown) {
   const json = toJsonValue(value)
   if (!json || Array.isArray(json) || typeof json !== 'object') {
     throw new Error('Theme source must contain a JSON object.')
@@ -240,13 +240,14 @@ export function confinedExtensionPath(root: string, declaredPath: string) {
   return resolved
 }
 
-export function appearanceVariantFromUiTheme(value: unknown): SyntaxAppearanceVariant | undefined {
-  return match(value)
+export function appearanceVariantFromUiTheme(value: unknown) {
+  const variant: SyntaxAppearanceVariant | undefined = match(value)
     .with('hc-light', () => 'high-contrast-light' as const)
     .with('hc-black', () => 'high-contrast-dark' as const)
     .with('vs', () => 'light' as const)
     .with('vs-dark', () => 'dark' as const)
     .otherwise(() => undefined)
+  return variant
 }
 
 interface ResolvedThemeDeclaration {
@@ -259,15 +260,16 @@ function themeRules(source: ThemeSource) {
   return Array.isArray(normalized) ? normalized : []
 }
 
-function mergeThemeDeclarations(base: JsonObject, child: JsonObject): JsonObject {
+function mergeThemeDeclarations(base: JsonObject, child: JsonObject) {
   const baseSource = decodeUnknownOrThrow(themeSourceSchema, base)
   const childSource = decodeUnknownOrThrow(themeSourceSchema, child)
-  return {
+  const object: JsonObject = {
     ...base,
     ...child,
     colors: { ...baseSource.colors, ...childSource.colors },
     tokenColors: [...themeRules(baseSource), ...themeRules(childSource)],
   }
+  return object
 }
 
 export async function resolveThemeDeclaration(
@@ -289,5 +291,8 @@ export async function resolveThemeDeclaration(
   if (includePath === undefined) return { raw: declaration, original: declaration }
   const includedPath = await resolveInclude(entryPath, includePath)
   const base = await resolveThemeDeclaration(includedPath, load, resolveInclude, nextVisited)
-  return { raw: mergeThemeDeclarations(base.raw, declaration), original: declaration }
+  return {
+    raw: mergeThemeDeclarations(base.raw, declaration),
+    original: declaration,
+  }
 }

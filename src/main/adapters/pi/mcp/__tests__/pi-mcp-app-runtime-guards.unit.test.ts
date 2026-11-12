@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
   const upstreams: FakeUpstream[] = []
   return {
     upstreams,
-    respond: (_method: string, _params?: unknown): unknown => ({}),
+    respond: (_method: string, _params?: unknown) => ({}),
     open: vi.fn(),
     entry: {
       name: 'figma',

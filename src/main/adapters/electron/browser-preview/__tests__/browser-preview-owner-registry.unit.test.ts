@@ -32,7 +32,7 @@ function owner() {
   return { send, sender, senderEvents, window, windowEvents }
 }
 
-function sentOpenRequest(send: ReturnType<typeof vi.fn>, index = 0): BrowserPreviewOpenRequest {
+function sentOpenRequest(send: ReturnType<typeof vi.fn>, index = 0) {
   const payload = send.mock.calls.filter(([channel]) => channel === 'browser-preview:open-request')[
     index
   ]?.[1]

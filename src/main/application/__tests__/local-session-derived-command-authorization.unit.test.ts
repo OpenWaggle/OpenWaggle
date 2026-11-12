@@ -13,7 +13,7 @@ function derivedCaller(input: {
   readonly baseCapabilities: readonly SessionCapability[]
   readonly derivedCapabilities: readonly SessionCapability[]
   readonly expandedProfileScope?: boolean
-}): LocalSessionCallerIdentity {
+}) {
   return {
     callerId: 'profile:worker-client',
     baseProfileScope: { sessionIds: ['session-parent'] },
@@ -35,7 +35,7 @@ function derivedCaller(input: {
       },
       authorizationCeiling: 'ask-for-approval',
     },
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 describe('Local Session derived command authorization', () => {

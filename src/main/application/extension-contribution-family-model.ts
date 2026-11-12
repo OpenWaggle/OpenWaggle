@@ -91,7 +91,7 @@ export const SESSION_SUMMARY_FAMILY_DESCRIPTOR = {
 export function getManifestFamilyContributions(
   contributions: ExtensionContributions,
   family: ExtensionContributionFamily,
-): readonly ManifestContribution[] | undefined {
+) {
   return match(family)
     .with(CONTRIBUTION_FAMILY.COMMANDS, () => contributions.commands)
     .with(CONTRIBUTION_FAMILY.SLASH_COMMANDS, () => contributions.slashCommands)

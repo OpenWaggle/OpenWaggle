@@ -59,7 +59,7 @@ export class BrowserPreviewArtifactStorage {
     })
   }
 
-  async resolveOwnedArtifact(candidatePath: string): Promise<string> {
+  async resolveOwnedArtifact(candidatePath: string) {
     await this.ensureDirectory()
     const resolvedDirectory = await fs.realpath(this.directory)
     const resolvedCandidate = path.resolve(candidatePath)
@@ -80,7 +80,7 @@ export class BrowserPreviewArtifactStorage {
     return canonicalCandidate
   }
 
-  private serialize<T>(operation: () => Promise<T>): Promise<T> {
+  private serialize<T>(operation: () => Promise<T>) {
     const result = this.mutationTail.then(operation, operation)
     this.mutationTail = result.then(
       () => undefined,

@@ -28,7 +28,7 @@ export function markRetainedSnapshotNode(node: ProjectedSessionNodeInput, revisi
 export function retainedSnapshotNodeIds(
   nodes: readonly ProjectedSessionNodeInput[],
   revision: number,
-): ReadonlySet<string> {
+) {
   const ids = new Set<string>()
   for (const node of nodes) {
     if (retainedFromRevision.get(node) === revision) ids.add(node.id)

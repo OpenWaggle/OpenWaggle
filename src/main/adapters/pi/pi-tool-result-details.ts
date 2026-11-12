@@ -11,6 +11,10 @@ const toolResultDetailsSchema = Schema.Struct({
 const decodeToolResultDetails = Schema.decodeUnknownOption(toolResultDetailsSchema)
 
 /** The `args` and `duration` of a tool result's `details`, none when it is not an object. */
-export function piToolResultDetails(details: unknown): SchemaType<typeof toolResultDetailsSchema> {
-  return Option.getOrElse(decodeToolResultDetails(details), () => ({}))
+export function piToolResultDetails(details: unknown) {
+  const result: SchemaType<typeof toolResultDetailsSchema> = Option.getOrElse(
+    decodeToolResultDetails(details),
+    () => ({}),
+  )
+  return result
 }

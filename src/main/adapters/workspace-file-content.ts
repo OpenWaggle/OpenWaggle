@@ -1,9 +1,5 @@
 import { createHash } from 'node:crypto'
-import type {
-  WorkspaceFilePreviewKind,
-  WorkspaceLineEnding,
-  WorkspaceTextEncoding,
-} from '@shared/types/workspace-files'
+import type { WorkspaceTextEncoding } from '@shared/types/workspace-files'
 
 const BYTE_ZERO = 0
 const BINARY_SAMPLE_BYTES = 8 * 1024
@@ -91,33 +87,36 @@ function decodeOrNull(buffer: Uint8Array, encoding: 'utf-8' | 'utf-16le' | 'utf-
   }
 }
 
-export function detectWorkspaceTextEncodingMarker(buffer: Uint8Array): WorkspaceTextEncodingMarker {
+export function detectWorkspaceTextEncodingMarker(buffer: Uint8Array) {
   if (Buffer.from(buffer.subarray(0, UTF8_BOM.length)).equals(UTF8_BOM)) {
-    return { encoding: 'utf-8-bom', byteLength: UTF8_BOM.length }
+    return {
+      encoding: 'utf-8-bom',
+      byteLength: UTF8_BOM.length,
+    } satisfies WorkspaceTextEncodingMarker
   }
   if (Buffer.from(buffer.subarray(0, UTF16_LE_BOM.length)).equals(UTF16_LE_BOM)) {
-    return { encoding: 'utf-16le', byteLength: UTF16_LE_BOM.length }
+    return {
+      encoding: 'utf-16le',
+      byteLength: UTF16_LE_BOM.length,
+    } satisfies WorkspaceTextEncodingMarker
   }
   if (Buffer.from(buffer.subarray(0, UTF16_BE_BOM.length)).equals(UTF16_BE_BOM)) {
-    return { encoding: 'utf-16be', byteLength: UTF16_BE_BOM.length }
+    return {
+      encoding: 'utf-16be',
+      byteLength: UTF16_BE_BOM.length,
+    } satisfies WorkspaceTextEncodingMarker
   }
-  return { encoding: 'utf-8', byteLength: 0 }
+  return { encoding: 'utf-8', byteLength: 0 } satisfies WorkspaceTextEncodingMarker
 }
 
-export function decodeWorkspaceText(buffer: Uint8Array): {
-  readonly content: string
-  readonly encoding: WorkspaceTextEncoding
-} | null {
+export function decodeWorkspaceText(buffer: Uint8Array) {
   const marker = detectWorkspaceTextEncodingMarker(buffer)
   const decoderEncoding = marker.encoding === 'utf-8-bom' ? 'utf-8' : marker.encoding
   const content = decodeOrNull(buffer.subarray(marker.byteLength), decoderEncoding)
   return content === null ? null : { content, encoding: marker.encoding }
 }
 
-export function decodeWorkspaceTextAs(
-  buffer: Uint8Array,
-  encoding: WorkspaceTextEncoding,
-): string | null {
+export function decodeWorkspaceTextAs(buffer: Uint8Array, encoding: WorkspaceTextEncoding) {
   const marker = detectWorkspaceTextEncodingMarker(buffer)
   const matchingMarker =
     marker.encoding === encoding ||
@@ -147,15 +146,15 @@ export function encodeWorkspaceText(content: string, encoding: WorkspaceTextEnco
   return Buffer.concat([UTF16_BE_BOM, swapUtf16Bytes(Buffer.from(content, 'utf16le'))])
 }
 
-export function detectWorkspaceLineEnding(content: string): WorkspaceLineEnding {
+export function detectWorkspaceLineEnding(content: string) {
   const crlfCount = content.match(/\r\n/g)?.length ?? 0
   const withoutCrlf = content.replaceAll('\r\n', '')
   const lfCount = withoutCrlf.match(/\n/g)?.length ?? 0
   const crCount = withoutCrlf.match(/\r/g)?.length ?? 0
   const kinds = Number(crlfCount > 0) + Number(lfCount > 0 || crCount > 0)
-  if (kinds === 0) return 'none'
-  if (kinds > 1 || crCount > 0) return 'mixed'
-  return crlfCount > 0 ? 'crlf' : 'lf'
+  if (kinds === 0) return 'none' as const
+  if (kinds > 1 || crCount > 0) return 'mixed' as const
+  return crlfCount > 0 ? ('crlf' as const) : ('lf' as const)
 }
 
 export function inferIndentation(content: string) {
@@ -177,15 +176,12 @@ export function inferIndentation(content: string) {
   }
 }
 
-export function workspaceFilePreviewKind(
-  extension: string,
-  buffer: Uint8Array,
-): Exclude<WorkspaceFilePreviewKind, 'oversized'> {
-  if (MIME_BY_EXTENSION[extension]?.startsWith('image/')) return 'image'
-  if (extension === '.pdf') return 'pdf'
-  if (extension === '.md' || extension === '.mdx') return 'markdown'
-  if (extension === '.html' || extension === '.htm') return 'html'
-  return hasBinaryBytes(buffer) ? 'binary' : 'text'
+export function workspaceFilePreviewKind(extension: string, buffer: Uint8Array) {
+  if (MIME_BY_EXTENSION[extension]?.startsWith('image/')) return 'image' as const
+  if (extension === '.pdf') return 'pdf' as const
+  if (extension === '.md' || extension === '.mdx') return 'markdown' as const
+  if (extension === '.html' || extension === '.htm') return 'html' as const
+  return hasBinaryBytes(buffer) ? ('binary' as const) : ('text' as const)
 }
 
 export function workspaceFileRevision(

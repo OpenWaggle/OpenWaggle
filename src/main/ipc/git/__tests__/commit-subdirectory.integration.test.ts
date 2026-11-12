@@ -9,7 +9,7 @@ import { resolveRepositoryRoot } from '../../../services/git/repository-root'
 const execFileAsync = promisify(execFile)
 let repositoryPath: string | null = null
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFileAsync('git', [...args], { cwd })
   return stdout
 }

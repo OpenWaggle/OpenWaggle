@@ -44,7 +44,7 @@ export function buildSessionsToolSchedulePayload(
   input: SessionsToolScheduleInput,
   source: SessionsToolSource,
   currentTarget?: ScheduledTaskTarget,
-): LocalSessionCommandPayload {
+) {
   const { action, ...fields } = input
   const command = buildScheduledTasksCommand({
     operation: SCHEDULE_OPERATIONS[action],
@@ -57,7 +57,10 @@ export function buildSessionsToolSchedulePayload(
     },
     ...(currentTarget ? { currentTarget } : {}),
   })
-  return scheduledTasksPayload(command, createIdempotencyKey(input, source))
+  return scheduledTasksPayload(
+    command,
+    createIdempotencyKey(input, source),
+  ) satisfies LocalSessionCommandPayload
 }
 
 /**

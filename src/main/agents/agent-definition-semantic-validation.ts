@@ -133,7 +133,7 @@ function splitUncheckableMcpTools(
 export function validateAgentDefinitionSemantics(
   definition: AgentDefinitionDocument,
   catalog: AgentDefinitionSemanticCatalog,
-): AgentDefinitionSemanticValidation {
+) {
   const catalogDiagnostics = catalog.loadDiagnostics ?? []
   const { tools, mcpTools } = splitUncheckableMcpTools(definition, catalog)
   const diagnostics = [

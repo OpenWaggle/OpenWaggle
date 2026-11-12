@@ -125,20 +125,24 @@ async function consumeSubscription(
   reader: LocalSessionFrameReader,
   subscriptionId: string,
   input: LocalSessionWatchInput,
-): Promise<LocalSessionWatchResult> {
+) {
   while (!input.signal?.aborted) {
     const frame = await reader.next()
     const result = await consumeSubscriptionFrame(frame, subscriptionId, input)
-    if (result) return result
+    if (result) {
+      const value: LocalSessionWatchResult = result
+      return value
+    }
   }
-  return { status: 'closed' }
+  const value: LocalSessionWatchResult = { status: 'closed' }
+  return value
 }
 
 async function consumeSubscriptionFrame(
   frame: unknown,
   subscriptionId: string,
   input: LocalSessionWatchInput,
-): Promise<LocalSessionWatchResult | undefined> {
+) {
   if (!Schema.is(serverFrameFieldsSchema)(frame)) {
     throw new Error('Local Session Host returned an invalid event frame.')
   }
@@ -151,7 +155,10 @@ async function consumeSubscriptionFrame(
     return
   }
   if (frame.kind === 'resync-required') return decodeResyncRequired(frame)
-  if (frame.kind === 'subscription-closed') return { status: 'closed' }
+  if (frame.kind === 'subscription-closed') {
+    const result: LocalSessionWatchResult | undefined = { status: 'closed' }
+    return result
+  }
   if (frame.kind === 'error') {
     throw localSessionClientProtocolError(frame, 'Subscription failed.')
   }
@@ -183,30 +190,38 @@ async function consumeCursorAdvancement(cursor: unknown, input: LocalSessionWatc
   await input.onCursor?.(decodeCursor(cursor, 'cursor advancement'))
 }
 
-function decodeCursor(value: unknown, label: string): SessionHostEventCursor {
+function decodeCursor(value: unknown, label: string) {
   if (!Schema.is(sessionHostEventCursorSchema)(value)) {
     throw new Error(`Local Session Host returned an invalid ${label}.`)
   }
-  return { hostInstanceId: value.hostInstanceId, sequence: value.sequence }
+  const cursor: SessionHostEventCursor = {
+    hostInstanceId: value.hostInstanceId,
+    sequence: value.sequence,
+  }
+  return cursor
 }
 
-export async function watchLocalSessionEvents(
-  input: LocalSessionWatchInput,
-): Promise<LocalSessionWatchResult> {
+export async function watchLocalSessionEvents(input: LocalSessionWatchInput) {
   const { socket, reader, timeoutMs } = await openLocalSessionConnection(input)
   const abort = () => socket.destroy()
   input.signal?.addEventListener('abort', abort, { once: true })
   if (input.signal?.aborted) abort()
   try {
     const subscription = await establishSubscription(socket, reader, timeoutMs, input)
-    if (subscription.status !== 'ready') return subscription
+    if (subscription.status !== 'ready') {
+      const result: LocalSessionWatchResult = subscription
+      return result
+    }
     if (subscription.activeRuns !== undefined) {
       await input.onSnapshot?.(subscription.activeRuns)
     }
     await input.onCursor?.(subscription.cursor)
     return await consumeSubscription(reader, subscription.subscriptionId, input)
   } catch (error) {
-    if (input.signal?.aborted) return { status: 'closed' }
+    if (input.signal?.aborted) {
+      const result: LocalSessionWatchResult = { status: 'closed' }
+      return result
+    }
     throw error
   } finally {
     input.signal?.removeEventListener('abort', abort)
@@ -214,10 +229,15 @@ export async function watchLocalSessionEvents(
   }
 }
 
-function decodeResyncRequired(frame: ServerFrameFields): LocalSessionWatchResult {
+function decodeResyncRequired(frame: ServerFrameFields) {
   const decoded = safeDecodeUnknown(resyncRequiredFrameSchema, frame)
   if (!decoded.success) {
     throw new Error('Local Session Host returned an invalid resynchronization frame.')
   }
-  return { status: 'resync-required', reason: decoded.data.reason, cursor: decoded.data.cursor }
+  const result: LocalSessionWatchResult = {
+    status: 'resync-required',
+    reason: decoded.data.reason,
+    cursor: decoded.data.cursor,
+  }
+  return result
 }

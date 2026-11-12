@@ -83,7 +83,7 @@ export function createBrowserPreviewAutomationControlSession(
     readonly onControllerChange?: (state: BrowserPreviewControllerState) => void
   },
   onDestroyed: (tabId: string) => void,
-): BrowserPreviewAutomationControlSession {
+) {
   if (page.contents.isDestroyed()) throw new Error('Browser preview content has been destroyed.')
   const session: BrowserPreviewAutomationControlSession = {
     tabId: page.tabId,

@@ -33,7 +33,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function caller(attachmentRoots: readonly string[] | undefined): LocalSessionCallerIdentity {
+function caller(attachmentRoots: readonly string[] | undefined) {
   const scope = {
     sessionIds: [SESSION_ID],
     ...(attachmentRoots ? { attachmentRoots } : {}),
@@ -49,11 +49,11 @@ function caller(attachmentRoots: readonly string[] | undefined): LocalSessionCal
       scope,
       authorizationCeiling: 'ask-for-approval',
     },
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
-function controlPayload(): ControlPayload {
-  return {
+function controlPayload() {
+  const payload: ControlPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: 2,
@@ -67,10 +67,11 @@ function controlPayload(): ControlPayload {
     },
     transport: { attachmentPaths: [ATTACHMENT_PATH] },
   }
+  return payload
 }
 
-function lifecyclePayload(): LifecyclePayload {
-  return {
+function lifecyclePayload() {
+  const payload: LifecyclePayload = {
     contract: 'session-lifecycle-v2',
     request: {
       contractVersion: 2,
@@ -93,6 +94,7 @@ function lifecyclePayload(): LifecyclePayload {
     },
     transport: { attachmentPaths: [ATTACHMENT_PATH] },
   }
+  return payload
 }
 
 function testLayer(prepare: SessionControlAttachmentServiceShape['prepare']) {

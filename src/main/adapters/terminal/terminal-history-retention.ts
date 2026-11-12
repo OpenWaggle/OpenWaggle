@@ -51,7 +51,7 @@ export function retainPendingHistoryBatch(batch: {
   batch.lines = retained.lines
 }
 
-export function measureTerminalHistoryText(text: string): TerminalHistoryText {
+export function measureTerminalHistoryText(text: string) {
   let lines = 0
   for (let index = 0; index < text.length; index += 1) {
     if (text.charCodeAt(index) === CHAR_CODE_LINE_FEED) lines += 1
@@ -60,11 +60,7 @@ export function measureTerminalHistoryText(text: string): TerminalHistoryText {
 }
 
 /** Keep the largest valid UTF-8 suffix within both terminal history caps. */
-export function retainTerminalHistorySuffix(
-  text: string,
-  maxLines: number,
-  maxBytes: number,
-): TerminalHistoryText {
+export function retainTerminalHistorySuffix(text: string, maxLines: number, maxBytes: number) {
   let start = text.length
   let bytes = 0
   let lines = 0

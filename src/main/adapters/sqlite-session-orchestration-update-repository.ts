@@ -35,8 +35,11 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
 }
 
-function decodeUpdateState(value: string): 'ready_for_review' | 'needs_attention' {
-  if (value === 'ready_for_review' || value === 'needs_attention') return value
+function decodeUpdateState(value: string) {
+  if (value === 'ready_for_review' || value === 'needs_attention') {
+    const state: 'ready_for_review' | 'needs_attention' = value
+    return state
+  }
   throw new Error(`Invalid orchestration update state: ${value}.`)
 }
 

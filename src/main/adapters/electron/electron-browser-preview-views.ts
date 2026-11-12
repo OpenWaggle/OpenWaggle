@@ -1,4 +1,3 @@
-import type { WebContents } from 'electron'
 import type { BrowserPreviewViewsShape } from '../../ports/desktop-shell/browser-preview-views'
 import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 import { browserPreviewManager } from './browser-preview/browser-preview'
@@ -11,7 +10,7 @@ import { browserPreviewRecordingRequestBroker } from './browser-preview/browser-
 import { electronWebContentsOf } from './electron-window-policy'
 
 /** The owner page's `WebContents`; Electron returns the same object that sent the request. */
-function ownerContents(owner: RendererSurface): WebContents {
+function ownerContents(owner: RendererSurface) {
   const contents = electronWebContentsOf(owner)
   if (!contents) throw new Error('The window that owns this Browser preview has closed.')
   return contents

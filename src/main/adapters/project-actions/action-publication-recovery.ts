@@ -21,7 +21,7 @@ export async function recoverActionPublication(
   persistence: ActionStatePersistence,
   projectPath: string,
   stored: StoredActionState,
-): Promise<StoredActionState> {
+) {
   const pending = stored.state.pending
   if (
     !pending?.publication ||

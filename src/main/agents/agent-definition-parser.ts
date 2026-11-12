@@ -163,7 +163,7 @@ function splitDocument(markdown: string) {
   return { frontmatter, instructions }
 }
 
-export function parseAgentDefinition(markdown: string): AgentDefinitionDocument {
+export function parseAgentDefinition(markdown: string) {
   const { frontmatter, instructions } = splitDocument(markdown)
   const document = parseDocument(frontmatter, {
     schema: 'core',
@@ -198,10 +198,10 @@ export function parseAgentDefinition(markdown: string): AgentDefinitionDocument 
     ...(pi.model ? { model: pi.model } : {}),
     ...(tools.length > 0 ? { tools } : {}),
     instructions,
-  }
+  } satisfies AgentDefinitionDocument
 }
 
-export function extractAgentDefinitionDeclaredName(markdown: string): string | undefined {
+export function extractAgentDefinitionDeclaredName(markdown: string) {
   try {
     const { frontmatter } = splitDocument(markdown)
     const document = parseDocument(frontmatter, { schema: 'core', uniqueKeys: true })
@@ -220,7 +220,7 @@ export function resolvedAgentDefinitionSnapshot(
   definition: AgentDefinitionDocument,
   scope: AgentDefinitionScope,
   sourcePath: string,
-): ResolvedAgentDefinitionSnapshot {
+) {
   return {
     ...definition,
     scope,

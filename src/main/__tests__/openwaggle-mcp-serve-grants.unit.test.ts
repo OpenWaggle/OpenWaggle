@@ -13,7 +13,7 @@ const { advertisedSessionInputSchemaV2 } = await import('../openwaggle-mcp-sessi
 const { requiredSessionQueryCapabilities, requiredSessionControlCapabilities } =
   await import('../domain/session-control/session-capability-authorization')
 
-function options(identity: OpenWaggleMcpServeOptions['identity']): OpenWaggleMcpServeOptions {
+function options(identity: OpenWaggleMcpServeOptions['identity']) {
   return {
     transport: 'stdio',
     grants: new Set(['sessions:discover', 'sessions:read']),
@@ -22,7 +22,7 @@ function options(identity: OpenWaggleMcpServeOptions['identity']): OpenWaggleMcp
     identity,
     userDataRoot: '/user-data',
     version: 'test',
-  }
+  } satisfies OpenWaggleMcpServeOptions
 }
 
 describe('mcp serve grants (#350)', () => {

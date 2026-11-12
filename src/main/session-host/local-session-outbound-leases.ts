@@ -40,7 +40,7 @@ export class LocalSessionOutboundLeases {
     this.stoppedAfterMs = stoppedAfterMs
   }
 
-  add(bytes: number, owner: LocalSessionOutboundOwner | undefined): RetainedOutboundLease {
+  add(bytes: number, owner: LocalSessionOutboundOwner | undefined) {
     const lease: RetainedOutboundLease = { bytes, owner, progressAt: this.clock.now() }
     this.leases.add(lease)
     this.clock.start()
@@ -49,7 +49,7 @@ export class LocalSessionOutboundLeases {
   }
 
   /** Whether the lease was still held. */
-  remove(lease: RetainedOutboundLease): boolean {
+  remove(lease: RetainedOutboundLease) {
     if (!this.leases.delete(lease)) return false
     if (this.leases.size === 0) this.clock.stop()
     if (lease.owner) {
@@ -60,15 +60,15 @@ export class LocalSessionOutboundLeases {
     return true
   }
 
-  touch(lease: RetainedOutboundLease): void {
+  touch(lease: RetainedOutboundLease) {
     lease.progressAt = this.clock.now()
   }
 
-  bytesHeldBy(owner: LocalSessionOutboundOwner): number {
+  bytesHeldBy(owner: LocalSessionOutboundOwner) {
     return this.bytesByOwner.get(owner) ?? 0
   }
 
-  markEvicted(owner: LocalSessionOutboundOwner): void {
+  markEvicted(owner: LocalSessionOutboundOwner) {
     this.evictedOwners.add(owner)
   }
 
@@ -77,7 +77,7 @@ export class LocalSessionOutboundLeases {
    * longest stopped one whose frames free `missingBytes` alone, else the one holding the most.
    * None when all of them together could not free that much: closing one would make no room.
    */
-  stalledOwnerToEvict(missingBytes: number): StalledOutboundOwner | undefined {
+  stalledOwnerToEvict(missingBytes: number) {
     const now = this.clock.now()
     const stoppedFor = new Map<LocalSessionOutboundOwner, number>()
     for (const lease of this.leases) {
@@ -104,7 +104,7 @@ export class LocalSessionOutboundLeases {
    * Live time until a frame of an open connection, still being read, reaches the stop time; none
    * when no such frame is held.
    */
-  nextStallInMs(): number | undefined {
+  nextStallInMs() {
     const now = this.clock.now()
     let soonest: number | undefined
     for (const lease of this.leases) {

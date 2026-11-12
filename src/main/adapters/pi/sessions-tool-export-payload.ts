@@ -83,12 +83,12 @@ function exportPagination(input: ExportInput) {
   }
 }
 
-export function buildSessionsToolExportPayload(input: ExportInput): LocalSessionCommandPayload {
+export function buildSessionsToolExportPayload(input: ExportInput) {
   if (input.afterCreatedOrder !== undefined && !input.snapshotManifest) {
     throw new Error('hive export continuation requires the first page snapshotManifest.')
   }
   assertManifestTarget(input)
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: {
       contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -102,4 +102,5 @@ export function buildSessionsToolExportPayload(input: ExportInput): LocalSession
       },
     },
   }
+  return payload
 }

@@ -6,7 +6,6 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { isNetworkOrigin } from '@shared/schemas/extension-network-origin'
 import type {
   ExtensionFrameRegisterInput,
-  ExtensionFrameRegisterResult,
   ExtensionFrameUnregisterInput,
 } from '@shared/types/extension-frame'
 import { appLifecycle } from './desktop-shell/app-lifecycle'
@@ -77,7 +76,7 @@ function cspSourceForUrl(url: string) {
   return parsedUrl.protocol
 }
 
-function devConnectSourcesForBootstrap(url: string): readonly string[] {
+function devConnectSourcesForBootstrap(url: string) {
   const parsedUrl = new URL(url)
   if (
     (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') ||
@@ -247,9 +246,7 @@ function nextRegistrationId() {
   return `frame-registration-${String(registrationSequence)}`
 }
 
-export function registerExtensionFrame(
-  input: ExtensionFrameRegisterInput,
-): ExtensionFrameRegisterResult {
+export function registerExtensionFrame(input: ExtensionFrameRegisterInput) {
   const registration = validateRegistration(input)
   const registrationId = nextRegistrationId()
   registeredFrames.set(registration.frameId, {
@@ -261,7 +258,7 @@ export function registerExtensionFrame(
   return { frameUrl: extensionFrameUrl(registration.frameId), registrationId }
 }
 
-export function unregisterExtensionFrame(input: ExtensionFrameUnregisterInput): void {
+export function unregisterExtensionFrame(input: ExtensionFrameUnregisterInput) {
   const registration = registeredFrames.get(input.frameId)
   if (registration?.registrationId !== input.registrationId) {
     return

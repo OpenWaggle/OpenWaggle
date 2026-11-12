@@ -15,7 +15,7 @@ type SummaryAction = NonNullable<
   NonNullable<Contributions['sessionSummarySections']>[number]['rows'][number]['action']
 >
 
-function summaryContributions(action: SummaryAction): Contributions {
+function summaryContributions(action: SummaryAction) {
   return {
     sessionSummarySections: [
       {
@@ -24,13 +24,13 @@ function summaryContributions(action: SummaryAction): Contributions {
         rows: [{ id: 'summary.action', label: 'Run action', action }],
       },
     ],
-  }
+  } satisfies Contributions
 }
 
-function commandContribution(
-  contributionId: string,
-): NonNullable<Contributions['commands']>[number] {
-  return { id: contributionId, title: 'Run command' }
+function commandContribution(contributionId: string) {
+  return { id: contributionId, title: 'Run command' } satisfies NonNullable<
+    Contributions['commands']
+  >[number]
 }
 
 describe('Session Summary action registration', () => {

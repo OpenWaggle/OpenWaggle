@@ -10,7 +10,7 @@ function invalidResult() {
   return Effect.fail(new Error('The desktop returned an invalid terminal result.'))
 }
 
-export function makeRemoteTerminalService(broker: DesktopServiceBrokerShape): TerminalServiceShape {
+export function makeRemoteTerminalService(broker: DesktopServiceBrokerShape) {
   return new RemoteTerminalService(broker)
 }
 

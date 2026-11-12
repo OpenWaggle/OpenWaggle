@@ -34,16 +34,17 @@ function commandJson(request: ExplicitWaggleRequest) {
 const decodeStoredReport = Schema.decodeUnknownOption(waggleSendReportSchema)
 
 /** A replayed report says how the send ended; the Run it started belongs to the first answer. */
-function decodeReport(raw: string | null): WaggleSendReport {
+function decodeReport(raw: string | null) {
   const report = Option.getOrUndefined(
     decodeStoredReport(raw === null ? null : parseJsonUnknown(raw)),
   )
   if (!report) throw new Error('Completed explicit Waggle operation has an invalid report.')
-  return {
+  const result: WaggleSendReport = {
     outcome: report.outcome,
     ...(report.message === undefined ? {} : { message: report.message }),
     ...(report.code === undefined ? {} : { code: report.code }),
   }
+  return result
 }
 
 function claim(

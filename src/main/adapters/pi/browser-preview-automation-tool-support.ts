@@ -15,7 +15,7 @@ export interface BrowserPreviewToolDetails {
   readonly result: unknown
 }
 
-function serialize(value: unknown): string {
+function serialize(value: unknown) {
   if (value === undefined) return '{}'
   const serialized = JSON.stringify(value)
   return serialized ?? 'null'
@@ -63,33 +63,27 @@ export async function authorizeBrowserPreviewTool(input: {
   )
 }
 
-export function deniedBrowserPreviewResult(
-  operation: string,
-): AgentToolResult<BrowserPreviewToolDetails> & { readonly isError: true } {
-  return {
+export function deniedBrowserPreviewResult(operation: string) {
+  const value: AgentToolResult<BrowserPreviewToolDetails> & { readonly isError: true } = {
     content: [{ type: 'text', text: `Browser preview action "${operation}" was denied.` }],
     details: { kind: 'browser-preview', operation, result: null },
     isError: true,
   }
+  return value
 }
 
-export function browserPreviewTextResult(
-  operation: string,
-  result: unknown,
-): AgentToolResult<BrowserPreviewToolDetails> {
+export function browserPreviewTextResult(operation: string, result: unknown) {
   const text = serialize(result)
   if (Buffer.byteLength(text) > BROWSER_PREVIEW_AUTOMATION_LIMITS.RESULT_BYTES) {
     throw new Error('Browser preview result exceeded the 64 KB result limit.')
   }
-  return {
+  const value: AgentToolResult<BrowserPreviewToolDetails> = {
     content: [{ type: 'text', text }],
     details: { kind: 'browser-preview', operation, result },
   }
+  return value
 }
 
-export function runBrowserPreviewEffect<A>(
-  effect: EffectType<A, Error>,
-  signal?: AbortSignal,
-): Promise<A> {
+export function runBrowserPreviewEffect<A>(effect: EffectType<A, Error>, signal?: AbortSignal) {
   return runEffectWithAbortSignal(effect, signal)
 }

@@ -52,10 +52,7 @@ function unavailableExecutable(error: unknown) {
   )
 }
 
-function executableExtensions(
-  command: string,
-  environment: Readonly<Record<string, string>>,
-): string[] {
+function executableExtensions(command: string, environment: Readonly<Record<string, string>>) {
   if (process.platform !== 'win32' || extname(command).length > 0) return ['']
   const pathExtensions = environmentValue(environment, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD'
   return [...pathExtensions.split(';').filter(Boolean), '']
@@ -163,7 +160,7 @@ export async function processCommand(
   return { command, args: ['-c', invocation.command] }
 }
 
-export function createActionProcessRunner(appVersion: string): ActionProcessRunner {
+export function createActionProcessRunner(appVersion: string) {
   const ptyRunner = makePtyRunner({ appVersion })
   return {
     validate: async (invocation, overrides) => {
@@ -222,5 +219,5 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
       owned.live.outputPaused = false
       return { pid: outcome.pid, closed, stop }
     },
-  }
+  } satisfies ActionProcessRunner
 }

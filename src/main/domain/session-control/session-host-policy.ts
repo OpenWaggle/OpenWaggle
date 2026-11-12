@@ -14,8 +14,8 @@ export function resolveSessionHostProjectPolicy(
     readonly multiAgentEnabled?: boolean
     readonly parentConcurrencyLimit?: number
   },
-): SessionHostProjectPolicy {
-  return {
+) {
+  const policy: SessionHostProjectPolicy = {
     parentConcurrencyLimit:
       projectOverride?.parentConcurrencyLimit ??
       settings.sessionHostParentConcurrencyLimitsByProject[projectPath] ??
@@ -27,4 +27,5 @@ export function resolveSessionHostProjectPolicy(
       settings.multiAgentEnabledByProject[projectPath] ??
       settings.multiAgentEnabled,
   }
+  return policy
 }

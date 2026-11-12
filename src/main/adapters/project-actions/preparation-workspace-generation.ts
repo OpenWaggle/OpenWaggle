@@ -12,9 +12,7 @@ import { readActionWorkspaceIdentity } from './action-manifest-file'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
 import { EMPTY_PREPARATION_EXECUTION } from './workspace-preparation-model'
 
-export function resetPreparationForBirth(
-  state: StoredWorkspacePreparation,
-): StoredWorkspacePreparation {
+export function resetPreparationForBirth(state: StoredWorkspacePreparation) {
   return {
     workspaceId: state.workspaceId,
     revision: state.revision + 1,
@@ -24,14 +22,14 @@ export function resetPreparationForBirth(
     environment: {},
     awaitingWorktreeBirth: true,
     awaitingWorktreeBirthSince: Date.now(),
-  }
+  } satisfies StoredWorkspacePreparation
 }
 
 /**
  * A birth prepared again, for a retry or over a pending birth saved before the time was recorded:
  * only a folder made after this attempt may be recorded for it.
  */
-export function refreshPendingBirth(state: StoredWorkspacePreparation): StoredWorkspacePreparation {
+export function refreshPendingBirth(state: StoredWorkspacePreparation) {
   return { ...state, revision: state.revision + 1, awaitingWorktreeBirthSince: Date.now() }
 }
 
@@ -45,7 +43,7 @@ export function owesRunBirthSetup(state: StoredWorkspacePreparation | null) {
 }
 
 /** Drops `runBirthSetupOwed` once setup has succeeded or been skipped. */
-export function settleRunBirthSetup(state: StoredWorkspacePreparation): StoredWorkspacePreparation {
+export function settleRunBirthSetup(state: StoredWorkspacePreparation) {
   if (!state.runBirthSetupOwed || owesRunBirthSetup(state)) return state
   const { runBirthSetupOwed: _settled, ...settled } = state
   return settled
@@ -81,7 +79,7 @@ export async function freshPreparationState(
   snapshot: StoredWorkspacePreparation['snapshot'],
   revision: number,
   previous: StoredWorkspacePreparation | null = null,
-): Promise<StoredWorkspacePreparation> {
+) {
   const atProjectPath = workspace.workspacePath === workspace.projectPath
   const identity = atProjectPath
     ? null
@@ -100,20 +98,20 @@ export async function freshPreparationState(
       : {}),
     // Choosing another profile for the same folder keeps the setup a run's birth still owes.
     ...(identity && owesRunBirthSetup(previous) ? { runBirthSetupOwed: true as const } : {}),
-  }
+  } satisfies StoredWorkspacePreparation
 }
 
 export function withRecordedBirth(
   existing: StoredWorkspacePreparation,
   identity: WorkspaceDirectoryIdentity,
-): StoredWorkspacePreparation {
+) {
   const { awaitingWorktreeBirthSince: _since, ...state } = existing
   return {
     ...state,
     revision: existing.revision + 1,
     workspaceIdentity: identity,
     awaitingWorktreeBirth: false,
-  }
+  } satisfies StoredWorkspacePreparation
 }
 
 export async function completePreparationBirth(
@@ -165,18 +163,22 @@ async function pathExists(workspacePath: string) {
   }
 }
 
-async function observeGeneration(
-  workspacePath: string,
-  recorded: WorkspaceDirectoryIdentity,
-): Promise<WorkspaceGenerationCheck> {
+async function observeGeneration(workspacePath: string, recorded: WorkspaceDirectoryIdentity) {
   const observed = await readPreparationWorkspaceIdentity(workspacePath)
   if (!observed) {
     const reason = (await pathExists(workspacePath)) ? 'not-a-folder' : 'missing'
-    return { status: 'unreadable', workspacePath, reason, recorded }
+    const check: WorkspaceGenerationCheck = {
+      status: 'unreadable',
+      workspacePath,
+      reason,
+      recorded,
+    }
+    return check
   }
-  return isSameDurableDirectoryIdentity(observed, recorded)
+  const check: WorkspaceGenerationCheck = isSameDurableDirectoryIdentity(observed, recorded)
     ? { status: 'current' }
     : { status: 'replaced', workspacePath, recorded, observed }
+  return check
 }
 
 /**
@@ -186,13 +188,14 @@ async function observeGeneration(
 export async function inspectPreparationGeneration(
   workspace: ActionRunWorkspace,
   state: StoredWorkspacePreparation | null,
-): Promise<WorkspaceGenerationCheck> {
+) {
   const { workspacePath } = workspace
   const recorded = state?.workspaceIdentity
   if (!recorded) {
-    return state?.awaitingWorktreeBirth
+    const check: WorkspaceGenerationCheck = state?.awaitingWorktreeBirth
       ? { status: 'awaiting-birth', workspacePath }
       : { status: 'unrecorded', workspacePath }
+    return check
   }
   try {
     return await observeGeneration(workspacePath, recorded)

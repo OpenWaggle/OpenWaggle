@@ -5,7 +5,7 @@ import type { UpdateEngineShape } from '../../ports/desktop-shell/update-engine'
  * electron-updater. Its `autoUpdater` getter creates the platform updater on first use, so every
  * method reads it when called and nothing touches it at import.
  */
-function updater(): AppUpdater {
+function updater() {
   return autoUpdater
 }
 

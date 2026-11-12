@@ -83,18 +83,18 @@ import {
 
 const CONV_ID = SessionId('test-conv-id')
 
-function makeMessage(overrides: Partial<Message> = {}): Message {
+function makeMessage(overrides: Partial<Message> = {}) {
   return {
     id: MessageId('m1'),
     role: 'user',
     parts: [{ type: 'text', text: 'Existing' }],
     createdAt: Date.now(),
     ...overrides,
-  }
+  } satisfies Message
 }
 
-function makeSessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetail {
-  return {
+function makeSessionDetail(overrides: Partial<SessionDetail> = {}) {
+  const detail: SessionDetail = {
     id: CONV_ID,
     title: 'New session',
     messages: [],
@@ -103,9 +103,10 @@ function makeSessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetai
     projectPath: '/test',
     ...overrides,
   }
+  return detail
 }
 
-function makeAttachment(overrides: Partial<PreparedAttachment> = {}): PreparedAttachment {
+function makeAttachment(overrides: Partial<PreparedAttachment> = {}) {
   return {
     id: 'a1',
     kind: 'text',
@@ -115,7 +116,7 @@ function makeAttachment(overrides: Partial<PreparedAttachment> = {}): PreparedAt
     sizeBytes: 100,
     extractedText: '',
     ...overrides,
-  }
+  } satisfies PreparedAttachment
 }
 
 const TITLE_MODEL = SupportedModelId('openai/gpt-5')

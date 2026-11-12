@@ -24,8 +24,9 @@ export type McpMessageFields = SchemaType<typeof mcpMessageFieldsSchema>
 
 const decodeFields = Schema.decodeUnknownOption(mcpMessageFieldsSchema)
 
-export function mcpMessageFields(value: unknown): McpMessageFields | undefined {
-  return Option.getOrUndefined(decodeFields(value))
+export function mcpMessageFields(value: unknown) {
+  const fields: McpMessageFields | undefined = Option.getOrUndefined(decodeFields(value))
+  return fields
 }
 
 /** A string field, or undefined. */

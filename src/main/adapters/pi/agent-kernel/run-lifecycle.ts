@@ -63,7 +63,8 @@ function exposePiRunControl(
       routeThroughInputHook: input.steeringInputHook === true,
     }),
   )
-  return { model: runtime.model, session }
+  const result: PiRunSessionRuntime = { model: runtime.model, session }
+  return result
 }
 
 /** A Run starts with the Session thinking level, clamped to the model the Run uses. */
@@ -76,9 +77,7 @@ function resolvePiRuntimeThinkingLevel(
     : undefined
 }
 
-export async function createPiRunSessionRuntime(
-  input: CreatePiRunSessionRuntimeInput,
-): Promise<PiRunSessionRuntime> {
+export async function createPiRunSessionRuntime(input: CreatePiRunSessionRuntimeInput) {
   // Before the Pi file opens; with the mode this Run's runtime resolves, Pi's settings included.
   await idleCacheWarming.prepareRun(input.session.id)
   // Not awaited: Usage statistics never delay a Run. Authorization state belongs to the
@@ -161,7 +160,7 @@ function buildSuccessfulRunResult(input: {
   readonly newMessages: readonly Message[]
   readonly appended: readonly unknown[]
   readonly aborted: boolean
-}): AgentKernelRunResult {
+}) {
   const terminalError = extractPiAssistantTerminalError(input.appended)
   const stopReason = getPiAssistantStopReason(input.appended)
 
@@ -172,7 +171,7 @@ function buildSuccessfulRunResult(input: {
     sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds, input.projectionBase),
     ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
-  }
+  } satisfies AgentKernelRunResult
 }
 
 export async function runSubscribedPiOperation(input: {

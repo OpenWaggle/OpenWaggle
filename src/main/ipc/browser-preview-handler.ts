@@ -244,7 +244,7 @@ function registerBrowserPreviewImportHandlers() {
   )
 }
 
-export function registerBrowserPreviewHandlers(): void {
+export function registerBrowserPreviewHandlers() {
   registerBrowserPreviewControlHandlers()
   registerBrowserPreviewNavigationHandlers()
   registerBrowserPreviewOwnerHandlers()

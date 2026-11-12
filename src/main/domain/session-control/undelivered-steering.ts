@@ -33,7 +33,7 @@ export interface UndeliveredSteer {
 function returnedFollowUp(
   steer: UndeliveredSteer,
   queued: ReadonlyMap<FollowUpId, SessionControlFollowUp>,
-): SessionControlFollowUp | undefined {
+) {
   return matchBy(steer.delivery, 'kind')
     .with('promoted-follow-up', (delivery) => queued.get(delivery.followUpId))
     .with('steer', (delivery) =>
@@ -57,7 +57,7 @@ function returnedFollowUp(
 export function returnUndeliveredSteers(
   state: SessionControlSessionState,
   steers: readonly UndeliveredSteer[],
-): SessionControlSessionState {
+) {
   return returnUndeliveredSteersReportingDrops(state, steers).state
 }
 
@@ -68,10 +68,7 @@ export function returnUndeliveredSteers(
 export function returnUndeliveredSteersReportingDrops(
   state: SessionControlSessionState,
   steers: readonly UndeliveredSteer[],
-): {
-  readonly state: SessionControlSessionState
-  readonly dropped: readonly SessionControlFollowUp[]
-} {
+) {
   const queued = new Map(state.followUpQueue.items.map((item) => [item.id, item]))
   const front: SessionControlFollowUp[] = []
   const dropped: SessionControlFollowUp[] = []
@@ -99,7 +96,7 @@ function withFront(
   state: SessionControlSessionState,
   front: readonly SessionControlFollowUp[],
   returnedIds: ReadonlySet<FollowUpId>,
-): SessionControlSessionState {
+) {
   if (front.length === 0) return state
   const rest = state.followUpQueue.items.filter((item) => !returnedIds.has(item.id))
   const items = [...front, ...rest]
@@ -124,9 +121,7 @@ function withFront(
  * interruption, or a settlement another writer overtook) would wait forever. Paused, they show why
  * and the user can resume, steer, or dismiss them.
  */
-export function pauseStrandedFollowUps(
-  state: SessionControlSessionState,
-): SessionControlSessionState {
+export function pauseStrandedFollowUps(state: SessionControlSessionState) {
   if (
     state.run.state !== 'idle' ||
     state.followUpQueue.state !== 'running' ||
@@ -142,7 +137,11 @@ export function pauseStrandedFollowUps(
     reason: 'run-interrupted',
   })
   if (!paused.accepted) return state
-  return { ...state, revision: state.revision + REVISION_INCREMENT, followUpQueue: paused.queue }
+  return {
+    ...state,
+    revision: state.revision + REVISION_INCREMENT,
+    followUpQueue: paused.queue,
+  } satisfies SessionControlSessionState
 }
 
 /**

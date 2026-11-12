@@ -94,9 +94,9 @@ function isHelpRequest(args: readonly string[], parsed: ParsedArguments) {
  * Parse `openwaggle run` and translate it into the equivalent `sessions launch` arguments,
  * so both commands share one validation and payload path.
  */
-export function parseRunCliArguments(args: readonly string[]): RunCliInvocation {
+export function parseRunCliArguments(args: readonly string[]) {
   const parsed = parseMcpCliArguments(args)
-  if (isHelpRequest(args, parsed)) return { kind: 'help' }
+  if (isHelpRequest(args, parsed)) return { kind: 'help' } satisfies RunCliInvocation
   const withoutPassthrough: ParsedArguments = { ...parsed, passthrough: [] }
   validateCommandCliOptions({
     surface: 'OpenWaggle',
@@ -127,5 +127,9 @@ export function parseRunCliArguments(args: readonly string[]): RunCliInvocation 
     options,
   }
   validateSessionsCliOptions('launch', launchArguments)
-  return { kind: 'run', launchArguments, jsonl: hasFlag(parsed, 'jsonl') }
+  return {
+    kind: 'run',
+    launchArguments,
+    jsonl: hasFlag(parsed, 'jsonl'),
+  } satisfies RunCliInvocation
 }

@@ -14,7 +14,7 @@ import {
 export type HivePendingRequests = ReadonlyMap<string, HivePendingRequest>
 
 /** The Workers an outcome describes, so their facts load in one query. */
-function workerSessionIds(outcome: SessionQueryOutcome): readonly string[] {
+function workerSessionIds(outcome: SessionQueryOutcome) {
   if ('error' in outcome) return []
   if ((outcome.operation === 'list' || outcome.operation === 'search') && 'sessions' in outcome) {
     return outcome.sessions.flatMap((session) =>
@@ -56,7 +56,7 @@ function nextActorFor(
   stored: HiveStoredNextActorFacts | undefined,
   state: DelegationState,
   pendingRequest: HivePendingRequest | undefined,
-): HiveNextActor {
+) {
   const next = hiveNextActor({
     delegationState: state,
     attentionCause: stored?.attentionCause ?? null,
@@ -64,13 +64,13 @@ function nextActorFor(
     pendingRequest: pendingRequest ?? null,
   })
   // A Delegation state always has a next actor; null only describes a Session without one.
-  return next?.nextActor ?? 'worker'
+  return (next?.nextActor ?? 'worker') satisfies HiveNextActor
 }
 
 function decorate(
   outcome: SessionQueryOutcome,
   nextActorOf: (sessionId: string, state: DelegationState) => HiveNextActor,
-): SessionQueryOutcome {
+) {
   if ('error' in outcome) return outcome
   if ((outcome.operation === 'list' || outcome.operation === 'search') && 'sessions' in outcome) {
     return {

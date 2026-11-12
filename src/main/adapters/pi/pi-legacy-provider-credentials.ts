@@ -48,7 +48,7 @@ async function acquireAuthLock(lockPath: string) {
   return false
 }
 
-async function readCredentials(authPath: string): Promise<JsonObject | undefined> {
+async function readCredentials(authPath: string) {
   let content: string
   try {
     content = await readFile(authPath, 'utf8')
@@ -85,7 +85,7 @@ async function writeCredentials(authPath: string, credentials: Record<string, Js
  */
 export async function migrateLegacyProviderCredentials(
   authPath = join(getAgentDir(), AUTH_FILE_NAME),
-): Promise<boolean> {
+) {
   const current = await readCredentials(authPath)
   if (!current || renameLegacyProviderCredentials(current) === current) return false
   // Pi locks with proper-lockfile and `realpath: false`: beside the path, even when it is a link.

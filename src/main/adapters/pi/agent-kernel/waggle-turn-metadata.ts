@@ -85,7 +85,7 @@ type TurnStart = SessionEntry | undefined
  */
 function createTurnStartResolver(entryById: ReadonlyMap<string, SessionEntry>) {
   const startById = new Map<string, TurnStart>()
-  return (first: SessionEntry | undefined): TurnStart => {
+  return (first: SessionEntry | undefined) => {
     const walked = new Set<string>()
     let entry = first
     let start: TurnStart

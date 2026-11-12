@@ -44,23 +44,30 @@ export interface UsageStatisticsEnablementState {
 export function createUsageStatisticsEnablementState(input: {
   readonly buildChannel: BuildChannel
   readonly env: UsageStatisticsEnablementInput['env']
-}): UsageStatisticsEnablementState {
+}) {
   let settingEnabled: boolean | undefined
   const listeners = new Set<UsageStatisticsEnablementListener>()
 
   // The build and environment never change while the process runs.
   const environmentBlock = () => resolveUsageStatisticsEnvironmentBlock(input)
 
-  const current = (): UsageStatisticsProcessEnablement => {
+  const current = () => {
     // A build or environment opt-out names its reason even before Settings load.
     const block = environmentBlock()
-    if (block !== null) return { enabled: false, reason: block }
-    if (settingEnabled === undefined) return { enabled: false, reason: 'settings-unavailable' }
+    if (block !== null) {
+      return { enabled: false, reason: block } satisfies UsageStatisticsProcessEnablement
+    }
+    if (settingEnabled === undefined) {
+      return {
+        enabled: false,
+        reason: 'settings-unavailable',
+      } satisfies UsageStatisticsProcessEnablement
+    }
     return resolveUsageStatisticsEnablement({
       settingEnabled,
       buildChannel: input.buildChannel,
       env: input.env,
-    })
+    }) satisfies UsageStatisticsProcessEnablement
   }
 
   const isEnabled = () => current().enabled
@@ -90,7 +97,7 @@ export function createUsageStatisticsEnablementState(input: {
         }
       }
     },
-  }
+  } satisfies UsageStatisticsEnablementState
 }
 
 const processEnablement = createUsageStatisticsEnablementState({
@@ -103,21 +110,19 @@ onAuthoritativeSettingsChange((settings) =>
 )
 
 /** True only when this process may send Usage statistics and error reports right now. */
-export function isUsageStatisticsEnabled(): boolean {
+export function isUsageStatisticsEnabled() {
   return processEnablement.isEnabled()
 }
 
 /** The current decision with the reason it is off, for diagnostics. */
-export function currentUsageStatisticsEnablement(): UsageStatisticsProcessEnablement {
-  return processEnablement.current()
+export function currentUsageStatisticsEnablement() {
+  return processEnablement.current() satisfies UsageStatisticsProcessEnablement
 }
 
 /**
  * Calls `listener` with the new value each time {@link isUsageStatisticsEnabled} changes, which
  * happens only when the Setting changes or Settings first load. Returns the unsubscribe function.
  */
-export function onUsageStatisticsEnablementChange(
-  listener: UsageStatisticsEnablementListener,
-): () => void {
+export function onUsageStatisticsEnablementChange(listener: UsageStatisticsEnablementListener) {
   return processEnablement.onChange(listener)
 }

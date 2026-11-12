@@ -31,13 +31,16 @@ function idlePauseAfter(value: string | undefined) {
   return count
 }
 
-function failurePolicy(value: string | undefined): HeartbeatWakeCheckFailurePolicy | undefined {
+function failurePolicy(value: string | undefined) {
   if (value === undefined) return undefined
-  if (value === 'wake' || value === 'skip') return value
+  if (value === 'wake' || value === 'skip') {
+    const policy: HeartbeatWakeCheckFailurePolicy = value
+    return policy
+  }
   throw new CommandCliUsageError('--wake-on-failure must be wake or skip.')
 }
 
-function wakeCheck(arguments_: ParsedArguments): HeartbeatSettingsInput['wakeCheck'] {
+function wakeCheck(arguments_: ParsedArguments) {
   const command = option(arguments_, 'wake-if')
   const onFailure = failurePolicy(option(arguments_, 'wake-on-failure'))
   if (command === 'none') return null
@@ -54,9 +57,7 @@ function indefinite(arguments_: ParsedArguments) {
 }
 
 /** The Heartbeat settings the options set, or undefined when they set none. */
-export function heartbeatSettingsFromOptions(
-  arguments_: ParsedArguments,
-): HeartbeatSettingsInput | undefined {
+export function heartbeatSettingsFromOptions(arguments_: ParsedArguments) {
   const stopWhen = option(arguments_, 'stop-when')
   const ends = indefinite(arguments_)
   const idle = idlePauseAfter(option(arguments_, 'idle-pause-after'))
@@ -67,7 +68,9 @@ export function heartbeatSettingsFromOptions(
     ...(idle !== undefined ? { idlePauseAfter: idle } : {}),
     ...(check !== undefined ? { wakeCheck: check } : {}),
   }
-  return Object.keys(settings).length > 0 ? settings : undefined
+  const input: HeartbeatSettingsInput | undefined =
+    Object.keys(settings).length > 0 ? settings : undefined
+  return input
 }
 
 /** A new Heartbeat must have a way to finish; said before asking the Host (#388). */

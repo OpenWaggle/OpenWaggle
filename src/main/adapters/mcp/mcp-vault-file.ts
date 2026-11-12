@@ -27,7 +27,7 @@ export function isEnoent(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
-function parseVaultEntry(name: string, value: unknown): VaultEntry {
+function parseVaultEntry(name: string, value: unknown) {
   if (!isRecord(value)) {
     throw new McpVaultError({
       reason: 'io',
@@ -45,7 +45,8 @@ function parseVaultEntry(name: string, value: unknown): VaultEntry {
       message: `OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`,
     })
   }
-  return { encryptedValue, createdAt, updatedAt }
+  const entry: VaultEntry = { encryptedValue, createdAt, updatedAt }
+  return entry
 }
 
 const vaultFileSchema = Schema.Struct({
@@ -53,7 +54,7 @@ const vaultFileSchema = Schema.Struct({
   secrets: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
-function parseVault(raw: string): VaultFile {
+function parseVault(raw: string) {
   const parsed = Schema.decodeUnknownOption(vaultFileSchema)(JSON.parse(raw))
   if (Option.isNone(parsed) || parsed.value.version !== 1) {
     throw new McpVaultError({
@@ -72,13 +73,14 @@ function parseVault(raw: string): VaultFile {
   for (const [name, value] of Object.entries(encryptedSecrets)) {
     secrets[name] = parseVaultEntry(name, value)
   }
-  return { version: 1, secrets }
+  const file: VaultFile = { version: 1, secrets }
+  return file
 }
 
 export const EMPTY_VAULT: VaultFile = { version: 1, secrets: {} }
 
 /** The vault at `filePath`, or undefined when there is none yet. */
-export async function readVaultFile(filePath: string): Promise<VaultFile | undefined> {
+export async function readVaultFile(filePath: string) {
   try {
     return parseVault(await readFile(filePath, 'utf8'))
   } catch (error) {
@@ -103,8 +105,9 @@ export async function writeVault(filePath: string, vault: VaultFile) {
   }
 }
 
-export function summaries(vault: VaultFile): McpSecretSummary[] {
-  return Object.entries(vault.secrets)
+export function summaries(vault: VaultFile) {
+  const summary: McpSecretSummary[] = Object.entries(vault.secrets)
     .map(([name, entry]) => ({ name, createdAt: entry.createdAt, updatedAt: entry.updatedAt }))
     .sort((left, right) => left.name.localeCompare(right.name))
+  return summary
 }

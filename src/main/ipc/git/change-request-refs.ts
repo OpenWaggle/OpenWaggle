@@ -34,14 +34,15 @@ export interface ChangeRequestFetchPlan {
  * wrong base entirely. Both providers publish the real head under a numbered ref that works for
  * forks, which is what this targets.
  */
-export function planChangeRequestFetch(changeRequestUrl: string): ChangeRequestFetchPlan | null {
+export function planChangeRequestFetch(changeRequestUrl: string) {
   for (const pattern of PROVIDER_HEAD_REF_PATTERNS) {
     const number = namedGroups(pattern.url.exec(changeRequestUrl), ['number'])?.number
     if (number !== undefined) {
-      return {
+      const plan: ChangeRequestFetchPlan | null = {
         remoteRef: pattern.headRef(number),
         localRef: `refs/openwaggle/change-requests/${number}`,
       }
+      return plan
     }
   }
   return null

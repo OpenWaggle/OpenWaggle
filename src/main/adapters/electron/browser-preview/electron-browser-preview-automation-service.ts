@@ -9,15 +9,13 @@ import { makeBrowserPreviewAutomationLifecycleOperations } from './electron-brow
 import { makeBrowserPreviewAutomationPageOperations } from './electron-browser-preview-automation-page-operations'
 import { makeBrowserPreviewAutomationRecordingOperations } from './electron-browser-preview-automation-recording'
 
-export function makeBrowserPreviewAutomationService(
-  settings: SettingsServiceShape,
-): BrowserPreviewAutomationServiceShape {
+export function makeBrowserPreviewAutomationService(settings: SettingsServiceShape) {
   const withAgentAccess = createBrowserPreviewAutomationAccessGuard(settings)
   return {
     ...makeBrowserPreviewAutomationLifecycleOperations(settings, withAgentAccess),
     ...makeBrowserPreviewAutomationPageOperations(withAgentAccess),
     ...makeBrowserPreviewAutomationRecordingOperations(withAgentAccess),
-  }
+  } satisfies BrowserPreviewAutomationServiceShape
 }
 
 export const ElectronBrowserPreviewAutomationServiceLive = Layer.effect(

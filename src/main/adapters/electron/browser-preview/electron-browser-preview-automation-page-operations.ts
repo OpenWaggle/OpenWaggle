@@ -23,7 +23,7 @@ type BrowserPreviewAutomationPageOperations = Pick<
 
 export function makeBrowserPreviewAutomationPageOperations(
   withAgentAccess: BrowserPreviewAutomationAccessGuard,
-): BrowserPreviewAutomationPageOperations {
+) {
   return {
     snapshot: (scope, input) =>
       withAgentAccess(
@@ -108,5 +108,5 @@ export function makeBrowserPreviewAutomationPageOperations(
           )
         }),
       ),
-  }
+  } satisfies BrowserPreviewAutomationPageOperations
 }

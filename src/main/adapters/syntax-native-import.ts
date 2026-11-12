@@ -26,7 +26,7 @@ function nativeAppearance(
   packageName: string,
   sourcePath: string,
   scope: SyntaxResourceScope,
-): SyntaxAppearanceResource {
+) {
   const entry = isSourceObject(candidate)
     ? decodeUnknownOrThrow(nativeAppearanceEntrySchema, candidate)
     : undefined
@@ -46,7 +46,7 @@ function nativeAppearance(
   const original = toJsonObject(candidate)
   const tokens = toJsonObject(rawTokens)
   const revision = createHash('sha256').update(JSON.stringify(original)).digest('hex')
-  return {
+  const resource: SyntaxAppearanceResource = {
     id: `appearance:${syntaxResourceSlug(packageId)}:${variant}`,
     packageId,
     revision,
@@ -58,6 +58,7 @@ function nativeAppearance(
     tokens,
     original,
   }
+  return resource
 }
 
 export function nativeSyntaxResources(

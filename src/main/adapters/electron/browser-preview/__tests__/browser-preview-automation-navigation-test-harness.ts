@@ -23,12 +23,7 @@ export function navigationContents() {
   }
 }
 
-export function navigationOperation(): {
-  readonly operation: BrowserPreviewAutomationNavigationOperation
-  readonly resolve: () => void
-  readonly reject: (error: Error) => void
-  readonly supersede: () => void
-} {
+export function navigationOperation() {
   let current = true
   let resolve: (() => void) | undefined
   let reject: ((error: Error) => void) | undefined
@@ -36,7 +31,12 @@ export function navigationOperation(): {
     resolve = resolvePromise
     reject = rejectPromise
   })
-  return {
+  const result: {
+    readonly operation: BrowserPreviewAutomationNavigationOperation
+    readonly resolve: () => void
+    readonly reject: (error: Error) => void
+    readonly supersede: () => void
+  } = {
     operation: {
       generation: 1,
       completion,
@@ -49,4 +49,5 @@ export function navigationOperation(): {
       current = false
     },
   }
+  return result
 }

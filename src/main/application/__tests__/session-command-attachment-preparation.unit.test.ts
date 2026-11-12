@@ -19,8 +19,8 @@ afterEach(async () => {
   )
 })
 
-function payload(path: string): LocalSessionCommandPayload {
-  return {
+function payload(path: string) {
+  const result: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: 2,
@@ -34,6 +34,7 @@ function payload(path: string): LocalSessionCommandPayload {
     },
     transport: { attachmentPaths: [path] },
   }
+  return result
 }
 
 describe('Session command attachment preparation', () => {

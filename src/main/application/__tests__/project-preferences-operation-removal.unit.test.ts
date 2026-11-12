@@ -16,7 +16,7 @@ vi.mock('../../config/project-config', async (importOriginal) => {
  * Fakes the central write's observable outcome — a stripped settings file — because the
  * strip-confirmation re-read inspects the file rather than trusting the write's resolution.
  */
-async function fakeStripWrite(projectPath: string): Promise<void> {
+async function fakeStripWrite(projectPath: string) {
   const configPath = path.join(projectPath, '.openwaggle', 'settings.json')
   try {
     const raw = await fs.readFile(configPath, 'utf-8')

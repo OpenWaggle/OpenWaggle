@@ -9,18 +9,17 @@ export interface LoadedAgentsInstruction {
   readonly error?: string
 }
 
-export async function loadProjectAgentsInstruction(
-  projectPath: string | null,
-): Promise<LoadedAgentsInstruction> {
+export async function loadProjectAgentsInstruction(projectPath: string | null) {
   if (!projectPath) {
-    return {
+    const instruction: LoadedAgentsInstruction = {
       status: 'missing',
       filePath: '',
       content: null,
     }
+    return instruction
   }
 
-  return matchBy
+  const instruction: LoadedAgentsInstruction = await matchBy
     .promise(resolveRootAgents(projectPath), 'status')
     .with('found', (root) => ({
       status: root.status,
@@ -39,4 +38,5 @@ export async function loadProjectAgentsInstruction(
       error: root.error,
     }))
     .exhaustive()
+  return instruction
 }

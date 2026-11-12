@@ -21,7 +21,7 @@ export async function resolveSafeLocalPushDestination(
   pushRemoteName: string,
   primaryRemote: PrimaryRemote | null,
   primaryDefaultRef: string | null,
-): Promise<SafeLocalPushDestination> {
+) {
   const [fetchUrlResult, pushUrlsResult] = await Promise.all([
     primaryRemote?.name === pushRemoteName
       ? Promise.resolve({ code: 0, stdout: `${primaryRemote.url}\n`, stderr: '' })
@@ -31,12 +31,13 @@ export async function resolveSafeLocalPushDestination(
   const failed = [fetchUrlResult, pushUrlsResult].find((result) => result.code !== 0)
   if (failed) {
     const detail = failed.stderr.trim()
-    return {
+    const destination: SafeLocalPushDestination = {
       ok: false,
       message: detail
         ? `Could not read the Git push destination: ${detail}`
         : 'Could not read the Git push destination.',
     }
+    return destination
   }
 
   const fetchUrl = fetchUrlResult.stdout.trim()
@@ -55,7 +56,8 @@ export async function resolveSafeLocalPushDestination(
         : await resolveLocalDefaultRef(projectPath, pushRemoteName)
       : null
 
-  return { ok: true, defaultRef, fetchUrl, pushUrls }
+  const destination: SafeLocalPushDestination = { ok: true, defaultRef, fetchUrl, pushUrls }
+  return destination
 }
 
 export async function resolveLocalPushStatus(

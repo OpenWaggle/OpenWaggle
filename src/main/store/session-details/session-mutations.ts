@@ -35,9 +35,7 @@ export interface BoundWorkspaceResource {
   readonly handoffSeedState: 'none' | 'pending' | 'applied' | 'failed'
 }
 
-export async function getBoundWorkspaceResource(
-  id: SessionId,
-): Promise<BoundWorkspaceResource | null> {
+export async function getBoundWorkspaceResource(id: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -98,7 +96,7 @@ export async function setSessionWorktreePlan(
   environmentMode: SessionEnvironmentMode,
   baseRef: string | null,
   startFromOrigin: boolean,
-): Promise<void> {
+) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -118,7 +116,7 @@ export async function setSessionWorktreePlan(
 export async function setSessionAuthorizationMode(
   id: SessionId,
   authorizationMode: AgentAuthorizationMode | null,
-): Promise<void> {
+) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -133,7 +131,7 @@ export async function setSessionAuthorizationMode(
 }
 
 /** Clear a session's Session worktree binding (death). */
-export async function clearSessionWorktree(id: SessionId): Promise<void> {
+export async function clearSessionWorktree(id: SessionId) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -143,7 +141,7 @@ export async function clearSessionWorktree(id: SessionId): Promise<void> {
 }
 
 /** All sessions' worktree paths, for orphan detection before removal. */
-export async function listSessionWorktreeRefs(): Promise<SessionWorktreeRefRow[]> {
+export async function listSessionWorktreeRefs() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -157,12 +155,16 @@ export async function listSessionWorktreeRefs(): Promise<SessionWorktreeRefRow[]
         WHERE resources.kind = ${'managed-worktree'}
         ORDER BY bindings.session_id
       `
-      return rows.map((row) => ({ sessionId: row.session_id, worktreePath: row.working_path }))
+      const refs: SessionWorktreeRefRow[] = rows.map((row) => ({
+        sessionId: row.session_id,
+        worktreePath: row.working_path,
+      }))
+      return refs
     }),
   )
 }
 
-export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Promise<void> {
+export async function updateSessionRuntime(input: UpdateSessionRuntimeInput) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -177,7 +179,7 @@ export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Pr
   )
 }
 
-export async function deleteSession(id: SessionId): Promise<void> {
+export async function deleteSession(id: SessionId) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -220,19 +222,16 @@ async function updateArchivedState(id: SessionId, archived: boolean) {
   )
 }
 
-export async function archiveSession(id: SessionId): Promise<void> {
+export async function archiveSession(id: SessionId) {
   await updateArchivedState(id, true)
 }
 
-export async function unarchiveSession(id: SessionId): Promise<void> {
+export async function unarchiveSession(id: SessionId) {
   await updateArchivedState(id, false)
 }
 
 /** Write the Provisional title of a still-untitled Session; false once it has any other title. */
-export async function assignProvisionalSessionTitle(
-  id: SessionId,
-  title: string,
-): Promise<boolean> {
+export async function assignProvisionalSessionTitle(id: SessionId, title: string) {
   const boundedTitle = assertSessionTitle(title)
   return runStoreEffect(
     Effect.gen(function* () {
@@ -270,7 +269,7 @@ function upsertSessionTitleReference(sql: SqlClient.SqlClient, id: SessionId, ti
   `
 }
 
-export async function updateSessionTitle(id: SessionId, title: string): Promise<void> {
+export async function updateSessionTitle(id: SessionId, title: string) {
   const boundedTitle = assertSessionTitle(title)
   await runStoreEffect(
     Effect.gen(function* () {

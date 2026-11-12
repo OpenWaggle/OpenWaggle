@@ -136,13 +136,13 @@ async function awaitCancellableLaunch(
   }
 }
 
-function failedLaunchRun(run: ActionRun, starting: StartingAction, error: unknown): ActionRun {
+function failedLaunchRun(run: ActionRun, starting: StartingAction, error: unknown) {
   return {
     ...run,
     status: starting.cancelRequested ? 'stopped' : 'failed',
     error: starting.cancelRequested ? null : error instanceof Error ? error.message : String(error),
     finishedAt: Date.now(),
-  }
+  } satisfies ActionRun
 }
 
 async function persistFailedLaunch(

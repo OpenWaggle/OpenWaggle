@@ -8,7 +8,7 @@ export class SessionSemanticInferenceCapacityError extends Error {
   }
 }
 
-export function isSessionSemanticInferenceCapacityError(cause: unknown): boolean {
+export function isSessionSemanticInferenceCapacityError(cause: unknown) {
   let current = cause
   while (current instanceof Error) {
     if (current instanceof SessionSemanticInferenceCapacityError) return true
@@ -61,10 +61,10 @@ export class SessionSemanticInferenceGate {
     }
   }
 
-  run<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-    if (signal?.aborted) return Promise.reject(cancellationError(signal))
+  run<T>(task: () => Promise<T>, signal?: AbortSignal) {
+    if (signal?.aborted) return Promise.reject(cancellationError(signal)) satisfies Promise<T>
     if (this.#active >= this.maxConcurrent && this.#queue.length >= this.maxQueued) {
-      return Promise.reject(new SessionSemanticInferenceCapacityError())
+      return Promise.reject(new SessionSemanticInferenceCapacityError()) satisfies Promise<T>
     }
     return new Promise<T>((resolve, reject) => {
       const pending: PendingInference = {
@@ -84,7 +84,7 @@ export class SessionSemanticInferenceGate {
       signal?.addEventListener('abort', abort, { once: true })
       this.#queue.push(pending)
       this.#pump()
-    })
+    }) satisfies Promise<T>
   }
 
   #abort(pending: PendingInference) {

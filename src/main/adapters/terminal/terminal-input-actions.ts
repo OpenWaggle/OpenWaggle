@@ -33,7 +33,7 @@ function queuePreOpenInput(
   data: string,
   identity?: TerminalInputIdentity,
   intent?: TerminalInputIntent,
-): TerminalWriteResult {
+) {
   if (identity?.incarnation !== undefined) return rejectedInput('stale-generation', identity)
   const acceptedBytes = Buffer.byteLength(data, 'utf8')
   if (acceptedBytes === 0) return rejectedInput('empty', identity)
@@ -72,7 +72,7 @@ function writeTerminalNow(
   data: string,
   identity?: TerminalInputIdentity,
   intent?: TerminalInputIntent,
-): TerminalWriteResult {
+) {
   const requestedKey = terminalKeyOf(ownerKey, terminalId)
   const key = resolveTerminalKey(context, requestedKey)
   const record = context.runtime.records.get(key)
@@ -104,7 +104,7 @@ function stageTerminalInputForLaunch(
   data: string,
   identity?: TerminalInputIdentity,
   intent?: TerminalInputIntent,
-): TerminalWriteResult | null {
+) {
   // Only the generation/sequence protocol can reserve a delivery safely before
   // the lifecycle completes. Legacy anonymous writers retain serialized wait
   // semantics because an ambiguous response cannot be deduplicated.
@@ -246,14 +246,14 @@ export function forceReleaseTerminalInputAction(
   terminalId: string,
   incarnation?: string,
 ) {
-  const releaseNow = (): TerminalInputReleaseResult => {
+  const releaseNow = () => {
     const key = resolveTerminalKey(context, terminalKeyOf(ownerKey, terminalId))
     const record = context.runtime.records.get(key)
     if (
       record === undefined ||
       (incarnation !== undefined && record.inputIncarnation !== incarnation)
     ) {
-      return { status: 'terminal-not-open', releasedBytes: 0 }
+      return { status: 'terminal-not-open', releasedBytes: 0 } satisfies TerminalInputReleaseResult
     }
     if (
       terminalOperationBlockDisposition(context.operationQueue, {
@@ -262,7 +262,7 @@ export function forceReleaseTerminalInputAction(
         cwd: record.cwd,
       }) !== 'none'
     ) {
-      return { status: 'terminal-not-open', releasedBytes: 0 }
+      return { status: 'terminal-not-open', releasedBytes: 0 } satisfies TerminalInputReleaseResult
     }
     return context.runtime.forceReleaseInput(record)
   }

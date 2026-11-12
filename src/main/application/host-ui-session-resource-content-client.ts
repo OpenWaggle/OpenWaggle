@@ -36,10 +36,7 @@ function decodeBase64Image(value: string) {
   return bytes.byteLength > 0 && bytes.byteLength <= MAX_CAPTURED_IMAGE_BYTES ? bytes : null
 }
 
-export async function readHostSessionResourceContent(
-  sessionId: SessionId,
-  resourceId: string,
-): Promise<HostSessionResourceContentResult> {
+export async function readHostSessionResourceContent(sessionId: SessionId, resourceId: string) {
   const response = await invokeConfiguredHostUiRaw('sessions:resources:host-content', [
     sessionId,
     resourceId,
@@ -58,16 +55,10 @@ export async function readHostSessionResourceContent(
       mimeType: content.mimeType,
       bytes,
     },
-  }
+  } satisfies HostSessionResourceContentResult
 }
 
-export async function readHostSessionResourceThumbnail(
-  sessionId: SessionId,
-  resourceId: string,
-): Promise<
-  | { readonly handled: false }
-  | { readonly handled: true; readonly thumbnail: SessionResourceThumbnailPreview | null }
-> {
+export async function readHostSessionResourceThumbnail(sessionId: SessionId, resourceId: string) {
   const response = await invokeConfiguredHostUiRaw('sessions:resources:thumbnail', [
     sessionId,
     resourceId,
@@ -85,5 +76,7 @@ export async function readHostSessionResourceThumbnail(
       mimeType: thumbnail.mimeType,
       dataBase64: thumbnail.dataBase64,
     },
-  }
+  } satisfies
+    | { readonly handled: false }
+    | { readonly handled: true; readonly thumbnail: SessionResourceThumbnailPreview | null }
 }

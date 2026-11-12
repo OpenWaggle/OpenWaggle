@@ -54,7 +54,7 @@ function seedEmptyLegacyDatabase(databasePath: string) {
   }
 }
 
-function pathsFor(root: string): LocalSessionHostPaths {
+function pathsFor(root: string) {
   const stateRoot = path.join(root, 'session-host')
   return {
     stateRoot,

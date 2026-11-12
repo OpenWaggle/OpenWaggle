@@ -7,10 +7,9 @@ import {
 import { decodeDesktopBrowserCommand } from '@shared/schemas/desktop-browser-service'
 import { Effect, Exit, Fiber } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
-import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-preview-automation-service'
 import { executeDesktopBrowserCommand } from '../desktop-browser-executor'
 
-function localService(): BrowserPreviewAutomationServiceShape {
+function localService() {
   return {
     status: vi.fn(() => Effect.succeed(values.status)),
     open: vi.fn(() => Effect.succeed(values.open)),

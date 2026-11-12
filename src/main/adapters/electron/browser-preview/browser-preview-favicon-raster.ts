@@ -51,7 +51,7 @@ function rasterExpression(mime: string, buffer: Buffer, dimensions: BrowserPrevi
   return `(async()=>{try{const b=Uint8Array.from(atob(${payload}),c=>c.charCodeAt(0));const i=await createImageBitmap(new Blob([b],{type:${contentType}}),{resizeWidth:${String(width)},resizeHeight:${String(height)},resizeQuality:'high'});try{const c=new OffscreenCanvas(${String(FAVICON_RASTER_SIZE)},${String(FAVICON_RASTER_SIZE)});const x=c.getContext('2d');if(!x)return null;x.drawImage(i,${String(x)},${String(y)},${String(width)},${String(height)});const o=new Uint8Array(await(await c.convertToBlob({type:'image/png'})).arrayBuffer());let s='';for(const v of o)s+=String.fromCharCode(v);return'data:image/png;base64,'+btoa(s)}finally{i.close()}}catch{return null}})()`
 }
 
-async function waitForLaunch(previous: Promise<void>, signal: AbortSignal): Promise<void> {
+async function waitForLaunch(previous: Promise<void>, signal: AbortSignal) {
   if (signal.aborted) return
   await new Promise<void>((resolve) => {
     const finish = () => {
@@ -92,12 +92,14 @@ export async function rasterizeBrowserPreviewFavicon(
   buffer: Buffer,
   dimensions: BrowserPreviewImageDimensions,
   signal: AbortSignal,
-): Promise<BrowserPreviewFaviconCaptureResult> {
+) {
   const gate = rasterGates.get(contents) ?? { generation: 0 }
   rasterGates.set(contents, gate)
   const generation = ++gate.generation
   if (gate.launchAllowed) await waitForLaunch(gate.launchAllowed, signal)
-  if (signal.aborted || generation !== gate.generation) return { kind: 'none' }
+  if (signal.aborted || generation !== gate.generation) {
+    return { kind: 'none' } satisfies BrowserPreviewFaviconCaptureResult
+  }
   const execution = contents.executeJavaScriptInIsolatedWorld(RASTER_WORLD_ID, [
     { code: rasterExpression(mime, buffer, dimensions) },
   ])
@@ -110,8 +112,8 @@ export async function rasterizeBrowserPreviewFavicon(
     if (gate.launchAllowed === launchAllowed) delete gate.launchAllowed
   })
   const result = await logicalRasterResult(execution, signal)
-  if (result.timedOut) return { kind: 'timed-out' }
-  return validPngDataUrl(result.value)
-    ? { kind: 'captured', dataUrl: result.value }
-    : { kind: 'none' }
+  if (result.timedOut) return { kind: 'timed-out' } satisfies BrowserPreviewFaviconCaptureResult
+  return (
+    validPngDataUrl(result.value) ? { kind: 'captured', dataUrl: result.value } : { kind: 'none' }
+  ) satisfies BrowserPreviewFaviconCaptureResult
 }

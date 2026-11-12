@@ -84,9 +84,7 @@ export function brokerHarness(
       }),
   }
   const offlineCommands: DesktopServiceCommand[] = []
-  const offlineExecute = (
-    command: DesktopServiceCommand,
-  ): Effect.Effect<DesktopServiceResult, Error> =>
+  const offlineExecute = (command: DesktopServiceCommand) =>
     Effect.suspend<DesktopServiceResult, Error, never>(() => {
       offlineCommands.push(command)
       if (command.service === 'browser' && command.operation === 'deleteOwner') {
@@ -214,11 +212,11 @@ export function exitMessage<A, E>(exit: Exit.Exit<A, E>) {
   return Cause.pretty(exit.cause)
 }
 
-export function activeFence(token = 'fence-old'): DesktopFenceRecord {
+export function activeFence(token = 'fence-old') {
   return {
     token,
     hostInstanceId: 'host-one',
     scope: { kind: 'owner', ownerKey: 'session-one' },
     state: 'active',
-  }
+  } satisfies DesktopFenceRecord
 }

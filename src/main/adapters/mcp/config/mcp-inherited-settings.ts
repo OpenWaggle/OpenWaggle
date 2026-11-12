@@ -10,11 +10,7 @@ import { loadMcpMergedConfig } from './mcp-runtime-config'
 import { writtenMcpServers } from '../mcp-config-server-maps'
 
 /** The files as they would read without `name`'s entry in `filePath`. */
-function readerWithoutEntry(
-  reader: McpConfigFileReader,
-  filePath: string,
-  name: string,
-): McpConfigFileReader {
+function readerWithoutEntry(reader: McpConfigFileReader, filePath: string, name: string) {
   const target = path.resolve(filePath)
   return {
     readText(candidate) {
@@ -30,7 +26,7 @@ function readerWithoutEntry(
         return text
       }
     },
-  }
+  } satisfies McpConfigFileReader
 }
 
 /**

@@ -211,7 +211,7 @@ function deriveSessionBranches(input: {
   }
 }
 
-function emptyDerivedMainBranch(sessionId: string): DerivedSessionBranch {
+function emptyDerivedMainBranch(sessionId: string) {
   return {
     id: mainBranchId(sessionId),
     sourceNodeId: null,
@@ -220,7 +220,7 @@ function emptyDerivedMainBranch(sessionId: string): DerivedSessionBranch {
     isMain: true,
     archivedAt: null,
     createdAt: Date.now(),
-  }
+  } satisfies DerivedSessionBranch
 }
 
 function ensureMainBranch(branches: readonly DerivedSessionBranch[], sessionId: string) {

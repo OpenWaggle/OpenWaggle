@@ -46,9 +46,13 @@ const CDP_MOUSE_PHASES: Readonly<Record<string, InputPhase | undefined>> = {
   mouseWheel: 'mouseWheel',
 }
 
-function keyPhase(type: unknown): ExpectedKeyboardSignal['phase'] | null {
-  if (type === 'keyDown' || type === 'rawKeyDown') return 'keyDown'
-  return type === 'keyUp' ? 'keyUp' : null
+function keyPhase(type: unknown) {
+  if (type === 'keyDown' || type === 'rawKeyDown') {
+    const signal: ExpectedKeyboardSignal['phase'] | null = 'keyDown'
+    return signal
+  }
+  const signal: ExpectedKeyboardSignal['phase'] | null = type === 'keyUp' ? 'keyUp' : null
+  return signal
 }
 
 function finiteNumber(value: unknown) {
@@ -79,19 +83,14 @@ function modifierMask(input: Input | MouseInputEvent) {
   )
 }
 
-function expectedSignal(
-  id: number,
-  method: string,
-  params: CdpCommandParams,
-  now: number,
-): ExpectedInputSignal | null {
+function expectedSignal(id: number, method: string, params: CdpCommandParams, now: number) {
   const fields = uncheckedFields<CdpInputEventParams>(params)
   if (method === 'Input.dispatchKeyEvent') {
     const phase = keyPhase(fields.type)
     const key = stringValue(fields.key)
     const code = stringValue(fields.code)
     if (!phase || key === undefined || code === undefined) return null
-    return {
+    const signal: ExpectedInputSignal | null = {
       kind: 'keyboard',
       id,
       phase,
@@ -101,13 +100,14 @@ function expectedSignal(
       location: finiteNumber(fields.location) ?? 0,
       modifiers: finiteNumber(fields.modifiers) ?? 0,
     }
+    return signal
   }
   if (method !== 'Input.dispatchMouseEvent') return null
   const phase = stringValue(fields.type) ? CDP_MOUSE_PHASES[String(fields.type)] : undefined
   const x = finiteNumber(fields.x)
   const y = finiteNumber(fields.y)
   if (!phase || x === undefined || y === undefined) return null
-  return {
+  const signal: ExpectedInputSignal | null = {
     kind: 'mouse',
     id,
     phase,
@@ -119,6 +119,7 @@ function expectedSignal(
     deltaX: finiteNumber(fields.deltaX),
     deltaY: finiteNumber(fields.deltaY),
   }
+  return signal
 }
 
 function matchesKeyboard(expected: ExpectedInputSignal, input: Input) {
@@ -163,14 +164,15 @@ export class BrowserPreviewAutomationInputArbitrator {
   private readonly expected: ExpectedInputSignal[] = []
   private nextId = 1
 
-  expect(method: string, params: CdpCommandParams = {}, now = Date.now()): number | null {
+  expect(method: string, params: CdpCommandParams = {}, now = Date.now()) {
     this.prune(now)
     const signal = expectedSignal(this.nextId, method, params, now)
     if (!signal) return null
     this.nextId += 1
     this.expected.push(signal)
     if (this.expected.length > MAX_EXPECTED_INPUTS) this.expected.shift()
-    return signal.id
+    const result: number | null = signal.id
+    return result
   }
 
   cancel(id: number | null) {

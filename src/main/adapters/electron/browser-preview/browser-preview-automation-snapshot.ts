@@ -1,4 +1,3 @@
-import type { BrowserPreviewAutomationSnapshot } from '@shared/types/browser-preview-automation'
 import type { NativeImage } from 'electron'
 import type {
   BrowserPreviewAutomationController,
@@ -100,7 +99,7 @@ export function captureBrowserPreviewAutomationSnapshot(
   controller: BrowserPreviewAutomationController,
   page: BrowserPreviewAutomationPage,
   signal?: AbortSignal,
-): Promise<BrowserPreviewAutomationSnapshot> {
+) {
   return controller.run(
     page,
     'snapshot',

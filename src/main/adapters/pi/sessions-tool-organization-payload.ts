@@ -19,9 +19,7 @@ export function isSessionsToolOrganization(
   )
 }
 
-export function buildSessionsToolOrganizationPayload(
-  input: OrganizationInput,
-): LocalSessionCommandPayload {
+export function buildSessionsToolOrganizationPayload(input: OrganizationInput) {
   const command = (() => {
     if (input.action === 'rename') {
       return { operation: input.action, sessionId: input.sessionId, title: input.title }
@@ -50,7 +48,7 @@ export function buildSessionsToolOrganizationPayload(
           : { mode: input.workspace },
     }
   })()
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -59,4 +57,5 @@ export function buildSessionsToolOrganizationPayload(
       command,
     },
   }
+  return payload
 }
