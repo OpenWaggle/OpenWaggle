@@ -131,7 +131,9 @@ async function parse() {
     }
     await fs.chmod(workerData.ocrCachePath, 0o700)
     const tesseract = await import(workerData.moduleUrls.tesseract)
-    const worker = await tesseract.createWorker('eng', undefined, {
+    // The LSTM engine (OEM.LSTM_ONLY), tesseract.js's default: the packaged app ships only the
+    // LSTM cores (scripts/packaged-runtime-packages.ts).
+    const worker = await tesseract.createWorker('eng', 1, {
       cachePath: workerData.ocrCachePath,
     })
     try {

@@ -66,7 +66,7 @@ function dependencyNamesFromPackageJson(value: unknown) {
  * SSR mode (`ssr.noExternal: true`). This plugin runs last and replaces the
  * external array with a pure-string list derived from package.json deps.
  */
-function mainExternalPackages() {
+export function mainExternalPackages() {
   const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
   const allDeps = dependencyNamesFromPackageJson(packageJson)
   const externalDeps = allDeps.filter(
