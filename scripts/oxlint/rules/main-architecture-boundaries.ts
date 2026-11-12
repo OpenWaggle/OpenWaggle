@@ -1,6 +1,6 @@
 import path from 'node:path'
-import type { Context, Node, Rule } from '@oxlint/plugins'
-import { isTestFilename, moduleSpecifierOf, normalizedFilename, property } from '../ast-helpers.ts'
+import type { Context, ESTree, Rule } from '@oxlint/plugins'
+import { isTestFilename, moduleSpecifierOf, normalizedFilename } from '../ast-helpers.ts'
 
 /**
  * Every Pi SDK package (`@earendil-works/pi-ai`, `pi-coding-agent`, `pi-mcp`, `pi-codemode`, ...),
@@ -262,7 +262,7 @@ function reasonForInvalidPiReference(importPath: string, projectPath: string) {
   return piSdkBoundaryReason(importPath, projectPath)
 }
 
-function reportViolation(context: Context, node: Node, reason: string) {
+function reportViolation(context: Context, node: ESTree.Node, reason: string) {
   context.report({
     node,
     messageId: 'invalidBoundary',
@@ -281,7 +281,7 @@ export const mainArchitectureBoundariesRule: Rule = {
     const projectPath = toProjectPath(context.filename)
     const isProductionFile = !isTestFilename(projectPath)
 
-    function checkImport(node: Node) {
+    function checkImport(node: ESTree.Node) {
       const importPath = moduleSpecifierOf(node)
       if (!importPath) {
         return
@@ -293,7 +293,7 @@ export const mainArchitectureBoundariesRule: Rule = {
       }
     }
 
-    function checkPiReference(node: Node) {
+    function checkPiReference(node: ESTree.Node) {
       const importPath = moduleSpecifierOf(node)
       const reason = importPath ? reasonForInvalidPiReference(importPath, projectPath) : null
       if (reason) reportViolation(context, node, reason)
@@ -303,7 +303,7 @@ export const mainArchitectureBoundariesRule: Rule = {
       CallExpression: checkPiReference,
       ExportAllDeclaration: checkImport,
       ExportNamedDeclaration: checkImport,
-      Identifier(node: Node) {
+      Identifier(node) {
         if (
           !isProductionFile ||
           !isMainProcessFile(projectPath) ||
@@ -312,7 +312,7 @@ export const mainArchitectureBoundariesRule: Rule = {
           return
         }
 
-        if (property(node, 'name') === PROVIDER_REGISTRY_IDENTIFIER) {
+        if (node.name === PROVIDER_REGISTRY_IDENTIFIER) {
           reportViolation(
             context,
             node,

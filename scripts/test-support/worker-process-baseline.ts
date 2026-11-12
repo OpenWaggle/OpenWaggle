@@ -61,12 +61,23 @@ const TIMER_FUNCTIONS = [
   ['requestAnimationFrame', 'cancelAnimationFrame', true],
 ] as const
 
-const scope: Record<PropertyKey, unknown> = globalThis
+/** A global read by a name the code holds at runtime (a timer function, a DOM singleton). */
+export function globalBinding(name: PropertyKey): unknown {
+  return Reflect.get(globalThis, name)
+}
+
+/** Replaces the global `name`, as the timer tracking and the baseline marker do. */
+export function setGlobalBinding(name: PropertyKey, value: unknown) {
+  Reflect.set(globalThis, name, value)
+}
 const processEvents: EventEmitter = process
 
 export function isWorkerProcessBaseline(value: unknown): value is WorkerProcessBaseline {
   return (
-    typeof value === 'object' && value !== null && Reflect.get(value, 'brand') === BASELINE_BRAND
+    typeof value === 'object' &&
+    value !== null &&
+    'brand' in value &&
+    value.brand === BASELINE_BRAND
   )
 }
 
@@ -103,12 +114,13 @@ function objectValue(value: unknown) {
 }
 
 function prototypeOf(value: unknown) {
-  return typeof value === 'function' ? objectValue(Reflect.get(value, 'prototype')) : undefined
+  return typeof value === 'function' ? objectValue(value.prototype) : undefined
 }
 
 /** Each patched builtin's exports and its exported classes' prototypes, `Bun` and its parts. */
 function ownedObjects() {
-  const bun = objectValue(scope.Bun)
+  const scope: object = globalThis
+  const bun = objectValue('Bun' in scope ? scope.Bun : undefined)
   const roots: object[] = PATCHED_BUILTINS.map((name) => process.getBuiltinModule(name))
   if (bun) roots.push(bun)
   const objects = new Set<object>(roots)
@@ -120,7 +132,7 @@ function ownedObjects() {
     }
   }
   for (const key of DOM_SINGLETONS) {
-    const value = objectValue(scope[key])
+    const value = objectValue(globalBinding(key))
     if (value) objects.add(value)
   }
   return [...objects]
@@ -146,13 +158,16 @@ function sharedObjects() {
 function trackTimers() {
   const pending = new Map<unknown, (handle: unknown) => void>()
   for (const [set, clear, once] of TIMER_FUNCTIONS) {
-    const start = scope[set]
-    const stop = scope[clear]
+    const start = globalBinding(set)
+    const stop = globalBinding(clear)
     if (typeof start !== 'function' || typeof stop !== 'function') continue
     const cancel = (handle: unknown) => {
       Reflect.apply(stop, globalThis, [handle])
     }
-    scope[set] = Object.assign(function trackedTimer(callback: unknown, ...rest: unknown[]) {
+    const trackedTimer = Object.assign(function trackedTimer(
+      callback: unknown,
+      ...rest: unknown[]
+    ) {
       const timer: { handle?: unknown } = {}
       const run =
         once && typeof callback === 'function'
@@ -165,10 +180,11 @@ function trackTimers() {
       pending.set(timer.handle, cancel)
       return timer.handle
     }, start)
-    scope[clear] = function trackedClear(handle: unknown) {
+    setGlobalBinding(set, trackedTimer)
+    setGlobalBinding(clear, function trackedClear(handle: unknown) {
       pending.delete(handle)
       cancel(handle)
-    }
+    })
   }
   return pending
 }
@@ -192,6 +208,20 @@ export function captureWorkerProcessBaseline(): WorkerProcessBaseline {
   }
 }
 
+/** Removes the process listeners a file added since the baseline. */
+function removeAddedProcessListeners(baseline: WorkerProcessBaseline) {
+  const events: object = processEvents
+  const removeListener: unknown = 'removeListener' in events ? events.removeListener : undefined
+  if (typeof removeListener !== 'function') return
+  for (const name of processEvents.eventNames()) {
+    const kept = baseline.listeners.get(name) ?? []
+    for (const listener of processEvents.listeners(name)) {
+      if (kept.includes(listener)) continue
+      Reflect.apply(removeListener, processEvents, [name, listener])
+    }
+  }
+}
+
 /** Puts the process back as the baseline found it; `keepGlobal` names globals to leave alone. */
 export function restoreWorkerProcess(
   baseline: WorkerProcessBaseline,
@@ -211,14 +241,7 @@ export function restoreWorkerProcess(
   }
   if (process.cwd() !== baseline.cwd) process.chdir(baseline.cwd)
   restoreSnapshot(baseline.globals, keepGlobal)
-  const removeListener: unknown = Reflect.get(processEvents, 'removeListener')
-  for (const name of processEvents.eventNames()) {
-    const kept = baseline.listeners.get(name) ?? []
-    for (const listener of processEvents.listeners(name)) {
-      if (kept.includes(listener) || typeof removeListener !== 'function') continue
-      Reflect.apply(removeListener, processEvents, [name, listener])
-    }
-  }
+  removeAddedProcessListeners(baseline)
   for (const owned of baseline.owned) restoreSnapshot(owned, () => false)
   for (const shared of baseline.shared) restoreSnapshot(shared, () => true)
 }

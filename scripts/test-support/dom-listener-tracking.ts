@@ -2,16 +2,17 @@
  * The listeners test files leave on jsdom's window, document, html and body, which outlive a file
  * in a reused worker (`worker-process-baseline.ts`).
  */
-const scope: Record<PropertyKey, unknown> = globalThis
+/** The global, read as an object: a worker without jsdom has no `document` or `EventTarget`. */
+const scope: object = globalThis
 
 function persistentDomTargets(): unknown[] {
-  const document = scope.document
+  const document = 'document' in scope ? scope.document : undefined
   if (typeof document !== 'object' || document === null) return []
   return [
     document,
-    Reflect.get(document, 'documentElement'),
-    Reflect.get(document, 'body'),
-    Reflect.get(document, 'head'),
+    'documentElement' in document ? document.documentElement : undefined,
+    'body' in document ? document.body : undefined,
+    'head' in document ? document.head : undefined,
   ]
 }
 
@@ -19,7 +20,10 @@ function persistentDomTargets(): unknown[] {
 function captures(options: unknown) {
   return (
     options === true ||
-    (typeof options === 'object' && options !== null && Reflect.get(options, 'capture') === true)
+    (typeof options === 'object' &&
+      options !== null &&
+      'capture' in options &&
+      options.capture === true)
   )
 }
 
@@ -48,8 +52,8 @@ function wrapListenerMethods(
   targets: readonly unknown[],
   listeners: Map<string, DomListener>,
 ) {
-  const add: unknown = Reflect.get(holder, 'addEventListener')
-  const remove: unknown = Reflect.get(holder, 'removeEventListener')
+  const add: unknown = 'addEventListener' in holder ? holder.addEventListener : undefined
+  const remove: unknown = 'removeEventListener' in holder ? holder.removeEventListener : undefined
   if (typeof add !== 'function' || typeof remove !== 'function') return
   const ids = new WeakMap<object, number>()
   const counter = { next: 0 }
@@ -68,22 +72,20 @@ function wrapListenerMethods(
   const tracks = (target: unknown) => (targets.length === 0 ? true : targets.includes(target))
   const removeFrom = (target: unknown, ...args: unknown[]): unknown =>
     Reflect.apply(remove, target, args)
-  Reflect.set(holder, 'addEventListener', function trackedAdd(this: unknown, ...args: unknown[]) {
-    if (tracks(this) && !addedByExternalDependency(new Error('listener').stack)) {
-      listeners.set(key(this, args), [this, removeFrom, args])
-    }
-    const added: unknown = Reflect.apply(add, this, args)
-    return added
-  })
-  Reflect.set(
-    holder,
-    'removeEventListener',
-    function trackedRemove(this: unknown, ...args: unknown[]) {
+  Object.assign(holder, {
+    addEventListener: function trackedAdd(this: unknown, ...args: unknown[]) {
+      if (tracks(this) && !addedByExternalDependency(new Error('listener').stack)) {
+        listeners.set(key(this, args), [this, removeFrom, args])
+      }
+      const added: unknown = Reflect.apply(add, this, args)
+      return added
+    },
+    removeEventListener: function trackedRemove(this: unknown, ...args: unknown[]) {
       listeners.delete(key(this, args))
       const removed: unknown = Reflect.apply(remove, this, args)
       return removed
     },
-  )
+  })
 }
 
 /**
@@ -96,9 +98,8 @@ export function trackDomListeners() {
   const listeners = new Map<string, DomListener>()
   const targets = persistentDomTargets()
   if (targets.length === 0) return () => undefined
-  const eventTarget = scope.EventTarget
-  const prototype: unknown =
-    typeof eventTarget === 'function' ? Reflect.get(eventTarget, 'prototype') : undefined
+  const eventTarget: unknown = 'EventTarget' in scope ? scope.EventTarget : undefined
+  const prototype: unknown = typeof eventTarget === 'function' ? eventTarget.prototype : undefined
   if (typeof prototype === 'object' && prototype !== null) {
     wrapListenerMethods('dom', prototype, targets, listeners)
   }

@@ -16,7 +16,7 @@ const RELEASE_VERSION =
 export function releaseStageLabel(version: string): string | undefined {
   const match = RELEASE_VERSION.exec(version)
   if (match === null) throw new Error(`Cannot read a release stage from version "${version}"`)
-  const stage = match.groups?.stage
+  const { stage } = match.groups ?? {}
   if (stage === undefined) return undefined
   const label = STAGE_LABELS.get(stage)
   if (label === undefined) {

@@ -1,49 +1,33 @@
-import type { Node, Rule } from '@oxlint/plugins'
-import { isLintNode, isUnknownArray, property, sourceValueOf } from '../ast-helpers.ts'
+import type { ESTree, Rule } from '@oxlint/plugins'
+import { sourceValueOf } from '../ast-helpers.ts'
 
 const REACT_PACKAGE = 'react'
 const LEGACY_NAMED_IMPORTS = new Set(['forwardRef', 'memo'])
 const LEGACY_REACT_TYPES = new Set(['FC', 'FunctionComponent'])
 
-function nameOf(value: unknown) {
-  const name = property(value, 'name')
-  return typeof name === 'string' ? name : null
+function identifierName(node: ESTree.Node) {
+  return node.type === 'Identifier' ? node.name : null
 }
 
-function importedNameOf(value: unknown) {
-  const imported = property(value, 'imported')
-  const importedName = nameOf(imported)
-  if (importedName) {
-    return importedName
-  }
-
-  return typeof imported === 'string' ? imported : null
+/** The name an import specifier imports: `default` and `*` imports name none. */
+function importedNameOf(specifier: ESTree.ImportDeclarationSpecifier) {
+  return specifier.type === 'ImportSpecifier' ? identifierName(specifier.imported) : null
 }
 
-function localNameOf(value: unknown) {
-  return nameOf(property(value, 'local'))
+/** `React.<name>` (or `React[name]`): the member name a call reads off `React`. */
+function reactMemberName(callee: ESTree.Expression) {
+  if (callee.type !== 'MemberExpression' || identifierName(callee.object) !== 'React') return null
+  return identifierName(callee.property)
 }
 
-function memberPropertyName(value: unknown) {
-  return nameOf(property(value, 'property'))
-}
-
-function memberObjectName(value: unknown) {
-  return nameOf(property(value, 'object'))
-}
-
-function typeReferenceName(value: unknown) {
-  const typeName = property(value, 'typeName')
-  const directName = nameOf(typeName)
+function typeReferenceName({ typeName }: ESTree.TSTypeReference) {
+  const directName = identifierName(typeName)
   if (directName) {
     return directName
   }
 
-  const leftName = nameOf(property(typeName, 'left'))
-  const rightName = nameOf(property(typeName, 'right'))
-
-  if (leftName === 'React' && rightName) {
-    return rightName
+  if (typeName.type === 'TSQualifiedName' && identifierName(typeName.left) === 'React') {
+    return typeName.right.name
   }
 
   return null
@@ -65,29 +49,19 @@ export const noReactLegacyPatternsRule: Rule = {
     const legacyCallNames = new Map<string, 'noForwardRef' | 'noMemo'>()
 
     return {
-      ImportDeclaration(node: Node) {
+      ImportDeclaration(node) {
         if (sourceValueOf(node) !== REACT_PACKAGE) {
           return
         }
 
-        const specifiers = property(node, 'specifiers')
-        if (!isUnknownArray(specifiers)) {
-          return
-        }
-
-        for (const specifierValue of specifiers) {
-          if (!isLintNode(specifierValue)) {
-            continue
-          }
-
-          const specifier = specifierValue
+        for (const specifier of node.specifiers) {
           const importedName = importedNameOf(specifier)
           if (!importedName || !LEGACY_NAMED_IMPORTS.has(importedName)) {
             continue
           }
 
           const messageId = importedName === 'forwardRef' ? 'noForwardRef' : 'noMemo'
-          const localName = localNameOf(specifier) ?? importedName
+          const localName = specifier.local.name
           legacyCallNames.set(localName, messageId)
 
           context.report({
@@ -96,9 +70,9 @@ export const noReactLegacyPatternsRule: Rule = {
           })
         }
       },
-      CallExpression(node: Node) {
-        const callee = property(node, 'callee')
-        const directName = nameOf(callee)
+      CallExpression(node) {
+        const { callee } = node
+        const directName = identifierName(callee)
         const directMessageId = directName ? legacyCallNames.get(directName) : undefined
 
         if (directMessageId) {
@@ -109,21 +83,22 @@ export const noReactLegacyPatternsRule: Rule = {
           return
         }
 
-        if (memberObjectName(callee) === 'React' && memberPropertyName(callee) === 'memo') {
+        const memberName = reactMemberName(callee)
+        if (memberName === 'memo') {
           context.report({
             node,
             messageId: 'noMemo',
           })
         }
 
-        if (memberObjectName(callee) === 'React' && memberPropertyName(callee) === 'forwardRef') {
+        if (memberName === 'forwardRef') {
           context.report({
             node,
             messageId: 'noForwardRef',
           })
         }
       },
-      TSTypeReference(node: Node) {
+      TSTypeReference(node) {
         const typeName = typeReferenceName(node)
         if (!typeName || !LEGACY_REACT_TYPES.has(typeName)) {
           return

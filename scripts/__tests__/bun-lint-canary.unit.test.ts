@@ -1,17 +1,18 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { bunLintPlatformPackages } from '../lint'
+import { objectMap } from '../support/object-fields'
 
-function bunLintPins(): Record<string, unknown> {
+function bunLintPins() {
   const manifest: unknown = JSON.parse(readFileSync('tools/bun-lint/package.json', 'utf8'))
   const pins =
     typeof manifest === 'object' && manifest !== null && 'optionalDependencies' in manifest
-      ? manifest.optionalDependencies
+      ? objectMap(manifest.optionalDependencies)
       : undefined
-  if (typeof pins !== 'object' || pins === null) {
+  if (pins === undefined) {
     throw new Error('tools/bun-lint has no optionalDependencies.')
   }
-  return { ...pins }
+  return pins
 }
 
 describe('bun lint canary pin', () => {
@@ -34,8 +35,8 @@ describe('bun lint canary pin', () => {
       ...bunLintPlatformPackages('win32', 'arm64'),
       ...bunLintPlatformPackages('win32', 'x64'),
     ]
-    expect(Object.keys(pins).sort()).toEqual(expected.sort())
-    const versions = new Set(Object.values(pins))
+    expect([...pins.keys()].sort()).toEqual(expected.sort())
+    const versions = new Set(pins.values())
     expect(versions.size).toBe(1)
     expect([...versions][0]).toMatch(/^\d+\.\d+\.\d+-canary\.\d{8}\.\d+$/u)
   })

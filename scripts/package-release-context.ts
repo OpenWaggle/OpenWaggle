@@ -120,7 +120,7 @@ export async function runPackageReleaseContextCli(args: readonly string[]) {
     { eventBefore, eventName, eventSha, recoveryReleaseSha, ref },
     createDependencies(),
   )
-  const githubOutput = process.env.GITHUB_OUTPUT
+  const { GITHUB_OUTPUT: githubOutput } = process.env
   if (githubOutput !== undefined) {
     await appendFile(
       githubOutput,

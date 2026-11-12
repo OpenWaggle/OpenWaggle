@@ -1,5 +1,4 @@
-import type { Node, Rule } from '@oxlint/plugins'
-import { hasNodeType, isLintNode, isUnknownArray, property } from '../ast-helpers.ts'
+import type { ESTree, Rule } from '@oxlint/plugins'
 import { IPC_BRIDGE_EXPORT, importsIpcBridgeApi } from '../ipc-bridge.ts'
 
 /** A chain member call that receives the rejection itself, so nothing after it can float. */
@@ -13,41 +12,26 @@ const THEN_PROPERTY = 'then'
 const THEN_REJECTION_HANDLER_ARGUMENT_COUNT = 2
 
 /** The name of the identifier a member-call chain is rooted at, or `null` when it has none. */
-function bridgeRootName(operand: Node): string | null {
-  let current: unknown = operand
-  while (isLintNode(current)) {
-    if (hasNodeType(current, 'Identifier')) {
-      const name: unknown = property(current, 'name')
-      return typeof name === 'string' ? name : null
-    }
-    if (hasNodeType(current, 'MemberExpression')) {
-      current = property(current, 'object')
+function bridgeRootName(operand: ESTree.Expression): string | null {
+  let current: ESTree.Expression | ESTree.Super = operand
+  while (true) {
+    if (current.type === 'Identifier') return current.name
+    if (current.type === 'MemberExpression') {
+      current = current.object
       continue
     }
-    if (hasNodeType(current, 'CallExpression')) {
-      current = property(current, 'callee')
+    if (current.type === 'CallExpression') {
+      current = current.callee
       continue
     }
     return null
   }
-  return null
 }
 
 /** The static name a member call selects, or `null` for a computed member or a plain call. */
-function memberPropertyName(call: Node): string | null {
-  const callee: unknown = property(call, 'callee')
-  if (!isLintNode(callee) || !hasNodeType(callee, 'MemberExpression')) return null
-  if (property(callee, 'computed') === true) return null
-  const nameProperty: unknown = property(callee, 'property')
-  if (!isLintNode(nameProperty)) return null
-  if (hasNodeType(nameProperty, 'Identifier') || hasNodeType(nameProperty, 'StringLiteral')) {
-    const name: unknown = property(
-      nameProperty,
-      hasNodeType(nameProperty, 'Identifier') ? 'name' : 'value',
-    )
-    return typeof name === 'string' ? name : null
-  }
-  return null
+function memberPropertyName({ callee }: ESTree.CallExpression): string | null {
+  if (callee.type !== 'MemberExpression' || callee.computed) return null
+  return callee.property.type === 'Identifier' ? callee.property.name : null
 }
 
 /**
@@ -55,21 +39,16 @@ function memberPropertyName(call: Node): string | null {
  * call inward: a `.catch`, or a `.then` with a rejection handler, settles everything inside it, and
  * `.finally` passes a rejection through, so only the calls outside one matter.
  */
-function chainHandlesRejection(operand: Node) {
-  let current: unknown = operand
-  while (isLintNode(current) && hasNodeType(current, 'CallExpression')) {
+function chainHandlesRejection(operand: ESTree.Expression) {
+  let current: ESTree.Expression = operand
+  while (current.type === 'CallExpression') {
     const name = memberPropertyName(current)
     if (name === REJECTION_HANDLER_PROPERTY) return true
     if (name === THEN_PROPERTY) {
-      const arguments_: unknown = property(current, 'arguments')
-      return (
-        isUnknownArray(arguments_) && arguments_.length >= THEN_REJECTION_HANDLER_ARGUMENT_COUNT
-      )
+      return current.arguments.length >= THEN_REJECTION_HANDLER_ARGUMENT_COUNT
     }
-    if (name === null) return false
-    const callee: unknown = property(current, 'callee')
-    if (!isLintNode(callee) || !hasNodeType(callee, 'MemberExpression')) return false
-    current = property(callee, 'object')
+    if (name === null || current.callee.type !== 'MemberExpression') return false
+    current = current.callee.object
   }
   return false
 }
@@ -92,13 +71,12 @@ export const noUncaughtVoidIpcRule: Rule = {
   create(context) {
     let importsIpcBridge = false
     return {
-      ImportDeclaration(node: Node) {
+      ImportDeclaration(node) {
         importsIpcBridge ||= importsIpcBridgeApi(node)
       },
-      UnaryExpression(node: Node) {
-        if (property(node, 'operator') !== 'void' || !importsIpcBridge) return
-        const operand: unknown = property(node, 'argument')
-        if (!isLintNode(operand)) return
+      UnaryExpression(node) {
+        if (node.operator !== 'void' || !importsIpcBridge) return
+        const operand = node.argument
         if (bridgeRootName(operand) !== IPC_BRIDGE_EXPORT) return
         if (chainHandlesRejection(operand)) return
         context.report({ node, messageId: 'noUncaughtVoidIpc' })

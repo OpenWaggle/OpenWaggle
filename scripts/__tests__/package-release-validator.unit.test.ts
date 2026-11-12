@@ -8,6 +8,7 @@ import {
   writeJson,
   writeMinimalPackageReleaseProject,
 } from './package-release-validator.fixtures'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 
 function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -127,14 +128,11 @@ describe('package release validation', () => {
     try {
       await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
       const packageJsonPath = path.join(projectRoot, 'package.json')
-      const packageJson: unknown = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'))
-      if (!isJsonObject(packageJson)) {
-        throw new Error('Expected package fixture to be an object.')
-      }
-      const scripts = packageJson.scripts
-      if (!isJsonObject(scripts)) {
-        throw new Error('Expected package fixture scripts to be an object.')
-      }
+      const packageJson = decodeUnknownOrThrow(
+        Schema.Struct({ scripts: Schema.Object }),
+        JSON.parse(await fs.readFile(packageJsonPath, 'utf8')),
+      )
+      const { scripts } = packageJson
       await writeJson(packageJsonPath, {
         ...packageJson,
         scripts: {

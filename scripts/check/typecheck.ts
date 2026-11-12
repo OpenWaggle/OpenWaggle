@@ -29,6 +29,8 @@ import {
   RENDERER_TEST_PROJECT,
 } from '../check-renderer-test-types'
 import { compactTscLine } from './findings'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 
 const OUTPUT_MAX_BUFFER_BYTES = 64 * 1024 * 1024
 const JSON_INDENT = 2
@@ -67,12 +69,13 @@ function runChecker() {
   return run(process.execPath, ['check', '--no-script', '--no-pretty', '--all', '-b'])
 }
 
+/** The fields of `tsc --showConfig` the renderer test check reads. */
+const shownConfigSchema = Schema.Struct({ compilerOptions: unknownField, files: unknownField })
+
 async function readProjectConfig() {
   const { output } = await run('node', [tscEntry(), '-p', RENDERER_TEST_PROJECT, '--showConfig'])
   const parsed: unknown = JSON.parse(output)
-  const record = parsed !== null && typeof parsed === 'object' ? parsed : {}
-  const options: unknown = Reflect.get(record, 'compilerOptions')
-  const files: unknown = Reflect.get(record, 'files')
+  const { compilerOptions: options, files } = objectFields(shownConfigSchema, parsed) ?? {}
   return {
     compilerOptions: options !== null && typeof options === 'object' ? { ...options } : {},
     rootFiles: Array.isArray(files)

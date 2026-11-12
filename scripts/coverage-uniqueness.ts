@@ -27,6 +27,7 @@ import {
   isCoverageIndex,
   uniqueUnits,
 } from './coverage-uniqueness/units'
+import { scriptEnv } from './support/env'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -136,7 +137,7 @@ async function downloadIndex() {
 }
 
 async function loadIndex(args: readonly string[]) {
-  const file = option(args, '--index') ?? process.env.COVERAGE_UNIQUENESS_INDEX
+  const file = option(args, '--index') ?? scriptEnv().COVERAGE_UNIQUENESS_INDEX
   if (file !== undefined) return readIndex(file)
   return readIndex(DEFAULT_INDEX).catch(downloadIndex)
 }
@@ -157,7 +158,8 @@ async function advise(args: readonly string[]) {
   }
   const index = await loadIndex(args).catch((error: unknown) => {
     // CI's Typecheck & Lint job has no token to read the index; the Test advisory workflow does.
-    const tokenless = process.env.GITHUB_ACTIONS === 'true' && !process.env.GH_TOKEN
+    const { GITHUB_ACTIONS: actions, GH_TOKEN: token } = scriptEnv()
+    const tokenless = actions === 'true' && !token
     if (!tokenless) console.log(`${tests.length} new test files not checked: ${errorText(error)}`)
   })
   if (index === undefined) return

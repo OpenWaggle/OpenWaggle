@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
+import { scriptEnv } from '../support/env'
 
 const execFileAsync = promisify(execFile)
 const LAUNCH_POLICY_START = '# BEGIN TESTABLE LAUNCH POLICY'
@@ -21,7 +22,7 @@ NO_LAUNCH_ARGUMENT="${noLaunchArgument ? '1' : ''}"
 ${source.slice(start + LAUNCH_POLICY_START.length, end)}
 launch_skip_reason "$1"`
   const result = await execFileAsync('bash', ['-c', script, 'installer-launch-test', platform], {
-    env: { PATH: process.env.PATH ?? '', ...environment },
+    env: { PATH: scriptEnv().PATH ?? '', ...environment },
   })
   return result.stdout.trim()
 }

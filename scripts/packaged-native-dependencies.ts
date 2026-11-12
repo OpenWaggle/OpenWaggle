@@ -6,6 +6,8 @@
  * runtime. Every package.json in `app.asar`, the app's own included, is read.
  */
 import type { AsarArchive } from './asar-archive'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 type PackagedPlatform = 'darwin' | 'linux' | 'win32'
 
@@ -20,10 +22,12 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const optionalDependenciesSchema = Schema.Struct({ optionalDependencies: unknownField })
+
 export function isNativePackageFor(name: string, platform: PackagedPlatform, architecture: string) {
-  const groups = PLATFORM_PACKAGE.exec(name)?.groups
-  if (groups?.platform !== platform || groups.arch !== architecture) return false
-  return groups.toolchain === undefined || COMPATIBLE_SUFFIXES.has(groups.toolchain)
+  const { platform: packagePlatform, arch, toolchain } = PLATFORM_PACKAGE.exec(name)?.groups ?? {}
+  if (packagePlatform !== platform || arch !== architecture) return false
+  return toolchain === undefined || COMPATIBLE_SUFFIXES.has(toolchain)
 }
 
 export async function missingNativeDependencies(
@@ -39,8 +43,8 @@ export async function missingNativeDependencies(
   const missing = new Map<string, string>()
   for (const manifest of manifests) {
     const parsed: unknown = JSON.parse((await archive.readFile(manifest.file)).toString('utf8'))
-    const optional =
-      isRecord(parsed) && isRecord(parsed.optionalDependencies) ? parsed.optionalDependencies : {}
+    const declared = objectFields(optionalDependenciesSchema, parsed)?.optionalDependencies
+    const optional = isRecord(declared) ? declared : {}
     for (const dependency of Object.keys(optional)) {
       if (!isNativePackageFor(dependency, platform, architecture) || shipped.has(dependency)) {
         continue

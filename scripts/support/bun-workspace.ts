@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
+import { Schema } from '@shared/schema'
+import { objectEntries, objectFields, unknownField } from './object-fields'
 
 /**
  * Readers for the dependency configuration Bun installs from: `bun.lock`, the `workspaces`,
@@ -27,25 +29,34 @@ export interface BunLockfile {
   readonly catalogs: Readonly<Record<string, Readonly<Record<string, string>>>>
 }
 
+/** The `bun.lock` fields these readers use; `packages` maps lockfile keys to entries. */
+const lockfileSchema = Schema.Struct({
+  packages: unknownField,
+  patchedDependencies: unknownField,
+  catalogs: unknownField,
+})
+const rootManifestSchema = Schema.Struct({
+  workspaces: unknownField,
+  patchedDependencies: unknownField,
+})
+const workspacesSchema = Schema.Struct({ catalogs: unknownField, catalog: unknownField })
+const bunfigSchema = Schema.Struct({
+  install: Schema.Struct({ minimumReleaseAgeExcludes: Schema.Array(Schema.String) }),
+})
+
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function stringRecord(value: unknown): Readonly<Record<string, string>> {
-  if (!isRecord(value)) return {}
   return Object.fromEntries(
-    Object.entries(value).filter(
+    (objectEntries(value) ?? []).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string',
     ),
   )
 }
 
 function catalogRecord(value: unknown) {
-  if (!isRecord(value)) return {}
   return Object.fromEntries(
-    Object.entries(value).map(([name, catalog]) => [name, stringRecord(catalog)]),
+    (objectEntries(value) ?? []).map(([name, catalog]) => [name, stringRecord(catalog)]),
   )
 }
 
@@ -78,12 +89,13 @@ export function splitPackageSpecifier(specifier: string) {
  * are skipped.
  */
 export function parseBunLockfile(text: string): BunLockfile {
-  const lockfile = parseJsoncText(text, BUN_LOCKFILE)
-  if (!isRecord(lockfile) || !isRecord(lockfile.packages)) {
+  const lockfile = objectFields(lockfileSchema, parseJsoncText(text, BUN_LOCKFILE))
+  const lockedEntries = objectEntries(lockfile?.packages)
+  if (lockedEntries === undefined) {
     throw new Error(`${BUN_LOCKFILE} must contain a packages object.`)
   }
   const packages: LockedPackage[] = []
-  for (const [key, entry] of Object.entries(lockfile.packages)) {
+  for (const [key, entry] of lockedEntries) {
     if (!Array.isArray(entry) || typeof entry[0] !== 'string') continue
     const { name, version } = splitPackageSpecifier(entry[0])
     if (!EXACT_VERSION.test(version)) continue
@@ -97,8 +109,8 @@ export function parseBunLockfile(text: string): BunLockfile {
   }
   return {
     packages,
-    patchedDependencies: stringRecord(lockfile.patchedDependencies),
-    catalogs: catalogRecord(lockfile.catalogs),
+    patchedDependencies: stringRecord(lockfile?.patchedDependencies),
+    catalogs: catalogRecord(lockfile?.catalogs),
   }
 }
 
@@ -116,13 +128,13 @@ export interface RootWorkspaceConfig {
 
 /** The catalogs (`catalog` is the unnamed `default` one) and patches of the root `package.json`. */
 export function parseRootWorkspaceConfig(manifestText: string): RootWorkspaceConfig {
-  const manifest: unknown = JSON.parse(manifestText)
-  if (!isRecord(manifest)) throw new Error('package.json must contain an object.')
-  const workspaces = isRecord(manifest.workspaces) ? manifest.workspaces : {}
-  const catalogs: Record<string, Readonly<Record<string, string>>> = {
+  const manifest = objectFields(rootManifestSchema, JSON.parse(manifestText))
+  if (manifest === undefined) throw new Error('package.json must contain an object.')
+  const workspaces = objectFields(workspacesSchema, manifest.workspaces) ?? {}
+  const catalogs: Readonly<Record<string, Readonly<Record<string, string>>>> = {
     ...catalogRecord(workspaces.catalogs),
+    ...(objectEntries(workspaces.catalog) ? { default: stringRecord(workspaces.catalog) } : {}),
   }
-  if (isRecord(workspaces.catalog)) catalogs.default = stringRecord(workspaces.catalog)
   return { catalogs, patchedDependencies: stringRecord(manifest.patchedDependencies) }
 }
 
@@ -139,14 +151,12 @@ export function parseMinimumReleaseAgeExcludes(bunfigText: string) {
       },
     )
   }
-  const install = isRecord(config) ? config.install : undefined
-  const excludes = isRecord(install) ? install.minimumReleaseAgeExcludes : undefined
-  if (!Array.isArray(excludes) || !excludes.every((entry) => typeof entry === 'string')) {
+  if (!Schema.is(bunfigSchema)(config)) {
     throw new Error(
       `${BUNFIG} must define install.minimumReleaseAgeExcludes as an array of strings.`,
     )
   }
-  return excludes.filter((entry): entry is string => typeof entry === 'string')
+  return [...config.install.minimumReleaseAgeExcludes]
 }
 
 export async function readRepositoryDependencyConfig(root: string) {

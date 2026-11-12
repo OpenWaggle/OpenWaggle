@@ -36,9 +36,11 @@ describe('the test temporary-directory guard', () => {
     const directory = createTestTemporaryDirectory({ runRoot: root, environment })
 
     expect(path.dirname(directory.root)).toBe(root)
-    expect(environment.TMPDIR).toBe(directory.temporaryDirectory)
-    expect(environment.TMP).toBe(directory.temporaryDirectory)
-    expect(environment.TEMP).toBe(directory.temporaryDirectory)
+    expect(environment).toMatchObject({
+      TMPDIR: directory.temporaryDirectory,
+      TMP: directory.temporaryDirectory,
+      TEMP: directory.temporaryDirectory,
+    })
     expect(fs.statSync(directory.temporaryDirectory).isDirectory()).toBe(true)
   })
 

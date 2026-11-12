@@ -34,6 +34,7 @@ import {
   type LiveQaLifecycleState,
   runLiveQaProfileLifecycle,
 } from './live-session-orchestration-lifecycle'
+import { scriptEnv } from '../support/env'
 
 const DEFAULT_MODEL = 'openai-codex/gpt-5.6-sol'
 const DEFAULT_TIMEOUT_MS = 300_000
@@ -116,8 +117,9 @@ async function runLiveQaScenario(input: {
     workingDirectory: userDataRoot,
   })
   const projectPath = process.cwd()
-  const model = process.env.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
-  const timeoutMs = Number(process.env.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
+  const liveEnv = scriptEnv()
+  const model = liveEnv.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
+  const timeoutMs = Number(liveEnv.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
   const expectedPackage = await readPackageIdentity(projectPath)
   await waitForHost(cliExecutable, env)
   await new Promise((resolve) => setTimeout(resolve, DETACHED_HOST_SURVIVAL_DELAY_MS))

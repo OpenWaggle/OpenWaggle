@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { lazySurfaceChunkFiles, parseRendererManifest } from './renderer-chunk-graph'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 const KIBIBYTE = 1024
 const ASSETS_DIRECTORY = path.resolve('out/renderer/assets')
@@ -79,14 +80,16 @@ async function matchingAsset(budget: AssetBudget, assets: readonly string[]) {
 
 async function initialRendererAssets() {
   const html = await fs.readFile(path.resolve('out/renderer/index.html'), 'utf8')
-  const entry = html.match(/<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u)?.groups?.asset
+  const entry = namedGroups(html.match(/<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u), [
+    'asset',
+  ])?.asset
   if (!entry) throw new Error('Could not resolve the initial renderer asset from index.html.')
   const preloadPattern =
     /<link[^>]+rel="modulepreload"[^>]+href="\.\/assets\/(?<asset>[^"]+\.js)"/gu
   const assets = [
     entry,
-    ...[...html.matchAll(preloadPattern)].flatMap((match) =>
-      match.groups?.asset ? [match.groups.asset] : [],
+    ...[...html.matchAll(preloadPattern)].flatMap(
+      (match) => namedGroups(match, ['asset'])?.asset ?? [],
     ),
   ]
   const uniqueAssets = [...new Set(assets)]

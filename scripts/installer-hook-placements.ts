@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import fg from 'fast-glob'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * Where electron-builder inserts a customisation hook, derived from its own templates.
@@ -108,7 +109,7 @@ const MACRO_DEFINITION = /^!macro\s+(?<name>\S+)/u
 export function parseDefinedMacros(scriptSource: string): readonly string[] {
   const names: string[] = []
   for (const line of scriptSource.split('\n')) {
-    const name = MACRO_DEFINITION.exec(line.trim())?.groups?.name
+    const name = namedGroups(MACRO_DEFINITION.exec(line.trim()), ['name'])?.name
     if (name !== undefined) names.push(name)
   }
   return names

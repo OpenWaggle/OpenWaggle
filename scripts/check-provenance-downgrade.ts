@@ -16,6 +16,8 @@ import {
   type ProvenanceDowngradeException,
 } from './provenance-downgrade-policy'
 import { BUN_LOCKFILE, parseBunLockfile } from './support/bun-workspace'
+import { Schema } from '@shared/schema'
+import { objectEntries, objectFields, unknownField } from './support/object-fields'
 
 /**
  * Fails when a locked package version lost the npm provenance its earlier versions had, the check
@@ -45,10 +47,6 @@ interface ProvenanceCache {
 export interface RegistryClient {
   /** The parsed JSON document for a package, abbreviated or full. */
   readonly fetchPackument: (name: string, abbreviated: boolean) => Promise<unknown>
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function delay(milliseconds: number) {
@@ -93,21 +91,22 @@ export function createRegistryClient(
   }
 }
 
+const provenanceCacheSchema = Schema.Struct({ packages: unknownField })
+const cachedPackageSchema = Schema.Struct({ versions: unknownField, published: unknownField })
+
 export function parseProvenanceCache(text: string): ProvenanceCache {
-  const value: unknown = JSON.parse(text)
-  if (!isRecord(value) || !isRecord(value.packages)) return { packages: {} }
+  const cached = objectFields(provenanceCacheSchema, JSON.parse(text))?.packages
   const packages: Record<string, PackageProvenance> = {}
-  for (const [name, entry] of Object.entries(value.packages)) {
-    if (!isRecord(entry) || !isRecord(entry.versions) || !isRecord(entry.published)) continue
+  for (const [name, value] of objectEntries(cached) ?? []) {
+    const entry = objectFields(cachedPackageSchema, value)
+    const versionEntries = objectEntries(entry?.versions)
+    const publishedEntries = objectEntries(entry?.published)
+    if (versionEntries === undefined || publishedEntries === undefined) continue
     const versions = Object.fromEntries(
-      Object.entries(entry.versions).filter(
-        (item): item is [string, boolean] => typeof item[1] === 'boolean',
-      ),
+      versionEntries.filter((item): item is [string, boolean] => typeof item[1] === 'boolean'),
     )
     const published = Object.fromEntries(
-      Object.entries(entry.published).filter(
-        (item): item is [string, string] => typeof item[1] === 'string',
-      ),
+      publishedEntries.filter((item): item is [string, string] => typeof item[1] === 'string'),
     )
     packages[name] = { versions, published }
   }

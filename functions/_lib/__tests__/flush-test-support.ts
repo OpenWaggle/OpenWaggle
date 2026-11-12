@@ -85,11 +85,20 @@ export function bufferedKeys(store: MemoryKeyValueStore) {
   return [...store.entries.keys()].filter((key) => key.startsWith('buf:'))
 }
 
+/** The properties of an aggregated record the tests read: its breakdown row and its tallies. */
+export interface PublishedProperties {
+  readonly field?: unknown
+  readonly value?: unknown
+  readonly count?: unknown
+  readonly sum?: unknown
+  readonly kind?: unknown
+}
+
 export interface PublishedRecord {
   readonly event: string
   readonly uuid?: string
   readonly timestamp: string
-  readonly properties: Record<string, unknown>
+  readonly properties: PublishedProperties
 }
 
 /** The aggregated records of a flush's batch, without its own `endpoint.request` event. */

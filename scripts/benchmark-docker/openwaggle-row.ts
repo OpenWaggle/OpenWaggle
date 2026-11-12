@@ -20,6 +20,7 @@ import { startCliRun } from '../perf/lib/cli-run'
 import { resolvePerfApp, stopProcessGroup } from '../perf/lib/perf-app'
 import { delay, withRunningApp } from '../perf/lib/running-app'
 import { readAppIdentity } from './app-identity'
+import { scriptEnv } from '../support/env'
 
 const PROBE = 'Reply with exactly OK and nothing else.'
 const PROVIDER = 'bench'
@@ -86,7 +87,7 @@ async function main() {
     path.join(values.results, 'openwaggle.app.json'),
     `${JSON.stringify(identity, null, JSON_INDENT)}\n`,
   )
-  const token = process.env.BENCH_PROXY_TOKEN
+  const token = scriptEnv().BENCH_PROXY_TOKEN
   if (!token) {
     process.stderr.write("Set BENCH_PROXY_TOKEN to the proxy's per-run token (run.sh does).\n")
     process.exit(USAGE_EXIT_CODE)

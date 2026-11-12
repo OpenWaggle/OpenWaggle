@@ -1,31 +1,28 @@
-import type { Node, Rule } from '@oxlint/plugins'
-import { hasNodeType, isLintNode, property } from '../ast-helpers.ts'
+import type { ESTree, Rule } from '@oxlint/plugins'
 import { IPC_BRIDGE_EXPORT, importsIpcBridgeApi } from '../ipc-bridge.ts'
 
 /** The globals the preload object is reachable from without the bridge. */
 const WINDOW_GLOBALS = new Set(['window', 'globalThis'])
 
-function identifierName(value: unknown) {
-  if (!hasNodeType(value, 'Identifier')) return null
-  const name: unknown = property(value, 'name')
-  return typeof name === 'string' ? name : null
+function identifierName(node: ESTree.Node) {
+  return node.type === 'Identifier' ? node.name : null
 }
 
 /** `window.api` or `globalThis.api`, read without a computed key. */
-function isWindowApi(value: unknown) {
-  if (!hasNodeType(value, 'MemberExpression') || property(value, 'computed') === true) return false
-  const owner = identifierName(property(value, 'object'))
+function isWindowApi(node: ESTree.Node) {
+  if (node.type !== 'MemberExpression' || node.computed) return false
+  const owner = identifierName(node.object)
   return (
     owner !== null &&
     WINDOW_GLOBALS.has(owner) &&
-    identifierName(property(value, 'property')) === IPC_BRIDGE_EXPORT
+    identifierName(node.property) === IPC_BRIDGE_EXPORT
   )
 }
 
 /** The object a `typeof` operand reads a member of, or `null` when it reads no member. */
-function memberOwner(operand: unknown): unknown {
-  const member = hasNodeType(operand, 'ChainExpression') ? property(operand, 'expression') : operand
-  return hasNodeType(member, 'MemberExpression') ? property(member, 'object') : null
+function memberOwner(operand: ESTree.Expression) {
+  const member = operand.type === 'ChainExpression' ? operand.expression : operand
+  return member.type === 'MemberExpression' ? member.object : null
 }
 
 /**
@@ -46,13 +43,13 @@ export const noApiTypeofGuardRule: Rule = {
   create(context) {
     let importsIpcBridge = false
     return {
-      ImportDeclaration(node: Node) {
+      ImportDeclaration(node) {
         importsIpcBridge ||= importsIpcBridgeApi(node)
       },
-      UnaryExpression(node: Node) {
-        if (property(node, 'operator') !== 'typeof') return
-        const owner = memberOwner(property(node, 'argument'))
-        if (!isLintNode(owner)) return
+      UnaryExpression(node) {
+        if (node.operator !== 'typeof') return
+        const owner = memberOwner(node.argument)
+        if (owner === null) return
         const bridgeMember = importsIpcBridge && identifierName(owner) === IPC_BRIDGE_EXPORT
         if (!bridgeMember && !isWindowApi(owner)) return
         context.report({ node, messageId: 'noApiTypeofGuard' })

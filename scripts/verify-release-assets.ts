@@ -129,16 +129,24 @@ function gh(args: readonly string[]) {
   })
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+/*
+ * This script runs under plain Node with no install, so it checks its JSON with local type guards
+ * instead of the shared schemas.
+ */
+function isRecord(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function parseAsset(value: unknown): RemoteReleaseAsset {
   if (
     isRecord(value) &&
+    'id' in value &&
     typeof value.id === 'number' &&
+    'name' in value &&
     typeof value.name === 'string' &&
+    'size' in value &&
     typeof value.size === 'number' &&
+    'state' in value &&
     typeof value.state === 'string'
   ) {
     return { id: value.id, name: value.name, size: value.size, state: value.state }
@@ -155,14 +163,23 @@ async function findRelease(repository: string, tag: string): Promise<RemoteRelea
   )
   if (!Array.isArray(pages)) throw new Error('GitHub returned releases in an unexpected shape.')
   const releases: readonly unknown[] = pages.flat()
-  const matches = releases.filter((release) => isRecord(release) && release.tag_name === tag)
+  const matches = releases.filter(
+    (release) => isRecord(release) && 'tag_name' in release && release.tag_name === tag,
+  )
   if (matches.length > 1) throw new Error(`More than one release uses ${tag}.`)
   const release: unknown = matches[0]
   if (release === undefined) return null
-  if (!isRecord(release) || typeof release.draft !== 'boolean' || !Array.isArray(release.assets)) {
+  if (
+    !isRecord(release) ||
+    !('draft' in release) ||
+    typeof release.draft !== 'boolean' ||
+    !('assets' in release) ||
+    !Array.isArray(release.assets)
+  ) {
     throw new Error('GitHub returned a release in an unexpected shape.')
   }
-  return { draft: release.draft, assets: release.assets.map(parseAsset) }
+  const assets: readonly unknown[] = release.assets
+  return { draft: release.draft, assets: assets.map(parseAsset) }
 }
 
 function argumentValue(args: readonly string[], flag: string) {

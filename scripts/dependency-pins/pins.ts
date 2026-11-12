@@ -1,3 +1,5 @@
+import { safeDecodeUnknown, Schema } from '@shared/schema'
+import { lenientOptional, lenientRecord, lenientStringRecordSchema } from '@shared/schemas/lenient'
 /**
  * DEPENDENCIES.md and the manifest pins it explains. A pin that is not npm's `latest` release, or
  * that something holds where it is, has one line there:
@@ -63,10 +65,6 @@ export interface LineFinding {
   readonly message: string
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function code(text: string) {
   return `\`${text}\``
 }
@@ -129,11 +127,30 @@ export function parseDependencyLines(markdown: string) {
   return { lines, findings }
 }
 
-function sectionPins(manifest: string, section: string, value: unknown) {
-  if (!isRecord(value)) return []
-  return Object.entries(value).flatMap(([name, spec]): ManifestPin[] =>
-    typeof spec === 'string' ? [{ package: name, spec, manifest, section }] : [],
-  )
+/** The pinned sections of a package manifest; a malformed section or spec pins nothing. */
+const pinnedManifestSchema = Schema.Struct({
+  dependencies: lenientOptional(lenientStringRecordSchema),
+  devDependencies: lenientOptional(lenientStringRecordSchema),
+  optionalDependencies: lenientOptional(lenientStringRecordSchema),
+  workspaces: lenientOptional(
+    Schema.Struct({
+      catalog: lenientOptional(lenientStringRecordSchema),
+      catalogs: lenientOptional(lenientRecord(lenientStringRecordSchema)),
+    }),
+  ),
+})
+
+function sectionPins(
+  manifest: string,
+  section: string,
+  specs: Readonly<Record<string, string>> | undefined,
+) {
+  return Object.entries(specs ?? {}).map(([name, spec]): ManifestPin => ({
+    package: name,
+    spec,
+    manifest,
+    section,
+  }))
 }
 
 /**
@@ -142,18 +159,17 @@ function sectionPins(manifest: string, section: string, value: unknown) {
  * Peer dependencies state what a published package accepts, so they are not pins.
  */
 export function manifestPins(manifestPath: string, manifestText: string): readonly ManifestPin[] {
-  const manifest: unknown = JSON.parse(manifestText)
-  if (!isRecord(manifest)) return []
+  const decoded = safeDecodeUnknown(pinnedManifestSchema, JSON.parse(manifestText))
+  if (!decoded.success) return []
+  const manifest = decoded.data
   const pins = PINNED_SECTIONS.flatMap((section) =>
     sectionPins(manifestPath, section, manifest[section]),
   )
   const { workspaces } = manifest
-  if (!isRecord(workspaces)) return pins
+  if (workspaces === undefined) return pins
   pins.push(...sectionPins(manifestPath, 'catalog:default', workspaces.catalog))
-  if (isRecord(workspaces.catalogs)) {
-    for (const [name, catalog] of Object.entries(workspaces.catalogs)) {
-      pins.push(...sectionPins(manifestPath, `catalog:${name}`, catalog))
-    }
+  for (const [name, catalog] of Object.entries(workspaces.catalogs ?? {})) {
+    pins.push(...sectionPins(manifestPath, `catalog:${name}`, catalog))
   }
   return pins
 }

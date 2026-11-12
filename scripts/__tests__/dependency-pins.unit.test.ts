@@ -207,7 +207,8 @@ describe('pinViolations', () => {
 describe('cachedLatest', () => {
   const NOW = 1_800_000_000_000
 
-  function client(documents: Record<string, unknown>) {
+  /** Packuments by package name. */
+  function client(documents: Readonly<Record<string, object>>) {
     const fetched: string[] = []
     const registry: RegistryClient = {
       async fetchPackument(name) {

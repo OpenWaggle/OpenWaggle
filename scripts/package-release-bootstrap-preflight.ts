@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   isNotFound,
   isCredentialEnvironmentKey,
@@ -69,10 +70,22 @@ function isVersionAtLeast(version: string, minimum: string) {
   return true
 }
 
-function hasWriteProtectedTwoFactorAuthentication(profile: JsonObject) {
+/** The npm profile fields the preflight reads; `npm profile get --json` spells 2FA either way. */
+const npmProfileSchema = Schema.Struct({
+  name: Schema.optional(Schema.Unknown),
+  tfa: Schema.optional(Schema.Unknown),
+  'two-factor auth': Schema.optional(Schema.Unknown),
+})
+const npmTwoFactorSchema = Schema.Struct({
+  mode: Schema.Literal('auth-and-writes'),
+  pending: Schema.optional(Schema.Unknown),
+})
+type NpmProfile = Schema.Schema.Type<typeof npmProfileSchema>
+
+function hasWriteProtectedTwoFactorAuthentication(profile: NpmProfile) {
   const tfa = profile.tfa
   return (
-    (isJsonObject(tfa) && tfa.mode === 'auth-and-writes' && tfa.pending !== true) ||
+    (isJsonObject(tfa) && Schema.is(npmTwoFactorSchema)(tfa) && tfa.pending !== true) ||
     profile['two-factor auth'] === 'auth-and-writes'
   )
 }
@@ -119,7 +132,7 @@ function repositoryBlockers(status: string, branch: string, origin: string, isUp
   return blockers
 }
 
-function npmAccountBlockers(username: string, profile: JsonObject, organization: JsonObject) {
+function npmAccountBlockers(username: string, profile: NpmProfile, organization: JsonObject) {
   const blockers: string[] = []
   const profileName = typeof profile.name === 'string' ? profile.name : '(missing)'
   if (profileName !== username) {
@@ -247,9 +260,9 @@ async function inspectPrerequisites(projectRoot: string, dependencies: Bootstrap
   const head = await command('git', ['rev-parse', 'HEAD'])
   const remote = await command('git', ['ls-remote', '--exit-code', 'origin', 'refs/heads/main'])
   const username = await command('npm', ['whoami'])
-  const profile = parseJsonObject(
-    await command('npm', ['profile', 'get', '--json']),
-    'npm profile get',
+  const profile = decodeUnknownOrThrow(
+    npmProfileSchema,
+    parseJsonObject(await command('npm', ['profile', 'get', '--json']), 'npm profile get'),
   )
   const organization = parseJsonObject(
     await command('npm', ['org', 'ls', 'openwaggle', username, '--json']),

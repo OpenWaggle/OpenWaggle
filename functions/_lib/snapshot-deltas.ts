@@ -63,7 +63,9 @@ function isCount(value: unknown): value is number {
 }
 
 function isDailyCounts(value: unknown): value is DailyCounts {
-  return isRecord(value) && isCount(value.count) && isCount(value.uniques)
+  if (!isRecord(value)) return false
+  const { count, uniques } = value
+  return isCount(count) && isCount(uniques)
 }
 
 function recordOf<T>(
@@ -91,10 +93,11 @@ function isOptionalTime(value: unknown): value is number | null {
 }
 
 function parsedRecords(value: Readonly<Record<string, unknown>>) {
-  const assets = recordOf(value.assets, (key) => ASSET_ID.test(key), isCount)
-  const views = recordOf(value.views, isSnapshotDay, isDailyCounts)
-  const clones = recordOf(value.clones, isSnapshotDay, isDailyCounts)
-  const npm = recordOf(value.npm, (key) => key !== '', isDayCountRecord)
+  const { assets: assetMap, views: viewMap, clones: cloneMap, npm: npmMap } = value
+  const assets = recordOf(assetMap, (key) => ASSET_ID.test(key), isCount)
+  const views = recordOf(viewMap, isSnapshotDay, isDailyCounts)
+  const clones = recordOf(cloneMap, isSnapshotDay, isDailyCounts)
+  const npm = recordOf(npmMap, (key) => key !== '', isDayCountRecord)
   return assets && views && clones && npm ? { assets, views, clones, npm } : undefined
 }
 

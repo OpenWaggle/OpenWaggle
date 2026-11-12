@@ -1,13 +1,19 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../../support/object-fields'
 
 /**
  * A local OpenAI-compatible chat-completions endpoint for measurements: no network, no cost, and
  * every request body is kept. A responder decides what each request streams back.
  */
+/** The chat-completions body fields measurements read; each is checked where it is read. */
+const chatCompletionsBodySchema = Schema.Struct({ messages: unknownField, tools: unknownField })
+export type ChatCompletionsBody = Schema.Schema.Type<typeof chatCompletionsBodySchema>
+
 export interface FakeProviderRequest {
-  readonly body: Record<string, unknown>
+  readonly body: ChatCompletionsBody
   readonly rawLength: number
   readonly receivedAt: number
 }
@@ -79,12 +85,10 @@ function readBody(request: IncomingMessage) {
   })
 }
 
-function parsedBody(raw: string): Record<string, unknown> {
+function parsedBody(raw: string): ChatCompletionsBody {
   try {
     const parsed: unknown = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? { ...parsed }
-      : {}
+    return objectFields(chatCompletionsBodySchema, parsed) ?? {}
   } catch {
     return {}
   }

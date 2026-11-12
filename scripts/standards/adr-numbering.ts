@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import type { Violation } from './violation'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * ADR numbers are unique and contiguous from 0001, and every ADR is listed in each ADR index that
@@ -113,7 +114,7 @@ function numberingViolations(names: readonly string[]): Violation[] {
   const violations: Violation[] = []
   const byNumber = new Map<string, string[]>()
   for (const name of names) {
-    const number = ADR_FILE.exec(name)?.groups?.number
+    const number = namedGroups(ADR_FILE.exec(name), ['number'])?.number
     if (number === undefined) {
       violations.push({
         file: adrFile(name),
@@ -163,7 +164,7 @@ function indexViolations(names: readonly string[], indexes: ReadonlyMap<string, 
         ...contents.matchAll(
           new RegExp(`${escapeRegExp(prefix)}(?<name>\\d{${NUMBER_WIDTH}}-[a-z0-9-]+\\.md)`, 'gu'),
         ),
-      ].flatMap((match) => match.groups?.name ?? []),
+      ].flatMap((match) => namedGroups(match, ['name'])?.name ?? []),
     )
     for (const name of names) {
       if (!listed.has(name)) {

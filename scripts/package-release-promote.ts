@@ -94,16 +94,24 @@ function run(command: string, args: readonly string[], allowFailure = false) {
   })
 }
 
-function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
+/*
+ * This script runs under plain Node with no install, so it checks its JSON with local type guards
+ * and reads its environment by destructuring `process.env`, instead of the shared schemas.
+ */
+function isJsonObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isPromotionModule(value: unknown): value is PromotionModule {
   return (
     isJsonObject(value) &&
+    'promoteVerifiedPackageRelease' in value &&
     typeof value.promoteVerifiedPackageRelease === 'function' &&
+    'readPackageReleasePlan' in value &&
     typeof value.readPackageReleasePlan === 'function' &&
+    'verifyPromotionBundle' in value &&
     typeof value.verifyPromotionBundle === 'function' &&
+    'verifyPackageReleasePublicationEnvironment' in value &&
     typeof value.verifyPackageReleasePublicationEnvironment === 'function'
   )
 }
@@ -116,7 +124,11 @@ async function loadPromotionModule() {
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
-  return isJsonObject(value) && typeof value.releaseAssetRepairPlan === 'function'
+  return (
+    isJsonObject(value) &&
+    'releaseAssetRepairPlan' in value &&
+    typeof value.releaseAssetRepairPlan === 'function'
+  )
 }
 
 async function loadArtifactContractModule() {
@@ -129,7 +141,11 @@ async function loadArtifactContractModule() {
 }
 
 function isProvenanceModule(value: unknown): value is ProvenanceModule {
-  return isJsonObject(value) && typeof value.verifyPackageReleaseArtifactProvenance === 'function'
+  return (
+    isJsonObject(value) &&
+    'verifyPackageReleaseArtifactProvenance' in value &&
+    typeof value.verifyPackageReleaseArtifactProvenance === 'function'
+  )
 }
 
 async function loadProvenanceModule() {
@@ -166,16 +182,13 @@ async function readRegistryIntegrity(name: string, version: string) {
 }
 
 async function ensureTag(tag: string, sourceSha: string) {
-  const repository = process.env.GITHUB_REPOSITORY
+  const { GITHUB_REPOSITORY: repository } = process.env
   if (repository === undefined) throw new Error('GITHUB_REPOSITORY is required.')
   const existing = await run('gh', ['api', `repos/${repository}/git/ref/tags/${tag}`], true)
   if (existing.exitCode === 0) {
     const response: unknown = JSON.parse(existing.stdout)
-    if (
-      !isJsonObject(response) ||
-      !isJsonObject(response.object) ||
-      response.object.sha !== sourceSha
-    ) {
+    const target = isJsonObject(response) && 'object' in response ? response.object : undefined
+    if (!isJsonObject(target) || !('sha' in target) || target.sha !== sourceSha) {
       throw new Error(`Immutable package tag ${tag} points to a different commit.`)
     }
     return
@@ -293,18 +306,29 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   }
   const promotion = await loadPromotionModule()
   const plan = await promotion.readPackageReleasePlan(planPath)
+  const env = process.env
+  const {
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: actionsIdTokenRequestToken,
+    ACTIONS_ID_TOKEN_REQUEST_URL: actionsIdTokenRequestUrl,
+    GITHUB_EVENT_NAME: eventName,
+    RECOVERY_RELEASE_SHA: recoveryReleaseSha,
+    GITHUB_REF: ref,
+    GITHUB_SHA: sha,
+  } = env
   promotion.verifyPackageReleasePublicationEnvironment(plan, {
-    actionsIdTokenRequestToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    actionsIdTokenRequestUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
-    eventName: process.env.GITHUB_EVENT_NAME,
-    recoveryReleaseSha: process.env.RECOVERY_RELEASE_SHA,
-    ref: process.env.GITHUB_REF,
-    sha: process.env.GITHUB_SHA,
+    actionsIdTokenRequestToken,
+    actionsIdTokenRequestUrl,
+    eventName,
+    recoveryReleaseSha,
+    ref,
+    sha,
   })
   const manifest = await promotion.verifyPromotionBundle(plan, artifactRoot)
-  const repository = process.env.GITHUB_REPOSITORY
-  const selectedRunId = process.env.EXPECTED_ARTIFACT_RUN_ID
-  const selectedSourceSha = process.env.EXPECTED_ARTIFACT_SOURCE_SHA
+  const {
+    GITHUB_REPOSITORY: repository,
+    EXPECTED_ARTIFACT_RUN_ID: selectedRunId,
+    EXPECTED_ARTIFACT_SOURCE_SHA: selectedSourceSha,
+  } = env
   if (
     repository === undefined ||
     selectedRunId === undefined ||

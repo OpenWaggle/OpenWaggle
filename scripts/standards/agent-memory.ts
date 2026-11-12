@@ -1,5 +1,6 @@
 import { countO200kTokens } from '../perf/first-turn-prefix/prefix-tokens'
 import type { Violation } from './violation'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * Project memory is loaded by topic (ADR 0064). `MEMORY.md` is the index every agent reads first,
@@ -88,7 +89,7 @@ export function collectAgentMemoryIndexViolations(
   if (index === undefined) return []
   const linked = new Set(
     [...index.matchAll(/\]\((?<target>\.agents\/memory\/[^)\s]+\.md)\)/gu)].flatMap(
-      (match) => match.groups?.target ?? [],
+      (match) => namedGroups(match, ['target'])?.target ?? [],
     ),
   )
   const topics = [...contentsByFile.keys()].filter(isMemoryTopic)

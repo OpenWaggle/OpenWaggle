@@ -1,4 +1,6 @@
+import { Schema } from '@shared/schema'
 import type { PrefixContent, PrefixTool } from '../first-turn-prefix/prefix-tokens'
+import { objectFields, unknownField } from '../../support/object-fields'
 
 /**
  * The prefix parts of an OpenAI chat-completions request body: the system prompt split into its
@@ -7,15 +9,23 @@ import type { PrefixContent, PrefixTool } from '../first-turn-prefix/prefix-toke
  */
 const SECTION_PATTERN = /<([a-z][a-z0-9_-]*)>[\s\S]*?<\/\1>/g
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+/** The chat-completions body fields the prefix reads; each is checked where it is read. */
+const requestBodySchema = Schema.Struct({ messages: unknownField, tools: unknownField })
+const messageSchema = Schema.Struct({ role: unknownField, content: unknownField })
+const textPartSchema = Schema.Struct({ text: Schema.String })
+const functionToolSchema = Schema.Struct({
+  function: Schema.Struct({
+    name: Schema.String,
+    description: unknownField,
+    parameters: unknownField,
+  }),
+})
 
 function textOf(content: unknown) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
-    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
+    .map((part: unknown) => (Schema.is(textPartSchema)(part) ? part.text : ''))
     .join('\n')
 }
 
@@ -36,8 +46,8 @@ export function systemSections(system: string) {
 }
 
 function toolOf(value: unknown): PrefixTool[] {
-  const fn = isRecord(value) && isRecord(value.function) ? value.function : null
-  if (!fn || typeof fn.name !== 'string') return []
+  const fn = objectFields(functionToolSchema, value)?.function
+  if (fn === undefined) return []
   return [
     {
       name: fn.name,
@@ -47,11 +57,16 @@ function toolOf(value: unknown): PrefixTool[] {
   ]
 }
 
-export function prefixContentOfOpenAiRequest(
-  body: Record<string, unknown>,
-  prompt: string,
-): PrefixContent {
-  const messages = Array.isArray(body.messages) ? body.messages.filter(isRecord) : []
+function arrayOf(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+export function prefixContentOfOpenAiRequest(requestBody: unknown, prompt: string): PrefixContent {
+  const body = objectFields(requestBodySchema, requestBody)
+  const messages = arrayOf(body?.messages).flatMap((message) => {
+    const fields = Schema.is(messageSchema)(message) ? message : undefined
+    return fields === undefined ? [] : [fields]
+  })
   const system = messages
     .filter((message) => message.role === 'system' || message.role === 'developer')
     .map((message) => textOf(message.content))
@@ -62,7 +77,7 @@ export function prefixContentOfOpenAiRequest(
     .filter((text) => text.length > 0 && text !== prompt)
   return {
     sections: systemSections(system),
-    tools: Array.isArray(body.tools) ? body.tools.flatMap(toolOf) : [],
+    tools: arrayOf(body?.tools).flatMap(toolOf),
     runContext,
   }
 }

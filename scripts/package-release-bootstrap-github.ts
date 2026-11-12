@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import {
   isNotFound,
   redactBootstrapDiagnostic,
@@ -10,7 +11,6 @@ import {
   createRepositoryMergePolicyPayload,
   createRulesetPayload,
   createRulesetUpgradePayload,
-  isJsonObject,
   MANAGED_RULESET_NAME,
   parseJson,
   parseJsonObject,
@@ -29,6 +29,10 @@ import type {
   BootstrapDependencies,
   BootstrapGithubProgress,
 } from './package-release-bootstrap-types'
+
+/** A ruleset in GitHub's list response, matched by name. */
+const isRulesetSummary = Schema.is(Schema.Struct({ name: Schema.String }))
+const isRulesetId = Schema.is(Schema.Struct({ id: Schema.Number }))
 
 const ENVIRONMENT_ENDPOINT = 'repos/OpenWaggle/OpenWaggle/environments/npm'
 const BRANCH_POLICIES_ENDPOINT = `${ENVIRONMENT_ENDPOINT}/deployment-branch-policies`
@@ -124,12 +128,12 @@ async function readManagedRuleset(
     ),
   )
   const managed = rulesets.filter(
-    (ruleset) => isJsonObject(ruleset) && ruleset.name === MANAGED_RULESET_NAME,
+    (ruleset) => isRulesetSummary(ruleset) && ruleset.name === MANAGED_RULESET_NAME,
   )
   if (managed.length === 0) return { state: 'pending' }
   if (managed.length !== 1) return { state: 'conflict' }
   const summary: unknown = managed[0]
-  if (!isJsonObject(summary) || typeof summary.id !== 'number') return { state: 'conflict' }
+  if (!isRulesetId(summary)) return { state: 'conflict' }
   const ruleset = parseJson(
     await runRequired(dependencies, {
       args: [...GH_API_ARGS, `${RULESETS_ENDPOINT}/${String(summary.id)}`],
@@ -246,7 +250,7 @@ export async function createAndVerifyRuleset(
       }),
       'GitHub ruleset creation',
     )
-    if (typeof created.id !== 'number') {
+    if (!isRulesetId(created)) {
       throw new Error('GitHub ruleset creation did not return a numeric id.')
     }
     const ruleset = parseJson(

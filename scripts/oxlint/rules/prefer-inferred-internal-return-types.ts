@@ -1,13 +1,5 @@
-import type { Context, Node, Rule } from '@oxlint/plugins'
-import {
-  hasNodeType,
-  isLintNode,
-  nodeType,
-  parentOf,
-  property,
-  rangeFrom,
-  type NodeWithReturnType,
-} from '../ast-helpers.ts'
+import type { Context, ESTree, Rule } from '@oxlint/plugins'
+import { rangeFrom } from '../ast-helpers.ts'
 
 const SIMPLE_RETURN_TYPE_NAMES = new Set([
   'TSStringKeyword',
@@ -18,42 +10,37 @@ const SIMPLE_RETURN_TYPE_NAMES = new Set([
   'TSNullKeyword',
 ])
 
-function isExportedFunction(node: Node) {
-  const parent = parentOf(node)
-  const grandparent = parentOf(parent)
+type FunctionNode = ESTree.Function | ESTree.ArrowFunctionExpression
 
+function isExportedFunction({ parent }: FunctionNode) {
   if (
-    hasNodeType(parent, 'ExportDefaultDeclaration') ||
-    hasNodeType(parent, 'ExportNamedDeclaration')
+    parent.type === 'ExportDefaultDeclaration' ||
+    parent.type === 'ExportNamedDeclaration' ||
+    parent.type === 'MethodDefinition' ||
+    parent.type === 'PropertyDefinition'
   ) {
     return true
   }
 
-  if (hasNodeType(parent, 'MethodDefinition') || hasNodeType(parent, 'PropertyDefinition')) {
-    return true
-  }
-
-  return hasNodeType(grandparent, 'ExportNamedDeclaration')
+  return parent.parent?.type === 'ExportNamedDeclaration'
 }
 
-function functionName(node: Node) {
-  const idName = property(property(node, 'id'), 'name')
-  if (typeof idName === 'string') {
-    return idName
+function functionName(node: FunctionNode) {
+  if (node.id) {
+    return node.id.name
   }
 
-  const parent = parentOf(node)
-  const variableName = property(property(parent, 'id'), 'name')
-  if (hasNodeType(parent, 'VariableDeclarator') && typeof variableName === 'string') {
-    return variableName
+  const { parent } = node
+  if (parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') {
+    return parent.id.name
   }
 
   return null
 }
 
-function isRecursiveFunction(node: Node, context: Context) {
+function isRecursiveFunction(node: FunctionNode, context: Context) {
   const name = functionName(node)
-  const range = rangeFrom(property(node, 'body'))
+  const range = rangeFrom(node.body)
   if (!name || !range) {
     return false
   }
@@ -61,13 +48,8 @@ function isRecursiveFunction(node: Node, context: Context) {
   return context.sourceCode.text.slice(range.start, range.end).includes(name)
 }
 
-function hasRemovableReturnType(node: Node): node is Node & NodeWithReturnType {
-  return isLintNode(property(node, 'returnType')) && property(node, 'body') !== undefined
-}
-
-function isSimpleReturnType(returnType: Node) {
-  const annotationType = nodeType(property(returnType, 'typeAnnotation'))
-  return annotationType !== null && SIMPLE_RETURN_TYPE_NAMES.has(annotationType)
+function isSimpleReturnType(returnType: ESTree.TSTypeAnnotation) {
+  return SIMPLE_RETURN_TYPE_NAMES.has(returnType.typeAnnotation.type)
 }
 
 export const preferInferredInternalReturnTypesRule: Rule = {
@@ -80,21 +62,22 @@ export const preferInferredInternalReturnTypesRule: Rule = {
     },
   },
   create(context) {
-    function check(node: Node) {
+    function check(node: FunctionNode) {
+      const { returnType } = node
       if (
-        !hasRemovableReturnType(node) ||
+        !returnType ||
         isExportedFunction(node) ||
         isRecursiveFunction(node, context) ||
-        !isSimpleReturnType(node.returnType)
+        !isSimpleReturnType(returnType)
       ) {
         return
       }
 
       context.report({
-        node: node.returnType,
+        node: returnType,
         messageId: 'preferInference',
         fix(fixer) {
-          return fixer.remove(node.returnType)
+          return fixer.remove(returnType)
         },
       })
     }

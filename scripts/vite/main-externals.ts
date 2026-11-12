@@ -50,18 +50,14 @@ export const BUNDLED_DEPS = [
   'chokidar',
 ]
 
-type UnknownObject = Readonly<Record<string, unknown>>
-
-function isObject(value: unknown): value is UnknownObject {
+function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
 function dependencyNamesFromPackageJson(value: unknown) {
-  if (!isObject(value) || !isObject(value.dependencies)) {
-    return []
-  }
-
-  return Object.keys(value.dependencies)
+  // Narrowed with `in`: the build config loads this file before the `@shared` alias exists.
+  const dependencies = isObject(value) && 'dependencies' in value ? value.dependencies : undefined
+  return isObject(dependencies) ? Object.keys(dependencies) : []
 }
 
 /**

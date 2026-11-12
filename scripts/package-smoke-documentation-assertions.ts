@@ -1,3 +1,5 @@
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 const DOCS_VERSION_PART_COUNT = 2
 const MINIMUM_KEYWORD_COUNT = 4
 
@@ -9,6 +11,9 @@ function stringProperty(value: unknown, key: string) {
   return isObject(value) && typeof value[key] === 'string' ? value[key] : undefined
 }
 
+const documentationFieldsSchema = Schema.Struct({ bugs: unknownField, keywords: unknownField })
+const bugsSchema = Schema.Struct({ url: unknownField })
+
 export function assertPackedDocumentationMetadata(manifest: unknown, packageDirectory: string) {
   const packageSlug = packageDirectory.replace('packages/', '')
   const version = stringProperty(manifest, 'version')
@@ -18,15 +23,16 @@ export function assertPackedDocumentationMetadata(manifest: unknown, packageDire
     throw new Error(`${packageDirectory} packed manifest has incorrect documentation homepage.`)
   }
 
+  const fields = objectFields(documentationFieldsSchema, manifest)
   if (
-    !isObject(manifest) ||
-    !isObject(manifest.bugs) ||
-    manifest.bugs.url !== 'https://github.com/OpenWaggle/OpenWaggle/issues'
+    objectFields(bugsSchema, fields?.bugs)?.url !==
+    'https://github.com/OpenWaggle/OpenWaggle/issues'
   ) {
     throw new Error(`${packageDirectory} packed manifest must link to OpenWaggle issues.`)
   }
 
-  if (!Array.isArray(manifest.keywords) || manifest.keywords.length < MINIMUM_KEYWORD_COUNT) {
+  const keywords = fields?.keywords
+  if (!Array.isArray(keywords) || keywords.length < MINIMUM_KEYWORD_COUNT) {
     throw new Error(`${packageDirectory} packed manifest must declare package discovery keywords.`)
   }
 }

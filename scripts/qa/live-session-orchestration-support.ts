@@ -3,6 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 import { type RunProcessOptions, runProcess } from './bounded-child-process'
 
 const APP_NAME = 'OpenWaggle.app'
@@ -18,14 +20,6 @@ interface WaitForHostOptions {
   readonly now?: () => number
   readonly runCli?: typeof runJsonCli
   readonly wait?: (milliseconds: number) => Promise<void>
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function assertRecord(value: unknown, message: string): asserts value is Record<string, unknown> {
-  if (!isRecord(value)) throw new Error(message)
 }
 
 async function pathExists(candidate: string) {
@@ -133,19 +127,36 @@ export async function runJsonCli(
   options: RunProcessOptions = {},
 ) {
   const result = await runProcess(executable, [...args, '--json'], env, options)
-  const parsed: unknown = JSON.parse(result.stdout)
-  assertRecord(parsed, 'CLI response was not an object.')
+  const parsed = objectFields(cliResponseSchema, JSON.parse(result.stdout))
+  if (parsed === undefined) throw new Error('CLI response was not an object.')
   if (parsed.type === 'error') throw new Error(`CLI error: ${result.stdout}`)
   return parsed
 }
 
-export function cliOutcome(response: Record<string, unknown>) {
-  const result = response.result
-  assertRecord(result, 'CLI response omitted result.')
-  const contractResponse = result.response
-  assertRecord(contractResponse, 'CLI response omitted contract response.')
-  const outcome = contractResponse.outcome
-  assertRecord(outcome, 'CLI response omitted outcome.')
+/** The `openwaggle --json` envelope: `{ type, result: { response: { outcome } } }`. */
+const cliResponseSchema = Schema.Struct({ type: unknownField, result: unknownField })
+const cliResultSchema = Schema.Struct({ response: unknownField })
+const contractResponseSchema = Schema.Struct({ outcome: unknownField })
+/** The outcome fields the smokes read from launch, list, search and wait. */
+const cliOutcomeSchema = Schema.Struct({
+  sessionId: unknownField,
+  sessions: unknownField,
+  timedOut: unknownField,
+  operation: unknownField,
+  searchBackend: unknownField,
+  semanticReadiness: unknownField,
+})
+export type CliOutcome = Schema.Schema.Type<typeof cliOutcomeSchema>
+const workerSummarySchema = Schema.Struct({ sessionId: unknownField })
+
+export function cliOutcome(response: unknown) {
+  const result = objectFields(cliResponseSchema, response)?.result
+  const contractResponse = objectFields(cliResultSchema, result)
+  if (contractResponse === undefined) throw new Error('CLI response omitted result.')
+  const outcomeResponse = objectFields(contractResponseSchema, contractResponse.response)
+  if (outcomeResponse === undefined) throw new Error('CLI response omitted contract response.')
+  const outcome = objectFields(cliOutcomeSchema, outcomeResponse.outcome)
+  if (outcome === undefined) throw new Error('CLI response omitted outcome.')
   return outcome
 }
 
@@ -208,7 +219,7 @@ export async function readTranscript(
   return stdout
 }
 
-export function findWorker(listResponse: Record<string, unknown>, queenSessionId: string) {
+export function findWorker(listResponse: unknown, queenSessionId: string) {
   const sessions = cliOutcome(listResponse).sessions
   if (!Array.isArray(sessions)) throw new Error('Session list omitted sessions.')
   const sessionRecords: unknown[] = sessions
@@ -220,8 +231,8 @@ export function findWorker(listResponse: Record<string, unknown>, queenSessionId
       session.parentSessionId === queenSessionId,
   )
   if (workers.length !== 1) throw new Error(`Expected one Worker, found ${workers.length}.`)
-  const worker: unknown = workers[0]
-  assertRecord(worker, 'Worker summary was invalid.')
+  const worker = objectFields(workerSummarySchema, workers[0])
+  if (worker === undefined) throw new Error('Worker summary was invalid.')
   if (typeof worker.sessionId !== 'string') throw new Error('Worker summary omitted Session ID.')
   return worker.sessionId
 }

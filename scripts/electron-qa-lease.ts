@@ -4,14 +4,16 @@ import os from 'node:os'
 import path from 'node:path'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import lockfile from 'proper-lockfile'
+import { scriptEnv } from './support/env'
 
 const DEFAULT_QA_CDP_PORT = 9223
 
 /** Overridable so parallel worktrees on one machine can run their own hidden QA app
  * while another worktree holds the default port (lease directory keys off this value). */
+const { OPENWAGGLE_QA_CDP_PORT: configuredQaCdpPort } = scriptEnv()
 export const QA_CDP_PORT =
-  process.env.OPENWAGGLE_QA_CDP_PORT !== undefined && Number(process.env.OPENWAGGLE_QA_CDP_PORT) > 0
-    ? Number(process.env.OPENWAGGLE_QA_CDP_PORT)
+  configuredQaCdpPort !== undefined && Number(configuredQaCdpPort) > 0
+    ? Number(configuredQaCdpPort)
     : DEFAULT_QA_CDP_PORT
 const QA_PROFILE_PREFIX = 'openwaggle-qa-profile-'
 const QA_ARTIFACT_PREFIX = 'openwaggle-qa-evidence-'
@@ -22,7 +24,7 @@ const QA_LEASE_CANDIDATE_PREFIX = 'openwaggle-qa-lease-candidate-'
  * directory, preserved in OPENWAGGLE_HOST_TMPDIR, is shared.
  */
 export function qaSharedTemporaryDirectory(environment: NodeJS.ProcessEnv = process.env) {
-  return environment.OPENWAGGLE_HOST_TMPDIR || os.tmpdir()
+  return scriptEnv(environment).OPENWAGGLE_HOST_TMPDIR || os.tmpdir()
 }
 const QA_SHARED_TEMPORARY_DIRECTORY = qaSharedTemporaryDirectory()
 const QA_LEASE_DIRECTORY = path.join(

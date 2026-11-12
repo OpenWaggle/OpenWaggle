@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import path from 'node:path'
+import { scriptEnv } from './env'
 
 /**
  * Repository scripts run on Bun (`bun scripts/<name>.ts`), but some of them must start the
@@ -16,7 +17,8 @@ export interface NodeRuntime {
 let cachedNodeRuntime: NodeRuntime | undefined
 
 function isBunRuntime() {
-  return typeof process.versions.bun === 'string'
+  const { bun } = process.versions
+  return typeof bun === 'string'
 }
 
 /** The Node.js executable on `PATH` (or this process, when it already is Node) and its version. */
@@ -65,7 +67,7 @@ function readNodeRuntime(): NodeRuntime {
         encoding: 'utf8',
         env: {
           ...process.env,
-          PATH: pathWithoutBunNode(process.env.PATH ?? '', process.execPath),
+          PATH: pathWithoutBunNode(scriptEnv().PATH ?? '', process.execPath),
         },
         stdio: ['ignore', 'pipe', 'inherit'],
       },

@@ -85,20 +85,26 @@ interface PlanModule {
   readonly decodePackageReleasePlan: (value: unknown) => PackageReleasePlan
 }
 
-function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
+function isJsonObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
   return (
     isJsonObject(value) &&
+    'decodePackageReleaseArtifactManifest' in value &&
     typeof value.decodePackageReleaseArtifactManifest === 'function' &&
+    'verifyReleaseArtifactFile' in value &&
     typeof value.verifyReleaseArtifactFile === 'function'
   )
 }
 
 function isPlanModule(value: unknown): value is PlanModule {
-  return isJsonObject(value) && typeof value.decodePackageReleasePlan === 'function'
+  return (
+    isJsonObject(value) &&
+    'decodePackageReleasePlan' in value &&
+    typeof value.decodePackageReleasePlan === 'function'
+  )
 }
 
 async function loadArtifactContractModule() {

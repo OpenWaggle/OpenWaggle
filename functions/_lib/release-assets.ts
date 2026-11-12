@@ -68,16 +68,18 @@ function channelName(name: string): ReleaseChannel {
 
 /** The build channel of a release from its tag: `v1.0.0-beta.4` is `beta`, `v1.0.0` `stable`. */
 export function releaseChannel(tag: string): ReleaseChannel {
-  return channelName(PRERELEASE_CHANNEL.exec(tag)?.groups?.channel ?? '')
+  const { channel } = PRERELEASE_CHANNEL.exec(tag)?.groups ?? {}
+  return channelName(channel ?? '')
 }
 
 function updateFeedClass(groups: Readonly<Record<string, string | undefined>>): ReleaseAssetClass {
-  const platform = groups.platform?.toLowerCase()
+  const { platform: platformName, arch, feed } = groups
+  const platform = platformName?.toLowerCase()
   return {
     kind: 'update_check',
     platform: platform === undefined ? 'win32' : (FEED_PLATFORMS.get(platform) ?? 'none'),
-    arch: assetArch(groups.arch ?? ''),
-    feedChannel: channelName(groups.feed ?? ''),
+    arch: assetArch(arch ?? ''),
+    feedChannel: channelName(feed ?? ''),
   }
 }
 

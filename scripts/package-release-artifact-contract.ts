@@ -24,8 +24,29 @@ export interface PackageReleaseArtifactManifest {
   readonly sourceTree: string
 }
 
-function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
+/*
+ * This module runs under plain Node with no install (package-release-promote.ts loads it), so it
+ * checks its JSON with local type guards instead of the shared schemas.
+ */
+function isJsonObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+interface ReleaseAssetsView {
+  readonly tagName: unknown
+  readonly assets: readonly unknown[]
+}
+
+function isReleaseAssetsView(value: unknown): value is ReleaseAssetsView {
+  return (
+    isJsonObject(value) && 'tagName' in value && 'assets' in value && Array.isArray(value.assets)
+  )
+}
+
+function releaseAssetName(value: unknown) {
+  return isJsonObject(value) && 'name' in value && typeof value.name === 'string'
+    ? value.name
+    : undefined
 }
 
 export function releaseAssetRepairPlan(
@@ -33,14 +54,15 @@ export function releaseAssetRepairPlan(
   tag: string,
   expectedNames: readonly string[],
 ) {
-  if (!isJsonObject(value) || value.tagName !== tag || !Array.isArray(value.assets)) {
+  if (!isReleaseAssetsView(value) || value.tagName !== tag) {
     throw new Error(`GitHub Release ${tag} does not match its immutable tag and assets.`)
   }
   const assetNames = value.assets.map((asset) => {
-    if (!isJsonObject(asset) || typeof asset.name !== 'string') {
+    const name = releaseAssetName(asset)
+    if (name === undefined) {
       throw new Error(`GitHub Release ${tag} returned an invalid asset.`)
     }
-    return asset.name
+    return name
   })
   const uniqueNames = new Set(assetNames)
   if (
@@ -56,24 +78,45 @@ export function releaseAssetRepairPlan(
 }
 
 function decodeDependency(value: unknown) {
-  if (!isJsonObject(value) || typeof value.name !== 'string' || typeof value.version !== 'string') {
+  const name = isJsonObject(value) && 'name' in value ? value.name : undefined
+  const version = isJsonObject(value) && 'version' in value ? value.version : undefined
+  if (typeof name !== 'string' || typeof version !== 'string') {
     throw new Error('Package release artifact manifest contains an invalid dependency.')
   }
-  return { name: value.name, version: value.version }
+  return { name, version }
+}
+
+interface ArtifactRecord extends Omit<PackageReleaseArtifact, 'dependency'> {
+  readonly dependency?: unknown
+}
+
+/** Whether every one of `fields` is an own string property of `value`. */
+function hasStringFields<TField extends string>(
+  value: object,
+  fields: readonly TField[],
+): value is Readonly<Record<TField, string>> {
+  return fields.every(
+    (field) => typeof Object.getOwnPropertyDescriptor(value, field)?.value === 'string',
+  )
+}
+
+const ARTIFACT_STRING_FIELDS = [
+  'file',
+  'integrity',
+  'key',
+  'name',
+  'releaseNotes',
+  'sha256',
+  'tag',
+  'version',
+] as const
+
+function isArtifactRecord(value: unknown): value is ArtifactRecord {
+  return isJsonObject(value) && hasStringFields(value, ARTIFACT_STRING_FIELDS)
 }
 
 function decodeArtifact(value: unknown): PackageReleaseArtifact {
-  if (
-    !isJsonObject(value) ||
-    typeof value.file !== 'string' ||
-    typeof value.integrity !== 'string' ||
-    typeof value.key !== 'string' ||
-    typeof value.name !== 'string' ||
-    typeof value.releaseNotes !== 'string' ||
-    typeof value.sha256 !== 'string' ||
-    typeof value.tag !== 'string' ||
-    typeof value.version !== 'string'
-  ) {
+  if (!isArtifactRecord(value)) {
     throw new Error('Package release artifact manifest contains an invalid package.')
   }
   const dependency = value.dependency === undefined ? undefined : decodeDependency(value.dependency)
@@ -90,16 +133,31 @@ function decodeArtifact(value: unknown): PackageReleaseArtifact {
   }
 }
 
+interface ArtifactManifestRecord {
+  readonly schemaVersion: 1
+  readonly sourceSha: string
+  readonly sourceTree: string
+  readonly packages: readonly unknown[]
+}
+
+function isArtifactManifestRecord(value: unknown): value is ArtifactManifestRecord {
+  return (
+    isJsonObject(value) &&
+    'schemaVersion' in value &&
+    value.schemaVersion === 1 &&
+    'sourceSha' in value &&
+    typeof value.sourceSha === 'string' &&
+    'sourceTree' in value &&
+    typeof value.sourceTree === 'string' &&
+    'packages' in value &&
+    Array.isArray(value.packages)
+  )
+}
+
 export function decodePackageReleaseArtifactManifest(
   value: unknown,
 ): PackageReleaseArtifactManifest {
-  if (
-    !isJsonObject(value) ||
-    value.schemaVersion !== 1 ||
-    typeof value.sourceSha !== 'string' ||
-    typeof value.sourceTree !== 'string' ||
-    !Array.isArray(value.packages)
-  ) {
+  if (!isArtifactManifestRecord(value)) {
     throw new Error('Package release artifact manifest is invalid.')
   }
   return {
@@ -141,23 +199,33 @@ function isAllowedTarballEntry(entry: string) {
   )
 }
 
+/** `value[outer][inner]` when both are objects and it is a string. */
+function nestedString(value: object, outer: string, inner: string) {
+  const nested: unknown = Object.getOwnPropertyDescriptor(value, outer)?.value
+  return isJsonObject(nested) && hasStringFields(nested, [inner]) ? nested[inner] : undefined
+}
+
+/** The range a packed manifest's `dependencies` map gives `name`, read by its runtime key. */
+function packedDependencyRange(manifest: object, name: string) {
+  if (!('dependencies' in manifest) || !isJsonObject(manifest.dependencies)) return undefined
+  return new Map<string, unknown>(Object.entries(manifest.dependencies)).get(name)
+}
+
 function validatePackedManifest(value: unknown, artifact: PackageReleaseArtifact) {
   const validPublicManifest =
     isJsonObject(value) &&
+    hasStringFields(value, ['name', 'version']) &&
     value.name === artifact.name &&
     value.version === artifact.version &&
-    isJsonObject(value.publishConfig) &&
-    value.publishConfig.access === 'public' &&
-    isJsonObject(value.repository) &&
-    value.repository.url === 'https://github.com/OpenWaggle/OpenWaggle.git' &&
+    nestedString(value, 'publishConfig', 'access') === 'public' &&
+    nestedString(value, 'repository', 'url') === 'https://github.com/OpenWaggle/OpenWaggle.git' &&
     !JSON.stringify(value).includes('workspace:')
   if (!validPublicManifest) {
     throw new Error(`${artifact.name} packed manifest does not match the public release contract.`)
   }
   if (
     artifact.dependency !== undefined &&
-    (!isJsonObject(value.dependencies) ||
-      value.dependencies[artifact.dependency.name] !== `^${artifact.dependency.version}`)
+    packedDependencyRange(value, artifact.dependency.name) !== `^${artifact.dependency.version}`
   ) {
     throw new Error(`${artifact.name} packed dependency does not match the release artifact.`)
   }

@@ -13,8 +13,11 @@ import { createMcpServerFetch } from '../src/main/adapters/mcp/pool/mcp-server-f
 import { MCP_MAX_MESSAGE_BYTES } from '../src/main/adapters/mcp/runtime/mcp-message-limit'
 
 const SUPPORTED_PROTOCOL_VERSION = '2025-11-25'
-const SCENARIO = process.env.MCP_CONFORMANCE_SCENARIO
-const PROTOCOL_VERSION = process.env.MCP_CONFORMANCE_PROTOCOL_VERSION ?? SUPPORTED_PROTOCOL_VERSION
+// Destructured rather than decoded: the conformance runner bundles this client for plain Node.
+const {
+  MCP_CONFORMANCE_SCENARIO: SCENARIO,
+  MCP_CONFORMANCE_PROTOCOL_VERSION: PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSION,
+} = process.env
 const SERVER_URL = process.argv[2]
 const CONFORMANCE_ADDEND_A = 2
 const CONFORMANCE_ADDEND_B = 3

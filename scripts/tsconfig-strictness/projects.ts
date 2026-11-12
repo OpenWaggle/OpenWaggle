@@ -10,6 +10,8 @@ import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { API } from 'typescript/unstable/async'
 import type { ProjectCoverage } from './coverage'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 
 export const TSCONFIG_FILE = /(?:^|\/)tsconfig[^/]*\.json$/u
 export const ROOT_CONFIG = 'tsconfig.json'
@@ -33,21 +35,20 @@ export function parseJsonc(text: string): unknown {
   )
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function toRelative(root: string, file: string) {
   return path.relative(root, file).split(path.sep).join('/')
 }
 
+const referencesSchema = Schema.Struct({ references: unknownField })
+const referenceSchema = Schema.Struct({ path: unknownField })
+
 /** The configs a config's `references` name, repository-relative. */
 export function referencedConfigs(config: string, text: string): string[] {
   const parsed = parseJsonc(text)
-  const references = isRecord(parsed) ? parsed.references : undefined
+  const references = objectFields(referencesSchema, parsed)?.references
   if (!Array.isArray(references)) return []
   return references.flatMap((reference: unknown) => {
-    const target = isRecord(reference) ? reference.path : undefined
+    const target = objectFields(referenceSchema, reference)?.path
     if (typeof target !== 'string') return []
     const joined = path.posix.normalize(path.posix.join(path.posix.dirname(config), target))
     return [joined.endsWith('.json') ? joined : path.posix.join(joined, ROOT_CONFIG)]
@@ -67,10 +68,17 @@ interface CacheEntry {
   readonly projects: readonly ProjectCoverage[]
 }
 
+const cacheFileSchema = Schema.Struct({ entries: unknownField })
+/** A cache entry: its key and a projects list, trusted as written by `writeCache`. */
+const cacheEntrySchema = Schema.Struct({
+  key: Schema.String,
+  projects: Schema.Array(Schema.Unknown),
+})
+
 async function readCache(root: string): Promise<CacheEntry[]> {
   try {
     const parsed: unknown = JSON.parse(await readFile(path.join(root, CACHE_FILE), 'utf8'))
-    const entries = isRecord(parsed) ? parsed.entries : undefined
+    const entries = objectFields(cacheFileSchema, parsed)?.entries
     return Array.isArray(entries) ? entries.filter(isCacheEntry) : []
   } catch {
     return []
@@ -78,7 +86,7 @@ async function readCache(root: string): Promise<CacheEntry[]> {
 }
 
 function isCacheEntry(value: unknown): value is CacheEntry {
-  return isRecord(value) && typeof value.key === 'string' && Array.isArray(value.projects)
+  return objectFields(cacheEntrySchema, value) !== undefined
 }
 
 async function writeCache(root: string, entries: readonly CacheEntry[]) {

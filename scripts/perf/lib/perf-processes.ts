@@ -68,8 +68,10 @@ function isProcessSample(value: unknown): value is ProcessSample {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof Reflect.get(value, 'footprint') === 'number' &&
-    typeof Reflect.get(value, 'cpuNs') === 'number'
+    'footprint' in value &&
+    typeof value.footprint === 'number' &&
+    'cpuNs' in value &&
+    typeof value.cpuNs === 'number'
   )
 }
 

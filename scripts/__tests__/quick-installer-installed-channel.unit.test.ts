@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { sessionsCliResponseText } from '../../src/main/sessions-cli-output'
 import { writeUpdateCheckError } from '../../src/main/update-cli-check-output'
+import { scriptEnv } from '../support/env'
 
 const execFileAsync = promisify(execFile)
 const SECTIONS = [
@@ -96,7 +97,7 @@ async function installedChannel(
   const script = await channelReadScript(timeoutSeconds)
   const args = ['-c', script, 'installer-installed-channel-test', platform, executable, version]
   const result = await execFileAsync('bash', args, {
-    env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
+    env: { PATH: scriptEnv().PATH ?? '', TMPDIR: directory },
   })
   return result.stdout.trim()
 }
@@ -178,7 +179,7 @@ describe('quick installer installed update channel', () => {
     const child = spawn(
       'bash',
       ['-c', script, 'installer-channel-interrupt-test', 'mac', executable, CHANNEL_CHECK_VERSION],
-      { env: { PATH: process.env.PATH ?? '', TMPDIR: directory } },
+      { env: { PATH: scriptEnv().PATH ?? '', TMPDIR: directory } },
     )
     const exited = new Promise<number | null>((resolve) => child.once('exit', resolve))
     // Wait until the CLI has started, then press Ctrl-C.

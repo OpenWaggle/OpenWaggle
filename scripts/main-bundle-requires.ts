@@ -1,5 +1,6 @@
 import { builtinModules } from 'node:module'
 import { parseSync } from 'vite'
+import { Schema } from '@shared/schema'
 
 /**
  * Packages the Electron main bundle may `require()` at its top level, before any OpenWaggle code
@@ -22,24 +23,22 @@ interface AstNode {
 
 function isAstNode(value: unknown): value is AstNode {
   return (
-    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
   )
 }
 
+/** `require('<specifier>')`: a call of the `require` identifier with a string literal first. */
+const requireCallSchema = Schema.Struct({
+  type: Schema.Literal('CallExpression'),
+  callee: Schema.Struct({ type: Schema.Literal('Identifier'), name: Schema.Literal('require') }),
+  arguments: Schema.NonEmptyArray(
+    Schema.Struct({ type: Schema.Literal('Literal'), value: Schema.Unknown }),
+  ),
+})
+
 function requiredSpecifier(node: AstNode) {
-  if (node.type !== 'CallExpression') return null
-  const callee: unknown = Reflect.get(node, 'callee')
-  const args: unknown = Reflect.get(node, 'arguments')
-  if (
-    !isAstNode(callee) ||
-    callee.type !== 'Identifier' ||
-    Reflect.get(callee, 'name') !== 'require'
-  ) {
-    return null
-  }
-  const first: unknown = Array.isArray(args) ? args[0] : undefined
-  if (!isAstNode(first) || first.type !== 'Literal') return null
-  const value: unknown = Reflect.get(first, 'value')
+  if (!Schema.is(requireCallSchema)(node)) return null
+  const [{ value }] = node.arguments
   return typeof value === 'string' ? value : null
 }
 

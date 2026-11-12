@@ -28,7 +28,20 @@ function readText(cwd: string, file: string) {
   }
 }
 
-function textEdits(input: Record<string, unknown>): TextEdit[] {
+/**
+ * The arguments of `bash`, `write` and `edit` the guardrails read, each still unchecked: a model
+ * wrote them, so each field is narrowed where it is read.
+ */
+interface GuardedToolInput {
+  readonly command?: unknown
+  readonly path?: unknown
+  readonly content?: unknown
+  readonly edits?: unknown
+  readonly oldText?: unknown
+  readonly newText?: unknown
+}
+
+function textEdits(input: GuardedToolInput): TextEdit[] {
   const { edits, oldText, newText } = input
   if (Array.isArray(edits)) {
     return edits.flatMap((edit: unknown) =>
@@ -47,19 +60,18 @@ function textEdits(input: Record<string, unknown>): TextEdit[] {
 
 /** The guardrail verdict for one tool call, as a Pi `tool_call` result. */
 export function guardToolCall(event: ToolCallEvent, cwd: string): ToolCallEventResult | undefined {
-  const input: Record<string, unknown> = { ...event.input }
-  if (event.toolName === 'bash' && typeof input.command === 'string') {
-    const decision = bashCommandDecision(input.command)
+  const input: GuardedToolInput = { ...event.input }
+  const { command, path, content } = input
+  if (event.toolName === 'bash' && typeof command === 'string') {
+    const decision = bashCommandDecision(command)
     return decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
   }
-  if ((event.toolName === 'write' || event.toolName === 'edit') && typeof input.path === 'string') {
+  if ((event.toolName === 'write' || event.toolName === 'edit') && typeof path === 'string') {
     const decision = fileToolDecision({
-      path: input.path,
-      ...(event.toolName === 'write' && typeof input.content === 'string'
-        ? { content: input.content }
-        : {}),
+      path,
+      ...(event.toolName === 'write' && typeof content === 'string' ? { content } : {}),
       edits: event.toolName === 'edit' ? textEdits(input) : [],
-      currentText: event.toolName === 'edit' ? readText(cwd, input.path) : undefined,
+      currentText: event.toolName === 'edit' ? readText(cwd, path) : undefined,
     })
     return decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
   }

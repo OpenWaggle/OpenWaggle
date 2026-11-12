@@ -41,6 +41,7 @@ import {
 import { executeSteps, runningChildren } from './scheduler'
 import { validateStepGraph } from './step-model'
 import { GATES, STEPS } from './steps'
+import { scriptEnv } from '../support/env'
 
 const INTERRUPTED_EXIT_CODE = 130
 const JSON_INDENT = 2
@@ -88,7 +89,7 @@ async function outputLines(
   }
   lines.push(summaryLine(gateId, steps, durationMs))
   // On Actions the job summary turns them into annotations, and the green log stays one line.
-  if (process.env.GITHUB_ACTIONS !== 'true') lines.push(...advisories)
+  if (scriptEnv().GITHUB_ACTIONS !== 'true') lines.push(...advisories)
   return lines
 }
 

@@ -1,6 +1,8 @@
 import path from 'node:path'
 import { isRecord } from './records'
 import type { Violation } from './violation'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 
 /**
  * Every direct dependency OpenWaggle installs is pinned to an exact version, so an upgrade shows
@@ -50,12 +52,17 @@ function manifestViolations(file: string, contents: string) {
   return violations
 }
 
+/** The root manifest's `workspaces` object, read for its catalogs. */
+const workspacesManifestSchema = Schema.Struct({ workspaces: unknownField })
+const workspaceCatalogsSchema = Schema.Struct({ catalog: unknownField, catalogs: unknownField })
+
 /** The default `workspaces.catalog` and every named catalog under `workspaces.catalogs`. */
-function catalogEntries(workspace: Readonly<Record<string, unknown>>) {
+function catalogEntries(workspace: Schema.Schema.Type<typeof workspaceCatalogsSchema>) {
   const catalogs: [string, Readonly<Record<string, unknown>>][] = []
-  if (isRecord(workspace.catalog)) catalogs.push(['catalog', workspace.catalog])
-  if (isRecord(workspace.catalogs)) {
-    for (const [name, catalog] of Object.entries(workspace.catalogs)) {
+  const { catalog: defaultCatalog, catalogs: namedCatalogs } = workspace
+  if (isRecord(defaultCatalog)) catalogs.push(['catalog', defaultCatalog])
+  if (isRecord(namedCatalogs)) {
+    for (const [name, catalog] of Object.entries(namedCatalogs)) {
       if (isRecord(catalog)) catalogs.push([`catalogs.${name}`, catalog])
     }
   }
@@ -64,8 +71,11 @@ function catalogEntries(workspace: Readonly<Record<string, unknown>>) {
 
 function catalogViolations(file: string, contents: string) {
   const manifest: unknown = JSON.parse(contents)
-  const workspace = isRecord(manifest) ? manifest.workspaces : undefined
-  if (!isRecord(workspace)) return []
+  const workspace = objectFields(
+    workspaceCatalogsSchema,
+    objectFields(workspacesManifestSchema, manifest)?.workspaces,
+  )
+  if (workspace === undefined) return []
 
   const violations: Violation[] = []
   for (const [catalogName, catalog] of catalogEntries(workspace)) {

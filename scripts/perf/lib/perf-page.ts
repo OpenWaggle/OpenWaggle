@@ -50,7 +50,7 @@ export interface RendererBoot {
 function installBootProbe(conditions: BootProbeConditions) {
   if (Reflect.has(globalThis, '__owPerf')) return
   const state: BootProbeState = { milestones: {}, lcp: null, longTaskMs: 0 }
-  Reflect.set(globalThis, '__owPerf', state)
+  Object.assign(globalThis, { __owPerf: state })
   const mark = (name: string) => {
     if (state.milestones[name] === undefined) state.milestones[name] = performance.now()
   }
@@ -148,9 +148,12 @@ export async function connectRenderer(port: number, timeoutMs: number, boot: Boo
 export async function waitForMilestones(page: Page, names: readonly string[], timeoutMs: number) {
   await page.waitForFunction(
     (wanted) => {
-      const state: unknown = Reflect.get(globalThis, '__owPerf')
+      const holder: object = globalThis
+      const state: unknown = '__owPerf' in holder ? holder.__owPerf : null
       const milestones: unknown =
-        typeof state === 'object' && state !== null ? Reflect.get(state, 'milestones') : null
+        typeof state === 'object' && state !== null && 'milestones' in state
+          ? state.milestones
+          : null
       return (
         typeof milestones === 'object' &&
         milestones !== null &&
@@ -167,7 +170,8 @@ export async function readRendererBoot(
   instrumentedFromStart: boolean,
 ): Promise<RendererBoot> {
   const boot = await page.evaluate(() => {
-    const probe: unknown = Reflect.get(globalThis, '__owPerf')
+    const holder: object = globalThis
+    const probe: unknown = '__owPerf' in holder ? holder.__owPerf : null
     const isState = (value: unknown): value is BootProbeState =>
       typeof value === 'object' && value !== null && 'milestones' in value
     const state = isState(probe) ? probe : null

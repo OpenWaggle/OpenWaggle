@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { stripVTControlCharacters } from 'node:util'
 import { runRequired } from './package-release-bootstrap-commands'
 import { isJsonObject, type JsonObject } from './package-release-bootstrap-model'
@@ -49,9 +50,10 @@ function jsonObjects(value: string) {
   return documents
 }
 
-function isAuthenticationHandoff(value: JsonObject) {
-  return value.title === 'Authenticate your account at' && typeof value.url === 'string'
-}
+/** The browser sign-in prompt `npm trust list` prints before its JSON output. */
+const isAuthenticationHandoff = Schema.is(
+  Schema.Struct({ title: Schema.Literal('Authenticate your account at'), url: Schema.String }),
+)
 
 export function parseTrustListOutput(value: string): unknown {
   const configurations = jsonObjects(value).filter((item) => !isAuthenticationHandoff(item))
