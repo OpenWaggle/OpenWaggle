@@ -1,92 +1,91 @@
-export interface SessionSummaryRow {
-  readonly id: string
-  readonly title: string
-  readonly project_path: string | null
-  readonly archived: number
-  readonly created_at: number
-  readonly updated_at: number
-  readonly last_active_node_id: string | null
-  readonly last_active_branch_id: string | null
+import { type SchemaType, Schema } from '@shared/schema'
+import { sqliteIntegerSchema } from '../../adapters/sqlite-row-schema'
+
+const nullableStringSchema = Schema.NullOr(Schema.String)
+const nullableIntegerSchema = Schema.NullOr(sqliteIntegerSchema)
+
+export const sessionSummaryRowSchema = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  project_path: nullableStringSchema,
+  archived: sqliteIntegerSchema,
+  created_at: sqliteIntegerSchema,
+  updated_at: sqliteIntegerSchema,
+  last_active_node_id: nullableStringSchema,
+  last_active_branch_id: nullableStringSchema,
   /** Resolves each session's working path, for per-session git state in lists. */
-  readonly environment_mode: string | null
-  readonly worktree_path: string | null
-}
+  environment_mode: nullableStringSchema,
+  worktree_path: nullableStringSchema,
+})
+export type SessionSummaryRow = SchemaType<typeof sessionSummaryRowSchema>
 
-export interface SessionBranchRow {
-  readonly id: string
-  readonly session_id: string
-  readonly source_node_id: string | null
-  readonly head_node_id: string | null
-  readonly name: string
-  readonly is_main: number
-  readonly archived_at: number | null
-  readonly created_at: number
-  readonly updated_at: number
-}
+export const sessionBranchRowSchema = Schema.Struct({
+  id: Schema.String,
+  session_id: Schema.String,
+  source_node_id: nullableStringSchema,
+  head_node_id: nullableStringSchema,
+  name: Schema.String,
+  is_main: sqliteIntegerSchema,
+  archived_at: nullableIntegerSchema,
+  created_at: sqliteIntegerSchema,
+  updated_at: sqliteIntegerSchema,
+})
+export type SessionBranchRow = SchemaType<typeof sessionBranchRowSchema>
 
-export interface SessionBranchStateRow {
-  readonly branch_id: string
-  readonly future_mode: 'standard' | 'waggle'
-  readonly waggle_config_json: string | null
-  readonly last_active_at: number
-  readonly ui_state_json: string
-}
+export const sessionBranchStateRowSchema = Schema.Struct({
+  branch_id: Schema.String,
+  future_mode: Schema.Literal('standard', 'waggle'),
+  waggle_config_json: nullableStringSchema,
+  last_active_at: sqliteIntegerSchema,
+  ui_state_json: Schema.String,
+})
+export type SessionBranchStateRow = SchemaType<typeof sessionBranchStateRowSchema>
 
-export interface SessionTreeUiStateRow {
-  readonly session_id: string
-  readonly expanded_node_ids_json: string
-  readonly expanded_node_ids_touched: number
-  readonly branches_sidebar_collapsed: number
-  readonly last_visited_at: number | null
-  readonly updated_at: number
-}
+export const sessionTreeUiStateRowSchema = Schema.Struct({
+  session_id: Schema.String,
+  expanded_node_ids_json: Schema.String,
+  expanded_node_ids_touched: sqliteIntegerSchema,
+  branches_sidebar_collapsed: sqliteIntegerSchema,
+  last_visited_at: nullableIntegerSchema,
+  updated_at: sqliteIntegerSchema,
+})
+export type SessionTreeUiStateRow = SchemaType<typeof sessionTreeUiStateRowSchema>
 
-export interface SessionLatestRunRow {
-  readonly session_id: string
-  readonly status:
-    | 'starting'
-    | 'active'
-    | 'stopping'
-    | 'completed'
-    | 'failed'
-    | 'interrupted'
-    | 'interrupted-by-host-loss'
-    | 'interrupted-by-interaction-timeout'
-  readonly updated_at: number
-}
+export const sessionLatestRunRowSchema = Schema.Struct({
+  session_id: Schema.String,
+  status: Schema.Literal(
+    'starting',
+    'active',
+    'stopping',
+    'completed',
+    'failed',
+    'interrupted',
+    'interrupted-by-host-loss',
+    'interrupted-by-interaction-timeout',
+  ),
+  updated_at: sqliteIntegerSchema,
+})
+export type SessionLatestRunRow = SchemaType<typeof sessionLatestRunRowSchema>
 
-export interface SessionActiveRunRow {
-  readonly run_id: string
-  readonly session_id: string
-  readonly branch_id: string
-  readonly run_mode: string
-  readonly status: string
-  readonly runtime_json: string
-  readonly updated_at: number
-}
+export const sessionActiveRunRowSchema = Schema.Struct({
+  run_id: Schema.String,
+  session_id: Schema.String,
+  branch_id: Schema.String,
+  run_mode: Schema.String,
+  status: Schema.String,
+  runtime_json: Schema.String,
+  updated_at: sqliteIntegerSchema,
+})
+export type SessionActiveRunRow = SchemaType<typeof sessionActiveRunRowSchema>
 
 /**
  * The columns a {@link SessionSummaryRow} needs, as one list.
  *
- * A SELECT column list is invisible to the type checker: `sql<SessionSummaryRow>` asserts
- * the row shape, it does not verify that the query actually selects those columns. Three
- * queries typed this way once omitted `environment_mode` and `worktree_path`, so every
- * session in the list silently reported local mode and no worktree — the per-session git
- * indicators were simply absent, and nothing failed.
- *
- * Interpolate this rather than spelling the columns out, so a query cannot select a subset
- * of what its own type promises. `SESSION_SUMMARY_COLUMN_NAMES` is exported for the test
- * that pins the two together.
+ * A SELECT column list is invisible to the type checker. Three queries once omitted
+ * `environment_mode` and `worktree_path`, so every session in the list silently reported local
+ * mode and no worktree. The row schema now fails such a query, and interpolating this list,
+ * which is the schema's own fields, keeps a query from selecting a subset in the first place.
  */
-export const SESSION_SUMMARY_COLUMN_NAMES: readonly string[] = [
-  'id',
-  'title',
-  'project_path',
-  'archived',
-  'created_at',
-  'updated_at',
-  'last_active_node_id',
-  'last_active_branch_id',
-  'environment_mode',
-  'worktree_path',
-]
+export const SESSION_SUMMARY_COLUMN_NAMES: readonly string[] = Object.keys(
+  sessionSummaryRowSchema.fields,
+)

@@ -1,3 +1,11 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import {
+  sessionActiveRunRowSchema,
+  sessionBranchRowSchema,
+  sessionLatestRunRowSchema,
+  sessionSummaryRowSchema,
+  sessionTreeUiStateRowSchema,
+} from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import type { SessionSummary } from '@shared/types/session'
@@ -13,13 +21,7 @@ import {
   sessionSummaryColumns,
 } from './hydration'
 import { attachSessionLineage, type SessionLineageRow } from './session-lineage-hydration'
-import type {
-  SessionActiveRunRow,
-  SessionBranchRow,
-  SessionLatestRunRow,
-  SessionSummaryRow,
-  SessionTreeUiStateRow,
-} from './types'
+import type { SessionSummaryRow } from './types'
 
 export { attachSessionLineage } from './session-lineage-hydration'
 
@@ -75,7 +77,7 @@ export function hydrateSessionNavigationRows(
 }
 
 function loadLatestRunRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
-  return sql<SessionLatestRunRow>`
+  return sql`
     SELECT session_id, status, updated_at
     FROM (
       SELECT session_id, status, updated_at,
@@ -86,7 +88,7 @@ function loadLatestRunRows(sql: SqlClient.SqlClient, sessionIds: readonly string
       WHERE session_id IN ${sql.in(sessionIds)}
     )
     WHERE latest_position = 1
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionLatestRunRowSchema, 'session runs')))
 }
 
 /**
@@ -184,18 +186,18 @@ export async function listArchivedSessionBranches(limit?: number): Promise<Sessi
 }
 
 function loadSessionSummaryRows(sql: SqlClient.SqlClient, limit?: number) {
-  return sql<SessionSummaryRow>`
+  return sql`
     SELECT
       ${sessionSummaryColumns(sql)}
     FROM sessions
     WHERE archived = 0
     ORDER BY updated_at DESC
     LIMIT ${normalizeSessionListLimit(limit)}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
 function loadVisibleBranchRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
-  return sql<SessionBranchRow>`
+  return sql`
     SELECT
       id,
       session_id,
@@ -209,11 +211,11 @@ function loadVisibleBranchRows(sql: SqlClient.SqlClient, sessionIds: readonly st
     FROM session_branches
     WHERE session_id IN ${sql.in(sessionIds)}
     ORDER BY session_id ASC, created_at ASC
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionBranchRowSchema, 'session_branches')))
 }
 
 function loadUiStateRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
-  return sql<SessionTreeUiStateRow>`
+  return sql`
     SELECT
       session_tree_ui_state.session_id,
       expanded_node_ids_json,
@@ -225,11 +227,11 @@ function loadUiStateRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]
     LEFT JOIN session_visit_receipts
       ON session_visit_receipts.session_id = session_tree_ui_state.session_id
     WHERE session_tree_ui_state.session_id IN ${sql.in(sessionIds)}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionTreeUiStateRowSchema, 'session_tree_ui_state')))
 }
 
 function loadInterruptedRunRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
-  return sql<SessionActiveRunRow>`
+  return sql`
     SELECT
       run_id,
       session_id,
@@ -242,11 +244,11 @@ function loadInterruptedRunRows(sql: SqlClient.SqlClient, sessionIds: readonly s
     WHERE session_id IN ${sql.in(sessionIds)}
       AND status = ${'interrupted'}
     ORDER BY updated_at DESC
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionActiveRunRowSchema, 'session_active_runs')))
 }
 
 function loadSessionsWithArchivedBranches(sql: SqlClient.SqlClient, limit?: number) {
-  return sql<SessionSummaryRow>`
+  return sql`
     SELECT
       ${sessionSummaryColumns(sql)}
     FROM sessions
@@ -259,11 +261,11 @@ function loadSessionsWithArchivedBranches(sql: SqlClient.SqlClient, limit?: numb
       )
     ORDER BY updated_at DESC
     LIMIT ${normalizeSessionListLimit(limit)}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
 export function loadArchivedBranchRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
-  return sql<SessionBranchRow>`
+  return sql`
     SELECT
       id,
       session_id,
@@ -278,5 +280,5 @@ export function loadArchivedBranchRows(sql: SqlClient.SqlClient, sessionIds: rea
     WHERE session_id IN ${sql.in(sessionIds)}
       AND archived_at IS NOT NULL
     ORDER BY session_id ASC, archived_at DESC, created_at ASC
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionBranchRowSchema, 'session_branches')))
 }
