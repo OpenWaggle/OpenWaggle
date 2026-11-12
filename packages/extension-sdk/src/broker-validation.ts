@@ -64,13 +64,13 @@ function isStorageScope(value: unknown) {
     return false
   }
 
-  if (value['kind'] === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND) {
+  if (value.kind === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND) {
     return true
   }
 
   return (
-    value['kind'] === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND &&
-    isNonEmptyString(value['projectPath'])
+    value.kind === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND &&
+    isNonEmptyString(value.projectPath)
   )
 }
 
@@ -84,11 +84,11 @@ function isStorageKey(value: unknown) {
 
 function hasStorageResultBase(value: Readonly<Record<string, unknown>>) {
   return (
-    isNonEmptyString(value['extensionId']) &&
-    isNonEmptyString(value['contributionId']) &&
-    value['capability'] === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE &&
-    isKnownString(OPENWAGGLE_EXTENSION.STORAGE.KINDS, value['storageKind']) &&
-    isStorageScope(value['storageScope'])
+    isNonEmptyString(value.extensionId) &&
+    isNonEmptyString(value.contributionId) &&
+    value.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE &&
+    isKnownString(OPENWAGGLE_EXTENSION.STORAGE.KINDS, value.storageKind) &&
+    isStorageScope(value.storageScope)
   )
 }
 
@@ -96,9 +96,9 @@ export function isStorageGetResult(value: unknown): value is ExtensionStorageGet
   return (
     isRecord(value) &&
     hasStorageResultBase(value) &&
-    value['method'] === OPENWAGGLE_EXTENSION_BROKER.METHOD.GET &&
-    isStorageKey(value['key']) &&
-    (value['value'] === null || isJsonValue(value['value']))
+    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.GET &&
+    isStorageKey(value.key) &&
+    (value.value === null || isJsonValue(value.value))
   )
 }
 
@@ -106,11 +106,11 @@ export function isStorageSetResult(value: unknown): value is ExtensionStorageSet
   return (
     isRecord(value) &&
     hasStorageResultBase(value) &&
-    value['method'] === OPENWAGGLE_EXTENSION_BROKER.METHOD.SET &&
-    isStorageKey(value['key']) &&
-    isJsonValue(value['value']) &&
-    typeof value['createdAt'] === 'number' &&
-    typeof value['updatedAt'] === 'number'
+    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.SET &&
+    isStorageKey(value.key) &&
+    isJsonValue(value.value) &&
+    typeof value.createdAt === 'number' &&
+    typeof value.updatedAt === 'number'
   )
 }
 
@@ -118,9 +118,9 @@ export function isStorageDeleteResult(value: unknown): value is ExtensionStorage
   return (
     isRecord(value) &&
     hasStorageResultBase(value) &&
-    value['method'] === OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE &&
-    isStorageKey(value['key']) &&
-    value['deleted'] === true
+    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE &&
+    isStorageKey(value.key) &&
+    value.deleted === true
   )
 }
 
@@ -128,18 +128,18 @@ export function isStorageListResult(value: unknown): value is ExtensionStorageLi
   return (
     isRecord(value) &&
     hasStorageResultBase(value) &&
-    value['method'] === OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST &&
-    isStringArray(value['keys']) &&
-    value['keys'].every(isStorageKey)
+    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST &&
+    isStringArray(value.keys) &&
+    value.keys.every(isStorageKey)
   )
 }
 
 function hasRuntimeContributionResultBase(value: Readonly<Record<string, unknown>>) {
   return (
-    isNonEmptyString(value['extensionId']) &&
-    isNonEmptyString(value['contributionId']) &&
-    value['capability'] === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME &&
-    isKnownString(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES, value['family'])
+    isNonEmptyString(value.extensionId) &&
+    isNonEmptyString(value.contributionId) &&
+    value.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME &&
+    isKnownString(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES, value.family)
   )
 }
 
@@ -149,8 +149,8 @@ export function isRuntimeRegisterContributionResult(
   return (
     isRecord(value) &&
     hasRuntimeContributionResultBase(value) &&
-    value['method'] === OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION &&
-    isNonEmptyString(value['registeredContributionId'])
+    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION &&
+    isNonEmptyString(value.registeredContributionId)
   )
 }
 
@@ -160,8 +160,8 @@ export function isRuntimeUnregisterContributionResult(
   return (
     isRecord(value) &&
     hasRuntimeContributionResultBase(value) &&
-    value['method'] === OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION &&
-    isNonEmptyString(value['unregisteredContributionId']) &&
-    typeof value['unregistered'] === 'boolean'
+    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION &&
+    isNonEmptyString(value.unregisteredContributionId) &&
+    typeof value.unregistered === 'boolean'
   )
 }
