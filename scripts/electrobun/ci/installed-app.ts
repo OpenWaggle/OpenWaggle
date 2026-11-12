@@ -97,6 +97,23 @@ function posixProcessCommands(): ProcessCommand[] {
   })
 }
 
+/** The directory Electrobun's updater manages for the app (its `appDataFolderFor`). */
+export function electrobunChannelRoot(platform: NodeJS.Platform = process.platform) {
+  const data =
+    platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support')
+      : platform === 'win32'
+        ? (process.env['LOCALAPPDATA'] ?? path.join(os.homedir(), 'AppData', 'Local'))
+        : (process.env['XDG_DATA_HOME'] ?? path.join(os.homedir(), '.local', 'share'))
+  return path.join(data, 'com.openwaggle.app', 'stable')
+}
+
+/** Every process whose command line contains one of `needles`, for a failure report. */
+export function processesNaming(needles: readonly string[]) {
+  const rows = process.platform === 'win32' ? windowsProcessCommands() : posixProcessCommands()
+  return rows.filter((row) => needles.some((needle) => row.command.includes(needle)))
+}
+
 /** The processes whose executable or command line names a path inside `directory`. */
 export function processesUnder(directory: string) {
   const rows = process.platform === 'win32' ? windowsProcessCommands() : posixProcessCommands()

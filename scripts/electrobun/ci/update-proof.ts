@@ -4,10 +4,17 @@
  * newer build and installs it on Restart to update; the installed app then launches as that build.
  */
 import fs from 'node:fs'
+import path from 'node:path'
 import { appRss } from '../../electrobun-probe-host'
 import { type LaunchContext, startApp, stopApp } from './app-launch'
 import { screenshot, waitUntil } from './app-proof'
-import { installedVersion, processesUnder, stopProcessesUnder } from './installed-app'
+import {
+  electrobunChannelRoot,
+  installedVersion,
+  processesNaming,
+  processesUnder,
+  stopProcessesUnder,
+} from './installed-app'
 
 const STATUS_POLL_MS = 2000
 /** How long an install may take to hand over to the relaunched app before the next check. */
@@ -65,6 +72,26 @@ async function downloadUpdate(context: LaunchContext, from: string, feed: string
   }
 }
 
+const RESULT_REPORT_CHARS = 4000
+
+/** What Electrobun's update helper left behind: its plan and result files, and whether it runs. */
+function updaterReport() {
+  const root = electrobunChannelRoot()
+  const entries = fs.existsSync(root) ? fs.readdirSync(root) : []
+  const results = entries
+    .filter((name) => name.startsWith('.electrobun-update-') && name.endsWith('.json'))
+    .map(
+      (name) =>
+        `${name}: ${fs.readFileSync(path.join(root, name), 'utf8').slice(0, RESULT_REPORT_CHARS)}`,
+    )
+  const helpers = processesNaming(['--apply-update']).map((row) => row.command)
+  return [
+    `Channel root ${root}: ${entries.join(', ')}`,
+    ...results,
+    `Helpers: ${helpers.join(' | ')}`,
+  ].join('\n')
+}
+
 export async function proveUpdate(
   context: LaunchContext,
   options: { readonly from: string; readonly expect: string; readonly feed: string },
@@ -74,7 +101,9 @@ export async function proveUpdate(
   const installStarted = Date.now()
   await waitUntil(`version.json to read ${options.expect}`, context.timeoutMs, async () =>
     installedVersion(context.app) === options.expect ? true : null,
-  )
+  ).catch((error: unknown) => {
+    throw new Error(`${String(error)}\n${updaterReport()}`, { cause: error })
+  })
   const installedMs = Date.now() - installStarted
   // Electrobun's install starts the new build; give it time to appear, then stop it, since CEF lets
   // one process per app identifier run and the check below starts its own.
