@@ -43,14 +43,23 @@ function restoreFailedLaunch(
     startedAt: previousLaunch?.startedAt ?? now,
     updatedAt: now,
     details: previousLaunch?.details ?? [],
-    environment: previousLaunch?.environment,
-    steps: previousLaunch?.steps,
-    progressPercentage: previousLaunch?.progressPercentage,
-    worktreePath: previousLaunch?.worktreePath,
-    branch: previousLaunch?.branch,
-    baseRef: previousLaunch?.baseRef,
+    ...(previousLaunch === null ? {} : retainedLaunchContext(previousLaunch)),
     errorMessage,
   })
+}
+
+/** The parts of a failed launch's last snapshot that stay on screen after the failure. */
+function retainedLaunchContext(launch: WorktreeLaunchSnapshot) {
+  return {
+    ...(launch.environment === undefined ? {} : { environment: launch.environment }),
+    ...(launch.steps === undefined ? {} : { steps: launch.steps }),
+    ...(launch.progressPercentage === undefined
+      ? {}
+      : { progressPercentage: launch.progressPercentage }),
+    ...(launch.worktreePath === undefined ? {} : { worktreePath: launch.worktreePath }),
+    ...(launch.branch === undefined ? {} : { branch: launch.branch }),
+    ...(launch.baseRef === undefined ? {} : { baseRef: launch.baseRef }),
+  }
 }
 
 export async function retryFirstSend(sessionIdValue: string, workLocally = false) {

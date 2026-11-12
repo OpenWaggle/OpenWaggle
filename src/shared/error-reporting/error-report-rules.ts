@@ -159,9 +159,9 @@ function knownDirectoryRule(directory: string | undefined, replacement: string):
 
 export interface ErrorReportKnownDirectories {
   /** The current user's home directory, which becomes `~`. */
-  readonly homeDirectory?: string | undefined
+  readonly homeDirectory?: string
   /** The process's temporary directory, such as Windows `%TEMP%`, which becomes `<tmp>`. */
-  readonly temporaryDirectory?: string | undefined
+  readonly temporaryDirectory?: string
 }
 
 function knownDirectoryRules(known: ErrorReportKnownDirectories) {

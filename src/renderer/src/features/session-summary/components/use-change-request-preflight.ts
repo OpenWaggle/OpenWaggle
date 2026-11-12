@@ -113,8 +113,10 @@ function changeRequestPreflightQueryOptions(input: SettledPreflightInput, enable
     queryFn: () =>
       api.preflightChangeRequest(input.workingPath, {
         headRef: input.headRef,
-        baseRef: input.baseRef,
-        createFeatureBranch: input.createFeatureBranch,
+        ...(input.baseRef === undefined ? {} : { baseRef: input.baseRef }),
+        ...(input.createFeatureBranch === undefined
+          ? {}
+          : { createFeatureBranch: input.createFeatureBranch }),
         title: '',
         body: '',
         draft: false,

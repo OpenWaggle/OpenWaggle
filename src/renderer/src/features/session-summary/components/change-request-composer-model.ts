@@ -30,7 +30,7 @@ export function changeRequestPreflightPayload(
     headRef: input.createFeatureBranch
       ? input.branchName.trim()
       : (input.vcsStatus?.refName ?? input.gitStatus?.branch ?? ''),
-    baseRef: input.vcsStatus?.defaultRef ?? undefined,
+    ...defaultBaseRef(input),
     title: input.title.trim() || input.session.title,
     body:
       input.description.trim() ||
@@ -96,20 +96,29 @@ export function changeRequestActionInput(
     // clean, so a local branch without an upstream is published before provider creation.
     action: input.commitAndPush ? 'commit_push_pr' : 'create_pr',
     sessionId: input.session.id,
-    commitMessage: input.commitAndPush ? title : undefined,
-    paths: input.commitAndPush
-      ? (input.gitStatus?.changedFiles.map((file) => file.path) ?? [])
-      : undefined,
+    ...(input.commitAndPush
+      ? {
+          commitMessage: title,
+          paths: input.gitStatus?.changedFiles.map((file) => file.path) ?? [],
+        }
+      : {}),
     changeRequestTitle: title,
     changeRequestBody:
       input.description.trim() ||
       generatedDescription(input.session, input.commitAndPush ? input.gitStatus : null),
     draft: input.draft,
     createFeatureBranch: input.createFeatureBranch,
-    featureBranchName: input.createFeatureBranch ? input.branchName : undefined,
     // Preflight already chose and validated this exact ref. Re-running automatic suffixing after
     // the safety gate would make the mutation target differ from the branch that was approved.
-    exactFeatureBranchName: input.createFeatureBranch ? true : undefined,
-    baseRef: input.vcsStatus?.defaultRef ?? undefined,
+    ...(input.createFeatureBranch
+      ? { featureBranchName: input.branchName, exactFeatureBranchName: true }
+      : {}),
+    ...defaultBaseRef(input),
   }
+}
+
+/** The repository's default ref as the base, when the provider status reported one. */
+function defaultBaseRef(input: Pick<ChangeRequestActionInput, 'vcsStatus'>) {
+  const baseRef = input.vcsStatus?.defaultRef
+  return baseRef === undefined || baseRef === null ? {} : { baseRef }
 }

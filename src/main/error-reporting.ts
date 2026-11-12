@@ -21,7 +21,7 @@ import {
 } from '@shared/error-reporting/error-report-constants'
 import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
 import { appLifecycle } from './desktop-shell/app-lifecycle'
-import { env } from './env'
+import { usageStatisticsEnv } from './usage-statistics-env'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
 import type { ErrorReporter, ErrorReportOrigin } from './ports/error-reporter'
@@ -66,12 +66,7 @@ function fixedOptOutApplies() {
   return (
     resolveUsageStatisticsEnvironmentBlock({
       buildChannel: BUILD_CHANNEL,
-      env: {
-        DO_NOT_TRACK: env.DO_NOT_TRACK,
-        PI_TELEMETRY: env.PI_TELEMETRY,
-        CI: env.CI,
-        OPENWAGGLE_AUTOMATION: env.OPENWAGGLE_AUTOMATION,
-      },
+      env: usageStatisticsEnv(),
     }) !== null
   )
 }

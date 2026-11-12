@@ -53,17 +53,17 @@ export interface BackgroundRunAssistantMessage {
 /** Full snapshot including accumulated message parts for reconnection. */
 export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   /** The Run the snapshot belongs to; absent from older Hosts. */
-  readonly runId?: string | undefined
-  readonly messageId?: string | undefined
+  readonly runId?: string
+  readonly messageId?: string
   /** When the message `parts` streams started (Host time); absent from older Hosts. */
-  readonly messageStartedAt?: number | undefined
+  readonly messageStartedAt?: number
   readonly parts: readonly MessagePart[]
-  readonly userMessages?: readonly BackgroundRunUserMessage[] | undefined
+  readonly userMessages?: readonly BackgroundRunUserMessage[]
   /**
    * The Run's earlier assistant messages, complete, in order, before the one `parts` streams. One
    * the byte caps cannot hold, or one cut short by them, is left out. Absent from older Hosts.
    */
-  readonly assistantMessages?: readonly BackgroundRunAssistantMessage[] | undefined
+  readonly assistantMessages?: readonly BackgroundRunAssistantMessage[]
   readonly degraded?: {
     readonly reason: 'content-limit'
     /**
@@ -71,9 +71,9 @@ export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
      * could not decode, which mark the message cut short like the caps do.
      */
     readonly omittedBytes: number
-    readonly toolCallIds?: readonly string[] | undefined
+    readonly toolCallIds?: readonly string[]
     /** Whether the caps cut the message `parts` streams; the omissions may be an earlier one's. */
     readonly messageCutShort: boolean
   }
-  readonly worktreeLaunch?: WorktreeLaunchSnapshot | undefined
+  readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }

@@ -82,7 +82,7 @@ export function useStackedGitActions({
     try {
       const result = await api.runStackedGitAction(workingPath, {
         action,
-        sessionId,
+        ...(sessionId === undefined ? {} : { sessionId }),
         ...options,
         operationId,
       })

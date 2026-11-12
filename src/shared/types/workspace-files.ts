@@ -38,7 +38,7 @@ export interface WorkspaceTextFidelity {
   readonly indentStyle: 'space' | 'tab'
   readonly indentSize: number
   readonly editorConfigApplied: boolean
-  readonly editorConfigPolicy?: WorkspaceEditorConfigPolicy | undefined
+  readonly editorConfigPolicy?: WorkspaceEditorConfigPolicy
 }
 
 export interface WorkspaceFileEntry {

@@ -77,7 +77,14 @@ describe('launchStepViews', () => {
   })
 
   it('leaves unlabelled snapshots from an older Host to the legacy presentation', () => {
-    expect(launchStepViews(launch({ steps: undefined }))).toBeNull()
+    const unlabelled: WorktreeLaunchSnapshot = {
+      status: 'running',
+      stage: 'fetching-base',
+      startedAt: 1,
+      updatedAt: 1,
+      details: [],
+    }
+    expect(launchStepViews(unlabelled)).toBeNull()
   })
 
   it('announces every step running in parallel', () => {

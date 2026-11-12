@@ -91,13 +91,16 @@ export function messageMetadataToUI(
 }
 
 export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
-  return session.messages.map((msg) => ({
-    id: String(msg.id),
-    role: msg.role,
-    parts: msg.parts.flatMap(messagePartToUIParts),
-    createdAt: new Date(msg.createdAt),
-    metadata: messageMetadataToUI(msg.metadata),
-  }))
+  return session.messages.map((msg) => {
+    const metadata = messageMetadataToUI(msg.metadata)
+    return {
+      id: String(msg.id),
+      role: msg.role,
+      parts: msg.parts.flatMap(messagePartToUIParts),
+      createdAt: new Date(msg.createdAt),
+      ...(metadata === undefined ? {} : { metadata }),
+    }
+  })
 }
 
 /**

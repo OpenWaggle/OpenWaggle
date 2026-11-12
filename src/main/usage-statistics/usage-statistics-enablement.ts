@@ -18,7 +18,7 @@ import {
   type UsageStatisticsEnablementInput,
   type UsageStatisticsEnvironmentBlock,
 } from '@shared/usage-statistics/enablement'
-import { env } from '../env'
+import { usageStatisticsEnv } from '../usage-statistics-env'
 import { createLogger } from '../logger'
 import { onAuthoritativeSettingsChange } from '../store/authoritative-settings'
 
@@ -95,12 +95,7 @@ export function createUsageStatisticsEnablementState(input: {
 
 const processEnablement = createUsageStatisticsEnablementState({
   buildChannel: BUILD_CHANNEL,
-  env: {
-    DO_NOT_TRACK: env.DO_NOT_TRACK,
-    PI_TELEMETRY: env.PI_TELEMETRY,
-    CI: env.CI,
-    OPENWAGGLE_AUTOMATION: env.OPENWAGGLE_AUTOMATION,
-  },
+  env: usageStatisticsEnv(),
 })
 
 onAuthoritativeSettingsChange((settings) =>

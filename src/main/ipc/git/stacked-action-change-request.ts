@@ -99,7 +99,7 @@ export async function buildOpenChangeRequestPayload(
     ...headIdentity,
     ...(baseRef ? { baseRef } : {}),
     title: options.changeRequestTitle?.trim() || 'Update',
-    body: options.changeRequestBody,
-    draft: options.draft,
+    ...(options.changeRequestBody === undefined ? {} : { body: options.changeRequestBody }),
+    ...(options.draft === undefined ? {} : { draft: options.draft }),
   }
 }

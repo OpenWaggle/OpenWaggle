@@ -17,12 +17,13 @@ export const voiceTranscriptionRequestSchema = Schema.Struct({
     Schema.greaterThanOrEqualTo(AUDIO_SAMPLE_RATE.MIN_HZ),
     Schema.lessThanOrEqualTo(AUDIO_SAMPLE_RATE.MAX_HZ),
   ),
-  language: Schema.optional(
+  language: Schema.optionalWith(
     Schema.String.pipe(
       Schema.trimmed(),
       Schema.minLength(LANGUAGE_CODE.MIN_LENGTH),
       Schema.maxLength(LANGUAGE_CODE.MAX_LENGTH),
     ),
+    { exact: true },
   ),
-  model: Schema.optional(Schema.Literal(VOICE_MODEL_TINY, VOICE_MODEL_BASE)),
+  model: Schema.optionalWith(Schema.Literal(VOICE_MODEL_TINY, VOICE_MODEL_BASE), { exact: true }),
 })

@@ -6,14 +6,15 @@ export interface ExtractedError {
 }
 
 const innerErrorSchema = Schema.Struct({
-  error: Schema.optional(
+  error: Schema.optionalWith(
     Schema.Struct({
-      message: Schema.optional(Schema.String),
-      status: Schema.optional(Schema.String),
-      type: Schema.optional(Schema.String),
+      message: Schema.optionalWith(Schema.String, { exact: true }),
+      status: Schema.optionalWith(Schema.String, { exact: true }),
+      type: Schema.optionalWith(Schema.String, { exact: true }),
     }),
+    { exact: true },
   ),
-  message: Schema.optional(Schema.String),
+  message: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 type InnerErrorData = typeof innerErrorSchema.Type

@@ -45,10 +45,12 @@ export const waggleMetadataSchema = Schema.Struct({
   agentIndex: Schema.Number,
   agentLabel: sessionInputItemTextSchema,
   agentColor: waggleAgentColorSchema,
-  agentModel: Schema.optional(sessionInputIdSchema.pipe(Schema.fromBrand(SupportedModelId))),
+  agentModel: Schema.optionalWith(sessionInputIdSchema.pipe(Schema.fromBrand(SupportedModelId)), {
+    exact: true,
+  }),
   turnNumber: Schema.Number,
   /** Unique ID for this waggle session. Groups turns that belong to the same waggle run. */
-  sessionId: Schema.optional(sessionInputIdSchema),
+  sessionId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
 })
 
 export const waggleAgentSlotSchema = Schema.Struct({

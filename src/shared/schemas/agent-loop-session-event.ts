@@ -28,6 +28,6 @@ export const durableAgentLoopEventNodeContentSchema = Schema.Struct({
 export const agentLoopSessionEventContentJsonSchema = Schema.parseJson(
   Schema.Struct({
     customType: sessionEventCustomTypeSchema,
-    event: Schema.optional(Schema.Unknown),
+    event: Schema.optionalWith(Schema.Unknown, { exact: true }),
   }),
 )

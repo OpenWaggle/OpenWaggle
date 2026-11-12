@@ -25,7 +25,9 @@ import { jsonValueSchema } from './validation'
 export const confirmResponseSchema = Schema.Struct({
   kind: Schema.Literal('confirm'),
   accepted: Schema.Boolean,
-  scope: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_DECISION_SCOPES)),
+  scope: Schema.optionalWith(Schema.Literal(...AGENT_AUTHORIZATION_DECISION_SCOPES), {
+    exact: true,
+  }),
 })
 
 export const selectResponseSchema = Schema.Struct({

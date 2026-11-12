@@ -77,7 +77,7 @@ export const exportCreateCommandSchema = Schema.Struct({
 }).pipe(
   Schema.filter(
     (command) =>
-      sessionExportBranchSelectionIsValid(command) ||
+      sessionExportBranchSelectionIsValid(command.branchScope, command.branchId) ||
       'A Session branch can be selected only for an active-branch export.',
   ),
 )
