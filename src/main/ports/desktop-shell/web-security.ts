@@ -20,7 +20,10 @@ export interface OriginStorage {
 }
 
 export interface WebSecurityShape {
-  /** Confines the inline visualization and MCP App frames of `surface` (call once per page). */
+  /**
+   * Confines the inline visualization and MCP App frames of `surface` (call once per page).
+   * Throws when the shell has no page for `surface`, so a missing page never runs unguarded.
+   */
   readonly guardEmbeddedFrames: (surface: RendererSurface) => void
   /** The storage of `surface`'s web profile; take it while the surface is open. */
   readonly originStorageOf: (surface: RendererSurface) => OriginStorage
