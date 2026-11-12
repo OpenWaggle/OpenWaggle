@@ -125,17 +125,17 @@ function userDisplayProjection(entry: SessionEntry, entryById: ReadonlyMap<strin
 }
 
 /** The entry with the ids it names expressed as node ids, for the content the projection keeps. */
-function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds): SessionEntry {
+function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds) {
   return matchBy(entry, 'type')
-    .with('compaction', (compaction): SessionEntry => ({
+    .with('compaction', (compaction) => ({
       ...compaction,
       firstKeptEntryId: nodeIds.toNodeId(compaction.firstKeptEntryId),
     }))
-    .with('branch_summary', (summary): SessionEntry => ({
+    .with('branch_summary', (summary) => ({
       ...summary,
       fromId: nodeIds.toNodeId(summary.fromId),
     }))
-    .with('label', (label): SessionEntry => ({
+    .with('label', (label) => ({
       ...label,
       targetId: nodeIds.toNodeId(label.targetId),
     }))
@@ -154,7 +154,7 @@ interface PiEntryProjectionInput {
   readonly waggleTurnOf: ReturnType<typeof createWaggleTurnMetadataResolver>
 }
 
-function projectPiEntry(input: PiEntryProjectionInput): ProjectedSessionNodeInput {
+function projectPiEntry(input: PiEntryProjectionInput) {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const displayProjection = userDisplayProjection(input.entry, input.entryById)
   const projection = projectionForPiEntry(withNodeReferences(input.entry, input.nodeIds), {
@@ -162,7 +162,7 @@ function projectPiEntry(input: PiEntryProjectionInput): ProjectedSessionNodeInpu
   })
   const waggleMetadata = isAssistantEntry(input.entry) ? input.waggleTurnOf(input.entry) : null
 
-  return {
+  const result: ProjectedSessionNodeInput = {
     id: input.nodeIds.toNodeId(input.entry.id),
     parentId: input.entry.parentId === null ? null : input.nodeIds.toNodeId(input.entry.parentId),
     piEntryType: input.entry.type,
@@ -191,6 +191,7 @@ function projectPiEntry(input: PiEntryProjectionInput): ProjectedSessionNodeInpu
     pathDepth: input.pathDepth,
     createdOrder: input.createdOrder,
   }
+  return result
 }
 
 function getPiEntryDepth(input: {
@@ -228,7 +229,7 @@ function retainedPiEntryNode(
   input: PiEntryProjectionInput,
   stored: Pick<ProjectedSessionNodeInput, 'kind' | 'role'>,
   revision: number,
-): ProjectedSessionNodeInput {
+) {
   let projected: ProjectedSessionNodeInput | undefined
   const full = () => {
     projected ??= projectPiEntry(input)

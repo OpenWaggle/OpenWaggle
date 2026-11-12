@@ -15,7 +15,7 @@ export function appendJsonProperty(head: string, key: string, valueJson: string)
 }
 
 /** `JSON.stringify(event)`, remembering its payload's JSON for the frames that carry it. */
-export function serializeSessionHostEvent(event: SessionHostEventEnvelope): string {
+export function serializeSessionHostEvent(event: SessionHostEventEnvelope) {
   const { payload, ...head } = event
   const json = JSON.stringify(payload)
   payloadJson.set(payload, json)
@@ -23,7 +23,7 @@ export function serializeSessionHostEvent(event: SessionHostEventEnvelope): stri
 }
 
 /** The event's JSON, reusing its payload's when the hub serialized it. */
-export function sessionHostEventJson(event: SessionHostEventEnvelope): string {
+export function sessionHostEventJson(event: SessionHostEventEnvelope) {
   const { payload, ...head } = event
   return appendJsonProperty(
     JSON.stringify(head),

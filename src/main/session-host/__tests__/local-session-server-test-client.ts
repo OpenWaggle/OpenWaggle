@@ -18,10 +18,13 @@ export class TestFrameReader {
     })
   }
 
-  next(): Promise<unknown> {
+  next() {
     const value = this.values.shift()
-    if (value !== undefined) return Promise.resolve(value)
-    return new Promise((resolve) => this.waiters.push(resolve))
+    if (value !== undefined) {
+      const promise: Promise<unknown> = Promise.resolve(value)
+      return promise
+    }
+    return new Promise<unknown>((resolve) => this.waiters.push(resolve))
   }
 }
 
@@ -61,6 +64,6 @@ export function isTestServerFrame(value: unknown, kind: string, code?: string) {
   return value.kind === kind && (code === undefined || value.code === code)
 }
 
-export function sessionHostCursorFromTestFrame(frame: unknown): SessionHostEventCursor {
+export function sessionHostCursorFromTestFrame(frame: unknown) {
   return decodeUnknownOrThrow(Schema.Struct({ cursor: testCursorSchema }), frame).cursor
 }

@@ -132,23 +132,24 @@ function isHostConnectionError(error: unknown) {
  * `internal`: the commands raise their usage errors as typed errors, so an unexpected failure
  * never passes for a usage mistake because of how it is worded.
  */
-export function classifySessionsCliError(error: unknown): SessionsCliErrorKind {
+export function classifySessionsCliError(error: unknown) {
   if (error instanceof CliError) return error.kind
   // The Session Host names the kind of a failure it reports (ADR 0063). A frame without one,
   // such as a handshake refusal from a Session Host older than revision 32, takes its code's
   // kind from the same table; an unlisted code is an unexpected failure.
   if (error instanceof LocalSessionClientProtocolError) {
-    return error.errorKind ?? sessionHostErrorKindForThrownCode(error.code)
+    return (error.errorKind ??
+      sessionHostErrorKindForThrownCode(error.code)) satisfies SessionsCliErrorKind
   }
-  if (error instanceof LocalSessionClientTimeoutError) return 'timeout'
+  if (error instanceof LocalSessionClientTimeoutError) return 'timeout' as const
   if (
     error instanceof LocalSessionHostUnavailableError ||
     error instanceof LocalSessionHostUpgradePendingError ||
     isHostConnectionError(error)
   ) {
-    return 'host_unavailable'
+    return 'host_unavailable' as const
   }
-  return 'internal'
+  return 'internal' as const
 }
 
 /**

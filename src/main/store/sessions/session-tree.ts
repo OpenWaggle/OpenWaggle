@@ -28,7 +28,7 @@ import {
 import { attachSessionLineage, loadSessionLineageRows } from './session-list'
 import type { SessionBranchRow, SessionBranchStateRow } from './types'
 
-export async function getSessionTree(sessionId: SessionId): Promise<SessionContentTree | null> {
+export async function getSessionTree(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -44,7 +44,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionConte
       const nodes = buildSessionNodes(data.nodeRows)
       const interruptedRunByBranchId = interruptedRunsByBranchId(data.activeRunRows)
 
-      return {
+      const tree: SessionContentTree = {
         session,
         nodes,
         branches: buildTreeBranches(
@@ -59,6 +59,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionConte
           ? hydrateUiState(data.uiStateRows[EMPTY_INDEX])
           : null,
       }
+      return tree
     }),
   )
 }

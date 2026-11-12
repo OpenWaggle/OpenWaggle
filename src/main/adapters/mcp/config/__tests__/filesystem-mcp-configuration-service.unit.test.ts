@@ -27,8 +27,9 @@ function write(filePath: string, value: unknown) {
   writeFileSync(filePath, JSON.stringify(value, null, 2))
 }
 
-function json(filePath: string): unknown {
-  return JSON.parse(readFileSync(filePath, 'utf8'))
+function json(filePath: string) {
+  const parsed: unknown = JSON.parse(readFileSync(filePath, 'utf8'))
+  return parsed
 }
 
 const piGlobal = () => path.join(piAgentDir, 'mcp.json')

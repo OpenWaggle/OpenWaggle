@@ -14,12 +14,12 @@ let repositoryPath: string | null = null
 const PADDING_LINE = 'line of text padding padding padding padding padding\n'
 const LINES_OVER_BUFFER = Math.ceil((DIFF_GIT_MAX_BUFFER * 2) / PADDING_LINE.length)
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFileAsync('git', [...args], { cwd })
   return stdout
 }
 
-async function createRepository(): Promise<string> {
+async function createRepository() {
   const repository = await mkdtemp(path.join(tmpdir(), 'openwaggle-diff-failure-'))
   repositoryPath = repository
   await git(repository, ['init', '--initial-branch=main'])

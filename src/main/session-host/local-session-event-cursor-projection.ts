@@ -57,7 +57,7 @@ function encodeInternalCursor(cursor: SessionHostEventCursor) {
   return plaintext
 }
 
-function decodeInternalCursor(plaintext: Buffer): SessionHostEventCursor | undefined {
+function decodeInternalCursor(plaintext: Buffer) {
   if (plaintext.byteLength < CURSOR_HOST_LENGTH_BYTES + CURSOR_SEQUENCE_BYTES) return
   const hostLength = plaintext.readUInt16BE(0)
   const expectedLength = CURSOR_HOST_LENGTH_BYTES + hostLength + CURSOR_SEQUENCE_BYTES
@@ -111,10 +111,7 @@ export class LocalSessionEventCursorProjection {
     }
   }
 
-  expose(
-    caller: LocalSessionCallerIdentity,
-    internal: SessionHostEventCursor,
-  ): SessionHostEventCursor {
+  expose(caller: LocalSessionCallerIdentity, internal: SessionHostEventCursor) {
     const authority = authorityKey(caller)
     if (!authority) return internal
     const scoped = this.bindReplayCursor(caller, internal)
@@ -129,44 +126,44 @@ export class LocalSessionEventCursorProjection {
     }
   }
 
-  bindReplayCursor(
-    caller: LocalSessionCallerIdentity,
-    internal: SessionHostEventCursor,
-  ): SessionHostEventCursor {
+  bindReplayCursor(caller: LocalSessionCallerIdentity, internal: SessionHostEventCursor) {
     const authority = authorityKey(caller)
     if (!authority) return internal
     const state = this.#stateFor(caller, authority)
     return { hostInstanceId: state.view.hostInstanceId, sequence: internal.sequence }
   }
 
-  exposeEvent(
-    caller: LocalSessionCallerIdentity,
-    event: SessionHostEventEnvelope,
-  ): SessionHostEventEnvelope {
+  exposeEvent(caller: LocalSessionCallerIdentity, event: SessionHostEventEnvelope) {
     const cursor = this.expose(caller, event.cursor)
     return cursor === event.cursor ? event : { ...event, cursor }
   }
 
-  resolve(
-    caller: LocalSessionCallerIdentity,
-    external: SessionHostEventCursor,
-  ): LocalSessionCursorResolution {
+  resolve(caller: LocalSessionCallerIdentity, external: SessionHostEventCursor) {
     const authority = authorityKey(caller)
-    if (!authority) return { status: 'ready', cursor: external }
+    if (!authority) {
+      const resolution: LocalSessionCursorResolution = { status: 'ready', cursor: external }
+      return resolution
+    }
     const prefix = `${this.#instanceId}.`
     if (!external.hostInstanceId.startsWith(prefix)) {
-      return this.#resync(caller, 'host-restarted')
+      const resolution: LocalSessionCursorResolution = this.#resync(caller, 'host-restarted')
+      return resolution
     }
     if (external.sequence !== CURSOR_SEQUENCE) {
-      return this.#resync(caller, 'cursor-ahead')
+      const resolution: LocalSessionCursorResolution = this.#resync(caller, 'cursor-ahead')
+      return resolution
     }
     const encodedToken = external.hostInstanceId.slice(prefix.length)
     const token = Buffer.from(encodedToken, 'base64url')
     if (token.toString('base64url') !== encodedToken) {
-      return this.#resync(caller, 'cursor-expired')
+      const resolution: LocalSessionCursorResolution = this.#resync(caller, 'cursor-expired')
+      return resolution
     }
     const minimumLength = CURSOR_IV_BYTES + CURSOR_TAG_BYTES
-    if (token.byteLength <= minimumLength) return this.#resync(caller, 'cursor-expired')
+    if (token.byteLength <= minimumLength) {
+      const resolution: LocalSessionCursorResolution = this.#resync(caller, 'cursor-expired')
+      return resolution
+    }
     try {
       const iv = token.subarray(0, CURSOR_IV_BYTES)
       const tag = token.subarray(CURSOR_IV_BYTES, minimumLength)
@@ -177,13 +174,21 @@ export class LocalSessionEventCursorProjection {
       const internal = decodeInternalCursor(
         Buffer.concat([decipher.update(ciphertext), decipher.final()]),
       )
-      if (!internal) return this.#resync(caller, 'cursor-expired')
+      if (!internal) {
+        const resolution: LocalSessionCursorResolution = this.#resync(caller, 'cursor-expired')
+        return resolution
+      }
       const state = this.#statesByView.get(internal.hostInstanceId)
-      if (!state || state.authority !== authority) return this.#resync(caller, 'cursor-expired')
+      if (!state || state.authority !== authority) {
+        const resolution: LocalSessionCursorResolution = this.#resync(caller, 'cursor-expired')
+        return resolution
+      }
       this.#touch(state)
-      return { status: 'ready', cursor: internal }
+      const resolution: LocalSessionCursorResolution = { status: 'ready', cursor: internal }
+      return resolution
     } catch {
-      return this.#resync(caller, 'cursor-expired')
+      const resolution: LocalSessionCursorResolution = this.#resync(caller, 'cursor-expired')
+      return resolution
     }
   }
 
@@ -283,11 +288,11 @@ export class LocalSessionEventCursorProjection {
   #resync(
     caller: LocalSessionCallerIdentity,
     reason: Exclude<LocalSessionCursorResolution, { readonly status: 'ready' }>['reason'],
-  ): LocalSessionCursorResolution {
+  ) {
     return {
       status: 'resync-required',
       reason,
       cursor: this.expose(caller, this.eventHub.cursor()),
-    }
+    } satisfies LocalSessionCursorResolution
   }
 }

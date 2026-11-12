@@ -48,10 +48,8 @@ class ExplicitWaggleRefusal extends Data.TaggedError('ExplicitWaggleRefusal')<{
   readonly message: string
 }> {}
 
-export function reportRefusedExplicitWaggle<E, R>(
-  effect: Effect.Effect<WaggleSendReport, E, R>,
-): Effect.Effect<WaggleSendReport, E, R> {
-  return effect.pipe(
+export function reportRefusedExplicitWaggle<E, R>(effect: Effect.Effect<WaggleSendReport, E, R>) {
+  const result: Effect.Effect<WaggleSendReport, E, R> = effect.pipe(
     Effect.catchIf(
       (error): error is E & ExplicitWaggleRefusal => error instanceof ExplicitWaggleRefusal,
       (refusal) =>
@@ -62,6 +60,7 @@ export function reportRefusedExplicitWaggle<E, R>(
         } satisfies WaggleSendReport),
     ),
   )
+  return result
 }
 
 interface ExplicitWaggleRunContext {

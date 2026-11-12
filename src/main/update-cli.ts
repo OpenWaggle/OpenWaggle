@@ -26,20 +26,13 @@ import {
   stopSessionHostBeforeInstall,
 } from './update-cli-exact-version'
 import { runBundledInstaller } from './update-cli-installers'
-import {
-  configureUpdaterFeed,
-  isVersionEligibleForChannel,
-  type UpdateFeedSelection,
-} from './update-feed'
+import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
 
 const UPDATE_AGENT_REFUSAL =
   'OpenWaggle agents cannot check for or install OpenWaggle updates. Ask the user to run openwaggle update.'
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
 
-async function configureUpdater(
-  channel: UpdateChannel,
-  checkOnly: boolean,
-): Promise<UpdateFeedSelection> {
+async function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
   updateEngine.configure({
     feedChannel: updaterFeedChannel(channel),
     allowPrerelease: channel !== 'stable',
@@ -82,14 +75,14 @@ function abandonDownloadWaiter(waiter: ReturnType<typeof createDownloadWaiter> |
 
 type ChannelInstallMode = 'check' | 'defer-to-desktop' | 'bundled-installer' | 'updater'
 
-function channelInstallMode(checkOnly: boolean): ChannelInstallMode {
-  if (checkOnly) return 'check'
+function channelInstallMode(checkOnly: boolean) {
+  if (checkOnly) return 'check' as const
   // A running desktop app owns installation, so its Restart to update action can protect active
   // agent runs and relaunch it. The terminal then only reports the available version.
-  if (isDesktopAppRunning(systemIntegration)) return 'defer-to-desktop'
+  if (isDesktopAppRunning(systemIntegration)) return 'defer-to-desktop' as const
   // Squirrel.Mac ignores quitAndInstall's arguments and always relaunches the app, so macOS installs
   // through the bundled installer, which can install without opening a window.
-  return process.platform === 'darwin' ? 'bundled-installer' : 'updater'
+  return process.platform === 'darwin' ? ('bundled-installer' as const) : ('updater' as const)
 }
 
 async function installAvailableUpdate(input: {

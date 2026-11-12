@@ -1,6 +1,6 @@
 import { hostHandle } from './typed-ipc'
 
-export function registerExtensionsHandlers(): void {
+export function registerExtensionsHandlers() {
   hostHandle('extensions:list-packages')
 
   hostHandle('extensions:list-contributions')

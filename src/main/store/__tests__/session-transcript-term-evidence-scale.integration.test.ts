@@ -5,7 +5,6 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { prepareIncrementalSessionTranscriptTerms } from '../../services/session-transcript-term-incremental-projection'
 import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
 import { createSession, persistSessionSnapshot } from '../session-details'
@@ -46,7 +45,7 @@ function nodeId(index: number) {
   return `evidence-${String(index).padStart(6, '0')}`
 }
 
-function retainedNodes(): readonly ProjectedSessionNodeInput[] {
+function retainedNodes() {
   return Array.from({ length: NODE_COUNT - 1 }, (_, offset) => {
     const index = offset + 1
     return {

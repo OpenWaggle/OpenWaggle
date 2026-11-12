@@ -2,7 +2,7 @@
 export async function commitReviewedSnapshot<T>(
   save: () => Promise<T>,
   undoReview: void | (() => Promise<void>),
-): Promise<T> {
+) {
   try {
     return await save()
   } catch (error) {

@@ -1,8 +1,4 @@
-import type {
-  AgentSession,
-  CreateAgentSessionResult,
-  SessionShutdownEvent,
-} from '@earendil-works/pi-coding-agent'
+import type { AgentSession, SessionShutdownEvent } from '@earendil-works/pi-coding-agent'
 import { createAgentSessionFromServices } from '@earendil-works/pi-coding-agent'
 import { createLogger } from '../../logger'
 import {
@@ -42,7 +38,7 @@ async function bindSessionExtensions(
 
 export async function createOpenWaggleAgentSessionFromServices(
   options: OpenWaggleAgentSessionOptions,
-): Promise<CreateAgentSessionResult> {
+) {
   const { openWaggleUi, ...piOptions } = options
   const result = await createAgentSessionFromServices(piOptions)
   try {
@@ -61,7 +57,7 @@ export async function createOpenWaggleAgentSessionFromServices(
 export async function emitOpenWagglePiSessionShutdown(
   session: AgentSession,
   reason: SessionShutdownEvent['reason'] = 'quit',
-): Promise<void> {
+) {
   const event: SessionShutdownEvent = { type: 'session_shutdown', reason }
   try {
     await session.extensionRunner.emit(event)
@@ -75,7 +71,7 @@ export async function emitOpenWagglePiSessionShutdown(
 export async function disposeOpenWagglePiSession(
   session: AgentSession,
   reason: SessionShutdownEvent['reason'] = 'quit',
-): Promise<void> {
+) {
   try {
     await emitOpenWagglePiSessionShutdown(session, reason)
   } finally {
@@ -86,6 +82,6 @@ export async function disposeOpenWagglePiSession(
 export async function withOpenWagglePiSessionLifecycleContext<T>(
   _session: AgentSession,
   operation: () => Promise<T>,
-): Promise<T> {
+) {
   return operation()
 }

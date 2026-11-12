@@ -58,9 +58,7 @@ function startsAtOnce(input: ApplyExplicitFollowUpInput) {
   return queue.pauseReason === 'parent-limit' && isPersonStartedRun(input.intent)
 }
 
-export function applyExplicitFollowUp(
-  input: ApplyExplicitFollowUpInput,
-): ApplyExplicitFollowUpResult {
+export function applyExplicitFollowUp(input: ApplyExplicitFollowUpInput) {
   if (startsAtOnce(input)) {
     const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
     return {
@@ -77,7 +75,7 @@ export function applyExplicitFollowUp(
         runId: input.runId,
         stateRevision: nextRevision,
       },
-    }
+    } satisfies ApplyExplicitFollowUpResult
   }
 
   const appended = appendPendingFollowUp({
@@ -85,7 +83,13 @@ export function applyExplicitFollowUp(
     followUpId: input.followUpId,
     intent: input.intent,
   })
-  if (!appended.accepted) return { accepted: false, code: appended.code, state: input.state }
+  if (!appended.accepted) {
+    return {
+      accepted: false,
+      code: appended.code,
+      state: input.state,
+    } satisfies ApplyExplicitFollowUpResult
+  }
   return {
     accepted: true,
     state: appended.state,
@@ -95,5 +99,5 @@ export function applyExplicitFollowUp(
       sessionId: input.state.sessionId,
       ...appended.queued,
     },
-  }
+  } satisfies ApplyExplicitFollowUpResult
 }

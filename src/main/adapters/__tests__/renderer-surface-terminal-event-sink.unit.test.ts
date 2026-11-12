@@ -33,7 +33,7 @@ const PAYLOAD: TerminalEventPayload = {
 
 const surfaceRegistry = new Map<number, FakeWebContents>()
 
-function makeSurface(id: number): FakeWebContents {
+function makeSurface(id: number) {
   const surface: FakeWebContents = {
     send: vi.fn(),
     destroyed: false,

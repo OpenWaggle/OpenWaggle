@@ -130,12 +130,12 @@ const ATTACHED_SHORT_FLAGS: Readonly<
 }
 const SHORT_FLAG_LENGTH = 2
 
-function attachedShortFlag(token: string, state: ArgumentState): FlagValue | undefined {
+function attachedShortFlag(token: string, state: ArgumentState) {
   const flag = token.slice(0, SHORT_FLAG_LENGTH)
   const value = token.slice(SHORT_FLAG_LENGTH)
   const accepts = token.startsWith('--') ? undefined : ATTACHED_SHORT_FLAGS[flag]
   if (!accepts || !value || !accepts(value, state)) return undefined
-  return { flag, value, consumed: 1, emit: (next) => [`${flag}${next}`] }
+  return { flag, value, consumed: 1, emit: (next) => [`${flag}${next}`] } satisfies FlagValue
 }
 
 function flagValueAt(values: readonly string[], index: number, state: ArgumentState) {

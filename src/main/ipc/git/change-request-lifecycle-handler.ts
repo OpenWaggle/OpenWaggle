@@ -110,7 +110,7 @@ function mergeEffect(
   })
 }
 
-export function registerGitChangeRequestLifecycleHandlers(): void {
+export function registerGitChangeRequestLifecycleHandlers() {
   hostHandle('git:change-request:panel')
   relayingHandle('git:change-request:merge', (event, sessionId, path, payload) =>
     mergeEffect(event, sessionId, path, payload),

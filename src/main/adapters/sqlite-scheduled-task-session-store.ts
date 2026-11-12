@@ -69,7 +69,7 @@ function callerAuthorityBoundary(sql: SqlClient.SqlClient, callerId: string) {
     SELECT scope_json, authorization_ceiling, revoked_at FROM session_client_profiles
     WHERE id = ${callerId.slice('profile:'.length)} LIMIT 1
   `.pipe(
-    Effect.map((rows): ScheduledTaskAuthorityBoundary => {
+    Effect.map((rows) => {
       const profile = rows[0]
       if (profile?.revoked_at !== null) return NO_REACH
       return {
@@ -81,7 +81,7 @@ function callerAuthorityBoundary(sql: SqlClient.SqlClient, callerId: string) {
   )
 }
 
-export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient): SessionMethods {
+export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient) {
   return {
     sessionAuthorityBoundary: (sessionId) => sessionAuthorityBoundary(sql, sessionId),
     callerAuthorityBoundary: (callerId) => callerAuthorityBoundary(sql, callerId),
@@ -165,5 +165,5 @@ export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient): SessionMe
         }),
         Effect.mapError(repositoryError('session-activity')),
       ),
-  }
+  } satisfies SessionMethods
 }

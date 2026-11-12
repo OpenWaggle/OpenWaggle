@@ -41,20 +41,25 @@ const QUEUE_CHANGES = new Set<SessionControlMutationRequest['command']['operatio
 export function settleDeferredWorkerDelegationAfterQueueChange(
   request: SessionControlMutationRequest,
   response: SessionControlMutationResponse,
-): Effect.Effect<
-  boolean,
-  never,
-  SessionControlRunLifecycleRepository | SessionOrchestrationUpdateDeliveryService
-> {
+) {
   if (
     response.outcome.effect === 'rejected' ||
     response.outcome.effect === 'started-run' ||
     !QUEUE_CHANGES.has(request.command.operation)
   ) {
-    return Effect.succeed(false)
+    const result: Effect.Effect<
+      boolean,
+      never,
+      SessionControlRunLifecycleRepository | SessionOrchestrationUpdateDeliveryService
+    > = Effect.succeed(false)
+    return result
   }
   const sessionId = SessionId(request.command.sessionId)
-  return Effect.gen(function* () {
+  const result: Effect.Effect<
+    boolean,
+    never,
+    SessionControlRunLifecycleRepository | SessionOrchestrationUpdateDeliveryService
+  > = Effect.gen(function* () {
     const lifecycle = yield* SessionControlRunLifecycleRepository
     if (!lifecycle.settleDeferredWorkerDelegation) return false
     const update = yield* lifecycle.settleDeferredWorkerDelegation({ sessionId })
@@ -84,6 +89,7 @@ export function settleDeferredWorkerDelegationAfterQueueChange(
       }),
     ),
   )
+  return result
 }
 
 /** Requests the Hive cleanup pass a deferred settlement made due; never fails the command. */

@@ -81,7 +81,7 @@ async function readLines(file: string) {
   return text
     .split('\n')
     .filter((line) => line.length > 0)
-    .map((line): { id?: string; type: string; parentId?: string | null } => JSON.parse(line))
+    .map((line) => JSON.parse(line))
 }
 
 /** Rewrites one entry id of a Pi file, as Pi's eight-character ids could collide on their own. */

@@ -32,7 +32,7 @@ const WORKTREES = {
 function occupant(
   sessionId: string,
   overrides: Partial<WorkspaceOccupant> & { readonly workingPath?: string },
-): WorkspaceOccupant {
+) {
   const { workingPath, ...rest } = overrides
   return {
     sessionId,
@@ -50,7 +50,7 @@ function occupant(
         }
       : null,
     ...rest,
-  }
+  } satisfies WorkspaceOccupant
 }
 
 const OCCUPANTS: readonly WorkspaceOccupant[] = [

@@ -7,14 +7,12 @@ import {
   type IsoWeekday,
   SCHEDULED_TASKS_CONTRACT_VERSION,
   type ScheduledTaskInput,
-  type ScheduledTaskNotificationPolicy,
   type ScheduledTaskPatch,
   type ScheduledTasksCommand,
-  type ScheduledTasksRequest,
   type ScheduledTaskTarget,
   type TaskSchedule,
 } from '@shared/types/scheduled-task'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import { THINKING_LEVELS } from '@shared/types/settings'
 import { sessionIdFromReference } from '@shared/utils/session-link'
 import { CommandCliUsageError } from './command-cli-option-contract'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
@@ -57,7 +55,7 @@ function everyMinutes(value: string) {
   return unit.startsWith('h') ? amount * MINUTES_PER_HOUR : amount
 }
 
-function weekdays(value: string | undefined): readonly IsoWeekday[] | undefined {
+function weekdays(value: string | undefined) {
   if (value === undefined) return undefined
   if (value === 'weekdays') return WORKDAYS
   if (!DAYS_PER_WEEK_PATTERN.test(value)) {
@@ -71,7 +69,7 @@ function weekdays(value: string | undefined): readonly IsoWeekday[] | undefined 
 }
 
 /** The schedule the options name, or undefined when they name none. */
-export function scheduleFromOptions(arguments_: ParsedArguments): TaskSchedule | undefined {
+export function scheduleFromOptions(arguments_: ParsedArguments) {
   const every = option(arguments_, 'every')
   const daily = option(arguments_, 'daily')
   const rule = option(arguments_, 'rrule')
@@ -79,18 +77,22 @@ export function scheduleFromOptions(arguments_: ParsedArguments): TaskSchedule |
   if (named.length > 1) {
     throw new CommandCliUsageError('Choose one of --every, --daily, or --rrule.')
   }
-  if (every !== undefined) return { kind: 'interval', everyMinutes: everyMinutes(every) }
+  if (every !== undefined) {
+    return { kind: 'interval', everyMinutes: everyMinutes(every) } satisfies TaskSchedule
+  }
   if (daily !== undefined) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(daily)) {
       throw new CommandCliUsageError('--daily takes HH:MM (24-hour).')
     }
     const days = weekdays(option(arguments_, 'weekdays'))
-    return { kind: 'daily', at: daily, ...(days ? { weekdays: days } : {}) }
+    return { kind: 'daily', at: daily, ...(days ? { weekdays: days } : {}) } satisfies TaskSchedule
   }
   if (option(arguments_, 'weekdays') !== undefined) {
     throw new CommandCliUsageError('--weekdays needs --daily HH:MM.')
   }
-  return rule !== undefined ? { kind: 'rrule', rule } : undefined
+  return (rule !== undefined ? { kind: 'rrule', rule } : undefined) satisfies
+    | TaskSchedule
+    | undefined
 }
 
 function timestamp(value: string | undefined, label: string) {
@@ -103,7 +105,7 @@ function timestamp(value: string | undefined, label: string) {
   return parsed
 }
 
-function thinkingLevel(value: string | undefined): ThinkingLevel | undefined {
+function thinkingLevel(value: string | undefined) {
   if (value === undefined) return undefined
   const level = THINKING_LEVELS.find((candidate) => candidate === value)
   if (!level) {
@@ -112,12 +114,10 @@ function thinkingLevel(value: string | undefined): ThinkingLevel | undefined {
   return level
 }
 
-function notificationPolicy(
-  value: string | undefined,
-): ScheduledTaskNotificationPolicy | undefined {
+function notificationPolicy(value: string | undefined) {
   if (value === undefined) return undefined
-  if (value === 'every-run') return 'every-run'
-  if (value === 'failures-only') return 'failures-only'
+  if (value === 'every-run') return 'every-run' as const
+  if (value === 'failures-only') return 'failures-only' as const
   throw new CommandCliUsageError('--notify must be every-run or failures-only.')
 }
 
@@ -151,17 +151,18 @@ function modelChoice(arguments_: ParsedArguments) {
 
 const LAUNCH_ONLY_OPTIONS = ['workspace', 'agent', 'archive-finished'] as const
 
-function heartbeatTarget(sessionId: string, arguments_: ParsedArguments): ScheduledTaskTarget {
+function heartbeatTarget(sessionId: string, arguments_: ParsedArguments) {
   const launchOnly = LAUNCH_ONLY_OPTIONS.filter((name) => option(arguments_, name) !== undefined)
   if (launchOnly.length > 0) {
     throw new CommandCliUsageError(
       `${launchOnly.map((name) => `--${name}`).join(', ')} apply only to a Launch schedule.`,
     )
   }
-  return { kind: 'heartbeat', sessionId, ...modelChoice(arguments_) }
+  const target: ScheduledTaskTarget = { kind: 'heartbeat', sessionId, ...modelChoice(arguments_) }
+  return target
 }
 
-function launchTarget(projectPath: string, arguments_: ParsedArguments): ScheduledTaskTarget {
+function launchTarget(projectPath: string, arguments_: ParsedArguments) {
   const agent = option(arguments_, 'agent')
   return {
     kind: 'launch',
@@ -170,7 +171,7 @@ function launchTarget(projectPath: string, arguments_: ParsedArguments): Schedul
     ...modelChoice(arguments_),
     ...(agent ? { agentDefinitionName: agent } : {}),
     archiveFinishedSessions: hasFlag(arguments_, 'archive-finished'),
-  }
+  } satisfies ScheduledTaskTarget
 }
 
 function commonFields(arguments_: ParsedArguments) {
@@ -188,7 +189,7 @@ function commonFields(arguments_: ParsedArguments) {
   }
 }
 
-async function createCommand(arguments_: ParsedArguments): Promise<ScheduledTasksCommand> {
+async function createCommand(arguments_: ParsedArguments) {
   const [kind, targetArgument, ...words] = arguments_.positionals
   if (kind !== 'heartbeat' && kind !== 'launch') {
     throw new CommandCliUsageError('create needs heartbeat <session> or launch <project-path>.')
@@ -217,10 +218,11 @@ async function createCommand(arguments_: ParsedArguments): Promise<ScheduledTask
     ...common,
     ...(heartbeat ? { heartbeat } : {}),
   }
-  return { operation: 'create', input }
+  const command: ScheduledTasksCommand = { operation: 'create', input }
+  return command
 }
 
-async function updateCommand(arguments_: ParsedArguments): Promise<ScheduledTasksCommand> {
+async function updateCommand(arguments_: ParsedArguments) {
   const [taskId, ...words] = arguments_.positionals
   const schedule = scheduleFromOptions(arguments_)
   const name = option(arguments_, 'name')
@@ -236,20 +238,25 @@ async function updateCommand(arguments_: ParsedArguments): Promise<ScheduledTask
   if (Object.keys(patch).length === 0) {
     throw new CommandCliUsageError('update needs at least one change.')
   }
-  return { operation: 'update', taskId: required(taskId, 'the task id'), patch }
+  const command: ScheduledTasksCommand = {
+    operation: 'update',
+    taskId: required(taskId, 'the task id'),
+    patch,
+  }
+  return command
 }
 
-function listCommand(arguments_: ParsedArguments): ScheduledTasksCommand {
+function listCommand(arguments_: ParsedArguments) {
   const project = option(arguments_, 'project')
   const session = option(arguments_, 'session')
   return {
     operation: 'list',
     ...(project ? { projectPath: path.resolve(project) } : {}),
     ...(session ? { sessionId: sessionIdFromReference(session, '--session') } : {}),
-  }
+  } satisfies ScheduledTasksCommand
 }
 
-function runsCommand(arguments_: ParsedArguments): ScheduledTasksCommand {
+function runsCommand(arguments_: ParsedArguments) {
   const limit = option(arguments_, 'limit')
   const before = timestamp(option(arguments_, 'before'), '--before')
   return {
@@ -257,7 +264,7 @@ function runsCommand(arguments_: ParsedArguments): ScheduledTasksCommand {
     taskId: required(arguments_.positionals[0], 'the task id'),
     ...(limit ? { limit: positiveWhole(limit, '--limit') } : {}),
     ...(typeof before === 'number' ? { before } : {}),
-  }
+  } satisfies ScheduledTasksCommand
 }
 
 function taskId(arguments_: ParsedArguments) {
@@ -288,10 +295,7 @@ const COMMAND_BUILDERS: Readonly<Record<string, CommandBuilder>> = {
 }
 
 /** The commands one CLI invocation sends; `import` sends one create per task. */
-export async function buildSchedulesCliCommands(
-  command: string,
-  arguments_: ParsedArguments,
-): Promise<readonly ScheduledTasksCommand[]> {
+export async function buildSchedulesCliCommands(command: string, arguments_: ParsedArguments) {
   const builder = COMMAND_BUILDERS[command]
   if (!builder) {
     throw new CommandCliUsageError(`Unsupported OpenWaggle Schedules command: ${command}.`)
@@ -302,7 +306,7 @@ export async function buildSchedulesCliCommands(
 export function schedulesCliRequest(
   command: ScheduledTasksCommand,
   idempotencyKey: string | undefined,
-): ScheduledTasksRequest {
+) {
   return {
     contractVersion: SCHEDULED_TASKS_CONTRACT_VERSION,
     requestId: randomUUID(),

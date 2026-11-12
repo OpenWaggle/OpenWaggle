@@ -40,7 +40,7 @@ function failedCompletion(
   commandId: string,
   command: DesktopServiceCommand,
   cause: Cause.Cause<Error>,
-): DesktopCompletion {
+) {
   const interrupted = Cause.isInterruptedOnly(cause)
   const reason = interrupted ? 'interrupted' : causeMessage(cause)
   logger.warn('A desktop operation failed', {
@@ -50,14 +50,19 @@ function failedCompletion(
     error: reason,
   })
   if (!isReadOnlyDesktopCommand(command)) {
-    return { commandId, outcome: 'failure', uncertain: true, message: UNCERTAIN_FAILURE_MESSAGE }
+    return {
+      commandId,
+      outcome: 'failure',
+      uncertain: true,
+      message: UNCERTAIN_FAILURE_MESSAGE,
+    } satisfies DesktopCompletion
   }
   const message = interrupted ? INTERRUPTED_READ_MESSAGE : reason
   return {
     commandId,
     outcome: 'failure',
     message: message.slice(0, DESKTOP_SERVICE_LIMITS.errorLength),
-  }
+  } satisfies DesktopCompletion
 }
 
 /** Retain this executor for the GUI process lifetime, including Host reconnects. */
@@ -89,7 +94,7 @@ export function makeGuiDesktopServiceExecutor(services: {
     },
   })
 
-  function dispatch(command: DesktopServiceCommand): Effect.Effect<DesktopServiceResult, Error> {
+  function dispatch(command: DesktopServiceCommand) {
     if (command.service === 'terminal') {
       return executeDesktopTerminalCommand(services.terminal, command)
     }
@@ -119,15 +124,9 @@ export function makeGuiDesktopServiceExecutor(services: {
     return executeDesktopBrowserCommand(services.browser, command)
   }
 
-  async function execute(
-    envelope: DesktopCommandEnvelope,
-    leaseId: string,
-  ): Promise<DesktopCompletion> {
-    const failure = (message: string): DesktopCompletion => ({
-      commandId: envelope.commandId,
-      outcome: 'failure',
-      message,
-    })
+  async function execute(envelope: DesktopCommandEnvelope, leaseId: string) {
+    const failure = (message: string) =>
+      ({ commandId: envelope.commandId, outcome: 'failure', message }) satisfies DesktopCompletion
     if (envelope.leaseId !== leaseId || envelope.deadline <= Date.now()) {
       return failure('The desktop command lease or deadline is stale.')
     }
@@ -155,9 +154,10 @@ export function makeGuiDesktopServiceExecutor(services: {
     )
     timeout.unref?.()
     try {
-      const exit = await Effect.runPromiseExit(dispatch(command), { signal: controller.signal })
+      const effect: Effect.Effect<DesktopServiceResult, Error> = dispatch(command)
+      const exit = await Effect.runPromiseExit(effect, { signal: controller.signal })
       if (Exit.isSuccess(exit)) {
-        return { commandId: envelope.commandId, outcome: 'success', result: exit.value }
+        return { commandId: envelope.commandId, outcome: 'success', result: exit.value } as const
       }
       return failedCompletion(envelope.commandId, command, exit.cause)
     } finally {

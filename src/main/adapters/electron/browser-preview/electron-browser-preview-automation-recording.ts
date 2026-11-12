@@ -15,7 +15,7 @@ type BrowserPreviewAutomationRecordingOperations = Pick<
 function mapRecordingArtifact(
   tabId: string,
   artifact: Awaited<ReturnType<typeof browserPreviewRecordingRequestBroker.stop>>,
-): BrowserPreviewAutomationRecordingArtifact {
+) {
   return {
     id: artifact.id,
     tabId,
@@ -23,12 +23,12 @@ function mapRecordingArtifact(
     mimeType: artifact.mimeType,
     sizeBytes: artifact.sizeBytes,
     createdAt: artifact.createdAt,
-  }
+  } satisfies BrowserPreviewAutomationRecordingArtifact
 }
 
 export function makeBrowserPreviewAutomationRecordingOperations(
   withAgentAccess: BrowserPreviewAutomationAccessGuard,
-): BrowserPreviewAutomationRecordingOperations {
+) {
   return {
     startRecording: (scope, input) =>
       withAgentAccess(
@@ -47,5 +47,5 @@ export function makeBrowserPreviewAutomationRecordingOperations(
           return mapRecordingArtifact(record.previewId, artifact)
         }),
       ),
-  }
+  } satisfies BrowserPreviewAutomationRecordingOperations
 }

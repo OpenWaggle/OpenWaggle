@@ -1,5 +1,5 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import type { SessionResource, SessionResourceOccurrence } from '@shared/types/session-resource'
+import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
 import type { SessionResourceRepositoryShape } from '../ports/session-resource-repository'
@@ -11,7 +11,7 @@ import {
   removeReplacedCopy,
 } from './session-resource-capture-shared'
 
-function resourceOccurrence(input: CaptureAttachmentInput, id: string): SessionResourceOccurrence {
+function resourceOccurrence(input: CaptureAttachmentInput, id: string) {
   return occurrence({
     id,
     nodeId: input.nodeId,

@@ -1,8 +1,8 @@
 import { realLocation } from '../config/mcp-config-files'
 import type {
-  McpPoolConnectionState,
   McpPoolServerStatus,
   SessionConnections,
+  McpPoolConnectionState,
 } from './mcp-session-connection-pool-types'
 
 /**
@@ -15,14 +15,14 @@ function sameProject(projectPath: string | null) {
 }
 
 /** Each server's clients, error and stderr of one Session, for Settings. */
-export function poolServerStatus(session: SessionConnections | undefined): McpPoolServerStatus[] {
-  if (!session) return []
+export function poolServerStatus(session: SessionConnections | undefined) {
+  if (!session) return [] satisfies McpPoolServerStatus[]
   return [...session.servers].map(([name, { connection }]) => ({
     name,
     clients: connection.attachedLeases,
     ...(connection.lastError ? { lastError: connection.lastError } : {}),
     stderrTail: connection.stderrTail,
-  }))
+  })) satisfies McpPoolServerStatus[]
 }
 
 /**
@@ -36,9 +36,9 @@ export function connectionStatesOf(
   sessions: Iterable<SessionConnections>,
   identity: string,
   projectPath: string | null,
-): McpPoolConnectionState[] {
+) {
   const project = sameProject(projectPath)
-  return [...sessions].flatMap((session) =>
+  const state: McpPoolConnectionState[] = [...sessions].flatMap((session) =>
     [...session.servers.values()]
       .filter(
         (server) =>
@@ -52,4 +52,5 @@ export function connectionStatesOf(
         ...(connection.lastError ? { lastError: connection.lastError } : {}),
       })),
   )
+  return state
 }

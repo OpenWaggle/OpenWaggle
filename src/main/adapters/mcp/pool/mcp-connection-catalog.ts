@@ -16,7 +16,6 @@ import {
 export {
   fileBackedMcpToolCatalogStore,
   MCP_TOOL_CATALOG_MAX_AGE_MS,
-  type McpToolCatalog,
   type McpToolCatalogStore,
   memoryMcpToolCatalogStore,
 } from './mcp-tool-catalog-store'
@@ -91,12 +90,12 @@ export class McpConnectionCatalog {
   }
 
   /** Every cached `tools/list` page. */
-  servedToolPages(): readonly unknown[] {
+  servedToolPages() {
     return Object.values(this.served?.toolsPages ?? {})
   }
 
   /** The cached `tools/list` page for the request's cursor. */
-  servedToolsPage(params: unknown): { readonly result: unknown } | undefined {
+  servedToolsPage(params: unknown) {
     const page = this.served?.toolsPages[cursorOf(params)]
     return page === undefined ? undefined : { result: page }
   }
@@ -166,12 +165,13 @@ export class McpCatalogFills {
   private readonly fills = new Map<string, Promise<void>>()
 
   /** The fill to wait for, or none when this caller fills it: `done` ends its fill. */
-  join(
-    key: string,
-    waitMs: number = MCP_CATALOG_FILL_WAIT_MS,
-  ): { readonly fill: Promise<void> } | { readonly done: () => void } {
+  join(key: string, waitMs: number = MCP_CATALOG_FILL_WAIT_MS) {
     const fill = this.fills.get(key)
-    if (fill) return { fill: waitAtMost(fill, waitMs) }
+    if (fill) {
+      return { fill: waitAtMost(fill, waitMs) } satisfies
+        | { readonly fill: Promise<void> }
+        | { readonly done: () => void }
+    }
     const { promise, resolve } = Promise.withResolvers<void>()
     const timer = setTimeout(resolve, MCP_CATALOG_FILL_WAIT_MS)
     timer.unref()
@@ -180,7 +180,9 @@ export class McpCatalogFills {
       if (this.fills.get(key) === ended) this.fills.delete(key)
     })
     this.fills.set(key, ended)
-    return { done: resolve }
+    return { done: resolve } satisfies
+      | { readonly fill: Promise<void> }
+      | { readonly done: () => void }
   }
 }
 

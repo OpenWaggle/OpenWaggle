@@ -42,7 +42,7 @@ function allowedHosts(origin: McpAuthorizationOrigin) {
 }
 
 /** The authorization page to open, or an error saying why it must not be opened. */
-export function checkMcpAuthorizationUrl(href: string, origin: McpAuthorizationOrigin): URL {
+export function checkMcpAuthorizationUrl(href: string, origin: McpAuthorizationOrigin) {
   if (!URL.canParse(href)) throw new Error('The MCP sign-in page is not a valid URL.')
   const url = new URL(href)
   if (url.username || url.password) {

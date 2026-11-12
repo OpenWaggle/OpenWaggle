@@ -13,10 +13,7 @@ type ExportWaitRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { readonly operation: 'exports-wait' }>
 }
 
-function response(
-  request: ExportWaitRequest,
-  outcome: SessionQueryResponse['outcome'],
-): SessionQueryResponse {
+function response(request: ExportWaitRequest, outcome: SessionQueryResponse['outcome']) {
   return { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: request.requestId, outcome }
 }
 
@@ -88,7 +85,7 @@ export async function waitForSessionExport(
     readonly signal?: AbortSignal
     readonly request: ExportWaitRequest
   },
-): Promise<SessionQueryResponse> {
+) {
   const runtime = getSessionHostEventRuntime()
   const releaseLiveness = acquireWaitLiveness(runtime.liveness)
   const snapshotCursor = runtime.eventHub.cursor()

@@ -27,7 +27,7 @@ async function readCapturedEnvironment(
   path: string,
   format: 'json' | 'nul',
   verifiedPath?: string,
-): Promise<Readonly<Record<string, string>>> {
+) {
   if (verifiedPath) {
     try {
       const verification = await open(verifiedPath, constants.O_RDONLY | constants.O_NOFOLLOW)

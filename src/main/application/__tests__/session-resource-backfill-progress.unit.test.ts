@@ -13,7 +13,7 @@ import { PNG_BASE64, sessionResourceTestLayer } from './session-resource-capture
 
 const SESSION_ID = SessionId('session-1')
 
-function attachmentMessage(index: number): Message {
+function attachmentMessage(index: number) {
   return {
     id: MessageId(`user-attachment-${String(index)}`),
     role: 'user',
@@ -32,11 +32,11 @@ function attachmentMessage(index: number): Message {
       },
     ],
     createdAt: index,
-  }
+  } satisfies Message
 }
 
-function imageMessage(index: number, data: string): Message {
-  return {
+function imageMessage(index: number, data: string) {
+  const message: Message = {
     id: MessageId(`assistant-image-${String(index)}`),
     role: 'assistant',
     parts: [
@@ -54,9 +54,10 @@ function imageMessage(index: number, data: string): Message {
     ],
     createdAt: index,
   }
+  return message
 }
 
-function capturedResource(input: UpsertSessionResourceInput): SessionResource {
+function capturedResource(input: UpsertSessionResourceInput) {
   return {
     id: input.id,
     sessionId: input.sessionId,
@@ -72,7 +73,7 @@ function capturedResource(input: UpsertSessionResourceInput): SessionResource {
     occurrences: [input.occurrence],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
-  }
+  } satisfies SessionResource
 }
 
 describe('session resource backfill progress', () => {

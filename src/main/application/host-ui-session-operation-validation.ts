@@ -50,14 +50,12 @@ function readableIssues(issues: readonly string[]) {
 }
 
 /** Decodes one Session operation argument with its schema, or fails naming the refused field. */
-export function decodeSessionOperationArgument<A, I>(
-  schema: Schema.Schema<A, I>,
-  value: unknown,
-): Effect.Effect<A, Error> {
+export function decodeSessionOperationArgument<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
-  return decoded.success
+  const effect: Effect.Effect<A, Error> = decoded.success
     ? Effect.succeed(decoded.data)
     : invalid(readableIssues(decoded.issues).join('; '))
+  return effect
 }
 
 export function invalid(message: string) {
@@ -80,8 +78,12 @@ export function requireOptionalArgCount(
     : invalid(`Expected ${String(minimum)} to ${String(maximum)} Session operation arguments.`)
 }
 
-export function requiredString(value: unknown, label: string): Effect.Effect<string, Error> {
-  return decodeSessionOperationArgument(sessionOperationStringSchema(label), value)
+export function requiredString(value: unknown, label: string) {
+  const effect: Effect.Effect<string, Error> = decodeSessionOperationArgument(
+    sessionOperationStringSchema(label),
+    value,
+  )
+  return effect
 }
 
 export function validateSessionId(value: unknown) {

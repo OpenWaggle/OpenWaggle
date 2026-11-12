@@ -20,7 +20,7 @@ export function knownMcpAppTools(
   sessionId: string,
   entry: McpServerEntry,
   cached?: CachedMcpAppTools,
-): readonly string[] | undefined {
+) {
   const own = mcpAppToolNames(sessionId, entry.name)
   if (own) return own
   const fromCatalog = cached?.(entry)

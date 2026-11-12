@@ -131,7 +131,7 @@ type RunMethods = Pick<
   | 'settleInterruptedRuns'
 >
 
-export function scheduledTaskRunMethods(sql: SqlClient.SqlClient): RunMethods {
+export function scheduledTaskRunMethods(sql: SqlClient.SqlClient) {
   return {
     startRun: (run) =>
       insertRun(sql, run, null).pipe(Effect.asVoid, Effect.mapError(repositoryError('start-run'))),
@@ -212,7 +212,7 @@ export function scheduledTaskRunMethods(sql: SqlClient.SqlClient): RunMethods {
       settleInterruptedRuns(sql, messages).pipe(
         Effect.mapError(repositoryError('settle-interrupted-runs')),
       ),
-  }
+  } satisfies RunMethods
 }
 
 type RunOutcomeMethods = Pick<
@@ -220,7 +220,7 @@ type RunOutcomeMethods = Pick<
   'runOfSessionRun' | 'recordRunOutcome' | 'getRun'
 >
 
-function scheduledTaskRunOutcomeMethods(sql: SqlClient.SqlClient): RunOutcomeMethods {
+function scheduledTaskRunOutcomeMethods(sql: SqlClient.SqlClient) {
   return {
     runOfSessionRun: (sessionRunId) =>
       sql<ScheduledTaskRunRow & { readonly session_id: string }>`
@@ -260,5 +260,5 @@ function scheduledTaskRunOutcomeMethods(sql: SqlClient.SqlClient): RunOutcomeMet
         Effect.map((rows) => (rows[0] ? decodeScheduledTaskRunRow(rows[0]) : null)),
         Effect.mapError(repositoryError('get-run')),
       ),
-  }
+  } satisfies RunOutcomeMethods
 }

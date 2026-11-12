@@ -14,19 +14,19 @@ export function sessionCliExitCodeForError(kind: SessionsCliErrorKind) {
  * The kind the Session Host gave a refusal (ADR 0063). The CLI never reads it from the code. A
  * refusal that somehow arrives without a kind is a `conflict`, the state refusing the request.
  */
-function refusalKind(refusal: { readonly kind?: unknown }): SessionsCliErrorKind {
-  return isSessionHostErrorKind(refusal.kind) ? refusal.kind : 'conflict'
+function refusalKind(refusal: { readonly kind?: unknown }) {
+  return isSessionHostErrorKind(refusal.kind) ? refusal.kind : ('conflict' as const)
 }
 
-export function sessionCliResultErrorKind(
-  result: LocalSessionCommandResult,
-): SessionsCliErrorKind | undefined {
+export function sessionCliResultErrorKind(result: LocalSessionCommandResult) {
   if (result.contract === 'session-query-v2') {
     const outcome = result.response.outcome
-    if ('error' in outcome) return refusalKind(outcome.error)
+    if ('error' in outcome) {
+      return refusalKind(outcome.error) satisfies SessionsCliErrorKind | undefined
+    }
     // A bounded wait that ended without its condition still answers on stdout, with the timeout
     // exit class, so a script can tell "reached" from "gave up" (#351).
-    return 'timedOut' in outcome && outcome.timedOut ? 'timeout' : undefined
+    return 'timedOut' in outcome && outcome.timedOut ? ('timeout' as const) : undefined
   }
   if (
     (result.contract === 'scheduled-tasks-v1' ||
@@ -35,7 +35,7 @@ export function sessionCliResultErrorKind(
       result.contract === 'local-access-v1') &&
     result.response.outcome.effect === 'rejected'
   ) {
-    return refusalKind(result.response.outcome)
+    return refusalKind(result.response.outcome) satisfies SessionsCliErrorKind | undefined
   }
   return undefined
 }

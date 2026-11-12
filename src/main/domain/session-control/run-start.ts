@@ -34,18 +34,19 @@ export interface ApplyRunStartInput {
   readonly runSettings?: RunStartSettings
 }
 
-export function applyRunStart(input: ApplyRunStartInput): ApplyRunStartResult {
+export function applyRunStart(input: ApplyRunStartInput) {
   if (input.state.run.state !== 'idle') {
-    return {
+    const result: ApplyRunStartResult = {
       accepted: false,
       code: 'run_already_active',
       currentRunId: input.state.run.runId,
       state: input.state,
     }
+    return result
   }
 
   const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
-  return {
+  const result: ApplyRunStartResult = {
     accepted: true,
     state: {
       ...input.state,
@@ -64,4 +65,5 @@ export function applyRunStart(input: ApplyRunStartInput): ApplyRunStartResult {
       stateRevision: nextRevision,
     },
   }
+  return result
 }

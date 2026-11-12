@@ -208,10 +208,12 @@ function executeActiveRunCommand(
     .exhaustive()
 }
 
-export function executeUnserializedSessionControlCommand(
-  input: ExecuteCommandInput,
-): Effect.Effect<SessionControlMutationResponse, unknown, SessionControlCommandDependencies> {
-  return matchBy(input.request.command, 'operation')
+export function executeUnserializedSessionControlCommand(input: ExecuteCommandInput) {
+  const effect: Effect.Effect<
+    SessionControlMutationResponse,
+    unknown,
+    SessionControlCommandDependencies
+  > = matchBy(input.request.command, 'operation')
     .with(
       'message',
       'start',
@@ -260,4 +262,5 @@ export function executeUnserializedSessionControlCommand(
       (command) => executeResourceSessionControlCommand(input, command),
     )
     .exhaustive()
+  return effect
 }

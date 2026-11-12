@@ -157,8 +157,8 @@ export function registeredHandler(name: string) {
     : undefined
 }
 
-export function details(overrides: Partial<VcsChangeRequestDetails> = {}): VcsChangeRequestDetails {
-  return {
+export function details(overrides: Partial<VcsChangeRequestDetails> = {}) {
+  const result: VcsChangeRequestDetails = {
     title: 'Feature',
     url: 'https://github.com/o/r/pull/7',
     baseRef: 'main',
@@ -181,6 +181,7 @@ export function details(overrides: Partial<VcsChangeRequestDetails> = {}): VcsCh
     merge: { allowed: true, reason: null, methods: ['merge', 'squash', 'rebase'] },
     ...overrides,
   }
+  return result
 }
 
 export function resetLifecycleHandlers() {

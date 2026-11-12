@@ -3,12 +3,10 @@ import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sentry = vi.hoisted(() => {
-  const integration =
-    (name: string) =>
-    (options?: unknown): { readonly name: string; readonly options?: unknown } => ({
-      name,
-      options,
-    })
+  const integration = (name: string) => (options?: unknown) => ({
+    name,
+    options,
+  })
   const transportSend = vi.fn(async (_envelope: unknown) => ({ statusCode: 200 }))
   return {
     init: vi.fn(),
@@ -74,7 +72,7 @@ const FORBIDDEN_INTEGRATIONS = [
 
 const HANDLED = { type: 'generic', handled: true }
 
-function reporterInput(isEnabled: () => boolean): SentryMainErrorReporterInput {
+function reporterInput(isEnabled: () => boolean) {
   return {
     process: 'session-host',
     release: 'openwaggle@1.0.0-beta.4',
@@ -84,14 +82,14 @@ function reporterInput(isEnabled: () => boolean): SentryMainErrorReporterInput {
     isEnabled,
     operatingSystem: { name: 'macOS', version: '15.2' },
     arch: 'arm64',
-  }
+  } satisfies SentryMainErrorReporterInput
 }
 
 function integrationsOf(options: ElectronMainOptions) {
   return Array.isArray(options.integrations) ? options.integrations : []
 }
 
-function handledErrorEvent(): ErrorEvent {
+function handledErrorEvent() {
   return {
     type: undefined,
     exception: {
@@ -105,7 +103,7 @@ function handledErrorEvent(): ErrorEvent {
     },
     user: { ip_address: '203.0.113.7' },
     breadcrumbs: [{ message: 'clicked' }],
-  }
+  } satisfies ErrorEvent
 }
 
 const NO_HINT: EventHint = {}
@@ -283,7 +281,8 @@ describe('Sentry main-process options', () => {
       fromPartial({ url: 'https://openwaggle.ai/api/v1/errors' }),
     )
     type SentEnvelope = Parameters<NonNullable<typeof transport>['send']>[0]
-    const envelopeOf = (event: unknown): SentEnvelope => fromAny([{}, [[{ type: 'event' }, event]]])
+    const envelopeOf = (event: unknown) =>
+      fromAny([{}, [[{ type: 'event' }, event]]]) satisfies SentEnvelope
     const scrubbed = await options.beforeSend?.(handledErrorEvent(), NO_HINT)
 
     expect(

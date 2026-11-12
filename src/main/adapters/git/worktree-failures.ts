@@ -1,14 +1,12 @@
 import type { GitWorktreeMutationFailure } from '@shared/types/git'
 import { runGit } from './run-git'
 
-export function worktreeFailure(
-  code: GitWorktreeMutationFailure['code'],
-  message: string,
-): GitWorktreeMutationFailure {
-  return { ok: false, code, message }
+export function worktreeFailure(code: GitWorktreeMutationFailure['code'], message: string) {
+  const failure: GitWorktreeMutationFailure = { ok: false, code, message }
+  return failure
 }
 
-export function classifyRemoveError(stderr: string): GitWorktreeMutationFailure {
+export function classifyRemoveError(stderr: string) {
   const lower = stderr.toLowerCase()
   if (lower.includes('is dirty') || lower.includes('contains modified or untracked')) {
     return worktreeFailure(
@@ -24,9 +22,7 @@ export function classifyRemoveError(stderr: string): GitWorktreeMutationFailure 
 }
 
 /** Why a worktree with uncommitted work, or whose work Git cannot report, must be kept. */
-export async function uncommittedWorkRefusal(
-  worktreePath: string,
-): Promise<GitWorktreeMutationFailure | null> {
+export async function uncommittedWorkRefusal(worktreePath: string) {
   const status = await runGit(worktreePath, ['status', '--porcelain=v1', '--untracked-files=all'])
   if (status.code !== 0) {
     return worktreeFailure('unknown', status.stderr || 'Worktree check failed.')

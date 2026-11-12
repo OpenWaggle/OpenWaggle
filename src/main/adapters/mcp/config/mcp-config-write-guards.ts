@@ -8,7 +8,7 @@ import {
 import { type McpTransportKind, mcpNamespace } from '../../../domain/mcp/config/mcp-server-config'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 
-function refuse(message: string): never {
+function refuse(message: string) {
   throw new McpConfigurationError({ reason: 'validation', message })
 }
 

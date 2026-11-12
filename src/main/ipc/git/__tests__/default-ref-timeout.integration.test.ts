@@ -20,7 +20,7 @@ let hangingSockets: Socket[] = []
  */
 const MAX_ACCEPTABLE_MS = 25_000
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFileAsync('git', [...args], { cwd })
   return stdout
 }
@@ -34,7 +34,7 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
  * and the assertions below pass whether or not the call is bounded. The test then could not tell the
  * fix from its absence.
  */
-async function startHangingServer(): Promise<number> {
+async function startHangingServer() {
   const server = createServer((socket) => {
     // Accept and hold: never write a response, never close.
     hangingSockets.push(socket)

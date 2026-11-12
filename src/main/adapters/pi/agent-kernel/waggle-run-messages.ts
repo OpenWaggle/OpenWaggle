@@ -13,13 +13,15 @@ import { buildPiPromptInput, type PiPromptInput } from '../pi-runtime-input'
 import type { PiCustomContent } from './message-parts'
 import { buildUserInputProjection } from './user-input-projection'
 
-function piPromptInputToCustomContent(input: PiPromptInput): PiCustomContent {
+function piPromptInputToCustomContent(input: PiPromptInput) {
   const text = input.text
   if (input.images.length === 0) {
     return text
   }
 
-  return text ? [{ type: 'text', text }, ...input.images] : [...input.images]
+  return (
+    text ? [{ type: 'text', text }, ...input.images] : [...input.images]
+  ) satisfies PiCustomContent
 }
 
 function buildWaggleTurnPayload(
@@ -28,7 +30,7 @@ function buildWaggleTurnPayload(
     readonly config: WaggleConfig
     readonly turnNumber: number
   },
-): HydratedAgentSendPayload {
+) {
   return {
     ...payload,
     text: buildWaggleTurnPrompt({
@@ -43,9 +45,9 @@ export function buildWaggleTurnMetadata(input: {
   readonly config: WaggleConfig
   readonly turnNumber: number
   readonly waggleSessionId: string
-}): WaggleStreamMetadata {
+}) {
   const turn = getWaggleTurn(input.config, input.turnNumber)
-  return {
+  const metadata: WaggleStreamMetadata = {
     agentIndex: turn.agentIndex,
     agentLabel: turn.agent.label,
     agentColor: turn.agent.color,
@@ -54,6 +56,7 @@ export function buildWaggleTurnMetadata(input: {
     collaborationMode: input.config.mode,
     sessionId: input.waggleSessionId,
   }
+  return metadata
 }
 
 function buildTurnDetails(input: {

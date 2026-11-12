@@ -9,11 +9,7 @@ import {
   requestPreAdmissionWaggleInterruptions,
 } from './pre-admission-waggle-attempts'
 
-import {
-  type ActiveSessionRunReservation,
-  activeSessionWriters,
-  reserveSessionWriter,
-} from './session-writer-reservations'
+import { activeSessionWriters, reserveSessionWriter } from './session-writer-reservations'
 
 export {
   type ActiveSessionRunReservation,
@@ -54,7 +50,7 @@ export function reserveActiveSessionRun(
   sessionId: SessionId,
   runId: string,
   successorToken?: symbol,
-): ActiveSessionRunReservation {
+) {
   assertSessionRunStartAllowed(sessionId)
   const writer = reserveSessionWriter({
     sessionId,
@@ -136,10 +132,7 @@ export function reservePendingWaggleSessionRun(
   }
 }
 
-export function reservePendingClassicSessionRun(
-  sessionId: SessionId,
-  runId: string,
-): ActiveSessionRunReservation {
+export function reservePendingClassicSessionRun(sessionId: SessionId, runId: string) {
   assertSessionRunStartAllowed(sessionId)
   if (pendingClassicRuns.has(sessionId)) {
     throw new Error(`Session ${sessionId} already has a pending classic run.`)
@@ -202,7 +195,7 @@ export function ensureSessionRunStartAllowed(sessionId: SessionId) {
   })
 }
 
-export function hasAnyActiveRun(sessionId: SessionId): boolean {
+export function hasAnyActiveRun(sessionId: SessionId) {
   return hasAnyUnsettledRun(sessionId)
 }
 
@@ -218,7 +211,7 @@ function hasAnyUnsettledRun(sessionId: SessionId) {
   )
 }
 
-export function cancelSessionRuns(sessionId: SessionId): boolean {
+export function cancelSessionRuns(sessionId: SessionId) {
   const writer = activeSessionWriters.get(sessionId)
   writer?.controller.abort()
   const cancelledAgent = activeRuns.cancel(sessionId)
@@ -240,7 +233,7 @@ export function cancelSessionRuns(sessionId: SessionId): boolean {
   )
 }
 
-export function cancelCompactionSessionRun(sessionId: SessionId): boolean {
+export function cancelCompactionSessionRun(sessionId: SessionId) {
   return activeCompactions.requestInterrupt(sessionId, () => true)
 }
 
@@ -264,7 +257,7 @@ export function requestExactSessionRunInterruption(sessionId: SessionId, runId: 
   return pendingWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)
 }
 
-export function getAllActiveRunSessionIds(): SessionId[] {
+export function getAllActiveRunSessionIds() {
   return [
     ...new Set([
       ...activeSessionWriters.keys(),
@@ -275,10 +268,10 @@ export function getAllActiveRunSessionIds(): SessionId[] {
       ...pendingWaggleRuns.unsettledKeys(),
       ...preAdmissionWaggleSessionIds(),
     ]),
-  ]
+  ] satisfies SessionId[]
 }
 
-export function listActiveCompactions(): ActiveCompactionInfo[] {
+export function listActiveCompactions() {
   const result: ActiveCompactionInfo[] = []
   for (const sessionId of activeCompactions.keys()) {
     const entry = activeCompactions.get(sessionId)
@@ -294,7 +287,7 @@ export function listActiveCompactions(): ActiveCompactionInfo[] {
   return result
 }
 
-export function cancelAllSessionRuns(): SessionId[] {
+export function cancelAllSessionRuns() {
   const sessionIds = getAllActiveRunSessionIds()
   for (const writer of activeSessionWriters.values()) writer.controller.abort()
   activeRuns.cancelAll()

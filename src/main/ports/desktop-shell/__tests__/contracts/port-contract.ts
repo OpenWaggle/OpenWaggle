@@ -8,9 +8,6 @@ export interface PortContract<Harness> {
   readonly cases: Readonly<Record<string, (harness: Harness) => void | Promise<void>>>
 }
 
-export function definePortContract<Harness>(
-  port: string,
-  cases: PortContract<Harness>['cases'],
-): PortContract<Harness> {
+export function definePortContract<Harness>(port: string, cases: PortContract<Harness>['cases']) {
   return { port, cases }
 }

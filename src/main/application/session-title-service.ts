@@ -1,6 +1,5 @@
 import { SESSION_TITLE_SOURCES } from '@shared/session-title-source'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { SessionTitleRegenerationResult } from '@shared/types/session-title'
 import * as Effect from 'effect/Effect'
 import * as Schedule from 'effect/Schedule'
 import type { SessionTitleContextAttachment } from '../domain/session-title/session-title-context'
@@ -12,9 +11,7 @@ import {
 import { SessionTitleGenerationError } from '../errors'
 import { createLogger } from '../logger'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
-import type { SessionTitleGenerator } from '../ports/session-title-generator'
 import { SessionTitleRepository } from '../ports/session-title-repository'
-import type { SettingsService } from '../services/settings-service'
 import {
   claimTitleWork,
   enabledTitleModel,
@@ -175,13 +172,7 @@ function failureMessage(error: SessionTitleGenerationError) {
     : `${message.slice(0, FAILURE_MESSAGE_MAX_LENGTH - 1)}…`
 }
 
-function regenerate(
-  sessionId: SessionId,
-): Effect.Effect<
-  SessionTitleRegenerationResult,
-  unknown,
-  SessionTitleRepository | SessionTitleGenerator | SettingsService | SessionProjectionRepository
-> {
+function regenerate(sessionId: SessionId) {
   return Effect.gen(function* () {
     const titleModel = yield* enabledTitleModel()
     if (titleModel === null) return { outcome: 'unavailable', reason: 'off' } as const

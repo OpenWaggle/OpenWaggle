@@ -34,7 +34,7 @@ function preparation(state: WorkspacePreparation | null, check: WorkspaceGenerat
     check instanceof Error ? Effect.fail(check) : Effect.succeed(check),
   )
   // A pending birth whose folder cannot be recorded stays pending.
-  const completeWorktreeBirth = vi.fn((): Effect.Effect<WorkspaceGenerationCheck, Error> =>
+  const completeWorktreeBirth = vi.fn<() => Effect.Effect<WorkspaceGenerationCheck, Error>>(() =>
     check instanceof Error ? Effect.fail(check) : Effect.succeed(check),
   )
   const environment = vi.fn(() => Effect.succeed({ TOOLCHAIN_PATH: '/old-checkout/bin' }))

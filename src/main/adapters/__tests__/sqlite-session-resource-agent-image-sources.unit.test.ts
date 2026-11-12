@@ -12,7 +12,7 @@ let tmpRoot = ''
 
 let resourceCounter = 0
 
-function agentImageUpsert(sessionId: string): UpsertSessionResourceInput {
+function agentImageUpsert(sessionId: string) {
   resourceCounter += 1
   const id = `agent-image-${resourceCounter}`
   return {
@@ -38,10 +38,10 @@ function agentImageUpsert(sessionId: string): UpsertSessionResourceInput {
     },
     createdAt: 2000,
     updatedAt: 2000,
-  }
+  } satisfies UpsertSessionResourceInput
 }
 
-function agentFileUpsert(sessionId: string): UpsertSessionResourceInput {
+function agentFileUpsert(sessionId: string) {
   resourceCounter += 1
   const id = `agent-file-${resourceCounter}`
   return {
@@ -66,10 +66,10 @@ function agentFileUpsert(sessionId: string): UpsertSessionResourceInput {
     },
     createdAt: 2000,
     updatedAt: 2000,
-  }
+  } satisfies UpsertSessionResourceInput
 }
 
-function toolImageUpsert(sessionId: string): UpsertSessionResourceInput {
+function toolImageUpsert(sessionId: string) {
   resourceCounter += 1
   const id = `tool-image-${resourceCounter}`
   return {
@@ -94,7 +94,7 @@ function toolImageUpsert(sessionId: string): UpsertSessionResourceInput {
     },
     createdAt: 2000,
     updatedAt: 2000,
-  }
+  } satisfies UpsertSessionResourceInput
 }
 
 describe('agent-embedded images are discoverable as sources', () => {

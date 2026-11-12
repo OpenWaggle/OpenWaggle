@@ -32,7 +32,7 @@ export interface SourceControlPreferencesAccess {
 }
 
 /** `ssh -G` prints the effective config for an alias without connecting. */
-export async function resolveSshHostName(alias: string): Promise<string> {
+export async function resolveSshHostName(alias: string) {
   if (!SSH_ALIAS_PATTERN.test(alias)) return alias
   try {
     const { stdout } = await execFileAsync('ssh', ['-G', '--', alias], {
@@ -47,9 +47,9 @@ export async function resolveSshHostName(alias: string): Promise<string> {
   }
 }
 
-function credentialHelperProvider(helper: string): SourceControlProviderId | null {
-  if (/\bgh(?:\.exe)?\s+auth\s+git-credential\b/u.test(helper)) return 'github'
-  if (/\bglab(?:\.exe)?\s+auth\s+git-credential\b/u.test(helper)) return 'gitlab'
+function credentialHelperProvider(helper: string) {
+  if (/\bgh(?:\.exe)?\s+auth\s+git-credential\b/u.test(helper)) return 'github' as const
+  if (/\bglab(?:\.exe)?\s+auth\s+git-credential\b/u.test(helper)) return 'gitlab' as const
   return null
 }
 
@@ -95,10 +95,7 @@ export function forgetRemoteRefProbes() {
  * Gitea and Forgejo also advertise `refs/pull/*`; known public hosts of those are excluded
  * earlier, and the user can change any detected provider.
  */
-export async function probeRemoteChangeRequestRefs(
-  workingPath: string,
-  remoteName: string,
-): Promise<SourceControlProviderId | null> {
+export async function probeRemoteChangeRequestRefs(workingPath: string, remoteName: string) {
   const key = `${workingPath}\0${remoteName}`
   const cached = remoteRefProbes.get(key)
   if (cached && Date.now() - cached.at < REMOTE_REFS_CACHE_TTL_MS) return cached.provider
@@ -111,10 +108,7 @@ export async function probeRemoteChangeRequestRefs(
   return provider
 }
 
-async function readRemoteChangeRequestRefs(
-  workingPath: string,
-  remoteName: string,
-): Promise<SourceControlProviderId | null> {
+async function readRemoteChangeRequestRefs(workingPath: string, remoteName: string) {
   // ls-remote patterns are globs matched against the end of each ref name.
   const result = await runGit(
     workingPath,
@@ -132,14 +126,12 @@ async function readRemoteChangeRequestRefs(
     })
     return null
   }
-  if (/\trefs\/pull\/\d+\//u.test(output)) return 'github'
-  if (/\trefs\/merge-requests\/\d+\//u.test(output)) return 'gitlab'
+  if (/\trefs\/pull\/\d+\//u.test(output)) return 'github' as const
+  if (/\trefs\/merge-requests\/\d+\//u.test(output)) return 'gitlab' as const
   return null
 }
 
-export function createLiveSourceControlResolutionDeps(
-  preferences: SourceControlPreferencesAccess,
-): SourceControlRemoteResolutionDeps {
+export function createLiveSourceControlResolutionDeps(preferences: SourceControlPreferencesAccess) {
   return {
     readPrimaryRemote: resolvePrimaryRemote,
     readPreferences: preferences.read,
@@ -150,5 +142,5 @@ export function createLiveSourceControlResolutionDeps(
     resolveSshHostName,
     probeRemoteRefs: probeRemoteChangeRequestRefs,
     rememberDetectedHost: preferences.rememberDetectedHost,
-  }
+  } satisfies SourceControlRemoteResolutionDeps
 }

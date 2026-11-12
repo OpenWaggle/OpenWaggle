@@ -23,21 +23,18 @@ function ptyDescriptorIsOpen(live: LiveTerminalProcess) {
  * between snapshot and sweep. In particular, zero matches is not proof that a
  * detached root is absent.
  */
-export function signalLiveTerminalTtyMembers(
-  live: LiveTerminalProcess,
-  force: boolean,
-): TerminalTtySignalResult {
+export function signalLiveTerminalTtyMembers(live: LiveTerminalProcess, force: boolean) {
   if (
     process.platform === 'win32' ||
     !ptyDescriptorIsOpen(live) ||
     live.signalTtyMembers === undefined
   ) {
-    return 'unavailable'
+    return 'unavailable' as const
   }
   const signaled = live.signalTtyMembers(force)
-  if (signaled === NATIVE_TTY_SIGNAL_PARTIAL) return 'partial'
-  if (signaled === null || signaled < 0) return 'unavailable'
-  return signaled === 0 ? 'no-match' : 'signaled'
+  if (signaled === NATIVE_TTY_SIGNAL_PARTIAL) return 'partial' as const
+  if (signaled === null || signaled < 0) return 'unavailable' as const
+  return signaled === 0 ? ('no-match' as const) : ('signaled' as const)
 }
 
 function delay(milliseconds: number) {
@@ -49,7 +46,7 @@ export async function retryLiveTerminalTtySignal(
   live: LiveTerminalProcess,
   force: boolean,
   deadline: number,
-): Promise<TerminalTtySignalResult> {
+) {
   let result = signalLiveTerminalTtyMembers(live, force)
   while (result === 'unavailable' && live.signalTtyMembers !== undefined && Date.now() < deadline) {
     await delay(Math.min(TTY_SIGNAL_RETRY_POLL_MS, deadline - Date.now()))

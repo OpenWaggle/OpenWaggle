@@ -52,7 +52,7 @@ const stringArraySchema = Schema.mutable(Schema.Array(Schema.String))
 const buildStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)
 const reloadStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.RELOAD_STATUSES)
 
-function decodeJsonField<A, I>(schema: Schema.Schema<A, I>, raw: string, fieldName: string): A {
+function decodeJsonField<A, I>(schema: Schema.Schema<A, I>, raw: string, fieldName: string) {
   const parsed = parseJsonUnknown(raw)
   const decoded = safeDecodeUnknown(schema, parsed)
   if (!decoded.success) {
@@ -61,7 +61,7 @@ function decodeJsonField<A, I>(schema: Schema.Schema<A, I>, raw: string, fieldNa
   return decoded.data
 }
 
-function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleState {
+function rowToLifecycleState(row: ExtensionLifecycleRow) {
   const decodedBuildStatus = safeDecodeUnknown(buildStatusSchema, row.build_status)
   if (!decodedBuildStatus.success) {
     throw new Error(`Invalid build_status: ${decodedBuildStatus.issues.join('; ')}`)

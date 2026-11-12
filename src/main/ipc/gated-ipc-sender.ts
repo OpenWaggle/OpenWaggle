@@ -27,7 +27,7 @@ function documentGeneration(sender: GatedSender) {
 }
 
 /** Remembers the document sending `event`; the returned check says whether it is still there. */
-export function rememberGatedSender(event: IpcInvocation): () => boolean {
+export function rememberGatedSender(event: IpcInvocation) {
   const { sender } = event
   const generation = documentGeneration(sender)
   const sentFrom = generation.value

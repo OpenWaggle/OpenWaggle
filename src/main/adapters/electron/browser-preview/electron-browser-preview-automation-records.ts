@@ -13,7 +13,7 @@ export function browserPreviewAutomationOwnerKey(scope: BrowserPreviewAutomation
 export function findBrowserPreviewAutomationRecord(
   scope: BrowserPreviewAutomationScope,
   target: BrowserPreviewAutomationTarget,
-): BrowserPreviewRecord | undefined {
+) {
   return browserPreviewManager.findOwnedPreview(
     browserPreviewAutomationOwnerKey(scope),
     target.tabId,
@@ -23,7 +23,7 @@ export function findBrowserPreviewAutomationRecord(
 export function requireBrowserPreviewAutomationRecord(
   scope: BrowserPreviewAutomationScope,
   target: BrowserPreviewAutomationTarget,
-): BrowserPreviewRecord {
+) {
   const record = findBrowserPreviewAutomationRecord(scope, target)
   if (record) {
     if (target.tabId !== undefined) {
@@ -42,9 +42,7 @@ export function requireBrowserPreviewAutomationRecord(
   )
 }
 
-export function browserPreviewAutomationStatusFor(
-  record?: BrowserPreviewRecord,
-): BrowserPreviewAutomationStatus {
+export function browserPreviewAutomationStatusFor(record?: BrowserPreviewRecord) {
   if (!record || record.disposed) {
     return {
       available: false,
@@ -55,7 +53,7 @@ export function browserPreviewAutomationStatusFor(
       loading: false,
       viewport: null,
       appearance: null,
-    }
+    } satisfies BrowserPreviewAutomationStatus
   }
   return {
     available: true,
@@ -66,5 +64,5 @@ export function browserPreviewAutomationStatusFor(
     loading: record.state.loading,
     viewport: record.state.controls.viewport,
     appearance: record.state.controls.appearance,
-  }
+  } satisfies BrowserPreviewAutomationStatus
 }

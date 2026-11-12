@@ -8,15 +8,19 @@ const { runGitMock, resolveChangeRequestForRefMock, runWithGitNetworkLockMock } 
       stderr: '',
     })),
     runWithGitNetworkLockMock: vi.fn(),
-    resolveChangeRequestForRefMock: vi.fn(
-      async (
+    resolveChangeRequestForRefMock: vi.fn<
+      (
         _path: string,
         _ref: string,
-      ): Promise<
+      ) => Promise<
         | { ok: true; changeRequest: Record<string, unknown> }
         | { ok: false; code: string; message: string }
-      > => ({ ok: false, code: 'no-change-request', message: 'none' }),
-    ),
+      >
+    >(async (_path: string, _ref: string) => ({
+      ok: false,
+      code: 'no-change-request',
+      message: 'none',
+    })),
   }),
 )
 

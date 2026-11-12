@@ -53,7 +53,7 @@ function compactNode(value: unknown, key?: string): unknown {
  * without tree links or usage and cost metadata. `verbose: true` keeps all of it, under the same
  * size cap.
  */
-export function compactHiveResult(result: unknown): unknown {
+export function compactHiveResult(result: unknown) {
   if (!isRecord(result)) return result
   const { response: wrapped } = resultFields(result)
   const response = isRecord(wrapped) ? wrapped : result
@@ -89,8 +89,9 @@ const decodeResultFields = Schema.decodeUnknownOption(resultFieldsSchema)
 
 type ResultFields = SchemaType<typeof resultFieldsSchema>
 
-function resultFields(value: unknown): ResultFields {
-  return Option.getOrElse(decodeResultFields(value), (): ResultFields => ({}))
+function resultFields(value: unknown) {
+  const fields: ResultFields = Option.getOrElse(decodeResultFields(value), () => ({}))
+  return fields
 }
 
 /** An outcome with an `items` array. */
@@ -104,17 +105,24 @@ function itemsOutcome(outcome: unknown) {
  * The outcome whose `items` are paged with `afterCreatedOrder`, when the result has one: at the
  * top of a compacted result, or under `response` in a verbose one.
  */
-function pagedOutcome(result: unknown): PagedOutcome | undefined {
+function pagedOutcome(result: unknown) {
   if (!isRecord(result)) return undefined
   const top = itemsOutcome(resultFields(result).outcome)
-  if (top) return { ...top, withOutcome: (outcome) => ({ ...result, outcome }) }
+  if (top) {
+    const value: PagedOutcome | undefined = {
+      ...top,
+      withOutcome: (outcome) => ({ ...result, outcome }),
+    }
+    return value
+  }
   const { response } = resultFields(result)
   const nested = isRecord(response) ? itemsOutcome(resultFields(response).outcome) : undefined
   if (!isRecord(response) || !nested) return undefined
-  return {
+  const value: PagedOutcome | undefined = {
     ...nested,
     withOutcome: (outcome) => ({ ...result, response: { ...response, outcome } }),
   }
+  return value
 }
 
 function createdOrderOf(item: unknown) {

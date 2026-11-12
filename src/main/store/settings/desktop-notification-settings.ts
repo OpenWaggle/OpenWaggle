@@ -44,8 +44,11 @@ function perCategory<A, I>(
 }
 
 /** Distinct, non-empty keys in their saved order, at most the mute limit. */
-function muteList(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) return []
+function muteList(value: unknown) {
+  if (!Array.isArray(value)) {
+    const result: readonly string[] = []
+    return result
+  }
   const seen = new Set<string>()
   for (const entry of value) {
     if (typeof entry !== 'string') continue
@@ -53,7 +56,8 @@ function muteList(value: unknown): readonly string[] {
     if (key) seen.add(key)
     if (seen.size >= DESKTOP_NOTIFICATION_MUTE_LIMIT) break
   }
-  return [...seen]
+  const result: readonly string[] = [...seen]
+  return result
 }
 
 const fields = desktopNotificationSettingsSchema.fields
@@ -80,9 +84,13 @@ const decodeStoredDesktopNotificationSettings = Schema.decodeUnknownOption(
   }),
 )
 
-export function resolveDesktopNotificationSettings(value: unknown): DesktopNotificationSettings {
+export function resolveDesktopNotificationSettings(value: unknown) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return DEFAULTS
-  return Option.getOrElse(decodeStoredDesktopNotificationSettings(value), () => DEFAULTS)
+  const settings: DesktopNotificationSettings = Option.getOrElse(
+    decodeStoredDesktopNotificationSettings(value),
+    () => DEFAULTS,
+  )
+  return settings
 }
 
 export function resolveStoredDesktopNotificationSettings(

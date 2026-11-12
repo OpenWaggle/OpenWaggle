@@ -188,7 +188,7 @@ function getCompactionReason(value: unknown) {
   return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : undefined
 }
 
-export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | null {
+export function hydrateStructuralSessionMessage(row: SessionNodeRow) {
   const content = parseJsonValue(row.content_json)
   const summary = getStringField(content, 'summary')
   if (!summary) {
@@ -202,7 +202,7 @@ export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | 
       parts: [{ type: 'text', text: `Branch summary\n\n${summary}` }],
       metadata: { branchSummary: { summary } },
       createdAt: row.timestamp_ms,
-    }
+    } satisfies Message
   }
 
   if (row.kind === 'compaction_summary') {
@@ -220,7 +220,7 @@ export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | 
           }
         : {}),
       createdAt: row.timestamp_ms,
-    }
+    } satisfies Message
   }
 
   return null

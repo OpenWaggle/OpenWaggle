@@ -45,11 +45,12 @@ function sourceRelationshipBlockReason(
   if (source.row.parent_session_id === null) {
     // The same decision the Hive tool made when the Follow-up was queued.
     return sessionAgentRunReachesEveryProject(sql, source.sessionId, source.runId).pipe(
-      Effect.map((everyProject): AttentionReason | undefined =>
-        everyProject ||
-        (source.row.project_path !== null && source.row.project_path === target.project_path)
-          ? undefined
-          : 'authority_changed',
+      Effect.map(
+        (everyProject) =>
+          (everyProject ||
+          (source.row.project_path !== null && source.row.project_path === target.project_path)
+            ? undefined
+            : 'authority_changed') satisfies AttentionReason | undefined,
       ),
     )
   }

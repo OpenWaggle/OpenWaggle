@@ -196,9 +196,9 @@ describe('Session-agent wait authority', () => {
       const command = payload(operation)
       if (command.contract !== 'session-query-v2') throw new Error('Expected Session query.')
       let resolutions = 0
-      const resolveLiveCaller = async (): Promise<LocalSessionCallerIdentity> => {
+      const resolveLiveCaller = async () => {
         resolutions += 1
-        return {
+        const identity: LocalSessionCallerIdentity = {
           ...sessionAgent,
           profileAuthority: {
             ...sessionAgentAuthority,
@@ -206,6 +206,7 @@ describe('Session-agent wait authority', () => {
             scope: { sessionIds: ['queen'] },
           },
         }
+        return identity
       }
 
       const error = await Effect.runPromise(

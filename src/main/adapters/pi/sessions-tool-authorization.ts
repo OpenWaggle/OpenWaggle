@@ -120,7 +120,7 @@ export async function authorizeExport(
   input: { readonly workingDirectory: string },
   ctx: ExtensionContext,
   signal?: AbortSignal,
-): Promise<SessionsToolPayload> {
+) {
   if (
     payload.contract !== 'session-control-v2' ||
     payload.request.command.operation !== 'export-create'
@@ -141,7 +141,7 @@ export async function authorizeExport(
     roots: [input.workingDirectory],
     destinationPath: payload.request.command.destinationPath,
   })
-  return {
+  const result: SessionsToolPayload = {
     ...payload,
     request: {
       ...payload.request,
@@ -152,4 +152,5 @@ export async function authorizeExport(
       },
     },
   }
+  return result
 }

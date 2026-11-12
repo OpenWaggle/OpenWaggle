@@ -30,7 +30,7 @@ export function configurePiUserRuntimeSettingsReader(reader: PiUserRuntimeSettin
   }
 }
 
-function piUserRuntimeSettings(): PiUserRuntimeSettings {
+function piUserRuntimeSettings() {
   try {
     return readPiUserRuntimeSettings()
   } catch {
@@ -42,10 +42,7 @@ function resolveCodemodeEnabled(raw: unknown, fallback: () => boolean | undefine
   return typeof raw === 'boolean' ? raw : (fallback() ?? DEFAULT_SETTINGS.codemodeEnabled)
 }
 
-function resolveCacheWarming(
-  raw: unknown,
-  fallback: () => Settings['cacheWarming'] | undefined,
-): Settings['cacheWarming'] {
+function resolveCacheWarming(raw: unknown, fallback: () => Settings['cacheWarming'] | undefined) {
   return typeof raw === 'string' && includes(PI_CACHE_WARMING_MODES, raw)
     ? raw
     : (fallback() ?? DEFAULT_SETTINGS.cacheWarming)

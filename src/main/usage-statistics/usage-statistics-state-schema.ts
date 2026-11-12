@@ -13,10 +13,7 @@ import {
   USAGE_STATISTICS_THINKING_LEVELS,
 } from '@shared/usage-statistics/contract'
 import { usageStatisticsEpochDay } from '@shared/usage-statistics/validation'
-import {
-  USAGE_STATISTICS_STATE_SCHEMA_VERSION,
-  type UsageStatisticsHostState,
-} from '../domain/usage-statistics/usage-statistics-host-state'
+import { USAGE_STATISTICS_STATE_SCHEMA_VERSION } from '../domain/usage-statistics/usage-statistics-host-state'
 import type { UsageStatisticsDay } from '../domain/usage-statistics/usage-statistics-observations'
 
 const daySchema = Schema.String.pipe(
@@ -99,10 +96,10 @@ export const EMPTY_USAGE_STATISTICS_GUI_SPOOL: UsageStatisticsGuiSpool = {
   days: {},
 }
 
-export function decodeUsageStatisticsHostState(value: unknown): UsageStatisticsHostState {
+export function decodeUsageStatisticsHostState(value: unknown) {
   return decodeUnknownOrThrow(hostStateSchema, value)
 }
 
-export function decodeUsageStatisticsGuiSpool(value: unknown): UsageStatisticsGuiSpool {
+export function decodeUsageStatisticsGuiSpool(value: unknown) {
   return decodeUnknownOrThrow(guiSpoolSchema, value)
 }

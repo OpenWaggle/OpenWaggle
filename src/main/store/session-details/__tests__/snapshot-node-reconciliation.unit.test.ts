@@ -20,7 +20,7 @@ vi.mock('../snapshot-transcript-term-changes', () => ({
  * check would otherwise reject, without the cost of a full persistence round-trip.
  */
 
-function existing(id: string, createdOrder: number): ComparedSessionNodeRow {
+function existing(id: string, createdOrder: number) {
   return {
     id,
     session_id: 'session-x',
@@ -34,10 +34,10 @@ function existing(id: string, createdOrder: number): ComparedSessionNodeRow {
     branch_hint_id: null,
     path_depth: 0,
     created_order: createdOrder,
-  }
+  } satisfies ComparedSessionNodeRow
 }
 
-function next(id: string, createdOrder: number): ProjectedSessionNodeInput {
+function next(id: string, createdOrder: number) {
   return {
     id,
     parentId: null,
@@ -49,7 +49,7 @@ function next(id: string, createdOrder: number): ProjectedSessionNodeInput {
     metadataJson: '{}',
     pathDepth: 0,
     createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 describe('nodesToPark', () => {

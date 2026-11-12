@@ -41,7 +41,7 @@ export function visibleWaggleUserMessageDisplay(entry: VisibleWaggleUserEntry) {
 
 export function visibleWaggleUserMessageProjection(
   entry: Extract<SessionEntry, { type: 'custom_message' }>,
-): PiEntryProjection {
+) {
   const display = visibleWaggleUserMessageDisplay(entry)
   return {
     kind: 'user_message',
@@ -56,5 +56,5 @@ export function visibleWaggleUserMessageProjection(
             details: display.details,
           },
     ),
-  }
+  } satisfies PiEntryProjection
 }

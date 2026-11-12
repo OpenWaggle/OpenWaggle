@@ -4,7 +4,6 @@ import type {
   SessionControlFollowUpInput,
   SessionControlMessageInput,
 } from '@shared/types/session-control-run-commands'
-import type { RunStartSettings } from '../domain/session-control/run-start-settings'
 
 /** The message content a Follow-up intent snapshot keeps; never a thinking level. */
 export function toSessionControlIntentMessage(input: SessionControlFollowUpInput) {
@@ -20,7 +19,7 @@ export function toSessionControlIntentMessage(input: SessionControlFollowUpInput
 export function requestedRunStartSettings(
   input: SessionControlMessageInput,
   runAuthorizationOverride: AgentAuthorizationMode | undefined,
-): RunStartSettings {
+) {
   return {
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
     ...(runAuthorizationOverride ? { runAuthorizationOverride } : {}),

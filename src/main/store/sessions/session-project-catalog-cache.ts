@@ -1,5 +1,4 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { SessionProjectPage } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 
 interface ProjectPathEntry {
@@ -39,7 +38,7 @@ function matchProjectPage(
   cursor: string | undefined,
   search: string,
   matchingDisplayNamePaths: readonly string[],
-): SessionProjectPage {
+) {
   const searchKey = search.normalize('NFC').toLowerCase()
   const aliases = new Set(matchingDisplayNamePaths)
   const paths: string[] = []

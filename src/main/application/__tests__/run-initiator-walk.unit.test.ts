@@ -14,10 +14,11 @@ type Catalog = Record<
 
 function decide(catalog: Catalog, runId: string) {
   const steps: string[] = []
-  const reference = (id: string): RunReference => {
+  const reference = (id: string) => {
     const run = catalog[id]
     if (!run) throw new Error(`No Run ${id} in the test catalog`)
-    return { sessionId: run.sessionId, runId: id }
+    const reference: RunReference = { sessionId: run.sessionId, runId: id }
+    return reference
   }
   const verdict = Effect.runSync(
     walkRunInitiators(
@@ -46,8 +47,8 @@ function line(
   sessionOf: (index: number) => string,
   prefix = 'r',
   firstFollows: readonly string[] = [],
-): Catalog {
-  return Object.fromEntries(
+) {
+  const catalog: Catalog = Object.fromEntries(
     Array.from({ length }, (_, index) => [
       `${prefix}${index}`,
       {
@@ -57,6 +58,7 @@ function line(
       },
     ]),
   )
+  return catalog
 }
 
 const alternating = (index: number) => (index % 2 === 0 ? 'a' : 'b')
@@ -135,8 +137,9 @@ describe('walkRunInitiators', () => {
     const others = MAX_RUN_INITIATOR_CHAIN_DEPTH
     // Each branch alone stays within the limit; together they span one Session too many.
     const firstHalf = Math.ceil(others / 2)
-    const branch = (name: string, from: number, count: number): Catalog =>
-      line(count, (index) => `s${from + index}`, name)
+    const branch = (name: string, from: number, count: number) => {
+      return line(count, (index) => `s${from + index}`, name)
+    }
     const catalog: Catalog = {
       ...branch('x', 1, firstHalf),
       ...branch('y', 1 + firstHalf, others + 1 - firstHalf),

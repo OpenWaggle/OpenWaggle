@@ -1,7 +1,6 @@
 import os from 'node:os'
 import { safeDecodeUnknown } from '@shared/schema'
 import { usageCostQuerySchema, usageCostSessionQuerySchema } from '@shared/schemas/usage-cost'
-import type { UsageCostQuery, UsageCostSessionQuery } from '@shared/types/usage-cost'
 import * as Effect from 'effect/Effect'
 import type { createPiUsageCostScanner } from '../adapters/pi/usage-cost/pi-usage-cost-scanner'
 import {
@@ -22,13 +21,13 @@ function scanner() {
   return defaultScanner
 }
 
-function decodeQuery(value: unknown): UsageCostQuery {
+function decodeQuery(value: unknown) {
   const decoded = safeDecodeUnknown(usageCostQuerySchema, value)
   if (!decoded.success) throw new Error(decoded.issues.join('; '))
   return decoded.data
 }
 
-function decodeSessionQuery(value: unknown): UsageCostSessionQuery {
+function decodeSessionQuery(value: unknown) {
   const decoded = safeDecodeUnknown(usageCostSessionQuerySchema, value)
   if (!decoded.success) throw new Error(decoded.issues.join('; '))
   return decoded.data
@@ -57,7 +56,7 @@ function serviceContextEffect() {
   })
 }
 
-export function registerUsageCostHandlers(): void {
+export function registerUsageCostHandlers() {
   typedHandle('usage-cost:get-view', (_event, query: unknown) =>
     Effect.gen(function* () {
       const decoded = decodeQuery(query)

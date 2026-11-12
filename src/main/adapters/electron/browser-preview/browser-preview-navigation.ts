@@ -1,5 +1,4 @@
 import { isBrowserPreviewUrl, normalizeBrowserPreviewUrl } from '@shared/schemas/browser-preview'
-import type { BrowserPreviewState } from '@shared/types/browser-preview'
 import { monitorBrowserPreview } from './browser-preview-events'
 import { sendBrowserPreviewOwnerEvent } from './browser-preview-owner-events'
 import {
@@ -29,7 +28,7 @@ export class BrowserPreviewNavigation {
     this.host = host
   }
 
-  navigate(record: BrowserPreviewRecord, canonicalUrl: string): BrowserPreviewState {
+  navigate(record: BrowserPreviewRecord, canonicalUrl: string) {
     if (record.state.url === canonicalUrl) return this.snapshot(record)
     record.state = {
       ...record.state,
@@ -43,7 +42,7 @@ export class BrowserPreviewNavigation {
     return record.state
   }
 
-  goBack(record: BrowserPreviewRecord): BrowserPreviewState {
+  goBack(record: BrowserPreviewRecord) {
     if (record.view.webContents.navigationHistory.canGoBack()) {
       record.loadGeneration += 1
       record.state = { ...record.state, loading: true, error: null }
@@ -53,7 +52,7 @@ export class BrowserPreviewNavigation {
     return record.state
   }
 
-  goForward(record: BrowserPreviewRecord): BrowserPreviewState {
+  goForward(record: BrowserPreviewRecord) {
     if (record.view.webContents.navigationHistory.canGoForward()) {
       record.loadGeneration += 1
       record.state = { ...record.state, loading: true, error: null }
@@ -63,7 +62,7 @@ export class BrowserPreviewNavigation {
     return record.state
   }
 
-  reload(record: BrowserPreviewRecord): BrowserPreviewState {
+  reload(record: BrowserPreviewRecord) {
     record.loadGeneration += 1
     record.state = { ...record.state, loading: true, error: null }
     record.view.webContents.reload()
@@ -71,7 +70,7 @@ export class BrowserPreviewNavigation {
     return record.state
   }
 
-  stop(record: BrowserPreviewRecord): BrowserPreviewState {
+  stop(record: BrowserPreviewRecord) {
     record.loadGeneration += 1
     record.view.webContents.stop()
     record.state = { ...record.state, loading: false }
@@ -79,15 +78,12 @@ export class BrowserPreviewNavigation {
     return this.snapshot(record)
   }
 
-  loadUrl(record: BrowserPreviewRecord, canonicalUrl: string): void {
+  loadUrl(record: BrowserPreviewRecord, canonicalUrl: string) {
     const operation = this.beginLoad(record, canonicalUrl)
     void operation.completion.catch(() => undefined)
   }
 
-  beginAutomationNavigation(
-    record: BrowserPreviewRecord,
-    canonicalUrl: string,
-  ): BrowserPreviewLoadOperation {
+  beginAutomationNavigation(record: BrowserPreviewRecord, canonicalUrl: string) {
     record.state = {
       ...record.state,
       url: canonicalUrl,
@@ -97,13 +93,14 @@ export class BrowserPreviewNavigation {
     }
     this.host.emitState(record)
     const operation = this.beginLoad(record, canonicalUrl)
-    return {
+    const result: BrowserPreviewLoadOperation = {
       ...operation,
       isCurrent: () => !record.disposed && operation.generation === record.loadGeneration,
       stop: () => {
         if (!record.disposed && operation.generation === record.loadGeneration) this.stop(record)
       },
     }
+    return result
   }
 
   private beginLoad(record: BrowserPreviewRecord, canonicalUrl: string) {
@@ -124,7 +121,7 @@ export class BrowserPreviewNavigation {
     return { generation, completion }
   }
 
-  snapshot(record: BrowserPreviewRecord): BrowserPreviewState {
+  snapshot(record: BrowserPreviewRecord) {
     if (record.disposed || record.view.webContents.isDestroyed()) return record.state
     const contents = record.view.webContents
     const actualUrl = contents.getURL()
@@ -141,7 +138,7 @@ export class BrowserPreviewNavigation {
     return record.state
   }
 
-  monitor(record: BrowserPreviewRecord): void {
+  monitor(record: BrowserPreviewRecord) {
     monitorBrowserPreview(record, {
       snapshot: () => this.snapshot(record),
       emitState: () => this.host.emitState(record),

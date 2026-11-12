@@ -5,7 +5,7 @@ import { SESSION_TITLE_SOURCES } from '@shared/session-title-source'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionDetail, SessionResumePosition, SessionSummary } from '@shared/types/session'
+import type { SessionDetail } from '@shared/types/session'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { isAgentLoopAuditNode } from '@shared/utils/agent-loop-audit-node'
 import * as Effect from 'effect/Effect'
@@ -44,10 +44,7 @@ function hydrateSessionDetailSummary(row: SessionSummaryRow) {
   }
 }
 
-function resumePosition(
-  sessionRow: SessionRow,
-  nodeRows: readonly SessionNodeRow[],
-): SessionResumePosition | null {
+function resumePosition(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
   if (!sessionRow.last_active_node_id) return null
   const piEntryCount = nodeRows.filter(
     (row) => !isAgentLoopAuditNode({ kind: row.kind, contentJson: row.content_json }),
@@ -80,7 +77,7 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
     const environmentMode: SessionEnvironmentMode =
       sessionRow.environment_mode === 'worktree' ? 'worktree' : 'local'
     const position = resumePosition(sessionRow, nodeRows)
-    return {
+    const detail: SessionDetail = {
       id: SessionId(sessionRow.id),
       title: sessionRow.title,
       ...sessionTitleSource(sessionRow.title_source),
@@ -107,6 +104,7 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
         : {}),
       ...(sessionRow.pi_cwd ? { piSessionCwd: sessionRow.pi_cwd } : {}),
     }
+    return detail
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
     return null
@@ -199,7 +197,7 @@ function summaryCountSql(
   `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
-export async function listSessionSummaries(limit?: number, offset = 0): Promise<SessionSummary[]> {
+export async function listSessionSummaries(limit?: number, offset = 0) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -209,7 +207,7 @@ export async function listSessionSummaries(limit?: number, offset = 0): Promise<
   )
 }
 
-export async function listArchivedSessions(): Promise<SessionSummary[]> {
+export async function listArchivedSessions() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -224,13 +222,13 @@ export async function listArchivedSessions(): Promise<SessionSummary[]> {
   )
 }
 
-export async function listSessionDetails(limit?: number, offset = 0): Promise<SessionDetail[]> {
+export async function listSessionDetails(limit?: number, offset = 0) {
   const summaries = await listSessionSummaries(limit, offset)
   const sessions = await Promise.all(summaries.map((summary) => getSessionDetail(summary.id)))
   return sessions.filter(isSessionDetail)
 }
 
-export async function getSessionDetail(id: SessionId): Promise<SessionDetail | null> {
+export async function getSessionDetail(id: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

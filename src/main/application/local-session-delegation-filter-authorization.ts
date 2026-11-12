@@ -8,7 +8,7 @@ import { SessionAuthorizationTargetRepository } from '../ports/session-authoriza
 import { authorizeTargetForCaller } from './local-session-derived-authority'
 
 /** The Sessions a catalog query filters by: `--parent` and `--worker`. */
-function filterSessionIds(query: SessionQuery): readonly string[] {
+function filterSessionIds(query: SessionQuery) {
   if (query.operation === 'delegations-list' || query.operation === 'delegations-conflicts') {
     return [query.parentSessionId, query.workerSessionId].filter(
       (sessionId): sessionId is string => sessionId !== undefined,

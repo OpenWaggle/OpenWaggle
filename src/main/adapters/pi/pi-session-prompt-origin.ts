@@ -46,29 +46,43 @@ function leavesTurnRunning(message: PiSessionMessage) {
   return message.role === 'assistant' && message.stopReason === 'toolUse'
 }
 
-function nextScan(scan: OriginScan, entry: PiSessionEntry): OriginScan {
+function nextScan(scan: OriginScan, entry: PiSessionEntry) {
   if (entry.type === 'custom') {
     if (entry.customType === OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
-      return { origin: 'openwaggle', afterOpenWaggleInput: false, turnRunning: false }
+      const result: OriginScan = {
+        origin: 'openwaggle',
+        afterOpenWaggleInput: false,
+        turnRunning: false,
+      }
+      return result
     }
     if (entry.customType === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
-      return { ...scan, afterOpenWaggleInput: true }
+      const result: OriginScan = { ...scan, afterOpenWaggleInput: true }
+      return result
     }
-    return { ...scan, afterOpenWaggleInput: false }
+    const result: OriginScan = { ...scan, afterOpenWaggleInput: false }
+    return result
   }
   const { message } = entry
   if (entry.type !== 'message' || message === undefined) {
-    return { ...scan, afterOpenWaggleInput: false }
+    const result: OriginScan = { ...scan, afterOpenWaggleInput: false }
+    return result
   }
   if (message.role !== 'user') {
-    return { ...scan, afterOpenWaggleInput: false, turnRunning: leavesTurnRunning(message) }
+    const result: OriginScan = {
+      ...scan,
+      afterOpenWaggleInput: false,
+      turnRunning: leavesTurnRunning(message),
+    }
+    return result
   }
   const origin = scan.afterOpenWaggleInput
     ? 'openwaggle'
     : scan.turnRunning
       ? (scan.origin ?? 'outside')
       : 'outside'
-  return { origin, afterOpenWaggleInput: false, turnRunning: false }
+  const result: OriginScan = { origin, afterOpenWaggleInput: false, turnRunning: false }
+  return result
 }
 
 async function readFrom(file: string, offset: number, size: number) {
@@ -105,7 +119,7 @@ export function createPiSessionPromptOrigins() {
   }
 
   /** Null when the file is missing or has no prompt yet. */
-  const lastPromptOrigin = async (file: string): Promise<PiSessionPromptOrigin | null> => {
+  const lastPromptOrigin = async (file: string) => {
     let stats: { readonly size: number; readonly mtimeMs: number }
     try {
       stats = await stat(file)

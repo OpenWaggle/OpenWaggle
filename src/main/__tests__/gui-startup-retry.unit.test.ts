@@ -18,13 +18,16 @@ interface HarnessState {
   desktopServices: Deferred<void> | null
 }
 
-const state = vi.hoisted((): HarnessState => ({
-  route: 'local',
-  liveBridges: 0,
-  settingsRequests: [],
-  preparation: null,
-  desktopServices: null,
-}))
+const state = vi.hoisted(() => {
+  const state: HarnessState = {
+    route: 'local',
+    liveBridges: 0,
+    settingsRequests: [],
+    preparation: null,
+    desktopServices: null,
+  }
+  return state
+})
 
 const prepareGuiSessionHostLifecycle = vi.hoisted(() => vi.fn())
 const startAppGuiDesktopServices = vi.hoisted(() => vi.fn())
@@ -121,8 +124,10 @@ const settle = async () => {
   for (let tick = 0; tick < 20; tick += 1) await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-function takeSettingsRequest(which: 'latest' | 'earliest'): Deferred<unknown> | undefined {
-  return which === 'latest' ? state.settingsRequests.pop() : state.settingsRequests.shift()
+function takeSettingsRequest(which: 'latest' | 'earliest') {
+  return (
+    which === 'latest' ? state.settingsRequests.pop() : state.settingsRequests.shift()
+  ) satisfies Deferred<unknown> | undefined
 }
 
 async function answerEverySettingsRequest() {

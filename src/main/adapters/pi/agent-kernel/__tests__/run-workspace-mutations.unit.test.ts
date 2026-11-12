@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest'
 import { isReadOnlyToolCall, observeRunWorkspaceMutations } from '../run-workspace-mutations'
 
 /** A loaded extension at `path` with `count` handlers of `eventType`. */
-function extension(path: string, eventType: string, count = 1): Extension {
+function extension(path: string, eventType: string, count = 1) {
   return fromPartial({
     path,
     handlers: new Map([[eventType, Array.from({ length: count }, () => () => undefined)]]),
-  })
+  }) satisfies Extension
 }
 
 function fakeSession(extensions: readonly Extension[] = []) {

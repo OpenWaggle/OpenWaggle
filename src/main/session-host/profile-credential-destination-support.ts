@@ -28,14 +28,15 @@ export function destinationMetadata(
   destination: ProfileCredentialDestination,
   profileName: string,
   targetPath: string,
-): ProfileCredentialDestinationMetadata {
-  return {
+) {
+  const metadata: ProfileCredentialDestinationMetadata = {
     kind: destination.kind,
     location:
       destination.kind === 'credential-store'
         ? `OpenWaggle credential store (${profileName})`
         : targetPath,
   }
+  return metadata
 }
 
 export function credentialContent(destination: ProfileCredentialDestination, credential: string) {

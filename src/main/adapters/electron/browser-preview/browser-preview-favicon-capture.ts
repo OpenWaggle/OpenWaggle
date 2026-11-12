@@ -22,7 +22,7 @@ const DATA_URL_PAYLOAD_GROUP = 3
 const PERCENT_ESCAPE_WIDTH = 3
 const BASE64_GROUP_SIZE = 4
 
-export function safeBrowserPreviewOrigin(url: string): string | null {
+export function safeBrowserPreviewOrigin(url: string) {
   try {
     const parsed = new URL(url)
     return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.origin : null
@@ -45,9 +45,7 @@ function supportedCandidate(candidate: string) {
   }
 }
 
-export function selectBrowserPreviewFaviconCandidates(
-  candidates: readonly string[],
-): readonly string[] {
+export function selectBrowserPreviewFaviconCandidates(candidates: readonly string[]) {
   const selected: string[] = []
   const seen = new Set<string>()
   let inputUnits = 0
@@ -62,7 +60,7 @@ export function selectBrowserPreviewFaviconCandidates(
   return selected
 }
 
-function decodePercentEncoded(payload: string): Buffer | null {
+function decodePercentEncoded(payload: string) {
   const output = Buffer.allocUnsafe(Buffer.byteLength(payload))
   let inputOffset = 0
   let outputOffset = 0
@@ -111,7 +109,7 @@ function inlineCandidate(candidate: string) {
     : null
 }
 
-async function readResponse(response: Response, signal: AbortSignal): Promise<Buffer | null> {
+async function readResponse(response: Response, signal: AbortSignal) {
   const declaredLength = Number(response.headers.get('content-length'))
   if (
     Number.isFinite(declaredLength) &&
@@ -184,7 +182,7 @@ async function captureCandidate(
   pageOrigin: string,
   candidate: string,
   signal: AbortSignal,
-): Promise<BrowserPreviewFaviconCaptureResult> {
+) {
   try {
     const source = await loadCandidate(contents, pageOrigin, candidate, signal)
     const dimensions = source?.buffer ? browserPreviewImageDimensions(source.buffer) : null
@@ -195,7 +193,7 @@ async function captureCandidate(
       normalizedMime === 'image/svg+xml' ||
       (normalizedMime !== '' && !/^image\/[a-z0-9.+-]+$/iu.test(normalizedMime))
     ) {
-      return { kind: 'none' }
+      return { kind: 'none' } satisfies BrowserPreviewFaviconCaptureResult
     }
     return await rasterizeBrowserPreviewFavicon(
       contents,
@@ -205,7 +203,7 @@ async function captureCandidate(
       signal,
     )
   } catch {
-    return { kind: 'none' }
+    return { kind: 'none' } satisfies BrowserPreviewFaviconCaptureResult
   }
 }
 
@@ -214,15 +212,19 @@ export async function captureBrowserPreviewFavicon(input: {
   readonly pageUrl: string
   readonly candidates: readonly string[]
   readonly signal: AbortSignal
-}): Promise<BrowserPreviewFaviconCaptureResult> {
+}) {
   const pageOrigin = safeBrowserPreviewOrigin(input.pageUrl)
-  if (!pageOrigin) return { kind: 'none' }
+  if (!pageOrigin) return { kind: 'none' } satisfies BrowserPreviewFaviconCaptureResult
   const timeout = AbortSignal.timeout(BROWSER_PREVIEW_FAVICON_LIMITS.CAPTURE_MS)
   const signal = AbortSignal.any([input.signal, timeout])
   for (const candidate of selectBrowserPreviewFaviconCandidates(input.candidates)) {
-    if (signal.aborted) return input.signal.aborted ? { kind: 'none' } : { kind: 'timed-out' }
+    if (signal.aborted) {
+      return (
+        input.signal.aborted ? { kind: 'none' } : { kind: 'timed-out' }
+      ) satisfies BrowserPreviewFaviconCaptureResult
+    }
     const result = await captureCandidate(input.webContents, pageOrigin, candidate, signal)
     if (result.kind !== 'none') return result
   }
-  return { kind: 'none' }
+  return { kind: 'none' } satisfies BrowserPreviewFaviconCaptureResult
 }

@@ -7,7 +7,7 @@ import type {
 import { terminalBackendProcess } from './terminal-pty-backend-fields'
 
 /** Install once, immediately after spawn, so even a pre-attach exit is retained. */
-export function observeTerminalProcessExit(pty: IPty): TerminalProcessExitObservation {
+export function observeTerminalProcessExit(pty: IPty) {
   let resolveExit: () => void = () => undefined
   let disposed = false
   const notifyExit = (exitCode: unknown) => {
@@ -37,7 +37,7 @@ export function observeTerminalProcessExit(pty: IPty): TerminalProcessExitObserv
   return observation
 }
 
-function observeNativeProcessTreeExit(pty: IPty): TerminalProcessExitObservation | null {
+function observeNativeProcessTreeExit(pty: IPty) {
   const event: unknown = terminalBackendProcess(pty).onProcessTreeExit
   if (typeof event !== 'function') return null
 
@@ -84,7 +84,7 @@ function observeResourceDrain(
   pty: IPty,
   exit: TerminalProcessExitObservation,
   requireNative: boolean,
-): TerminalResourceDrainObservation {
+) {
   const waitForResourceDrain: unknown = terminalBackendProcess(pty).waitForResourceDrain
   let status: TerminalResourceDrainObservation['status'] = 'pending'
 
@@ -117,12 +117,13 @@ function observeResourceDrain(
     status = drained ? 'drained' : 'failed'
     return drained
   })
-  return {
+  const observation: TerminalResourceDrainObservation = {
     whenDrained,
     get status() {
       return status
     },
   }
+  return observation
 }
 
 /** Install every lifecycle latch immediately after spawn, before renderer attachment. */

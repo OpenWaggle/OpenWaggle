@@ -19,20 +19,20 @@ vi.mock('../session-title-recovery', () => ({ recoverSessionTitleWork: Effect.vo
 
 const scheduler = await import('../session-title-scheduler')
 
-function spawnRequest(): SessionLifecycleRequest {
+function spawnRequest() {
   return fromPartial({
     contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
     requestId: 'request',
     idempotencyKey: 'key',
     command: { operation: 'spawn', delegation: { objective: 'Review the auth module' } },
-  })
+  }) satisfies SessionLifecycleRequest
 }
 
-function spawned(replayed = false): SessionLifecycleResponse {
+function spawned(replayed = false) {
   return fromPartial({
     replayed,
     outcome: { operation: 'spawn', effect: 'spawned-worker', sessionId: 'worker-1' },
-  })
+  }) satisfies SessionLifecycleResponse
 }
 
 /** The scheduler only captures the runtime; the mocked work needs none of its services. */
@@ -75,14 +75,14 @@ describe('session title scheduler', () => {
   it('titles an untitled launched root from its objective, but never one launched with a title', async () => {
     await installHostRuntime()
     generateMock.mockClear()
-    const launch = (title?: string): SessionLifecycleRequest =>
+    const launch = (title?: string) =>
       fromPartial({
         command: {
           operation: 'launch',
           objective: 'Audit the schema',
           ...(title === undefined ? {} : { title }),
         },
-      })
+      }) satisfies SessionLifecycleRequest
     const launched: SessionLifecycleResponse = fromPartial({
       replayed: false,
       outcome: { operation: 'launch', effect: 'launched-root', sessionId: 'root-1' },

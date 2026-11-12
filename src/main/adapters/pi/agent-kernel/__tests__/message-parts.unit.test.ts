@@ -11,7 +11,7 @@ import {
   piUserContentToDisplayParts,
 } from '../message-parts'
 
-function attachment(name: string, extractedText: string): AttachmentRecord {
+function attachment(name: string, extractedText: string) {
   return {
     id: name,
     kind: 'text',
@@ -20,7 +20,7 @@ function attachment(name: string, extractedText: string): AttachmentRecord {
     mimeType: 'text/plain',
     sizeBytes: 1,
     extractedText,
-  }
+  } satisfies AttachmentRecord
 }
 
 describe('Pi message part projection helpers', () => {

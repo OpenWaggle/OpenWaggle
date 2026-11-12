@@ -17,7 +17,7 @@ export function describeError(error: unknown) {
  * Serializes one operation onto the store write queue. The queue always continues after a
  * rejection; the returned promise still rejects so the caller can handle its own failure.
  */
-export function chainWriteQueue<T>(operation: () => Promise<T>): Promise<T> {
+export function chainWriteQueue<T>(operation: () => Promise<T>) {
   const pending = writeQueue.then(operation)
   writeQueue = pending.then(
     () => undefined,
@@ -26,10 +26,7 @@ export function chainWriteQueue<T>(operation: () => Promise<T>): Promise<T> {
   return pending
 }
 
-export function enqueueSettingsWrite<T>(
-  operation: () => Promise<T>,
-  description: string,
-): Promise<T> {
+export function enqueueSettingsWrite<T>(operation: () => Promise<T>, description: string) {
   const pending = chainWriteQueue(operation)
   void pending.catch((error: unknown) => {
     logger.warn('Failed to write setting to SQLite', {
@@ -41,7 +38,7 @@ export function enqueueSettingsWrite<T>(
 }
 
 /** Resolves once every write queued so far has settled. Test and shutdown plumbing only. */
-export function flushWriteQueue(): Promise<void> {
+export function flushWriteQueue() {
   return writeQueue
 }
 

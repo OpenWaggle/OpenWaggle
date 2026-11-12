@@ -19,10 +19,7 @@ function createTempDirectory() {
   return tempDirectory
 }
 
-function createAppPathManager(defaultUserDataPath: string): {
-  readonly appPathManager: AppStoragePaths
-  readonly getRecordedPath: (name: 'userData' | 'sessionData' | 'logs') => string | undefined
-} {
+function createAppPathManager(defaultUserDataPath: string) {
   const recordedPaths = new Map<'userData' | 'sessionData' | 'logs', string>()
 
   return {
@@ -35,6 +32,9 @@ function createAppPathManager(defaultUserDataPath: string): {
     getRecordedPath(name) {
       return recordedPaths.get(name)
     },
+  } satisfies {
+    readonly appPathManager: AppStoragePaths
+    readonly getRecordedPath: (name: 'userData' | 'sessionData' | 'logs') => string | undefined
   }
 }
 

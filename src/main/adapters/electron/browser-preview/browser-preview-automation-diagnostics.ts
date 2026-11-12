@@ -62,8 +62,13 @@ export interface BrowserPreviewAutomationDiagnosticsState {
   readonly pendingRequests: Map<string, PendingRequest>
 }
 
-export function createBrowserPreviewAutomationDiagnosticsState(): BrowserPreviewAutomationDiagnosticsState {
-  return { consoleEntries: [], networkEntries: [], pendingRequests: new Map() }
+export function createBrowserPreviewAutomationDiagnosticsState() {
+  const state: BrowserPreviewAutomationDiagnosticsState = {
+    consoleEntries: [],
+    networkEntries: [],
+    pendingRequests: new Map(),
+  }
+  return state
 }
 
 function timestamp(value: number) {

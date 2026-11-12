@@ -51,7 +51,7 @@ function authorizedHeader(header: string | undefined, expectedDigest: Buffer) {
   )
 }
 
-function firstHeaderValue(value: string | string[] | undefined): string | undefined {
+function firstHeaderValue(value: string | string[] | undefined) {
   if (typeof value === 'string') return value
   return value?.[0]
 }
@@ -85,7 +85,7 @@ function validateRawRequest(
   response: ServerResponse,
   expectedDigest: Buffer,
   maxRequestBodyBytes: number,
-): { readonly declaredBodyBytes?: number } | undefined {
+) {
   const path = requestPath(request)
   if (path === undefined) {
     rejectRawRequest(request, response, HTTP_BAD_REQUEST, 'Invalid request target.')

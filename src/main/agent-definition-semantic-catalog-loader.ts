@@ -6,7 +6,6 @@ import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-n
 import { readLegacyMcpServerNames } from './adapters/mcp/migration/legacy-server-names'
 import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
-import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
 import { MCP_REACH_TOOL_NAMES } from './domain/agents/agent-tool-allowlist'
 import { legacyMcpServerAliases } from './domain/mcp/migration/legacy-server-references'
 import { readLiveEnv } from './env'
@@ -59,7 +58,7 @@ async function loadDefaultExtensionSelectionServices() {
 
 export async function loadAgentDefinitionSemanticCatalog(
   input: LoadAgentDefinitionSemanticCatalogInput,
-): Promise<AgentDefinitionSemanticCatalog> {
+) {
   const loadDiagnostics: string[] = []
   let models: readonly string[] | undefined
   let tools: readonly string[] | undefined

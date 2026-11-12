@@ -44,7 +44,7 @@ function isObject(value: unknown): value is object {
  * accept: `[options, listener]` already normalized by `net.connect`/`tls.connect`, an options
  * object, `port[, host]`, or a Unix socket path.
  */
-function socketConnectOptions(args: readonly unknown[]): SocketConnectOptions | null {
+function socketConnectOptions(args: readonly unknown[]) {
   const first = args[FIRST_ARGUMENT_INDEX]
   const second = args[SECOND_ARGUMENT_INDEX]
   const options: unknown = Array.isArray(first) ? first[FIRST_ARGUMENT_INDEX] : first

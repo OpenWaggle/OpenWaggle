@@ -1,9 +1,5 @@
 import path from 'node:path'
-import type {
-  BrowserImportInput,
-  BrowserImportResult,
-  BrowserImportSource,
-} from '@shared/types/browser-import'
+import type { BrowserImportInput, BrowserImportSource } from '@shared/types/browser-import'
 import type { BrowserProfile } from '@shared/types/browser-profile'
 import { browserPreviewViews } from '../desktop-shell/browser-preview-views'
 import type { BrowserProfileCookieJar } from '../ports/desktop-shell/browser-preview-views'
@@ -47,7 +43,7 @@ export async function writeImportedCookies(
   session: ImportSession,
   read: BrowserCookieReadResult,
   nowSeconds = Date.now() / MILLISECONDS_PER_SECOND,
-): Promise<BrowserImportResult> {
+) {
   let imported = 0
   let skipped = read.skipped
   const skippedDomains = new Set(read.skippedDomains)

@@ -1,6 +1,5 @@
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
-import type { McpSecretSummary } from '@shared/types/mcp'
 import { Effect, Layer } from 'effect'
 import { secureStorage } from '../../desktop-shell/secure-storage'
 import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
@@ -132,9 +131,7 @@ export function createEncryptedMcpSecretVault(
     return { version: 1 as const, secrets: await ownLegacySecrets(legacy, encryption) }
   }
 
-  async function mutate(
-    update: (vault: VaultFile) => VaultFile | Promise<VaultFile>,
-  ): Promise<McpSecretSummary[]> {
+  async function mutate(update: (vault: VaultFile) => VaultFile | Promise<VaultFile>) {
     const mutation = writeQueue.then(() =>
       withProcessFileLock(filePath, async () => {
         const next = await update(await vaultToChange())
@@ -301,7 +298,7 @@ export function resolveMcpVaultSecret(name: string) {
   return getLiveVault().resolve(name)
 }
 
-function toVaultError(error: unknown): McpVaultError {
+function toVaultError(error: unknown) {
   return error instanceof McpVaultError ? error : toMcpVaultError('io', error)
 }
 

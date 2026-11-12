@@ -27,10 +27,7 @@ const OPENWAGGLE_CUSTOM_TYPE_PREFIX = 'openwaggle-'
 const MAX_TITLE_LENGTH = 120
 const WHITESPACE_RUN = /\s+/gu
 
-export async function parseSessionFile(
-  file: string,
-  estimateCost: UsageCostEstimator,
-): Promise<UsageCostScanSession> {
+export async function parseSessionFile(file: string, estimateCost: UsageCostEstimator) {
   const state: ParseState = {
     sessionId: null,
     name: null,
@@ -51,7 +48,7 @@ export async function parseSessionFile(
     records.push(...extracted)
   }
 
-  return {
+  const session: UsageCostScanSession = {
     file,
     sessionId: state.sessionId,
     title: sessionTitle(state),
@@ -63,6 +60,7 @@ export async function parseSessionFile(
     lastActivityMs: state.lastActivityMs,
     records: records.map((record) => applyEstimate(record, estimateCost)),
   }
+  return session
 }
 
 interface ParseState {
@@ -137,35 +135,46 @@ function absorbEntry(state: ParseState, entry: PiSessionEntry) {
 function extractRecords(
   entry: PiSessionEntry,
   lastModel: { provider: string; modelId: string } | null,
-): UsageCostRecord[] {
+) {
   const timestampMs = parseTimestampMs(entry.timestamp)
-  if (timestampMs === null) return []
+  if (timestampMs === null) {
+    const record: UsageCostRecord[] = []
+    return record
+  }
 
   if (entry.type === 'message') return messageRecords(entry, timestampMs, lastModel)
   if (entry.type === 'usage') return directUsageRecords(entry, timestampMs)
   if (entry.type === 'compaction' || entry.type === 'branch_summary') {
     return summaryRecords(entry, timestampMs)
   }
-  return []
+  const record: UsageCostRecord[] = []
+  return record
 }
 
 function messageRecords(
   entry: PiSessionEntry,
   timestampMs: number,
   lastModel: { provider: string; modelId: string } | null,
-): UsageCostRecord[] {
+) {
   const { message } = entry
-  if (message?.usage === undefined) return []
+  if (message?.usage === undefined) {
+    const record: UsageCostRecord[] = []
+    return record
+  }
 
   if (message.role === 'assistant') {
     const provider = message.provider ?? lastModel?.provider
     const modelId = message.model ?? lastModel?.modelId
-    if (provider === undefined || modelId === undefined) return []
-    return [createRecord(timestampMs, provider, modelId, message.usage)]
+    if (provider === undefined || modelId === undefined) {
+      const record: UsageCostRecord[] = []
+      return record
+    }
+    const record: UsageCostRecord[] = [createRecord(timestampMs, provider, modelId, message.usage)]
+    return record
   }
 
   if (message.role === 'toolResult') {
-    return [
+    const record: UsageCostRecord[] = [
       createRecord(
         timestampMs,
         USAGE_COST_TOOLS_MODEL_PROVIDER,
@@ -173,19 +182,33 @@ function messageRecords(
         message.usage,
       ),
     ]
+    return record
   }
-  return []
+  const record: UsageCostRecord[] = []
+  return record
 }
 
-function directUsageRecords(entry: PiSessionEntry, timestampMs: number): UsageCostRecord[] {
-  if (entry.provider === undefined || entry.model === undefined) return []
-  if (entry.usage === undefined) return []
-  return [createRecord(timestampMs, entry.provider, entry.model, entry.usage)]
+function directUsageRecords(entry: PiSessionEntry, timestampMs: number) {
+  if (entry.provider === undefined || entry.model === undefined) {
+    const record: UsageCostRecord[] = []
+    return record
+  }
+  if (entry.usage === undefined) {
+    const record: UsageCostRecord[] = []
+    return record
+  }
+  const record: UsageCostRecord[] = [
+    createRecord(timestampMs, entry.provider, entry.model, entry.usage),
+  ]
+  return record
 }
 
-function summaryRecords(entry: PiSessionEntry, timestampMs: number): UsageCostRecord[] {
-  if (entry.usage === undefined) return []
-  return [
+function summaryRecords(entry: PiSessionEntry, timestampMs: number) {
+  if (entry.usage === undefined) {
+    const record: UsageCostRecord[] = []
+    return record
+  }
+  const record: UsageCostRecord[] = [
     createRecord(
       timestampMs,
       USAGE_COST_TOOLS_MODEL_PROVIDER,
@@ -193,6 +216,7 @@ function summaryRecords(entry: PiSessionEntry, timestampMs: number): UsageCostRe
       entry.usage,
     ),
   ]
+  return record
 }
 
 function createRecord(
@@ -200,7 +224,7 @@ function createRecord(
   provider: string,
   modelId: string,
   usage: PiSessionUsage,
-): UsageCostRecord {
+) {
   const tokens: UsageCostRecordTokens = {
     input: usage.input ?? 0,
     output: usage.output ?? 0,
@@ -209,7 +233,7 @@ function createRecord(
   }
   const totalTokens =
     usage.totalTokens ?? tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite
-  return {
+  const record: UsageCostRecord = {
     timestampMs,
     provider,
     modelId,
@@ -218,23 +242,26 @@ function createRecord(
     recordedCostUsd: usage.cost?.total ?? null,
     estimatedCostUsd: null,
   }
+  return record
 }
 
-function applyEstimate(record: UsageCostRecord, estimateCost: UsageCostEstimator): UsageCostRecord {
+function applyEstimate(record: UsageCostRecord, estimateCost: UsageCostEstimator) {
   if (record.recordedCostUsd !== null) return record
   const estimatedCostUsd = estimateCost(record.provider, record.modelId, record.tokens)
   if (estimatedCostUsd === null) return record
-  return { ...record, estimatedCostUsd }
+  const result: UsageCostRecord = { ...record, estimatedCostUsd }
+  return result
 }
 
-function parseTimestampMs(value: string | undefined): number | null {
+function parseTimestampMs(value: string | undefined) {
   if (value === undefined) return null
   const parsed = Date.parse(value)
-  return Number.isNaN(parsed) ? null : parsed
+  const result: number | null = Number.isNaN(parsed) ? null : parsed
+  return result
 }
 
 /** Complete lines of a file; a partially written last line is dropped. */
-async function readLines(file: string): Promise<string[]> {
+async function readLines(file: string) {
   const handle = await open(file, 'r')
   try {
     const content = await handle.readFile({ encoding: 'utf8' })

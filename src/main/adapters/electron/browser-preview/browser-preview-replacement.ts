@@ -20,23 +20,27 @@ export class BrowserPreviewReplacement {
     this.host = host
   }
 
-  replace(
-    sender: WebContents,
-    input: BrowserPreviewOpenInput,
-    replacedPreviewId: string,
-  ): BrowserPreviewReplacementResult {
+  replace(sender: WebContents, input: BrowserPreviewOpenInput, replacedPreviewId: string) {
     if (input.previewId === replacedPreviewId) {
       throw new Error('A browser preview cannot replace itself for capacity.')
     }
     const replaced = this.host.findOwned(input.ownerKey, replacedPreviewId)
-    if (!replaced) return { state: this.host.open(sender, input), replacedState: null }
+    if (!replaced) {
+      return {
+        state: this.host.open(sender, input),
+        replacedState: null,
+      } satisfies BrowserPreviewReplacementResult
+    }
     if (!this.host.isLive(replaced) || replaced.owner.sender !== sender) {
       throw new Error('Browser preview replacement is not owned by this renderer.')
     }
     const replacedState = replaced.state
     this.host.dispose(replaced)
     try {
-      return { state: this.host.open(sender, input), replacedState }
+      return {
+        state: this.host.open(sender, input),
+        replacedState,
+      } satisfies BrowserPreviewReplacementResult
     } catch (replacementError) {
       const partial = this.host.findOwned(input.ownerKey, input.previewId)
       if (partial?.owner.sender === sender) this.host.dispose(partial)
@@ -54,9 +58,7 @@ export class BrowserPreviewReplacement {
   }
 }
 
-export function browserPreviewRestorationInput(
-  state: BrowserPreviewState,
-): BrowserPreviewOpenInput {
+export function browserPreviewRestorationInput(state: BrowserPreviewState) {
   return {
     previewId: state.previewId,
     ownerKey: state.ownerKey,
@@ -70,5 +72,5 @@ export function browserPreviewRestorationInput(
       zoomFactor: state.controls.zoomFactor,
       appearance: state.controls.appearance,
     },
-  }
+  } satisfies BrowserPreviewOpenInput
 }

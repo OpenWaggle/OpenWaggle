@@ -1,5 +1,4 @@
 import type { SessionToolInputV2 } from './openwaggle-mcp-session-input-v2'
-import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
 
 function add(
   options: Map<string, string[]>,
@@ -92,7 +91,7 @@ function addCollaborationOptions(options: Map<string, string[]>, input: SessionT
 }
 
 /** The tool parameters that reach the Hive command as structured values, not CLI options. */
-export function mcpSessionStructuredInputV2(input: SessionToolInputV2): SessionsCliStructuredInput {
+export function mcpSessionStructuredInputV2(input: SessionToolInputV2) {
   return {
     ...(input.interactionResponse ? { interactionResponse: input.interactionResponse } : {}),
     ...(input.evidence ? { evidence: input.evidence } : {}),

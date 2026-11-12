@@ -40,7 +40,7 @@ const fields = settingsWireFields
 /** A stored value when it decodes with the setting's own schema, else that setting's default. */
 function storedOr<A, I>(schema: Schema.Schema<A, I>, fallback: NoInfer<A>) {
   const decode = Schema.decodeUnknownOption(schema)
-  return (raw: unknown): A => Option.getOrElse(decode(raw), () => fallback)
+  return (raw: unknown) => Option.getOrElse(decode(raw), () => fallback)
 }
 
 export function resolveProjectPath(raw: unknown) {
@@ -87,12 +87,13 @@ const decodeStoredSyntaxThemeSelections = Schema.decodeUnknownOption(
   }),
 )
 
-export function resolveSyntaxThemeSelections(raw: unknown): SyntaxThemeSelections {
+export function resolveSyntaxThemeSelections(raw: unknown) {
   if (!isObjectRecord(raw)) return DEFAULT_SYNTAX_THEME_SELECTIONS
-  return Option.getOrElse(
+  const selections: SyntaxThemeSelections = Option.getOrElse(
     decodeStoredSyntaxThemeSelections(raw),
     () => DEFAULT_SYNTAX_THEME_SELECTIONS,
   )
+  return selections
 }
 
 export const isValidDiffView = Schema.is(fields.diffView)
@@ -271,8 +272,9 @@ export const storedShortcutBindingSchema = Schema.transform(
 
 const decodeStoredShortcutBinding = Schema.decodeUnknownOption(storedShortcutBindingSchema)
 
-export function sanitizeShortcutBinding(value: unknown): ShortcutBinding | null {
-  return Option.getOrNull(decodeStoredShortcutBinding(value))
+export function sanitizeShortcutBinding(value: unknown) {
+  const binding: ShortcutBinding | null = Option.getOrNull(decodeStoredShortcutBinding(value))
+  return binding
 }
 
 /** The canonical ordered rules; one malformed rule refuses the whole list. */
@@ -289,12 +291,16 @@ const decodeStoredShortcutRules = Schema.decodeUnknownOption(
 )
 
 /** Validates the canonical ordered rule array without rejecting intentional overlaps. */
-export function sanitizeShortcutRules(raw: unknown): ShortcutRules | null {
-  return Option.getOrNull(decodeStoredShortcutRules(raw))
+export function sanitizeShortcutRules(raw: unknown) {
+  const rules: ShortcutRules | null = Option.getOrNull(decodeStoredShortcutRules(raw))
+  return rules
 }
 
-export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {
-  if (!isObjectRecord(raw)) return DEFAULT_SHORTCUT_BINDINGS
+export function sanitizeShortcutBindings(raw: unknown) {
+  if (!isObjectRecord(raw)) {
+    const bindings: ShortcutBindings = DEFAULT_SHORTCUT_BINDINGS
+    return bindings
+  }
 
   const result: Record<ShortcutCommand, ShortcutBinding | null> = {
     ...DEFAULT_SHORTCUT_BINDINGS,
@@ -322,7 +328,8 @@ export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {
         shortcutBindingKey(left.binding) === shortcutBindingKey(right.binding) &&
         shortcutScopesOverlap(left.command, right.command)
       ) {
-        return DEFAULT_SHORTCUT_BINDINGS
+        const bindings: ShortcutBindings = DEFAULT_SHORTCUT_BINDINGS
+        return bindings
       }
     }
   }

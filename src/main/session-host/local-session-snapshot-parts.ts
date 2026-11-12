@@ -104,7 +104,7 @@ export const messagePartSchema = Schema.Union(
   }),
 )
 
-function decodeMessagePart(value: unknown): MessagePart {
+function decodeMessagePart(value: unknown) {
   const part = decodeUnknownExactOrThrow(messagePartSchema, value)
   if (part.type === 'tool-call') {
     return { ...part, toolCall: { ...part.toolCall, id: ToolCallId(part.toolCall.id) } }
@@ -129,10 +129,7 @@ const partTypeSchema = Schema.Struct({ type: Schema.String })
  * one are not read. One that is malformed, or holds a part this client cannot decode, is left out,
  * as the Host leaves out one its caps cut short: the reconnect then shows the saved copy.
  */
-export function decodeAssistantMessageSnapshots(
-  value: unknown,
-  context: SnapshotContext,
-): Pick<BackgroundRunSnapshot, 'assistantMessages'> {
+export function decodeAssistantMessageSnapshots(value: unknown, context: SnapshotContext) {
   if (value === undefined) return {}
   if (!Array.isArray(value)) {
     reportUndecodable(context, 'the earlier assistant messages', 'not an array')
@@ -194,12 +191,12 @@ export function decodeStreamingParts(
 export function withUndecodableParts(
   degraded: BackgroundRunSnapshot['degraded'],
   streaming: ReturnType<typeof decodeStreamingParts>,
-): BackgroundRunSnapshot['degraded'] {
+) {
   if (!streaming.dropped) return degraded
   return {
     reason: 'content-limit',
     ...degraded,
     omittedBytes: (degraded?.omittedBytes ?? 0) + streaming.omittedBytes,
     messageCutShort: true,
-  }
+  } satisfies BackgroundRunSnapshot['degraded']
 }

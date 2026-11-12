@@ -19,8 +19,8 @@ import {
 } from '../ports/session-resource-repository'
 import { broadcastToWindows } from '../utils/broadcast'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
-import type { BrokerRouteInput } from './extension-capability-broker-openwaggle-common'
 import {
+  type BrokerRouteInput,
   payloadDecodeFailure,
   unsupportedMethod,
 } from './extension-capability-broker-openwaggle-common'
@@ -37,8 +37,8 @@ function sessionIdFromScope(input: BrokerRouteInput) {
     : null
 }
 
-function resourceView(resource: SessionResource): ExtensionSessionResourceView {
-  return {
+function resourceView(resource: SessionResource) {
+  const view: ExtensionSessionResourceView = {
     id: resource.id,
     title: resource.title,
     kind: resource.kind,
@@ -47,6 +47,7 @@ function resourceView(resource: SessionResource): ExtensionSessionResourceView {
     isSource: resource.isSource,
     isOutput: resource.isOutput,
   }
+  return view
 }
 
 function publishedResourceResult(

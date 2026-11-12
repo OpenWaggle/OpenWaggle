@@ -73,7 +73,7 @@ const DEFAULT_DEPENDENCIES: BrowserPreviewPictureInPictureDependencies = {
 export function fitBrowserPreviewPictureInPictureSize(
   currentSize: readonly number[],
   aspectRatio: number,
-): readonly [number, number] {
+) {
   const currentWidth = Math.max(1, currentSize[0] ?? INITIAL_WIDTH)
   const currentHeight = Math.max(1, currentSize[1] ?? INITIAL_HEIGHT)
   const area = currentWidth * currentHeight
@@ -82,10 +82,10 @@ export function fitBrowserPreviewPictureInPictureSize(
   const minimumScale = Math.max(1, MIN_WIDTH / width, MIN_HEIGHT / height)
   width *= minimumScale
   height *= minimumScale
-  return [Math.round(width), Math.round(height)]
+  return [Math.round(width), Math.round(height)] satisfies readonly [number, number]
 }
 
-function boundedFrame(image: NativeImage, contentSize: readonly number[]): NativeImage | null {
+function boundedFrame(image: NativeImage, contentSize: readonly number[]) {
   if (image.isEmpty()) return null
   const size = image.getSize()
   if (size.width <= 0 || size.height <= 0) return null
@@ -127,14 +127,14 @@ export class BrowserPreviewPictureInPictureController {
     this.dependencies = { ...DEFAULT_DEPENDENCIES, ...dependencies }
   }
 
-  async open(previewId: string, target: WebContents, title: string): Promise<'opened' | 'focused'> {
+  async open(previewId: string, target: WebContents, title: string) {
     if (this.dependencies.isAutomation()) {
       throw new BrowserPreviewPictureInPictureUnavailableError('automation')
     }
     const existing = this.sessions.get(previewId)
     if (existing && !existing.window.isDestroyed()) {
       revealBrowserWindowInactive(existing.window)
-      return 'focused'
+      return 'focused' as const
     }
     if (existing) this.release(existing, false)
     if (this.sessions.size >= MAX_WINDOWS) {
@@ -179,24 +179,24 @@ export class BrowserPreviewPictureInPictureController {
       revealBrowserWindowInactive(window)
       session.published = true
       this.schedule(session)
-      return 'opened'
+      return 'opened' as const
     } catch (error) {
       this.release(session, true)
       throw error
     }
   }
 
-  close(previewId: string): void {
+  close(previewId: string) {
     const session = this.sessions.get(previewId)
     if (session) this.release(session, true)
   }
 
-  isOpen(previewId: string): boolean {
+  isOpen(previewId: string) {
     const session = this.sessions.get(previewId)
     return session !== undefined && !session.window.isDestroyed()
   }
 
-  private windowOptions(title: string): BrowserWindowConstructorOptions {
+  private windowOptions(title: string) {
     const safeTitle = safeWindowTitle(title)
     return {
       width: INITIAL_WIDTH,
@@ -224,7 +224,7 @@ export class BrowserPreviewPictureInPictureController {
         webSecurity: true,
         partition: 'openwaggle-browser-preview-picture-in-picture',
       },
-    }
+    } satisfies BrowserWindowConstructorOptions
   }
 
   private schedule(session: PictureInPictureSession): void {
@@ -238,7 +238,7 @@ export class BrowserPreviewPictureInPictureController {
     session.timer.unref()
   }
 
-  private async captureAndDeliver(session: PictureInPictureSession): Promise<void> {
+  private async captureAndDeliver(session: PictureInPictureSession) {
     if (!this.isCurrent(session)) return
     if (session.target.isDestroyed()) {
       this.release(session, true)
@@ -281,7 +281,7 @@ export class BrowserPreviewPictureInPictureController {
     if (delivered === true && this.isCurrent(session)) session.lastFrame = frame
   }
 
-  private isCurrent(session: PictureInPictureSession): boolean {
+  private isCurrent(session: PictureInPictureSession) {
     return (
       this.sessions.get(session.previewId) === session &&
       !session.window.isDestroyed() &&
@@ -289,7 +289,7 @@ export class BrowserPreviewPictureInPictureController {
     )
   }
 
-  private release(session: PictureInPictureSession, closeWindow: boolean): void {
+  private release(session: PictureInPictureSession, closeWindow: boolean) {
     if (this.sessions.get(session.previewId) !== session) return
     this.sessions.delete(session.previewId)
     session.abortController.abort(new Error('Picture-in-picture closed.'))

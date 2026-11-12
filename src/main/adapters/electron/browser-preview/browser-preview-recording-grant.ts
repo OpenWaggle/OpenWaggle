@@ -16,7 +16,7 @@ export class BrowserPreviewRecordingGrantController {
   private active: RecordingClaim | null = null
   private expiration: ReturnType<typeof setTimeout> | null = null
 
-  begin(previewId: string, owner: WebContents, target: WebContents): BrowserPreviewRecordingGrant {
+  begin(previewId: string, owner: WebContents, target: WebContents) {
     this.assertAvailable(previewId, owner, target)
     this.installDisplayMediaHandler(owner.session)
     this.clearExpiration()
@@ -31,10 +31,10 @@ export class BrowserPreviewRecordingGrantController {
       maxBytes: BROWSER_PREVIEW_CAPTURE_LIMITS.RECORDING_BYTES,
       maxDurationMs: BROWSER_PREVIEW_CAPTURE_LIMITS.RECORDING_DURATION_MS,
       maxFrameRate: BROWSER_PREVIEW_CAPTURE_LIMITS.RECORDING_FRAME_RATE,
-    }
+    } satisfies BrowserPreviewRecordingGrant
   }
 
-  finish(previewId: string, owner: WebContents): void {
+  finish(previewId: string, owner: WebContents) {
     if (this.pending?.previewId === previewId && this.pending.owner === owner) {
       this.pending = null
       this.clearExpiration()
@@ -42,7 +42,7 @@ export class BrowserPreviewRecordingGrantController {
     if (this.active?.previewId === previewId && this.active.owner === owner) this.active = null
   }
 
-  disposeOwner(owner: WebContents): void {
+  disposeOwner(owner: WebContents) {
     if (this.pending?.owner === owner) {
       this.pending = null
       this.clearExpiration()
@@ -50,7 +50,7 @@ export class BrowserPreviewRecordingGrantController {
     if (this.active?.owner === owner) this.active = null
   }
 
-  private assertAvailable(previewId: string, owner: WebContents, target: WebContents): void {
+  private assertAvailable(previewId: string, owner: WebContents, target: WebContents) {
     if (owner.isDestroyed() || target.isDestroyed()) {
       throw new Error('Browser preview recording requires live owner and preview content.')
     }
@@ -64,7 +64,7 @@ export class BrowserPreviewRecordingGrantController {
     }
   }
 
-  private installDisplayMediaHandler(session: Session): void {
+  private installDisplayMediaHandler(session: Session) {
     if (this.installedSessions.has(session)) return
     this.installedSessions.add(session)
     session.setDisplayMediaRequestHandler((request, callback) => {
@@ -86,7 +86,7 @@ export class BrowserPreviewRecordingGrantController {
     })
   }
 
-  private clearExpiration(): void {
+  private clearExpiration() {
     if (this.expiration === null) return
     clearTimeout(this.expiration)
     this.expiration = null

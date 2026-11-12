@@ -74,20 +74,23 @@ const localUserAuthenticationResponseSchema = Schema.Struct({
 })
 
 /** The value decoded with exactly the schema's members, or `null`. */
-function decodeExactly<A, I>(schema: Schema.Schema<A, I>, value: unknown): A | null {
+function decodeExactly<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   try {
-    return decodeUnknownExactOrThrow(schema, value)
+    const result: A | null = decodeUnknownExactOrThrow(schema, value)
+    return result
   } catch {
     return null
   }
 }
 
-function decodeRequest(value: unknown): LocalSessionServerAuthenticationRequest {
+function decodeRequest(value: unknown) {
   const request = decodeExactly(authenticationRequestSchema, value)
   if (!request) throw new Error('Invalid Local Session server-authentication request.')
-  return request.profile === undefined
-    ? { kind: 'server-authentication-request', nonce: request.nonce }
-    : { kind: 'server-authentication-request', nonce: request.nonce, profile: request.profile }
+  const result: LocalSessionServerAuthenticationRequest =
+    request.profile === undefined
+      ? { kind: 'server-authentication-request', nonce: request.nonce }
+      : { kind: 'server-authentication-request', nonce: request.nonce, profile: request.profile }
+  return result
 }
 
 function proofFor(
@@ -113,28 +116,24 @@ function proofFor(
   return hmac.update(input.nonce).digest('base64url')
 }
 
-export function createLocalSessionServerAuthenticationRequest(
-  profile?: string,
-): LocalSessionServerAuthenticationRequest {
+export function createLocalSessionServerAuthenticationRequest(profile?: string) {
   if (profile?.length === 0) {
     throw new Error('A Local Session profile name is required for server authentication.')
   }
-  return {
+  const request: LocalSessionServerAuthenticationRequest = {
     kind: 'server-authentication-request',
     nonce: randomBytes(AUTHENTICATION_NONCE_BYTES).toString('base64url'),
     ...(profile !== undefined ? { profile } : {}),
   }
+  return request
 }
 
-export function createLocalSessionServerAuthenticationResponse(
-  value: unknown,
-  credential: string,
-): LocalSessionServerAuthenticationResponse {
+export function createLocalSessionServerAuthenticationResponse(value: unknown, credential: string) {
   const request = decodeRequest(value)
   if ('profile' in request) {
     throw new Error('A profile credential verifier is required for server authentication.')
   }
-  return {
+  const response: LocalSessionServerAuthenticationResponse = {
     kind: 'server-authentication-response',
     nonce: request.nonce,
     authority: 'local-user',
@@ -143,13 +142,14 @@ export function createLocalSessionServerAuthenticationResponse(
       nonce: request.nonce,
     }),
   }
+  return response
 }
 
 export function createLocalSessionServerAuthenticator(input: {
   readonly localUserCredential: string
   readonly resolveProfileCredentialVerifier: (profile: string) => Promise<string | null>
-}): LocalSessionServerAuthenticator {
-  return async (value) => {
+}) {
+  const authenticator: LocalSessionServerAuthenticator = async (value) => {
     const request = decodeRequest(value)
     if (!('profile' in request)) {
       return createLocalSessionServerAuthenticationResponse(request, input.localUserCredential)
@@ -172,10 +172,12 @@ export function createLocalSessionServerAuthenticator(input: {
       proof: proofFor(material.key, responseInput),
     }
   }
+  return authenticator
 }
 
-function identityVerificationFailed(): Error {
-  return new Error('Local Session Host identity verification failed.')
+function identityVerificationFailed() {
+  const error: Error = new Error('Local Session Host identity verification failed.')
+  return error
 }
 
 function verifyProof(
@@ -193,18 +195,19 @@ function verifyProof(
 function decodeProfileResponse(
   value: unknown,
   request: Extract<LocalSessionServerAuthenticationRequest, { readonly profile: string }>,
-): {
-  readonly challenge: ProfileCredentialServerChallenge
-  readonly proof: string
-} {
+) {
   const response = decodeExactly(profileAuthenticationResponseSchema, value)
   if (!response || response.nonce !== request.nonce || response.profile !== request.profile) {
     throw identityVerificationFailed()
   }
-  return {
+  const result: {
+    readonly challenge: ProfileCredentialServerChallenge
+    readonly proof: string
+  } = {
     challenge: { kind: response.challenge.kind, salt: response.challenge.salt },
     proof: response.proof,
   }
+  return result
 }
 
 function decodeLocalUserProof(value: unknown, request: { readonly nonce: string }) {
@@ -217,7 +220,7 @@ async function verifyProfileResponse(input: {
   readonly value: unknown
   readonly request: Extract<LocalSessionServerAuthenticationRequest, { readonly profile: string }>
   readonly credential: string
-}): Promise<void> {
+}) {
   const response = decodeProfileResponse(input.value, input.request)
   const key = await deriveProfileCredentialServerKey(input.credential, response.challenge).catch(
     () => null,
@@ -239,7 +242,7 @@ export async function verifyLocalSessionServerAuthenticationResponse(input: {
   readonly value: unknown
   readonly request: LocalSessionServerAuthenticationRequest
   readonly credential: string
-}): Promise<void> {
+}) {
   if ('profile' in input.request) {
     await verifyProfileResponse({
       value: input.value,

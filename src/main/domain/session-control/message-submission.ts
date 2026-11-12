@@ -38,11 +38,11 @@ function queueWillDeliver(queue: FollowUpQueueSnapshot) {
  * next message, so a new one waits behind it rather than overtaking it. A paused queue with a held
  * head still starts the new message, or it would wait for a Resume behind an edit.
  */
-export function planMessageSubmission(snapshot: MessageSubmissionSnapshot): MessageSubmissionPlan {
+export function planMessageSubmission(snapshot: MessageSubmissionSnapshot) {
   const waitsOnEdit =
     snapshot.followUpQueue.headHeld === true && snapshot.followUpQueue.state === 'running'
   if (snapshot.run.state === 'idle' && !waitsOnEdit && !queueWillDeliver(snapshot.followUpQueue)) {
-    return { action: 'start-run' }
+    return { action: 'start-run' } satisfies MessageSubmissionPlan
   }
-  return { action: 'append-follow-up' }
+  return { action: 'append-follow-up' } satisfies MessageSubmissionPlan
 }

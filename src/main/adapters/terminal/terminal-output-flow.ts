@@ -158,7 +158,7 @@ function dispatchOutput(
     })
 }
 
-export function makeTerminalOutputFlow(deps: TerminalOutputFlowDeps): TerminalOutputFlow {
+export function makeTerminalOutputFlow(deps: TerminalOutputFlowDeps) {
   const dirty = new Set<TerminalKey>()
   const backpressure = makeOutputBackpressure()
   const scheduler = makeOutputScheduler(flush)
@@ -261,5 +261,5 @@ export function makeTerminalOutputFlow(deps: TerminalOutputFlowDeps): TerminalOu
     },
     flush,
     backlogBytes: backpressure.backlogBytes,
-  }
+  } satisfies TerminalOutputFlow
 }

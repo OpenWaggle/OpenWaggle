@@ -32,7 +32,7 @@ function sessionEntries(entries: readonly SessionEntry[]) {
   return { getEntries: () => [...entries], getBranch: () => [...entries] }
 }
 
-function persistedUpdate(id: string, updateIds: readonly string[]): SessionEntry {
+function persistedUpdate(id: string, updateIds: readonly string[]) {
   return {
     type: 'custom_message',
     id,
@@ -42,7 +42,7 @@ function persistedUpdate(id: string, updateIds: readonly string[]): SessionEntry
     content: 'persisted',
     display: true,
     details: { updateIds: [...updateIds] },
-  }
+  } satisfies SessionEntry
 }
 
 /** The extension of a Run that starts with `pendingUpdates`, over a session holding `entries`. */

@@ -2,7 +2,6 @@ import { isBrowserPreviewUrl, normalizeBrowserPreviewUrl } from '@shared/schemas
 import type {
   BrowserPreviewKeyEvent,
   BrowserPreviewShortcutBindings,
-  BrowserPreviewShortcutEvent,
 } from '@shared/types/browser-preview'
 import { typesAltGraphCharacter } from '@shared/utils/altgraph-character'
 import { projectActionShortcutMatches } from '@shared/utils/project-action-shortcuts'
@@ -20,12 +19,6 @@ export const MAX_PREVIEWS_PER_RENDERER = 32
 export const MAX_TITLE_LENGTH = 512
 export const ABORTED_LOAD_ERROR_CODE = -3
 
-type NativeBrowserPreviewShortcut =
-  | BrowserPreviewShortcutEvent['action']
-  | 'reload'
-  | 'back'
-  | 'forward'
-
 export function boundedBrowserPreviewText(value: string, maxLength: number) {
   return value.length <= maxLength ? value : value.slice(0, maxLength)
 }
@@ -36,30 +29,24 @@ function isPrimaryModifier(input: Input, isMac: boolean) {
   return isMac ? input.meta && !input.control : input.control && !input.meta
 }
 
-function nativeBrowserPreviewShortcutForChord(
-  input: Input,
-  isMac: boolean,
-): NativeBrowserPreviewShortcut | null {
+function nativeBrowserPreviewShortcutForChord(input: Input, isMac: boolean) {
   if (input.isComposing || input.shift) return null
 
   const key = input.key.toLowerCase()
   const primary = isPrimaryModifier(input, isMac)
   if (primary && !input.alt) {
-    if (key === 'l') return 'focus-location'
-    if (key === 'r') return 'reload'
-    if (key === 'w') return 'close'
+    if (key === 'l') return 'focus-location' as const
+    if (key === 'r') return 'reload' as const
+    if (key === 'w') return 'close' as const
   }
   if (input.alt && !input.control && !input.meta) {
-    if (key === 'arrowleft') return 'back'
-    if (key === 'arrowright') return 'forward'
+    if (key === 'arrowleft') return 'back' as const
+    if (key === 'arrowright') return 'forward' as const
   }
   return null
 }
 
-export function browserPreviewShortcutForInput(
-  input: Input,
-  isMac: boolean,
-): NativeBrowserPreviewShortcut | null {
+export function browserPreviewShortcutForInput(input: Input, isMac: boolean) {
   if (input.type !== 'keyDown' || input.isAutoRepeat) {
     return null
   }
@@ -113,10 +100,7 @@ export function browserPreviewInputKeyIdentity(input: Input) {
     : `key:${input.key}:location:${String(input.location)}`
 }
 
-export function browserPreviewKeyEventForInput(
-  previewId: string,
-  input: Input,
-): BrowserPreviewKeyEvent | null {
+export function browserPreviewKeyEventForInput(previewId: string, input: Input) {
   const type = input.type === 'keyDown' ? 'keydown' : input.type === 'keyUp' ? 'keyup' : null
   if (type === null) return null
   return {
@@ -130,7 +114,7 @@ export function browserPreviewKeyEventForInput(
     shiftKey: input.shift,
     isComposing: input.isComposing,
     repeat: input.isAutoRepeat,
-  }
+  } satisfies BrowserPreviewKeyEvent
 }
 
 export function browserPreviewWebPreferences(profileId: string) {

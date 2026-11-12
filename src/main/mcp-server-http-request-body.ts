@@ -80,13 +80,13 @@ export function makeMcpHttpRequestBodyAdmission(input: {
   let activeRequests = 0
   let retainedBytes = 0
   return {
-    acquire(declaredBytes: number | undefined): AdmissionResult {
+    acquire(declaredBytes: number | undefined) {
       if (activeRequests >= input.maxConcurrentBodies) {
-        return { accepted: false, reason: 'concurrency' }
+        return { accepted: false, reason: 'concurrency' } satisfies AdmissionResult
       }
       const initialBytes = declaredBytes ?? 0
       if (retainedBytes + initialBytes > input.maxAggregateBytes) {
-        return { accepted: false, reason: 'aggregate-bytes' }
+        return { accepted: false, reason: 'aggregate-bytes' } satisfies AdmissionResult
       }
       activeRequests += 1
       retainedBytes += initialBytes
@@ -109,7 +109,7 @@ export function makeMcpHttpRequestBodyAdmission(input: {
             retainedBytes -= heldBytes
           },
         },
-      }
+      } satisfies AdmissionResult
     },
   }
 }

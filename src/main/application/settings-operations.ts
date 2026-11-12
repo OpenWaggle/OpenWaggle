@@ -65,12 +65,7 @@ function validateRecentProjectPaths(projects: readonly string[] | undefined) {
 
 type ShortcutBindingsPatch = Readonly<Partial<Record<ShortcutCommand, ShortcutBinding | null>>>
 
-function validateShortcutBindingsUpdate(
-  current: ShortcutBindings,
-  patch: ShortcutBindingsPatch,
-):
-  | { readonly ok: true; readonly value: ShortcutBindings }
-  | { readonly ok: false; readonly error: string } {
+function validateShortcutBindingsUpdate(current: ShortcutBindings, patch: ShortcutBindingsPatch) {
   const candidate: Record<ShortcutCommand, ShortcutBinding | null> = { ...current }
   for (const command of SHORTCUT_COMMANDS) {
     if (Object.hasOwn(patch, command)) candidate[command] = patch[command] ?? null
@@ -81,21 +76,29 @@ function validateShortcutBindingsUpdate(
     const binding = candidate[command]
     if (!binding) {
       if (isMandatoryShortcutCommand(command)) {
-        return { ok: false, error: `Shortcut ${command} must stay assigned.` }
+        return { ok: false, error: `Shortcut ${command} must stay assigned.` } satisfies
+          | { readonly ok: true; readonly value: ShortcutBindings }
+          | { readonly ok: false; readonly error: string }
       }
       continue
     }
     if (!binding.key.trim() || binding.key.trim().length > MAX_SHORTCUT_KEY_LENGTH) {
-      return { ok: false, error: `Shortcut ${command} has an invalid key.` }
+      return { ok: false, error: `Shortcut ${command} has an invalid key.` } satisfies
+        | { readonly ok: true; readonly value: ShortcutBindings }
+        | { readonly ok: false; readonly error: string }
     }
     const key = shortcutBindingKey(binding)
     const owner = owners.get(key)?.find((existing) => shortcutScopesOverlap(command, existing))
     if (owner !== undefined) {
-      return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` }
+      return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` } satisfies
+        | { readonly ok: true; readonly value: ShortcutBindings }
+        | { readonly ok: false; readonly error: string }
     }
     owners.set(key, [...(owners.get(key) ?? []), command])
   }
-  return { ok: true, value: candidate }
+  return { ok: true, value: candidate } satisfies
+    | { readonly ok: true; readonly value: ShortcutBindings }
+    | { readonly ok: false; readonly error: string }
 }
 
 /**

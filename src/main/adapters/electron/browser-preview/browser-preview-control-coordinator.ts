@@ -1,10 +1,7 @@
 import type { BrowserPreviewState } from '@shared/types/browser-preview'
 import type {
-  BrowserPreviewAnnotation,
   BrowserPreviewAppearance,
   BrowserPreviewControlState,
-  BrowserPreviewRecordingArtifact,
-  BrowserPreviewRecordingGrant,
   BrowserPreviewRecordingSaveInput,
   BrowserPreviewScreenshotArtifact,
   BrowserPreviewViewport,
@@ -73,7 +70,7 @@ export class BrowserPreviewControlCoordinator {
     })
   }
 
-  register(record: BrowserPreviewRecord): void {
+  register(record: BrowserPreviewRecord) {
     const controlKey = browserPreviewAutomationPage(record).tabId
     this.records.set(controlKey, record)
     const contents = record.view.webContents
@@ -101,7 +98,7 @@ export class BrowserPreviewControlCoordinator {
       .catch(() => undefined)
   }
 
-  dispose(record: BrowserPreviewRecord): void {
+  dispose(record: BrowserPreviewRecord) {
     const controlKey = browserPreviewAutomationPage(record).tabId
     if (this.records.get(controlKey) === record) this.records.delete(controlKey)
     attemptControlCleanup(() => this.controls.dispose(controlKey))
@@ -114,7 +111,7 @@ export class BrowserPreviewControlCoordinator {
     this.emulatedContents.delete(record.view.webContents)
   }
 
-  applyViewport(record: BrowserPreviewRecord): void {
+  applyViewport(record: BrowserPreviewRecord) {
     const contents = record.view.webContents
     // Native Electron emulation can crash synchronously before the first page is ready.
     if (record.disposed || contents.isDestroyed() || !this.readyContents.has(contents)) return
@@ -149,22 +146,19 @@ export class BrowserPreviewControlCoordinator {
     this.emulatedContents.add(contents)
   }
 
-  setViewport(record: BrowserPreviewRecord, viewport: BrowserPreviewViewport): BrowserPreviewState {
+  setViewport(record: BrowserPreviewRecord, viewport: BrowserPreviewViewport) {
     const state = this.update(record, { viewport })
     this.applyViewport(record)
     return state
   }
 
-  setZoomFactor(record: BrowserPreviewRecord, zoomFactor: number): BrowserPreviewState {
+  setZoomFactor(record: BrowserPreviewRecord, zoomFactor: number) {
     const state = this.update(record, { zoomFactor })
     this.applyViewport(record)
     return state
   }
 
-  async setAppearance(
-    record: BrowserPreviewRecord,
-    appearance: BrowserPreviewAppearance,
-  ): Promise<BrowserPreviewState> {
+  async setAppearance(record: BrowserPreviewRecord, appearance: BrowserPreviewAppearance) {
     await this.controls.setAppearance(
       browserPreviewAutomationPage(record).tabId,
       record.view.webContents,
@@ -173,41 +167,41 @@ export class BrowserPreviewControlCoordinator {
     return this.update(record, { appearance })
   }
 
-  hardReload(record: BrowserPreviewRecord): void {
+  hardReload(record: BrowserPreviewRecord) {
     this.controls.hardReload(record.view.webContents)
   }
 
-  openDevTools(record: BrowserPreviewRecord): Promise<void> {
+  openDevTools(record: BrowserPreviewRecord) {
     return this.controls.openDevTools(
       browserPreviewAutomationPage(record).tabId,
       record.view.webContents,
     )
   }
 
-  clearCookies(record: BrowserPreviewRecord): Promise<void> {
+  clearCookies(record: BrowserPreviewRecord) {
     return this.controls.clearCookies(record.view.webContents)
   }
 
-  clearCache(record: BrowserPreviewRecord): Promise<void> {
+  clearCache(record: BrowserPreviewRecord) {
     return this.controls.clearCache(record.view.webContents)
   }
 
-  captureScreenshot(record: BrowserPreviewRecord): Promise<BrowserPreviewScreenshotArtifact> {
+  captureScreenshot(record: BrowserPreviewRecord) {
     return getBrowserPreviewArtifactStore().captureScreenshot(
       record.previewId,
       record.view.webContents,
-    )
+    ) satisfies Promise<BrowserPreviewScreenshotArtifact>
   }
 
-  revealArtifact(artifactPath: string): Promise<void> {
+  revealArtifact(artifactPath: string) {
     return getBrowserPreviewArtifactStore().revealArtifact(artifactPath)
   }
 
-  copyScreenshot(artifactPath: string): Promise<void> {
+  copyScreenshot(artifactPath: string) {
     return getBrowserPreviewArtifactStore().copyScreenshot(artifactPath)
   }
 
-  startRecording(record: BrowserPreviewRecord): BrowserPreviewRecordingGrant {
+  startRecording(record: BrowserPreviewRecord) {
     const grant = this.recording.begin(
       record.previewId,
       record.owner.sender,
@@ -217,22 +211,19 @@ export class BrowserPreviewControlCoordinator {
     return grant
   }
 
-  async saveRecording(
-    record: BrowserPreviewRecord,
-    input: BrowserPreviewRecordingSaveInput,
-  ): Promise<BrowserPreviewRecordingArtifact> {
+  async saveRecording(record: BrowserPreviewRecord, input: BrowserPreviewRecordingSaveInput) {
     if (!record.state.controls.recording) {
       throw new Error('This browser preview does not own an active recording grant.')
     }
     return getBrowserPreviewArtifactStore().saveRecording(input)
   }
 
-  stopRecording(record: BrowserPreviewRecord): void {
+  stopRecording(record: BrowserPreviewRecord) {
     this.recording.finish(record.previewId, record.owner.sender)
     this.update(record, { recording: false })
   }
 
-  async pickElement(record: BrowserPreviewRecord): Promise<BrowserPreviewAnnotation | null> {
+  async pickElement(record: BrowserPreviewRecord) {
     const controlKey = browserPreviewAutomationPage(record).tabId
     this.update(record, { picking: true })
     try {
@@ -248,12 +239,12 @@ export class BrowserPreviewControlCoordinator {
     }
   }
 
-  async cancelPickElement(record: BrowserPreviewRecord): Promise<void> {
+  async cancelPickElement(record: BrowserPreviewRecord) {
     await browserPreviewElementPicker.cancel(browserPreviewAutomationPage(record).tabId)
     this.update(record, { picking: false })
   }
 
-  async openPictureInPicture(record: BrowserPreviewRecord): Promise<BrowserPreviewState> {
+  async openPictureInPicture(record: BrowserPreviewRecord) {
     await this.pictureInPicture.open(
       browserPreviewAutomationPage(record).tabId,
       record.view.webContents,
@@ -262,20 +253,17 @@ export class BrowserPreviewControlCoordinator {
     return this.update(record, { pictureInPicture: true })
   }
 
-  closePictureInPicture(record: BrowserPreviewRecord): BrowserPreviewState {
+  closePictureInPicture(record: BrowserPreviewRecord) {
     this.pictureInPicture.close(browserPreviewAutomationPage(record).tabId)
     if (!record.state.controls.pictureInPicture) return record.state
     return this.update(record, { pictureInPicture: false })
   }
 
-  private update(
-    record: BrowserPreviewRecord,
-    patch: Partial<BrowserPreviewControlState>,
-  ): BrowserPreviewState {
+  private update(record: BrowserPreviewRecord, patch: Partial<BrowserPreviewControlState>) {
     return this.host.update(record, { ...record.state.controls, ...patch })
   }
 
-  private handlePictureInPictureClosed(controlKey: string): void {
+  private handlePictureInPictureClosed(controlKey: string) {
     const record = this.records.get(controlKey)
     if (!record || !this.host.isLive(record) || !record.state.controls.pictureInPicture) return
     this.update(record, { pictureInPicture: false })

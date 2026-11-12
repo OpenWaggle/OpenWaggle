@@ -102,9 +102,9 @@ export class HostBackgroundGate {
   }
 
   /** Resolves once background work may run. */
-  whenOpen(): Promise<void> {
+  whenOpen() {
     if (this.isOpen) return Promise.resolve()
-    return new Promise((resolve) => this.waiters.push(resolve))
+    return new Promise<void>((resolve) => this.waiters.push(resolve))
   }
 
   /** An authenticated client attached; the returned function detaches it. */
@@ -173,9 +173,9 @@ export class HostBackgroundGate {
    * Resolves when background work may take its next slice: at once while the gate is not enabled
    * or the clients are quiet, otherwise once they are, or after `HOST_BACKGROUND_MAX_DEFERRAL_MS`.
    */
-  whenForegroundQuiet(): Promise<void> {
+  whenForegroundQuiet() {
     if (!this.enabled || this.quietForMs() >= HOST_FOREGROUND_QUIET_MS) return Promise.resolve()
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       const waiter: QuietWaiter = {
         resolve,
         deadline: this.clock.setTimeout(() => {

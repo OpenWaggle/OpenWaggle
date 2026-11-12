@@ -28,7 +28,7 @@ export type AgentDefinitionPiProjectServices = Pick<
 export async function loadAgentDefinitionPiProjectServices(
   projectPath: string,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
-): Promise<AgentDefinitionPiProjectServices> {
+) {
   const enabledPackages = await Effect.runPromise(
     listRuntimeEnabledPackages(projectPath, extensionSelectionServices).pipe(
       Effect.catchAll((error) =>

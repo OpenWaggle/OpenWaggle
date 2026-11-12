@@ -29,14 +29,15 @@ const {
       _projectPath: string,
       _sessionId: string,
       beforeDelete?: (refs: readonly CheckpointRefSnapshot[]) => Promise<void>,
-    ): Promise<readonly CheckpointRefSnapshot[]> => {
-      await beforeDelete?.([])
-      return []
+    ) => {
+      const refs: readonly CheckpointRefSnapshot[] = []
+      await beforeDelete?.(refs)
+      return refs
     },
   ),
   abandonSessionDeletionMock: vi.fn(async () => undefined),
   getSessionDeletionMock: vi.fn(async () => null),
-  listPendingSessionDeletionsMock: vi.fn(async (): Promise<SessionId[]> => []),
+  listPendingSessionDeletionsMock: vi.fn<() => Promise<SessionId[]>>(async () => []),
   markSessionDeletionExternalCleanupCompleteMock: vi.fn(async () => undefined),
   markSessionPiFileCleanupCompleteMock: vi.fn(async () => undefined),
   prepareSessionPiFileCleanupMock: vi.fn(async () => ({
@@ -49,7 +50,7 @@ const {
     worktreePath: '/project/.worktrees/session-managed',
     checkpointRefs: [],
   })),
-  prepareSessionDeletionMock: vi.fn(async (): Promise<SessionDeletionRecord> => ({
+  prepareSessionDeletionMock: vi.fn<() => Promise<SessionDeletionRecord>>(async () => ({
     phase: 'prepared' as const,
     resumed: false,
     piSessionFile: null,

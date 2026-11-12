@@ -14,12 +14,16 @@ import { describe, expect, it } from 'vitest'
  * prompt cache.
  */
 
-function tool(name: string): Tool {
-  return { name, description: `${name} tool`, parameters: { type: 'object', properties: {} } }
+function tool(name: string) {
+  return {
+    name,
+    description: `${name} tool`,
+    parameters: { type: 'object', properties: {} },
+  } satisfies Tool
 }
 
-function system(message: Omit<SystemMessage, 'role' | 'timestamp' | 'content'>): SystemMessage {
-  return { role: 'system', content: '', timestamp: 0, ...message }
+function system(message: Omit<SystemMessage, 'role' | 'timestamp' | 'content'>) {
+  return { role: 'system', content: '', timestamp: 0, ...message } satisfies SystemMessage
 }
 
 function collapsedToolNames(messages: Context['messages']) {

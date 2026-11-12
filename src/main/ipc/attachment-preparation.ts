@@ -69,7 +69,7 @@ function guessMimeType(filePath: string) {
     .otherwise(() => null)
 }
 
-async function prepareAttachment(filePath: string): Promise<PreparedAttachment> {
+async function prepareAttachment(filePath: string) {
   const stats = await fs.stat(filePath)
   if (!stats.isFile()) {
     throw new Error(`Not a file: ${filePath}`)
@@ -101,10 +101,10 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
     sizeBytes: stats.size,
     contentSha256: contentSha256(buffer),
     extractedText,
-  }
+  } satisfies PreparedAttachment
 }
 
-export async function prepareRegisteredAttachment(filePath: string): Promise<PreparedAttachment> {
+export async function prepareRegisteredAttachment(filePath: string) {
   const attachment = await prepareAttachment(filePath)
   await rememberPreparedAttachment(attachment, filePath)
   return attachment
@@ -131,7 +131,7 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   readonly bytes: Uint8Array
   readonly fileName: string
   readonly mimeType: string
-}): Promise<PreparedAttachment> {
+}) {
   if (input.bytes.byteLength > ATTACHMENT.MAX_SIZE_BYTES) {
     throw new Error(
       `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(input.fileName)}`,
@@ -171,9 +171,7 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   }
 }
 
-export async function discardRegisteredImageAttachment(
-  attachment: PreparedAttachment,
-): Promise<void> {
+export async function discardRegisteredImageAttachment(attachment: PreparedAttachment) {
   if (attachment.origin !== 'session-resource') {
     throw new Error('Only an undelivered Session resource attachment can be discarded.')
   }

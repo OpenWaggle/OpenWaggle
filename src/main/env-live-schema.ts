@@ -49,10 +49,9 @@ export const liveEnvSchema = Schema.Struct({
 export type LiveEnv = SchemaType<typeof liveEnvSchema>
 
 /** The variables {@link liveEnvSchema} names, decoded from an environment map. */
-export function environmentVariables(
-  environment: Readonly<Partial<Record<string, string>>>,
-): LiveEnv {
-  return decodeUnknownOrThrow(liveEnvSchema, environment)
+export function environmentVariables(environment: Readonly<Partial<Record<string, string>>>) {
+  const env: LiveEnv = decodeUnknownOrThrow(liveEnvSchema, environment)
+  return env
 }
 
 /**

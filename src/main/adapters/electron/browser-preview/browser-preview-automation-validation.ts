@@ -81,7 +81,7 @@ export function resolveBrowserPreviewAutomationNavigationUrl(
 
 export function resolveBrowserPreviewAutomationViewport(
   input: BrowserPreviewAutomationResizeInput,
-): BrowserPreviewViewport {
+) {
   return matchBy(input, 'mode')
     .with('fill', () => ({ mode: 'fill' }))
     .with('freeform', ({ width, height }) => {
@@ -91,7 +91,7 @@ export function resolveBrowserPreviewAutomationViewport(
       return { mode: 'fixed', width, height, presetId: null }
     })
     .with('preset', ({ preset, orientation }) => browserPreviewPresetViewport(preset, orientation))
-    .exhaustive()
+    .exhaustive() satisfies BrowserPreviewViewport
 }
 
 function validateTargetSelectors(

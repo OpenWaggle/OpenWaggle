@@ -50,14 +50,14 @@ afterEach(async () => {
   setHostPackageRunnerBypassForTests(undefined)
 })
 
-function memoryStore(): PackageBinStore {
+function memoryStore() {
   let saved: Record<string, ResolvedPackageBin> = {}
   return {
     load: () => ({ ...saved }),
     save: (entries) => {
       saved = { ...entries }
     },
-  }
+  } satisfies PackageBinStore
 }
 
 function lines(file: string) {

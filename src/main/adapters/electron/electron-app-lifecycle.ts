@@ -1,13 +1,13 @@
 import { app, autoUpdater } from 'electron'
 import type { AppLifecycleShape } from '../../ports/desktop-shell/app-lifecycle'
-import type { CancellableShellEvent, Unsubscribe } from '../../ports/desktop-shell/shell-events'
+import type { CancellableShellEvent } from '../../ports/desktop-shell/shell-events'
 import { electronBootShell } from './electron-boot-shell'
 
 function subscribe(
   add: (handler: () => void) => void,
   remove: (handler: () => void) => void,
   listener: () => void,
-): Unsubscribe {
+) {
   const handler = () => listener()
   add(handler)
   return () => remove(handler)

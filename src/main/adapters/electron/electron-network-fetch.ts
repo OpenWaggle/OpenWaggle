@@ -55,18 +55,18 @@ function electronRequestOptionsUrl(options: ClientRequestConstructorOptions | st
 
 function electronRequestOptionsWithRedirectError(
   options: ClientRequestConstructorOptions | string,
-): ClientRequestConstructorOptions {
+) {
   if (typeof options === 'string') {
     return {
       url: options,
       redirect: 'error',
-    }
+    } satisfies ClientRequestConstructorOptions
   }
 
   return {
     ...options,
     redirect: 'error',
-  }
+  } satisfies ClientRequestConstructorOptions
 }
 
 function guardElectronNet(policy: ShellNetworkEgressPolicy) {

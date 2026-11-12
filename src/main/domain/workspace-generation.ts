@@ -111,13 +111,13 @@ const DELETE_AND_RECREATE = `commit or copy out any changes you want to keep, th
  * run errors are cut at 600 characters, and the advice must survive that. The raw check, device
  * included, also goes to the Host log.
  */
-export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMismatch): {
-  readonly verdict: WorktreePreparationVerdict
-  readonly problem: string
-  readonly recovery: string
-  readonly details?: string
-} {
-  return matchBy(check, 'status')
+export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMismatch) {
+  const result: {
+    readonly verdict: WorktreePreparationVerdict
+    readonly problem: string
+    readonly recovery: string
+    readonly details?: string
+  } = matchBy(check, 'status')
     .with('replaced', ({ workspacePath, recorded, observed }) => ({
       verdict: 'no longer matches' as const,
       problem: `${workspacePath} is a different folder from the one that was prepared`,
@@ -148,6 +148,7 @@ export function describeWorkspaceGenerationMismatch(check: WorkspaceGenerationMi
       recovery: `To continue, ${DELETE_AND_RECREATE}.`,
     }))
     .exhaustive()
+  return result
 }
 
 /** Whether a preparation snapshot pins a cleanup for worktree removal to run, or to protect. */

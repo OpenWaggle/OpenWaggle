@@ -1,13 +1,5 @@
-import {
-  planNextFiring,
-  type ScheduleDefinition,
-} from '@shared/domain/scheduled-tasks/task-schedule'
-import type {
-  HeartbeatSettings,
-  HeartbeatWakeCheck,
-  ScheduledTask,
-  ScheduledTaskRun,
-} from '@shared/types/scheduled-task'
+import { planNextFiring } from '@shared/domain/scheduled-tasks/task-schedule'
+import type { ScheduledTaskRun, HeartbeatWakeCheck } from '@shared/types/scheduled-task'
 import type {
   ScheduledTaskRecord,
   StoredHeartbeatWakeCheck,
@@ -15,7 +7,7 @@ import type {
 
 export function scheduleDefinitionOf(
   record: Pick<ScheduledTaskRecord, 'id' | 'schedule' | 'timeZone' | 'anchorAt' | 'endsAt'>,
-): ScheduleDefinition {
+) {
   return {
     taskId: record.id,
     schedule: record.schedule,
@@ -46,18 +38,19 @@ export function wakeCheckApproval(wakeCheck: StoredHeartbeatWakeCheck) {
   return wakeCheck.pendingSince === null ? ('not-required' as const) : ('pending' as const)
 }
 
-function presentWakeCheck(wakeCheck: StoredHeartbeatWakeCheck | null): HeartbeatWakeCheck | null {
+function presentWakeCheck(wakeCheck: StoredHeartbeatWakeCheck | null) {
   if (!wakeCheck) return null
   const approval = wakeCheckApproval(wakeCheck)
-  return {
+  const check: HeartbeatWakeCheck | null = {
     command: wakeCheck.command,
     onFailure: wakeCheck.onFailure,
     approval,
     pendingSince: approval === 'pending' ? wakeCheck.pendingSince : null,
   }
+  return check
 }
 
-function presentHeartbeat(record: ScheduledTaskRecord): HeartbeatSettings | null {
+function presentHeartbeat(record: ScheduledTaskRecord) {
   if (record.kind !== 'heartbeat') return null
   return {
     stopWhen: record.stopWhen,
@@ -79,7 +72,7 @@ export function presentScheduledTask(
   record: ScheduledTaskRecord,
   lastRun: ScheduledTaskRun | null,
   recentSessionIds: readonly string[] = [],
-): ScheduledTask {
+) {
   return {
     id: record.id,
     name: record.name,

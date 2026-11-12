@@ -12,7 +12,7 @@ const NO_PROFILE_ARGUMENTS: ParsedArguments = {
 }
 
 /** Reaches the Session Host (starting it on first use) for `openwaggle mcp` management commands. */
-export function createMcpCliHost(): McpCliHost {
+export function createMcpCliHost() {
   let client: ReturnType<typeof createLocalSessionCliClientInput> | undefined
   return {
     invoke: async (channel, ...args) => {
@@ -21,5 +21,5 @@ export function createMcpCliHost(): McpCliHost {
       })
       return executeHostUi({ client: await client, channel, args })
     },
-  }
+  } satisfies McpCliHost
 }

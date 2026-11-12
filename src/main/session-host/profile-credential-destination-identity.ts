@@ -7,21 +7,20 @@ export interface CredentialDestinationIdentity {
   readonly contentHash: string
 }
 
-export async function credentialDestinationIdentity(
-  targetPath: string,
-): Promise<CredentialDestinationIdentity | undefined> {
+export async function credentialDestinationIdentity(targetPath: string) {
   try {
     const stats = await lstat(targetPath)
     if (stats.isSymbolicLink() || !stats.isFile()) {
       throw new Error('Credential destination is not a regular file.')
     }
-    return {
+    const identity: CredentialDestinationIdentity | undefined = {
       device: stats.dev,
       inode: stats.ino,
       contentHash: createHash('sha256')
         .update(await readFile(targetPath))
         .digest('base64url'),
     }
+    return identity
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
     throw error

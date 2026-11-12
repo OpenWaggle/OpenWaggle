@@ -1,7 +1,6 @@
 import type {
   SessionBranch,
   SessionContentTree,
-  SessionContentWorkspace,
   SessionNode,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
@@ -81,7 +80,7 @@ function buildTranscriptPath(tree: SessionContentTree, activeNodeId: SessionNode
 export function buildSessionWorkspace(
   tree: SessionContentTree,
   selection?: SessionWorkspaceSelection,
-): SessionContentWorkspace {
+) {
   const selectedNode = findNodeById(tree.nodes, selection?.nodeId)
   const activeBranch = resolveWorkspaceBranch(tree, selection, selectedNode)
   const activeNode = resolveWorkspaceNode(tree, selection, activeBranch)

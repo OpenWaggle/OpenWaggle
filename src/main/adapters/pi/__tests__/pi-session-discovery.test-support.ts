@@ -19,7 +19,7 @@ export interface PiDiscoveryFixture {
  * A temporary user-data directory and Pi agent directory per test, with a project inside them.
  * `state` is the hoisted object the test's `electron` mock reads the user-data path from.
  */
-export function setUpPiDiscoveryFixture(state: { userDataDir: string }): PiDiscoveryFixture {
+export function setUpPiDiscoveryFixture(state: { userDataDir: string }) {
   const fixture: PiDiscoveryFixture = { root: '', project: '' }
   beforeEach(async () => {
     fixture.root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ow-pi-discovery-')))
@@ -47,7 +47,7 @@ export interface PiCliResponder {
 
 const TEST_RESPONDER: PiCliResponder = { provider: 'test', model: 'test-model' }
 
-function assistantReply(text: string, responder = TEST_RESPONDER): AssistantMessage {
+function assistantReply(text: string, responder = TEST_RESPONDER) {
   return {
     role: 'assistant',
     content: [{ type: 'text', text }],
@@ -64,7 +64,7 @@ function assistantReply(text: string, responder = TEST_RESPONDER): AssistantMess
     },
     stopReason: 'stop',
     timestamp: Date.now(),
-  }
+  } satisfies AssistantMessage
 }
 
 /** How long ago the helpers date a CLI write: past discovery's quiet period for new files. */

@@ -33,8 +33,10 @@ export type McpConfigFileId = (typeof MCP_CONFIG_FILE_IDS)[number]
 
 export type McpConfigScope = 'global' | 'project'
 
-export function mcpConfigFileScope(fileId: McpConfigFileId): McpConfigScope {
-  return fileId === 'pi-global' || fileId === 'openwaggle-global' ? 'global' : 'project'
+export function mcpConfigFileScope(fileId: McpConfigFileId) {
+  const scope: McpConfigScope =
+    fileId === 'pi-global' || fileId === 'openwaggle-global' ? 'global' : 'project'
+  return scope
 }
 
 /** OpenWaggle's own files, the only ones that may hold vault secret references. */
@@ -273,7 +275,7 @@ function classifyUnapplied(state: MergeState) {
 }
 
 /** Merge the file layers, given in precedence order from lowest to highest. */
-export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMergedConfig {
+export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]) {
   const state: MergeState = {
     servers: new Map(),
     errors: [],
@@ -287,7 +289,7 @@ export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMerg
     readLayer(state, layer, index === 0)
   })
   classifyUnapplied(state)
-  return {
+  const config: McpMergedConfig = {
     servers: [...state.servers.values()],
     errors: state.errors,
     ...(state.warnings.length > 0 ? { warnings: state.warnings } : {}),
@@ -298,4 +300,5 @@ export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMerg
     ...(state.unreadLayer ? { incomplete: true as const } : {}),
     ...(state.rejectedNames.size > 0 ? { rejectedNames: [...state.rejectedNames] } : {}),
   }
+  return config
 }

@@ -35,7 +35,7 @@ function unbracketHost(host: string) {
 }
 
 /** Turns a socket-table host into a safe browser authority without losing concrete binds. */
-export function normalizeTerminalListenerHost(rawHost: string): string | null {
+export function normalizeTerminalListenerHost(rawHost: string) {
   const host = unbracketHost(rawHost.trim())
   if (WILDCARD_HOSTS.has(host)) return 'localhost'
   if (host.length === 0 || !/^[a-zA-Z0-9._:%-]+$/.test(host)) return null
@@ -48,11 +48,7 @@ export function normalizeTerminalListenerHost(rawHost: string): string | null {
   }
 }
 
-export function terminalPortPreviewUrl(
-  protocol: 'http' | 'https',
-  host: string,
-  port: number,
-): string | null {
+export function terminalPortPreviewUrl(protocol: 'http' | 'https', host: string, port: number) {
   const normalizedHost = normalizeTerminalListenerHost(host)
   if (
     normalizedHost === null ||
@@ -145,9 +141,7 @@ export class TerminalPortPreviewProber {
       .sort((left, right) => left.port - right.port || left.host.localeCompare(right.host))
   }
 
-  private async probeCandidate(
-    candidate: TerminalPortCandidate,
-  ): Promise<VerifiedTerminalPortPreview | null> {
+  private async probeCandidate(candidate: TerminalPortCandidate) {
     for (const protocol of ['http', 'https'] as const) {
       const url = terminalPortPreviewUrl(protocol, candidate.host, candidate.port)
       if (url === null) continue
@@ -202,6 +196,6 @@ export class TerminalPortPreviewProber {
   }
 }
 
-export function commonDevPortCandidates(): readonly TerminalPortCandidate[] {
+export function commonDevPortCandidates() {
   return COMMON_DEV_PORTS.map((port) => ({ host: 'localhost', port, pid: null }))
 }

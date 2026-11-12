@@ -18,8 +18,8 @@ const EMPTY_CATALOG = {
   appearances: [],
 } satisfies SyntaxResourceCatalog
 
-function projectTheme(index: number): SyntaxThemeResource {
-  return {
+function projectTheme(index: number) {
+  const resource: SyntaxThemeResource = {
     id: `project:${String(index)}`,
     packageId: 'project.capacity',
     revision: String(index),
@@ -37,6 +37,7 @@ function projectTheme(index: number): SyntaxThemeResource {
     },
     original: {},
   }
+  return resource
 }
 
 describe('project syntax catalog capacity', () => {

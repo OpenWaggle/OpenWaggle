@@ -89,13 +89,13 @@ export function rejectedProfileOutcome(
   operation: LocalSessionProfileManagementOutcome['operation'],
   code: SessionHostRefusalCode,
   profileName?: string,
-): LocalSessionProfileManagementOutcome {
+) {
   return {
     operation,
     effect: 'rejected',
     ...sessionHostRefusal(code),
     ...(profileName ? { profileName } : {}),
-  }
+  } satisfies LocalSessionProfileManagementOutcome
 }
 
 export function auditProfileChange(

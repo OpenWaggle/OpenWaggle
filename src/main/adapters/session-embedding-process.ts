@@ -162,7 +162,7 @@ export class SessionEmbeddingProcess {
     return this.child !== undefined
   }
 
-  embed(texts: readonly string[]): Promise<EmbeddingTensor> {
+  embed(texts: readonly string[]) {
     this.cancelIdleExit()
     const child = this.child ?? this.start()
     const id = this.nextId++

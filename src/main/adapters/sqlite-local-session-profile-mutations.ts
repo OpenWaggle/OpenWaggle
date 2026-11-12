@@ -154,10 +154,20 @@ function changedOutcome(
     { operation: 'update' | 'rotate' }
   >,
   profile: ProfileRow,
-): LocalSessionProfileManagementOutcome {
-  return command.operation === 'update'
-    ? { operation: command.operation, effect: 'profile-updated', profile: profileSummary(profile) }
-    : { operation: command.operation, effect: 'profile-rotated', profile: profileSummary(profile) }
+) {
+  return (
+    command.operation === 'update'
+      ? {
+          operation: command.operation,
+          effect: 'profile-updated',
+          profile: profileSummary(profile),
+        }
+      : {
+          operation: command.operation,
+          effect: 'profile-rotated',
+          profile: profileSummary(profile),
+        }
+  ) satisfies LocalSessionProfileManagementOutcome
 }
 
 function changeProfile(

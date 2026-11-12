@@ -66,14 +66,14 @@ function attachPendingInteractions(
 function attachCatalogPendingInteractions(
   page: SessionCatalogPage,
   heldAtBySessionId: ReadonlyMap<string, number>,
-): SessionCatalogPage {
+) {
   return { ...page, sessions: attachPendingInteractions(page.sessions, heldAtBySessionId) }
 }
 
 function attachHivePendingInteractions(
   page: HiveSessionCatalogPage,
   heldAtBySessionId: ReadonlyMap<string, number>,
-): HiveSessionCatalogPage {
+) {
   return {
     ...page,
     context: attachPendingInteractions(page.context, heldAtBySessionId),
@@ -84,7 +84,7 @@ function attachHivePendingInteractions(
 function attachHiveTreePendingInteractions(
   page: HiveTreeSessionCatalogPage,
   heldAtBySessionId: ReadonlyMap<string, number>,
-): HiveTreeSessionCatalogPage {
+) {
   return {
     ...page,
     root:

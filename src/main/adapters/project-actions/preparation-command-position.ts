@@ -14,10 +14,10 @@ function keepsCommandPosition(word: string) {
 
 type CommandPrefix = 'builtin' | 'builtin-end-options' | 'command' | 'command-end-options' | 'time'
 
-function commandPrefix(word: string): CommandPrefix | undefined {
-  if (word === 'command' || word === '\\command') return 'command'
-  if (word === 'builtin' || word === '\\builtin') return 'builtin'
-  return word === 'time' ? 'time' : undefined
+function commandPrefix(word: string) {
+  if (word === 'command' || word === '\\command') return 'command' as const
+  if (word === 'builtin' || word === '\\builtin') return 'builtin' as const
+  return word === 'time' ? ('time' as const) : undefined
 }
 
 function isSupportedPrefixOption(prefix: CommandPrefix | undefined, word: string) {

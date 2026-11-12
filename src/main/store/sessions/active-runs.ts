@@ -4,7 +4,6 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import type {
   PersistSessionActiveRunInput,
-  RecoverableSessionActiveRun,
   SessionActiveRunIdentity,
   SessionInterruptedRunScope,
 } from '../../ports/session-repository'
@@ -74,7 +73,7 @@ export async function clearInterruptedSessionRuns(input: SessionInterruptedRunSc
   )
 }
 
-export async function listSessionActiveRunsForRecovery(): Promise<RecoverableSessionActiveRun[]> {
+export async function listSessionActiveRunsForRecovery() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

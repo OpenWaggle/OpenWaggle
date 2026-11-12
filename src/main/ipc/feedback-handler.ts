@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { BASE_TEN } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
-import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
+import type { FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
 import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { getSourceControlCliEnv } from '../env'
@@ -17,12 +17,8 @@ const logger = createLogger('ipc:feedback')
 
 const FEEDBACK_REPO = 'OpenWaggle/OpenWaggle'
 
-function execFilePromise(
-  command: string,
-  args: string[],
-  options?: { env?: NodeJS.ProcessEnv },
-): Promise<{ readonly stdout: string; readonly stderr: string }> {
-  return new Promise((resolve, reject) => {
+function execFilePromise(command: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) {
+  return new Promise<{ readonly stdout: string; readonly stderr: string }>((resolve, reject) => {
     execFile(
       command,
       args,
@@ -49,7 +45,7 @@ function humanOsName() {
   return `${platform} ${os.release()}`
 }
 
-function collectDiagnostics(): DiagnosticsInfo {
+function collectDiagnostics() {
   return {
     os: humanOsName(),
     appVersion: appLifecycle.version(),
@@ -191,7 +187,7 @@ async function buildMarkdownBody(payload: FeedbackPayload) {
   return sections.join('\n\n')
 }
 
-export function registerFeedbackHandlers(): void {
+export function registerFeedbackHandlers() {
   typedHandle('feedback:check-gh', () =>
     Effect.gen(function* () {
       // A failed command answers false; it is not an IPC failure.

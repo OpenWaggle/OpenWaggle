@@ -31,8 +31,9 @@ interface MarkdownNodeFields {
   readonly value?: unknown
 }
 
-function markdownNode(value: unknown): MarkdownNodeFields | undefined {
-  return isRecord(value) ? value : undefined
+function markdownNode(value: unknown) {
+  const fields: MarkdownNodeFields | undefined = isRecord(value) ? value : undefined
+  return fields
 }
 
 function supportedHttpUrl(value: string) {
@@ -53,8 +54,9 @@ function enqueueChildren(candidate: MarkdownNodeFields, pending: unknown[]) {
   for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
 }
 
-function children(candidate: MarkdownNodeFields): readonly unknown[] {
-  return Array.isArray(candidate.children) ? candidate.children : []
+function children(candidate: MarkdownNodeFields) {
+  const result: readonly unknown[] = Array.isArray(candidate.children) ? candidate.children : []
+  return result
 }
 
 function definitions(root: unknown) {
@@ -135,20 +137,22 @@ function imageMimeType(filePath: string) {
  * forms stay recognizable so a transcript written on one platform still resolves on another.
  * Whatever comes out is still gated by the capture roots when the bytes are read.
  */
-function localImageFilePath(url: string): string | null {
+function localImageFilePath(url: string) {
   if (url.includes('\0')) return null
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/u.test(url)) {
     try {
       const parsed = new URL(url)
       if (parsed.protocol !== 'file:' || parsed.username || parsed.password) return null
       const filePath = fileURLToPath(parsed)
-      return filePath.includes('\0') ? null : filePath
+      const result: string | null = filePath.includes('\0') ? null : filePath
+      return result
     } catch {
       return null
     }
   }
   const isAbsolute = path.isAbsolute(url) || /^[a-zA-Z]:[\\/]/u.test(url) || url.startsWith('\\\\')
-  return isAbsolute ? url : null
+  const result: string | null = isAbsolute ? url : null
+  return result
 }
 
 function isImageNode(candidate: MarkdownNodeFields) {
@@ -159,7 +163,7 @@ function localImage(
   candidate: MarkdownNodeFields,
   knownDefinitions: ReadonlyMap<string, string>,
   imageOrigin: MarkdownImageOrigin,
-): CapturedLocalImage | null {
+) {
   if (imageOrigin.kind !== 'local-file' || !isImageNode(candidate)) return null
   const url = markdownUrl(candidate, knownDefinitions)
   if (!url || url.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
@@ -167,7 +171,12 @@ function localImage(
   if (!filePath) return null
   const mimeType = imageMimeType(filePath)
   if (!mimeType) return null
-  return { filePath, mimeType, title: label(candidate) || path.basename(filePath) }
+  const image: CapturedLocalImage | null = {
+    filePath,
+    mimeType,
+    title: label(candidate) || path.basename(filePath),
+  }
+  return image
 }
 
 /** A website image path as its absolute URL; every other destination is returned unchanged. */
@@ -189,18 +198,19 @@ function httpLink(
   candidate: MarkdownNodeFields,
   knownDefinitions: ReadonlyMap<string, string>,
   imageOrigin: MarkdownImageOrigin,
-): CapturedLink | null {
+) {
   const destination = markdownUrl(candidate, knownDefinitions)
   if (!destination) return null
   const url = resolvedImageUrl(destination, candidate, imageOrigin)
   if (!HTTP_URL_PATTERN.test(url)) return null
   const normalizedUrl = supportedHttpUrl(url)
   if (!normalizedUrl) return null
-  return {
+  const link: CapturedLink | null = {
     url: normalizedUrl,
     title: label(candidate) || normalizedUrl,
     image: isImageNode(candidate),
   }
+  return link
 }
 
 interface MarkdownResourceCandidate {

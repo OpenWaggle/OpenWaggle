@@ -57,7 +57,7 @@ function errorMessage(error: unknown) {
 export async function localSourceControlState(
   projectPath: string,
   primaryRemote: PrimaryRemote | null,
-): Promise<LocalSourceControlState> {
+) {
   if (!primaryRemote) return NO_LOCAL_SOURCE_CONTROL
   try {
     return await resolveLocalSourceControlState(projectPath)
@@ -69,9 +69,7 @@ export async function localSourceControlState(
   }
 }
 
-async function resolveLocalSourceControlState(
-  projectPath: string,
-): Promise<LocalSourceControlState> {
+async function resolveLocalSourceControlState(projectPath: string) {
   const none = NO_LOCAL_SOURCE_CONTROL
   const { resolution } = await openWorkingTreeSourceControl(
     projectPath,
@@ -87,14 +85,14 @@ async function resolveLocalSourceControlState(
       sourceControlHost: resolution.hostState,
       sourceControlAttention: resolution.attention,
       sourceControlRepositoryUrl: repositoryWebUrlFor(resolution.repository),
-    }
+    } satisfies LocalSourceControlState
   }
   if (resolution.kind === 'undecided') {
     return {
       ...none,
       sourceControlHost: resolution.hostState,
       sourceControlAttention: resolution.attention,
-    }
+    } satisfies LocalSourceControlState
   }
   return none
 }
@@ -108,7 +106,7 @@ export async function resolveOpenChangeRequest(
   projectPath: string,
   refName: string | null,
   primaryRemote: PrimaryRemote | null,
-): Promise<OpenChangeRequestState> {
+) {
   if (!refName || !primaryRemote) return NO_OPEN_CHANGE_REQUEST
   try {
     return await resolveOpenChangeRequestState(projectPath, refName)
@@ -120,16 +118,16 @@ export async function resolveOpenChangeRequest(
   }
 }
 
-async function resolveOpenChangeRequestState(
-  projectPath: string,
-  refName: string,
-): Promise<OpenChangeRequestState> {
+async function resolveOpenChangeRequestState(projectPath: string, refName: string) {
   const access = sourceControlSettingsAccess()
   const { resolution, sourceControl } = await openWorkingTreeSourceControl(projectPath, access, {
     probeRemote: true,
   })
   if (resolution.kind === 'undecided') {
-    return { ...NO_OPEN_CHANGE_REQUEST, changeRequestAttention: resolution.attention }
+    return {
+      ...NO_OPEN_CHANGE_REQUEST,
+      changeRequestAttention: resolution.attention,
+    } satisfies OpenChangeRequestState
   }
   if (!sourceControl) return NO_OPEN_CHANGE_REQUEST
   const probed =
@@ -143,11 +141,11 @@ async function resolveOpenChangeRequestState(
       changeRequestAttention: null,
       changeRequestAccount: current.provider.account(),
       ...probed,
-    }
+    } satisfies OpenChangeRequestState
   }
   return {
     ...NO_OPEN_CHANGE_REQUEST,
     changeRequestAttention: attentionForFailure(current.result, sourceControl.info),
     ...probed,
-  }
+  } satisfies OpenChangeRequestState
 }

@@ -33,7 +33,7 @@ export function normalizeModelId(raw: string) {
   return undefined
 }
 
-export function hydrateWaggleConfig(raw: unknown): WaggleConfig | undefined {
+export function hydrateWaggleConfig(raw: unknown) {
   if (raw === undefined) {
     return undefined
   }
@@ -55,5 +55,5 @@ export function hydrateWaggleConfig(raw: unknown): WaggleConfig | undefined {
         model: createWaggleModelBinding(parsed.data.agents[1].model),
       },
     ],
-  }
+  } satisfies WaggleConfig
 }

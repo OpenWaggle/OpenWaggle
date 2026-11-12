@@ -89,9 +89,10 @@ async function cachedLauncher(input: {
   readonly expectedSha256: string
   readonly homeDir: string
   readonly platform: NodeJS.Platform
-}): Promise<InstalledMcpbLauncher> {
+}) {
   const launcher = await validateCachedPackage(input)
-  return { ...launcher, cwd: input.root }
+  const result: InstalledMcpbLauncher = { ...launcher, cwd: input.root }
+  return result
 }
 
 /**
@@ -105,7 +106,7 @@ export async function installVerifiedMcpb(input: {
   readonly homeDir: string
   readonly platform?: NodeJS.Platform
   readonly fetchResource?: RegistryResourceFetcher
-}): Promise<InstalledMcpbLauncher> {
+}) {
   if (!SHA256_PATTERN.test(input.expectedSha256)) {
     throw new Error('MCPB registry entry requires a lowercase SHA-256 file hash.')
   }

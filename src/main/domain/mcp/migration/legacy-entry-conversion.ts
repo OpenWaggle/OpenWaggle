@@ -101,11 +101,12 @@ function exposureRecord(value: unknown) {
 }
 
 /** How Pi exposes a live entry's tools, ignoring fields Pi does not read (such as `directTools`). */
-export function liveExposureOf(entry: LegacyEntryFields): LiveExposure {
-  return {
+export function liveExposureOf(entry: LegacyEntryFields) {
+  const result: LiveExposure = {
     exposure: resolveExposure(entry.exposure) ?? 'codemode',
     toolExposure: exposureRecord(entry.toolExposure),
   }
+  return result
 }
 
 function directToolNames(directTools: unknown) {
@@ -123,13 +124,20 @@ function directToolExposure(names: readonly string[], base: Readonly<Record<stri
  * `toolExposure` with those names `direct`, merged over the live entry's own
  * `toolExposure` because an override replaces that object as a whole.
  */
-export function directToolsOverride(directTools: unknown, live: LiveExposure): JsonEntry {
-  if (directTools === true) return live.exposure === 'direct' ? {} : { exposure: 'direct' }
+export function directToolsOverride(directTools: unknown, live: LiveExposure) {
+  if (directTools === true) {
+    const entry: JsonEntry = live.exposure === 'direct' ? {} : { exposure: 'direct' }
+    return entry
+  }
   const names = directToolNames(directTools).filter(
     (name) => (live.toolExposure[name] ?? live.exposure) !== 'direct',
   )
-  if (names.length === 0) return {}
-  return { toolExposure: directToolExposure(names, live.toolExposure) }
+  if (names.length === 0) {
+    const entry: JsonEntry = {}
+    return entry
+  }
+  const entry: JsonEntry = { toolExposure: directToolExposure(names, live.toolExposure) }
+  return entry
 }
 
 function legacyTransportType(entry: LegacyEntryFields) {
@@ -160,11 +168,20 @@ function oauthFromLegacyAuth(entry: LegacyEntryFields, notes: string[]) {
   return { ...existing, scope: scopes.join(' ') }
 }
 
-function exposureFields(entry: LegacyEntryFields): JsonEntry {
-  if (entry.directTools === true) return { exposure: 'direct' }
+function exposureFields(entry: LegacyEntryFields) {
+  if (entry.directTools === true) {
+    const result: JsonEntry = { exposure: 'direct' }
+    return result
+  }
   const names = directToolNames(entry.directTools)
-  if (names.length === 0) return {}
-  return { toolExposure: directToolExposure(names, exposureRecord(entry.toolExposure)) }
+  if (names.length === 0) {
+    const result: JsonEntry = {}
+    return result
+  }
+  const result: JsonEntry = {
+    toolExposure: directToolExposure(names, exposureRecord(entry.toolExposure)),
+  }
+  return result
 }
 
 /**
@@ -176,7 +193,7 @@ function exposureFields(entry: LegacyEntryFields): JsonEntry {
 export function convertKeptLegacyEntry(
   entry: JsonEntry,
   options: { readonly dropProvenance: boolean },
-): ConvertedEntry {
+) {
   const notes: string[] = []
   const type = legacyTransportType(entry)
   const oauth = oauthFromLegacyAuth(entry, notes)
@@ -211,5 +228,6 @@ export function convertKeptLegacyEntry(
     }
   }
   place(Object.keys(replacements))
-  return { entry: result, notes }
+  const returned: ConvertedEntry = { entry: result, notes }
+  return returned
 }

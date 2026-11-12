@@ -14,7 +14,7 @@ function isQuery(value: unknown): value is NativeQuery {
 }
 
 /** A timed-out caller cannot enqueue another native worker while the first is still running. */
-function singleFlight(query: NativeQuery): NativeQuery {
+function singleFlight(query: NativeQuery) {
   let pending: Promise<unknown> | null = null
   return () => {
     pending ??= Promise.resolve()

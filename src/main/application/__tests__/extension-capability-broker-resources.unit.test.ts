@@ -57,7 +57,7 @@ function invocation(input: {
   readonly payload?: unknown
   readonly sessionId?: string
   readonly scope?: ExtensionInvokeInput['scope']
-}): ExtensionInvokeInput {
+}) {
   return {
     extensionId: BROKER_EXTENSION_ID,
     contributionId: CONTRIBUTION_ID,
@@ -74,7 +74,7 @@ function invocation(input: {
   }
 }
 
-function privateResource(sessionId: string, id: string): SessionResource {
+function privateResource(sessionId: string, id: string) {
   return {
     id,
     sessionId: SessionId(sessionId),
@@ -111,7 +111,7 @@ function privateResource(sessionId: string, id: string): SessionResource {
     ],
     createdAt: 1,
     updatedAt: 2,
-  }
+  } satisfies SessionResource
 }
 
 function harness(methods?: readonly ResourceMethod[]) {

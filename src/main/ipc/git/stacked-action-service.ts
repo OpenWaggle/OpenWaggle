@@ -27,8 +27,9 @@ export type ProgressReporter = (event: GitActionProgressEvent) => void
 export type CancellationProbe = () => boolean
 type StackedCommit = NonNullable<GitRunStackedActionSuccess['commit']>
 
-function unchangedBranch(): GitStackedActionBranchOutcome {
-  return { status: 'unchanged', name: null }
+function unchangedBranch() {
+  const outcome: GitStackedActionBranchOutcome = { status: 'unchanged', name: null }
+  return outcome
 }
 
 function withPreparedBranch(
@@ -38,10 +39,7 @@ function withPreparedBranch(
   return branch.name ? { ...result, branch } : result
 }
 
-function withCommit(
-  result: GitRunStackedActionFailure,
-  commit: StackedCommit | null,
-): GitRunStackedActionFailure {
+function withCommit(result: GitRunStackedActionFailure, commit: StackedCommit | null) {
   return commit
     ? {
         ...result,
@@ -62,18 +60,19 @@ export async function runStackedGitAction(
   options: GitRunStackedActionOptions,
   onProgress: ProgressReporter = () => {},
   isCancelled: CancellationProbe = () => false,
-): Promise<GitRunStackedActionResult> {
+) {
   const phases = planStackedActionPhases(options.action)
   const firstPhase = options.createFeatureBranch ? 'branch' : (phases[0] ?? 'commit')
   if (isCancelled()) return stackedActionFailure(firstPhase, 'cancelled', 'Action cancelled.')
   const probe = await deps.hasWorkingTreeChanges(projectPath)
   if (!probe.ok) {
-    return {
+    const result: GitRunStackedActionResult = {
       ok: false,
       phase: 'commit',
       code: 'unknown',
       message: probe.message,
     }
+    return result
   }
   const hasChanges = probe.hasChanges
   const report = createReporter(options, hasChanges, onProgress)
@@ -82,9 +81,10 @@ export async function runStackedGitAction(
   if (options.action === 'pull') {
     report('push', 'Pulling...')
     const pull = await deps.pull(projectPath)
-    return pull.ok
+    const value: GitRunStackedActionResult = pull.ok
       ? { ok: true, action: 'pull', branch: unchangedBranch(), commit: null, changeRequest: null }
       : stackedActionFailure('push', 'pull-failed', pull.message)
+    return value
   }
 
   const preflight = await preflightChangeRequest(deps, projectPath, options, phases)
@@ -111,7 +111,7 @@ async function runMutationSequence(
   preflightPayload: Parameters<StackedActionDeps['openChangeRequest']>[1] | null,
   report: (phase: GitActionPhase, label: string) => void,
   isCancelled: CancellationProbe,
-): Promise<GitRunStackedActionResult> {
+) {
   const branch = options.createFeatureBranch
     ? await createFeatureBranch(deps, projectPath, options, report)
     : unchangedBranch()
@@ -168,7 +168,7 @@ async function runPushAndChangeRequest(
   preflightPayload: Parameters<StackedActionDeps['openChangeRequest']>[1] | null,
   report: (phase: GitActionPhase, label: string) => void,
   isCancelled: CancellationProbe,
-): Promise<GitRunStackedActionResult> {
+) {
   const pushOutcome = await maybePush(deps, projectPath, phases, report)
   if (!pushOutcome.ok) {
     return withCommit(withPreparedBranch(pushOutcome.failure, branch), commit)
@@ -198,7 +198,7 @@ async function runPushAndChangeRequest(
     return withCommit(withPreparedBranch(prOutcome.failure, branch), commit)
   }
 
-  return {
+  const result: GitRunStackedActionResult = {
     ok: true,
     action: options.action,
     branch,
@@ -206,6 +206,7 @@ async function runPushAndChangeRequest(
     ...(commit?.commitOutput ? { commitOutput: commit.commitOutput } : {}),
     changeRequest: prOutcome.changeRequest,
   }
+  return result
 }
 
 function createReporter(

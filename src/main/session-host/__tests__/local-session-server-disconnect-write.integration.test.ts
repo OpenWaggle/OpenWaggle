@@ -22,13 +22,13 @@ const HANDSHAKE_TIMEOUT_MS = 60
  * pending write's callback receives EPIPE, exactly as Sentry OPENWAGGLE-8 recorded for the
  * Session Host. Error frames named by `errorCode` fail this way; everything else is written.
  */
-function epipeWriter(errorCode: string): LocalSessionSocketFrameWriter {
-  return async (input) => {
+function epipeWriter(errorCode: string) {
+  return (async (input) => {
     if (isTestServerFrame(input.value, 'error', errorCode)) {
       throw Object.assign(new Error('write EPIPE'), { code: 'EPIPE' })
     }
     return writeLocalSessionSocketFrame(input)
-  }
+  }) satisfies LocalSessionSocketFrameWriter
 }
 
 /** Fails a test the way production fails: an escaping unhandled rejection. */

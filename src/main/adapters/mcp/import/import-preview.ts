@@ -18,11 +18,9 @@ import { normalizeImportedEntry } from './import-normalization'
 import { getMcpImportPaths, type McpImportPath, type McpImportPathOptions } from './import-paths'
 import {
   type ExternalMcpImportCandidate,
-  type ExternalMcpImportPreview,
   type ExternalMcpImportSource,
   type ExternalMcpImportSourceError,
   MCP_IMPORT_SOURCES,
-  type McpImportStatus,
   type McpImportTarget,
 } from './import-types'
 
@@ -67,17 +65,23 @@ type SourceFileRead =
 async function readSourceFile(
   importPath: McpImportPath,
   readText: (filePath: string) => Promise<string | undefined>,
-): Promise<SourceFileRead> {
+) {
   try {
     const text = await readText(importPath.path)
-    if (text === undefined) return { kind: 'missing' }
+    if (text === undefined) return { kind: 'missing' } satisfies SourceFileRead
     const parsed = parseSourceFile(importPath, text)
     if (!isRecord(parsed)) {
-      return { kind: 'error', message: 'the configuration root must be an object' }
+      return {
+        kind: 'error',
+        message: 'the configuration root must be an object',
+      } satisfies SourceFileRead
     }
-    return { kind: 'parsed', value: parsed }
+    return { kind: 'parsed', value: parsed } satisfies SourceFileRead
   } catch (error) {
-    return { kind: 'error', message: error instanceof Error ? error.message : String(error) }
+    return {
+      kind: 'error',
+      message: error instanceof Error ? error.message : String(error),
+    } satisfies SourceFileRead
   }
 }
 
@@ -102,7 +106,7 @@ function sourceServers(
   importPath: McpImportPath,
   parsed: Record<string, unknown>,
   projectPath: string | undefined,
-): SourceServer[] {
+) {
   const listed = Object.entries(serverMapAt(parsed, SERVER_MAP_KEYS[importPath.source])).map(
     ([name, value]) => ({ name, value, suggestedTarget: importPath.suggestedTarget }),
   )
@@ -112,7 +116,7 @@ function sourceServers(
   const projectServers = Object.entries(serverMapAt(project, 'mcpServers')).map(
     ([name, value]) => ({ name, value, suggestedTarget: 'project' as const }),
   )
-  return [...listed, ...projectServers]
+  return [...listed, ...projectServers] satisfies SourceServer[]
 }
 
 export function importStatus(
@@ -121,8 +125,8 @@ export function importStatus(
     'source' | 'sourcePath' | 'name' | 'targetName' | 'fingerprint'
   >,
   servers: Readonly<Record<string, unknown>> | undefined,
-): McpImportStatus {
-  if (!servers) return 'new'
+) {
+  if (!servers) return 'new' as const
   for (const value of Object.values(servers)) {
     if (isEarlierImportOf(value, candidate)) {
       return storedImportProvenance(value)?.fingerprint === candidate.fingerprint
@@ -131,14 +135,14 @@ export function importStatus(
     }
   }
   const taken = Object.keys(servers).some((name) => sameServerName(name, candidate.targetName))
-  return taken ? 'name-taken' : 'new'
+  return taken ? ('name-taken' as const) : ('new' as const)
 }
 
 function candidateFor(
   importPath: McpImportPath,
   server: SourceServer,
   targetServers: McpImportTargetServers | undefined,
-): ExternalMcpImportCandidate | undefined {
+) {
   const normalized = normalizeImportedEntry(importPath.source, server.name, server.value)
   if (!normalized) return undefined
   const identity = {
@@ -159,12 +163,10 @@ function candidateFor(
     entry: normalized.entry,
     warnings: normalized.warnings,
     status: importStatus(identity, targetServers?.[server.suggestedTarget]),
-  }
+  } satisfies ExternalMcpImportCandidate
 }
 
-export async function previewMcpImports(
-  input: PreviewMcpImportsInput,
-): Promise<ExternalMcpImportPreview> {
+export async function previewMcpImports(input: PreviewMcpImportsInput) {
   const readText = input.readText ?? readTextFromDisk
   const projectPath = input.projectPath?.trim() ? path.resolve(input.projectPath) : undefined
   const candidates = new Map<string, ExternalMcpImportCandidate>()

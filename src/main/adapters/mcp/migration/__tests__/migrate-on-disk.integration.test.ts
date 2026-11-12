@@ -13,8 +13,9 @@ async function writeJson(filePath: string, value: unknown) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
-async function readJson(filePath: string): Promise<unknown> {
-  return JSON.parse(await readFile(filePath, 'utf8'))
+async function readJson(filePath: string) {
+  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'))
+  return parsed
 }
 
 afterEach(async () => {

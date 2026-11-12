@@ -89,10 +89,7 @@ async function acquireMutationLock(workingPath: string) {
 }
 
 /** Serialize promise-based mutations of the same checkout. */
-export async function runWithGitMutationLock<T>(
-  workingPath: string,
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function runWithGitMutationLock<T>(workingPath: string, operation: () => Promise<T>) {
   const release = await acquireMutationLock(workingPath)
   try {
     return await operation()
@@ -105,7 +102,7 @@ export async function runWithGitMutationLock<T>(
 export async function runWithGitMutationLocks<T>(
   workingPaths: readonly string[],
   operation: () => Promise<T>,
-): Promise<T> {
+) {
   const release = await acquireLocks(mutationLocks, workingPaths)
   try {
     return await operation()
@@ -122,10 +119,7 @@ export async function runWithGitMutationLocks<T>(
  * locks for those operations. Push and pull use this scope too, so app-initiated network writes stay
  * ordered while local work remains responsive.
  */
-export async function runWithGitNetworkLock<T>(
-  workingPath: string,
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function runWithGitNetworkLock<T>(workingPath: string, operation: () => Promise<T>) {
   const release = await acquireLocks(networkLocks, [workingPath])
   try {
     return await operation()
@@ -135,10 +129,7 @@ export async function runWithGitNetworkLock<T>(
 }
 
 /** Serialize Effect-based mutations of the same checkout. */
-export function withGitMutationLock<A, E, R>(
-  workingPath: string,
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R> {
+export function withGitMutationLock<A, E, R>(workingPath: string, effect: Effect.Effect<A, E, R>) {
   return Effect.acquireUseRelease(
     Effect.promise(() => acquireMutationLock(workingPath)),
     () => effect,

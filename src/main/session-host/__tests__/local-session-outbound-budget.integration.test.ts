@@ -26,7 +26,7 @@ function requestedResponseBytes(value: unknown) {
   return value.responseBytes
 }
 
-function responseTextLength(value: unknown): number | undefined {
+function responseTextLength(value: unknown) {
   if (
     typeof value !== 'object' ||
     value === null ||

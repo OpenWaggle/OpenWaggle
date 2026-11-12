@@ -157,14 +157,14 @@ async function restartMissingCwd(
   runtime: TerminalRuntime,
   key: TerminalKey,
   existing: TerminalRecord | undefined,
-): Promise<TerminalAttachResult> {
+) {
   if (existing !== undefined && !(await runtime.killLive(existing))) {
     throw new Error('Terminal process could not be stopped.')
   }
   if (existing !== undefined && !(await runtime.shutdownDetachedProcesses([existing]))) {
     throw new Error('Terminal output and native resources did not finish draining.')
   }
-  return {
+  const result: TerminalAttachResult = {
     history: clampReplay(await runtime.history.read(key)),
     outputBytes: 0,
     outputGeneration: 0,
@@ -176,6 +176,7 @@ async function restartMissingCwd(
     ports: existing?.activity?.ports ?? [],
     projectActionPending: existing?.projectAction !== null && existing?.projectAction !== undefined,
   }
+  return result
 }
 
 async function restartOnce(context: TerminalActionContext, input: TerminalOpenInput) {

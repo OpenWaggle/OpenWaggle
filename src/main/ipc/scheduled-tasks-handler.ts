@@ -16,7 +16,7 @@ function invalidCommandError(error: unknown) {
  * The GUI manages Scheduled tasks as the local user through the Session Host's
  * `scheduled-tasks-v1` contract (ADR 0057); the Host owns every record and its authority checks.
  */
-export function registerScheduledTasksHandlers(): void {
+export function registerScheduledTasksHandlers() {
   typedHandle('scheduled-tasks:execute', (_event, command: unknown, idempotencyKey?: unknown) =>
     Effect.gen(function* () {
       const requestId = randomUUID()

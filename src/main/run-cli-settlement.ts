@@ -32,28 +32,33 @@ export function settlementForRunStatus(
   status: string | undefined,
   target: RunTarget,
   failureCode?: string,
-): RunSettlement {
+) {
   const failure = failureCode ? ` (${failureCode})` : ''
-  if (status === undefined || status === 'completed') return { exitCode: SESSION_CLI_EXIT.SUCCESS }
+  if (status === undefined || status === 'completed') {
+    return { exitCode: SESSION_CLI_EXIT.SUCCESS } satisfies RunSettlement
+  }
   if (status === 'failed') {
     return {
       exitCode: SESSION_CLI_EXIT.FAILURE,
       message: `Run failed${failure}. See the Session in the desktop app or run '${readCommand(target)}'.`,
-    }
+    } satisfies RunSettlement
   }
   if (status === 'interrupted-by-interaction-timeout') {
     return {
       exitCode: SESSION_CLI_EXIT.TIMEOUT,
       message: 'Run stopped: a question was not answered before --interaction-timeout-ms.',
-    }
+    } satisfies RunSettlement
   }
   if (status === 'interrupted-by-host-loss') {
     return {
       exitCode: SESSION_CLI_EXIT.HOST_UNAVAILABLE,
       message: 'Run stopped because the Session Host exited.',
-    }
+    } satisfies RunSettlement
   }
-  return { exitCode: RUN_CLI_INTERRUPTED_EXIT, message: `Run ${status}${failure}.` }
+  return {
+    exitCode: RUN_CLI_INTERRUPTED_EXIT,
+    message: `Run ${status}${failure}.`,
+  } satisfies RunSettlement
 }
 
 export function isActiveRunStatus(status: string) {
@@ -66,29 +71,29 @@ export function isActiveRunStatus(status: string) {
  * without a settlement event (it was replaced, or the Session was removed), so its durable
  * status must be read.
  */
-export function classifyStateChange(
-  payload: SessionHostEventPayload,
-  target: RunTarget,
-): RunSettlement | 'reconcile' | undefined {
+export function classifyStateChange(payload: SessionHostEventPayload, target: RunTarget) {
   if (payload.kind === 'session-list-changed' && payload.change === 'deleted') {
     return {
       exitCode: SESSION_CLI_EXIT.NOT_FOUND,
       message: 'the Session was deleted before its Run finished.',
-    }
+    } satisfies RunSettlement | 'reconcile'
   }
   if (payload.kind !== 'session-state-changed') return undefined
   const settles =
     payload.runId === target.runId &&
     (payload.operation === 'run-settled' || payload.operation === 'follow-up-started')
-  if (!settles) return 'reconcile'
-  if (payload.terminalStatus === undefined) return 'reconcile'
-  return settlementForRunStatus(payload.terminalStatus, target, payload.failureCode)
+  if (!settles) return 'reconcile' as const
+  if (payload.terminalStatus === undefined) return 'reconcile' as const
+  return settlementForRunStatus(payload.terminalStatus, target, payload.failureCode) satisfies
+    | RunSettlement
+    | 'reconcile'
+    | undefined
 }
 
 /** How a Run ended according to its final `agent_end`, without the Host's confirmation. */
 export function settlementForTerminalEvent(
   event: Extract<AgentTransportEvent, { readonly type: 'agent_end' }>,
-): RunSettlement {
+) {
   const unconfirmed = 'the Session Host closed before it confirmed the result.'
   if (event.reason === 'aborted') {
     return { exitCode: RUN_CLI_INTERRUPTED_EXIT, message: `Run interrupted; ${unconfirmed}` }
@@ -99,7 +104,7 @@ export function settlementForTerminalEvent(
   return { exitCode: SESSION_CLI_EXIT.SUCCESS, message: `Run finished; ${unconfirmed}` }
 }
 
-export function recentRunsQuery(target: RunTarget, cursor?: string): LocalSessionCommandPayload {
+export function recentRunsQuery(target: RunTarget, cursor?: string) {
   return {
     contract: 'session-query-v2',
     request: {
@@ -112,13 +117,10 @@ export function recentRunsQuery(target: RunTarget, cursor?: string): LocalSessio
         ...(cursor ? { cursor } : {}),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
-export function settlementForWatchEnd(
-  result: LocalSessionWatchResult,
-  target?: RunTarget,
-): RunSettlement {
+export function settlementForWatchEnd(result: LocalSessionWatchResult, target?: RunTarget) {
   if (result.status === 'resync-required') {
     const detail =
       result.reason === 'host-restarted'
@@ -127,10 +129,10 @@ export function settlementForWatchEnd(
     return {
       exitCode: SESSION_CLI_EXIT.FAILURE,
       message: `${detail}, so the Run's result is unknown. Check it with 'openwaggle hive turns ${target?.sessionId ?? '<session-id>'}'.`,
-    }
+    } satisfies RunSettlement
   }
   return {
     exitCode: SESSION_CLI_EXIT.HOST_UNAVAILABLE,
     message: 'the Session Host closed the event stream before the Run finished.',
-  }
+  } satisfies RunSettlement
 }

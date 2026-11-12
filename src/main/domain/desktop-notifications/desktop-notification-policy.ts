@@ -35,25 +35,22 @@ const LOCAL_USER_CALLER_PREFIX = 'local-user:'
  * The person is the desktop app's caller or the plain local-user credential (their own CLI). An
  * agent inside OpenWaggle, an MCP client and anything with a named access profile is an agent.
  */
-export function desktopNotificationOriginOfCaller(
-  callerId: string,
-): Exclude<DesktopNotificationRunOrigin, { readonly kind: 'scheduled-task' }> {
-  return callerId === GUI_CALLER_ID || callerId.startsWith(LOCAL_USER_CALLER_PREFIX)
-    ? { kind: 'person' }
-    : { kind: 'agent' }
+export function desktopNotificationOriginOfCaller(callerId: string) {
+  return (
+    callerId === GUI_CALLER_ID || callerId.startsWith(LOCAL_USER_CALLER_PREFIX)
+      ? { kind: 'person' }
+      : { kind: 'agent' }
+  ) satisfies Exclude<DesktopNotificationRunOrigin, { readonly kind: 'scheduled-task' }>
 }
 
-function candidate(
-  category: DesktopNotificationCategory,
-  reason: DesktopNotificationReason,
-): DesktopNotificationCandidate {
+function candidate(category: DesktopNotificationCategory, reason: DesktopNotificationReason) {
   return { category, reason }
 }
 
 /** The notification a settled Run is due, before settings and origin; null for none. */
 export function runSettlementCandidate(
   terminalStatus: SessionRunTerminalStatus | 'interrupted-by-host-loss',
-): DesktopNotificationCandidate | null {
+) {
   return (
     match(terminalStatus)
       .with('completed', () => candidate('ready-to-read', 'completed'))
@@ -148,11 +145,10 @@ export function readyToReadHiveSettled(work: ReadyToReadHiveWork) {
   return !work.rootRunning && !work.workersRunning && !work.wakeComing
 }
 
-export function readyToReadTiming(
-  work: ReadyToReadHiveWork,
-  run: { readonly hiveWake: boolean },
-): ReadyToReadTiming {
-  if (readyToReadHiveSettled(work)) return 'now'
-  if (!run.hiveWake && work.runStartedWhileWorkersRan) return 'mid-work-answer'
-  return 'after-workers'
+export function readyToReadTiming(work: ReadyToReadHiveWork, run: { readonly hiveWake: boolean }) {
+  if (readyToReadHiveSettled(work)) return 'now' satisfies ReadyToReadTiming
+  if (!run.hiveWake && work.runStartedWhileWorkersRan) {
+    return 'mid-work-answer' satisfies ReadyToReadTiming
+  }
+  return 'after-workers' satisfies ReadyToReadTiming
 }

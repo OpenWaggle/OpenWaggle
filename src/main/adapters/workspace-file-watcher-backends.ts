@@ -48,8 +48,8 @@ const NATIVE_EVENT_WITHOUT_PATH =
  * with no initial scan and no per-directory state. chokidar kept a watcher and a listing per
  * directory: +703 MB and 10.8 s on a 100k-file repository (D10).
  */
-export function nativeBackend(projectRoot: string, events: BackendEvents): Promise<WatchBackend> {
-  return new Promise((resolve, reject) => {
+export function nativeBackend(projectRoot: string, events: BackendEvents) {
+  return new Promise<WatchBackend>((resolve, reject) => {
     let watcher: NativeWatcher
     try {
       watcher = watchNative(projectRoot, { recursive: true, persistent: false }, (_event, name) => {
@@ -76,7 +76,7 @@ export async function chokidarBackend(
   projectRoot: string,
   gitIgnore: WorkspaceGitIgnoreFilter | undefined,
   events: BackendEvents,
-): Promise<WatchBackend> {
+) {
   const { watch } = await import('chokidar')
   const watcher = watch(projectRoot, {
     ignoreInitial: true,
@@ -135,7 +135,7 @@ export function watchExternalGitExclude(
   projectRoot: string,
   gitIgnore: WorkspaceGitIgnoreFilter | undefined,
   onChange: () => void,
-): NativeWatcher | undefined {
+) {
   const excludeFile = gitIgnore?.excludeFile
   if (!excludeFile || relativeTo(projectRoot, excludeFile) === GIT_EXCLUDE_PATH) return undefined
   try {

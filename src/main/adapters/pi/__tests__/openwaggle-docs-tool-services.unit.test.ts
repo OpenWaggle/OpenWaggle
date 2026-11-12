@@ -10,7 +10,7 @@ import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../
 import type { DocsBundleServiceShape } from '../../../ports/docs-bundle-service'
 import type { OpenWagglePiExtensionSelectionServices } from '../openwaggle-pi-extension-selection'
 
-const warnings = vi.hoisted((): { calls: string[] } => ({ calls: [] }))
+const warnings = vi.hoisted<{ calls: string[] }>(() => ({ calls: [] }))
 
 vi.mock('../../../logger', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../logger')>()
@@ -37,13 +37,13 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
-async function extensionPackage(): Promise<DiscoveredExtensionPackage> {
+async function extensionPackage() {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'ow-docs-services-'))
   tempDirs.push(tempDir)
   const packagePath = path.join(tempDir, 'deploy')
   await mkdir(path.join(packagePath, 'docs'), { recursive: true })
   await writeFile(path.join(packagePath, 'docs', 'usage.md'), '# Deploy\n')
-  return {
+  const result: DiscoveredExtensionPackage = {
     id: 'acme.deploy',
     scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
     packagePath,
@@ -67,10 +67,11 @@ async function extensionPackage(): Promise<DiscoveredExtensionPackage> {
     },
     diagnostics: [],
   }
+  return result
 }
 
-function enabledLifecycle(extension: DiscoveredExtensionPackage): ExtensionLifecycleState {
-  return {
+function enabledLifecycle(extension: DiscoveredExtensionPackage) {
+  const state: ExtensionLifecycleState = {
     extensionId: extension.id,
     scope: extension.scope,
     enabled: true,
@@ -89,6 +90,7 @@ function enabledLifecycle(extension: DiscoveredExtensionPackage): ExtensionLifec
     installedAt: NOW,
     updatedAt: NOW,
   }
+  return state
 }
 
 function services(

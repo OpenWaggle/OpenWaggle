@@ -47,10 +47,7 @@ function canonicalHost(host: string) {
 }
 
 /** Valid entries only; invalid ones are logged and skipped rather than failing the file. */
-export function parseProjectSourceControlConfig(
-  raw: unknown,
-  projectPath: string,
-): ProjectSourceControlConfig {
+export function parseProjectSourceControlConfig(raw: unknown, projectPath: string) {
   if (!isJsonObject(raw)) return { hosts: {} }
   const fields: { readonly hosts?: unknown; readonly changeRequestOpenDestination?: unknown } = raw
   const hosts: Record<string, SourceControlProviderId> = {}
@@ -77,9 +74,7 @@ export function parseProjectSourceControlConfig(
     : { hosts }
 }
 
-export async function readProjectSourceControlConfig(
-  projectPath: string,
-): Promise<ProjectSourceControlConfig> {
+export async function readProjectSourceControlConfig(projectPath: string) {
   const config = await loadProjectConfig(projectPath)
   return parseProjectSourceControlConfig(config.sourceControl, projectPath)
 }
@@ -101,7 +96,7 @@ function applyHostUpdates(
 export async function updateProjectSourceControlConfig(
   projectPath: string,
   update: ProjectSourceControlConfigUpdate,
-): Promise<ProjectSourceControlConfig> {
+) {
   let written: ProjectSourceControlConfig = { hosts: {} }
   await updateProjectConfig(projectPath, (current) => {
     const existing = parseProjectSourceControlConfig(current.sourceControl, projectPath)

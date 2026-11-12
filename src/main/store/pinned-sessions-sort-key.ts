@@ -73,13 +73,13 @@ function midpoint(before: string, after: string | null): string {
  * to mean unbounded. `keyBetween(null, null)` opens a sequence,
  * `keyBetween(last, null)` appends, `keyBetween(null, first)` prepends.
  */
-export function keyBetween(before: string | null, after: string | null): string {
+export function keyBetween(before: string | null, after: string | null) {
   if (before !== null) assertSplittable(before, 'before')
   if (after !== null) assertSplittable(after, 'after')
   return midpoint(before ?? UNBOUNDED_START, after)
 }
 
 /** Append after the last key of a sequence already sorted ascending. */
-export function keyAtEnd(sortedKeys: readonly string[]): string {
+export function keyAtEnd(sortedKeys: readonly string[]) {
   return keyBetween(sortedKeys.at(-1) ?? null, null)
 }

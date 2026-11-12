@@ -11,8 +11,8 @@ const OPTION_PREFIX = '--'
 /** A refusal quotes the group and its action, as `sessions list`. */
 const QUOTED_TOKENS = 2
 
-function formerArguments(tokens: readonly string[]): ParsedArguments {
-  return {
+function formerArguments(tokens: readonly string[]) {
+  const result: ParsedArguments = {
     positionals: tokens.filter((token) => !token.startsWith('-')),
     passthrough: [],
     options: new Map(
@@ -21,6 +21,7 @@ function formerArguments(tokens: readonly string[]): ParsedArguments {
         .map((token) => [token.slice(OPTION_PREFIX.length), ['true']]),
     ),
   }
+  return result
 }
 
 /** The `hive` command a pre-1.0 `sessions <action>` or `delegations <action>` became. */

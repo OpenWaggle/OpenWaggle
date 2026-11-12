@@ -4,14 +4,13 @@
  */
 import type { Settings } from '@shared/types/settings'
 import {
-  type AutomaticWorktreeRemovalSettings,
   DEFAULT_AUTOMATIC_WORKTREE_REMOVAL,
   isAutomaticWorktreeRemovalDays,
 } from '@shared/types/worktree-inventory'
 import { SETTINGS_KEY_AUTOMATIC_WORKTREE_REMOVAL } from './keys'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 
-export function resolveAutomaticWorktreeRemoval(raw: unknown): AutomaticWorktreeRemovalSettings {
+export function resolveAutomaticWorktreeRemoval(raw: unknown) {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return DEFAULT_AUTOMATIC_WORKTREE_REMOVAL
   }

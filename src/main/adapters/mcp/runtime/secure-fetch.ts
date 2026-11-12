@@ -168,14 +168,14 @@ export async function validateMcpNetworkTarget(input: {
   } satisfies ValidatedMcpNetworkTarget
 }
 
-export function createPinnedMcpLookup(target: ValidatedMcpNetworkTarget): LookupFunction {
-  return (_hostname, options, callback) => {
+export function createPinnedMcpLookup(target: ValidatedMcpNetworkTarget) {
+  return ((_hostname, options, callback) => {
     if (options.all) {
       callback(null, [{ address: target.address, family: target.family }])
       return
     }
     callback(null, target.address, target.family)
-  }
+  }) satisfies LookupFunction
 }
 
 function dispatcherFor(
@@ -202,7 +202,7 @@ export type SecureMcpFetch = FetchLike & { readonly close: () => Promise<void> }
 
 export { MCP_FETCH_CLOSE_GRACE_MS } from './secure-fetch-close'
 
-function redirectRequestInit(status: number, init: RequestInit): RequestInit {
+function redirectRequestInit(status: number, init: RequestInit) {
   if (
     status !== HTTP_SEE_OTHER &&
     !((status === HTTP_MOVED_PERMANENTLY || status === HTTP_FOUND) && init.method === 'POST')
@@ -212,10 +212,10 @@ function redirectRequestInit(status: number, init: RequestInit): RequestInit {
   const headers = new Headers(init.headers)
   headers.delete('content-length')
   headers.delete('content-type')
-  return { ...init, method: 'GET', body: null, headers }
+  return { ...init, method: 'GET', body: null, headers } satisfies RequestInit
 }
 
-function redirectCredentials(originChanged: boolean, init: RequestInit): RequestInit {
+function redirectCredentials(originChanged: boolean, init: RequestInit) {
   if (!originChanged) return init
   const headers = new Headers(init.headers)
   headers.delete('authorization')
@@ -235,7 +235,7 @@ export function createSecureMcpFetch(input: {
   readonly maxResponseBytes?: number
   readonly fetchFn?: PinnedFetch
   readonly resolveHostname?: HostnameResolver
-}): SecureMcpFetch {
+}) {
   const allowedHosts = normalizeMcpAllowedHosts([
     input.baseUrl.hostname,
     ...(input.allowedDomains ?? []),

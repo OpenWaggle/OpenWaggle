@@ -15,7 +15,7 @@ const { readProcessMetadata } = await import('../terminal-process-probes')
 
 const PID = 42
 
-function kernelInfo(startedAt: string, ttyIdentity: string): TerminalKernelProcessInfo {
+function kernelInfo(startedAt: string, ttyIdentity: string) {
   return {
     pid: PID,
     startedAt,
@@ -25,7 +25,7 @@ function kernelInfo(startedAt: string, ttyIdentity: string): TerminalKernelProce
     ttyIdentity,
     zombie: false,
     name: 'zsh',
-  }
+  } satisfies TerminalKernelProcessInfo
 }
 
 function installObservations(...observations: readonly TerminalKernelProcessInfo[]) {

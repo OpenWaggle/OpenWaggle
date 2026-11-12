@@ -284,11 +284,11 @@ export function setWorktreeLaunchSnapshot(
   if (updated) activeBuffers.set(sessionId, updated)
 }
 
-export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | null {
+export function getStreamBuffer(sessionId: SessionId) {
   return toStreamBufferSnapshot(sessionId, activeBuffers.get(sessionId))
 }
 
-export function listStreamBuffers(): ActiveRunInfo[] {
+export function listStreamBuffers() {
   const result: ActiveRunInfo[] = []
   for (const [sessionId, buffer] of activeBuffers) {
     result.push({
@@ -303,7 +303,7 @@ export function listStreamBuffers(): ActiveRunInfo[] {
   return result
 }
 
-export function listStreamBufferSnapshots(): BackgroundRunSnapshot[] {
+export function listStreamBufferSnapshots() {
   return [...activeBuffers.keys()].flatMap((sessionId) => {
     const snapshot = getStreamBuffer(sessionId)
     return snapshot ? [snapshot] : []
@@ -311,9 +311,7 @@ export function listStreamBufferSnapshots(): BackgroundRunSnapshot[] {
 }
 
 /** Replaces the buffers with the snapshots; returns the Run each replaced buffer held, by Session. */
-export function replaceStreamBufferSnapshots(
-  snapshots: readonly BackgroundRunSnapshot[],
-): ReadonlyMap<SessionId, string | undefined> {
+export function replaceStreamBufferSnapshots(snapshots: readonly BackgroundRunSnapshot[]) {
   const restored = restoreStreamBufferSnapshots(activeBuffers, snapshots)
   totalRetainedBytes = restored.totalRetainedBytes
   totalHistoryBytes = restored.totalHistoryBytes

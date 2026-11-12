@@ -47,21 +47,28 @@ function perUserCacheRoot(environment: MainCompileCacheEnvironment) {
  * across throwaway homes) and `OPENWAGGLE_DISABLE_COMPILE_CACHE=1` turns it off; Node's own
  * `NODE_DISABLE_COMPILE_CACHE` is honored by Node itself.
  */
-export function mainCompileCacheLocation(
-  environment: MainCompileCacheEnvironment,
-): MainCompileCacheLocation {
+export function mainCompileCacheLocation(environment: MainCompileCacheEnvironment) {
   const { platform, channel } = environment
   const env: BootEnvironment = environment.env
   if (env.OPENWAGGLE_DISABLE_COMPILE_CACHE === '1') {
-    return { kind: 'disabled', reason: 'opted-out' }
+    const location: MainCompileCacheLocation = { kind: 'disabled', reason: 'opted-out' }
+    return location
   }
-  if (platform === 'linux' && env.APPIMAGE) return { kind: 'disabled', reason: 'appimage' }
+  if (platform === 'linux' && env.APPIMAGE) {
+    const location: MainCompileCacheLocation = { kind: 'disabled', reason: 'appimage' }
+    return location
+  }
   const override = env.OPENWAGGLE_COMPILE_CACHE_DIR
   if (override && path.isAbsolute(override)) {
-    return { kind: 'enabled', directory: path.join(override, channel) }
+    const location: MainCompileCacheLocation = {
+      kind: 'enabled',
+      directory: path.join(override, channel),
+    }
+    return location
   }
-  return {
+  const location: MainCompileCacheLocation = {
     kind: 'enabled',
     directory: path.join(perUserCacheRoot(environment), CACHE_DIRECTORY_NAME, channel),
   }
+  return location
 }

@@ -126,8 +126,8 @@ function describeServerError(error: unknown) {
   return describeFailure(failure) ?? UNDESCRIBED_FAILURE
 }
 
-function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
-  return new Promise((resolve, reject) => {
+function writeSocketSegment(socket: Socket, segment: Buffer) {
+  return new Promise<void>((resolve, reject) => {
     socket.write(segment, (error) => {
       if (!error) {
         resolve()
@@ -187,7 +187,7 @@ interface FrameWriteInput {
   readonly maxBytes?: number
 }
 
-export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {
+export async function writeLocalSessionSocketFrame(input: FrameWriteInput) {
   const lease = await input.budget
     .encode(
       input.value,
@@ -252,7 +252,7 @@ function isLocalAccessPayload(value: unknown): value is LocalAccessPayload {
   )
 }
 
-export function invalidatedProfileId(value: unknown): string | undefined {
+export function invalidatedProfileId(value: unknown) {
   if (!isLocalAccessPayload(value)) return
   const outcome = value.response.outcome
   return outcome.effect === 'profile-revoked' || outcome.effect === 'profile-rotated'
@@ -260,7 +260,7 @@ export function invalidatedProfileId(value: unknown): string | undefined {
     : undefined
 }
 
-export function refreshedProfileId(value: unknown): string | undefined {
+export function refreshedProfileId(value: unknown) {
   if (!isLocalAccessPayload(value)) return
   const outcome = value.response.outcome
   return outcome.effect === 'profile-updated' ? outcome.profile.id : undefined

@@ -4,7 +4,6 @@ import { SessionId } from '@shared/types/brand'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SessionControlReportTarget } from '@shared/types/session-collaboration'
 import * as Effect from 'effect/Effect'
-import type { AuthorizedReportCandidate } from '../domain/session-control/report-target-resolution'
 import { authorizedSessionScope } from './sqlite-session-query-support'
 
 export interface ReportSourceRow {
@@ -27,7 +26,7 @@ function implicitLineageAllowed(authority: LocalSessionProfileAuthority | undefi
   return !authority || authority.profileId.startsWith('session-agent:') ? 1 : 0
 }
 
-function referenceCandidates(rows: readonly ReportCandidateRow[]): AuthorizedReportCandidate[] {
+function referenceCandidates(rows: readonly ReportCandidateRow[]) {
   return rows.map((row) => ({
     sessionId: SessionId(row.session_id),
     referenceNames: [row.session_id, row.title, ...(row.agent_name ? [row.agent_name] : [])],

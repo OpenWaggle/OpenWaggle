@@ -3,7 +3,6 @@ import { commandRepairProposalSchema } from '@shared/schemas/action-definitions'
 import {
   type ActionDefinition,
   COMMAND_REPAIR_PROPOSAL_TYPE,
-  type CommandRepairProposal,
   type ProjectTaskDiscovery,
 } from '@shared/types/action-definitions'
 import { projectTaskArguments } from '@shared/utils/project-task-command'
@@ -51,7 +50,7 @@ export async function proposeRepair(input: {
   readonly catalog: Pick<ActionCatalogServiceShape, 'read' | 'discover'>
   readonly workspace: ActionRunWorkspace
   readonly proposal: RepairProposalArguments
-}): Promise<CommandRepairProposal> {
+}) {
   const { workspace, proposal: params } = input
   const catalog = await Effect.runPromise(input.catalog.read(workspace))
   const definition = catalog.actions.find(

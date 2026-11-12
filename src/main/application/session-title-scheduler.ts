@@ -86,14 +86,12 @@ export function requestSessionTitleRefinement(sessionId: SessionId) {
   Runtime.runFork(titleRuntime)(refineSessionTitle(sessionId))
 }
 
-export function runSessionTitleRegeneration(
-  sessionId: SessionId,
-): Promise<SessionTitleRegenerationResult> {
+export function runSessionTitleRegeneration(sessionId: SessionId) {
   if (!titleRuntime) {
     return Promise.resolve({
       outcome: 'failed',
       message: 'Title regeneration is not available until the Session Host is running.',
-    })
+    }) satisfies Promise<SessionTitleRegenerationResult>
   }
   return Runtime.runPromise(titleRuntime)(
     regenerateSessionTitle(sessionId).pipe(
@@ -104,5 +102,5 @@ export function runSessionTitleRegeneration(
         } satisfies SessionTitleRegenerationResult),
       ),
     ),
-  )
+  ) satisfies Promise<SessionTitleRegenerationResult>
 }

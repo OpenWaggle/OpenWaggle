@@ -1,5 +1,4 @@
 import {
-  type AgentDefinitionProjectResolver,
   type AgentDefinitionProjectSources,
   resolveAgentDefinitionProject,
 } from '../agent-definition-project'
@@ -14,7 +13,7 @@ export function fakeProjectResolver(input: {
   readonly worktrees?: Readonly<Record<string, string>>
   readonly toggles?: () => Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly settingsError?: Error
-}): AgentDefinitionProjectResolver {
+}) {
   const sources: AgentDefinitionProjectSources = {
     readSettings: async () => {
       if (input.settingsError) throw input.settingsError

@@ -12,7 +12,7 @@ import {
   optionEntry,
 } from './sessions-cli-arguments'
 
-export function itemsPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
+export function itemsPayload(arguments_: ParsedArguments) {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   const branchScope = option(arguments_, 'scope') ?? 'active-branch'
   if (branchScope !== 'active-branch' && branchScope !== 'tree') {
@@ -44,5 +44,5 @@ export function itemsPayload(arguments_: ParsedArguments): LocalSessionCommandPa
         ...optionEntry(arguments_, 'snapshot-head', 'snapshotHeadNodeId'),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }

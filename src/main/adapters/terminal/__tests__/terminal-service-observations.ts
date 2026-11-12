@@ -11,13 +11,13 @@ import {
 // do not read the service's internal record map.
 
 /** Terminal keys the service reports through its public activity snapshot. */
-export async function terminalKeys(): Promise<string[]> {
+export async function terminalKeys() {
   const snapshot = await Effect.runPromise(service.getActivitySnapshot())
   return snapshot.summaries.map((summary) => `${summary.ownerKey}::${summary.terminalId}`)
 }
 
 /** The last output flow-control call the service made on a fake PTY port. */
-export function lastFlowControl(fake: FakePty | undefined): 'pause' | 'resume' | undefined {
+export function lastFlowControl(fake: FakePty | undefined) {
   if (fake === undefined) return undefined
   const calls = [
     ...fake.pauseOutput.mock.invocationCallOrder.map((order) => ({
@@ -44,7 +44,7 @@ export function readinessPhase() {
 }
 
 /** Whether the public activity snapshot reports a pending Project Action for the terminal. */
-export async function projectActionPending(key: string): Promise<boolean | undefined> {
+export async function projectActionPending(key: string) {
   const snapshot = await Effect.runPromise(service.getActivitySnapshot())
   return snapshot.summaries.find((summary) => `${summary.ownerKey}::${summary.terminalId}` === key)
     ?.projectActionPending

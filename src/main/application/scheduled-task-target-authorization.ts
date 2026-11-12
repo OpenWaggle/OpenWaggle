@@ -20,13 +20,13 @@ export function scheduledTaskRunPayload(input: {
   readonly idempotencyKey: string
   readonly text: string
   readonly title?: string
-}): Extract<
-  LocalSessionCommandPayload,
-  { readonly contract: 'session-control-v2' | 'session-lifecycle-v2' }
-> {
+}) {
   const { target } = input
   if (target.kind === 'heartbeat') {
-    return {
+    const extract: Extract<
+      LocalSessionCommandPayload,
+      { readonly contract: 'session-control-v2' | 'session-lifecycle-v2' }
+    > = {
       contract: 'session-control-v2',
       request: {
         contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -39,13 +39,17 @@ export function scheduledTaskRunPayload(input: {
         },
       },
     }
+    return extract
   }
   const specialization = {
     ...(target.modelId ? { modelId: target.modelId } : {}),
     ...(target.thinkingLevel ? { thinkingLevel: target.thinkingLevel } : {}),
     ...(target.agentDefinitionName ? { agentDefinitionName: target.agentDefinitionName } : {}),
   }
-  return {
+  const extract: Extract<
+    LocalSessionCommandPayload,
+    { readonly contract: 'session-control-v2' | 'session-lifecycle-v2' }
+  > = {
     contract: 'session-lifecycle-v2',
     request: {
       contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
@@ -62,6 +66,7 @@ export function scheduledTaskRunPayload(input: {
       },
     },
   }
+  return extract
 }
 
 export type ScheduledTaskTargetAuthorization =
@@ -72,25 +77,27 @@ export type ScheduledTaskTargetAuthorization =
       readonly message: string
     }
 
-function refusal(error: unknown): ScheduledTaskTargetAuthorization {
+function refusal(error: unknown) {
   if (error instanceof LocalSessionCommandAuthorizationError) {
-    return error.code === 'capability_denied'
-      ? {
-          authorized: false,
-          code: 'capability_denied',
-          message: `You cannot do this by hand${error.missing ? ` (needs ${error.missing.join(', ')})` : ''}, so a Scheduled task cannot do it for you.`,
-        }
-      : {
-          authorized: false,
-          code: 'target_scope_denied',
-          message: 'That Session or project is outside what you may reach.',
-        }
+    return (
+      error.code === 'capability_denied'
+        ? {
+            authorized: false,
+            code: 'capability_denied',
+            message: `You cannot do this by hand${error.missing ? ` (needs ${error.missing.join(', ')})` : ''}, so a Scheduled task cannot do it for you.`,
+          }
+        : {
+            authorized: false,
+            code: 'target_scope_denied',
+            message: 'That Session or project is outside what you may reach.',
+          }
+    ) satisfies ScheduledTaskTargetAuthorization
   }
   return {
     authorized: false,
     code: 'target_not_found',
     message: 'That Session or project was not found.',
-  }
+  } satisfies ScheduledTaskTargetAuthorization
 }
 
 /** Whether `caller` could send this task's run request by hand, checked without sending it. */

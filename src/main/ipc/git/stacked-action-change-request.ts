@@ -1,8 +1,4 @@
-import type {
-  GitRunStackedActionOptions,
-  GitStackedActionBranchOutcome,
-  OpenChangeRequestPayload,
-} from '@shared/types/git'
+import type { GitRunStackedActionOptions, GitStackedActionBranchOutcome } from '@shared/types/git'
 import type { RemoteUrlRepository } from '../../services/source-control/working-tree-source-control'
 import type { GitPushDestination } from './push-service'
 
@@ -42,10 +38,7 @@ async function compatibleHeadIdentity(
   projectPath: string,
   baseUrl: string | null,
   destination: GitPushDestination,
-): Promise<Pick<
-  OpenChangeRequestPayload,
-  'headOwner' | 'headRepository' | 'targetRepository'
-> | null> {
+) {
   if (destination.multiplePushUrls || !destination.remoteUrl || !baseUrl) return null
   const [resolvedBase, resolvedHead] = await Promise.all([
     deps.resolveRemoteRepository(projectPath, baseUrl),
@@ -82,7 +75,7 @@ export async function buildOpenChangeRequestPayload(
   options: GitRunStackedActionOptions,
   branch: GitStackedActionBranchOutcome,
   pushDestination: GitPushDestination | undefined,
-): Promise<OpenChangeRequestPayload | null> {
+) {
   const headRef = await resolveHeadRef(deps, projectPath, branch, pushDestination)
   if (!headRef) return null
 

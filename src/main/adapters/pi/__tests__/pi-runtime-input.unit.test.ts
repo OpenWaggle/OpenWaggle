@@ -3,10 +3,7 @@ import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { describe, expect, it } from 'vitest'
 import { buildPiPromptInput } from '../pi-runtime-input'
 
-function makeModel(
-  id: string,
-  input: Model<'openai-responses'>['input'],
-): Model<'openai-responses'> {
+function makeModel(id: string, input: Model<'openai-responses'>['input']) {
   return {
     id,
     provider: 'test-provider',
@@ -18,7 +15,7 @@ function makeModel(
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128_000,
     maxTokens: 16_384,
-  }
+  } satisfies Model<'openai-responses'>
 }
 
 function makeModels() {
@@ -28,7 +25,7 @@ function makeModels() {
   }
 }
 
-function makePayload(overrides?: Partial<HydratedAgentSendPayload>): HydratedAgentSendPayload {
+function makePayload(overrides?: Partial<HydratedAgentSendPayload>) {
   return {
     text: 'Inspect these files',
     attachments: [
@@ -58,7 +55,7 @@ function makePayload(overrides?: Partial<HydratedAgentSendPayload>): HydratedAge
       },
     ],
     ...overrides,
-  }
+  } satisfies HydratedAgentSendPayload
 }
 
 describe('buildPiPromptInput', () => {

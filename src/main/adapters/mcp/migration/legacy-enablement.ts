@@ -44,26 +44,33 @@ function mcpOffReason(scope: LegacyEnablementScope) {
 }
 
 /** Whether the old code connected `name` in this scope, and why not when it did not. */
-export function legacyServerConnection(
-  scope: LegacyEnablementScope,
-  name: string,
-): LegacyConnection {
+export function legacyServerConnection(scope: LegacyEnablementScope, name: string) {
   const layer = scope.legacyLayers.findLast((candidate) => isRecord(candidate.servers[name]))
   if (!layer) {
-    return { connected: false, reason: 'OpenWaggle did not read the file that defines it' }
+    return {
+      connected: false,
+      reason: 'OpenWaggle did not read the file that defines it',
+    } satisfies LegacyConnection
   }
   const serverState = scope.state.servers[legacyServerIdentityKey(layer.path, name)]
   if (!serverState?.enabled) {
-    return { connected: false, reason: 'it was not turned on in OpenWaggle' }
+    return {
+      connected: false,
+      reason: 'it was not turned on in OpenWaggle',
+    } satisfies LegacyConnection
   }
-  if (!mcpWasOn(scope)) return { connected: false, reason: mcpOffReason(scope) }
-  if (!scope.projectPath) return { connected: true, reason: '' }
+  if (!mcpWasOn(scope)) {
+    return { connected: false, reason: mcpOffReason(scope) } satisfies LegacyConnection
+  }
+  if (!scope.projectPath) return { connected: true, reason: '' } satisfies LegacyConnection
   const entry = layer.servers[name]
   if (legacyServerFields(entry)?.required === true) return { connected: true, reason: '' }
   const muted = scope.state.projectServerStates[scope.projectPath]?.[serverState.instanceId]
-  return muted === 'off'
-    ? { connected: false, reason: 'it was turned off for this project' }
-    : { connected: true, reason: '' }
+  return (
+    muted === 'off'
+      ? { connected: false, reason: 'it was turned off for this project' }
+      : { connected: true, reason: '' }
+  ) satisfies LegacyConnection
 }
 
 /**

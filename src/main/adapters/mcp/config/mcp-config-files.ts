@@ -24,8 +24,12 @@ export interface McpConfigFileRoots {
 
 const MCP_FILE_NAME = 'mcp.json'
 
-function location(fileId: McpConfigFileId, filePath: string): McpConfigFileLocation {
-  return { fileId, path: filePath, scope: mcpConfigFileScope(fileId) }
+function location(fileId: McpConfigFileId, filePath: string) {
+  return {
+    fileId,
+    path: filePath,
+    scope: mcpConfigFileScope(fileId),
+  } satisfies McpConfigFileLocation
 }
 
 /**
@@ -33,7 +37,7 @@ function location(fileId: McpConfigFileId, filePath: string): McpConfigFileLocat
  * is the home folder has `~/.openwaggle/mcp.json` as its project file) is read once, in its first
  * place.
  */
-export function mcpConfigFileLocations(roots: McpConfigFileRoots): McpConfigFileLocation[] {
+export function mcpConfigFileLocations(roots: McpConfigFileRoots) {
   const seen = new Set<string>()
   return allLocations(roots).filter((file) => {
     // By real path: a project folder that links to `~/.openwaggle` reaches the global file too.
@@ -69,8 +73,8 @@ export function realLocation(filePath: string) {
   }
 }
 
-function allLocations(roots: McpConfigFileRoots): McpConfigFileLocation[] {
-  const global = [
+function allLocations(roots: McpConfigFileRoots) {
+  const global: McpConfigFileLocation[] = [
     location('pi-global', path.join(roots.piAgentDir, MCP_FILE_NAME)),
     location('openwaggle-global', path.join(roots.homeDir, '.openwaggle', MCP_FILE_NAME)),
   ]
@@ -80,7 +84,7 @@ function allLocations(roots: McpConfigFileRoots): McpConfigFileLocation[] {
     location('project-mcp-json', path.join(roots.projectPath, '.mcp.json')),
     location('project-pi', path.join(roots.projectPath, '.pi', MCP_FILE_NAME)),
     location('project-openwaggle', path.join(roots.projectPath, '.openwaggle', MCP_FILE_NAME)),
-  ]
+  ] satisfies McpConfigFileLocation[]
 }
 
 /** OpenWaggle's file for a scope: where new servers and per-project switches are written. */
@@ -156,39 +160,56 @@ export const nodeMcpConfigFileReader: McpConfigFileReader = {
   },
 }
 
-function readLayer(file: McpConfigFileLocation, reader: McpConfigFileReader): McpConfigLayer {
+function readLayer(file: McpConfigFileLocation, reader: McpConfigFileReader) {
   let text: string | undefined
   try {
     text = reader.readText(file.path)
   } catch (error) {
-    return {
+    const layer: McpConfigLayer = {
       fileId: file.fileId,
       path: file.path,
       content: { kind: 'unreadable', error: errorMessage(error) },
     }
+    return layer
   }
   if (text === undefined) {
-    return { fileId: file.fileId, path: file.path, content: { kind: 'missing' } }
+    const layer: McpConfigLayer = {
+      fileId: file.fileId,
+      path: file.path,
+      content: { kind: 'missing' },
+    }
+    return layer
   }
   // An empty file is an empty configuration, as an editor may leave it.
   if (!text.trim()) {
-    return { fileId: file.fileId, path: file.path, content: { kind: 'parsed', value: {} } }
+    const layer: McpConfigLayer = {
+      fileId: file.fileId,
+      path: file.path,
+      content: { kind: 'parsed', value: {} },
+    }
+    return layer
   }
   try {
     const value: unknown = JSON.parse(text)
-    return { fileId: file.fileId, path: file.path, content: { kind: 'parsed', value } }
+    const layer: McpConfigLayer = {
+      fileId: file.fileId,
+      path: file.path,
+      content: { kind: 'parsed', value },
+    }
+    return layer
   } catch (error) {
-    return {
+    const layer: McpConfigLayer = {
       fileId: file.fileId,
       path: file.path,
       content: { kind: 'unreadable', error: errorMessage(error) },
     }
+    return layer
   }
 }
 
 export function readMcpConfigLayers(
   files: readonly McpConfigFileLocation[],
   reader: McpConfigFileReader = nodeMcpConfigFileReader,
-): McpConfigLayer[] {
-  return files.map((file) => readLayer(file, reader))
+) {
+  return files.map((file) => readLayer(file, reader)) satisfies McpConfigLayer[]
 }

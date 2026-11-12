@@ -30,10 +30,7 @@ type WaitRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { readonly operation: 'wait' }>
 }
 
-function response(
-  request: SessionQueryRequest,
-  outcome: SessionQueryResponse['outcome'],
-): SessionQueryResponse {
+function response(request: SessionQueryRequest, outcome: SessionQueryResponse['outcome']) {
   return { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: request.requestId, outcome }
 }
 
@@ -130,7 +127,7 @@ async function wait(
     readonly signal?: AbortSignal
     readonly request: WaitRequest
   },
-): Promise<SessionQueryResponse> {
+) {
   const runtime = getSessionHostEventRuntime()
   const releaseLiveness = acquireWaitLiveness(runtime.liveness)
   const snapshotCursor = runtime.eventHub.cursor()

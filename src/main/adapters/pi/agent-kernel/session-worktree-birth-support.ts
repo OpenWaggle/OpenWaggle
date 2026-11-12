@@ -7,10 +7,7 @@ import {
   releaseWorkspaceHandoffSeed,
 } from '../../git/workspace-handoff-snapshot'
 
-export function fallbackWorkspace(
-  session: SessionDetail,
-  primaryPath: string,
-): BoundWorkspaceResource {
+export function fallbackWorkspace(session: SessionDetail, primaryPath: string) {
   const sessionId = String(session.id)
   return {
     id: sessionId,
@@ -24,13 +21,10 @@ export function fallbackWorkspace(
     handoffSeedRef: null,
     handoffSeedBaseRef: null,
     handoffSeedState: 'none',
-  }
+  } satisfies BoundWorkspaceResource
 }
 
-export async function isWorktreeOf(
-  repositoryPath: string,
-  candidatePath: string,
-): Promise<boolean> {
+export async function isWorktreeOf(repositoryPath: string, candidatePath: string) {
   const [candidate, primary] = await Promise.all([
     runGit(candidatePath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
     runGit(repositoryPath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),

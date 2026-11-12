@@ -7,11 +7,7 @@ import {
 } from '@shared/types/mcp-registry'
 import { type McpCliJsonCommand, mcpCliJsonResponse } from './mcp-cli-io'
 import { McpCliUsageError, type McpManagementArguments } from './mcp-cli-management-arguments'
-import {
-  MCP_MANAGEMENT_EXIT,
-  type McpManagementCommandInput,
-  type McpManagementExit,
-} from './mcp-cli-management-context'
+import { MCP_MANAGEMENT_EXIT, type McpManagementCommandInput } from './mcp-cli-management-context'
 import { mcpCliExposureOption } from './mcp-cli-management-exposure'
 import { projectOptionOf } from './mcp-cli-management-list'
 
@@ -197,9 +193,7 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }
 
-export async function registryCommand(
-  input: McpManagementCommandInput,
-): Promise<McpManagementExit> {
+export async function registryCommand(input: McpManagementCommandInput) {
   const [action = 'search', ...rest] = input.args.positional
   if (action === 'search') return searchCommand(input, rest)
   if (action === 'get') return getCommand(input, rest)

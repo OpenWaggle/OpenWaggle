@@ -43,11 +43,11 @@ vi.mock('../session-manager', () => ({
   requireSessionProjectPath: runMocks.resolveSessionWorkingPath,
 }))
 
-function runtimePackage(): RuntimeEnabledOpenWaggleExtensionPackage {
+function runtimePackage() {
   const packagePath = '/repo/.openwaggle/extensions/sample-runtime-extension'
   const scope = { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: '/repo' } as const
 
-  return {
+  const result: RuntimeEnabledOpenWaggleExtensionPackage = {
     packagePath,
     extensionPackage: {
       id: 'sample-runtime-extension',
@@ -91,6 +91,7 @@ function runtimePackage(): RuntimeEnabledOpenWaggleExtensionPackage {
       updatedAt: 2,
     },
   }
+  return result
 }
 
 describe('Pi run OpenWaggle extension selection', () => {

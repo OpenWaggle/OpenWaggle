@@ -90,10 +90,10 @@ function fetchRemoteImage(rawUrl: string, createFetch?: (url: URL) => SecureMcpF
 
 export function createSecureSessionResourceImageFetcher(
   input: { readonly createFetch?: (url: URL) => SecureMcpFetch } = {},
-): SessionResourceImageFetcherShape {
+) {
   return {
     fetch: (url) => fetchRemoteImage(url, input.createFetch),
-  }
+  } satisfies SessionResourceImageFetcherShape
 }
 
 export const SecureSessionResourceImageFetcherLive = Layer.succeed(

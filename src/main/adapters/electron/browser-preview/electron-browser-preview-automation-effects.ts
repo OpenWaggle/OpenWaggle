@@ -17,9 +17,7 @@ export function browserPreviewAutomationSyncEffect<A>(run: () => A) {
   return Effect.try({ try: run, catch: toError })
 }
 
-export function createBrowserPreviewAutomationAccessGuard(
-  settings: SettingsServiceShape,
-): BrowserPreviewAutomationAccessGuard {
+export function createBrowserPreviewAutomationAccessGuard(settings: SettingsServiceShape) {
   return function withAgentAccess<A>(operation: Effect.Effect<A, Error>) {
     return settings.get().pipe(
       Effect.catchAllCause(() =>

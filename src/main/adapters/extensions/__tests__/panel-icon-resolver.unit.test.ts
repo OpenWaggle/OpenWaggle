@@ -245,11 +245,12 @@ describe('extension panel icon resolver', () => {
   })
 
   it('caches deterministic failures such as a missing file or an unusable SVG', async () => {
-    const readIconFile = vi.fn(
-      async (_packagePath: string, relativePath: string): Promise<PanelIconFileRead> =>
-        relativePath === 'missing.svg'
-          ? { ok: false, message: 'The SVG icon file does not exist.', retryable: false }
-          : { ok: true, source: '<svg viewBox="0 0 1 1"><g/></svg>' },
+    const readIconFile = vi.fn<
+      (_packagePath: string, relativePath: string) => Promise<PanelIconFileRead>
+    >(async (_packagePath: string, relativePath: string) =>
+      relativePath === 'missing.svg'
+        ? { ok: false, message: 'The SVG icon file does not exist.', retryable: false }
+        : { ok: true, source: '<svg viewBox="0 0 1 1"><g/></svg>' },
     )
     const resolver = createExtensionPanelIconResolver({ readIconFile })
 

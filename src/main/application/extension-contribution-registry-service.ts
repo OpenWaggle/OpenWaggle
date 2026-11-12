@@ -2,7 +2,6 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
-  ExtensionDiagnosticView,
   ExtensionListContributionsInput,
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
@@ -46,9 +45,7 @@ function normalizeSessionId(sessionId: string | undefined) {
   return normalized && normalized.length > 0 ? normalized : undefined
 }
 
-function diagnosticsToView(
-  diagnostics: readonly ExtensionDiagnostic[],
-): readonly ExtensionDiagnosticView[] {
+function diagnosticsToView(diagnostics: readonly ExtensionDiagnostic[]) {
   return diagnostics.map((diagnostic) => ({
     severity: diagnostic.severity,
     code: diagnostic.code,
@@ -61,7 +58,7 @@ function unavailableProjectOverrideLookup(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly projectPath: string
   readonly error: unknown
-}): ExtensionContributionProjectOverrideLookup {
+}) {
   return {
     projectPath: input.projectPath,
     projectOverride: { disabled: true },
@@ -73,7 +70,7 @@ function unavailableProjectOverrideLookup(input: {
         path: input.projectPath,
       }),
     ],
-  }
+  } satisfies ExtensionContributionProjectOverrideLookup
 }
 
 function loadProjectOverride(

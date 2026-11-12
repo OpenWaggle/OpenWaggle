@@ -32,33 +32,35 @@ const caller: LocalSessionCallerIdentity = {
   },
 }
 
-function waitPayload(operation: 'wait' | 'exports-wait'): LocalSessionCommandPayload {
-  return operation === 'wait'
-    ? {
-        contract: 'session-query-v2',
-        request: {
-          contractVersion: 2,
-          requestId: 'wait-request',
-          query: {
-            operation: 'wait',
-            targets: [{ sessionId: 'worker', condition: 'idle' }],
-            timeoutMs: 1_000,
+function waitPayload(operation: 'wait' | 'exports-wait') {
+  return (
+    operation === 'wait'
+      ? {
+          contract: 'session-query-v2',
+          request: {
+            contractVersion: 2,
+            requestId: 'wait-request',
+            query: {
+              operation: 'wait',
+              targets: [{ sessionId: 'worker', condition: 'idle' }],
+              timeoutMs: 1_000,
+            },
           },
-        },
-      }
-    : {
-        contract: 'session-query-v2',
-        request: {
-          contractVersion: 2,
-          requestId: 'export-wait-request',
-          query: {
-            operation: 'exports-wait',
-            sessionId: 'worker',
-            exportOperationId: 'export-1',
-            timeoutMs: 1_000,
+        }
+      : {
+          contract: 'session-query-v2',
+          request: {
+            contractVersion: 2,
+            requestId: 'export-wait-request',
+            query: {
+              operation: 'exports-wait',
+              sessionId: 'worker',
+              exportOperationId: 'export-1',
+              timeoutMs: 1_000,
+            },
           },
-        },
-      }
+        }
+  ) satisfies LocalSessionCommandPayload
 }
 
 function testLayer(input: {

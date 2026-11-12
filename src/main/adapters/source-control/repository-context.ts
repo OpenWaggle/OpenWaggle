@@ -44,7 +44,7 @@ function trimTrailingSlash(pathname: string) {
 export function resolveRepositoryChangeRequestIdentity(
   repository: SourceControlRepositoryIdentity,
   rawUrl: string,
-): RepositoryChangeRequestIdentity | null {
+) {
   try {
     const expected = new URL(`https://${repository.host}${repositoryPath(repository)}`)
     const requested = new URL(rawUrl)
@@ -76,7 +76,7 @@ export function resolveRepositoryChangeRequestIdentity(
 export function repositoryBoundChangeRequestReference(
   repository: SourceControlRepositoryIdentity,
   reference: string,
-): string | null {
+) {
   const trimmed = reference.trim()
   if (!trimmed) return null
   if (!/^[a-z][a-z0-9+.-]*:\/\//iu.test(trimmed)) return trimmed

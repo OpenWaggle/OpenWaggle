@@ -39,7 +39,7 @@ export function titleSourceMessages(messages: readonly Message[]) {
 }
 
 /** Reasoning and tool traces are working notes, not what the Session is about, so they are dropped. */
-export function toSessionTitleContextMessage(message: Message): SessionTitleContextMessage {
+export function toSessionTitleContextMessage(message: Message) {
   return {
     role: message.role,
     text: getMessageText(message),

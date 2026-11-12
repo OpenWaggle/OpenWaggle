@@ -3,7 +3,7 @@ const FRAME_DELIVERY_TIMEOUT_MS = 1_000
 
 type PictureInPictureOperation = 'load' | 'frame-delivery'
 
-export function buildBrowserPreviewPictureInPictureUrl(): string {
+export function buildBrowserPreviewPictureInPictureUrl() {
   const html = `<!doctype html>
 <html>
   <head>
@@ -46,7 +46,7 @@ export function boundedPictureInPictureOperation<A>(
   pending: PromiseLike<A>,
   signal: AbortSignal,
   operation: PictureInPictureOperation,
-): Promise<A> {
+) {
   if (signal.aborted) return Promise.reject(cancellationError(signal))
   return new Promise<A>((resolve, reject) => {
     let settled = false

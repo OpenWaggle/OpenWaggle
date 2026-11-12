@@ -93,12 +93,14 @@ async function writeRecords(records: readonly unknown[], format: ExportFormat) {
   }
 }
 
-function requestedFormat(arguments_: ParsedArguments): ExportFormat {
+function requestedFormat(arguments_: ParsedArguments) {
   const selected = arguments_.options.get('format')?.at(-1)
   if (selected && selected !== 'jsonl' && selected !== 'markdown') {
     throw new Error('Unsupported export format. Expected markdown or jsonl.')
   }
-  return hasFlag(arguments_, 'jsonl') || selected === 'jsonl' ? 'jsonl' : 'markdown'
+  return hasFlag(arguments_, 'jsonl') || selected === 'jsonl'
+    ? ('jsonl' as const)
+    : ('markdown' as const)
 }
 
 export function continuationQuery(input: {

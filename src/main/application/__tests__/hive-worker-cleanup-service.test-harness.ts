@@ -65,7 +65,7 @@ export function bindWorkerWorkspace(sql: SqlClient.SqlClient, sessionIds: readon
   })
 }
 
-export function runningService(): ActionRun {
+export function runningService() {
   return fromPartial<ActionRun>({
     id: 'action-run-dev',
     workspaceId: 'workspace-worker',

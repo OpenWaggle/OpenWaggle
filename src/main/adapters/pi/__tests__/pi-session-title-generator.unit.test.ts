@@ -20,7 +20,7 @@ function model(
     readonly reasoning?: boolean
     readonly image?: boolean
   } = {},
-): Model<Api> {
+) {
   return fromPartial({
     id,
     provider: options.provider ?? 'anthropic',
@@ -28,7 +28,7 @@ function model(
     input: options.image ? ['image'] : ['text', 'image'],
     cost: { input, output, cacheRead: 0, cacheWrite: 0 },
     maxTokens: 8_192,
-  })
+  }) satisfies Model<Api>
 }
 
 describe('selectAutomaticTitleModel', () => {

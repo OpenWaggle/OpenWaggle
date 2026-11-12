@@ -253,7 +253,7 @@ function registerWorkspaceFileMutationHandlers() {
   )
 }
 
-export function registerWorkspaceFileHandlers(): void {
+export function registerWorkspaceFileHandlers() {
   registerWorkspaceFileReadHandlers()
   registerWorkspaceFileMutationHandlers()
 }

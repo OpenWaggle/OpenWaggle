@@ -27,7 +27,7 @@ export function taskReadError(source: string, error: unknown) {
   return { source, message: error instanceof Error ? error.message : String(error) }
 }
 
-export function isInvocableTaskName(name: string): boolean {
+export function isInvocableTaskName(name: string) {
   return name.trim().length > 0 && !name.startsWith('-') && !/[\0\r\n]/.test(name)
 }
 

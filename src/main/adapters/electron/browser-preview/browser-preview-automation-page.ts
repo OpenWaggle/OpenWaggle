@@ -4,9 +4,7 @@ import { sendBrowserPreviewOwnerEvent } from './browser-preview-owner-events'
 import type { BrowserPreviewRecord } from './browser-preview-records'
 
 /** Canonical controller identity shared by user controls and Pi automation. */
-export function browserPreviewAutomationPage(
-  record: BrowserPreviewRecord,
-): BrowserPreviewAutomationPage {
+export function browserPreviewAutomationPage(record: BrowserPreviewRecord) {
   return {
     tabId: `${String(record.owner.sender.id)}:${record.previewId}`,
     contents: record.view.webContents,
@@ -21,5 +19,5 @@ export function browserPreviewAutomationPage(
         payload: record.state,
       })
     },
-  }
+  } satisfies BrowserPreviewAutomationPage
 }

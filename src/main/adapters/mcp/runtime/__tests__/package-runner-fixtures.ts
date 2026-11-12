@@ -30,14 +30,14 @@ export function runnerCache(name = '@scope/server', bin: unknown = { server: 'di
   return { binDirectory, script: path.join(packageDir, 'dist', 'cli.js') }
 }
 
-export function memoryStore(): PackageBinStore {
+export function memoryStore() {
   let saved: Record<string, ResolvedPackageBin> = {}
   return {
     load: () => ({ ...saved }),
     save: (entries) => {
       saved = { ...entries }
     },
-  }
+  } satisfies PackageBinStore
 }
 
 export const launchInput = {

@@ -187,7 +187,7 @@ async function execute(
   requestId: string,
   ctx: ExtensionContext,
   signal?: AbortSignal,
-): Promise<unknown> {
+) {
   signal?.throwIfAborted()
   assertProjectActionArguments(params)
   const bound = await Effect.runPromise(input.workspaces.getBound(SessionId(input.sessionId)))
@@ -224,10 +224,8 @@ async function execute(
 const PROJECT_ACTIONS_RULE =
   "This Workspace's saved project actions and dev servers (project_actions: list, start, output, stop) load with tool_search or run from codemode."
 
-export function createProjectActionsToolExtension(
-  input: ProjectActionToolInput,
-): SynchronousExtensionFactory {
-  return (pi) => {
+export function createProjectActionsToolExtension(input: ProjectActionToolInput) {
+  return ((pi) => {
     onDemandToolRegistration(pi).registerTool({
       name: 'project_actions',
       label: 'Project Actions',
@@ -254,5 +252,5 @@ export function createProjectActionsToolExtension(
       },
     })
     announceOnDemandTools(pi, { rule: PROJECT_ACTIONS_RULE })
-  }
+  }) satisfies SynchronousExtensionFactory
 }

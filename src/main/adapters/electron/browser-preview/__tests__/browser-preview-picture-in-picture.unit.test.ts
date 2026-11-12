@@ -5,7 +5,7 @@ import type {
   NativeImage,
   WebContents,
 } from 'electron'
-import { afterEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../../desktop-ui', () => ({
   isAutomationMode: () => false,
@@ -20,15 +20,7 @@ const { BrowserPreviewPictureInPictureController, fitBrowserPreviewPictureInPict
 const { buildBrowserPreviewPictureInPictureUrl } =
   await import('../browser-preview-picture-in-picture-operation')
 
-interface WindowFixture {
-  readonly closeEvent: () => void
-  readonly executeJavaScript: Mock<() => Promise<unknown>>
-  readonly loadURL: Mock<() => Promise<void>>
-  readonly showInactive: ReturnType<typeof vi.fn>
-  readonly window: BrowserWindow
-}
-
-function makeWindowFixture(): WindowFixture {
+function makeWindowFixture() {
   let destroyed = false
   let closedListener: (() => void) | null = null
   const executeJavaScript = vi.fn<() => Promise<unknown>>(async () => true)

@@ -39,24 +39,30 @@ const jsonSchemaKeywordsSchema = Schema.Struct({
 export type JsonSchemaKeywords = SchemaType<typeof jsonSchemaKeywordsSchema>
 
 /** The keywords of a schema object this code reads. */
-export function keywordsOf(schema: object): JsonSchemaKeywords {
-  return decodeUnknownOrThrow(jsonSchemaKeywordsSchema, schema)
+export function keywordsOf(schema: object) {
+  const keywords: JsonSchemaKeywords = decodeUnknownOrThrow(jsonSchemaKeywordsSchema, schema)
+  return keywords
 }
 
-export function propertiesOf(schema: JsonSchemaObject): JsonSchemaObject {
+export function propertiesOf(schema: JsonSchemaObject) {
   const { properties } = keywordsOf(schema)
-  return isJsonSchemaObject(properties) ? properties : {}
+  const object: JsonSchemaObject = isJsonSchemaObject(properties) ? properties : {}
+  return object
 }
 
-export function requiredOf(schema: JsonSchemaObject): string[] {
+export function requiredOf(schema: JsonSchemaObject) {
   const { required } = keywordsOf(schema)
-  return Array.isArray(required)
+  const result: string[] = Array.isArray(required)
     ? required.filter((key): key is string => typeof key === 'string')
     : []
+  return result
 }
 
-export function schemaArray(value: unknown): JsonSchemaObject[] | undefined {
-  return Array.isArray(value) ? value.filter(isJsonSchemaObject) : undefined
+export function schemaArray(value: unknown) {
+  const object: JsonSchemaObject[] | undefined = Array.isArray(value)
+    ? value.filter(isJsonSchemaObject)
+    : undefined
+  return object
 }
 
 export const LOCAL_POINTER_PREFIX = '#/'
@@ -66,23 +72,26 @@ export const LOCAL_POINTER_PREFIX = '#/'
  * and malformed escapes. RFC 6901 §6: percent-decode the fragment first, then split, then
  * unescape `~1` and `~0`, so `%2F` is a separator and a literal `/` must be written `~1`.
  */
-export function decodePointerSegments(reference: string): string[] | undefined {
+export function decodePointerSegments(reference: string) {
   if (!reference.startsWith(LOCAL_POINTER_PREFIX)) return undefined
   try {
-    return decodeURIComponent(reference.slice(LOCAL_POINTER_PREFIX.length))
+    const result: string[] | undefined = decodeURIComponent(
+      reference.slice(LOCAL_POINTER_PREFIX.length),
+    )
       .split('/')
       .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
+    return result
   } catch {
     return undefined
   }
 }
 
 /** Resolves a local JSON pointer (`#/...`) in `document`, or `undefined` when it does not. */
-export function resolvePointer(
-  document: JsonSchemaObject,
-  reference: string,
-): JsonSchemaObject | undefined {
-  if (reference === '#') return document
+export function resolvePointer(document: JsonSchemaObject, reference: string) {
+  if (reference === '#') {
+    const object: JsonSchemaObject | undefined = document
+    return object
+  }
   const segments = decodePointerSegments(reference)
   if (!segments) return undefined
   let current: unknown = document
@@ -90,5 +99,6 @@ export function resolvePointer(
     if (!isJsonSchemaObject(current)) return undefined
     current = current[segment]
   }
-  return isJsonSchemaObject(current) ? current : undefined
+  const object: JsonSchemaObject | undefined = isJsonSchemaObject(current) ? current : undefined
+  return object
 }

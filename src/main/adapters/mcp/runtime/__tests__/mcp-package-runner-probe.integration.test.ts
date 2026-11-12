@@ -50,7 +50,7 @@ async function exited(pid: number) {
 }
 
 /** What the probe's child needs to start, on each platform. */
-function probeEnvironment(): Record<string, string> {
+function probeEnvironment() {
   return Object.fromEntries(
     Object.entries(getSafeChildEnv()).flatMap(([name, value]) =>
       value === undefined ? [] : [[name, value]],

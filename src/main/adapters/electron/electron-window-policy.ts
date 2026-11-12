@@ -136,22 +136,22 @@ export function browserWindowFromWebContents(webContents: WebContents) {
 }
 
 /** Electron's own object behind a renderer surface; in this adapter they are the same object. */
-export function electronWebContentsOf(surface: RendererSurface): WebContents | null {
+export function electronWebContentsOf(surface: RendererSurface) {
   return Electron.webContents.fromId(surface.id) ?? null
 }
 
 /** Electron's window behind a desktop window. */
-export function electronWindowOf(window: DesktopWindow): BrowserWindow | null {
+export function electronWindowOf(window: DesktopWindow) {
   return Electron.BrowserWindow.fromId(window.id)
 }
 
 /** Every Electron `WebContents` is a renderer surface; this only proves it to the compiler. */
-export function rendererSurfaceOf(contents: WebContents): RendererSurface {
+export function rendererSurfaceOf(contents: WebContents) {
   return contents
 }
 
 /** Every Electron `BrowserWindow` is a desktop window; this only proves it to the compiler. */
-export function desktopWindowOf(window: BrowserWindow): DesktopWindow {
+export function desktopWindowOf(window: BrowserWindow) {
   return window
 }
 

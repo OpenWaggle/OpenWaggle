@@ -1,4 +1,4 @@
-import type { AgentSession, PrecomputedCompaction } from '@earendil-works/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { PiCacheWarmingMode } from '@shared/types/settings'
 import type { PromptCacheWarming } from '../../../ports/prompt-cache-warming'
 import { currentOpenWagglePiAppSettings } from '../openwaggle-pi-app-settings'
@@ -60,11 +60,7 @@ export class IdleCacheWarming implements PromptCacheWarming {
   }
 
   /** Ends a Run's Pi session, or keeps it warming the prompt cache while the Session is idle. */
-  async settle(
-    sessionId: string,
-    session: AgentSession,
-    run: SettledRun,
-  ): Promise<'warming' | 'compacting' | 'disposed'> {
+  async settle(sessionId: string, session: AgentSession, run: SettledRun) {
     this.#end(sessionId)
     this.#pendingCompactions.delete(sessionId)
     if (!this.#mayWarm(sessionId, session, run)) {
@@ -74,18 +70,18 @@ export class IdleCacheWarming implements PromptCacheWarming {
     // The Session may have been archived, or warming turned off or stopped, during the shutdown.
     if (!this.#mayWarm(sessionId, session, run)) {
       session.dispose()
-      return 'disposed'
+      return 'disposed' as const
     }
     this.#keep(sessionId, session)
     logger.debug('Keeping the prompt cache warm between runs', { sessionId })
-    return 'warming'
+    return 'warming' as const
   }
 
   /**
    * The idle compaction to install before the Session's next Run, if one was computed and the
    * prompt cache it replaces has expired. Taken once: a Run that does not use it drops it.
    */
-  takeIdleCompaction(sessionId: string): PrecomputedCompaction | undefined {
+  takeIdleCompaction(sessionId: string) {
     const pending = this.#pendingCompactions.get(sessionId)
     this.#pendingCompactions.delete(sessionId)
     return idleCompactionToInstall(pending, this.#clock.now())
@@ -107,7 +103,7 @@ export class IdleCacheWarming implements PromptCacheWarming {
   }
 
   /** The warming session, for reads that would otherwise open the Session's Pi file again. */
-  borrow(sessionId: string): AgentSession | undefined {
+  borrow(sessionId: string) {
     const warming = this.#warmingBySessionId.get(sessionId)
     if (!warming) return undefined
     // Its view of the file is stale once another writer continued the Session.
@@ -175,22 +171,18 @@ export class IdleCacheWarming implements PromptCacheWarming {
     )
   }
 
-  async #settleForIdleCompaction(
-    sessionId: string,
-    session: AgentSession,
-    run: SettledRun,
-  ): Promise<'compacting' | 'disposed'> {
+  async #settleForIdleCompaction(sessionId: string, session: AgentSession, run: SettledRun) {
     const plan = this.#mayCompact(sessionId, run)
       ? planIdleCompaction(session, this.#clock.now(), this.#maxIdleMs)
       : undefined
     if (!plan) {
       await disposeOpenWagglePiSession(session)
-      return 'disposed'
+      return 'disposed' as const
     }
     await emitOpenWagglePiSessionShutdown(session)
     if (!this.#mayCompact(sessionId, run)) {
       session.dispose()
-      return 'disposed'
+      return 'disposed' as const
     }
     const kept = this.#keep(sessionId, session, { plan, abort: new AbortController() })
     if (kept.compaction) {
@@ -202,7 +194,7 @@ export class IdleCacheWarming implements PromptCacheWarming {
     logger.debug('Keeping the Pi session to compact it before its prompt cache expires', {
       sessionId,
     })
-    return 'compacting'
+    return 'compacting' as const
   }
 
   async #computeIdleCompaction(sessionId: string, kept: WarmingSession) {

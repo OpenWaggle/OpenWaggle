@@ -253,7 +253,7 @@ function registerAgentCompactionHandlers() {
   )
 }
 
-export function registerAgentHandlers(): void {
+export function registerAgentHandlers() {
   registerAgentRunHandlers()
   registerAgentInteractionHandlers()
   registerAgentStateHandlers()

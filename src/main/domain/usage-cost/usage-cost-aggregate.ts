@@ -65,13 +65,13 @@ interface MutableBucket {
   unpricedTokens: number
 }
 
-function newMutableBucket(): MutableBucket {
+function newMutableBucket() {
   return {
     tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     recordedCostUsd: 0,
     estimatedCostUsd: 0,
     unpricedTokens: 0,
-  }
+  } satisfies MutableBucket
 }
 
 function addTokens(target: MutableTokens, tokens: UsageCostRecordTokens) {
@@ -107,13 +107,13 @@ function recordInWindow(record: UsageCostRecord, rangeStartMs: number | null, ra
 }
 
 /** Local-timezone `YYYY-MM-DD` key, so days match the user's calendar. */
-export function localDayKey(timestampMs: number, now: Date): string {
+export function localDayKey(timestampMs: number, now: Date) {
   const offsetMs = now.getTimezoneOffset() * MS_PER_MINUTE
   const shifted = new Date(timestampMs - offsetMs)
   return shifted.toISOString().slice(0, ISO_DATE_LENGTH)
 }
 
-export function rangeStartForPreset(preset: UsageCostQuery['preset'], now: Date): number | null {
+export function rangeStartForPreset(preset: UsageCostQuery['preset'], now: Date) {
   if (preset === 'all') return null
   const days =
     preset === '7d' ? SEVEN_DAY_WINDOW : preset === '30d' ? THIRTY_DAY_WINDOW : NINETY_DAY_WINDOW
@@ -158,10 +158,7 @@ function displayPath(directory: string, homePath: string) {
   return leafDirectoryName(directory)
 }
 
-function projectIdentityFor(
-  session: UsageCostScanSession,
-  display: UsageCostDisplayContext,
-): { readonly key: string; readonly label: string; readonly detail: string | null } {
+function projectIdentityFor(session: UsageCostScanSession, display: UsageCostDisplayContext) {
   const key = session.resolvedProjectPath ?? session.cwd
   if (key === null) return { key: NO_PROJECT_KEY, label: UNKNOWN_LOCATION_LABEL, detail: null }
   if (display.temporaryRoots.includes(key)) {
@@ -183,7 +180,7 @@ export function aggregateUsageCostView(
   input: AggregateUsageCostViewInput,
   query: UsageCostQuery,
   now: Date,
-): UsageCostView {
+) {
   const rangeStartMs = rangeStartForPreset(query.preset, now)
   const rangeEndMs = now.getTime()
 
@@ -254,7 +251,7 @@ export function aggregateUsageCostView(
     scannedFiles: input.stats.scannedFiles,
     scannedFilesCached: input.stats.scannedFilesCached,
     scanDurationMs: input.stats.scanDurationMs,
-  }
+  } satisfies UsageCostView
 }
 
 /**
@@ -266,7 +263,7 @@ export function selectUsageCostSessions(
   input: AggregateUsageCostViewInput,
   query: UsageCostSessionQuery,
   now: Date,
-): UsageCostSessionRow[] {
+) {
   const rows: UsageCostSessionRow[] = []
   for (const session of input.sessions) {
     const row = sessionRowForQuery(session, query, input.display, now)
@@ -280,7 +277,7 @@ function sessionRowForQuery(
   query: UsageCostSessionQuery,
   display: UsageCostDisplayContext,
   now: Date,
-): UsageCostSessionRow | null {
+) {
   if (!recordMatchesOrigin(session.origin, query.origin)) return null
   if (query.projectPath !== undefined) {
     const expected = query.projectPath ?? NO_PROJECT_KEY

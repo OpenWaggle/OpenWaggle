@@ -54,14 +54,14 @@ export function buildAgentRunOutcome({
     agentResult.newMessages.map((message) => [String(message.id), String(message.id)]),
   ),
   resourceBranchIds = {},
-}: BuildAgentRunOutcomeInput): AgentRunResult {
+}: BuildAgentRunOutcomeInput) {
   const resources = { resourceMessages, resourceNodeIds, resourceBranchIds }
   if (signal.aborted || agentResult.aborted) {
     return {
       outcome: 'aborted',
       ...(resourceMessages.length > 0 ? resources : {}),
       ...(assignedTitle ? { assignedTitle } : {}),
-    }
+    } satisfies AgentRunResult
   }
   if (agentResult.terminalError) {
     return terminalErrorOutcome(agentResult.terminalError, {
@@ -70,21 +70,21 @@ export function buildAgentRunOutcome({
       model,
       ...(assignedTitle === undefined ? {} : { assignedTitle }),
       resources,
-    })
+    }) satisfies AgentRunResult
   }
   if (agentResult.newMessages.length === 0) {
     return {
       outcome: 'aborted',
       ...(resourceMessages.length > 0 ? resources : {}),
       ...(assignedTitle ? { assignedTitle } : {}),
-    }
+    } satisfies AgentRunResult
   }
   return {
     outcome: 'success',
     newMessages: agentResult.newMessages,
     ...resources,
     ...(assignedTitle ? { assignedTitle } : {}),
-  }
+  } satisfies AgentRunResult
 }
 
 /*
@@ -139,13 +139,14 @@ export function recoverAgentRunFailure({
   model,
   reachedAgent = false,
   resources,
-}: BuildAgentRunFailureInput): Effect.Effect<AgentRunResult> {
+}: BuildAgentRunFailureInput) {
   if (isRunCancellation(error, signal)) {
-    return Effect.succeed({
+    const effect: Effect.Effect<AgentRunResult> = Effect.succeed({
       outcome: 'aborted' as const,
       ...(resources && resources.resourceMessages.length > 0 ? resources : {}),
       ...(assignedTitle ? { assignedTitle } : {}),
     })
+    return effect
   }
   const { classified, detail } = classifyRunFailure(error, reachedAgent)
   logger.error('Agent run failed before terminal transport event', {
@@ -156,7 +157,7 @@ export function recoverAgentRunFailure({
     error: detail,
     ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
   })
-  return Effect.succeed({
+  const effect: Effect.Effect<AgentRunResult> = Effect.succeed({
     outcome: 'error' as const,
     // The renderer derives the headline from `code`; the message is the detail it shows under it.
     message: userFacingErrorDetail(classified.message),
@@ -171,6 +172,7 @@ export function recoverAgentRunFailure({
     ...(resources && resources.resourceMessages.length > 0 ? resources : {}),
     ...(assignedTitle ? { assignedTitle } : {}),
   })
+  return effect
 }
 
 function terminalErrorOutcome(
@@ -182,7 +184,7 @@ function terminalErrorOutcome(
     readonly assignedTitle?: string
     readonly resources: PersistedRunResourceNodes
   },
-): AgentRunResult {
+) {
   const classified = classifyAgentError(new Error(terminalError))
   logger.error('Agent run ended with terminal error', {
     sessionId: context.sessionId,
@@ -198,5 +200,5 @@ function terminalErrorOutcome(
     transportEmitted: true,
     ...(context.resources.resourceMessages.length > 0 ? context.resources : {}),
     ...(context.assignedTitle ? { assignedTitle: context.assignedTitle } : {}),
-  }
+  } satisfies AgentRunResult
 }

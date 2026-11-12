@@ -86,7 +86,7 @@ const PAYLOADS = {
 
 const STALLED_PROJECT_PATH = path.join(PROJECT_PATH, 'openwaggle-stalled-project')
 
-function stalledSearchPayload(): SessionQueryPayload {
+function stalledSearchPayload() {
   return {
     ...PAYLOADS.search,
     request: {

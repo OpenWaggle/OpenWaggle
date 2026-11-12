@@ -50,9 +50,16 @@ export interface GitPullResult {
   readonly message: string
 }
 
-async function currentBranch(
-  projectPath: string,
-): Promise<{ readonly ok: true; readonly branch: string | null } | { readonly ok: false }> {
+type PushDestinationRead =
+  | { readonly ok: true; readonly destination: GitPushDestination; readonly pushUrls: string[] }
+  | { readonly ok: false; readonly message: string }
+
+function failedPush(code: GitPushResult['code'], message: string) {
+  const result: GitPushResult = { ok: false, code, message }
+  return result
+}
+
+async function currentBranch(projectPath: string) {
   const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
   if (result.code !== 0) {
     return result.executionFailed === true || result.stderr.trim()
@@ -62,14 +69,7 @@ async function currentBranch(
   return { ok: true, branch: result.stdout.trim() || null }
 }
 
-async function resolvePushDestination(
-  projectPath: string,
-  remote: string,
-  branch: string,
-): Promise<
-  | { readonly ok: true; readonly destination: GitPushDestination; readonly pushUrls: string[] }
-  | { readonly ok: false; readonly message: string }
-> {
+async function resolvePushDestination(projectPath: string, remote: string, branch: string) {
   const result = await runGit(projectPath, ['remote', 'get-url', '--push', '--all', remote])
   if (result.code !== 0) {
     const detail = result.stderr.trim()
@@ -78,7 +78,7 @@ async function resolvePushDestination(
       message: detail
         ? `Could not read the Git push destination: ${detail}`
         : 'Could not read the Git push destination.',
-    }
+    } satisfies PushDestinationRead
   }
   const remoteUrls = [
     ...new Set(
@@ -97,23 +97,23 @@ async function resolvePushDestination(
       remoteUrl: remoteUrls.length === 1 ? (remoteUrls[0] ?? null) : null,
       multiplePushUrls: remoteUrls.length > 1,
     },
-  }
+  } satisfies PushDestinationRead
 }
 
-function successfulPush(destination: GitPushDestination, message: string): GitPushResult {
+function successfulPush(destination: GitPushDestination, message: string) {
   return {
     ok: true,
     code: 'ok',
     message,
     destination,
-  }
+  } satisfies GitPushResult
 }
 
 async function readPushRefWithFallback(
   projectPath: string,
   branch: string,
   firstPushRemote: string | undefined,
-): Promise<GitPushRefReadResult> {
+) {
   const configuredPushRef = await readPushRef(projectPath, branch)
   if (!configuredPushRef.ok || configuredPushRef.upstream) return configuredPushRef
 
@@ -182,33 +182,31 @@ async function pushResolvedRef(
   pushRef: GitUpstreamRef,
   shouldSetUpstream: boolean,
   pinnedTarget: GitPinnedPushTarget | undefined,
-): Promise<GitPushResult> {
+) {
   const destinationResult = await resolvePushDestination(
     projectPath,
     pushRef.remote,
     pushRef.branch,
   )
   if (!destinationResult.ok) {
-    return { ok: false, code: 'push-failed', message: destinationResult.message }
+    return failedPush('push-failed', destinationResult.message)
   }
   if (pinnedTarget && !pushUrlsMatch(destinationResult.pushUrls, pinnedTarget.pushUrls)) {
-    return {
-      ok: false,
-      code: 'push-failed',
-      message: 'The Git push URL changed after the destination was confirmed.',
-    }
+    return failedPush(
+      'push-failed',
+      'The Git push URL changed after the destination was confirmed.',
+    )
   }
   if (pinnedTarget?.pushUrls.length === 0) {
-    return {
-      ok: false,
-      code: 'push-failed',
-      message: 'Could not resolve a Git push URL for the approved destination.',
-    }
+    return failedPush(
+      'push-failed',
+      'Could not resolve a Git push URL for the approved destination.',
+    )
   }
 
   const pinnedConfig = pinnedPushUrlConfig(pinnedTarget)
   if (!pinnedConfig.ok) {
-    return { ok: false, code: 'push-failed', message: pinnedConfig.message }
+    return failedPush('push-failed', pinnedConfig.message)
   }
   const pushArgs = shouldSetUpstream
     ? ['push', '-u', pushRef.remote, `HEAD:refs/heads/${pushRef.branch}`]
@@ -231,7 +229,7 @@ async function pushResolvedRef(
           ? `Pushed and set upstream to ${pushRef.remote}/${pushRef.branch}.`
           : `Pushed to ${pushRef.remote}/${pushRef.branch}.`,
       )
-    : { ok: false, code: 'push-failed', message: result.stderr.trim() || 'Failed to push.' }
+    : failedPush('push-failed', result.stderr.trim() || 'Failed to push.')
 }
 
 /** Push the current branch, setting upstream to the selected remote on first push. */
@@ -239,26 +237,25 @@ export async function pushCurrentBranch(
   projectPath: string,
   firstPushRemote?: string,
   pinnedTarget?: GitPinnedPushTarget,
-): Promise<GitPushResult> {
+) {
   if (!(await isGitRepository(projectPath))) {
-    return { ok: false, code: 'not-git-repo', message: 'Selected folder is not a Git repository.' }
+    return failedPush('not-git-repo', 'Selected folder is not a Git repository.')
   }
 
   const branchResult = await currentBranch(projectPath)
   if (!branchResult.ok) {
-    return { ok: false, code: 'push-failed', message: 'Could not read the current Git branch.' }
+    return failedPush('push-failed', 'Could not read the current Git branch.')
   }
   const branch = branchResult.branch
   if (!branch) {
-    return { ok: false, code: 'no-upstream', message: 'Cannot push a detached HEAD.' }
+    return failedPush('no-upstream', 'Cannot push a detached HEAD.')
   }
 
   if (pinnedTarget && pinnedTarget.sourceBranch !== branch) {
-    return {
-      ok: false,
-      code: 'push-failed',
-      message: 'The current branch changed after the Git destination was confirmed.',
-    }
+    return failedPush(
+      'push-failed',
+      'The current branch changed after the Git destination was confirmed.',
+    )
   }
 
   const pushRefResult: GitPushRefReadResult = pinnedTarget
@@ -271,15 +268,15 @@ export async function pushCurrentBranch(
     : await readPushRefWithFallback(projectPath, branch, firstPushRemote)
 
   if (!pushRefResult.ok) {
-    return { ok: false, code: 'push-failed', message: pushRefResult.message }
+    return failedPush('push-failed', pushRefResult.message)
   }
   if (!pushRefResult.upstream) {
-    return { ok: false, code: 'no-upstream', message: 'Could not resolve a Git push destination.' }
+    return failedPush('no-upstream', 'Could not resolve a Git push destination.')
   }
   const pushRef = pushRefResult.upstream
   const fetchUpstreamResult = await readUpstreamRef(projectPath, branch)
   if (!fetchUpstreamResult.ok) {
-    return { ok: false, code: 'push-failed', message: fetchUpstreamResult.message }
+    return failedPush('push-failed', fetchUpstreamResult.message)
   }
   const shouldSetUpstream = fetchUpstreamResult.upstream === null || pushRefResult.replacesUpstream
   return runWithGitNetworkLock(projectPath, () =>
@@ -288,9 +285,11 @@ export async function pushCurrentBranch(
 }
 
 /** Pull the current branch. */
-export async function pullCurrentBranch(projectPath: string): Promise<GitPullResult> {
+export async function pullCurrentBranch(projectPath: string) {
   const result = await pullCurrentBranchFastForward(projectPath)
-  return result.ok
-    ? { ok: true, code: 'ok', message: result.message }
-    : { ok: false, code: 'pull-failed', message: result.message }
+  return (
+    result.ok
+      ? { ok: true, code: 'ok', message: result.message }
+      : { ok: false, code: 'pull-failed', message: result.message }
+  ) satisfies GitPullResult
 }

@@ -7,8 +7,8 @@ const PROJECT_MCP_JSON = '/p/.mcp.json'
 const PROJECT_PI = '/p/.pi/mcp.json'
 const PROJECT_OW = '/p/.openwaggle/mcp.json'
 
-function layer(fileId: McpConfigLayer['fileId'], path: string, value: unknown): McpConfigLayer {
-  return { fileId, path, content: { kind: 'parsed', value } }
+function layer(fileId: McpConfigLayer['fileId'], path: string, value: unknown) {
+  return { fileId, path, content: { kind: 'parsed', value } } satisfies McpConfigLayer
 }
 
 function fileSet(input: {
@@ -17,7 +17,7 @@ function fileSet(input: {
   readonly projectMcpJson?: unknown
   readonly projectPi?: unknown
   readonly projectOpenwaggle?: unknown
-}): McpConfigLayer[] {
+}) {
   const missing = { kind: 'missing' } as const
   return [
     input.piGlobal === undefined
@@ -35,7 +35,7 @@ function fileSet(input: {
     input.projectOpenwaggle === undefined
       ? { fileId: 'project-openwaggle', path: PROJECT_OW, content: missing }
       : layer('project-openwaggle', PROJECT_OW, input.projectOpenwaggle),
-  ]
+  ] satisfies McpConfigLayer[]
 }
 
 describe('MCP configuration file merge', () => {

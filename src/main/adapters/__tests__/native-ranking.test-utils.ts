@@ -5,14 +5,12 @@ import { expect } from 'vitest'
 import type { DiscoverySearchRequest } from '../sqlite-session-discovery-window'
 import { lexicalFtsQuery, loadLexicalDiscoveryRows } from '../sqlite-session-lexical-search'
 
-export function nativeRankingRequest(
-  overrides: Partial<DiscoverySearchRequest['query']> = {},
-): DiscoverySearchRequest {
+export function nativeRankingRequest(overrides: Partial<DiscoverySearchRequest['query']> = {}) {
   return {
     contractVersion: SESSION_QUERY_CONTRACT_VERSION,
     requestId: 'native-ranking',
     query: { operation: 'search', query: 'markernative', mode: 'lexical', limit: 50, ...overrides },
-  }
+  } satisfies DiscoverySearchRequest
 }
 
 export function seedNativeRankingSessions(sql: SqlClient.SqlClient, count = 1200) {

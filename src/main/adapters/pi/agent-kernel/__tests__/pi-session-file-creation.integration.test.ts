@@ -19,7 +19,7 @@ const PRE_CREATED_PI_SESSION_ID = '0199b1c2-0000-7000-8000-00000000abcd'
 let home = ''
 let projectPath = ''
 
-function session(fields: Partial<SessionDetail>): SessionDetail {
+function session(fields: Partial<SessionDetail>) {
   return fromPartial<SessionDetail>({
     projectPath,
     environmentMode: 'local',

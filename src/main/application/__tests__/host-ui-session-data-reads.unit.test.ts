@@ -25,7 +25,7 @@ const { dispatchHostBackedSessionGuiOperation } =
 
 const SESSION = SessionId('session-1')
 
-function node(id: string, parentId: string | null, order: number): SessionNode {
+function node(id: string, parentId: string | null, order: number) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION,
@@ -44,7 +44,7 @@ function node(id: string, parentId: string | null, order: number): SessionNode {
     },
     contentJson: '{"parts":[]}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 const nodes = [node('a', null, 0), node('b', 'a', 1), node('c', 'b', 2)]

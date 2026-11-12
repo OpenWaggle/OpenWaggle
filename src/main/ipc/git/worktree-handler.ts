@@ -6,7 +6,7 @@ import { hostHandle, typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
 import { listGitWorktrees } from './worktree-service'
 
-export function registerGitWorktreeHandlers(): void {
+export function registerGitWorktreeHandlers() {
   typedHandle('git:worktrees:list', (_event, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)

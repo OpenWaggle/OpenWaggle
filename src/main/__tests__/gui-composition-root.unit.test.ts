@@ -51,7 +51,7 @@ function importBase(fromFile: string, specifier: string) {
   return null
 }
 
-function resolveImport(fromFile: string, specifier: string): string | null {
+function resolveImport(fromFile: string, specifier: string) {
   const base = importBase(fromFile, specifier)
   if (base === null) return `package:${specifier}`
   for (const extension of ['', ...SOURCE_EXTENSIONS]) {

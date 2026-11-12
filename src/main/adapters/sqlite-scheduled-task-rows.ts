@@ -1,7 +1,6 @@
 import { decodeUnknownExactOrThrow, parseJsonUnknown } from '@shared/schema'
 import { decodeLocalSessionProfileManagementEnvelope } from '@shared/schemas/local-session-profile'
 import { decodeScheduledTaskTarget, decodeTaskSchedule } from '@shared/schemas/scheduled-task'
-import type { LocalSessionAuthorityLimits } from '@shared/types/local-session-profile'
 import {
   HEARTBEAT_AUTO_PAUSE_REASONS,
   HEARTBEAT_RUN_OUTCOMES,
@@ -10,17 +9,11 @@ import {
   SCHEDULED_TASK_ATTENTION_REASONS,
   SCHEDULED_TASK_RUN_REASONS,
   type ScheduledTaskAttention,
-  type ScheduledTaskCreator,
   type ScheduledTaskRun,
-  type ScheduledTaskRunOutcome,
 } from '@shared/types/scheduled-task'
 import { Schema } from 'effect'
 import { NO_AUTHORITY_LIMITS } from '../application/local-session-authority-limits'
 import { ScheduledTaskRepositoryError } from '../errors'
-import type {
-  ScheduledTaskRecord,
-  StoredHeartbeatWakeCheck,
-} from '../ports/scheduled-task-repository'
 
 export function repositoryError(operation: string) {
   return (cause: unknown) => new ScheduledTaskRepositoryError({ operation, cause })
@@ -113,7 +106,7 @@ const outcomeSchema = Schema.Literal(...HEARTBEAT_RUN_OUTCOMES)
 const outcomeSourceSchema = Schema.Literal('reported', 'inferred')
 const runWakeCheckSchema = Schema.Literal('idle', 'woke', 'failed')
 
-function creatorOf(row: ScheduledTaskRow): ScheduledTaskCreator {
+function creatorOf(row: ScheduledTaskRow) {
   return {
     kind: decodeUnknownExactOrThrow(creatorKindSchema, row.creator_kind),
     label: row.creator_label,
@@ -125,7 +118,7 @@ function creatorOf(row: ScheduledTaskRow): ScheduledTaskCreator {
  * Unreadable limits hold the task to nothing, so its runs are refused and it shows as needing
  * attention, rather than failing every read of the task list and with it every other task.
  */
-function authorityLimitsOf(row: ScheduledTaskRow): LocalSessionAuthorityLimits | null {
+function authorityLimitsOf(row: ScheduledTaskRow) {
   if (row.authority_limits_json === null) return null
   try {
     return decodeLocalSessionProfileManagementEnvelope(parseJsonUnknown(row.authority_limits_json))
@@ -134,16 +127,16 @@ function authorityLimitsOf(row: ScheduledTaskRow): LocalSessionAuthorityLimits |
   }
 }
 
-function attentionOf(row: ScheduledTaskRow): ScheduledTaskAttention | null {
+function attentionOf(row: ScheduledTaskRow) {
   if (row.attention_reason === null) return null
   return {
     reason: decodeUnknownExactOrThrow(attentionReasonSchema, row.attention_reason),
     message: row.attention_message ?? '',
     since: row.attention_since ?? row.updated_at,
-  }
+  } satisfies ScheduledTaskAttention
 }
 
-function wakeCheckOf(row: ScheduledTaskRow): StoredHeartbeatWakeCheck | null {
+function wakeCheckOf(row: ScheduledTaskRow) {
   if (row.wake_check_command === null) return null
   return {
     command: row.wake_check_command,
@@ -153,16 +146,16 @@ function wakeCheckOf(row: ScheduledTaskRow): StoredHeartbeatWakeCheck | null {
   }
 }
 
-function autoPauseOf(row: ScheduledTaskRow): HeartbeatAutoPause | null {
+function autoPauseOf(row: ScheduledTaskRow) {
   if (row.auto_pause_reason === null) return null
   return {
     reason: decodeUnknownExactOrThrow(autoPauseReasonSchema, row.auto_pause_reason),
     message: row.auto_pause_message ?? '',
     since: row.auto_paused_at ?? row.updated_at,
-  }
+  } satisfies HeartbeatAutoPause
 }
 
-export function decodeScheduledTaskRow(row: ScheduledTaskRow): ScheduledTaskRecord {
+export function decodeScheduledTaskRow(row: ScheduledTaskRow) {
   return {
     id: row.id,
     ownerKey: row.owner_key,
@@ -199,7 +192,7 @@ export function decodeScheduledTaskRow(row: ScheduledTaskRow): ScheduledTaskReco
   }
 }
 
-function runOutcomeOf(row: ScheduledTaskRunRow): ScheduledTaskRunOutcome | null {
+function runOutcomeOf(row: ScheduledTaskRunRow) {
   if (row.outcome === null) return null
   return {
     value: decodeUnknownExactOrThrow(outcomeSchema, row.outcome),
@@ -208,7 +201,7 @@ function runOutcomeOf(row: ScheduledTaskRunRow): ScheduledTaskRunOutcome | null 
   }
 }
 
-export function decodeScheduledTaskRunRow(row: ScheduledTaskRunRow): ScheduledTaskRun {
+export function decodeScheduledTaskRunRow(row: ScheduledTaskRunRow) {
   const outcome = runOutcomeOf(row)
   const status = decodeUnknownExactOrThrow(runStatusSchema, row.status)
   return {
@@ -228,5 +221,5 @@ export function decodeScheduledTaskRunRow(row: ScheduledTaskRunRow): ScheduledTa
       ? { wakeCheck: decodeUnknownExactOrThrow(runWakeCheckSchema, row.wake_check) }
       : {}),
     ...(outcome ? { outcome } : {}),
-  }
+  } satisfies ScheduledTaskRun
 }

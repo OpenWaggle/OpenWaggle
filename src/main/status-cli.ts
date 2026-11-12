@@ -2,10 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { isTaskScheduleJittered } from '@shared/domain/scheduled-tasks/task-schedule'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
-import {
-  SCHEDULED_TASKS_CONTRACT_VERSION,
-  type ScheduledTaskStatusSummary,
-} from '@shared/types/scheduled-task'
+import { SCHEDULED_TASKS_CONTRACT_VERSION } from '@shared/types/scheduled-task'
 import { SESSION_QUERY_CONTRACT_VERSION, type SessionQuery } from '@shared/types/session-query'
 import { STATUS_CLI_AGENT_REFUSAL } from './cli-agent-refusals'
 import { writeCliStdout } from './cli-stdout'
@@ -31,7 +28,6 @@ import {
   formatStatusReport,
   type HostProbe,
   mapWithConcurrency,
-  type StatusActiveRun,
   type StatusReport,
 } from './status-cli-report'
 
@@ -40,9 +36,7 @@ export {
   formatStatusReport,
   type HostProbe,
   mapWithConcurrency,
-  type StatusReport,
 } from './status-cli-report'
-
 export const STATUS_CLI_USAGE = `OpenWaggle status
 
 Show whether the background Session Host is running and which Runs are active.
@@ -130,10 +124,7 @@ export const defaultStatusCliDependencies: StatusCliDependencies = {
   writeStdout: writeCliStdout,
 }
 
-async function enabledScheduledTasks(
-  input: ClientInput,
-  dependencies: StatusCliDependencies,
-): Promise<readonly ScheduledTaskStatusSummary[] | null | undefined> {
+async function enabledScheduledTasks(input: ClientInput, dependencies: StatusCliDependencies) {
   if (!dependencies.listScheduledTasks) return undefined
   try {
     const result = await dependencies.listScheduledTasks(input)
@@ -175,7 +166,7 @@ async function describeActiveRun(
   input: ClientInput,
   run: BackgroundRunSnapshot,
   dependencies: StatusCliDependencies,
-): Promise<StatusActiveRun> {
+) {
   const [readOutcome, requestsOutcome, statusOutcome] = await Promise.all([
     lookup(input, { operation: 'read', sessionId: run.sessionId }, dependencies),
     lookup(input, { operation: 'requests-list', sessionId: run.sessionId }, dependencies),
@@ -203,22 +194,19 @@ async function describeActiveRun(
 }
 
 /** Ask whether a Session Host answers, without ever launching one. */
-export async function probeRunningHost(
-  input: ClientInput,
-  probe: StatusCliDependencies['probe'],
-): Promise<HostProbe> {
+export async function probeRunningHost(input: ClientInput, probe: StatusCliDependencies['probe']) {
   try {
     const negotiation = await probe(input)
-    return { state: 'running', ...negotiation }
+    return { state: 'running', ...negotiation } satisfies HostProbe
   } catch (error) {
     if (error instanceof LocalSessionHostUpgradePendingError) {
       return {
         state: 'upgrade-pending',
         hostInstanceId: error.hostInstanceId,
         blockingRuns: error.blockingRuns.length,
-      }
+      } satisfies HostProbe
     }
-    if (isLocalSessionHostUnavailable(error)) return { state: 'not-running' }
+    if (isLocalSessionHostUnavailable(error)) return { state: 'not-running' } satisfies HostProbe
     throw error
   }
 }
@@ -227,14 +215,14 @@ export async function probeRunningHost(
 export async function readStatusReport(
   arguments_: ParsedArguments,
   dependencies: StatusCliDependencies = defaultStatusCliDependencies,
-): Promise<StatusReport> {
+) {
   const version = dependencies.version()
   const input = await dependencies.prepareClientInput(arguments_, {
     agentRefusal: STATUS_CLI_AGENT_REFUSAL,
   })
   const host = await probeRunningHost(input, dependencies.probe)
-  if (host.state === 'not-running') return { version, host }
-  if (host.state === 'upgrade-pending') return { version, host }
+  if (host.state === 'not-running') return { version, host } satisfies StatusReport
+  if (host.state === 'upgrade-pending') return { version, host } satisfies StatusReport
   const snapshots = await dependencies.snapshotActiveRuns(input)
   const [activeRuns, scheduledTasks] = await Promise.all([
     mapWithConcurrency(snapshots, STATUS_LOOKUP_CONCURRENCY, (run) =>
@@ -251,7 +239,7 @@ export async function readStatusReport(
     },
     activeRuns: [...activeRuns].sort((left, right) => left.startedAt - right.startedAt),
     ...(scheduledTasks !== undefined ? { scheduledTasks } : {}),
-  }
+  } satisfies StatusReport
 }
 
 export async function runStatusCli(

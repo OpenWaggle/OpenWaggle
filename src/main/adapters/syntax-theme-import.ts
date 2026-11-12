@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { SyntaxResourceCatalog, SyntaxResourceScope } from '@shared/types/syntax-resources'
+import type { SyntaxResourceScope } from '@shared/types/syntax-resources'
 import type { SyntaxReadBudget } from './syntax-resource-import-utils'
 import {
   applySyntaxThemePreview,
@@ -20,7 +20,7 @@ export async function parseSyntaxThemeSource(
   filePath: string,
   scope: SyntaxResourceScope,
   readBudget?: SyntaxReadBudget,
-): Promise<SyntaxResourceCatalog> {
+) {
   const stats = await fs.stat(filePath)
   if (stats.isDirectory()) {
     return classifySyntaxSourceValidation(() =>

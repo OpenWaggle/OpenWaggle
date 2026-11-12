@@ -1,4 +1,3 @@
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { validateMcpCliPositionals } from './mcp-cli-positional-contract'
 
 export { formatMcpCliOutput, readSecretFromStdin } from './mcp-cli-io'
@@ -93,7 +92,7 @@ export function isFlagValue(value: string) {
 export function optionValueProblem(
   arguments_: ParsedArguments,
   booleanOptions: ReadonlySet<string>,
-): string | null {
+) {
   const missingValues = [...arguments_.options.entries()]
     .flatMap(([name, values]) =>
       !booleanOptions.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
@@ -131,7 +130,7 @@ function parseOption(args: readonly string[], index: number, options: Map<string
   return consumesNext ? OPTION_AND_VALUE_COUNT : NEXT_ARGUMENT_OFFSET
 }
 
-export function parseMcpCliArguments(args: readonly string[]): ParsedArguments {
+export function parseMcpCliArguments(args: readonly string[]) {
   const positionals: string[] = []
   const passthrough: string[] = []
   const options = new Map<string, string[]>()
@@ -149,7 +148,8 @@ export function parseMcpCliArguments(args: readonly string[]): ParsedArguments {
     }
     index += parseOption(args, index, options)
   }
-  return { positionals, passthrough, options }
+  const parsed: ParsedArguments = { positionals, passthrough, options }
+  return parsed
 }
 
 export function option(arguments_: ParsedArguments, name: string) {
@@ -177,7 +177,7 @@ export function validateMcpCliOptions(command: string, arguments_: ParsedArgumen
   if (command === 'serve') serveAuthorizationCeiling(arguments_)
 }
 
-export function serveAuthorizationCeiling(arguments_: ParsedArguments): AgentAuthorizationMode {
+export function serveAuthorizationCeiling(arguments_: ParsedArguments) {
   const value = option(arguments_, 'authorization-ceiling') ?? 'ask-for-approval'
   if (value === 'ask-for-approval' || value === 'yolo') return value
   throw new Error(

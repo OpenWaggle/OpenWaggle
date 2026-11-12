@@ -239,7 +239,7 @@ function visitCharacter(command: string, index: number, state: ScanState) {
 export function enableEscapedExecCapture(
   command: string,
   quotedBuiltinSyntax: QuotedBuiltinSyntax = { ansi: true, locale: true },
-): string {
+) {
   const state: ScanState = {
     result: '',
     quote: undefined,

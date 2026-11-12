@@ -124,14 +124,18 @@ async function resubscribe<Value>(
 }
 
 /** Reads the state; answers when it is missing, matches, or the wait is out of time. */
-async function observe<Value>(
-  input: SessionHostConditionWaitInput<Value>,
-  final: boolean,
-): Promise<SessionHostConditionObservation<Value> | undefined> {
+async function observe<Value>(input: SessionHostConditionWaitInput<Value>, final: boolean) {
   const value = await input.read()
-  if (value === null) return { status: 'missing' }
+  if (value === null) {
+    const observation: SessionHostConditionObservation<Value> | undefined = { status: 'missing' }
+    return observation
+  }
   if (final || input.matches(value) || Date.now() >= input.deadline) {
-    return { status: 'observed', value }
+    const observation: SessionHostConditionObservation<Value> = {
+      status: 'observed',
+      value,
+    }
+    return observation
   }
   return undefined
 }
@@ -149,7 +153,7 @@ async function observe<Value>(
  */
 export async function waitForSessionHostCondition<Value>(
   input: SessionHostConditionWaitInput<Value>,
-): Promise<SessionHostConditionObservation<Value>> {
+) {
   let subscription = subscribeOrUndefined(input, input.after)
   let consecutiveResyncs = subscription ? 0 : 1
   try {
@@ -168,7 +172,9 @@ export async function waitForSessionHostCondition<Value>(
         Math.max(0, input.deadline - Date.now()),
         input.signal,
       )
-      if (delivery.status === 'closed') return { status: 'host-stopped' }
+      if (delivery.status === 'closed') {
+        return { status: 'host-stopped' } satisfies SessionHostConditionObservation<Value>
+      }
       if (delivery.status === 'cursor-advanced') continue
       if (delivery.status === 'resync-required') {
         subscription.close()

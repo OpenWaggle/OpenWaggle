@@ -19,8 +19,8 @@ export function createDeliveryTracker(input: {
   readonly session: Pick<AgentSession, 'sessionManager' | 'getSteeringMessages'>
   readonly inFlightUserTexts: ReadonlyMap<string, number>
   readonly inFlightMessages: ReadonlyMap<object, string>
-}): DeliveryTracker {
-  return {
+}) {
+  const tracker: DeliveryTracker = {
     entriesBefore: input.session.sessionManager.getEntries().length,
     steerTextsBefore: [...(input.session.getSteeringMessages?.() ?? [])],
     inFlightUserTextsBefore: new Map(input.inFlightUserTexts),
@@ -29,6 +29,7 @@ export function createDeliveryTracker(input: {
       originalText,
     })),
   }
+  return tracker
 }
 
 /**
@@ -75,7 +76,7 @@ export function deliveryCandidate(tracker: DeliveryTracker, durableText: string)
 }
 
 /** The steer an ended Run would hand back, or nothing when Pi took it or it was settled. */
-function undeliveredSteer(entry: SteerLedgerEntry): UndeliveredSteer | undefined {
+function undeliveredSteer(entry: SteerLedgerEntry) {
   return (
     matchBy(entry.state, 'stage')
       .with('awaiting-handoff', () => ({ delivery: entry.delivery, handedOff: false }))
@@ -121,8 +122,9 @@ export function retainUndeliveredSteers(runId: string, ledger: readonly SteerLed
 }
 
 /** The steers an ended Run never started incorporating. They stay until `forget`. */
-export function readUndeliveredPiSteers(runId: string): readonly UndeliveredSteer[] {
-  return undeliveredSteersByRun.get(runId) ?? []
+export function readUndeliveredPiSteers(runId: string) {
+  const steer: readonly UndeliveredSteer[] = undeliveredSteersByRun.get(runId) ?? []
+  return steer
 }
 
 /** Drop an ended Run's steers once Session Control durably settled them. */

@@ -4,7 +4,7 @@
  * the main bundle loads (src/main/boot/session-host-prelaunch.ts). Callers that may create native
  * UI go through `desktop-ui.ts`, which keeps automation's fail-closed boundary.
  */
-import { type ChildProcess, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { closeSync, openSync, readdirSync } from 'node:fs'
 import { devNull } from 'node:os'
 
@@ -18,7 +18,7 @@ const MAX_DETACHED_DESCRIPTOR = 65_535
 const LAST_CONTROL_DESCRIPTOR = 4
 const STANDARD_IO_DESCRIPTOR_COUNT = 3
 
-function isolatedLinuxStdio(ownedDescriptors: Set<number>): ('ignore' | number)[] {
+function isolatedLinuxStdio(ownedDescriptors: Set<number>) {
   let nullDescriptor = openSync(devNull, 'r+')
   ownedDescriptors.add(nullDescriptor)
   let lastDescriptor = LAST_CONTROL_DESCRIPTOR
@@ -60,7 +60,7 @@ function isolatedLinuxStdio(ownedDescriptors: Set<number>): ('ignore' | number)[
  * Spawns the detached process and returns it at once; it is not yet known to have started. The
  * caller unreferences it once it has, so this process can exit before it.
  */
-export function spawnDetachedProcess(input: DetachedProcessLaunch): ChildProcess {
+export function spawnDetachedProcess(input: DetachedProcessLaunch) {
   // Linux Electron can retain client pipes and Chromium sockets even with UV_IGNORE.
   // Replace the parent snapshot before exec; never close the new Host's own handles.
   const ownedDescriptors = new Set<number>()

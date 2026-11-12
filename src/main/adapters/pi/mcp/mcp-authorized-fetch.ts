@@ -29,7 +29,7 @@ export function createMcpAuthorizedFetch(input: {
   readonly fetch: Fetch
   readonly authProvider: AuthProvider
   readonly serverUrl: URL
-}): McpAuthorizedFetch {
+}) {
   const { authProvider, serverUrl } = input
   let failure: Error | undefined
   const send = async (url: string | URL | Request, init: RequestInit | undefined) => {
@@ -64,5 +64,6 @@ export function createMcpAuthorizedFetch(input: {
     failure = new McpAuthRequiredError(retried, body)
     throw failure
   }
-  return Object.assign(authorizedFetch, { authFailure: () => failure })
+  const result: McpAuthorizedFetch = Object.assign(authorizedFetch, { authFailure: () => failure })
+  return result
 }

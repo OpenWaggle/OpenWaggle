@@ -118,7 +118,7 @@ const CLIENT_SCOPED_ENVIRONMENT_VARIABLES = [
 export function sessionHostSafeEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
   npmCompatiblePath: string,
-): Record<string, string | undefined> {
+) {
   const childEnvironment: Record<string, string | undefined> = {
     ...environment,
     PATH: npmCompatiblePath,

@@ -105,8 +105,8 @@ function waitForPendingSpawns(tasks: ReadonlySet<Promise<void>>) {
   })
 }
 
-function makeRecord(input: TerminalOpenInput, cwd: string): TerminalRecord {
-  return {
+function makeRecord(input: TerminalOpenInput, cwd: string) {
+  const record: TerminalRecord = {
     inputIncarnation: randomUUID(),
     key: terminalKeyOf(input.ownerKey, input.terminalId),
     ownerKey: input.ownerKey,
@@ -139,9 +139,10 @@ function makeRecord(input: TerminalOpenInput, cwd: string): TerminalRecord {
     activity: null,
     ownerMigration: null,
   }
+  return record
 }
 
-export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime {
+export function makeTerminalRuntime(deps: TerminalRuntimeDeps) {
   const { history, runner } = deps
   const records = new Map<string, TerminalRecord>()
   const pendingSpawns = new WeakMap<TerminalRecord, Set<Promise<void>>>()
@@ -231,7 +232,7 @@ export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime 
   const shutdownDetachedProcesses = (targetRecords?: readonly TerminalRecord[]) =>
     shutdownRetainedProcesses(ownerSet(targetRecords))
 
-  return {
+  const runtime: TerminalRuntime = {
     records,
     history,
     emitEvent,
@@ -254,4 +255,5 @@ export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime 
     observeProjectActionActivity: input.observeProjectActionActivity,
     prepareProjectActionForRestart: input.prepareProjectActionForRestart,
   }
+  return runtime
 }

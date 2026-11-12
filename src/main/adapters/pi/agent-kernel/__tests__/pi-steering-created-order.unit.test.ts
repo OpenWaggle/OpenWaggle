@@ -7,14 +7,14 @@ import { registerPiLiveRun, steerPiLiveRun } from '../pi-live-run-registry'
 import { projectPiSessionSnapshot } from '../session-projection'
 
 const TIMESTAMP = '2026-09-08T10:00:00.000Z'
-function user(id: string, parentId: string | null, text: string): SessionEntry {
+function user(id: string, parentId: string | null, text: string) {
   return {
     id,
     parentId,
     timestamp: TIMESTAMP,
     type: 'message',
     message: { role: 'user', content: text, timestamp: 1 },
-  }
+  } satisfies SessionEntry
 }
 
 describe('Pi authoritative steering boundary', () => {

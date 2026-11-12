@@ -24,10 +24,7 @@ export class LocalSessionClientProtocolError extends Error {
   }
 }
 
-export function localSessionClientProtocolError(
-  value: unknown,
-  fallbackMessage: string,
-): LocalSessionClientProtocolError {
+export function localSessionClientProtocolError(value: unknown, fallbackMessage: string) {
   if (typeof value !== 'object' || value === null) {
     return new LocalSessionClientProtocolError('protocol_error', fallbackMessage)
   }

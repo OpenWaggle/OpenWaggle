@@ -20,8 +20,9 @@ export type McpConfigServerMaps = SchemaType<typeof configServerMapsSchema>
 const decodeServerMaps = Schema.decodeUnknownOption(configServerMapsSchema)
 
 /** The server maps of a parsed config; a config that is not an object has none. */
-export function mcpConfigServerMaps(config: unknown): McpConfigServerMaps {
-  return Option.getOrElse(decodeServerMaps(config), () => ({}))
+export function mcpConfigServerMaps(config: unknown) {
+  const maps: McpConfigServerMaps = Option.getOrElse(decodeServerMaps(config), () => ({}))
+  return maps
 }
 
 const mcpServersFieldSchema = Schema.Struct({
@@ -33,6 +34,6 @@ const decodeMcpServersField = Schema.decodeUnknownOption(mcpServersFieldSchema)
  * A parsed config's `mcpServers` as written, whatever its shape, for readers that refuse one that
  * is not an object; undefined when the config is not an object or has none.
  */
-export function writtenMcpServers(config: unknown): unknown {
+export function writtenMcpServers(config: unknown) {
   return Option.getOrUndefined(decodeMcpServersField(config))?.mcpServers
 }

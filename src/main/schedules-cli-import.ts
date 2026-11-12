@@ -49,8 +49,14 @@ const scheduledTasksEnvelopeSchema = Schema.Struct({
   schemaVersion: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
-function importedScheduledTasks(parsed: unknown): readonly ScheduledTaskInput[] {
-  if (Array.isArray(parsed)) return decodeUnknownExactOrThrow(importedTasksSchema, parsed)
+function importedScheduledTasks(parsed: unknown) {
+  if (Array.isArray(parsed)) {
+    const input: readonly ScheduledTaskInput[] = decodeUnknownExactOrThrow(
+      importedTasksSchema,
+      parsed,
+    )
+    return input
+  }
   if (isRecord(parsed) && Schema.is(scheduledTasksEnvelopeSchema)(parsed)) {
     const decode =
       typeof parsed.schemaVersion === 'number'
@@ -59,7 +65,10 @@ function importedScheduledTasks(parsed: unknown): readonly ScheduledTaskInput[] 
     if (!decode) throw unknownExportVersionRefusal(parsed.schemaVersion)
     return decode(parsed)
   }
-  return decodeUnknownExactOrThrow(importedTasksSchema, [parsed])
+  const input: readonly ScheduledTaskInput[] = decodeUnknownExactOrThrow(importedTasksSchema, [
+    parsed,
+  ])
+  return input
 }
 
 export async function readImport(source: string | undefined) {

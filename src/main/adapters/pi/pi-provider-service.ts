@@ -52,7 +52,7 @@ export function supportsPiApiKeyAuthProvider(
   providerId: string,
   apiKeySource: ProviderApiKeyAuthSource,
   apiKeyProviders: ReadonlySet<string>,
-): boolean {
+) {
   return apiKeySource !== 'none' || apiKeyProviders.has(providerId)
 }
 
@@ -90,22 +90,22 @@ function toCapabilities(provider: {
   }
 }
 
-function getProviderAuthSource(
-  credentialType: string | undefined,
-  hasConfiguredAuth: boolean,
-): ProviderAuthSource {
-  if (credentialType === 'api_key') return 'api-key'
-  if (credentialType === 'oauth') return 'oauth'
-  return hasConfiguredAuth ? 'environment-or-custom' : 'none'
+function getProviderAuthSource(credentialType: string | undefined, hasConfiguredAuth: boolean) {
+  if (credentialType === 'api_key') return 'api-key' as const
+  if (credentialType === 'oauth') return 'oauth' as const
+  const source: ProviderAuthSource = hasConfiguredAuth
+    ? ('environment-or-custom' as const)
+    : ('none' as const)
+  return source
 }
 
 function getProviderApiKeyAuthSource(
   credentialType: string | undefined,
   hasConfiguredAuth: boolean,
-): ProviderApiKeyAuthSource {
-  if (credentialType === 'api_key') return 'api-key'
-  if (credentialType) return 'none'
-  return hasConfiguredAuth ? 'environment-or-custom' : 'none'
+) {
+  if (credentialType === 'api_key') return 'api-key' as const
+  if (credentialType) return 'none' as const
+  return hasConfiguredAuth ? ('environment-or-custom' as const) : ('none' as const)
 }
 
 function createProjectProviderCatalogSnapshot(

@@ -81,7 +81,7 @@ export function createPeerAgentReportExtension(input: {
   readonly runId: string
   readonly pendingReports: readonly PeerAgentReportContext[]
   readonly onDelivered: (reportIds: readonly string[]) => void
-}): { readonly factory: ExtensionFactory; readonly close: () => void } {
+}) {
   let close = () => {}
   const factory: ExtensionFactory = (pi) => {
     close = installLiveSink(pi, input.runId, input.pendingReports, input.onDelivered)

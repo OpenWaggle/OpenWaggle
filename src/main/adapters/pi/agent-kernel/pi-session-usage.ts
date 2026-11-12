@@ -22,11 +22,11 @@ const decodeUsageTotals = Schema.decodeUnknownOption(
   }),
 )
 
-function usageTotals(usage: unknown): UsageTotals | null {
+function usageTotals(usage: unknown) {
   if (!isObjectValue(usage)) return null
   const totals = Option.getOrUndefined(decodeUsageTotals(usage))
   if (!totals) return null
-  return {
+  const result: UsageTotals | null = {
     tokens:
       (totals.input ?? 0) +
       (totals.output ?? 0) +
@@ -34,6 +34,7 @@ function usageTotals(usage: unknown): UsageTotals | null {
       (totals.cacheWrite ?? 0),
     cost: totals.cost?.total ?? 0,
   }
+  return result
 }
 
 /**

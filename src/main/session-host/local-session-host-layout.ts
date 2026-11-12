@@ -49,14 +49,15 @@ export interface UnixSessionHostEndpoint {
  * The profile's Unix socket: in its own state directory, or, when that path is too long for a
  * socket, in a per-profile directory under the Host temp directory (`temporaryRoot`), or `/tmp`.
  */
-export function unixSessionHostEndpoint(
-  userDataRoot: string,
-  temporaryRoot: () => string,
-): UnixSessionHostEndpoint {
+export function unixSessionHostEndpoint(userDataRoot: string, temporaryRoot: () => string) {
   const stateRoot = sessionHostStateRoot(userDataRoot)
   const preferredEndpoint = path.join(stateRoot, SESSION_HOST_SOCKET_FILE)
   if (fitsUnixSocketPath(preferredEndpoint)) {
-    return { endpoint: preferredEndpoint, endpointDirectory: stateRoot }
+    const result: UnixSessionHostEndpoint = {
+      endpoint: preferredEndpoint,
+      endpointDirectory: stateRoot,
+    }
+    return result
   }
   const endpointDirectoryName = `owsh-${endpointHash(userDataRoot)}`
   const temporaryEndpointDirectory = path.join(temporaryRoot(), endpointDirectoryName)
@@ -65,5 +66,9 @@ export function unixSessionHostEndpoint(
   )
     ? temporaryEndpointDirectory
     : path.join(PORTABLE_TEMPORARY_ROOT, endpointDirectoryName)
-  return { endpoint: path.join(endpointDirectory, SESSION_HOST_SOCKET_FILE), endpointDirectory }
+  const result: UnixSessionHostEndpoint = {
+    endpoint: path.join(endpointDirectory, SESSION_HOST_SOCKET_FILE),
+    endpointDirectory,
+  }
+  return result
 }

@@ -38,7 +38,7 @@ function getInvokeHandler(name: string) {
     Effect.runPromise(Effect.provide(handler(...args), TestWagglePresetsLayer))
 }
 
-function samplePreset(): WagglePreset {
+function samplePreset() {
   return {
     id: WagglePresetId('preset-1'),
     name: 'Code Review',
@@ -64,7 +64,7 @@ function samplePreset(): WagglePreset {
     isBuiltIn: false,
     createdAt: 1000,
     updatedAt: 1000,
-  }
+  } satisfies WagglePreset
 }
 
 describe('registerWagglePresetsHandlers', () => {

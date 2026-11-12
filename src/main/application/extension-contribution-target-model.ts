@@ -29,9 +29,7 @@ function uniqueTrimmedValues(values: readonly string[]) {
   return normalizedValues
 }
 
-function normalizeTarget(
-  target: ManifestContributionTarget | undefined,
-): ExtensionContributionTargetView | undefined {
+function normalizeTarget(target: ManifestContributionTarget | undefined) {
   if (target === undefined) {
     return undefined
   }
@@ -89,9 +87,7 @@ function targetProjectPaths(input: {
   return projectPaths.length > 0 ? projectPaths : null
 }
 
-export function resolveContributionTarget(
-  input: ResolveContributionTargetInput,
-): ContributionTargetResolution | null {
+export function resolveContributionTarget(input: ResolveContributionTargetInput) {
   const target = normalizeTarget(input.target)
   const sessionId = targetSessionId({ target, requestedSessionId: input.requestedSessionId })
   if (sessionId === null) {

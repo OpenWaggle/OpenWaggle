@@ -34,7 +34,7 @@ function control(
     LocalSessionCommandPayload,
     { contract: 'session-control-v2' }
   >['request']['command'],
-): LocalSessionCommandPayload {
+) {
   return {
     contract: 'session-control-v2',
     request: {
@@ -43,7 +43,7 @@ function control(
       idempotencyKey: `once-${command.operation}`,
       command,
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 const runInputs = {

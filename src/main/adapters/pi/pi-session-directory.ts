@@ -22,7 +22,7 @@ function piSessionDirectoryFromEnvironment() {
  * directly, for every working directory, so a session there is matched by its header's `cwd`.
  * A relative setting is taken from `cwd`, where the CLI is normally started.
  */
-export function resolvePiSessionDirectory(cwd: string): string | undefined {
+export function resolvePiSessionDirectory(cwd: string) {
   const configured = piSessionDirectoryFromEnvironment() ?? readSessionDirSetting(cwd)
   if (!configured) return undefined
   return path.resolve(cwd, expandHome(configured))

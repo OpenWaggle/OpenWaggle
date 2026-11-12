@@ -11,7 +11,7 @@ const isWorkspaceContextName = (name: string) => WORKSPACE_CONTEXT_NAMES.has(nam
 
 export function withoutWorkspaceContext<T extends string | null | undefined>(
   environment: Readonly<Record<string, T>>,
-): Record<string, T> {
+) {
   return Object.fromEntries(
     Object.entries(environment).filter(([name]) => !isWorkspaceContextName(name)),
   )
@@ -21,7 +21,7 @@ export function applyPreparedEnvironment<T extends string | undefined>(
   inherited: Readonly<Record<string, T>>,
   prepared: PreparedEnvironment,
   caseInsensitive = false,
-): Record<string, T | string> {
+) {
   const environment = new Map<string, T | string>(Object.entries(inherited))
   for (const [name, value] of Object.entries(prepared)) {
     if (caseInsensitive) {
@@ -40,7 +40,7 @@ export function capturePreparedEnvironment(
   previous: PreparedEnvironment,
   exported: Readonly<Record<string, string>>,
   caseInsensitive = false,
-): PreparedEnvironment {
+) {
   const normalize = (name: string) => (caseInsensitive ? name.toUpperCase() : name)
   const inherited = new Map(
     Object.entries(baseline).map(([name, value]) => [normalize(name), value]),

@@ -24,10 +24,7 @@ async function branchExists(repositoryPath: string, branch: string) {
  * created `ow/session-<full-id>` fresh and left the agent's commits on `ow/session-<8-char>`, which
  * is exactly the loss the legacy helper exists to prevent. One resolver, used by both.
  */
-export async function resolveSessionWorktreeBranch(
-  repositoryPath: string,
-  sessionId: string,
-): Promise<string> {
+export async function resolveSessionWorktreeBranch(repositoryPath: string, sessionId: string) {
   const branch = sessionWorktreeBranch(sessionId)
   if (await branchExists(repositoryPath, branch)) return branch
 

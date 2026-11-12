@@ -36,7 +36,7 @@ export function makeHiveWorkerCleanupLayer(
               requestReconciliation(id),
             )
           : undefined
-      function requestReconciliation(sessionId: SessionId): Effect.Effect<void> {
+      function requestReconciliation(sessionId: SessionId) {
         const pass = reconcileHiveWorkerCleanupPass(sessionId).pipe(
           Effect.tap((result) => (retries ? retries.afterPass(sessionId, result) : Effect.void)),
           Effect.tapErrorCause(() => (retries ? retries.forget(sessionId) : Effect.void)),
@@ -51,7 +51,9 @@ export function makeHiveWorkerCleanupLayer(
           ),
           Effect.asVoid,
         )
-        return strategy === 'inline' ? pass : pass.pipe(Effect.forkDaemon, Effect.asVoid)
+        const effect: Effect.Effect<void> =
+          strategy === 'inline' ? pass : pass.pipe(Effect.forkDaemon, Effect.asVoid)
+        return effect
       }
       return HiveWorkerCleanup.of({
         requestReconciliation,

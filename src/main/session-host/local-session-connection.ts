@@ -96,7 +96,7 @@ export class LocalSessionConnection {
     })
   }
 
-  start(): void {
+  start() {
     bindLocalSessionConnectionInput({
       socket: this.socket,
       inbound: this.inbound,
@@ -108,7 +108,7 @@ export class LocalSessionConnection {
     this.socket.once('error', () => this.close())
   }
 
-  disconnectRevokedProfile(profileId: string): void {
+  disconnectRevokedProfile(profileId: string) {
     if (this.caller?.profileAuthority?.profileId !== profileId) return
     if (!this.admission.isFenced()) void this.admission.fence()
     this.invalidationCloser.disconnect(
@@ -117,7 +117,7 @@ export class LocalSessionConnection {
     )
   }
 
-  fenceProfileAdmission(profileName: string): Promise<void> {
+  fenceProfileAdmission(profileName: string) {
     if (this.caller?.profileAuthority?.profileName !== profileName) return Promise.resolve()
     const drained = this.admission.fence()
     this.subscriptions.requireResync()
@@ -128,7 +128,7 @@ export class LocalSessionConnection {
   refreshProfileAdmission(
     profileId?: string,
     options?: LocalSessionProfileAdmissionRefreshOptions,
-  ): Promise<void> {
+  ) {
     const authority = this.caller?.profileAuthority
     if (!authority || (profileId && authority.profileId !== profileId)) return Promise.resolve()
     const consumesExistingFence =
@@ -154,11 +154,11 @@ export class LocalSessionConnection {
     return this.admission.enqueueRefresh(refresh)
   }
 
-  shutdown(): void {
+  shutdown() {
     this.socket.destroy()
   }
 
-  private async drainProfileAdmission(drained: Promise<void>): Promise<void> {
+  private async drainProfileAdmission(drained: Promise<void>) {
     await drainLocalSessionProfileAdmission(
       drained,
       this.dependencies.profileAdmissionDrainTimeoutMs,
@@ -169,7 +169,7 @@ export class LocalSessionConnection {
     )
   }
 
-  private async handleValue(value: unknown): Promise<void> {
+  private async handleValue(value: unknown) {
     const authenticated = this.caller !== null && this.negotiatedRevision !== null
     // The connection already answered handshake_timeout and is ending.
     if (!authenticated && this.handshakeDeadline.expired) return
@@ -185,7 +185,7 @@ export class LocalSessionConnection {
     await this.handleClientFrame(decodeLocalSessionClientFrame(value))
   }
 
-  private async handleServerAuthentication(value: unknown): Promise<void> {
+  private async handleServerAuthentication(value: unknown) {
     const authenticateServer = this.dependencies.authenticateServer
     if (!authenticateServer) {
       throw new Error('Local Session Host identity authority is unavailable.')
@@ -194,7 +194,7 @@ export class LocalSessionConnection {
     this.serverAuthenticated = true
   }
 
-  private async handleHello(value: unknown): Promise<void> {
+  private async handleHello(value: unknown) {
     const result = await establishLocalSessionHandshake({
       value,
       socket: this.socket,
@@ -221,7 +221,7 @@ export class LocalSessionConnection {
     await this.outbound.sendHandshakeFrame(result.negotiation)
   }
 
-  private async handleClientFrame(frame: LocalSessionClientFrame): Promise<void> {
+  private async handleClientFrame(frame: LocalSessionClientFrame) {
     if (frame.kind === 'command') return this.handleCommand(frame)
     if (frame.kind === 'subscribe') {
       return this.subscriptions.subscribe(frame.requestId, frame.after, frame.sessionIds)
@@ -297,7 +297,7 @@ export class LocalSessionConnection {
     }
   }
 
-  private close(): void {
+  private close() {
     if (this.closed) return
     this.closed = true
     this.admission.close()

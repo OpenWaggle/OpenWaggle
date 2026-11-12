@@ -45,7 +45,7 @@ function branchMutationHandler<TPayload extends BranchMutationPayload>(input: {
     })
 }
 
-export function registerGitBranchHandlers(): void {
+export function registerGitBranchHandlers() {
   typedHandle('git:branches:list', (_event, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)

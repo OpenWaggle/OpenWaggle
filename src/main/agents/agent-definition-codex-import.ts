@@ -14,10 +14,12 @@ const REASONING_LEVELS: readonly NonNullable<AgentDefinitionDocument['reasoning'
   'max',
 ]
 
-function record(value: unknown): Readonly<Record<string, unknown>> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value))
-    : undefined
+function record(value: unknown) {
+  const readonly: Readonly<Record<string, unknown>> | undefined =
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value))
+      : undefined
+  return readonly
 }
 
 /** The Codex Agent config members the import maps, each still unchecked. */

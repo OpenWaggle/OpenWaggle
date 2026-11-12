@@ -63,9 +63,12 @@ export async function searchSessionTreePage(
   sessionId: SessionId,
   query: string,
   after?: SessionTreeSearchCursor,
-): Promise<SessionTreeSearchPage> {
+) {
   const needle = foldSearchText(query.trim().replace(/\s+/gu, ' '))
-  if (!needle) return { nodeIds: [], incremental: false, cursor: null }
+  if (!needle) {
+    const result: SessionTreeSearchPage = { nodeIds: [], incremental: false, cursor: null }
+    return result
+  }
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

@@ -82,15 +82,15 @@ async function assertProjectResourceInputCapacity(
   }
 }
 
-async function readProjectResourceRoot(root: string): Promise<readonly Dirent[]> {
+async function readProjectResourceRoot(root: string) {
   try {
     const realRoot = await fs.realpath(root)
-    if (realRoot !== path.resolve(root)) return []
+    if (realRoot !== path.resolve(root)) return [] satisfies readonly Dirent[]
     return (await fs.readdir(realRoot, { withFileTypes: true }))
       .filter((entry) => !entry.isSymbolicLink())
       .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
   } catch (error) {
-    if (isEnoent(error)) return []
+    if (isEnoent(error)) return [] satisfies readonly Dirent[]
     throw error
   }
 }
@@ -99,7 +99,7 @@ async function parseProjectResources(
   resourcePaths: readonly string[],
   parseSource: SyntaxSourceParser,
   readBudget: SyntaxReadBudget,
-): Promise<readonly SyntaxResourceCatalog[]> {
+) {
   const parsedByIndex = new Map<number, SyntaxResourceCatalog>()
   let catalogBytes = 0
   let resourceCount = 0

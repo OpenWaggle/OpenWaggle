@@ -42,9 +42,9 @@ export function exportOperation(
   temporaryRoot: string,
   format: SessionExportOperationRecord['format'],
   filename: string,
-): SessionExportOperationRecord {
+) {
   const destinationPath = path.join(temporaryRoot, filename)
-  return {
+  const record: SessionExportOperationRecord = {
     exportOperationId: `export-${format}`,
     callerId: 'caller-1',
     sessionId: 'session-1',
@@ -63,4 +63,5 @@ export function exportOperation(
     createdAt: 1,
     updatedAt: 1,
   }
+  return record
 }

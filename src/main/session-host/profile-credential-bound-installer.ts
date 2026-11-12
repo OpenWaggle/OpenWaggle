@@ -106,7 +106,7 @@ export function profileCredentialInstallerFailure(input: {
   readonly directory: string
   readonly pendingName: string
   readonly displacedName: string
-}): Error | null {
+}) {
   if (input.exitCode === 0) return null
   const pendingPath = path.join(input.directory, input.pendingName)
   const displacedPath = path.join(input.directory, input.displacedName)

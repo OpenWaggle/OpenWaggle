@@ -16,10 +16,7 @@ const logger = createLogger('terminal-process-shutdown')
  * Stop one exact spawn generation. Concurrent close/restart callers share the
  * same result; state is not cleared until PTY exit is confirmed.
  */
-export function shutdownLiveTerminal(
-  record: TerminalRecord,
-  onLivePidsChanged: () => void,
-): Promise<boolean> {
+export function shutdownLiveTerminal(record: TerminalRecord, onLivePidsChanged: () => void) {
   if (record.termination !== null) return record.termination.result
   const live = record.live
   if (live === null) return Promise.resolve(true)

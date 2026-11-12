@@ -20,13 +20,13 @@ export interface McpHostServiceDependencies {
 }
 
 /** A Worker's Delegation state, read through the Delegation repository port (D1.1). */
-function workerDelegationState(dependencies: McpHostServiceDependencies): WorkerDelegationStateOf {
-  return (sessionId) =>
+function workerDelegationState(dependencies: McpHostServiceDependencies) {
+  return ((sessionId) =>
     dependencies.runEffect(
       Effect.flatMap(SessionDelegationRepository, (delegations) =>
         delegations.delegationStateOf(sessionId),
       ),
-    )
+    )) satisfies WorkerDelegationStateOf
 }
 
 function installMcpServerStatusFreshness() {

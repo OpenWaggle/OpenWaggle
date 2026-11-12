@@ -158,11 +158,9 @@ function companionExtension(
  * for a Run loads these. Like codemode and tool search (`pi-built-in-extensions.ts`), MCP is the
  * `builtin:mcp` extension, so Pi's `-builtin:mcp` in the `extensions` setting turns it off.
  */
-export async function createOpenWaggleMcpExtensions(
-  input: OpenWaggleMcpSessionInput,
-): Promise<readonly InlineExtension[]> {
+export async function createOpenWaggleMcpExtensions(input: OpenWaggleMcpSessionInput) {
   // MCP off means no MCP runtime, so servers Pi extensions register do not connect either.
-  if (input.sessionMcpEnabled === false) return []
+  if (input.sessionMcpEnabled === false) return [] satisfies readonly InlineExtension[]
   await migrateOpenWaggleMcpFilesOnce(input.projectPath)
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
@@ -240,5 +238,5 @@ export async function createOpenWaggleMcpExtensions(
   return [
     { name: 'mcp', factory: mcp, replaceable: true, builtin: true },
     companionExtension(input, config, extensionServers),
-  ]
+  ] satisfies readonly InlineExtension[]
 }

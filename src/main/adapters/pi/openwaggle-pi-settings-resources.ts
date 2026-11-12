@@ -69,7 +69,7 @@ function prependResourceRoots(
   return result
 }
 
-function getPackageSource(value: JsonValue): string | null {
+function getPackageSource(value: JsonValue) {
   return piPackageSource(value)
 }
 

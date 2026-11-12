@@ -232,13 +232,13 @@ function createActiveRunMethods(deps: SessionRepositoryStores) {
   >
 }
 
-function createSessionRepositoryShape(deps: SessionRepositoryStores): SessionRepositoryShape {
+function createSessionRepositoryShape(deps: SessionRepositoryStores) {
   return {
     ...createSessionReadMethods(deps),
     ...createSessionDetailMethods(deps),
     ...createSessionBranchMethods(deps),
     ...createActiveRunMethods(deps),
-  }
+  } satisfies SessionRepositoryShape
 }
 
 export const SqliteSessionRepositoryLive = Effect.gen(function* () {

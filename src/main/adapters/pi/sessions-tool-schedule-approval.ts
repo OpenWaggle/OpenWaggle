@@ -43,7 +43,7 @@ export async function approvePendingWakeCheck(input: {
   readonly ctx: ExtensionContext
   readonly send: (payload: LocalSessionCommandPayload) => Promise<LocalSessionCommandResult>
   readonly signal?: AbortSignal
-}): Promise<LocalSessionCommandResult> {
+}) {
   const pending = pendingWakeCheck(input.result)
   if (!pending || !input.ctx.hasUI) return input.result
   const approved = await input.ctx.ui.confirm(

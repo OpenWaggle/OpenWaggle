@@ -54,11 +54,12 @@ function unsafeFetchTransportReason(init?: RequestInit) {
   return null
 }
 
-export function fetchInitWithRedirectError(init?: RequestInit): RequestInit {
-  return {
+export function fetchInitWithRedirectError(init?: RequestInit) {
+  const result: RequestInit = {
     ...init,
     redirect: 'error',
   }
+  return result
 }
 
 /** The URL a fetch call targets and, when it carries one, a transport that can bypass it. */

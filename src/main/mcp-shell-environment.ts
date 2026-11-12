@@ -44,7 +44,7 @@ function windowsCommand() {
 }
 
 /** `NAME=value` records separated by NUL, between the markers. */
-export function parseMcpShellEnvironment(output: string): Record<string, string> {
+export function parseMcpShellEnvironment(output: string) {
   const start = output.indexOf(START)
   const end = output.indexOf(END, start + START.length)
   if (start === -1 || end === -1) return {}
@@ -115,7 +115,7 @@ export async function mcpShellEnvironmentReady() {
 }
 
 /** What the read found so far: empty until `loadMcpShellEnvironment` has finished. */
-export function currentMcpShellEnvironment(): Readonly<Record<string, string>> {
+export function currentMcpShellEnvironment() {
   return captured
 }
 
@@ -123,7 +123,7 @@ export function currentMcpShellEnvironment(): Readonly<Record<string, string>> {
  * The environment MCP values resolve against and MCP server processes start with: the login
  * shell's variables, with the app's own environment winning where both have one.
  */
-export function mcpValueEnvironment(): Record<string, string> {
+export function mcpValueEnvironment() {
   const environment: Record<string, string> = { ...captured }
   for (const [name, value] of Object.entries(getEnvWithOverrides({}))) {
     if (value !== undefined) environment[name] = value

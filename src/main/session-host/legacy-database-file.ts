@@ -36,15 +36,15 @@ function sizeOfSync(filePath: string) {
 }
 
 /** A database file's state from its size and, for an empty one, its `-wal` file's (null: none). */
-function stateFromSizes(size: number | null, walSize: number | null): LegacyDatabaseFileState {
-  if (size === null) return 'absent'
-  if (size > 0) return 'present'
-  return walSize === null || walSize === 0 ? 'empty' : 'present'
+function stateFromSizes(size: number | null, walSize: number | null) {
+  if (size === null) return 'absent' as const
+  if (size > 0) return 'present' as const
+  const state: LegacyDatabaseFileState =
+    walSize === null || walSize === 0 ? ('empty' as const) : ('present' as const)
+  return state
 }
 
-export async function legacyDatabaseFileState(
-  databasePath: string,
-): Promise<LegacyDatabaseFileState> {
+export async function legacyDatabaseFileState(databasePath: string) {
   const size = await sizeOf(databasePath)
   return stateFromSizes(size, size === 0 ? await sizeOf(`${databasePath}-wal`) : null)
 }
@@ -53,9 +53,13 @@ export async function legacyDatabaseFileState(
  * `legacyDatabaseFileState`, synchronously, for the boot shim (`boot/session-host-prelaunch.ts`),
  * which must judge a legacy store exactly as the Host's cutover will.
  */
-export function legacyDatabaseFileStateSync(databasePath: string): LegacyDatabaseFileState {
+export function legacyDatabaseFileStateSync(databasePath: string) {
   const size = sizeOfSync(databasePath)
-  return stateFromSizes(size, size === 0 ? sizeOfSync(`${databasePath}-wal`) : null)
+  const state: LegacyDatabaseFileState = stateFromSizes(
+    size,
+    size === 0 ? sizeOfSync(`${databasePath}-wal`) : null,
+  )
+  return state
 }
 
 /** Removes an `empty` legacy database and its empty WAL and shared-memory files. */

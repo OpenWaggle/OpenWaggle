@@ -21,8 +21,11 @@ async function resolveValues(
   field: 'env' | 'headers',
   values: Readonly<Record<string, McpConfiguredValue>> | undefined,
   resolveSecret: McpSecretResolver,
-): Promise<ResolvedValues> {
-  if (!values) return { ok: true, values: undefined }
+) {
+  if (!values) {
+    const result: ResolvedValues = { ok: true, values: undefined }
+    return result
+  }
   const resolved: Record<string, string> = {}
   for (const [key, value] of Object.entries(values)) {
     if (typeof value === 'string') {
@@ -34,14 +37,16 @@ async function resolveValues(
       resolved[key] = piLiteral(await resolveSecret(value.secret))
     } catch (error) {
       const missing = error instanceof McpVaultError && error.reason === 'secret-not-found'
-      return {
+      const result: ResolvedValues = {
         ok: false,
         error: `${server.source.path}: server "${server.name}": ${field} "${key}" names vault secret "${value.secret}", which could not be read: ${errorMessage(error)}`,
         ...(missing ? { missingSecret: true as const } : {}),
       }
+      return result
     }
   }
-  return { ok: true, values: resolved }
+  const result: ResolvedValues = { ok: true, values: resolved }
+  return result
 }
 
 type ResolvedServer =
@@ -49,10 +54,7 @@ type ResolvedServer =
   | { readonly ok: false; readonly error: string; readonly missingSecret?: true }
 
 /** A server's config with its vault secrets read, or why one of them could not be read. */
-export async function resolveServer(
-  server: McpMergedServer,
-  resolveSecret: McpSecretResolver,
-): Promise<ResolvedServer> {
+export async function resolveServer(server: McpMergedServer, resolveSecret: McpSecretResolver) {
   const { config } = server
   if ('url' in config) {
     const { headers, ...rest } = config
@@ -61,10 +63,13 @@ export async function resolveServer(
     return {
       ok: true,
       config: { ...rest, ...(resolved.values ? { headers: resolved.values } : {}) },
-    }
+    } satisfies ResolvedServer
   }
   const { env, ...rest } = config
   const resolved = await resolveValues(server, 'env', env, resolveSecret)
   if (!resolved.ok) return resolved
-  return { ok: true, config: { ...rest, ...(resolved.values ? { env: resolved.values } : {}) } }
+  return {
+    ok: true,
+    config: { ...rest, ...(resolved.values ? { env: resolved.values } : {}) },
+  } satisfies ResolvedServer
 }

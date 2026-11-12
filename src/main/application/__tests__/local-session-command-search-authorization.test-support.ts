@@ -59,11 +59,7 @@ export const payload = {
   },
 } as const satisfies LocalSessionCommandPayload
 
-export function searchResponse(
-  requestId: string,
-  sessionId: string,
-  projectPath: string,
-): SessionQueryResponse {
+export function searchResponse(requestId: string, sessionId: string, projectPath: string) {
   return {
     contractVersion: 2,
     requestId,
@@ -84,7 +80,7 @@ export function searchResponse(
       requestedSearchMode: 'semantic',
       searchBackend: 'semantic',
     },
-  }
+  } satisfies SessionQueryResponse
 }
 
 export function testLayer(liveProfile: LiveProfile, repository: SessionQueryRepositoryShape) {

@@ -1,10 +1,4 @@
-import {
-  type Context,
-  type Message,
-  type Model,
-  normalizeContext,
-  type TranscriptContext,
-} from '@earendil-works/pi-ai'
+import { type Context, type Message, type Model, normalizeContext } from '@earendil-works/pi-ai'
 import { stream as streamAnthropic } from '@earendil-works/pi-ai/api/anthropic-messages'
 import { stream as streamBedrock } from '@earendil-works/pi-ai/api/bedrock-converse-stream'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
@@ -21,7 +15,7 @@ const IMAGE_PLACEHOLDER = '(image attached after the tool results)'
 const IMAGE_CAPTION = 'Images from the error result of tool call tool-1 (codemode):'
 const PNG_DATA = 'iVBORw0KGgo='
 
-function contextWithToolResult(isError: boolean): TranscriptContext {
+function contextWithToolResult(isError: boolean) {
   const messages: Message[] = [
     { role: 'user', content: 'Take a screenshot', timestamp: 1 },
     {
@@ -63,7 +57,7 @@ function makeModel<TApi extends 'anthropic-messages' | 'bedrock-converse-stream'
   api: TApi,
   provider: string,
   id: string,
-): Model<TApi> {
+) {
   return {
     id,
     name: id,
@@ -75,7 +69,7 @@ function makeModel<TApi extends 'anthropic-messages' | 'bedrock-converse-stream'
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 100_000,
     maxTokens: 1_000,
-  }
+  } satisfies Model<TApi>
 }
 
 class PayloadCaptured extends Error {}
@@ -83,7 +77,7 @@ class PayloadCaptured extends Error {}
 /** Builds the provider request, records it, and stops before anything is sent. */
 async function capturePayload(
   run: (onPayload: (payload: unknown) => never) => AsyncIterable<unknown>,
-): Promise<unknown> {
+) {
   let captured: unknown
   const events = run((payload) => {
     captured = payload

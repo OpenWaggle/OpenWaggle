@@ -5,7 +5,7 @@ import { actionRelativePathSchema } from '@shared/schemas/action-definitions'
 import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 
-export async function resolveActionPath(workspace: string, directory: string): Promise<string> {
+export async function resolveActionPath(workspace: string, directory: string) {
   decodeUnknownOrThrow(actionRelativePathSchema, directory)
   const root = await realpath(workspace)
   const target = await realpath(resolve(root, directory))
@@ -21,10 +21,7 @@ export async function resolveActionPath(workspace: string, directory: string): P
   return target
 }
 
-export async function resolveActionDirectory(
-  workspace: string,
-  directory: string,
-): Promise<string> {
+export async function resolveActionDirectory(workspace: string, directory: string) {
   const target = await resolveActionPath(workspace, directory)
   if (!(await stat(target)).isDirectory()) {
     throw new Error(`Action working directory is not a directory: ${directory}`)
@@ -33,7 +30,7 @@ export async function resolveActionDirectory(
 }
 
 /** No subprocesses, module imports or dependency installs during discovery. */
-export async function readTaskSource(workspace: string, source: string): Promise<string | null> {
+export async function readTaskSource(workspace: string, source: string) {
   let path: string
   try {
     path = await resolveActionPath(workspace, source)

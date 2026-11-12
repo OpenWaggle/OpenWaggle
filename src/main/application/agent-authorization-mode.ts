@@ -27,13 +27,13 @@ export function pickAuthorizationMode(input: {
   readonly sessionOverride?: AgentAuthorizationMode | null
   readonly projectDefault?: AgentAuthorizationMode | null
   readonly globalDefault?: AgentAuthorizationMode | null
-}): AgentAuthorizationMode {
-  return (
+}) {
+  const mode: AgentAuthorizationMode =
     input.sessionOverride ??
     input.projectDefault ??
     input.globalDefault ??
     FAIL_CLOSED_AUTHORIZATION_MODE
-  )
+  return mode
 }
 
 async function readProjectDefault(projectPath: string | null) {
@@ -102,7 +102,7 @@ export async function resolveEffectiveAuthorizationMode(
   sessionId: SessionId,
   runOverride?: AgentAuthorizationMode,
   authorityCallerId?: string,
-): Promise<AgentAuthorizationMode> {
+) {
   try {
     const {
       getSessionAuthorizationBoundary,
@@ -136,9 +136,13 @@ export async function resolveEffectiveAuthorizationMode(
         ...(projectDefault === undefined ? {} : { projectDefault }),
         ...(globalDefault === undefined ? {} : { globalDefault }),
       })
-    return authorizationBoundaryRequiresApproval({ boundary, callerBoundary })
+    const mode: AgentAuthorizationMode = authorizationBoundaryRequiresApproval({
+      boundary,
+      callerBoundary,
+    })
       ? FAIL_CLOSED_AUTHORIZATION_MODE
       : preferredMode
+    return mode
   } catch (cause) {
     logger.warn('Failed to resolve the authorization mode; failing closed', {
       sessionId,

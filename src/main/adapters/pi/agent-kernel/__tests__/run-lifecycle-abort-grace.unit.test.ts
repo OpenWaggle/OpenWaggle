@@ -16,8 +16,8 @@ vi.mock('../../pi-session-lifecycle', () => ({
 
 type PiAgentMessage = AgentSession['agent']['state']['messages'][number]
 
-function runInput(signal: AbortSignal): AgentKernelRunInput {
-  return {
+function runInput(signal: AbortSignal) {
+  const input: AgentKernelRunInput = {
     session: {
       id: SessionId('abort-grace-session'),
       title: 'Abort grace',
@@ -34,6 +34,7 @@ function runInput(signal: AbortSignal): AgentKernelRunInput {
     signal,
     onEvent: vi.fn(),
   }
+  return input
 }
 
 /**

@@ -61,9 +61,7 @@ function preparationError(operation: string, cause: unknown) {
   return new SessionLifecyclePreparationError({ operation, cause })
 }
 
-function parseParentProfile(
-  row: ParentExecutionRow | undefined,
-): ParentExecutionSelection | undefined {
+function parseParentProfile(row: ParentExecutionRow | undefined) {
   if (!row) return undefined
   const profile = decodeSessionExecutionProfile(row.profile_json)
   let resolvedAgentSnapshot: ResolvedAgentDefinitionSnapshot | undefined
@@ -177,7 +175,7 @@ export function reduceAuthorizationCeiling(
 function intersectOptional<T>(
   inherited: readonly T[] | undefined,
   selected: readonly T[] | undefined,
-): readonly T[] | undefined {
+) {
   if (!inherited) return selected
   if (!selected) return inherited
   const allowed = new Set(selected)
@@ -189,7 +187,7 @@ function preferred<T>(
   defined: T | undefined,
   inherited: T | undefined,
   fallback: T,
-): T {
+) {
   return requested ?? defined ?? inherited ?? fallback
 }
 
@@ -221,7 +219,7 @@ export function buildLifecycleExecutionProfile(input: {
   }
   readonly parent: ParentExecutionSelection | undefined
   readonly definition: ResolvedAgentDefinitionSnapshot | undefined
-}): ResolvedSessionExecutionProfile {
+}) {
   const { command, defaults, parent, definition } = input
   const inherited = parent?.profile
   const specialization = command.operation === 'fork' ? undefined : command.specialization

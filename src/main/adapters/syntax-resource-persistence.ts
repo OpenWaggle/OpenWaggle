@@ -207,7 +207,7 @@ export async function listInstalledSyntaxResources(
   resourcesDirectory: string,
   projectPath: string | null | undefined,
   parseSource: SyntaxSourceParser,
-): Promise<SyntaxResourceCatalog> {
+) {
   const globalResources = await withSyntaxResourceDirectoryLock(resourcesDirectory, () =>
     readInstalledResourceCatalog(resourcesDirectory),
   )

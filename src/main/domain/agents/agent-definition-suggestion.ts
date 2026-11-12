@@ -177,7 +177,7 @@ function score(candidate: AgentDefinitionCandidate, objective: ObjectiveWords) {
 export function suggestAgentDefinition(
   input: AgentDefinitionSuggestionInput,
   candidates: readonly AgentDefinitionCandidate[],
-): AgentDefinitionCandidate | undefined {
+) {
   const title = input.title ?? ''
   const objective = {
     role: roleStatement(input.objective),

@@ -128,7 +128,7 @@ const REMOVE_FAILURE: GitWorktreeMutationResult = {
 const { registerGitWorktreeHandlers } = await import('../worktree-handler')
 const { runPromise } = await import('effect/Effect')
 
-async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult> {
+async function invokeRemove(payload: unknown) {
   const handler = handlers.get('git:worktrees:remove')
   if (!handler) throw new Error('the worktree remove handler was not registered')
   return runPromise(

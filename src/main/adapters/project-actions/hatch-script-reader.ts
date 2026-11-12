@@ -2,7 +2,6 @@ import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import {
   ACTION_DEFINITION_LIMITS,
   type DiscoveredProjectTask,
-  type ProjectTaskDiscovery,
   type ProjectTaskReference,
 } from '@shared/types/action-definitions'
 import { parse } from 'smol-toml'
@@ -68,7 +67,7 @@ function scriptConfigurationFor(
   }
 }
 
-function scriptsFor(environments: Environments, name: string): Scripts {
+function scriptsFor(environments: Environments, name: string) {
   // Hatch inherits scripts from templates, but never their matrices.
   if (environments[name]?.matrix !== undefined) {
     throw new Error(
@@ -116,10 +115,7 @@ function appendHatchEnvironmentTasks(
   }
 }
 
-async function list(
-  workspace: string,
-  requested?: ProjectTaskReference,
-): Promise<ProjectTaskDiscovery> {
+async function list(workspace: string, requested?: ProjectTaskReference) {
   const tasks: DiscoveredProjectTask[] = []
   const diagnostics: { source: string; message: string }[] = []
   let source = 'hatch.toml'

@@ -15,7 +15,7 @@ interface LocalSessionConnectionInputOptions {
   readonly failed: (code: SessionHostRefusalCode, message: string) => Promise<void>
 }
 
-export function bindLocalSessionConnectionInput(options: LocalSessionConnectionInputOptions): void {
+export function bindLocalSessionConnectionInput(options: LocalSessionConnectionInputOptions) {
   let readTail = Promise.resolve()
   options.socket.on('data', (chunk) => {
     options.socket.pause()

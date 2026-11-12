@@ -4,7 +4,6 @@ import type {
   ArchivedItem,
   ArchivedItemRef,
   ArchivedItemRefsPage,
-  ArchivedItemsFacets,
   ArchivedItemsFilter,
   ArchivedItemsPage,
   ArchivedItemsQuery,
@@ -116,14 +115,16 @@ function decodeOffset(cursor: string | undefined) {
   return cursor === undefined ? 0 : Number(cursor)
 }
 
-function rowRef(row: Pick<ArchivedItemRow, 'kind' | 'session_id' | 'branch_id'>): ArchivedItemRef {
+function rowRef(row: Pick<ArchivedItemRow, 'kind' | 'session_id' | 'branch_id'>) {
   const sessionId = SessionId(row.session_id)
-  return row.kind === 'branch' && row.branch_id !== null
-    ? { kind: 'branch', sessionId, branchId: SessionBranchId(row.branch_id) }
-    : { kind: 'session', sessionId }
+  return (
+    row.kind === 'branch' && row.branch_id !== null
+      ? { kind: 'branch', sessionId, branchId: SessionBranchId(row.branch_id) }
+      : { kind: 'session', sessionId }
+  ) satisfies ArchivedItemRef
 }
 
-function pageItemRow(row: ArchivedItemsPageRow): ArchivedItemRow | null {
+function pageItemRow(row: ArchivedItemsPageRow) {
   if (row.kind === null || row.session_id === null || row.archived_at === null) return null
   return {
     kind: row.kind,
@@ -133,10 +134,10 @@ function pageItemRow(row: ArchivedItemsPageRow): ArchivedItemRow | null {
     parent_title: row.parent_title,
     project_path: row.project_path,
     archived_at: row.archived_at,
-  }
+  } satisfies ArchivedItemRow
 }
 
-function decodeFacets(json: string | undefined): ArchivedItemsFacets {
+function decodeFacets(json: string | undefined) {
   const decoded = safeDecodeUnknown(facetsSchema, parseJsonUnknown(json ?? 'null'))
   if (!decoded.success) {
     throw new Error(`Archived item facets could not be read: ${decoded.issues.join('; ')}`)
@@ -228,17 +229,11 @@ export function archivedItemRefsEffect(query: ArchivedItemsRefsQuery, now: numbe
 }
 
 /** One page of Archived items with its Archive facet counts. */
-export async function queryArchivedItems(
-  query: ArchivedItemsQuery,
-  now = Date.now(),
-): Promise<ArchivedItemsPage> {
+export async function queryArchivedItems(query: ArchivedItemsQuery, now = Date.now()) {
   return runStoreEffect(archivedItemsPageEffect(query, now))
 }
 
 /** The references of the Archived items a filter matches, for Select all. */
-export async function listArchivedItemRefs(
-  query: ArchivedItemsRefsQuery,
-  now = Date.now(),
-): Promise<ArchivedItemRefsPage> {
+export async function listArchivedItemRefs(query: ArchivedItemsRefsQuery, now = Date.now()) {
   return runStoreEffect(archivedItemRefsEffect(query, now))
 }

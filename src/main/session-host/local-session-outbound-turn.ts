@@ -15,13 +15,13 @@ export class LocalSessionOutboundTurn {
     this.aborted = aborted
   }
 
-  acquire(signal: AbortSignal): Promise<void> {
-    if (signal.aborted) return Promise.reject(this.aborted())
+  acquire(signal: AbortSignal) {
+    if (signal.aborted) return Promise.reject(this.aborted()) satisfies Promise<void>
     if (!this.held) {
       this.held = true
       return Promise.resolve()
     }
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const waiter: TurnWaiter = {
         signal,
         resolve: () => {
@@ -40,7 +40,7 @@ export class LocalSessionOutboundTurn {
     })
   }
 
-  release(): void {
+  release() {
     this.held = false
     while (this.waiters.length > 0) {
       const waiter = this.waiters.shift()
@@ -64,14 +64,14 @@ export class LocalSessionOutboundReleaseSignal {
     this.aborted = aborted
   }
 
-  notify(): void {
+  notify() {
     this.waiter?.()
   }
 
   /** Resolves on the next notify or after `timeoutMs`; rejects when `signal` aborts. */
-  wait(signal: AbortSignal, timeoutMs: number): Promise<void> {
-    if (signal.aborted) return Promise.reject(this.aborted())
-    return new Promise((resolve, reject) => {
+  wait(signal: AbortSignal, timeoutMs: number) {
+    if (signal.aborted) return Promise.reject(this.aborted()) satisfies Promise<void>
+    return new Promise<void>((resolve, reject) => {
       const settle = () => {
         clearTimeout(timer)
         signal.removeEventListener('abort', abort)

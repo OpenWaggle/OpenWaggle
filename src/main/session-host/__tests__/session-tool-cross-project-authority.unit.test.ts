@@ -48,11 +48,11 @@ const authorizationLayer = Layer.mergeAll(
 
 function queryPayload(
   query: Extract<LocalSessionCommandPayload, { contract: 'session-query-v2' }>['request']['query'],
-): LocalSessionCommandPayload {
+) {
   return {
     contract: 'session-query-v2',
     request: { contractVersion: 2, requestId: 'request-query', query },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 function controlPayload(
@@ -60,7 +60,7 @@ function controlPayload(
     LocalSessionCommandPayload,
     { contract: 'session-control-v2' }
   >['request']['command'],
-): LocalSessionCommandPayload {
+) {
   return {
     contract: 'session-control-v2',
     request: {
@@ -69,7 +69,7 @@ function controlPayload(
       idempotencyKey: `idempotency-${command.operation}`,
       command,
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 function lifecyclePayload(
@@ -77,7 +77,7 @@ function lifecyclePayload(
     LocalSessionCommandPayload,
     { contract: 'session-lifecycle-v2' }
   >['request']['command'],
-): LocalSessionCommandPayload {
+) {
   return {
     contract: 'session-lifecycle-v2',
     request: {
@@ -86,7 +86,7 @@ function lifecyclePayload(
       idempotencyKey: `idempotency-${command.operation}`,
       command,
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 const crossProjectPayloads = {

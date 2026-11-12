@@ -6,11 +6,7 @@ import type {
 } from '@shared/types/mcp-configuration'
 import { mcpCliJsonResponse } from './mcp-cli-io'
 import { McpCliUsageError } from './mcp-cli-management-arguments'
-import {
-  MCP_MANAGEMENT_EXIT,
-  type McpManagementCommandInput,
-  type McpManagementExit,
-} from './mcp-cli-management-context'
+import { MCP_MANAGEMENT_EXIT, type McpManagementCommandInput } from './mcp-cli-management-context'
 import { mcpCliShownExposure } from './mcp-cli-management-exposure'
 import { inspectEnabledServers } from './mcp-cli-management-inspect'
 import {
@@ -57,14 +53,14 @@ function report(
   server: McpConfiguredServerView,
   inspection: McpServerInspection | undefined,
   view: Pick<McpConfigurationView, 'missingSecretServers'>,
-): ServerReport {
+) {
   const state = mcpCliServerState(server, inspection, view)
   const exposure = mcpCliShownExposure(server.exposure)
   const overrides = (inspection?.tools ?? []).flatMap((tool) => {
     const toolExposure = mcpCliShownExposure(tool.exposure)
     return toolExposure === exposure ? [] : [[tool.name, toolExposure] as const]
   })
-  return {
+  const result: ServerReport = {
     name: server.name,
     scope: server.scope,
     source: server.source.path,
@@ -79,6 +75,7 @@ function report(
     ...(overrides.length > 0 ? { toolExposure: Object.fromEntries(overrides) } : {}),
     ...(inspection?.error && inspection.state !== 'connected' ? { error: inspection.error } : {}),
   }
+  return result
 }
 
 function reportLines(entry: ServerReport, projectOption: string) {
@@ -99,11 +96,7 @@ function reportLines(entry: ServerReport, projectOption: string) {
   ]
 }
 
-export async function listCommand({
-  args,
-  projectPath,
-  context,
-}: McpManagementCommandInput): Promise<McpManagementExit> {
+export async function listCommand({ args, projectPath, context }: McpManagementCommandInput) {
   if (args.positional.length > 0) {
     throw new McpCliUsageError('Usage: openwaggle mcp list [--json] [-l]')
   }

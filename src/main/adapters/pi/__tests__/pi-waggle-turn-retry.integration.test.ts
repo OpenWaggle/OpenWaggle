@@ -128,10 +128,7 @@ async function waggleRun(
   return { completedTurns, requests }
 }
 
-const answer =
-  (text: string): Reply =>
-  () =>
-    fauxAssistantMessage(text)
+const answer = (text: string) => () => fauxAssistantMessage(text)
 const unavailable: Reply = () =>
   fauxAssistantMessage('', { stopReason: 'error', errorMessage: '503 Service Unavailable' })
 

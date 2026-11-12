@@ -22,13 +22,13 @@ async function put(file: string, content: string) {
 function json(file: string, value: unknown) {
   return put(file, JSON.stringify(value))
 }
-function packageTask(task: string, directory = '.'): ProjectTaskReference {
+function packageTask(task: string, directory = '.') {
   return {
     provider: 'package-script',
     source: directory === '.' ? 'package.json' : `${directory}/package.json`,
     directory,
     task,
-  }
+  } satisfies ProjectTaskReference
 }
 
 describe('project task discovery', () => {

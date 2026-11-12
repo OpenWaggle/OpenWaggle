@@ -15,7 +15,7 @@ export const RendererSurfaceTerminalEventSinkLive = Layer.effect(
   Effect.sync(() => {
     const attached = new Map<TerminalKey, Set<number>>()
 
-    const send = (surfaceId: number, payload: TerminalEventPayload): boolean => {
+    const send = (surfaceId: number, payload: TerminalEventPayload) => {
       try {
         const target = rendererSurfaces.fromId(surfaceId)
         if (target === null || target.isDestroyed()) return false

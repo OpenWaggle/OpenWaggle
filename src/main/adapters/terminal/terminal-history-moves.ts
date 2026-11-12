@@ -254,6 +254,6 @@ export function makeTerminalHistoryMover(
   files: TerminalHistoryFiles,
   states: Map<TerminalKey, TerminalHistoryCounts>,
   workingDirectories: Map<TerminalKey, string>,
-): TerminalHistoryMover {
+) {
   return new TerminalHistoryMoverImpl(files, states, workingDirectories)
 }

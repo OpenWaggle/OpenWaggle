@@ -2,16 +2,11 @@ import { normalizeBrowserPreviewUrl } from '@shared/schemas/browser-preview'
 import type {
   BrowserPreviewBounds,
   BrowserPreviewOpenInput,
-  BrowserPreviewReplacementResult,
   BrowserPreviewShortcutBindings,
-  BrowserPreviewState,
   BrowserPreviewZoomAction,
 } from '@shared/types/browser-preview'
 import type {
-  BrowserPreviewAnnotation,
   BrowserPreviewAppearance,
-  BrowserPreviewRecordingArtifact,
-  BrowserPreviewRecordingGrant,
   BrowserPreviewRecordingSaveInput,
   BrowserPreviewScreenshotArtifact,
   BrowserPreviewViewport,
@@ -28,7 +23,6 @@ import { browserPreviewOwnerRegistry } from './browser-preview-owner-registry'
 import { createBrowserPreviewRecord } from './browser-preview-record-factory'
 import { applyBrowserPreviewBounds } from './browser-preview-record-layout'
 import { BrowserPreviewRecordRegistry } from './browser-preview-record-registry'
-import type { BrowserPreviewRecord } from './browser-preview-records'
 import { BrowserPreviewReplacement } from './browser-preview-replacement'
 import { BrowserPreviewShutdown } from './browser-preview-shutdown'
 import { nextBrowserPreviewZoomFactor } from './browser-preview-zoom'
@@ -69,24 +63,24 @@ export class BrowserPreviewManager {
   })
 
   /** Resolve a session-owned preview without coupling automation to a renderer WebContents id. */
-  findOwnedPreview(ownerKey: string, previewId?: string): BrowserPreviewRecord | undefined {
+  findOwnedPreview(ownerKey: string, previewId?: string) {
     return this.records.findOwned(ownerKey, previewId)
   }
 
-  listOwnedPreviews(ownerKey: string): readonly BrowserPreviewRecord[] {
+  listOwnedPreviews(ownerKey: string) {
     return this.records.listOwned(ownerKey)
   }
 
-  setCurrentPreview(sender: WebContents, ownerKey: string, previewId: string | null): void {
+  setCurrentPreview(sender: WebContents, ownerKey: string, previewId: string | null) {
     browserPreviewOwnerRegistry.assertRegistered(ownerKey, sender)
     this.records.setCurrent(sender, ownerKey, previewId)
   }
 
-  forgetOwnerSelection(sender: WebContents, ownerKey: string): void {
+  forgetOwnerSelection(sender: WebContents, ownerKey: string) {
     this.records.forgetSelection(sender, ownerKey)
   }
 
-  open(sender: WebContents, input: BrowserPreviewOpenInput): BrowserPreviewState {
+  open(sender: WebContents, input: BrowserPreviewOpenInput) {
     this.assertAdmission(input.ownerKey)
     browserPreviewOwnerRegistry.assertRegistered(input.ownerKey, sender)
     const canonicalUrl = normalizeBrowserPreviewUrl(input.url)
@@ -136,7 +130,7 @@ export class BrowserPreviewManager {
     }
   }
 
-  setBounds(sender: WebContents, previewId: string, bounds: BrowserPreviewBounds | null): void {
+  setBounds(sender: WebContents, previewId: string, bounds: BrowserPreviewBounds | null) {
     const record =
       bounds === null
         ? this.records.findForRenderer(sender, previewId)
@@ -150,7 +144,7 @@ export class BrowserPreviewManager {
     applyBrowserPreviewBounds(record, bounds, true, this.controlCoordinator)
   }
 
-  navigate(sender: WebContents, previewId: string, url: string): BrowserPreviewState {
+  navigate(sender: WebContents, previewId: string, url: string) {
     return this.navigation.navigate(
       this.requirePreview(sender, previewId),
       normalizeBrowserPreviewUrl(url),
@@ -164,39 +158,39 @@ export class BrowserPreviewManager {
     )
   }
 
-  goBack(sender: WebContents, previewId: string): BrowserPreviewState {
+  goBack(sender: WebContents, previewId: string) {
     return this.navigation.goBack(this.requirePreview(sender, previewId))
   }
 
-  goForward(sender: WebContents, previewId: string): BrowserPreviewState {
+  goForward(sender: WebContents, previewId: string) {
     return this.navigation.goForward(this.requirePreview(sender, previewId))
   }
 
-  reload(sender: WebContents, previewId: string): BrowserPreviewState {
+  reload(sender: WebContents, previewId: string) {
     return this.navigation.reload(this.requirePreview(sender, previewId))
   }
 
-  stop(sender: WebContents, previewId: string): BrowserPreviewState {
+  stop(sender: WebContents, previewId: string) {
     return this.navigation.stop(this.requirePreview(sender, previewId))
   }
 
-  close(sender: WebContents, previewId: string): Promise<void> {
+  close(sender: WebContents, previewId: string) {
     return this.lifecycle.close(this.records.findForDisposal(sender, previewId))
   }
 
-  closeForOwner(ownerKey: string): Promise<void> {
+  closeForOwner(ownerKey: string) {
     return this.shutdown.closeForOwner(ownerKey)
   }
 
-  beginShutdown(): void {
+  beginShutdown() {
     this.shutdown.beginShutdown()
   }
 
-  closeAll(): Promise<void> {
+  closeAll() {
     return this.shutdown.closeAll()
   }
 
-  async acquireMutationFence(scope: DesktopMutationScope): Promise<() => void> {
+  async acquireMutationFence(scope: DesktopMutationScope) {
     return this.mutationFences.acquire(scope)
   }
 
@@ -204,13 +198,13 @@ export class BrowserPreviewManager {
     sender: WebContents,
     input: BrowserPreviewOpenInput,
     replacedPreviewId: string,
-  ): BrowserPreviewReplacementResult {
+  ) {
     this.assertAdmission(input.ownerKey)
     browserPreviewOwnerRegistry.assertRegistered(input.ownerKey, sender)
     return this.replacement.replace(sender, input, replacedPreviewId)
   }
 
-  zoom(sender: WebContents, previewId: string, action: BrowserPreviewZoomAction): number {
+  zoom(sender: WebContents, previewId: string, action: BrowserPreviewZoomAction) {
     const record = this.requirePreview(sender, previewId)
     const contents = record.view.webContents
     const next = nextBrowserPreviewZoomFactor(contents.getZoomFactor(), action)
@@ -219,15 +213,11 @@ export class BrowserPreviewManager {
     return next
   }
 
-  setViewport(
-    sender: WebContents,
-    previewId: string,
-    viewport: BrowserPreviewViewport,
-  ): BrowserPreviewState {
+  setViewport(sender: WebContents, previewId: string, viewport: BrowserPreviewViewport) {
     return this.controlCoordinator.setViewport(this.requirePreview(sender, previewId), viewport)
   }
 
-  hardReload(sender: WebContents, previewId: string): BrowserPreviewState {
+  hardReload(sender: WebContents, previewId: string) {
     const record = this.requirePreview(sender, previewId)
     record.loadGeneration += 1
     record.state = { ...record.state, loading: true, error: null }
@@ -236,15 +226,11 @@ export class BrowserPreviewManager {
     return record.state
   }
 
-  setAppearance(
-    sender: WebContents,
-    previewId: string,
-    appearance: BrowserPreviewAppearance,
-  ): Promise<BrowserPreviewState> {
+  setAppearance(sender: WebContents, previewId: string, appearance: BrowserPreviewAppearance) {
     return this.controlCoordinator.setAppearance(this.requirePreview(sender, previewId), appearance)
   }
 
-  setAudioMuted(sender: WebContents, previewId: string, audioMuted: boolean): BrowserPreviewState {
+  setAudioMuted(sender: WebContents, previewId: string, audioMuted: boolean) {
     const record = this.requirePreview(sender, previewId)
     record.view.webContents.setAudioMuted(audioMuted)
     if (record.state.audioMuted === audioMuted) return record.state
@@ -253,73 +239,66 @@ export class BrowserPreviewManager {
     return record.state
   }
 
-  openDevTools(sender: WebContents, previewId: string): Promise<void> {
+  openDevTools(sender: WebContents, previewId: string) {
     return this.controlCoordinator.openDevTools(this.requirePreview(sender, previewId))
   }
 
-  clearCookies(sender: WebContents, previewId: string): Promise<void> {
+  clearCookies(sender: WebContents, previewId: string) {
     return this.controlCoordinator.clearCookies(this.requirePreview(sender, previewId))
   }
 
-  clearCache(sender: WebContents, previewId: string): Promise<void> {
+  clearCache(sender: WebContents, previewId: string) {
     return this.controlCoordinator.clearCache(this.requirePreview(sender, previewId))
   }
 
-  captureScreenshot(
-    sender: WebContents,
-    previewId: string,
-  ): Promise<BrowserPreviewScreenshotArtifact> {
-    return this.controlCoordinator.captureScreenshot(this.requirePreview(sender, previewId))
+  captureScreenshot(sender: WebContents, previewId: string) {
+    return this.controlCoordinator.captureScreenshot(
+      this.requirePreview(sender, previewId),
+    ) satisfies Promise<BrowserPreviewScreenshotArtifact>
   }
 
-  revealArtifact(sender: WebContents, artifactPath: string): Promise<void> {
+  revealArtifact(sender: WebContents, artifactPath: string) {
     this.requireOwner(sender)
     return this.controlCoordinator.revealArtifact(artifactPath)
   }
 
-  copyScreenshot(sender: WebContents, artifactPath: string): Promise<void> {
+  copyScreenshot(sender: WebContents, artifactPath: string) {
     this.requireOwner(sender)
     return this.controlCoordinator.copyScreenshot(artifactPath)
   }
 
-  async startRecording(
-    sender: WebContents,
-    previewId: string,
-  ): Promise<BrowserPreviewRecordingGrant> {
+  async startRecording(sender: WebContents, previewId: string) {
     return this.controlCoordinator.startRecording(this.requirePreview(sender, previewId))
   }
 
-  saveRecording(
-    sender: WebContents,
-    input: BrowserPreviewRecordingSaveInput,
-  ): Promise<BrowserPreviewRecordingArtifact> {
+  saveRecording(sender: WebContents, input: BrowserPreviewRecordingSaveInput) {
     return this.controlCoordinator.saveRecording(
       this.requirePreview(sender, input.previewId),
       input,
     )
   }
 
-  stopRecording(sender: WebContents, previewId: string): void {
+  stopRecording(sender: WebContents, previewId: string) {
     this.controlCoordinator.stopRecording(this.requirePreview(sender, previewId))
   }
 
-  pickElement(sender: WebContents, previewId: string): Promise<BrowserPreviewAnnotation | null> {
+  pickElement(sender: WebContents, previewId: string) {
     return this.controlCoordinator.pickElement(this.requirePreview(sender, previewId))
   }
 
-  cancelPickElement(sender: WebContents, previewId: string): Promise<void> {
+  cancelPickElement(sender: WebContents, previewId: string) {
     return this.controlCoordinator.cancelPickElement(this.requirePreview(sender, previewId))
   }
 
-  openPictureInPicture(sender: WebContents, previewId: string): Promise<BrowserPreviewState> {
+  openPictureInPicture(sender: WebContents, previewId: string) {
     return this.controlCoordinator.openPictureInPicture(this.requirePreview(sender, previewId))
   }
 
-  closePictureInPicture(sender: WebContents, previewId: string): BrowserPreviewState {
+  closePictureInPicture(sender: WebContents, previewId: string) {
     return this.controlCoordinator.closePictureInPicture(this.requirePreview(sender, previewId))
   }
 
-  setShortcutBindings(sender: WebContents, bindings: BrowserPreviewShortcutBindings): void {
+  setShortcutBindings(sender: WebContents, bindings: BrowserPreviewShortcutBindings) {
     const owner = this.records.getOrCreateOwner(sender)
     owner.shortcutBindings = bindings.map((binding) => ({ ...binding }))
   }

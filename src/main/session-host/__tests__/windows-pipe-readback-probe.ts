@@ -94,7 +94,7 @@ $results = @(foreach ($case in $cases) {
 
 export async function verifyWindowsPipeDescriptors(
   cases: readonly { readonly name: string; readonly sddl: string }[],
-): Promise<unknown> {
+) {
   const result: unknown = JSON.parse(
     await runWindowsPipeProbe(windowsPipeDescriptorProbeScript(), cases),
   )

@@ -21,14 +21,14 @@ export class BrowserPreviewRetirementCleanup {
     this.close = close
   }
 
-  start(record: BrowserPreviewRecord): void {
+  start(record: BrowserPreviewRecord) {
     if (this.attempts.has(record)) return
     const attempt: CleanupAttempt = { delayMs: INITIAL_RETRY_DELAY_MS, timer: null }
     this.attempts.set(record, attempt)
     this.run(record, attempt)
   }
 
-  cancel(record: BrowserPreviewRecord): void {
+  cancel(record: BrowserPreviewRecord) {
     const attempt = this.attempts.get(record)
     if (!attempt) return
     this.attempts.delete(record)

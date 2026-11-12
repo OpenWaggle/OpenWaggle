@@ -3,12 +3,7 @@ import { readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionDocsTopicDeclaration } from '@shared/schemas/extensions'
-import type {
-  DocsDiscoveryDiagnostic,
-  ExtensionDocsLifecycleState,
-  ExtensionDocsTopicSummary,
-  ExtensionDocsTrustState,
-} from '@shared/types/docs'
+import type { DocsDiscoveryDiagnostic, ExtensionDocsTopicSummary } from '@shared/types/docs'
 import type { ExtensionPackageScopeView } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import { isExtensionCurrentTrustPin } from '../extensions/runtime-eligibility'
@@ -39,53 +34,54 @@ export function packageLoadDiagnostic(input: {
   readonly operation: string
   readonly error: unknown
   readonly path?: string
-}): DocsDiscoveryDiagnostic {
+}) {
   return {
     severity: 'error',
     code: 'extension-docs-discovery-failed',
     message: `${input.operation}: ${input.error instanceof Error ? input.error.message : String(input.error)}`,
     ...(input.path !== undefined ? { path: input.path } : {}),
-  }
+  } satisfies DocsDiscoveryDiagnostic
 }
 
-function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
+function scopeToView(scope: ExtensionPackageScope) {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' }
+    return {
+      kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
+      label: 'Global',
+    } satisfies ExtensionPackageScopeView
   }
   return {
     kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
     label: 'Project',
     projectPath: scope.projectPath,
-  }
+  } satisfies ExtensionPackageScopeView
 }
 
 function extensionTrustState(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState | null
-}): ExtensionDocsTrustState {
+}) {
   const { lifecycle } = input
   if (!lifecycle) {
-    return 'unknown'
+    return 'unknown' as const
   }
   return isExtensionCurrentTrustPin({ extensionPackage: input.extensionPackage, lifecycle })
-    ? 'trusted'
-    : 'untrusted'
+    ? ('trusted' as const)
+    : ('untrusted' as const)
 }
 
-function extensionLifecycleState(
-  lifecycle: ExtensionLifecycleState | null,
-): ExtensionDocsLifecycleState {
+function extensionLifecycleState(lifecycle: ExtensionLifecycleState | null) {
   if (!lifecycle) {
-    return 'unavailable'
+    return 'unavailable' as const
   }
-  return lifecycle.enabled ? 'enabled' : 'disabled'
+  return lifecycle.enabled ? ('enabled' as const) : ('disabled' as const)
 }
 
 function invalidDocPath(input: {
   readonly candidatePath: string
   readonly relativePath: string
   readonly message: string
-}): ExtensionDocFileLookup {
+}) {
   return {
     path: input.candidatePath,
     contentHash: null,
@@ -97,13 +93,13 @@ function invalidDocPath(input: {
         path: input.relativePath,
       },
     ],
-  }
+  } satisfies ExtensionDocFileLookup
 }
 
 async function getExtensionDocFile(input: {
   readonly packagePath: string
   readonly relativePath: string
-}): Promise<ExtensionDocFileLookup> {
+}) {
   const resolvedPackagePath = path.resolve(input.packagePath)
   const candidatePath = path.resolve(input.packagePath, input.relativePath)
   if (!isPathInside(resolvedPackagePath, candidatePath)) {
@@ -128,13 +124,14 @@ async function getExtensionDocFile(input: {
     }
 
     const content = await readFile(realCandidatePath)
-    return {
+    const lookup: ExtensionDocFileLookup = {
       path: realCandidatePath,
       contentHash: createHash(HASH_ALGORITHM).update(content).digest(HASH_ENCODING),
       diagnostics: [],
     }
+    return lookup
   } catch (error) {
-    return {
+    const lookup: ExtensionDocFileLookup = {
       path: candidatePath,
       contentHash: null,
       diagnostics: [
@@ -146,6 +143,7 @@ async function getExtensionDocFile(input: {
         },
       ],
     }
+    return lookup
   }
 }
 
@@ -159,9 +157,9 @@ function topicFromExtensionDoc(input: {
   readonly declaration: ExtensionDocsTopicDeclaration
   readonly file: ExtensionDocFileLookup
   readonly lifecycleDiagnostics: readonly DocsDiscoveryDiagnostic[]
-}): ExtensionDocsTopicSummary {
+}) {
   const manifest = input.extensionPackage.manifest
-  return {
+  const summary: ExtensionDocsTopicSummary = {
     topic: extensionDocTopicId(input.extensionPackage.id, input.declaration.id),
     localTopic: input.declaration.id,
     title: input.declaration.title,
@@ -189,6 +187,7 @@ function topicFromExtensionDoc(input: {
     },
     diagnostics: [...input.lifecycleDiagnostics, ...input.file.diagnostics],
   }
+  return summary
 }
 
 export function extensionPackageDocs(input: ExtensionPackageWithLifecycle) {

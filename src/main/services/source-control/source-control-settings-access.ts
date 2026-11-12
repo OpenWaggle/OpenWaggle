@@ -1,7 +1,6 @@
 import type { SourceControlProviderId } from '@shared/types/change-request'
 import type { Settings } from '@shared/types/settings'
 import { type SourceControlSettingsPatch, sourceControlHostKey } from '@shared/types/source-control'
-import type { SourceControlPreferencesAccess } from './live-resolution-deps'
 
 export type SourceControlSettings = Pick<
   Settings,
@@ -22,9 +21,7 @@ export interface SourceControlSettingsAccess {
 }
 
 /** The resolution view of the Settings, with the detected-host cache as its only write. */
-export function resolutionPreferences(
-  access: SourceControlSettingsAccess,
-): SourceControlPreferencesAccess {
+export function resolutionPreferences(access: SourceControlSettingsAccess) {
   return {
     read: async () => {
       const settings = await access.read()

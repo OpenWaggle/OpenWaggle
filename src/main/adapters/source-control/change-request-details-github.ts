@@ -75,17 +75,21 @@ interface GhPullRequestFile {
   readonly deletions: number
 }
 
-function mapCheckStatus(record: UncheckedFields<GhStatusCheck>): ChangeRequestCheckStatus {
+function mapCheckStatus(record: UncheckedFields<GhStatusCheck>) {
   const state = (asString(record.state) ?? asString(record.status))?.toUpperCase()
   const conclusion = asString(record.conclusion)?.toUpperCase()
   const stateStatus = state ? STATE_STATUS.get(state) : undefined
-  if (stateStatus === 'pending') return stateStatus
+  if (stateStatus === 'pending') {
+    const result: ChangeRequestCheckStatus = stateStatus
+    return result
+  }
   const conclusionStatus = conclusion ? CONCLUSION_STATUS.get(conclusion) : undefined
-  return conclusionStatus ?? stateStatus ?? 'unknown'
+  const result: ChangeRequestCheckStatus = conclusionStatus ?? stateStatus ?? 'unknown'
+  return result
 }
 
-function mapChecks(value: unknown): readonly VcsChangeRequestCheck[] {
-  return boundedObjects(value).flatMap((entry) => {
+function mapChecks(value: unknown) {
+  const check: readonly VcsChangeRequestCheck[] = boundedObjects(value).flatMap((entry) => {
     const record: UncheckedFields<GhStatusCheck> = entry
     const name = asString(record.name) ?? asString(record.context)
     if (!name) return []
@@ -97,10 +101,11 @@ function mapChecks(value: unknown): readonly VcsChangeRequestCheck[] {
       },
     ]
   })
+  return check
 }
 
-function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
-  return boundedObjects(value).flatMap((entry) => {
+function mapFiles(value: unknown) {
+  const file: readonly VcsChangeRequestFile[] = boundedObjects(value).flatMap((entry) => {
     const record: UncheckedFields<GhPullRequestFile> = entry
     const path = asString(record.path)
     if (!path) return []
@@ -112,28 +117,52 @@ function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
       },
     ]
   })
+  return file
 }
 
-function mapReviewDecision(value: unknown): ChangeRequestReviewDecision {
+function mapReviewDecision(value: unknown) {
   const decision = asString(value)?.toUpperCase()
-  if (decision === 'APPROVED') return 'approved'
-  if (decision === 'CHANGES_REQUESTED') return 'changes-requested'
-  if (decision === 'REVIEW_REQUIRED') return 'review-required'
-  if (value === null || value === undefined || decision === '') return 'none'
-  return 'unknown'
+  if (decision === 'APPROVED') {
+    const result: ChangeRequestReviewDecision = 'approved'
+    return result
+  }
+  if (decision === 'CHANGES_REQUESTED') {
+    const result: ChangeRequestReviewDecision = 'changes-requested'
+    return result
+  }
+  if (decision === 'REVIEW_REQUIRED') {
+    const result: ChangeRequestReviewDecision = 'review-required'
+    return result
+  }
+  if (value === null || value === undefined || decision === '') {
+    const result: ChangeRequestReviewDecision = 'none'
+    return result
+  }
+  const result: ChangeRequestReviewDecision = 'unknown'
+  return result
 }
 
-function mapMergeability(record: UncheckedFields<GhPullRequestDetails>): ChangeRequestMergeability {
+function mapMergeability(record: UncheckedFields<GhPullRequestDetails>) {
   const mergeable = asString(record.mergeable)?.toUpperCase()
   const status = asString(record.mergeStateStatus)?.toUpperCase()
-  if (mergeable === 'CONFLICTING' || status === 'DIRTY') return 'conflicting'
-  if (status === 'BLOCKED' || status === 'BEHIND' || status === 'UNSTABLE') return 'blocked'
-  if (mergeable === 'MERGEABLE') return 'mergeable'
-  return 'unknown'
+  if (mergeable === 'CONFLICTING' || status === 'DIRTY') {
+    const mergeability: ChangeRequestMergeability = 'conflicting'
+    return mergeability
+  }
+  if (status === 'BLOCKED' || status === 'BEHIND' || status === 'UNSTABLE') {
+    const mergeability: ChangeRequestMergeability = 'blocked'
+    return mergeability
+  }
+  if (mergeable === 'MERGEABLE') {
+    const mergeability: ChangeRequestMergeability = 'mergeable'
+    return mergeability
+  }
+  const mergeability: ChangeRequestMergeability = 'unknown'
+  return mergeability
 }
 
 /** Map one bounded `gh pr view --json` response into lifecycle detail. */
-export function mapGhPullRequestDetails(raw: unknown): VcsChangeRequestDetails | null {
+export function mapGhPullRequestDetails(raw: unknown) {
   const object = asObject(raw)
   const summary = mapGhPullRequest(raw)
   if (!object || !summary) return null
@@ -154,7 +183,7 @@ export function mapGhPullRequestDetails(raw: unknown): VcsChangeRequestDetails |
     mergeability,
     rulesBlocked: mergeStateStatus !== null && mergeStateStatus !== 'CLEAN',
   })
-  return {
+  const details: VcsChangeRequestDetails | null = {
     ...summary,
     reference: String(reference),
     headCommit,
@@ -172,4 +201,5 @@ export function mapGhPullRequestDetails(raw: unknown): VcsChangeRequestDetails |
     unresolvedReviewThreadsCount: null,
     merge: { allowed: reason === null, reason, methods: CHANGE_REQUEST_MERGE_METHODS },
   }
+  return details
 }

@@ -24,9 +24,7 @@ interface ExtensionProjectOverrideRow {
   readonly updated_at: number
 }
 
-function rowToProjectOverrideState(
-  row: ExtensionProjectOverrideRow,
-): ExtensionProjectOverrideState {
+function rowToProjectOverrideState(row: ExtensionProjectOverrideRow) {
   return {
     extensionId: row.extension_id,
     scope: scopeFromColumns(row.scope_kind, row.scope_id, 'extension project override'),
@@ -37,10 +35,7 @@ function rowToProjectOverrideState(
   }
 }
 
-function mapRepositoryError(
-  operation: string,
-  cause: unknown,
-): ExtensionProjectOverrideRepositoryError {
+function mapRepositoryError(operation: string, cause: unknown) {
   return new ExtensionProjectOverrideRepositoryError({ operation, cause })
 }
 

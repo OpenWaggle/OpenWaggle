@@ -76,7 +76,7 @@ function toReadableIssues(issues: readonly string[]) {
   return issues.join('; ')
 }
 
-export function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
+export function toIpcError(channel: IpcInvokeChannel, error: unknown) {
   if (isValidationIssuesError(error)) {
     const readable = toReadableIssues(error.issues)
     logger.warn(`Validation failed on "${channel}"`, { issues: readable })
@@ -157,10 +157,7 @@ function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C
   })
 }
 
-export function typedHandle<C extends IpcInvokeChannel>(
-  channel: C,
-  handler: EffectIpcHandler<C>,
-): void {
+export function typedHandle<C extends IpcInvokeChannel>(channel: C, handler: EffectIpcHandler<C>) {
   relayingHandle(channel, handler)
 }
 
@@ -183,7 +180,7 @@ export function relayingHandle<C extends IpcInvokeChannel>(
     event: IpcInvocation,
     ...args: IpcInvokeArgs<C>
   ) => EffectType<MaybeVoid<IpcInvokeReturn<C>> | RelayedHostResult, unknown, GuiServices>,
-): void {
+) {
   rawHandle(channel, async (event, ...args) => {
     const exit = await runGuiEffectExit(handler(event, ...args))
 
@@ -231,7 +228,7 @@ export function hostHandle<C extends HostBackedGuiChannel>(
       ...args: IpcInvokeArgs<C>
     ) => EffectType<void, unknown, GuiServices>
   } = {},
-): void {
+) {
   if (!HOST_BACKED_GUI_CHANNELS.some((candidate) => candidate === channel)) {
     throw new Error(`Host-backed IPC channel is not declared: ${channel}`)
   }
@@ -279,10 +276,7 @@ type EffectIpcOnHandler<C extends IpcSendChannel> = (
   ...args: IpcSendArgs<C>
 ) => EffectType<void, unknown, GuiServices>
 
-export function typedOn<C extends IpcSendChannel>(
-  channel: C,
-  handler: EffectIpcOnHandler<C>,
-): void {
+export function typedOn<C extends IpcSendChannel>(channel: C, handler: EffectIpcOnHandler<C>) {
   rawOn(channel, (event, ...args) => {
     runGuiEffect(handler(event, ...args)).catch((err: unknown) => {
       logger.error(`Unhandled error in "${channel}" listener`, {

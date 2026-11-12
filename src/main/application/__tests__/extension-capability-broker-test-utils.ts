@@ -67,7 +67,7 @@ export function makeProjectInvocation(
     readonly payload?: unknown
     readonly scope?: ExtensionInvokeInput['scope']
   } = {},
-): ExtensionInvokeInput {
+) {
   return {
     extensionId: BROKER_EXTENSION_ID,
     contributionId: input.contributionId ?? BROKER_CONTRIBUTION_ID,
@@ -75,7 +75,7 @@ export function makeProjectInvocation(
     method: input.method ?? OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
     scope: input.scope ?? { kind: 'project', projectPath: PROJECT_PATH },
     ...(input.payload !== undefined ? { payload: input.payload } : { payload: {} }),
-  }
+  } satisfies ExtensionInvokeInput
 }
 
 interface BrokerHarnessInput {

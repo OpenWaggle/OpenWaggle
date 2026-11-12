@@ -10,9 +10,13 @@ export function getSourceControlProvider(
   id: SourceControlProviderId | null | undefined,
   repository: SourceControlRepositoryIdentity | null,
   options: SourceControlProviderOptions = {},
-): SourceControlProvider | null {
+) {
   if (!repository || repository.provider !== id) return null
-  if (id === 'github') return createGithubProvider(repository, options)
-  if (id === 'gitlab') return createGitlabProvider(repository)
+  if (id === 'github') {
+    return createGithubProvider(repository, options) satisfies SourceControlProvider | null
+  }
+  if (id === 'gitlab') {
+    return createGitlabProvider(repository) satisfies SourceControlProvider | null
+  }
   return null
 }

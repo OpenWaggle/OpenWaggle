@@ -5,7 +5,6 @@ import {
   resolvedNothing,
 } from './desktop-shell-environment'
 import type {
-  CachedShellEnvironment,
   ShellEnvironmentCache,
   ShellEnvironmentCacheKey,
 } from './desktop-shell-environment-cache'
@@ -46,7 +45,7 @@ async function awaitRefreshElsewhere(input: {
   readonly refreshedElsewhere?: ShellEnvironmentRefreshedElsewhere
   readonly now: () => number
   readonly sleep?: (milliseconds: number) => Promise<void>
-}): Promise<CachedShellEnvironment | null> {
+}) {
   const { cache, key, refreshedElsewhere: elsewhere } = input
   if (!cache || !key || !elsewhere) return null
   const sleep = input.sleep ?? defaultSleep
@@ -79,12 +78,14 @@ export interface StartDesktopShellEnvironmentOptions extends DesktopShellEnviron
  * result from another process is applied as a cached one. Windows reads its PowerShell profile as
  * before; it is not cached.
  */
-export function startDesktopShellEnvironment(
-  options: StartDesktopShellEnvironmentOptions,
-): StartedDesktopShellEnvironment {
+export function startDesktopShellEnvironment(options: StartDesktopShellEnvironmentOptions) {
   if (options.platform !== 'darwin' && options.platform !== 'linux') {
     const installed = installDesktopShellEnvironment(options)
-    return { ready: installed, refreshed: installed, fromCache: false }
+    return {
+      ready: installed,
+      refreshed: installed,
+      fromCache: false,
+    } satisfies StartedDesktopShellEnvironment
   }
   const now = options.now ?? Date.now
   const posix = preparePosixShellEnvironment(options)
@@ -110,5 +111,9 @@ export function startDesktopShellEnvironment(
       cache?.write(key, posix.cacheable(resolved, cached), now())
     }
   })
-  return { ready: cached ? Promise.resolve() : refreshed, refreshed, fromCache: cached !== null }
+  return {
+    ready: cached ? Promise.resolve() : refreshed,
+    refreshed,
+    fromCache: cached !== null,
+  } satisfies StartedDesktopShellEnvironment
 }

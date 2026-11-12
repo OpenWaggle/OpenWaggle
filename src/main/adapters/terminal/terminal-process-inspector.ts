@@ -95,7 +95,7 @@ export interface TerminalProcessInspector {
   stop(): void
 }
 
-export function makeTerminalProcessInspector(): TerminalProcessInspector {
+export function makeTerminalProcessInspector() {
   let onActivity: ((key: TerminalKey, snapshot: TerminalProcessActivitySnapshot) => void) | null =
     null
   let onObservation:
@@ -113,7 +113,7 @@ export function makeTerminalProcessInspector(): TerminalProcessInspector {
     onActivity?.(key, snapshot)
   }
 
-  const tick = async (): Promise<boolean> => {
+  const tick = async () => {
     const revision = lifecycleRevision
     const sampledTargets = new Map(targets)
     try {
@@ -185,5 +185,5 @@ export function makeTerminalProcessInspector(): TerminalProcessInspector {
       lastSnapshot.clear()
       targets.clear()
     },
-  }
+  } satisfies TerminalProcessInspector
 }

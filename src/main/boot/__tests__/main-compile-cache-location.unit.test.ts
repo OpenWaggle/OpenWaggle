@@ -7,10 +7,14 @@ import {
 
 const HOME = path.join(path.sep, 'home', 'ada')
 
-function environment(
-  overrides: Partial<MainCompileCacheEnvironment> = {},
-): MainCompileCacheEnvironment {
-  return { platform: 'darwin', env: {}, homeDirectory: HOME, channel: 'beta', ...overrides }
+function environment(overrides: Partial<MainCompileCacheEnvironment> = {}) {
+  return {
+    platform: 'darwin',
+    env: {},
+    homeDirectory: HOME,
+    channel: 'beta',
+    ...overrides,
+  } satisfies MainCompileCacheEnvironment
 }
 
 describe('mainCompileCacheLocation', () => {

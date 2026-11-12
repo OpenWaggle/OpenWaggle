@@ -53,7 +53,7 @@ export function normalizeWorkspaceRelativePath(relativePath: string) {
 export async function resolveExistingWorkspaceEntry(input: {
   readonly projectPath: string
   readonly path: string
-}): Promise<ResolvedWorkspaceEntry> {
+}) {
   const projectRoot = await resolveWorkspaceProjectRoot(input.projectPath)
   const relativePath = normalizeWorkspaceRelativePath(input.path)
   if (relativePath === '.') throw new Error('The workspace root cannot be mutated as an entry.')
@@ -75,16 +75,17 @@ export async function resolveExistingWorkspaceEntry(input: {
 export async function resolveExistingWorkspaceFile(input: {
   readonly projectPath: string
   readonly path: string
-}): Promise<ResolvedWorkspaceFile> {
+}) {
   const resolved = await resolveExistingWorkspaceEntry(input)
   if (!resolved.stats.isFile()) throw new Error('Workspace path must resolve to a file.')
-  return { ...resolved, realFilePath: resolved.realPath }
+  const file: ResolvedWorkspaceFile = { ...resolved, realFilePath: resolved.realPath }
+  return file
 }
 
 export async function resolveNewWorkspaceEntry(input: {
   readonly projectPath: string
   readonly path: string
-}): Promise<ResolvedNewWorkspaceEntry> {
+}) {
   const projectRoot = await resolveWorkspaceProjectRoot(input.projectPath)
   const relativePath = normalizeWorkspaceRelativePath(input.path)
   if (relativePath === '.') throw new Error('Choose a path below the workspace root.')
@@ -96,9 +97,10 @@ export async function resolveNewWorkspaceEntry(input: {
   if (!isPathInsideDirectory(projectRoot, realParentPath)) {
     throw new Error('Workspace entry parent resolves outside the project root.')
   }
-  return {
+  const entry: ResolvedNewWorkspaceEntry = {
     projectRoot,
     relativePath,
     targetPath: path.join(realParentPath, path.basename(targetPath)),
   }
+  return entry
 }

@@ -27,7 +27,7 @@ export class BrowserPreviewCrashRecovery {
     this.options = options
   }
 
-  start(): void {
+  start() {
     if (this.disposed || !this.options.isCurrent()) return
     this.clearTimer()
     this.pruneAttempts()
@@ -39,21 +39,21 @@ export class BrowserPreviewCrashRecovery {
     this.scheduleAttempt()
   }
 
-  navigationStarted(): void {
+  navigationStarted() {
     this.cancel()
   }
 
-  cancel(): void {
+  cancel() {
     this.active = false
     this.clearTimer()
   }
 
-  dispose(): void {
+  dispose() {
     this.disposed = true
     this.cancel()
   }
 
-  private scheduleAttempt(): void {
+  private scheduleAttempt() {
     const delay = RECOVERY_INITIAL_DELAY_MS * RECOVERY_BACKOFF_BASE ** this.attemptTimestamps.length
     this.timer = setTimeout(() => {
       this.timer = null
@@ -62,7 +62,7 @@ export class BrowserPreviewCrashRecovery {
     this.timer.unref()
   }
 
-  private runAttempt(): void {
+  private runAttempt() {
     if (!this.active || this.disposed || !this.options.isCurrent()) {
       this.cancel()
       return
@@ -90,20 +90,20 @@ export class BrowserPreviewCrashRecovery {
     this.timer.unref()
   }
 
-  private exhaust(): void {
+  private exhaust() {
     this.active = false
     this.clearTimer()
     if (!this.disposed && this.options.isCurrent()) this.options.onExhausted()
   }
 
-  private pruneAttempts(): void {
+  private pruneAttempts() {
     const cutoff = Date.now() - RECOVERY_WINDOW_MS
     while ((this.attemptTimestamps[0] ?? Number.POSITIVE_INFINITY) <= cutoff) {
       this.attemptTimestamps.shift()
     }
   }
 
-  private clearTimer(): void {
+  private clearTimer() {
     if (this.timer !== null) clearTimeout(this.timer)
     this.timer = null
   }

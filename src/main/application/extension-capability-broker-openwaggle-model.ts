@@ -14,26 +14,21 @@ import type { Settings, ThinkingLevel } from '@shared/types/settings'
  * `thinkingLevel` is Pi's global default thinking level, where new Sessions start; it is not a
  * Session's thinking level, which is Session state.
  */
-export function toExtensionModelPrefs(
-  settings: Settings,
-  defaultThinkingLevel: ThinkingLevel,
-): ExtensionModelPrefs {
+export function toExtensionModelPrefs(settings: Settings, defaultThinkingLevel: ThinkingLevel) {
   return {
     selectedModel: settings.selectedModel,
     favoriteModels: [...settings.favoriteModels],
     enabledModels: [...settings.enabledModels],
     thinkingLevel: defaultThinkingLevel,
-  }
+  } satisfies ExtensionModelPrefs
 }
 
-export function toExtensionSettingsView(
-  settings: Settings,
-  defaultThinkingLevel: ThinkingLevel,
-): ExtensionSettingsView {
-  return {
+export function toExtensionSettingsView(settings: Settings, defaultThinkingLevel: ThinkingLevel) {
+  const view: ExtensionSettingsView = {
     modelPreferences: toExtensionModelPrefs(settings, defaultThinkingLevel),
     projectDisplayNames: { ...settings.projectDisplayNames },
   }
+  return view
 }
 
 export function projectName(settings: Settings, projectPath: string) {
@@ -84,7 +79,7 @@ export function appendRecentProject(paths: readonly string[], projectPath: strin
   return [...paths.filter((entry) => entry !== trimmed), trimmed].slice(-BASE_TEN)
 }
 
-export function toSettingsUpdatePatch(payload: ExtensionSettingsUpdatePayload): Partial<Settings> {
+export function toSettingsUpdatePatch(payload: ExtensionSettingsUpdatePayload) {
   return {
     ...(payload.selectedModel !== undefined
       ? { selectedModel: SupportedModelId(payload.selectedModel) }
@@ -101,9 +96,7 @@ export function toSettingsUpdatePatch(payload: ExtensionSettingsUpdatePayload): 
   }
 }
 
-export function toModelPreferencesUpdatePatch(
-  payload: ExtensionModelPreferencesSettingsPatch,
-): Partial<Settings> {
+export function toModelPreferencesUpdatePatch(payload: ExtensionModelPreferencesSettingsPatch) {
   return {
     ...(payload.selectedModel !== undefined
       ? { selectedModel: SupportedModelId(payload.selectedModel) }
@@ -117,22 +110,19 @@ export function toModelPreferencesUpdatePatch(
   }
 }
 
-export function toProjectDisplayNameValue(
-  settings: Settings,
-  projectPath: string,
-): ExtensionSettingsProjectDisplayNameValue {
+export function toProjectDisplayNameValue(settings: Settings, projectPath: string) {
   return {
     key: 'project-display-name',
     projectPath,
     value: projectName(settings, projectPath),
-  }
+  } satisfies ExtensionSettingsProjectDisplayNameValue
 }
 
 export function toProjectDisplayNameUpdatePatch(input: {
   readonly settings: Settings
   readonly projectPath: string
   readonly value: string | null
-}): Partial<Settings> {
+}) {
   const projectDisplayNames = { ...input.settings.projectDisplayNames }
   const trimmedValue = input.value?.trim() ?? ''
 

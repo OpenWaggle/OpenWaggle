@@ -19,8 +19,8 @@ const RUN_NOW: ScheduledTaskRun = {
   sessionId: 'session-1',
 }
 
-function task(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
-  return {
+function task(overrides: Partial<ScheduledTask> = {}) {
+  const result: ScheduledTask = {
     id: 'task-1',
     name: 'Morning triage',
     prompt: 'Triage new issues.',
@@ -52,10 +52,16 @@ function task(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
     updatedAt: 0,
     ...overrides,
   }
+  return result
 }
 
-function response(outcome: ScheduledTasksOutcome): ScheduledTasksResponse {
-  return { contractVersion: 1, requestId: 'request', operation: 'list', outcome }
+function response(outcome: ScheduledTasksOutcome) {
+  return {
+    contractVersion: 1,
+    requestId: 'request',
+    operation: 'list',
+    outcome,
+  } satisfies ScheduledTasksResponse
 }
 
 describe('openwaggle schedules output', () => {

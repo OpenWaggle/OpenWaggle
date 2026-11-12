@@ -80,8 +80,11 @@ export class FollowUpEditHoldWindowLeases {
     this.stopTimerWhenIdle()
   }
 
-  heldBy(windowId: number): readonly WindowFollowUpEditHold[] {
-    return [...(this.holdsByWindow.get(windowId)?.values() ?? [])]
+  heldBy(windowId: number) {
+    const hold: readonly WindowFollowUpEditHold[] = [
+      ...(this.holdsByWindow.get(windowId)?.values() ?? []),
+    ]
+    return hold
   }
 
   /** Releases every hold of a window that closed, reloaded, or crashed. */
@@ -168,7 +171,7 @@ export class WindowPageGenerations {
     this.watch = watch
   }
 
-  snapshot(windowId: number): number | undefined {
+  snapshot(windowId: number) {
     const current = this.generations.get(windowId)
     if (current !== undefined) return current
     const watching = this.watch(windowId, {

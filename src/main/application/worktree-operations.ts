@@ -77,8 +77,9 @@ function archivedCount(count: number) {
   return `Archived ${String(count)} ${count === 1 ? 'Session' : 'Sessions'}`
 }
 
-function refused(message: string): GitWorktreeMutationResult {
-  return { ok: false, code: 'worktree-in-use', message }
+function refused(message: string) {
+  const result: GitWorktreeMutationResult = { ok: false, code: 'worktree-in-use', message }
+  return result
 }
 
 /**

@@ -56,45 +56,49 @@ function hasAttachmentTransport(
 function namedProfileAttachmentRoots(
   payload: LocalSessionCommandPayload,
   caller: LocalSessionCallerIdentity,
-): Effect.Effect<readonly string[] | undefined, Error> {
+) {
   if (!caller.profileAuthority || !hasAttachmentTransport(payload)) {
     return Effect.succeed<readonly string[] | undefined>(undefined)
   }
   const roots = caller.profileAuthority.scope.attachmentRoots ?? []
-  return roots.length > 0
-    ? Effect.succeed(roots)
-    : Effect.fail(
-        new Error('Attachment paths require an explicit filesystem attachment-root grant.'),
-      )
+  const effect: Effect.Effect<readonly string[] | undefined, Error> =
+    roots.length > 0
+      ? Effect.succeed(roots)
+      : Effect.fail(
+          new Error('Attachment paths require an explicit filesystem attachment-root grant.'),
+        )
+  return effect
 }
 
 export function prepareSessionCommandAttachments(input: {
   readonly payload: LocalSessionCommandPayload
   readonly caller: LocalSessionCallerIdentity
   readonly workingDirectory?: string
-}): Effect.Effect<LocalSessionCommandPayload, Error, SessionControlAttachmentService> {
+}) {
   const payload = input.payload
   if (!hasAttachmentTransport(payload)) {
     return Effect.succeed(payload)
   }
   const paths = payload.transport.attachmentPaths
-  return namedProfileAttachmentRoots(payload, input.caller).pipe(
-    Effect.flatMap((allowedRoots) =>
-      payload.contract === 'session-control-v2'
-        ? prepareControlAttachments({
-            ...input,
-            payload,
-            paths,
-            ...(allowedRoots ? { allowedRoots } : {}),
-          })
-        : prepareLifecycleAttachments({
-            ...input,
-            payload,
-            paths,
-            ...(allowedRoots ? { allowedRoots } : {}),
-          }),
-    ),
-  )
+  const effect: Effect.Effect<LocalSessionCommandPayload, Error, SessionControlAttachmentService> =
+    namedProfileAttachmentRoots(payload, input.caller).pipe(
+      Effect.flatMap((allowedRoots) =>
+        payload.contract === 'session-control-v2'
+          ? prepareControlAttachments({
+              ...input,
+              payload,
+              paths,
+              ...(allowedRoots ? { allowedRoots } : {}),
+            })
+          : prepareLifecycleAttachments({
+              ...input,
+              payload,
+              paths,
+              ...(allowedRoots ? { allowedRoots } : {}),
+            }),
+      ),
+    )
+  return effect
 }
 
 function prepareControlAttachments(input: {
@@ -103,7 +107,7 @@ function prepareControlAttachments(input: {
   readonly paths: readonly string[]
   readonly workingDirectory?: string
   readonly allowedRoots?: readonly string[]
-}): Effect.Effect<LocalSessionCommandPayload, Error, SessionControlAttachmentService> {
+}) {
   const { payload, paths } = input
   const command = payload.request.command
   if (!isAttachmentControlCommand(command)) {
@@ -113,29 +117,36 @@ function prepareControlAttachments(input: {
     return Effect.fail(new Error('Use attachment paths or prepared attachment IDs, not both.'))
   }
   if (paths.length === 0) {
-    return Effect.succeed({ contract: payload.contract, request: payload.request })
+    const effect: Effect.Effect<
+      LocalSessionCommandPayload,
+      Error,
+      SessionControlAttachmentService
+    > = Effect.succeed({ contract: payload.contract, request: payload.request })
+    return effect
   }
   if (!input.workingDirectory) {
     return Effect.fail(new Error('Attachment paths require a caller working directory.'))
   }
-  return preparePaths({
-    baseDirectory: input.workingDirectory,
-    paths,
-    ownerCallerId: input.caller.callerId,
-    requestId: `${command.sessionId}\0${payload.request.idempotencyKey}`,
-    ...(input.allowedRoots ? { allowedRoots: input.allowedRoots } : {}),
-  }).pipe(
-    Effect.map(
-      (attachmentIds) =>
-        ({
-          contract: payload.contract,
-          request: {
-            ...payload.request,
-            command: { ...command, input: { ...command.input, attachmentIds } },
-          },
-        }) satisfies LocalSessionCommandPayload,
-    ),
-  )
+  const effect: Effect.Effect<LocalSessionCommandPayload, Error, SessionControlAttachmentService> =
+    preparePaths({
+      baseDirectory: input.workingDirectory,
+      paths,
+      ownerCallerId: input.caller.callerId,
+      requestId: `${command.sessionId}\0${payload.request.idempotencyKey}`,
+      ...(input.allowedRoots ? { allowedRoots: input.allowedRoots } : {}),
+    }).pipe(
+      Effect.map(
+        (attachmentIds) =>
+          ({
+            contract: payload.contract,
+            request: {
+              ...payload.request,
+              command: { ...command, input: { ...command.input, attachmentIds } },
+            },
+          }) satisfies LocalSessionCommandPayload,
+      ),
+    )
+  return effect
 }
 
 function prepareLifecycleAttachments(input: {
@@ -144,7 +155,7 @@ function prepareLifecycleAttachments(input: {
   readonly paths: readonly string[]
   readonly workingDirectory?: string
   readonly allowedRoots?: readonly string[]
-}): Effect.Effect<LocalSessionCommandPayload, Error, SessionControlAttachmentService> {
+}) {
   const { payload, paths } = input
   const command = payload.request.command
   if (command.operation !== 'launch' && command.operation !== 'spawn') {
@@ -154,26 +165,33 @@ function prepareLifecycleAttachments(input: {
     return Effect.fail(new Error('Use attachment paths or prepared attachment IDs, not both.'))
   }
   if (paths.length === 0) {
-    return Effect.succeed({ contract: payload.contract, request: payload.request })
+    const effect: Effect.Effect<
+      LocalSessionCommandPayload,
+      Error,
+      SessionControlAttachmentService
+    > = Effect.succeed({ contract: payload.contract, request: payload.request })
+    return effect
   }
   if (!input.workingDirectory) {
     return Effect.fail(new Error('Attachment paths require a caller working directory.'))
   }
-  return preparePaths({
-    baseDirectory: input.workingDirectory,
-    paths,
-    ownerCallerId: input.caller.callerId,
-    requestId: `${command.operation}\0${
-      command.operation === 'spawn' ? command.parentSessionId : command.projectPath
-    }\0${payload.request.idempotencyKey}`,
-    ...(input.allowedRoots ? { allowedRoots: input.allowedRoots } : {}),
-  }).pipe(
-    Effect.map(
-      (attachmentIds) =>
-        ({
-          contract: payload.contract,
-          request: { ...payload.request, command: { ...command, attachmentIds } },
-        }) satisfies LocalSessionCommandPayload,
-    ),
-  )
+  const effect: Effect.Effect<LocalSessionCommandPayload, Error, SessionControlAttachmentService> =
+    preparePaths({
+      baseDirectory: input.workingDirectory,
+      paths,
+      ownerCallerId: input.caller.callerId,
+      requestId: `${command.operation}\0${
+        command.operation === 'spawn' ? command.parentSessionId : command.projectPath
+      }\0${payload.request.idempotencyKey}`,
+      ...(input.allowedRoots ? { allowedRoots: input.allowedRoots } : {}),
+    }).pipe(
+      Effect.map(
+        (attachmentIds) =>
+          ({
+            contract: payload.contract,
+            request: { ...payload.request, command: { ...command, attachmentIds } },
+          }) satisfies LocalSessionCommandPayload,
+      ),
+    )
+  return effect
 }

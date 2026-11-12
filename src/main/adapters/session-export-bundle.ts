@@ -88,10 +88,7 @@ function assertUniqueBundleSourcePaths(sources: readonly SessionExportBundleSour
   }
 }
 
-async function bundleEntry(
-  source: SessionExportBundleSource,
-  signal?: AbortSignal,
-): Promise<SessionExportBundleEntry> {
+async function bundleEntry(source: SessionExportBundleSource, signal?: AbortSignal) {
   return {
     path: source.path,
     mediaType: mediaType(source.path),

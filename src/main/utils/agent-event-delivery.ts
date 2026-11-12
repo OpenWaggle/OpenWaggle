@@ -52,7 +52,7 @@ function isDeltaEvent(event: AgentTransportEvent): event is DeltaEvent {
 }
 
 /** The merged event, or `null` when `next` does not continue `pending`'s part. */
-export function mergeDeltaEvents(pending: DeltaEvent, next: DeltaEvent): DeltaEvent | null {
+export function mergeDeltaEvents(pending: DeltaEvent, next: DeltaEvent) {
   const previous = pending.assistantMessageEvent
   const incoming = next.assistantMessageEvent
   if (
@@ -152,7 +152,7 @@ export class AgentEventDelivery {
   }
 
   /** Reads a Session's stream buffer for the targets, after sending them its pending delta. */
-  readFlushed<T>(targets: readonly AgentEventTarget[], sessionId: SessionId, read: () => T): T {
+  readFlushed<T>(targets: readonly AgentEventTarget[], sessionId: SessionId, read: () => T) {
     this.flushSession(targets, sessionId)
     return read()
   }

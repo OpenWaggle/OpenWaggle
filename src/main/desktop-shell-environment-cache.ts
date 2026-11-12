@@ -69,7 +69,7 @@ const cacheFileSchema = Schema.Struct({
 type CacheFileEntry = typeof cacheFileSchema.Type
 
 /** Only the probe's allowlisted names are ever read from or written to disk. */
-function allowlisted(environment: Readonly<Record<string, string>>): ShellEnvironmentPatch {
+function allowlisted(environment: Readonly<Record<string, string>>) {
   // Read on use: `env.ts` loads this module while the probes module may still be initializing.
   const names = new Set<string>(LOGIN_SHELL_ENV_NAMES)
   return Object.fromEntries(Object.entries(environment).filter(([name]) => names.has(name)))
@@ -109,7 +109,7 @@ function writeCacheFile(file: string, entry: CacheFileEntry) {
   }
 }
 
-function decodeCacheFile(file: string): CacheFileEntry | null {
+function decodeCacheFile(file: string) {
   const raw = readCacheFile(file)
   if (raw === null) return null
   const decoded = safeDecodeUnknown(cacheFileSchema, raw)
@@ -128,7 +128,7 @@ function decodeCacheFile(file: string): CacheFileEntry | null {
  * allowlisted variables are kept (PATH, the SSH agent socket, locale, desktop session); never a
  * secret the shell exports.
  */
-export function fileShellEnvironmentCache(file: string): ShellEnvironmentCache {
+export function fileShellEnvironmentCache(file: string) {
   return {
     read: (key, now) => {
       const entry = decodeCacheFile(file)
@@ -165,5 +165,5 @@ export function fileShellEnvironmentCache(file: string): ShellEnvironmentCache {
       const entry = decodeCacheFile(file)
       return entry && sameKey(entry, key) ? (entry.refreshFailedAt ?? null) : null
     },
-  }
+  } satisfies ShellEnvironmentCache
 }

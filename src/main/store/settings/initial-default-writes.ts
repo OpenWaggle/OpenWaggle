@@ -6,7 +6,7 @@ import type { SettingsPatchWrite } from './persistence-plan'
 export function collectInitialDefaultWrites(
   storedSettings: Readonly<Record<string, unknown>>,
   settings: Settings,
-): SettingsPatchWrite[] {
+) {
   const writes: SettingsPatchWrite[] = []
   if (settings.selectedModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
     writes.push({ key: SETTINGS_KEY_DEFAULT_MODEL, value: settings.selectedModel })

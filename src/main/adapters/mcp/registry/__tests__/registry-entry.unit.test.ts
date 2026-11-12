@@ -25,8 +25,8 @@ async function temporaryDirectory() {
   return directory
 }
 
-function server(raw: object): RegistryServerRecord {
-  return {
+function server(raw: object) {
+  const record: RegistryServerRecord = {
     name: 'io.github.example/weather',
     version: '2.0.0',
     description: 'Weather forecasts.',
@@ -36,6 +36,7 @@ function server(raw: object): RegistryServerRecord {
       ...raw,
     }),
   }
+  return record
 }
 
 function stdioPackage(registryType: string, identifier: string, extra: object = {}) {

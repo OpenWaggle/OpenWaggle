@@ -41,12 +41,12 @@ type ScopeResolution =
   | { readonly _tag: 'ok' }
   | { readonly _tag: 'failure'; readonly message: string }
 
-function scopeOk(): ScopeResolution {
-  return { _tag: 'ok' }
+function scopeOk() {
+  return { _tag: 'ok' } satisfies ScopeResolution
 }
 
-function scopeFailure(message: string): ScopeResolution {
-  return { _tag: 'failure', message }
+function scopeFailure(message: string) {
+  return { _tag: 'failure', message } satisfies ScopeResolution
 }
 
 function resolveActiveProjectScope(scope: ExtensionInvokeScope) {

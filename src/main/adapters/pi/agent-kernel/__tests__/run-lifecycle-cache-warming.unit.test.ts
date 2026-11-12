@@ -20,7 +20,7 @@ vi.mock('../../pi-session-lifecycle', () => ({
 
 const SESSION_ID = SessionId('run-lifecycle-cache-warming')
 
-function runInput(): AgentKernelRunInput {
+function runInput() {
   return fromPartial<AgentKernelRunInput>({
     session: { id: SESSION_ID, projectPath: '/repo', messages: [] },
     runId: 'run-lifecycle-cache-warming',

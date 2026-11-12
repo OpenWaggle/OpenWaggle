@@ -261,10 +261,7 @@ export class SessionHostLiveness {
     }
   }
 
-  requestDrain(
-    reason: SessionHostDrainReason = 'recovery',
-    options: SessionHostDrainOptions = {},
-  ): void {
+  requestDrain(reason: SessionHostDrainReason = 'recovery', options: SessionHostDrainOptions = {}) {
     if (options.deadlineMs !== undefined) {
       nonNegativeSafeInteger(options.deadlineMs, 'drain deadline')
     }
@@ -278,16 +275,16 @@ export class SessionHostLiveness {
     this.requestShutdownWhenDrained()
   }
 
-  isDraining(): boolean {
+  isDraining() {
     return this.draining
   }
 
-  drainReason(): SessionHostDrainReason | null {
+  drainReason() {
     return this.activeDrainReason
   }
 
   /** Shut down once idle for the grace period, and not before `delayMs` from now. */
-  armIdleShutdown(delayMs = this.idleGracePeriodMs): void {
+  armIdleShutdown(delayMs = this.idleGracePeriodMs) {
     nonNegativeSafeInteger(delayMs, 'idle grace period')
     // Recorded even while background work runs, so its end does not skip the startup grace.
     this.startupFloorAt = SessionHostLiveness.raised(this.startupFloorAt, delayMs)
@@ -300,7 +297,7 @@ export class SessionHostLiveness {
    * The time it has already been idle counts, and the new value replaces the startup grace; a
    * client that just left keeps its handoff grace.
    */
-  updateIdleGracePeriod(idleGracePeriodMs: number): void {
+  updateIdleGracePeriod(idleGracePeriodMs: number) {
     nonNegativeSafeInteger(idleGracePeriodMs, 'idle grace period')
     if (idleGracePeriodMs === this.idleGracePeriodMs) return
     this.idleGracePeriodMs = idleGracePeriodMs
@@ -309,19 +306,19 @@ export class SessionHostLiveness {
     this.scheduleIdleShutdown()
   }
 
-  ownerCount(kind?: SessionHostLivenessKind): number {
+  ownerCount(kind?: SessionHostLivenessKind) {
     return kind ? (this.owners.get(kind) ?? 0) : this.totalOwners()
   }
 
-  hasAcceptedClient(): boolean {
+  hasAcceptedClient() {
     return this.acceptedClient
   }
 
-  hasScheduledIdleShutdown(): boolean {
+  hasScheduledIdleShutdown() {
     return this.idleTimer !== null
   }
 
-  close(): void {
+  close() {
     if (this.closed) return
     this.closed = true
     this.cancelIdleTimer()

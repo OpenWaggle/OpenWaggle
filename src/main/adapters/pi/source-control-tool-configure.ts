@@ -22,8 +22,8 @@ const SCOPE_NAMES = {
   'project-shared': "for everyone on this project (the project's shared settings file)",
 }
 
-function failure(message: string): SourceControlConfigureResult {
-  return { ok: false, message }
+function failure(message: string) {
+  return { ok: false, message } satisfies SourceControlConfigureResult
 }
 
 /** The Session's resolved repository key, which per-repository settings are stored under. */
@@ -43,7 +43,7 @@ async function sessionRequest(
   params: SourceControlChangeParameters,
   scope: SourceControlToolScope,
   backend: SourceControlToolBackend,
-): Promise<SourceControlConfigureRequest | string> {
+) {
   return match(params)
     .with({ change: 'set-host-provider' }, ({ host, provider }) => ({
       kind: 'set-host-provider' as const,
@@ -143,7 +143,7 @@ export async function configureSessionSourceControl(
   backend: SourceControlToolBackend,
   ctx: ExtensionContext,
   signal?: AbortSignal,
-): Promise<SourceControlConfigureResult> {
+) {
   const filled = await sessionRequest(params, scope, backend)
   if (typeof filled === 'string') return failure(filled)
   const decoded = safeDecodeUnknown(sourceControlConfigureRequestSchema, filled)

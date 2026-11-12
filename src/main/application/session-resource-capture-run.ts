@@ -63,10 +63,7 @@ interface MessageCaptureContext {
   linkIndex: number
 }
 
-function messageCaptureContext(
-  input: SuccessfulRunResourceInput,
-  message: Message,
-): MessageCaptureContext {
+function messageCaptureContext(input: SuccessfulRunResourceInput, message: Message) {
   const messageId = String(message.id)
   return {
     message,
@@ -74,7 +71,7 @@ function messageCaptureContext(
     branchId: input.branchIdByMessageId?.[messageId] ?? null,
     imageIndex: 0,
     linkIndex: 0,
-  }
+  } satisfies MessageCaptureContext
 }
 
 function captureImages(input: {

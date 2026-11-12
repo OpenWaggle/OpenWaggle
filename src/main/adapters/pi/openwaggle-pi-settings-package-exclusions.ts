@@ -6,17 +6,21 @@ import { piPackageSource, piSettingsFields } from './pi-settings-fields'
 
 const JSON_INDENT_SPACES = 2
 
-function parseJsonObject(content: string | undefined): JsonObject {
-  if (!content || content.trim().length === 0) return {}
+function parseJsonObject(content: string | undefined) {
+  if (!content || content.trim().length === 0) {
+    const object: JsonObject = {}
+    return object
+  }
   const parsed: unknown = JSON.parse(content)
-  return decodeUnknownOrThrow(jsonObjectSchema, parsed)
+  const object: JsonObject = decodeUnknownOrThrow(jsonObjectSchema, parsed)
+  return object
 }
 
 function serializeJsonObject(value: JsonObject) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
-function getPackageSource(value: JsonValue): string | null {
+function getPackageSource(value: JsonValue) {
   return piPackageSource(value)
 }
 

@@ -1,5 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import { type TProperties, type TSchema, type TUnsafe, Type } from 'typebox'
+import { type TProperties, type TSchema, Type } from 'typebox'
 import { Check, Errors, Value } from 'typebox/value'
 import { keywordsOf } from './json-schema-object'
 import { type SessionsToolParameters, sessionsToolParameters } from './sessions-tool-parameters'
@@ -11,13 +11,20 @@ export interface SessionsToolRuntimeVariant {
 }
 
 /** Enumerate the concrete `action` literal schemas a variant declares. */
-export function actionChoices(action: unknown): { const: string }[] {
-  if (isMatching({ const: P.string }, action)) return [action]
-  if (isMatching({ anyOf: P.array({ const: P.string }) }, action)) return [...action.anyOf]
-  return []
+export function actionChoices(action: unknown) {
+  if (isMatching({ const: P.string }, action)) {
+    const result: { const: string }[] = [action]
+    return result
+  }
+  if (isMatching({ anyOf: P.array({ const: P.string }) }, action)) {
+    const result: { const: string }[] = [...action.anyOf]
+    return result
+  }
+  const result: { const: string }[] = []
+  return result
 }
 
-export function variantActionName(variant: SessionsToolRuntimeVariant): string | undefined {
+export function variantActionName(variant: SessionsToolRuntimeVariant) {
   return actionChoices(variant.properties.action)[0]?.const
 }
 
@@ -26,16 +33,14 @@ export function variantActionName(variant: SessionsToolRuntimeVariant): string |
  * union. Expand them so every runtime variant declares exactly one `action` const, which
  * keeps capability filtering and per-action runtime validation uniform.
  */
-function singleActionVariants(
-  variants: readonly SessionsToolRuntimeVariant[],
-): SessionsToolRuntimeVariant[] {
-  return variants.flatMap((variant) => {
+function singleActionVariants(variants: readonly SessionsToolRuntimeVariant[]) {
+  const result: SessionsToolRuntimeVariant[] = variants.flatMap((variant) => {
     const choices = actionChoices(variant.properties.action)
     if (choices.length <= 1) return [variant]
     const { action: _sharedAction, ...shared } = variant.properties
     // Copy with descriptors, not a spread: TypeBox keeps `~kind` non-enumerable, and
     // `Value.Convert` only descends into a schema it recognizes as an object.
-    return choices.map((choice): SessionsToolRuntimeVariant =>
+    return choices.map((choice) =>
       Object.defineProperties(
         { properties: {} },
         {
@@ -45,6 +50,7 @@ function singleActionVariants(
       ),
     )
   })
+  return result
 }
 
 export const sessionsToolParameterVariants: readonly SessionsToolRuntimeVariant[] =
@@ -67,7 +73,7 @@ function requiredActionsByProperty(
 }
 
 /** Name the actions that need a property, since the flat schema cannot mark it required. */
-function describeRequiredActions(schema: TSchema, actions: readonly string[] | undefined): TSchema {
+function describeRequiredActions(schema: TSchema, actions: readonly string[] | undefined) {
   if (!actions?.length) return schema
   const note = `Required for ${actions.join(', ')}.`
   const existing = keywordsOf(schema).description
@@ -99,7 +105,7 @@ export interface SessionsToolFlatSchemaOptions {
 export function flattenSessionsToolParameters(
   variants: readonly SessionsToolRuntimeVariant[],
   options: SessionsToolFlatSchemaOptions = {},
-): TUnsafe<SessionsToolParameters> {
+) {
   const actions: TSchema[] = []
   const propertiesByKey = new Map<string, TSchema[]>()
   const requiredBy = requiredActionsByProperty(variants, options.requiredNoteActions)
@@ -212,7 +218,7 @@ export function assertSessionsToolActionArguments(
  * against the action's own variant before the check; a rarer action's arguments would
  * otherwise fail where the full schema used to accept them.
  */
-export function parseSessionsToolActionArguments(params: unknown): SessionsToolParameters {
+export function parseSessionsToolActionArguments(params: unknown) {
   const { action, variant } = variantForAction(params)
   const normalized: unknown = structuredClone(params)
   dropOptionalNulls(normalized, variant)

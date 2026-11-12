@@ -8,11 +8,12 @@ import { describe, expect, it } from 'vitest'
 import { AGENT_DEFINITION_NAME_PATTERN, isAgentDefinitionName } from '../agent-definition-name'
 import { agentDefinitionFrontmatterSchema, parseAgentDefinition } from '../agent-definition-parser'
 
-function record(value: unknown): Record<string, unknown> {
+function record(value: unknown) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Expected a JSON object.')
   }
-  return Object.fromEntries(Object.entries(value))
+  const result: Record<string, unknown> = Object.fromEntries(Object.entries(value))
+  return result
 }
 
 /** The JSON Schema keywords these tests read by name; a node keeps every other keyword too. */
@@ -29,8 +30,9 @@ interface JsonSchemaKeywords {
 }
 
 /** A JSON object read through the keywords it may declare. */
-function keywords(value: unknown): JsonSchemaKeywords {
-  return record(value)
+function keywords(value: unknown) {
+  const result: JsonSchemaKeywords = record(value)
+  return result
 }
 
 async function publishedSchema() {

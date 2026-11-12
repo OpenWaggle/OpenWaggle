@@ -1,6 +1,5 @@
 import { describe, it } from 'vitest'
 import type { PortContract } from '../../../../ports/desktop-shell/__tests__/contracts/port-contract'
-import type { RendererSurface } from '../../../../ports/desktop-shell/renderer-surfaces'
 import { browserPreviewViewsContract } from '../../../../ports/desktop-shell/__tests__/contracts/browser-preview-views.contract'
 import { ipcMainTransportContract } from '../../../../ports/desktop-shell/__tests__/contracts/ipc-main-transport.contract'
 import { networkFetchContract } from '../../../../ports/desktop-shell/__tests__/contracts/network-fetch.contract'
@@ -26,7 +25,7 @@ async function preparePages() {
     pages.set(contents.id, contents)
     return contents.id
   }
-  const surfaceOf = (id: number): RendererSurface => {
+  const surfaceOf = (id: number) => {
     const surface = electronRendererSurfaces.fromId(id)
     if (!surface) throw new Error(`No page ${id}`)
     return surface

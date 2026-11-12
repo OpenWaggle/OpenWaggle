@@ -38,7 +38,7 @@ function isFileExtension(extensionPath: string) {
  * Session's Waggle mode, and registers `/waggle`, so alongside OpenWaggle's Waggle it would take
  * the Run's messages away and run a second loop.
  */
-export function withoutInstalledPiWaggle(base: LoadExtensionsResult): LoadExtensionsResult {
+export function withoutInstalledPiWaggle(base: LoadExtensionsResult) {
   const extensions = base.extensions.filter(
     (extension) =>
       !isFileExtension(extension.resolvedPath) ||

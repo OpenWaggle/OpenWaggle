@@ -48,7 +48,7 @@ function envelopeCommand(text: string | undefined) {
     : undefined
 }
 
-function statusDependencies(output: string[]): StatusDependencies {
+function statusDependencies(output: string[]) {
   return {
     version: () => '1.2.3',
     now: () => 0,
@@ -59,7 +59,7 @@ function statusDependencies(output: string[]): StatusDependencies {
     writeStdout: async (text) => {
       output.push(text)
     },
-  }
+  } satisfies StatusDependencies
 }
 
 beforeEach(() => {

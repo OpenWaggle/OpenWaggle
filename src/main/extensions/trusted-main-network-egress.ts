@@ -39,19 +39,18 @@ export class TrustedMainNetworkEgressError extends Error {
   override name = 'TrustedMainNetworkEgressError'
 }
 
-export function createTrustedMainNetworkPolicy(
-  extensionPackage: DiscoveredExtensionPackage,
-): TrustedMainNetworkPolicy {
-  return {
+export function createTrustedMainNetworkPolicy(extensionPackage: DiscoveredExtensionPackage) {
+  const policy: TrustedMainNetworkPolicy = {
     extensionId: extensionPackage.id,
     allowedOrigins: extensionPackage.manifest?.network?.origins ?? [],
   }
+  return policy
 }
 
 export function runWithTrustedMainNetworkPolicy<T>(
   policy: TrustedMainNetworkPolicy,
   operation: () => T,
-): T {
+) {
   installTrustedMainNetworkGuard()
   return runWithoutAuthorizedNetworkTarget(() =>
     trustedMainNetworkPolicyStorage.run(policy, operation),
@@ -151,7 +150,7 @@ function enforceBlockedNetworkApi(api: string, reason: string) {
 }
 
 /** Lets the sockets and DNS lookups of an allowed request through the lower guards. */
-function runWithAuthorizedTarget<T>(url: URL, operation: () => T): T {
+function runWithAuthorizedTarget<T>(url: URL, operation: () => T) {
   return currentPolicy() === null ? operation() : runWithAuthorizedNetworkTarget(url, operation)
 }
 

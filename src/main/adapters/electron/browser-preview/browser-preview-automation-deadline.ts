@@ -60,8 +60,10 @@ export class BrowserPreviewAutomationDeadline {
     if (this.signal.aborted) throw cancellationError(this.signal)
   }
 
-  race<A>(operation: PromiseLike<A>): Promise<A> {
-    if (this.signal.aborted) return Promise.reject(cancellationError(this.signal))
+  race<A>(operation: PromiseLike<A>) {
+    if (this.signal.aborted) {
+      return Promise.reject(cancellationError(this.signal)) satisfies Promise<A>
+    }
     return new Promise<A>((resolve, reject) => {
       let settled = false
       const finish = (settle: () => void) => {
@@ -76,7 +78,7 @@ export class BrowserPreviewAutomationDeadline {
         (value) => finish(() => resolve(value)),
         (error: unknown) => finish(() => reject(error)),
       )
-    })
+    }) satisfies Promise<A>
   }
 
   dispose() {

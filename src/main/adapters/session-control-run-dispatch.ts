@@ -67,15 +67,12 @@ function loadRegisteredRunContext(input: RegisteredRunInput) {
   })
 }
 
-function executionContext(
-  input: RegisteredRunInput,
-  context: RegisteredRunContext,
-): WaggleExecutionContext {
+function executionContext(input: RegisteredRunInput, context: RegisteredRunContext) {
   const runAuthorizationOverride = narrowRunAuthorization(
     input.request.intent.runAuthorizationOverride,
     input.execution.authorizationCeiling,
   )
-  return {
+  const result: WaggleExecutionContext = {
     ...(runAuthorizationOverride === undefined ? {} : { runAuthorizationOverride }),
     authorityCallerId: input.request.intent.callerId,
     ...resolvedRunSpecialization(input.execution),
@@ -96,6 +93,7 @@ function executionContext(
     sessionCapabilities: input.execution.sessionCapabilities,
     modelMultiAgentEnabled: input.allowModelMultiAgent,
   }
+  return result
 }
 
 /**

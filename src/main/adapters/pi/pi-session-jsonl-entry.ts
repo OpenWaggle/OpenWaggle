@@ -58,14 +58,18 @@ const decodeEntry = Schema.decodeUnknownOption(piSessionEntrySchema)
 
 const NOT_JSON = Symbol('not JSON')
 
-function parseJsonLine(line: string): unknown {
+function parseJsonLine(line: string) {
   const trimmed = line.trim()
-  if (!trimmed) return NOT_JSON
+  if (!trimmed) {
+    const result: unknown = NOT_JSON
+    return result
+  }
   try {
     const parsed: unknown = JSON.parse(trimmed)
     return parsed
   } catch {
-    return NOT_JSON
+    const result: unknown = NOT_JSON
+    return result
   }
 }
 
@@ -78,26 +82,35 @@ function isObjectValue(value: unknown): value is object {
  * by a read bound, or one Pi itself skips as malformed). JSON that is not an object is an entry
  * with no fields: it parsed, so it still decides that a file without a header is not a session.
  */
-export function parsePiSessionEntryLine(line: string): PiSessionEntry | null {
+export function parsePiSessionEntryLine(line: string) {
   const parsed = parseJsonLine(line)
   if (parsed === NOT_JSON) return null
-  if (!isObjectValue(parsed)) return {}
-  return Option.getOrElse(decodeEntry(parsed), () => ({}))
+  if (!isObjectValue(parsed)) {
+    const entry: PiSessionEntry | null = {}
+    return entry
+  }
+  const entry: PiSessionEntry | null = Option.getOrElse(decodeEntry(parsed), () => ({}))
+  return entry
 }
 
 /** A JSONL line as a session entry, or `null` when it is blank, not JSON, or not an object. */
-export function parsePiSessionObjectLine(line: string): PiSessionEntry | null {
+export function parsePiSessionObjectLine(line: string) {
   const parsed = parseJsonLine(line)
   if (parsed === NOT_JSON || !isObjectValue(parsed)) return null
-  return Option.getOrElse(decodeEntry(parsed), () => ({}))
+  const entry: PiSessionEntry | null = Option.getOrElse(decodeEntry(parsed), () => ({}))
+  return entry
 }
 
 /** The text of a user message, whether Pi stored it as a string or as content blocks. */
-export function piUserMessageText(message: PiSessionMessage): string | null {
+export function piUserMessageText(message: PiSessionMessage) {
   if (message.role !== 'user') return null
-  if (typeof message.content === 'string') return message.content
+  if (typeof message.content === 'string') {
+    const result: string | null = message.content
+    return result
+  }
   if (message.content === undefined) return null
-  return message.content
+  const result: string | null = message.content
     .flatMap((part) => (part.type === 'text' && part.text !== undefined ? [part.text] : []))
     .join(' ')
+  return result
 }

@@ -10,7 +10,7 @@ export function workspaceBlocker(
     readonly canonicalWorkingPath: string | null
   })[],
   worktreePath: string,
-): WorktreeRemovalBlocker | null {
+) {
   const states = new Set(
     occupants.flatMap((occupant) =>
       occupant.workspace?.kind === 'managed-worktree' &&
@@ -27,12 +27,10 @@ export function workspaceBlocker(
     message: lasting
       ? `Its Workspace is ${lasting}. Repair it from its Session, or hand the Session to another Workspace, first.`
       : 'Its Workspace is being created, changed or removed. Try again in a moment.',
-  }
+  } satisfies WorktreeRemovalBlocker
 }
 
-export function sessionBlocker(
-  sessions: readonly WorktreeSessionUsage[],
-): WorktreeRemovalBlocker | null {
+export function sessionBlocker(sessions: readonly WorktreeSessionUsage[]) {
   const using = sessions.filter((session) => !session.archived || session.running)
   const [first] = using
   if (!first) return null
@@ -40,7 +38,7 @@ export function sessionBlocker(
     return {
       kind: 'session',
       message: `${String(using.length)} Sessions work in it. Archive them, and stop any Run they still have, first.`,
-    }
+    } satisfies WorktreeRemovalBlocker
   }
   return {
     kind: 'session',
@@ -48,5 +46,5 @@ export function sessionBlocker(
     message: first.archived
       ? `The archived Session “${first.title}” still has a Run in it. Stop that Run first.`
       : `The Session “${first.title}” works in it. Archive that Session first.`,
-  }
+  } satisfies WorktreeRemovalBlocker
 }

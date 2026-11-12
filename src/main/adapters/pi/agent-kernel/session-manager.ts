@@ -25,7 +25,7 @@ import { onlyUsageAppendedAfter } from './usage-only-appends'
  * never a Session worktree. Worktree birth needs it specifically, because it creates the
  * worktree *from* the primary checkout.
  */
-export function requireSessionProjectPath(session: SessionDetail): string {
+export function requireSessionProjectPath(session: SessionDetail) {
   const projectPath = session.projectPath
   if (!projectPath) {
     throw new Error('No project path set on the session - cannot run Pi agent')
@@ -96,7 +96,7 @@ export function resolveLocalWorkingPath(session: SessionDetail, projectPath: str
  * reason, and the composer blocks the send and offers to recreate or switch, so a user
  * who hits this has a way forward that does not involve guessing.
  */
-export function resolveSessionWorkingPath(session: SessionDetail): string {
+export function resolveSessionWorkingPath(session: SessionDetail) {
   const projectPath = requireSessionProjectPath(session)
   if (session.environmentMode !== 'worktree') return resolveLocalWorkingPath(session, projectPath)
 

@@ -117,7 +117,7 @@ async function writeBytesAtomically(temporaryPath: string, targetPath: string, b
   }
 }
 
-function makeStore(root: string): SessionResourceStoreShape {
+function makeStore(root: string) {
   const prepareTemporaryPath = createSessionResourceTemporaryPathManager()
 
   function storeBytes(input: StoreSessionResourceBytesInput) {
@@ -217,7 +217,7 @@ function makeStore(root: string): SessionResourceStoreShape {
         },
         catch: (cause) => storeError('removeSession', cause),
       }),
-  }
+  } satisfies SessionResourceStoreShape
 }
 
 export function makeFilesystemSessionResourceStoreLayer(root: string) {

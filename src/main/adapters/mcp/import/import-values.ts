@@ -104,7 +104,7 @@ function credentialValue(
   value: unknown,
   location: string,
   context: ImportValueContext,
-): ImportedCredential | undefined {
+) {
   if (typeof value !== 'string') {
     context.warnings.push(`${location} was ignored because its value is not a string.`)
     return undefined

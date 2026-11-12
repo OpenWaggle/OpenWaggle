@@ -135,7 +135,7 @@ function checkConfiguredChannel(channel: UpdateChannel) {
   startUpdaterCheck(channel, generation)
 }
 
-export function checkForUpdates(channel?: UpdateChannel): void {
+export function checkForUpdates(channel?: UpdateChannel) {
   if (updatesDisabled()) {
     logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: isDevBuild() })
     return
@@ -158,7 +158,7 @@ export function checkForUpdates(channel?: UpdateChannel): void {
     })
 }
 
-export async function installUpdate(): Promise<void> {
+export async function installUpdate() {
   const downloaded = getUpdateStatus()
   if (downloaded.type !== 'downloaded') {
     logger.warn('Ignoring install request without a channel-eligible downloaded update')
@@ -210,7 +210,7 @@ export function initAutoUpdater(
   channel: UpdateChannel,
   readChannel?: () => Promise<UpdateChannel>,
   environment?: install.UpdaterInstallEnvironment,
-): void {
+) {
   if (updatesDisabled()) {
     logger.info('Auto-updater disabled', { channel: BUILD_CHANNEL, dev: isDevBuild() })
     return
@@ -302,7 +302,7 @@ export function initAutoUpdater(
   logger.info('Auto-updater initialized', { channel })
 }
 
-export function disposeAutoUpdater(): void {
+export function disposeAutoUpdater() {
   // The app is quitting; an install in progress stays in progress for the quit to release the Host.
   install.stopUpdateInstallWatchdog()
   updateCheckRequestGeneration += 1

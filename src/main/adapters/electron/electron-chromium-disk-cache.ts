@@ -38,7 +38,7 @@ export function oversizedChromiumCaches(sizes: ChromiumCacheSizes) {
 }
 
 /** Bytes of the regular files under `directory`, without following symbolic links. */
-export async function directorySizeBytes(directory: string): Promise<number> {
+export async function directorySizeBytes(directory: string) {
   let total = 0
   const pending = [directory]
   while (true) {
@@ -70,10 +70,10 @@ export interface ChromiumCacheTrimResult {
 export async function trimChromiumCachesIfOversized(
   session: ChromiumCacheSession,
   measureDirectory: (directory: string) => Promise<number> = directorySizeBytes,
-): Promise<ChromiumCacheTrimResult> {
+) {
   const storagePath = session.storagePath
   if (!session.isPersistent() || storagePath === null) {
-    return { clearedHttpCacheBytes: 0, clearedCodeCacheBytes: 0 }
+    return { clearedHttpCacheBytes: 0, clearedCodeCacheBytes: 0 } satisfies ChromiumCacheTrimResult
   }
   const sizes = {
     httpCacheBytes: await session.getCacheSize(),
@@ -85,7 +85,7 @@ export async function trimChromiumCachesIfOversized(
   return {
     clearedHttpCacheBytes: oversized.httpCache ? sizes.httpCacheBytes : 0,
     clearedCodeCacheBytes: oversized.codeCache ? sizes.codeCacheBytes : 0,
-  }
+  } satisfies ChromiumCacheTrimResult
 }
 
 async function trimAndLog(session: ChromiumCacheSession) {
@@ -112,7 +112,7 @@ export function checkChromiumCacheSizeOnUse(
   session: ChromiumCacheSession,
   now: number = Date.now(),
   intervalMs: number = CACHE_CHECK_INTERVAL_MS,
-): Promise<void> | undefined {
+) {
   const previous = lastCheckedAt.get(session)
   if (previous !== undefined && now - previous < intervalMs) return undefined
   lastCheckedAt.set(session, now)

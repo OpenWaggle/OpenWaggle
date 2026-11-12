@@ -7,7 +7,7 @@ type PendingCursor =
 const validOffset = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 
-function parseCursor(raw: string): number | PendingCursor {
+function parseCursor(raw: string) {
   if (/^\d+$/.test(raw)) {
     const endOffset = Number(raw)
     if (validOffset(endOffset)) return endOffset
@@ -16,7 +16,10 @@ function parseCursor(raw: string): number | PendingCursor {
   if (typeof value !== 'object' || value === null) {
     throw new Error('Invalid terminal history cursor.')
   }
-  const readField = (name: string): unknown => Reflect.get(value, name)
+  const readField = (name: string) => {
+    const result: unknown = Reflect.get(value, name)
+    return result
+  }
   const kind = readField('kind')
   const endOffset = readField('endOffset')
   const text = readField('text')

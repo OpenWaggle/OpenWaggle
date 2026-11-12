@@ -31,7 +31,7 @@ export type SessionsToolControlInput = Extract<
 function controlRequest(
   command: SessionControlMutationCommand,
   attachmentPaths?: readonly string[],
-): LocalSessionCommandPayload {
+) {
   return {
     contract: 'session-control-v2',
     ...(attachmentPaths?.length ? { transport: { attachmentPaths } } : {}),
@@ -41,7 +41,7 @@ function controlRequest(
       idempotencyKey: randomUUID(),
       command,
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 function messageInput(input: { readonly text: string; readonly thinking?: string }) {
@@ -89,14 +89,14 @@ function runControlCommand(
     SessionsToolControlInput,
     { action: 'message' | 'start' | 'follow_up' | 'steer' | 'replace' | 'promote' }
   >,
-): SessionControlMutationCommand {
+) {
   if (input.action === 'promote') {
     return {
       operation: 'promote',
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
       followUpId: input.followUpId,
-    }
+    } satisfies SessionControlMutationCommand
   }
   if (input.action === 'steer') {
     refuseRunSettings(input, input.action)
@@ -105,7 +105,7 @@ function runControlCommand(
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
       input: followUpInput(input),
-    }
+    } satisfies SessionControlMutationCommand
   }
   if (input.action === 'replace') {
     refuseRunSettings(input, input.action)
@@ -114,11 +114,15 @@ function runControlCommand(
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
       input: followUpInput(input),
-    }
+    } satisfies SessionControlMutationCommand
   }
   if (input.action === 'follow_up') {
     refuseRunSettings(input, input.action)
-    return { operation: 'follow-up', sessionId: input.sessionId, input: followUpInput(input) }
+    return {
+      operation: 'follow-up',
+      sessionId: input.sessionId,
+      input: followUpInput(input),
+    } satisfies SessionControlMutationCommand
   }
   if (input.action === 'message') {
     return {
@@ -126,7 +130,7 @@ function runControlCommand(
       sessionId: input.sessionId,
       ...(input.authorization ? { runAuthorizationOverride: input.authorization } : {}),
       input: messageInput(input),
-    }
+    } satisfies SessionControlMutationCommand
   }
   return {
     operation: 'start',
@@ -136,7 +140,7 @@ function runControlCommand(
       ? { interactionTimeoutMs: input.interactionTimeoutMs }
       : {}),
     input: messageInput(input),
-  }
+  } satisfies SessionControlMutationCommand
 }
 
 function isRunControlInput(
@@ -148,18 +152,19 @@ function isRunControlInput(
   return new Set(['message', 'start', 'follow_up', 'steer', 'replace', 'promote']).has(input.action)
 }
 
-export function buildSessionsToolControlPayload(
-  input: SessionsToolControlInput,
-): LocalSessionCommandPayload {
+export function buildSessionsToolControlPayload(input: SessionsToolControlInput) {
   if (input.action === 'interrupt') {
     return controlRequest({
       operation: 'interrupt',
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
-    })
+    }) satisfies LocalSessionCommandPayload
   }
   if (input.action === 'interrupt_descendants') {
-    return controlRequest({ operation: 'interrupt-descendants', sessionId: input.sessionId })
+    return controlRequest({
+      operation: 'interrupt-descendants',
+      sessionId: input.sessionId,
+    }) satisfies LocalSessionCommandPayload
   }
   if (input.action === 'request_respond' || input.action === 'approval_respond') {
     const response = decodeUnknownExactOrThrow(agentLoopResponseSchema, input.response)
@@ -170,20 +175,20 @@ export function buildSessionsToolControlPayload(
       interactionId: input.interactionId,
       kind: response.kind,
       response,
-    })
+    }) satisfies LocalSessionCommandPayload
   }
   if (input.action === 'authorization_set') {
     return controlRequest({
       operation: 'authorization-set',
       sessionId: input.sessionId,
       authorizationMode: input.authorizationMode === 'inherit' ? null : input.authorizationMode,
-    })
+    }) satisfies LocalSessionCommandPayload
   }
   if (!isRunControlInput(input)) throw new Error('Unsupported hive control action.')
   return controlRequest(
     runControlCommand(input),
     'attachmentPaths' in input ? input.attachmentPaths : undefined,
-  )
+  ) satisfies LocalSessionCommandPayload
 }
 
 export function isSessionsToolControlAction(

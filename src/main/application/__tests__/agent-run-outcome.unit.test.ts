@@ -27,13 +27,13 @@ const context = {
   signal: new AbortController().signal,
 }
 
-function assistantMessage(): Message {
+function assistantMessage() {
   return {
     id: MessageId('message-1'),
     role: 'assistant',
     createdAt: 1,
     parts: [{ type: 'text', text: 'Done' }],
-  }
+  } satisfies Message
 }
 
 describe('buildAgentRunOutcome', () => {

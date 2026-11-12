@@ -32,19 +32,19 @@ export class LocalSessionHostLiveClock {
     this.toleranceMs = toleranceMs
   }
 
-  now(): number {
+  now() {
     const at = this.wallNow()
     return at - this.stalledMs - (this.ticker ? this.stallSinceTick(at) : 0)
   }
 
-  start(): void {
+  start() {
     if (this.ticker) return
     this.lastTickAt = this.wallNow()
     this.ticker = setInterval(() => this.tick(), this.tickMs)
     this.ticker.unref?.()
   }
 
-  stop(): void {
+  stop() {
     if (!this.ticker) return
     this.tick()
     clearInterval(this.ticker)

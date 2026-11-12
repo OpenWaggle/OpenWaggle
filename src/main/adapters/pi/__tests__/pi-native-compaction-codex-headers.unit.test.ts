@@ -3,16 +3,14 @@ import { compactResponses } from '@earendil-works/pi-ai/api/openai-responses'
 import { describe, expect, it, vi } from 'vitest'
 import { makeCompactResponse, makeNativeModel } from './pi-native-compaction-test-fixtures'
 
-function codexModel(
-  overrides: Partial<Model<'openai-codex-responses'>> = {},
-): Model<'openai-codex-responses'> {
+function codexModel(overrides: Partial<Model<'openai-codex-responses'>> = {}) {
   return {
     ...makeNativeModel(),
     api: 'openai-codex-responses',
     provider: 'openai-codex',
     baseUrl: 'https://chatgpt.com/backend-api/codex',
     ...overrides,
-  }
+  } satisfies Model<'openai-codex-responses'>
 }
 
 describe('Pi Codex native compaction headers', () => {

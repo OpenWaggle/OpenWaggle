@@ -28,10 +28,7 @@ import { runGit } from './shared'
  * here, so they cannot disagree about *which branch* is default - only about which revision of it
  * is resolvable, which is the question each is actually asking.
  */
-export async function resolveDefaultRef(
-  projectPath: string,
-  remoteName = 'origin',
-): Promise<string | null> {
+export async function resolveDefaultRef(projectPath: string, remoteName = 'origin') {
   const local = await resolveLocalDefaultRef(projectPath, remoteName)
   return local ?? (await resolveAdvertisedDefaultRef(projectPath, remoteName))
 }
@@ -43,10 +40,7 @@ export async function resolveDefaultRef(
  * precisely because it is cheap, and it is what the quick action and the default-branch confirmation
  * gate wait on - so reaching the network there stalls the UI even when the call is bounded.
  */
-export async function resolveLocalDefaultRef(
-  projectPath: string,
-  remoteName = 'origin',
-): Promise<string | null> {
+export async function resolveLocalDefaultRef(projectPath: string, remoteName = 'origin') {
   const localSymref = await runGit(projectPath, [
     'symbolic-ref',
     '--quiet',
@@ -69,10 +63,7 @@ export async function resolveLocalDefaultRef(
  * failure here - no network, no permission - is reported as "unknown" so resolution can fall
  * back rather than surfacing a network error in a diff.
  */
-async function resolveAdvertisedDefaultRef(
-  projectPath: string,
-  remoteName: string,
-): Promise<string | null> {
+async function resolveAdvertisedDefaultRef(projectPath: string, remoteName: string) {
   const remotes = await runGit(projectPath, ['remote'])
   if (
     remotes.code !== 0 ||
@@ -139,10 +130,7 @@ const ADVERTISED_DEFAULT_REF_TIMEOUT_MS = 10_000
  * A conventional name is only tried after the remote has been consulted, so a repository whose
  * default is `develop` is not diffed against a `main` that merely happens to exist.
  */
-export async function resolveDefaultBranchRevision(
-  projectPath: string,
-  remoteName = 'origin',
-): Promise<string | null> {
+export async function resolveDefaultBranchRevision(projectPath: string, remoteName = 'origin') {
   const defaultRef = await resolveDefaultRef(projectPath, remoteName)
   /*
    * A conventional name is a fallback for silence, not a second guess.

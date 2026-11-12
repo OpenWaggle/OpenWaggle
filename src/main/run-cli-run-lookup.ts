@@ -35,7 +35,7 @@ type Execute = (payload: LocalSessionCommandPayload) => Promise<LocalSessionComm
  * Look the Run up among the Session's durable Runs. A missing Run, or an error that will not
  * clear up by waiting, settles the command instead of leaving it waiting forever.
  */
-export async function lookUpRun(execute: Execute, target: RunTarget): Promise<RunLookup> {
+export async function lookUpRun(execute: Execute, target: RunTarget) {
   let cursor: string | undefined
   for (let page = 0; page < RUN_LOOKUP_PAGE_LIMIT; page += 1) {
     const read = await execute(recentRunsQuery(target, cursor)).then(
@@ -44,10 +44,10 @@ export async function lookUpRun(execute: Execute, target: RunTarget): Promise<Ru
     )
     if (read.errorKind) return lookupForError(read.errorKind, target)
     const result = read.result
-    if (!result) return { kind: 'unknown', reason: 'no response' }
+    if (!result) return { kind: 'unknown', reason: 'no response' } satisfies RunLookup
     const outcome = result.contract === 'session-query-v2' ? result.response.outcome : undefined
     if (outcome?.operation !== 'turns' || !('turns' in outcome)) {
-      return { kind: 'unknown', reason: 'unexpected response' }
+      return { kind: 'unknown', reason: 'unexpected response' } satisfies RunLookup
     }
     const run = outcome.turns.find((turn) => turn.runId === target.runId)
     if (run) return lookupForStatus(run.status, target)
@@ -55,31 +55,36 @@ export async function lookUpRun(execute: Execute, target: RunTarget): Promise<Ru
     cursor = outcome.nextCursor
   }
   // Too many newer Runs to search: the Run may still exist, so its state is unknown.
-  return { kind: 'unknown', reason: 'the Run is older than the recent Runs searched' }
+  return {
+    kind: 'unknown',
+    reason: 'the Run is older than the recent Runs searched',
+  } satisfies RunLookup
 }
 
-function missingRun(target: RunTarget): RunLookup {
+function missingRun(target: RunTarget) {
   return {
     kind: 'settled',
     settlement: {
       exitCode: SESSION_CLI_EXIT.FAILURE,
       message: `the Run is no longer listed for Session ${target.sessionId}.`,
     },
-  }
+  } satisfies RunLookup
 }
 
-function lookupForError(errorKind: SessionsCliErrorKind, target: RunTarget): RunLookup {
-  if (TRANSIENT_ERROR_KINDS.has(errorKind)) return { kind: 'unknown', reason: errorKind }
+function lookupForError(errorKind: SessionsCliErrorKind, target: RunTarget) {
+  if (TRANSIENT_ERROR_KINDS.has(errorKind)) {
+    return { kind: 'unknown', reason: errorKind } satisfies RunLookup
+  }
   return {
     kind: 'settled',
     settlement: {
       exitCode: sessionCliExitCodeForError(errorKind),
       message: `could not read the Run's status (${errorKind}); check it with openwaggle hive read ${target.sessionId}.`,
     },
-  }
+  } satisfies RunLookup
 }
 
-function lookupForStatus(status: string, target: RunTarget): RunLookup {
-  if (isActiveRunStatus(status)) return { kind: 'active' }
-  return { kind: 'settled', settlement: settlementForRunStatus(status, target) }
+function lookupForStatus(status: string, target: RunTarget) {
+  if (isActiveRunStatus(status)) return { kind: 'active' } satisfies RunLookup
+  return { kind: 'settled', settlement: settlementForRunStatus(status, target) } satisfies RunLookup
 }

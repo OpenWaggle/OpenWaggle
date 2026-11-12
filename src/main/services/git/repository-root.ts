@@ -7,7 +7,7 @@ import { runGit } from '../../adapters/git/run-git'
  * the user opened a subdirectory (normal in a monorepo) it discards tracked changes and deletes
  * untracked files they never had in view. The confirmation has to be able to say that.
  */
-export async function resolveRepositoryRoot(projectPath: string): Promise<string | null> {
+export async function resolveRepositoryRoot(projectPath: string) {
   const result = await runGit(projectPath, ['rev-parse', '--show-toplevel'])
   if (result.code !== 0) return null
   const root = result.stdout.replace(/\r?\n$/, '').trim()

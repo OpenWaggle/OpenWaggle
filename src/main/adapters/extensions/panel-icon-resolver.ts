@@ -31,15 +31,12 @@ export interface ExtensionPanelIconResolverDependencies {
 const MAX_CACHED_SVG_ICONS = 256
 const KEY_SEPARATOR = '\u0000'
 
-function deterministicReadFailure(message: string): PanelIconFileRead {
-  return { ok: false, message, retryable: false }
+function deterministicReadFailure(message: string) {
+  return { ok: false, message, retryable: false } satisfies PanelIconFileRead
 }
 
 /** Reads a package SVG once, confined by realpath to the package root and capped in size. */
-export async function readPackageIconFile(
-  packagePath: string,
-  relativePath: string,
-): Promise<PanelIconFileRead> {
+export async function readPackageIconFile(packagePath: string, relativePath: string) {
   try {
     const filePath = await resolveSafePackageFilePath(packagePath, relativePath)
     if (filePath === null) {
@@ -52,7 +49,7 @@ export async function readPackageIconFile(
         `The SVG icon is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.`,
       )
     }
-    return { ok: true, source: read.content.toString('utf8') }
+    return { ok: true, source: read.content.toString('utf8') } satisfies PanelIconFileRead
   } catch (error) {
     if (isEnoent(error)) return deterministicReadFailure('The SVG icon file does not exist.')
     // These only change when the package does, and a new package version has a new content hash.
@@ -65,7 +62,7 @@ export async function readPackageIconFile(
       ok: false,
       message: `The SVG icon could not be read: ${formatErrorMessage(error)}`,
       retryable: true,
-    }
+    } satisfies PanelIconFileRead
   }
 }
 
@@ -85,13 +82,13 @@ function rememberBounded<V>(cache: Map<string, V>, key: string, value: V) {
 
 export function createExtensionPanelIconResolver(
   dependencies: ExtensionPanelIconResolverDependencies = {},
-): ExtensionPanelIconResolverShape {
+) {
   const readIconFile = dependencies.readIconFile ?? readPackageIconFile
   const loadLucideIcons = dependencies.loadLucideIcons ?? loadBundledLucideIcons
   const lucideCache = new Map<string, ExtensionPanelIconResolution>()
   const svgCache = new Map<string, Promise<ExtensionPanelIconResolution>>()
 
-  async function resolveLucide(name: string): Promise<ExtensionPanelIconResolution> {
+  async function resolveLucide(name: string) {
     const cached = lucideCache.get(name)
     if (cached) return cached
     const svg = lucideIconSvg(await loadLucideIcons(), name)
@@ -103,38 +100,40 @@ export function createExtensionPanelIconResolver(
     return resolution
   }
 
-  async function readAndSanitize(
-    packagePath: string,
-    relativePath: string,
-  ): Promise<{ readonly resolution: ExtensionPanelIconResolution; readonly cacheable: boolean }> {
+  async function readAndSanitize(packagePath: string, relativePath: string) {
     const read = await readIconFile(packagePath, relativePath).catch(
-      (error: unknown): PanelIconFileRead => ({
-        ok: false,
-        message: `The SVG icon could not be read: ${formatErrorMessage(error)}`,
-        retryable: true,
-      }),
+      (error: unknown) =>
+        ({
+          ok: false,
+          message: `The SVG icon could not be read: ${formatErrorMessage(error)}`,
+          retryable: true,
+        }) satisfies PanelIconFileRead,
     )
     if (!read.ok) {
-      return {
+      const result: {
+        readonly resolution: ExtensionPanelIconResolution
+        readonly cacheable: boolean
+      } = {
         resolution: { status: 'invalid', message: read.message, path: relativePath },
         cacheable: !read.retryable,
       }
+      return result
     }
     const sanitized = sanitizeSvgIcon(read.source)
-    return {
+    const result: {
+      readonly resolution: ExtensionPanelIconResolution
+      readonly cacheable: boolean
+    } = {
       resolution: sanitized.ok
         ? { status: 'resolved', icon: { source: 'svg', svg: sanitized.svg } }
         : { status: 'invalid', message: sanitized.reason, path: relativePath },
       cacheable: true,
     }
+    return result
   }
 
   /** Resolved icons and deterministic failures are cached; retryable failures are forgotten. */
-  async function readSanitizeAndRemember(
-    key: string,
-    packagePath: string,
-    relativePath: string,
-  ): Promise<ExtensionPanelIconResolution> {
+  async function readSanitizeAndRemember(key: string, packagePath: string, relativePath: string) {
     const outcome = await readAndSanitize(packagePath, relativePath)
     if (!outcome.cacheable) svgCache.delete(key)
     return outcome.resolution
@@ -149,7 +148,7 @@ export function createExtensionPanelIconResolver(
     return pending
   }
 
-  return {
+  const shape: ExtensionPanelIconResolverShape = {
     resolve: (request) =>
       Effect.tryPromise(() =>
         typeof request.icon === 'string'
@@ -164,6 +163,7 @@ export function createExtensionPanelIconResolver(
         ),
       ),
   }
+  return shape
 }
 
 export const FilesystemExtensionPanelIconResolverLive = Layer.sync(ExtensionPanelIconResolver, () =>

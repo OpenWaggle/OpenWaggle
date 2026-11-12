@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
-import { TIME_UNIT } from '@shared/constants/time'
-import type { Logger, LogLevel } from '@shared/types/logger'
+import { TIME_UNIT, LOG_RETENTION } from '@shared/constants/time'
+import type { LogLevel } from '@shared/types/logger'
+import { loggerMethods } from '@shared/utils/logger-methods'
 import { logLevel as configuredLogLevel } from './env'
 
 const ISO_TIME_START = 11
@@ -24,8 +25,6 @@ interface LogEntry {
   readonly message: string
   readonly data?: object
 }
-
-export type { Logger }
 
 function safeSerialize(data: object) {
   try {
@@ -88,8 +87,6 @@ function reportFileLoggerFailure(message: string, error: unknown) {
 }
 
 // --- File writer (injected logsDir, async buffered writes) ---
-
-import { LOG_RETENTION } from '@shared/constants/time'
 
 const DEFAULT_LOG_FILE_STEM = 'openwaggle'
 /** The detached Session Host's log file stem, beside the GUI's `openwaggle-YYYY-MM-DD.log`. */
@@ -225,12 +222,12 @@ const fileWriter = new FileWriter()
  * Returns a promise that resolves when directory creation and log pruning complete.
  * Callers may ignore the return value for fire-and-forget initialization.
  */
-export function initFileLogger(logsDir: string, fileStem?: string): Promise<void> {
+export function initFileLogger(logsDir: string, fileStem?: string) {
   return fileWriter.init(logsDir, fileStem)
 }
 
 /** The Session Host log written on the same day, beside a GUI log file. */
-export function sessionHostLogPathFor(guiLogPath: string): string {
+export function sessionHostLogPathFor(guiLogPath: string) {
   const name = path.basename(guiLogPath)
   return path.join(
     path.dirname(guiLogPath),
@@ -239,15 +236,15 @@ export function sessionHostLogPathFor(guiLogPath: string): string {
 }
 
 /** Flushes buffered log lines to the file before a process exits. */
-export function drainFileLogger(): Promise<void> {
+export function drainFileLogger() {
   return fileWriter.drain()
 }
 
-export function getLogFilePath(): string {
+export function getLogFilePath() {
   return fileWriter.getLogFilePath()
 }
 
-export function createLogger(namespace: string): Logger {
+export function createLogger(namespace: string) {
   const log = (level: LogLevel, message: string, data?: object) => {
     if (!isLevelEnabled(level)) {
       return
@@ -264,22 +261,5 @@ export function createLogger(namespace: string): Logger {
     fileWriter.write(entry)
   }
 
-  return {
-    isLevelEnabled,
-    isDebugEnabled() {
-      return isLevelEnabled('debug')
-    },
-    debug(message, data) {
-      log('debug', message, data)
-    },
-    info(message, data) {
-      log('info', message, data)
-    },
-    warn(message, data) {
-      log('warn', message, data)
-    },
-    error(message, data) {
-      log('error', message, data)
-    },
-  }
+  return loggerMethods(log, isLevelEnabled)
 }

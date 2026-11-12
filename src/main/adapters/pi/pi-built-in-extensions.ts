@@ -16,11 +16,11 @@ import {
  */
 export const OPENWAGGLE_PI_BUILT_IN_EXTENSION_NAMES = ['codemode', 'tool-search'] as const
 
-export function openWagglePiBuiltInExtensions(): InlineExtension[] {
+export function openWagglePiBuiltInExtensions() {
   return [
     { name: 'codemode', factory: createCodemodeExtension(), replaceable: true, builtin: true },
     { name: 'tool-search', factory: createToolSearchExtension(), replaceable: true, builtin: true },
-  ]
+  ] satisfies InlineExtension[]
 }
 
 /**
@@ -28,6 +28,6 @@ export function openWagglePiBuiltInExtensions(): InlineExtension[] {
  * OpenWaggle automation uses to keep third-party code out; built-ins are Pi itself, so automation
  * names them explicitly, like `pi -ne -e builtin:codemode`.
  */
-export function openWagglePiBuiltInExtensionPaths(): string[] {
+export function openWagglePiBuiltInExtensionPaths() {
   return OPENWAGGLE_PI_BUILT_IN_EXTENSION_NAMES.map((name) => `builtin:${name}`)
 }

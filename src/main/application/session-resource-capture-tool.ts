@@ -83,7 +83,7 @@ export interface CapturedToolOutputGroup {
   readonly markdownImages: MarkdownImageOrigin
 }
 
-function capturedToolIdentity(name: string): CapturedToolIdentity {
+function capturedToolIdentity(name: string) {
   return { canonicalKey: `tool:${name}`, title: name }
 }
 
@@ -109,20 +109,21 @@ function docsTopicSource(toolResult: ToolCallResult) {
  * topic's root-relative image paths are pages of the website. Pi and extension docs name no
  * website, and none of their image paths is a file this Session produced, so they are skipped.
  */
-function toolMarkdownImages(toolResult: ToolCallResult): MarkdownImageOrigin {
+function toolMarkdownImages(toolResult: ToolCallResult) {
   if (toolResult.name.trim() !== OPENWAGGLE_DOCS_TOOL_NAME) return LOCAL_FILE_MARKDOWN_IMAGES
-  return docsTopicSource(toolResult) === 'openwaggle'
-    ? { kind: 'website', origin: OPENWAGGLE_WEBSITE_ORIGIN }
-    : { kind: 'none' }
+  return (
+    docsTopicSource(toolResult) === 'openwaggle'
+      ? { kind: 'website', origin: OPENWAGGLE_WEBSITE_ORIGIN }
+      : { kind: 'none' }
+  ) satisfies MarkdownImageOrigin
 }
 
-export function toolResultOutputGroups(
-  toolResult: ToolCallResult,
-): readonly CapturedToolOutputGroup[] {
+export function toolResultOutputGroups(toolResult: ToolCallResult) {
   const label = toolResultResourceLabel(toolResult)
-  return label
+  const group: readonly CapturedToolOutputGroup[] = label
     ? [{ label, result: toolResult.result, markdownImages: toolMarkdownImages(toolResult) }]
     : []
+  return group
 }
 
 /** The images, links and sites of one tool output group. */

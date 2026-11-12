@@ -9,7 +9,7 @@ interface DesktopInstanceLock {
 export async function withLegacySessionWriterFence<T>(
   operation: () => Promise<T>,
   lock: DesktopInstanceLock = systemIntegration,
-): Promise<T> {
+) {
   const alreadyOwned = lock.hasSingleInstanceLock()
   if (!alreadyOwned && !lock.requestSingleInstanceLock()) {
     throw new Error(

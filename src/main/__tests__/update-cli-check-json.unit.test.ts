@@ -88,9 +88,10 @@ describe('update CLI --check --json', () => {
     return { schemaVersion: 1, type: 'response', command: 'update', result }
   }
 
-  function printedResponse(): unknown {
+  function printedResponse() {
     expect(writeCliStdoutMock).toHaveBeenCalledOnce()
-    return JSON.parse(writeCliStdoutMock.mock.calls[0]?.[0] ?? '')
+    const parsed: unknown = JSON.parse(writeCliStdoutMock.mock.calls[0]?.[0] ?? '')
+    return parsed
   }
 
   /** The Session Host was asked only to read the channel, never to save one. */
