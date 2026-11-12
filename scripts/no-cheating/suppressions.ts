@@ -6,6 +6,7 @@
  */
 import { addedLines } from './added-lines'
 import type { Finding } from './findings'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 const CODE_FILE = /\.(?:[cm]?[jt]sx?|astro|vue|svelte|css|scss|html)$/u
 /** Files that name the directives on purpose: the rules that ban them and their tests. */
@@ -30,7 +31,7 @@ export function isSuppressionCandidate(file: string) {
 export function suppressions(text: string): Suppression[] {
   return text.split('\n').flatMap((line, index) => {
     const match = DIRECTIVE.exec(line)
-    const directive = match?.groups?.directive
+    const directive = namedGroups(match, ['directive'])?.directive
     if (match === null || directive === undefined) return []
     return [{ line: index + 1, column: match.index + 1, directive, text: line.trim() }]
   })
@@ -70,7 +71,7 @@ function silencingCasts(file: string, before: string | undefined, after: string)
   if (!TYPESCRIPT_FILE.test(file)) return []
   return addedLines(before, after).flatMap((added) => {
     const match = SILENCING_CAST.exec(added.text)
-    const cast = match?.groups?.cast
+    const cast = namedGroups(match, ['cast'])?.cast
     if (match === null || cast === undefined) return []
     return [
       {

@@ -5,6 +5,7 @@
  */
 import { execFile as execFileCallback, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 const execFile = promisify(execFileCallback)
 const GIT_OUTPUT_LIMIT = 256 * 1024 * 1024
@@ -82,7 +83,7 @@ function parseBatch(output: Buffer, files: readonly string[]) {
     const end = output.indexOf(NEWLINE, offset)
     const header = output.subarray(offset, end).toString('utf8')
     offset = end + 1
-    const size = /^\S+ blob (?<size>\d+)$/u.exec(header)?.groups?.size
+    const size = namedGroups(/^\S+ blob (?<size>\d+)$/u.exec(header), ['size'])?.size
     if (size === undefined) {
       texts.set(file, undefined)
       continue
