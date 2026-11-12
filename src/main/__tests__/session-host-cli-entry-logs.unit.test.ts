@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('electron', () => ({
   app: {
+    commandLine: { appendSwitch: vi.fn(), hasSwitch: () => false, getSwitchValue: () => '' },
     exit: vi.fn(),
     getPath: vi.fn((name: string) => mocks.paths.get(name) ?? '/default/profile'),
     setPath: vi.fn((name: string, value: string) => mocks.paths.set(name, value)),
@@ -22,7 +23,6 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
-    commandLine: { hasSwitch: vi.fn(() => false), appendSwitch: vi.fn() },
     disableHardwareAcceleration: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
