@@ -166,4 +166,17 @@ describe('Windows user-only security helper', () => {
     expect(script).not.toContain('ace.AccessMask != GENERIC_ALL')
     expect(script).toContain('VerifyDescriptor(new RawSecurityDescriptor(binary, 0), expectedUser)')
   })
+
+  it('compiles the pipe helper only for a batch with a pipe, after reading the targets', () => {
+    const command = windowsUserOnlySecurityCommandForTests()
+    const script = Buffer.from(command.arguments.at(-1) ?? '', 'base64').toString('utf16le')
+    const readInput = script.indexOf("Write-SecurityStage 'read-input'")
+    const pipeCheck = script.indexOf('if ($pipeTargets -gt 0) {')
+    const compile = script.indexOf('& $compiler -TypeDefinition $source -Language CSharp')
+    expect(readInput).toBeGreaterThan(-1)
+    expect(pipeCheck).toBeGreaterThan(readInput)
+    expect(compile).toBeGreaterThan(pipeCheck)
+    expect(script.match(/Add-Type/gu)).toHaveLength(1)
+    expect(script).toContain("if ($target.kind -eq 'pipe') { $pipeTargets += 1 }")
+  })
 })
