@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   automationUpdateReleaseUrl,
   configureAutomationUpdateFeed,
+  startsGuiAutoUpdater,
 } from '../update-feed-automation'
 
 describe('automationUpdateReleaseUrl', () => {
@@ -52,5 +53,29 @@ describe('configureAutomationUpdateFeed', () => {
       configureAutomationUpdateFeed({ setFeed }, 'http://127.0.0.1:8765/next/'),
     ).resolves.toEqual({ type: 'release', tag: 'http://127.0.0.1:8765/next/' })
     expect(setFeed).toHaveBeenCalledWith({ releaseUrl: 'http://127.0.0.1:8765/next/' })
+  })
+})
+
+describe('startsGuiAutoUpdater', () => {
+  const feed = 'http://127.0.0.1:8765/next/'
+
+  it('starts the updater outside automation and for an automation release directory', () => {
+    expect(startsGuiAutoUpdater(false, {})).toBe(true)
+    expect(
+      startsGuiAutoUpdater(true, {
+        OPENWAGGLE_AUTOMATION: '1',
+        OPENWAGGLE_AUTOMATION_UPDATE_FEED: feed,
+      }),
+    ).toBe(true)
+  })
+
+  it('keeps other automation runs off the updater', () => {
+    expect(startsGuiAutoUpdater(true, { OPENWAGGLE_AUTOMATION: '1' })).toBe(false)
+    expect(
+      startsGuiAutoUpdater(true, {
+        OPENWAGGLE_AUTOMATION: '1',
+        OPENWAGGLE_AUTOMATION_UPDATE_FEED: 'https://example.com/next/',
+      }),
+    ).toBe(false)
   })
 })

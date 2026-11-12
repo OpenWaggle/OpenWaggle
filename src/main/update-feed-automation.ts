@@ -27,6 +27,18 @@ export function automationUpdateReleaseUrl(
   return url.href.endsWith('/') ? url.href : `${url.href}/`
 }
 
+/**
+ * Whether the desktop app starts its updater. Automation runs stay off GitHub's releases, except
+ * one given a loopback release directory: without the started updater a check would not know the
+ * Update channel (a Beta build would refuse its own Beta release) and stay idle.
+ */
+export function startsGuiAutoUpdater(
+  automationMode: boolean,
+  environment: AutomationUpdateEnvironment = env,
+) {
+  return !automationMode || automationUpdateReleaseUrl(environment) !== null
+}
+
 /** Points the engine at the automation release directory, as `configureUpdaterFeed` does a release. */
 export function configureAutomationUpdateFeed(
   engine: Pick<UpdateFeedEngine, 'setFeed'>,

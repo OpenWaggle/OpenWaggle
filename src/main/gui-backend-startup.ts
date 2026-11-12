@@ -14,6 +14,7 @@ import { startGuiAutoUpdater } from './gui-auto-updater'
 import { releaseGuiBackendGate } from './gui-backend-gate'
 import type * as GuiRuntimeModule from './gui-runtime'
 import { type GuiStartupProgress, GuiStartupRestartRequiredError } from './gui-startup-coordinator'
+import { startsGuiAutoUpdater } from './update-feed-automation'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { awaitWithSignal } from './session-host/await-with-signal'
 import {
@@ -149,7 +150,7 @@ export async function startGuiBackend(input: {
   startupMark('desktop-native-ownership-reconciled')
   releaseGuiBackendGate()
   startupMark('gui-backend-ready')
-  if (!isAutomationMode()) void startGuiAutoUpdater()
+  if (startsGuiAutoUpdater(isAutomationMode())) void startGuiAutoUpdater()
 }
 
 export function publishStartupStatus(startupMark: StartupMark, status: GuiStartupStatus) {
