@@ -7,7 +7,13 @@ import { electronWebContentsOf } from './electron-window-policy'
 export const electronWebSecurity: WebSecurityShape = {
   guardEmbeddedFrames: (surface) => {
     const contents = electronWebContentsOf(surface)
-    if (contents) installInlineVisualizationNavigationGuard(contents)
+    // Fail closed: a page this guard cannot find would keep its frames unconfined.
+    if (!contents) {
+      throw new Error(
+        `Cannot confine the frames of renderer surface ${String(surface.id)}: Electron has no page with that id.`,
+      )
+    }
+    installInlineVisualizationNavigationGuard(contents)
   },
   originStorageOf: (surface) => {
     const profile = electronWebContentsOf(surface)?.session

@@ -29,13 +29,14 @@ export const webSecurityContract = definePortContract<WebSecurityContractHarness
     ])
   },
 
-  'guards a page frames without failing for a closed page': async ({
+  "guards an open page's frames and refuses a closed page instead of leaving it unguarded": async ({
     subject,
     openPage,
     closePage,
   }) => {
+    expect(() => subject.guardEmbeddedFrames(openPage())).not.toThrow()
     const page = openPage()
     closePage(page)
-    expect(() => subject.guardEmbeddedFrames(page)).not.toThrow()
+    expect(() => subject.guardEmbeddedFrames(page)).toThrow()
   },
 })
