@@ -12,7 +12,16 @@ import {
   SESSION_QUERY_MAX_WAIT_MS,
   SESSION_QUERY_TRANSCRIPT_LIMIT,
 } from '@shared/types/session-query'
-import { z } from 'zod'
+import { Schema } from 'effect'
+import {
+  boundedArray,
+  boundedString,
+  check,
+  enumeration,
+  integer,
+  literal,
+  optional,
+} from './json-schema-primitives'
 import {
   MCP_SESSION_INPUT_LIMITS_V2,
   mcpSessionIdSchemaV2,
@@ -24,97 +33,89 @@ import {
   mcpSessionTextSchemaV2,
 } from './openwaggle-mcp-session-resource-envelope-v2'
 
-export const boundedCursor = z.string().max(SESSION_QUERY_MAX_CURSOR_LENGTH)
-export const discoveryLimit = z.number().int().min(1).max(SESSION_QUERY_DISCOVERY_LIMIT)
-export const transcriptLimit = z.number().int().min(1).max(SESSION_QUERY_TRANSCRIPT_LIMIT)
-export const revision = z.number().int().min(0)
-export const positiveRevision = z.number().int().min(1)
-export const timeout = z.number().int().min(0).max(SESSION_QUERY_MAX_WAIT_MS)
-export const interactionTimeout = z.number().int().min(0).max(MAX_NODE_TIMER_DELAY_MS)
-export const booleanFlag = z.boolean()
-export const searchMode = z.enum(['hybrid', 'lexical', 'semantic'])
-export const catalogScope = z.enum(['current', 'project', 'all'])
-export const idempotency = { idempotencyKey: mcpSessionIdSchemaV2.optional() }
+export const boundedCursor = boundedString({ max: SESSION_QUERY_MAX_CURSOR_LENGTH })
+export const discoveryLimit = integer({ min: 1, max: SESSION_QUERY_DISCOVERY_LIMIT })
+export const transcriptLimit = integer({ min: 1, max: SESSION_QUERY_TRANSCRIPT_LIMIT })
+export const revision = integer({ min: 0 })
+export const positiveRevision = integer({ min: 1 })
+export const timeout = integer({ min: 0, max: SESSION_QUERY_MAX_WAIT_MS })
+export const interactionTimeout = integer({ min: 0, max: MAX_NODE_TIMER_DELAY_MS })
+export const booleanFlag = Schema.Boolean
+export const searchMode = enumeration('hybrid', 'lexical', 'semantic')
+export const catalogScope = enumeration('current', 'project', 'all')
+export const idempotency = { idempotencyKey: optional(mcpSessionIdSchemaV2) }
 export const specialization = {
-  agent: mcpSessionIdSchemaV2.optional(),
-  model: mcpSessionIdSchemaV2.optional(),
-  thinking: mcpSessionIdSchemaV2.optional(),
+  agent: optional(mcpSessionIdSchemaV2),
+  model: optional(mcpSessionIdSchemaV2),
+  thinking: optional(mcpSessionIdSchemaV2),
 }
 export const runAuthorization = {
-  yolo: booleanFlag.optional(),
-  runAuthorizationOverride: z.enum(['inherit', 'ask-for-approval', 'yolo']).optional(),
+  yolo: optional(booleanFlag),
+  runAuthorizationOverride: optional(enumeration('inherit', 'ask-for-approval', 'yolo')),
 }
 export const newWorktreeFields = {
-  baseRef: mcpSessionIdSchemaV2.optional(),
-  startFromOrigin: booleanFlag.optional(),
+  baseRef: optional(mcpSessionIdSchemaV2),
+  startFromOrigin: optional(booleanFlag),
 }
 
-export const interactionResponseSchema = z.discriminatedUnion('kind', [
-  z.strictObject({
-    kind: z.literal('confirm'),
-    accepted: z.boolean(),
-    scope: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.itemTextLength).optional(),
-  }),
-  z.strictObject({
-    kind: z.literal('select'),
-    selected: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
-  }),
-  z.strictObject({
-    kind: z.literal('input'),
-    value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
-  }),
-  z.strictObject({
-    kind: z.literal('editor'),
-    value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
-  }),
-  z.strictObject({ kind: z.literal('notify'), acknowledged: z.literal(true) }),
-  z.strictObject({ kind: z.literal('custom'), value: mcpSessionJsonSchemaV2.nullable() }),
-])
+const responseText = boundedString({ max: MCP_SESSION_INPUT_LIMITS_V2.textLength })
 
-export const evidenceSchema = z.strictObject({
-  kind: z.enum([
+export const interactionResponseSchema = Schema.Union(
+  Schema.Struct({
+    kind: literal('confirm'),
+    accepted: Schema.Boolean,
+    scope: optional(boundedString({ max: MCP_SESSION_INPUT_LIMITS_V2.itemTextLength })),
+  }),
+  Schema.Struct({ kind: literal('select'), selected: Schema.NullOr(responseText) }),
+  Schema.Struct({ kind: literal('input'), value: Schema.NullOr(responseText) }),
+  Schema.Struct({ kind: literal('editor'), value: Schema.NullOr(responseText) }),
+  Schema.Struct({ kind: literal('notify'), acknowledged: literal(true) }),
+  Schema.Struct({ kind: literal('custom'), value: Schema.NullOr(mcpSessionJsonSchemaV2) }),
+)
+
+export const evidenceSchema = Schema.Struct({
+  kind: enumeration(
     'observed-command',
     'workspace-diff',
     'artifact',
     'source-reference',
     'asserted-note',
-  ]),
+  ),
   summary: mcpSessionItemTextSchemaV2,
-  reference: mcpSessionPathSchemaV2.optional(),
+  reference: optional(mcpSessionPathSchemaV2),
 })
-export const evidence = z
-  .array(evidenceSchema)
-  .max(MCP_SESSION_INPUT_LIMITS_V2.evidenceItems)
-  .refine(hasUniqueCollaborationStructures, 'Delegation evidence items must be unique.')
-export const followUpIds = z
-  .array(mcpSessionIdSchemaV2)
-  .max(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS)
-  .refine((items) => new Set(items).size === items.length, 'Follow-up IDs must be unique.')
-export const targetSessionIds = z
-  .array(mcpSessionIdSchemaV2)
-  .max(SESSION_COLLABORATION_COLLECTION_LIMIT)
-  .refine(hasUniqueCollaborationStrings, 'Target Session IDs must be unique.')
-export const revisedSpecificationSchema = z.strictObject({
+export const evidence = boundedArray(
+  evidenceSchema,
+  MCP_SESSION_INPUT_LIMITS_V2.evidenceItems,
+).pipe(check(hasUniqueCollaborationStructures, 'Delegation evidence items must be unique.'))
+export const followUpIds = boundedArray(
+  mcpSessionIdSchemaV2,
+  MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS,
+).pipe(check((items) => new Set(items).size === items.length, 'Follow-up IDs must be unique.'))
+export const targetSessionIds = boundedArray(
+  mcpSessionIdSchemaV2,
+  SESSION_COLLABORATION_COLLECTION_LIMIT,
+).pipe(check(hasUniqueCollaborationStrings, 'Target Session IDs must be unique.'))
+export const revisedSpecificationSchema = Schema.Struct({
   objective: mcpSessionTextSchemaV2,
   deliverables: mcpSessionItemArraySchemaV2,
   acceptanceCriteria: mcpSessionItemArraySchemaV2,
   resourceReferences: mcpSessionResourceReferencesSchemaV2,
-  handoffContext: mcpSessionTextSchemaV2.optional(),
+  handoffContext: optional(mcpSessionTextSchemaV2),
 })
 export function finiteUniqueEnumArray<const TValues extends readonly [string, ...string[]]>(
   values: TValues,
 ) {
-  return z
-    .array(z.enum(values))
-    .max(values.length)
-    .refine((items) => new Set(items).size === items.length, 'Filter values must be unique.')
+  return boundedArray(enumeration(...values), values.length).pipe(
+    check((items) => new Set(items).size === items.length, 'Filter values must be unique.'),
+  )
 }
 
 export const delegationStates = finiteUniqueEnumArray(DELEGATION_STATES)
 
-export function operationSchema<TName extends string, TShape extends z.ZodRawShape>(
+export function operationSchema<TName extends string, TFields extends Schema.Struct.Fields>(
   operation: TName,
-  shape: TShape,
+  fields: TFields,
 ) {
-  return z.strictObject({ operation: z.literal(operation), ...shape })
+  return Schema.Struct({ operation: literal(operation), ...fields })
 }

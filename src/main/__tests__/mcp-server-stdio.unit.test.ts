@@ -1,7 +1,8 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
 import { afterEach, describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import { Schema } from 'effect'
+import { standardSchemaWithJson } from '../effect-standard-schema'
 import { serveDualEraMcpStdio } from '../mcp-server-stdio'
 
 const handles: { close(): Promise<void> }[] = []
@@ -12,9 +13,11 @@ afterEach(async () => {
   await Promise.all(handles.splice(0).map((handle) => handle.close()))
 })
 
+const ECHO_INPUT = standardSchemaWithJson(Schema.Struct({ text: Schema.String }))
+
 function serverFactory() {
   const server = new McpServer({ name: 'dual-era-fixture', version: '1.0.0' })
-  server.registerTool('echo', { inputSchema: z.object({ text: z.string() }) }, ({ text }) => ({
+  server.registerTool('echo', { inputSchema: ECHO_INPUT }, ({ text }) => ({
     content: [{ type: 'text', text }],
   }))
   return server

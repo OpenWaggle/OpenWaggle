@@ -3,9 +3,9 @@ import {
   assertMcpOriginProvenance,
   assertSuccessfulMcpSessionResult,
   buildMcpSessionPayloadV2,
-  sessionInputSchemaV2,
 } from '../openwaggle-mcp-session-tool-v2'
 import { SESSION_V2_OPERATIONS } from './openwaggle-mcp-session-v2-test-operations'
+import { acceptsSessionInput } from './openwaggle-mcp-session-input.test-support'
 
 describe('OpenWaggle MCP Session Control v2 adapter', () => {
   it('surfaces canonical query and mutation failures as MCP errors', () => {
@@ -44,38 +44,38 @@ describe('OpenWaggle MCP Session Control v2 adapter', () => {
 
   it('exposes the canonical lifecycle, control, query, queue, and wait vocabulary', () => {
     for (const operation of SESSION_V2_OPERATIONS) {
-      expect(sessionInputSchemaV2.safeParse({ operation }).success).toBe(true)
+      expect(acceptsSessionInput({ operation })).toBe(true)
     }
   })
 
   it('rejects unknown public input fields at every owned object boundary', () => {
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'search',
         message: 'migration',
         fullTranscrip: true,
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'request-respond',
         sessionId: 'session-1',
         runId: 'run-1',
         interactionId: 'interaction-1',
         interactionResponse: { kind: 'input', value: 'answer', typo: true },
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'delegation-submit',
         sessionId: 'worker',
         delegationId: 'delegation-1',
         summary: 'Done',
         evidence: [{ kind: 'observed-command', summary: 'Tests passed', typo: true }],
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'delegation-claim',
         sessionId: 'worker',
         delegationId: 'delegation-1',
@@ -86,7 +86,7 @@ describe('OpenWaggle MCP Session Control v2 adapter', () => {
             target: { type: 'workspace-file', path: 'README.md', typo: true },
           },
         ],
-      }).success,
+      }),
     ).toBe(false)
   })
 

@@ -6,8 +6,9 @@ import {
   isMcpAgentDefinitionOperation,
   queryMcpAgentDefinitions,
 } from '../openwaggle-mcp-agent-definitions-v2'
-import { sessionInputSchemaV2 } from '../openwaggle-mcp-session-tool-v2'
+
 import { fakeProjectResolver } from './agent-definition-project.test-support'
+import { acceptsSessionInput } from './openwaggle-mcp-session-input.test-support'
 
 const DEFINITION = `---
 schemaVersion: 1
@@ -43,20 +44,15 @@ describe('openwaggle_hive Agent-definition discovery', () => {
     expect(isMcpAgentDefinitionOperation('agent-definitions-list')).toBe(true)
     expect(isMcpAgentDefinitionOperation('agent-definitions-search')).toBe(true)
     expect(isMcpAgentDefinitionOperation('list')).toBe(false)
+    expect(acceptsSessionInput({ operation: 'agent-definitions-list', limit: 5 })).toBe(true)
     expect(
-      sessionInputSchemaV2.safeParse({ operation: 'agent-definitions-list', limit: 5 }).success,
-    ).toBe(true)
-    expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'agent-definitions-search',
         message: 'security',
         projectPath: '/repo',
-      }).success,
+      }),
     ).toBe(true)
-    expect(
-      sessionInputSchemaV2.safeParse({ operation: 'agent-definitions-list', sessionId: 's' })
-        .success,
-    ).toBe(false)
+    expect(acceptsSessionInput({ operation: 'agent-definitions-list', sessionId: 's' })).toBe(false)
   })
 
   it('answers like the hive tool: names and descriptions, never instructions', async () => {
