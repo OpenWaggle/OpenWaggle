@@ -142,8 +142,9 @@ async function launch(
   }
 }
 
+/** Serves `directory` until the process is stopped; main() exits the process once it resolves. */
 function serve(directory: string, port: number) {
-  http
+  const server = http
     .createServer((request, response) => {
       const name = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname)
       const file = path.join(directory, path.normalize(name))
@@ -155,6 +156,7 @@ function serve(directory: string, port: number) {
       fs.createReadStream(file).pipe(response)
     })
     .listen(port, '127.0.0.1')
+  return new Promise<void>((resolve) => server.on('close', resolve))
 }
 
 function commandOptions(argv: readonly string[]) {
@@ -187,7 +189,7 @@ async function main(argv: readonly string[]) {
     return
   }
   if (command === 'serve' && first !== undefined && second !== undefined) {
-    serve(path.resolve(first), Number(second))
+    await serve(path.resolve(first), Number(second))
     return
   }
   if ((command !== 'launch' && command !== 'update') || first === undefined) {
