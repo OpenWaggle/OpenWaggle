@@ -235,6 +235,13 @@ jobs:
             [ -f "$file" ] && cp "$file" "$RESULTS/" || true
           done
           [ -d "$PROFILE/logs" ] && cp -R "$PROFILE/logs" "$RESULTS/app-logs" || true
+          # Electrobun's update plans and results, under the directory its updater manages.
+          mkdir -p "$RESULTS/updater"
+          for root in "$HOME/Library/Application Support/com.openwaggle.app" \
+            "$HOME/.local/share/com.openwaggle.app" "${LOCALAPPDATA:-}/com.openwaggle.app"; do
+            [ -d "$root" ] && find "$root" -maxdepth 3 -name '*.json' -size -64k \
+              -exec cp {} "$RESULTS/updater/" \; || true
+          done
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ !cancelled() }}

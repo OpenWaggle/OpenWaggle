@@ -212,11 +212,14 @@ async function main(argv: readonly string[]) {
           prove: options.prove,
           openSession: options['open-session'] ?? null,
         })
-      : await proveUpdate(context, {
-          from: options.from ?? '',
-          expect: options.expect,
-          feed: options.feed ?? '',
-        })
+      : await proveUpdate(
+          { ...context, realHome: true },
+          {
+            from: options.from ?? '',
+            expect: options.expect,
+            feed: options.feed ?? '',
+          },
+        )
   fs.writeFileSync(options.out, `${JSON.stringify(result, null, JSON_INDENT)}\n`)
   console.log(JSON.stringify(result))
 }

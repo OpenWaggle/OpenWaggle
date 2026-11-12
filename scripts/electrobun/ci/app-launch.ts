@@ -3,10 +3,12 @@
  * (scripts/support/electrobun-app-launch.ts), waits for its renderer and startup status `ready`, and
  * runs its CLI against the same profile.
  */
+import os from 'node:os'
 import {
   buildElectrobunAppEnvironment,
   type ConnectedElectrobunApp,
   connectElectrobunApp,
+  electrobunAppHome,
   freePort,
   startElectrobunApp,
   stopElectrobunApp,
@@ -23,11 +25,29 @@ export interface LaunchContext {
   readonly timeoutMs: number
   readonly environment?: Readonly<Record<string, string>>
   readonly appArguments?: readonly string[]
+  /**
+   * The user's own HOME instead of the profile's scratch one. Electrobun's updater only updates an
+   * app in the directory it manages under HOME (Linux `~/.local/share`, macOS `~/Library`), so the
+   * update proof runs the installed app with the runner's HOME; Pi keeps the scratch agent directory.
+   */
+  readonly realHome?: boolean
+}
+
+function homeOptions(context: LaunchContext) {
+  if (context.realHome !== true) return {}
+  return {
+    homeDir: os.homedir(),
+    piAgentDir: electrobunAppHome({ userDataDir: context.profile }).piAgentDir,
+  }
 }
 
 /** The CLI with the same profile as the window, so it reaches the window's Session Host. */
 export function appCli(context: LaunchContext, cdpPort: number) {
-  const environment = buildElectrobunAppEnvironment({ userDataDir: context.profile, cdpPort })
+  const environment = buildElectrobunAppEnvironment({
+    userDataDir: context.profile,
+    cdpPort,
+    ...homeOptions(context),
+  })
   return (args: readonly string[]) =>
     runAppCli({
       bun: context.app.bun,
@@ -45,6 +65,7 @@ export async function startApp(context: LaunchContext) {
     launcher: context.app.launcher,
     cdpPort,
     userDataDir: context.profile,
+    ...homeOptions(context),
     ...(context.environment === undefined ? {} : { environment: context.environment }),
     ...(context.appArguments === undefined ? {} : { appArguments: context.appArguments }),
     onLine: (line) => console.log(`[app] ${line}`),
@@ -65,7 +86,6 @@ export async function startApp(context: LaunchContext) {
   }
 }
 
-/** Stops the Host, the window and anything else the install started. */
 /**
  * Quits the window first, as a user does, then stops the Session Host it leaves running and anything
  * else the install started. Stopping the Host under a running window fails the window's shutdown.
