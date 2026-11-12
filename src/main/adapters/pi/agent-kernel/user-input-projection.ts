@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
-import type { MessagePart, MessageScheduledTaskOrigin } from '@shared/types/agent'
+import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import { boundedAttachmentText } from '@shared/utils/attachment-text'
 import {
   buildPersistedUserMessageParts,
@@ -137,7 +137,9 @@ export function enqueueUserInputProjection(
   return pending.cancel
 }
 
-function boundedPart(part: MessagePart): MessagePart {
+type ProjectedUserPart = SchemaType<typeof userInputProjectionSchema>['parts'][number]
+
+function boundedPart(part: ProjectedUserPart): ProjectedUserPart {
   return part.type === 'attachment'
     ? {
         ...part,
@@ -154,7 +156,7 @@ function decodeProjection(value: unknown) {
   return decoded.success ? { ...decoded.data, parts: decoded.data.parts.map(boundedPart) } : null
 }
 
-export function decodeUserInputProjection(value: unknown): readonly MessagePart[] | null {
+export function decodeUserInputProjection(value: unknown): readonly ProjectedUserPart[] | null {
   return decodeProjection(value)?.parts ?? null
 }
 

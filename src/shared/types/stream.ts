@@ -1,339 +1,132 @@
 /**
- * OpenWaggle-owned transport events sent over IPC between main and renderer.
+ * OpenWaggle-owned transport events sent over IPC between main and renderer, inferred from the
+ * schemas in `@shared/schemas/stream` and `@shared/schemas/stream-assistant-events`.
  *
- * These events intentionally mirror Pi session/runtime semantics closely while
- * remaining vendor-free shared types.
+ * These events intentionally mirror Pi session/runtime semantics closely while remaining
+ * vendor-free shared types.
  */
 
-import type { MessageMetadata, MessagePart, MessageScheduledTaskOrigin } from './agent'
+import type { SchemaType } from '@shared/schema'
+import type { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import type {
-  AgentLoopInteraction,
-  AgentLoopInteractionKind,
-  AgentLoopInteractionResponse,
-  AgentLoopInteractionStatus,
-} from './agent-loop-interaction'
-import type { JsonValue } from './json'
-import type { WaggleInvocationMetadata } from './waggle'
+  agentExtensionStatusSlotSchema,
+  agentTransportAgentEndEventSchema,
+  agentTransportAgentSettledEventSchema,
+  agentTransportAgentStartEventSchema,
+  agentTransportAutoRetryEndEventSchema,
+  agentTransportAutoRetryStartEventSchema,
+  agentTransportCompactionEndEventSchema,
+  agentTransportCompactionStartEventSchema,
+  agentTransportContextUsageEventSchema,
+  agentTransportCustomEventSchema,
+  agentTransportEventSchema,
+  agentTransportExtensionStatusEventSchema,
+  agentTransportInteractionRequestEventSchema,
+  agentTransportInteractionResolvedEventSchema,
+  agentTransportMessageEndEventSchema,
+  agentTransportMessageStartEventSchema,
+  agentTransportMessageUpdateEventSchema,
+  agentTransportQueueUpdateEventSchema,
+  agentTransportToolExecutionEndEventSchema,
+  agentTransportToolExecutionStartEventSchema,
+  agentTransportToolExecutionUpdateEventSchema,
+  agentTransportTurnEndEventSchema,
+  agentTransportTurnStartEventSchema,
+} from '@shared/schemas/stream'
+import type {
+  agentAssistantDoneEventSchema,
+  agentAssistantErrorEventSchema,
+  agentAssistantMessageEventSchema,
+  agentAssistantTextDeltaEventSchema,
+  agentAssistantTextEndEventSchema,
+  agentAssistantTextStartEventSchema,
+  agentAssistantThinkingDeltaEventSchema,
+  agentAssistantThinkingEndEventSchema,
+  agentAssistantThinkingStartEventSchema,
+  agentAssistantToolCallDeltaEventSchema,
+  agentAssistantToolCallEndEventSchema,
+  agentAssistantToolCallStartEventSchema,
+  agentTransportErrorInfoSchema,
+} from '@shared/schemas/stream-assistant-events'
 
-interface TransportEventBase {
-  readonly timestamp: number
-  readonly model?: string
-  readonly rawEvent?: JsonValue
-}
+export type AgentTransportErrorInfo = SchemaType<typeof agentTransportErrorInfoSchema>
 
-export interface AgentTransportErrorInfo {
-  readonly message: string
-  readonly code?: string
-  readonly name?: string
-  readonly stack?: string
-}
-
-export interface AgentAssistantTextStartEvent {
-  readonly type: 'text_start'
-  readonly contentIndex: number
-}
-
-export interface AgentAssistantTextDeltaEvent {
-  readonly type: 'text_delta'
-  readonly contentIndex: number
-  readonly delta: string
-}
-
-export interface AgentAssistantTextEndEvent {
-  readonly type: 'text_end'
-  readonly contentIndex: number
-  readonly content: string
-}
-
-export interface AgentAssistantThinkingStartEvent {
-  readonly type: 'thinking_start'
-  readonly contentIndex: number
-}
-
-export interface AgentAssistantThinkingDeltaEvent {
-  readonly type: 'thinking_delta'
-  readonly contentIndex: number
-  readonly delta: string
-}
-
-export interface AgentAssistantThinkingEndEvent {
-  readonly type: 'thinking_end'
-  readonly contentIndex: number
-  readonly content: string
-}
-
-export interface AgentAssistantToolCallStartEvent {
-  readonly type: 'toolcall_start'
-  readonly contentIndex: number
-  readonly toolCallId: string
-  readonly toolName: string
-  readonly input?: JsonValue
-}
-
-/**
- * Sent when a streaming tool call's parsed input changed. `delta` is the raw argument text
- * since the previous `toolcall_delta` of this call, and `input` the whole input so far. Raw
- * text after the last change is not sent as a delta: `toolcall_end` carries the exact final
- * input.
- */
-export interface AgentAssistantToolCallDeltaEvent {
-  readonly type: 'toolcall_delta'
-  readonly contentIndex: number
-  readonly toolCallId: string
-  readonly delta: string
-  readonly input?: JsonValue
-}
-
-export interface AgentAssistantToolCallEndEvent {
-  readonly type: 'toolcall_end'
-  readonly contentIndex: number
-  readonly toolCallId: string
-  readonly toolName: string
-  readonly input: JsonValue
-}
-
-export interface AgentAssistantDoneEvent {
-  readonly type: 'done'
-  readonly reason: 'stop' | 'length' | 'toolUse'
-}
-
-export interface AgentAssistantErrorEvent {
-  readonly type: 'error'
-  readonly reason: 'aborted' | 'error'
-  readonly error: AgentTransportErrorInfo
-}
-
-export type AgentAssistantMessageEvent =
-  | AgentAssistantTextStartEvent
-  | AgentAssistantTextDeltaEvent
-  | AgentAssistantTextEndEvent
-  | AgentAssistantThinkingStartEvent
-  | AgentAssistantThinkingDeltaEvent
-  | AgentAssistantThinkingEndEvent
-  | AgentAssistantToolCallStartEvent
-  | AgentAssistantToolCallDeltaEvent
-  | AgentAssistantToolCallEndEvent
-  | AgentAssistantDoneEvent
-  | AgentAssistantErrorEvent
-
-export interface AgentTransportAgentStartEvent extends TransportEventBase {
-  readonly type: 'agent_start'
-  readonly runId: string
-}
-
-export interface AgentTransportAgentEndEvent extends TransportEventBase {
-  readonly type: 'agent_end'
-  readonly runId: string
-  readonly reason: 'stop' | 'length' | 'toolUse' | 'error' | 'aborted' | null
-  readonly willRetry?: boolean
-  readonly usage?: {
-    readonly promptTokens: number
-    readonly completionTokens: number
-    readonly totalTokens: number
-  }
-  readonly error?: AgentTransportErrorInfo
-}
-
-export interface AgentTransportTurnStartEvent extends TransportEventBase {
-  readonly type: 'turn_start'
-  readonly turnIndex: number
-}
-
-export interface AgentTransportTurnEndEvent extends TransportEventBase {
-  readonly type: 'turn_end'
-  readonly turnIndex: number
-}
+export type AgentAssistantTextStartEvent = SchemaType<typeof agentAssistantTextStartEventSchema>
+export type AgentAssistantTextDeltaEvent = SchemaType<typeof agentAssistantTextDeltaEventSchema>
+export type AgentAssistantTextEndEvent = SchemaType<typeof agentAssistantTextEndEventSchema>
+export type AgentAssistantThinkingStartEvent = SchemaType<
+  typeof agentAssistantThinkingStartEventSchema
+>
+export type AgentAssistantThinkingDeltaEvent = SchemaType<
+  typeof agentAssistantThinkingDeltaEventSchema
+>
+export type AgentAssistantThinkingEndEvent = SchemaType<typeof agentAssistantThinkingEndEventSchema>
+export type AgentAssistantToolCallStartEvent = SchemaType<
+  typeof agentAssistantToolCallStartEventSchema
+>
+export type AgentAssistantToolCallDeltaEvent = SchemaType<
+  typeof agentAssistantToolCallDeltaEventSchema
+>
+export type AgentAssistantToolCallEndEvent = SchemaType<typeof agentAssistantToolCallEndEventSchema>
+export type AgentAssistantDoneEvent = SchemaType<typeof agentAssistantDoneEventSchema>
+export type AgentAssistantErrorEvent = SchemaType<typeof agentAssistantErrorEventSchema>
+export type AgentAssistantMessageEvent = SchemaType<typeof agentAssistantMessageEventSchema>
 
 /**
  * A user message Pi has started incorporating into the active Run, as the transcript shows it.
  * Carries the same source-free display parts and identity the persisted user node projects, never
  * Pi's model input (synthesized attachment text or image payloads).
  */
-export interface AgentTransportUserMessage extends Pick<MessageMetadata, 'hiveWake'> {
-  readonly parts: readonly MessagePart[]
-  /** Native Session log order the user node is appended at, as `MessageMetadata` carries it. */
-  readonly sessionNodeCreatedOrder: number
-  /** Hash of Pi's projected first user text block, the value a queued steer receipt carries. */
-  readonly durableTextSha256?: string
-  /** The Waggle preset a visible Waggle user request invoked. */
-  readonly waggleInvocation?: WaggleInvocationMetadata
-  /** The Scheduled task whose run delivered this message, as the persisted node records it. */
-  readonly scheduledTask?: MessageScheduledTaskOrigin
-}
+export type AgentTransportUserMessage = SchemaType<typeof agentTransportUserMessageSchema>
 
-export interface AgentTransportMessageStartEvent extends TransportEventBase {
-  readonly type: 'message_start'
-  readonly messageId: string
-  readonly role: 'user' | 'assistant' | 'system' | 'tool'
-  /** Present on a user message: its display content from the moment Pi reads it. */
-  readonly userMessage?: AgentTransportUserMessage
-}
-
-export interface AgentTransportMessageUpdateEvent extends TransportEventBase {
-  readonly type: 'message_update'
-  readonly messageId: string
-  readonly role: 'assistant'
-  readonly assistantMessageEvent: AgentAssistantMessageEvent
-}
-
-export interface AgentTransportMessageEndEvent extends TransportEventBase {
-  readonly type: 'message_end'
-  readonly messageId: string
-  readonly role: 'user' | 'assistant' | 'system' | 'tool'
-  /** The provider error a failed assistant response ended with. */
-  readonly errorMessage?: string
-}
-
-/** Authoritative context usage reported after a completed model response. */
-export interface AgentTransportContextUsageEvent extends TransportEventBase {
-  readonly type: 'context_usage'
-  readonly tokens: number
-  readonly contextWindow: number
-  /**
-   * The virtual model the Run selected, when its router sent this response to `model`. The usage
-   * and window are `model`'s; the selection only tells the context meter they belong to it.
-   */
-  readonly routedFrom?: string
-}
-
-export interface AgentTransportToolExecutionStartEvent extends TransportEventBase {
-  readonly type: 'tool_execution_start'
-  readonly toolCallId: string
-  readonly toolName: string
-  readonly args: JsonValue
-  readonly parentMessageId?: string
-  /**
-   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
-   * call. Nested calls have no transcript entry of their own; they belong under their parent.
-   */
-  readonly parentToolCallId?: string
-}
-
-export interface AgentTransportToolExecutionUpdateEvent extends TransportEventBase {
-  readonly type: 'tool_execution_update'
-  readonly toolCallId: string
-  readonly toolName: string
-  readonly args: JsonValue
-  readonly partialResult: JsonValue
-  /**
-   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
-   * call. Nested calls have no transcript entry of their own; they belong under their parent.
-   */
-  readonly parentToolCallId?: string
-}
-
-export interface AgentTransportToolExecutionEndEvent extends TransportEventBase {
-  readonly type: 'tool_execution_end'
-  readonly toolCallId: string
-  readonly toolName: string
-  readonly args?: JsonValue
-  readonly result: JsonValue
-  readonly isError: boolean
-  /**
-   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
-   * call. Nested calls have no transcript entry of their own; they belong under their parent.
-   */
-  readonly parentToolCallId?: string
-}
-
-export interface AgentTransportQueueUpdateEvent extends TransportEventBase {
-  readonly type: 'queue_update'
-  readonly steering: readonly string[]
-  readonly followUp: readonly string[]
-}
-
-export interface AgentTransportCompactionStartEvent extends TransportEventBase {
-  readonly type: 'compaction_start'
-  readonly reason: 'manual' | 'threshold' | 'overflow'
-}
-
-export interface AgentTransportCompactionEndEvent extends TransportEventBase {
-  readonly type: 'compaction_end'
-  readonly reason: 'manual' | 'threshold' | 'overflow'
-  readonly result: JsonValue
-  readonly aborted: boolean
-  readonly willRetry: boolean
-  readonly errorMessage?: string | undefined
-}
-
-export interface AgentTransportAutoRetryStartEvent extends TransportEventBase {
-  readonly type: 'auto_retry_start'
-  readonly attempt: number
-  readonly maxAttempts: number
-  readonly delayMs: number
-  readonly errorMessage: string
-}
-
-export interface AgentTransportAutoRetryEndEvent extends TransportEventBase {
-  readonly type: 'auto_retry_end'
-  readonly success: boolean
-  readonly attempt: number
-  readonly finalError?: string
-  readonly cancelled?: boolean
-}
-
-export interface AgentTransportCustomEvent extends TransportEventBase {
-  readonly type: 'custom'
-  readonly name: string
-  readonly value?: JsonValue
-}
-
-export interface AgentTransportInteractionRequestEvent extends TransportEventBase {
-  readonly type: 'agent_interaction_request'
-  readonly interaction: AgentLoopInteraction
-}
-
-export interface AgentTransportInteractionResolvedEvent extends TransportEventBase {
-  readonly type: 'agent_interaction_resolved'
-  readonly runId: string
-  readonly interactionId: string
-  readonly kind: AgentLoopInteractionKind
-  readonly status: AgentLoopInteractionStatus
-  readonly response?: AgentLoopInteractionResponse
-  readonly error?: AgentTransportErrorInfo
-}
-
-export type AgentExtensionStatusSlot =
-  | { readonly kind: 'status'; readonly key: string }
-  | { readonly kind: 'working-message' }
-
-/** Pi `ctx.ui.setStatus(key, text)` or `setWorkingMessage(text)`; no `text` clears it. Live only. */
-export interface AgentTransportExtensionStatusEvent extends TransportEventBase {
-  readonly type: 'extension_status'
-  readonly runId: string
-  readonly slot: AgentExtensionStatusSlot
-  readonly text?: string
-}
-
-/**
- * Pi `agent_settled`: Pi's post-loop work (`agent_before_settle` handlers) is done. Stop stops that
- * work after a terminal `agent_end`; after this event only the Host's own settlement is left.
- */
-export interface AgentTransportAgentSettledEvent extends TransportEventBase {
-  readonly type: 'agent_settled'
-  readonly runId: string
-  readonly aborted: boolean
-}
-
-export type AgentTransportEvent =
-  | AgentTransportAgentStartEvent
-  | AgentTransportAgentEndEvent
-  | AgentTransportTurnStartEvent
-  | AgentTransportTurnEndEvent
-  | AgentTransportMessageStartEvent
-  | AgentTransportMessageUpdateEvent
-  | AgentTransportMessageEndEvent
-  | AgentTransportContextUsageEvent
-  | AgentTransportToolExecutionStartEvent
-  | AgentTransportToolExecutionUpdateEvent
-  | AgentTransportToolExecutionEndEvent
-  | AgentTransportQueueUpdateEvent
-  | AgentTransportCompactionStartEvent
-  | AgentTransportCompactionEndEvent
-  | AgentTransportAutoRetryStartEvent
-  | AgentTransportAutoRetryEndEvent
-  | AgentTransportCustomEvent
-  | AgentTransportInteractionRequestEvent
-  | AgentTransportInteractionResolvedEvent
-  | AgentTransportExtensionStatusEvent
-  | AgentTransportAgentSettledEvent
+export type AgentTransportAgentStartEvent = SchemaType<typeof agentTransportAgentStartEventSchema>
+export type AgentTransportAgentEndEvent = SchemaType<typeof agentTransportAgentEndEventSchema>
+export type AgentTransportTurnStartEvent = SchemaType<typeof agentTransportTurnStartEventSchema>
+export type AgentTransportTurnEndEvent = SchemaType<typeof agentTransportTurnEndEventSchema>
+export type AgentTransportMessageStartEvent = SchemaType<
+  typeof agentTransportMessageStartEventSchema
+>
+export type AgentTransportMessageUpdateEvent = SchemaType<
+  typeof agentTransportMessageUpdateEventSchema
+>
+export type AgentTransportMessageEndEvent = SchemaType<typeof agentTransportMessageEndEventSchema>
+export type AgentTransportContextUsageEvent = SchemaType<
+  typeof agentTransportContextUsageEventSchema
+>
+export type AgentTransportToolExecutionStartEvent = SchemaType<
+  typeof agentTransportToolExecutionStartEventSchema
+>
+export type AgentTransportToolExecutionUpdateEvent = SchemaType<
+  typeof agentTransportToolExecutionUpdateEventSchema
+>
+export type AgentTransportToolExecutionEndEvent = SchemaType<
+  typeof agentTransportToolExecutionEndEventSchema
+>
+export type AgentTransportQueueUpdateEvent = SchemaType<typeof agentTransportQueueUpdateEventSchema>
+export type AgentTransportCompactionStartEvent = SchemaType<
+  typeof agentTransportCompactionStartEventSchema
+>
+export type AgentTransportCompactionEndEvent = SchemaType<
+  typeof agentTransportCompactionEndEventSchema
+>
+export type AgentTransportAutoRetryStartEvent = SchemaType<
+  typeof agentTransportAutoRetryStartEventSchema
+>
+export type AgentTransportAutoRetryEndEvent = SchemaType<
+  typeof agentTransportAutoRetryEndEventSchema
+>
+export type AgentTransportCustomEvent = SchemaType<typeof agentTransportCustomEventSchema>
+export type AgentTransportInteractionRequestEvent = SchemaType<
+  typeof agentTransportInteractionRequestEventSchema
+>
+export type AgentTransportInteractionResolvedEvent = SchemaType<
+  typeof agentTransportInteractionResolvedEventSchema
+>
+export type AgentExtensionStatusSlot = SchemaType<typeof agentExtensionStatusSlotSchema>
+export type AgentTransportExtensionStatusEvent = SchemaType<
+  typeof agentTransportExtensionStatusEventSchema
+>
+export type AgentTransportAgentSettledEvent = SchemaType<
+  typeof agentTransportAgentSettledEventSchema
+>
+export type AgentTransportEvent = SchemaType<typeof agentTransportEventSchema>

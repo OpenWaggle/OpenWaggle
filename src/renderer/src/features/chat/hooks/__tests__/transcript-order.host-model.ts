@@ -1,4 +1,4 @@
-import type { MessagePart } from '@shared/types/agent'
+import type { TextPart } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -36,7 +36,7 @@ import {
 /** Host clock: one fake epoch shared with the renderer's, which runs `lag` behind it. */
 const EPOCH = Date.UTC(2026, 9, 4, 18, 41)
 
-function textPart(text: string): MessagePart {
+function textPart(text: string): TextPart {
   return { type: 'text', text }
 }
 
