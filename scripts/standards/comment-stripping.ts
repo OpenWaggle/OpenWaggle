@@ -51,7 +51,21 @@ function templateLiteralLineFlags(lines: readonly string[]) {
   return flags
 }
 
+/*
+ * Several rules strip the same file one after another; the block-comment pass is the slowest part
+ * of the whole standards check, so the last result is reused.
+ */
+let lastContents: string | undefined
+let lastStripped = ''
+
 export function withoutCommentLines(contents: string) {
+  if (contents === lastContents) return lastStripped
+  lastStripped = stripComments(contents)
+  lastContents = contents
+  return lastStripped
+}
+
+function stripComments(contents: string) {
   const withoutBlocks = contents.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
   const withoutWholeLineComments = withoutBlocks.filter((line) => {
     const trimmed = line.trimStart()

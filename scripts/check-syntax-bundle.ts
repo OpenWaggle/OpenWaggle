@@ -8,7 +8,12 @@ const RENDERER_MANIFEST = path.resolve('out/renderer/.vite/manifest.json')
 // Minified (B4). Unminified, the entry was 694 KB and the initial graph 4.4 MiB; minified 1.92 MiB,
 // then 1.59 MiB after the lazy feature surfaces (B8).
 const MAX_INITIAL_RENDERER_BYTES = 384 * KIBIBYTE
-const MAX_INITIAL_RENDERER_GRAPH_BYTES = 2_048 * KIBIBYTE
+/**
+ * A ratchet on what boot loads: the entry plus every chunk `index.html` preloads, set at the
+ * measured 1,733,432 bytes rounded up to 16 KiB (November 2026). Unlike the entry budget it does not
+ * move when Rolldown regroups the same modules between the entry and its preloaded chunks.
+ */
+const MAX_INITIAL_RENDERER_GRAPH_BYTES = 1_696 * KIBIBYTE
 /**
  * The chat surface: what the welcome and Session routes load right after the shell renders, before
  * the composer or a transcript appears (renderer-load.md, B8). It was 2.7 MB unminified and
@@ -74,14 +79,14 @@ async function matchingAsset(budget: AssetBudget, assets: readonly string[]) {
 
 async function initialRendererAssets() {
   const html = await fs.readFile(path.resolve('out/renderer/index.html'), 'utf8')
-  const entry = html.match(/<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u)?.groups?.asset
+  const entry = html.match(/<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u)?.groups?.['asset']
   if (!entry) throw new Error('Could not resolve the initial renderer asset from index.html.')
   const preloadPattern =
     /<link[^>]+rel="modulepreload"[^>]+href="\.\/assets\/(?<asset>[^"]+\.js)"/gu
   const assets = [
     entry,
     ...[...html.matchAll(preloadPattern)].flatMap((match) =>
-      match.groups?.asset ? [match.groups.asset] : [],
+      match.groups?.['asset'] ? [match.groups['asset']] : [],
     ),
   ]
   const uniqueAssets = [...new Set(assets)]
@@ -109,7 +114,7 @@ async function initialRendererAssets() {
   const totalBytes = measurements.reduce((total, measurement) => total + measurement.bytes, 0)
   if (totalBytes > MAX_INITIAL_RENDERER_GRAPH_BYTES) {
     throw new Error(
-      `initial renderer graph is ${String(totalBytes)} bytes; budget is ${String(MAX_INITIAL_RENDERER_GRAPH_BYTES)} bytes.`,
+      `initial renderer graph is ${String(totalBytes)} bytes; budget is ${String(MAX_INITIAL_RENDERER_GRAPH_BYTES)} bytes. The budget only goes down: defer the new code with lazy() where its surface opens instead of raising it.`,
     )
   }
   return {

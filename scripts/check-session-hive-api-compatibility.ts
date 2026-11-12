@@ -2,13 +2,12 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { bunExecutable } from './support/node-runtime'
 
 const HOST_ROOT_ARGUMENT = 2
 const hostRootArgument = process.argv[HOST_ROOT_ARGUMENT]
 if (!hostRootArgument) {
-  throw new Error(
-    'Usage: pnpm exec tsx scripts/check-session-hive-api-compatibility.ts <host-checkout>',
-  )
+  throw new Error('Usage: bun scripts/check-session-hive-api-compatibility.ts <host-checkout>')
 }
 
 const hostRoot = path.resolve(hostRootArgument)
@@ -48,7 +47,10 @@ writeFileSync(
 )
 console.log(`Compatibility probe evidence: ${evidenceDirectory}`)
 try {
-  execFileSync('pnpm', ['exec', 'tsc', '-p', configPath], { cwd: summaryRoot, stdio: 'inherit' })
+  execFileSync(bunExecutable(), ['x', 'tsc', '-p', configPath], {
+    cwd: summaryRoot,
+    stdio: 'inherit',
+  })
   console.log(`Session Summary reader and event contracts are compatible with ${hostRoot}.`)
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))

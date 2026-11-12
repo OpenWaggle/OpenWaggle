@@ -21,7 +21,7 @@ const TREE_SIDEBAR_EXPANDED = 0
 const SQLITE_TRUE = 1
 const SQLITE_FALSE = 0
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null
 }
 
@@ -165,7 +165,7 @@ function insertSessionRow(database: Database.Database): SessionRowFixture {
   return { id, branchId, createdAt: now }
 }
 
-function readStringField(record: { readonly [key: string]: unknown }, key: string): string {
+function readStringField(record: Readonly<Record<string, unknown>>, key: string): string {
   const value = record[key]
   if (typeof value !== 'string') {
     throw new Error(`Expected string field "${key}" in session fixture`)
@@ -174,7 +174,7 @@ function readStringField(record: { readonly [key: string]: unknown }, key: strin
 }
 
 function readOptionalStringField(
-  record: { readonly [key: string]: unknown },
+  record: Readonly<Record<string, unknown>>,
   key: string,
 ): string | undefined {
   const value = record[key]
@@ -182,7 +182,7 @@ function readOptionalStringField(
 }
 
 function readOptionalNumberField(
-  record: { readonly [key: string]: unknown },
+  record: Readonly<Record<string, unknown>>,
   key: string,
 ): number | undefined {
   const value = record[key]
@@ -190,15 +190,15 @@ function readOptionalNumberField(
 }
 
 function readOptionalRecordField(
-  record: { readonly [key: string]: unknown },
+  record: Readonly<Record<string, unknown>>,
   key: string,
-): { readonly [key: string]: unknown } | undefined {
+): Readonly<Record<string, unknown>> | undefined {
   const value = record[key]
   return isRecord(value) ? value : undefined
 }
 
-function readParts(messageValue: { readonly [key: string]: unknown }): readonly unknown[] {
-  const parts = messageValue.parts
+function readParts(messageValue: Readonly<Record<string, unknown>>): readonly unknown[] {
+  const parts = messageValue['parts']
   return Array.isArray(parts) ? parts : []
 }
 
@@ -596,8 +596,9 @@ function workerParent(
   const parentIndex = workers[index]?.input.parentWorkerIndex
   if (parentIndex === undefined) return queen
   const parent = parentIndex < index ? workers[parentIndex] : undefined
-  if (!parent)
+  if (!parent) {
     throw new Error(`Hive fixture Worker ${index} must name an earlier Worker as its parent.`)
+  }
   return parent.row
 }
 

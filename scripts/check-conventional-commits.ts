@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { type CommitSubject, readCommitSubjects } from './commit-subjects'
 import { isAncestor } from './git-ancestry'
@@ -20,16 +21,16 @@ const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
 export type { CommitSubject } from './commit-subjects'
 
 export interface ConventionalCommitValidationOptions {
-  readonly baseline?: string
+  readonly baseline?: string | undefined
   readonly cwd?: string
-  readonly from?: string
+  readonly from?: string | undefined
   /**
    * Whether a missing package tag or a shallow clone fails the package documentation line check.
    * CI fetches full history and tags, so it fails there; the local pre-push check skips with a warning.
    */
   readonly missingReleaseHistory?: 'fail' | 'skip'
-  readonly prTitle?: string
-  readonly to?: string
+  readonly prTitle?: string | undefined
+  readonly to?: string | undefined
 }
 
 export function hasPackageReleaseIntent(title: string) {
@@ -110,7 +111,8 @@ async function resolveBaseline(input: {
   readonly options: ConventionalCommitValidationOptions
   readonly to: string
 }) {
-  const explicitBaseline = input.options.baseline ?? process.env.OPENWAGGLE_COMMIT_POLICY_BASELINE
+  const explicitBaseline =
+    input.options.baseline ?? process.env['OPENWAGGLE_COMMIT_POLICY_BASELINE']
   if (explicitBaseline !== undefined && explicitBaseline.length > 0) {
     return explicitBaseline
   }
@@ -250,6 +252,40 @@ export async function validateConventionalCommits(
   }
 }
 
+// git's verbose commit template puts the diff below this line; nothing under it is the message.
+const SCISSORS_LINE = '# ------------------------ >8 ------------------------'
+// Subjects git writes itself (`git merge`) or that `git rebase --autosquash` folds away. The
+// branch-range policy still judges them at push time.
+const GENERATED_SUBJECT_PATTERN = /^(?:Merge |fixup! |squash! |amend! )/
+
+/** The subject git will record for a commit message file: its first non-comment, non-blank line. */
+export function commitMessageSubject(message: string) {
+  const [body = ''] = message.split(SCISSORS_LINE)
+  return (
+    body
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0 && !line.startsWith('#')) ?? ''
+  )
+}
+
+/** The commit-msg hook's check: the subject must be a Conventional Commit, as the policy requires. */
+export function validateCommitMessage(message: string): string[] {
+  const subject = commitMessageSubject(message)
+  if (subject.length === 0) {
+    return ['The commit message is empty.']
+  }
+  if (
+    GENERATED_SUBJECT_PATTERN.test(subject) ||
+    CONVENTIONAL_COMMIT_SUBJECT_PATTERN.test(subject)
+  ) {
+    return []
+  }
+  return [
+    `${JSON.stringify(subject)} is not an allowed Conventional Commit subject. Use \`<type>(<scope>)?: <summary>\` with a type of feat, fix, docs, test, chore, refactor, perf, ci, build or revert.`,
+  ]
+}
+
 function readArgumentValue(args: readonly string[], name: string) {
   const index = args.indexOf(name)
 
@@ -267,6 +303,15 @@ function readArgumentValue(args: readonly string[], name: string) {
 
 async function main() {
   const args = process.argv.slice(CLI_ARGUMENT_START_INDEX)
+  const messageFile = readArgumentValue(args, '--message-file')
+  if (messageFile !== undefined) {
+    const violations = validateCommitMessage(await readFile(messageFile, 'utf8'))
+    if (violations.length > 0) {
+      console.error(`commit-msg: ${violations.join('\n')}`)
+      process.exitCode = 1
+    }
+    return
+  }
   const result = await validateConventionalCommits({
     baseline: readArgumentValue(args, '--baseline'),
     from: readArgumentValue(args, '--from'),

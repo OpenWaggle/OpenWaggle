@@ -9,7 +9,7 @@ import { isRecord } from './records'
  * Waggle.
  */
 const WAGGLE_PACKAGE_PATH = /^packages\/(?:pi-waggle|waggle-core)\//
-const DESKTOP_AGENT_POLICY_PATH = /^src\/main\/agent\//
+const DESKTOP_AGENT_POLICY_PREFIX = 'src/main/agent/'
 const WAGGLE_DIRECTORY = /(?:^|\/)waggle(?:-run)?\//
 const WAGGLE_PACKAGE_IMPORT =
   /(?:from\s+|import\s*\(\s*)['"]@openwaggle\/(?:pi-waggle|waggle-core)(?:\/[^'"]*)?['"]/
@@ -45,7 +45,7 @@ export function isWaggleScopeFile(filePath: string, contents: string) {
   if (WAGGLE_PACKAGE_PATH.test(filePath)) return true
   if (!filePath.startsWith('src/')) return false
   return (
-    DESKTOP_AGENT_POLICY_PATH.test(filePath) ||
+    filePath.startsWith(DESKTOP_AGENT_POLICY_PREFIX) ||
     WAGGLE_DIRECTORY.test(filePath) ||
     WAGGLE_SYMBOL_NAME.test(filePath.slice(filePath.lastIndexOf('/') + 1)) ||
     WAGGLE_PACKAGE_IMPORT.test(contents)
@@ -63,9 +63,9 @@ function findingName(issue: Readonly<Record<string, unknown>>) {
 /** The findings of a `fallow dead-code --format json` report in files of `scope`. */
 export function waggleDeadCodeFindings(report: unknown, scope: ReadonlySet<string>) {
   if (!isRecord(report)) throw new Error('fallow did not return a JSON report object.')
-  if (report.schema_version !== FALLOW_REPORT_SCHEMA_VERSION) {
+  if (report['schema_version'] !== FALLOW_REPORT_SCHEMA_VERSION) {
     throw new Error(
-      `fallow report schema ${String(report.schema_version)} is not ${String(FALLOW_REPORT_SCHEMA_VERSION)}; check the keys this check reads before updating it.`,
+      `fallow report schema ${String(report['schema_version'])} is not ${String(FALLOW_REPORT_SCHEMA_VERSION)}; check the keys this check reads before updating it.`,
     )
   }
   const findings: WaggleDeadCodeFinding[] = []
@@ -73,17 +73,17 @@ export function waggleDeadCodeFindings(report: unknown, scope: ReadonlySet<strin
     const issues = report[kind]
     if (!Array.isArray(issues)) throw new Error(`fallow report has no ${kind} list.`)
     for (const issue of issues) {
-      if (!isRecord(issue) || typeof issue.path !== 'string') {
+      if (!isRecord(issue) || typeof issue['path'] !== 'string') {
         throw new Error(`fallow ${kind} entry has no path.`)
       }
       const name = findingName(issue)
       const waggleSymbol =
         name !== undefined &&
         WAGGLE_SYMBOL_NAME.test(name) &&
-        issue.path.startsWith('src/') &&
-        !TEST_PATH.test(issue.path)
-      if (!scope.has(issue.path) && !waggleSymbol) continue
-      findings.push({ kind, path: issue.path, ...(name ? { name } : {}) })
+        issue['path'].startsWith('src/') &&
+        !TEST_PATH.test(issue['path'])
+      if (!scope.has(issue['path']) && !waggleSymbol) continue
+      findings.push({ kind, path: issue['path'], ...(name ? { name } : {}) })
     }
   }
   return findings
