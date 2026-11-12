@@ -2,10 +2,7 @@ import { decodeUnknownExactOrThrow, Schema, safeDecodeUnknown } from '@shared/sc
 import { backgroundRunUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import {
   backgroundRunActivityEventsSchema,
-  worktreeLaunchEnvironmentSchema,
-  worktreeLaunchStageSchema,
-  worktreeLaunchStepSchema,
-  worktreeSetupActionTerminalSchema,
+  worktreeLaunchSnapshotSchema,
 } from '@shared/schemas/background-run'
 import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
@@ -37,22 +34,6 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
     messageCutShort: messageCutShort !== false,
   }
 }
-
-const worktreeLaunchSnapshotSchema = Schema.Struct({
-  status: Schema.Literal('running', 'complete', 'failed'),
-  stage: worktreeLaunchStageSchema,
-  startedAt: Schema.Number,
-  updatedAt: Schema.Number,
-  details: Schema.Array(Schema.String),
-  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
-  steps: Schema.optional(Schema.Array(worktreeLaunchStepSchema)),
-  progressPercentage: Schema.optional(Schema.Number),
-  worktreePath: Schema.optional(Schema.String),
-  branch: Schema.optional(Schema.String),
-  baseRef: Schema.optional(Schema.String),
-  setupAction: Schema.optional(worktreeSetupActionTerminalSchema),
-  errorMessage: Schema.optional(Schema.String),
-})
 
 function decodeWorktreeLaunchSnapshot(
   value: unknown,
