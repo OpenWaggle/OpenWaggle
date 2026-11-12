@@ -156,6 +156,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/feed"
           cp -R out/electrobun/release "$RUNNER_TEMP/feed/current"
           ls -la "$RUNNER_TEMP/feed/current" | tee "$RESULTS/release-current.txt"
+          cat "$RUNNER_TEMP/feed/current/"*-update*.json | tee -a "$RESULTS/release-current.txt"
 
       - name: Check the package against the platform floor
         run: |
@@ -201,6 +202,7 @@ jobs:
           fi
           cp -R out/electrobun/release "$RUNNER_TEMP/feed/next"
           ls -la "$RUNNER_TEMP/feed/next" | tee "$RESULTS/release-next.txt"
+          cat "$RUNNER_TEMP/feed/next/"*-update*.json | tee -a "$RESULTS/release-next.txt"
           git checkout -- package.json
 
       - name: Update the installed app through its updater
