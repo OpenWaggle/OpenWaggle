@@ -63,6 +63,38 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 - MUST NOT be imported by domain or agent core
 - MUST use runtime type guards (not casts) at type boundaries
 
+### Desktop shell ports (`src/main/ports/desktop-shell/`)
+
+ADR 0064 puts the Electron desktop shell behind ports. Main-process code reaches the shell only through these ports, and `src/main/adapters/electron/` is the only main directory that imports `electron`, `electron-updater` or `@electron-toolkit/*`. In the preload, only `src/preload/electron-transport.ts` does (`openwaggle/desktop-shell-boundary`).
+
+Shell ports differ from service ports in two ways. Shell APIs are synchronous, and startup code calls them before the Effect runtime exists (the boot shim, `apply-build-identity.ts`, the CLI entries). So each port is a plain shape with a `Context.Tag`, and code calls it through a binding in `src/main/desktop-shell/<port>.ts` (`export const appPaths: AppPathsShape = electronAppPaths`). A shell switch would change only those bindings. `BootShell` is a `Pick` of other ports' members for the boot shim, which keeps the shim within its `check:main-bundle` budget. The Electron adapters reuse the same functions behind it.
+
+Every port has a contract suite in `src/main/ports/desktop-shell/__tests__/contracts/`. Each suite is a set of named cases over a harness. The Electron runners in `src/main/adapters/electron/__tests__/contracts/` run every case against a fake `electron`. An adapter for another shell must pass the same suites before its binding replaces Electron's. Under non-disruptive automation each OS-visible port fails closed with `AutomationDesktopUiError`, and the suites check that too.
+
+| Electron surface | Port (`src/main/ports/desktop-shell/`) | Electron adapter |
+| --- | --- | --- |
+| `BrowserWindow`, `BaseWindow`, window policy, shortcuts | `DesktopWindows` (`desktop-windows.ts`) | `electron-desktop-windows.ts`, `electron-window-policy.ts`, `electron-main-window.ts` |
+| `Menu`, app and context menus | `DesktopMenus` (`menus.ts`) | `electron-menus.ts` |
+| `dialog` | `DesktopDialogs` (`dialogs.ts`) | `electron-dialogs.ts` |
+| `shell` | `OsShell` (`os-shell.ts`) | `electron-os-shell.ts` |
+| `clipboard`, `nativeImage` | `Clipboard` (`clipboard.ts`) | `electron-clipboard.ts` |
+| `Notification` | `SystemNotifications` (`system-notifications.ts`) | `electron-system-notifications.ts` |
+| `app` lifecycle, `isPackaged`, `getVersion`, `commandLine`, `before-quit-for-update` | `AppLifecycle` (`app-lifecycle.ts`) | `electron-app-lifecycle.ts` |
+| `app.getPath`, `setPath`, `setName`, `sessionData` | `AppPaths` (`app-paths.ts`) | `electron-app-paths.ts`, `electron-web-profile.ts` |
+| Boot shim's slice of the three above | `BootShell` (`boot-shell.ts`) | `electron-boot-shell.ts` |
+| `safeStorage` | `SecureStorage` (`secure-storage.ts`) | `electron-secure-storage.ts` |
+| `protocol.handle`, `registerSchemesAsPrivileged` (6 schemes) | `TrustedOrigins` (`trusted-origins.ts`) | `electron-trusted-origins.ts` |
+| `net.fetch`, `net.request` and the extension egress guard | `NetworkFetch` (`network-fetch.ts`) | `electron-network-fetch.ts` |
+| `ipcMain` | `IpcMainTransport` (`ipc-transport.ts`) | `electron-ipc-main-transport.ts` |
+| `contextBridge`, `ipcRenderer` | Preload transport module | `src/preload/electron-transport.ts` |
+| `webContents` lookup and events | `RendererSurfaces` (`renderer-surfaces.ts`) | `electron-renderer-surfaces.ts` |
+| `session` (CSP, frame guard, storage clear, cache upkeep) | `WebSecurity` (`web-security.ts`) | `electron-web-security.ts`, `electron-embedded-frame-guard.ts`, `electron-chromium-disk-cache.ts` |
+| `WebContentsView` Browser preview, `webContents.debugger` (CDP) | `BrowserPreviewViews` (`browser-preview-views.ts`) | `electron-browser-preview-views.ts`, `browser-preview/` |
+| `electron-updater` | `UpdateEngine` (`update-engine.ts`) | `electron-update-engine.ts` |
+| Single instance, login items, badge, Dock, activation policy, `powerMonitor`, `open-url`, `*-process-gone` | `SystemIntegration` (`system-integration.ts`) | `electron-system-integration.ts` |
+| `@sentry/electron` | `ErrorReporter` (`src/main/ports/error-reporter.ts`) | `error-reporting/sentry-main-error-reporter.ts` |
+| `ELECTRON_RUN_AS_NODE` script children | `ChildScriptRuntime` (`child-runtime.ts`) | `electron-child-script-runtime.ts` |
+
 ### Application Services (`src/main/application/`)
 
 Effect.gen programs that orchestrate business logic using ports via `yield*`. Called by IPC handlers.
@@ -141,7 +173,7 @@ IPC handlers run via `typedHandle` → `runAppEffectExit` → resolves all layer
 
 ## CI Enforcement
 
-ESLint enforces the main-process architecture boundary rules on every PR:
+The OpenWaggle lint rules (`openwaggle/main-architecture-boundaries`, `openwaggle/desktop-shell-boundary`) enforce the main-process architecture boundaries on every PR:
 1. No OpenWaggle desktop app Pi SDK imports outside `src/main/adapters/pi/`; dedicated package implementations under `packages/pi-*` are allowed to import Pi SDKs
 2. No direct store imports in `src/main/ipc/`
 3. No direct store imports in `src/main/application/`
@@ -149,8 +181,9 @@ ESLint enforces the main-process architecture boundary rules on every PR:
 5. No infrastructure imports in `src/main/domain/` or `src/shared/domain/`
 6. No `src/main/providers/` runtime directory
 7. No production `providerRegistry` references outside the Pi adapter boundary
+8. No `electron`, `electron-updater` or `@electron-toolkit/*` imports outside `src/main/adapters/electron/` and `src/preload/electron-transport.ts`, and no `@sentry/electron` outside the crash-reporting adapter and bridges (`openwaggle/desktop-shell-boundary`)
 
-Run: `pnpm lint` or `pnpm check`
+Run: `bun run lint` or `bun run check`
 
 ---
 
