@@ -52,6 +52,34 @@
     "host.startup.windows-powershell.later-launch": {
       "value": 4,
       "quantum": 1
+    },
+    "sessions.sidebar.bytes": {
+      "value": 169984,
+      "quantum": 1024
+    },
+    "sessions.sidebar.rows": {
+      "value": 868,
+      "quantum": 1
+    },
+    "sessions.sidebar.queries": {
+      "value": 37,
+      "quantum": 1
+    },
+    "sessions.sidebar.by-ids-batches": {
+      "value": 1,
+      "quantum": 1
+    },
+    "sessions.open.bytes": {
+      "value": 1116160,
+      "quantum": 5120
+    },
+    "sessions.open.rows": {
+      "value": 10012,
+      "quantum": 1
+    },
+    "sessions.open.queries": {
+      "value": 24,
+      "quantum": 1
     }
   }
 }

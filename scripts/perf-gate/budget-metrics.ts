@@ -39,6 +39,11 @@ export const BUILD_SOURCE = 'build'
 const HOST_STARTUP_SOURCE = 'scripts/perf-gate/__tests__/host-startup-processes.integration.test.ts'
 const POWERSHELL_FIX =
   'Each Windows user-only security call is one powershell.exe (about 0.8 s on hosted Windows); batch the targets into one call (src/main/session-host/local-session-paths.ts).'
+const SESSION_DATA_SOURCE = 'scripts/perf-gate/__tests__/session-data-budgets.integration.test.ts'
+/** About 0.5% of the sidebar's replies (166 KiB) when it was set. */
+const SIDEBAR_BYTES_QUANTUM = KIBIBYTE
+/** About 0.5% of a long Session's open replies (1.06 MiB) when it was set. */
+const SESSION_OPEN_BYTES_QUANTUM = 5 * KIBIBYTE
 
 export const PERF_BUDGET_METRICS: readonly PerfBudgetMetric[] = [
   {
@@ -144,5 +149,61 @@ export const PERF_BUDGET_METRICS: readonly PerfBudgetMetric[] = [
     quantum: EXACT,
     source: HOST_STARTUP_SOURCE,
     fix: POWERSHELL_FIX,
+  },
+  {
+    id: 'sessions.sidebar.bytes',
+    title: 'Bytes the Host sends when the sidebar opens on a 3,000-Session project',
+    unit: 'bytes',
+    quantum: SIDEBAR_BYTES_QUANTUM,
+    source: SESSION_DATA_SOURCE,
+    fix: 'A Session summary grew or the sidebar reads more of them; keep SessionSummary lean (hydrateSessionNavigationRows in src/main/store/sessions/session-list.ts) and the catalog paged (SESSION_CATALOG_PAGE_SIZE).',
+  },
+  {
+    id: 'sessions.sidebar.rows',
+    title: 'SQLite rows read when the sidebar opens on a 3,000-Session project',
+    unit: 'count',
+    quantum: EXACT,
+    source: SESSION_DATA_SOURCE,
+    fix: 'A catalog query reads rows beyond the page it returns; bound it by the page ids (src/main/store/sessions/session-catalog.ts, session-list.ts).',
+  },
+  {
+    id: 'sessions.sidebar.queries',
+    title: 'SQLite statements run when the sidebar opens on a 3,000-Session project',
+    unit: 'count',
+    quantum: EXACT,
+    source: SESSION_DATA_SOURCE,
+    fix: 'A summary field costs a query per page or per Session; load it in the page-wide queries of hydrateSessionNavigationRows (src/main/store/sessions/session-list.ts).',
+  },
+  {
+    id: 'sessions.sidebar.by-ids-batches',
+    title: 'listSessionsByIds calls when the sidebar opens on a 3,000-Session project',
+    unit: 'count',
+    quantum: EXACT,
+    source: SESSION_DATA_SOURCE,
+    fix: 'The sidebar hydrates more Sessions by id at open; read them from the catalog pages instead, or batch them by SESSION_CATALOG_PAGE_SIZE (features/sessions/state/session-catalog-store-actions.ts).',
+  },
+  {
+    id: 'sessions.open.bytes',
+    title: 'Bytes the Host sends when a 2,000-message Session opens',
+    unit: 'bytes',
+    quantum: SESSION_OPEN_BYTES_QUANTUM,
+    source: SESSION_DATA_SOURCE,
+    fix: 'The open moves more of the transcript; keep the detail to SESSION_DETAIL_MESSAGE_WINDOW messages and the workspace to its transcript window (src/shared/utils/session-data-view.ts).',
+  },
+  {
+    id: 'sessions.open.rows',
+    title: 'SQLite rows read when a 2,000-message Session opens',
+    unit: 'count',
+    quantum: EXACT,
+    source: SESSION_DATA_SOURCE,
+    fix: 'Opening a Session reads nodes the window does not show; bound the detail and workspace queries by their window (src/main/store/session-details/session-queries.ts, src/main/store/sessions/session-workspace.ts).',
+  },
+  {
+    id: 'sessions.open.queries',
+    title: 'SQLite statements run when a 2,000-message Session opens',
+    unit: 'count',
+    quantum: EXACT,
+    source: SESSION_DATA_SOURCE,
+    fix: 'Opening a Session runs a query per message or node; read them in one windowed query (src/main/store/session-details/message-hydration.ts, src/main/store/sessions/node-hydration.ts).',
   },
 ]
