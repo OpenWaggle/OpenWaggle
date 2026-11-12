@@ -24,7 +24,6 @@ export const BUNDLED_DEPS = [
   '@modelcontextprotocol/node',
   '@modelcontextprotocol/server',
   'typebox',
-  '@electron-toolkit/utils',
   'fast-glob',
   'diff',
   'smol-toml',
@@ -51,20 +50,18 @@ export const BUNDLED_DEPS = [
   'chokidar',
 ]
 
-interface UnknownObject {
-  readonly [key: string]: unknown
-}
+type UnknownObject = Readonly<Record<string, unknown>>
 
 function isObject(value: unknown): value is UnknownObject {
   return typeof value === 'object' && value !== null
 }
 
 function dependencyNamesFromPackageJson(value: unknown) {
-  if (!isObject(value) || !isObject(value.dependencies)) {
+  if (!isObject(value) || !isObject(value['dependencies'])) {
     return []
   }
 
-  return Object.keys(value.dependencies)
+  return Object.keys(value['dependencies'])
 }
 
 /**

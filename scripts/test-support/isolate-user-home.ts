@@ -34,23 +34,23 @@ const temporaryRoot = root
 const home = path.join(root, 'home')
 mkdirSync(home, { recursive: true })
 
-environment.HOME = home
-environment.USERPROFILE = home
-environment.PI_CODING_AGENT_DIR = path.join(home, '.pi', 'agent')
-environment.OPENWAGGLE_USER_DATA_DIR = path.join(root, 'user-data')
+environment['HOME'] = home
+environment['USERPROFILE'] = home
+environment['PI_CODING_AGENT_DIR'] = path.join(home, '.pi', 'agent')
+environment['OPENWAGGLE_USER_DATA_DIR'] = path.join(root, 'user-data')
 // A developer's exported Pi session dir would receive every session file a test writes; unset,
 // Pi keeps them under the temporary agent dir above.
-delete environment.PI_CODING_AGENT_SESSION_DIR
+delete environment['PI_CODING_AGENT_SESSION_DIR']
 // Set in an agent shell; tests that read the temp directory must see this process's own.
-delete environment.OPENWAGGLE_HOST_TMPDIR
+delete environment['OPENWAGGLE_HOST_TMPDIR']
 
 function currentLocations(): TestUserLocations {
   const currentHome = os.homedir()
   return {
     home: currentHome,
-    piAgentDir: environment.PI_CODING_AGENT_DIR ?? path.join(currentHome, '.pi', 'agent'),
-    userDataDir: environment.OPENWAGGLE_USER_DATA_DIR,
-    piSessionDir: environment.PI_CODING_AGENT_SESSION_DIR,
+    piAgentDir: environment['PI_CODING_AGENT_DIR'] ?? path.join(currentHome, '.pi', 'agent'),
+    userDataDir: environment['OPENWAGGLE_USER_DATA_DIR'],
+    piSessionDir: environment['PI_CODING_AGENT_SESSION_DIR'],
   }
 }
 
