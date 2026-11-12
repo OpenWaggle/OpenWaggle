@@ -20,7 +20,7 @@ function recordingTransport(sendBeaconResult = true) {
       return sendBeaconResult
     },
     fetch: async (url, init) => {
-      sent.push({ url, body: String(init.body), via: 'fetch' })
+      sent.push({ url, body: typeof init.body === 'string' ? init.body : '', via: 'fetch' })
       return undefined
     },
   }

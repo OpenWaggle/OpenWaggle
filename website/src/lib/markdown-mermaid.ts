@@ -90,15 +90,16 @@ export function renderMermaidFigure(source: string, idPrefix: string, label: str
 }
 
 // Only the fields this plugin reads. `@types/mdast` is not a website dependency, so it is not imported.
+/** The mdast fields the plugin reads, typed as mdast declares them. */
 interface MdastNode {
   type: string
-  lang?: string | null
-  value?: string
-  children?: MdastNode[]
+  lang?: string | null | undefined
+  value?: string | undefined
+  children?: MdastNode[] | undefined
 }
 
 interface MarkdownFile {
-  path?: string
+  path?: string | undefined
 }
 
 function plainText(node: MdastNode): string {

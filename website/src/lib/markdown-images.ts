@@ -40,7 +40,7 @@ function visit(node: HastNode) {
   const children = node.children
   if (!children) return
   for (const [index, child] of children.entries()) {
-    const src = child.properties?.src
+    const src = child.properties?.['src']
     if (
       child.type === 'element' &&
       child.tagName === 'img' &&

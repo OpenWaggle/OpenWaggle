@@ -10,7 +10,8 @@ describe('site header', () => {
     })
     const downloads = [...html.matchAll(/<a\b[^>]*>Download<\/a>/g)].map(([link]) => link)
     expect(downloads).toHaveLength(2)
-    for (const link of downloads)
+    for (const link of downloads) {
       expect(link).toContain('href="/docs/getting-started/installation/"')
+    }
   })
 })
