@@ -112,5 +112,4 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `unpdf@1.8.1`. Held: nothing. Unblocked by: the next monthly batch.
 - `vitest@4.1.11`. Held: nothing. Unblocked by: the next monthly batch.
 - `ws@8.21.3`. Held: nothing. Unblocked by: the next monthly batch.
-- `zod@4.6.5`. Held: nothing. Unblocked by: the next monthly batch.
 - `zustand@5.0.15`. Held: nothing. Unblocked by: the next monthly batch.

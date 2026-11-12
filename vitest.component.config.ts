@@ -5,7 +5,6 @@ import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import {
   BUN_RUNTIME_ALIASES,
-  BUN_RUNTIME_SERVER,
   COMPONENT_TIER_TIMEOUTS,
   REUSED_WORKER_SETUP,
   REUSED_WORKERS,
@@ -58,7 +57,6 @@ export default defineConfig({
   },
   test: {
     reporters: TEST_REPORTERS,
-    server: BUN_RUNTIME_SERVER,
     environment: 'jsdom',
     ...REUSED_WORKERS,
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],

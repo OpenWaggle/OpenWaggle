@@ -5,7 +5,6 @@ import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
 import {
   BUN_RUNTIME_ALIASES,
-  BUN_RUNTIME_SERVER,
   COMPONENT_TIER_TIMEOUTS,
   NODE_TIER_TIMEOUTS,
   TEST_TEMPORARY_ROOT_SETUP,
@@ -44,7 +43,6 @@ export default defineConfig({
     },
   },
   test: {
-    server: BUN_RUNTIME_SERVER,
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     coverage: {
       provider: 'v8',

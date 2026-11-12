@@ -81,14 +81,9 @@ export const TEST_REPORTERS = [
 ]
 
 /*
- * The tiers run on the Bun runtime (`bun --bun vitest`, ADR 0064). The tier configs absorb three
+ * The tiers run on the Bun runtime (`bun --bun vitest`, ADR 0064). The tier configs absorb two
  * Bun differences that would otherwise break tests rather than the code they test:
  *
- * - Bun reports `'__esModule' in namespace` as true for every ES module namespace. Vitest's
- *   interop for an external module then treats a package whose default export is a namespace
- *   (zod's `export { z, z as default }`) as transpiled CommonJS and returns that namespace in
- *   place of the module, so `import { z } from 'zod'` is undefined. Inlining zod sends it through
- *   Vite's own transform, which has no such interop.
  * - Bun resolves a bare `undici` to a partial builtin without `MockAgent` or
  *   `Dispatcher1Wrapper`. The alias loads the npm package the app depends on.
  * - Bun's `os.homedir()` ignores a HOME set after start; `node-os.ts` reads it at call time.
@@ -106,5 +101,3 @@ export const BUN_RUNTIME_ALIASES = {
   'node:os': NODE_OS_MODULE,
   os: NODE_OS_MODULE,
 } as const
-
-export const BUN_RUNTIME_SERVER = { deps: { inline: ['zod'] } }

@@ -43,7 +43,6 @@
         "unpdf": "1.8.1",
         "ws": "8.21.3",
         "yauzl": "3.4.0",
-        "zod": "4.6.5",
       },
       "devDependencies": {
         "@babel/core": "8.0.5",
