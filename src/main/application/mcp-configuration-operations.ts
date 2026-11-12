@@ -11,7 +11,6 @@ import {
   mcpSetServerEnabledRequestSchema,
   mcpSetServerExposureRequestSchema,
 } from '@shared/schemas/mcp-configuration'
-import type { McpWriteDestination } from '@shared/types/mcp-configuration'
 import type { McpImportApplyResultView } from '@shared/types/mcp-configuration-operations'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -98,17 +97,6 @@ export function getMcpConfigurationOperation(raw: unknown) {
   )
 }
 
-/** Leaves an absent write destination absent, so the service picks its default file. */
-function omitAbsentDestination<
-  TInput extends {
-    // explicit undefined: a decoded request may set destination to undefined; this drops the key
-    readonly destination?: McpWriteDestination | undefined
-  },
->(input: TInput) {
-  const { destination, ...rest } = input
-  return destination === undefined ? rest : { ...rest, destination }
-}
-
 export function setMcpServerEnabledOperation(raw: unknown) {
   return Effect.gen(function* () {
     const input = yield* decode(mcpSetServerEnabledRequestSchema, raw, 'enable')
@@ -119,10 +107,7 @@ export function setMcpServerEnabledOperation(raw: unknown) {
         message: 'Choose a project to switch a server for that project only.',
       })
     }
-    return yield* writeThenView(
-      input.projectPath,
-      service.setServerEnabled(omitAbsentDestination(input)),
-    )
+    return yield* writeThenView(input.projectPath, service.setServerEnabled(input))
   })
 }
 
@@ -146,7 +131,7 @@ export function addMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
     const input = yield* decode(mcpAddServerRequestSchema, raw, 'add server')
     const service = yield* McpConfigurationService
-    return yield* writeThenView(input.projectPath, service.addServer(omitAbsentDestination(input)))
+    return yield* writeThenView(input.projectPath, service.addServer(input))
   })
 }
 
