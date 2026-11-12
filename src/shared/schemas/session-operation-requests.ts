@@ -45,26 +45,29 @@ export const pinnedSessionMoveSchema = Schema.Struct({
 }).annotations({ message: () => 'Pinned Session move must be an object.' })
 
 export const sessionWorkspaceSelectionSchema = Schema.Struct({
-  branchId: Schema.optional(Schema.NullOr(sessionOperationBranchIdSchema)),
-  nodeId: Schema.optional(Schema.NullOr(sessionOperationNodeIdSchema)),
+  branchId: Schema.optionalWith(Schema.NullOr(sessionOperationBranchIdSchema), { exact: true }),
+  nodeId: Schema.optionalWith(Schema.NullOr(sessionOperationNodeIdSchema), { exact: true }),
 }).annotations({ message: () => 'Session workspace selection must be an object.' })
 
 const treeUiStatePatchFieldsSchema = Schema.Struct({
-  expandedNodeIds: Schema.optional(
+  expandedNodeIds: Schema.optionalWith(
     Schema.Array(sessionOperationNodeIdSchema).pipe(
       Schema.maxItems(SESSION_INPUT_LIMITS.expandedTreeNodeItems, {
         message: () => 'Expanded session node IDs exceed the input limit.',
       }),
     ),
+    { exact: true },
   ),
-  branchesSidebarCollapsed: Schema.optional(
+  branchesSidebarCollapsed: Schema.optionalWith(
     Schema.Boolean.annotations({ message: () => 'Branches sidebar collapsed must be a boolean.' }),
+    { exact: true },
   ),
   /** Durable read receipt for terminal Run state. */
-  lastVisitedAt: Schema.optional(
+  lastVisitedAt: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.nonNegative()).annotations({
       message: () => 'Session last-visited timestamp must be a non-negative integer.',
     }),
+    { exact: true },
   ),
 }).annotations({ message: () => 'Session tree UI state patch must be an object.' })
 
@@ -82,12 +85,13 @@ export const sessionTreeUiStatePatchSchema = treeUiStatePatchFieldsSchema.pipe(
 const navigationInstructionsMessage = 'Session navigation custom instructions must be non-empty.'
 
 export const sessionNavigateTreeOptionsSchema = Schema.Struct({
-  summarize: Schema.optional(
+  summarize: Schema.optionalWith(
     Schema.Boolean.annotations({
       message: () => 'Session navigation summarize must be a boolean.',
     }),
+    { exact: true },
   ),
-  customInstructions: Schema.optional(
+  customInstructions: Schema.optionalWith(
     Schema.String.annotations({ message: () => navigationInstructionsMessage }).pipe(
       Schema.filter(
         (value) =>
@@ -95,6 +99,7 @@ export const sessionNavigateTreeOptionsSchema = Schema.Struct({
           navigationInstructionsMessage,
       ),
     ),
+    { exact: true },
   ),
 }).annotations({ message: () => 'Session navigation options must be an object.' })
 
@@ -116,13 +121,14 @@ export const sessionWorktreePlanSchema = Schema.Struct({
 /** How the desktop user deletes a Session. */
 export const sessionDeleteOptionsSchema = Schema.Struct({
   /** As part of removing its project: a discovered Pi file stays listable (ADR 0051). */
-  removingProject: Schema.optional(
+  removingProject: Schema.optionalWith(
     Schema.Boolean.annotations({
       message: () => 'Session delete option removingProject must be a boolean.',
     }),
+    { exact: true },
   ),
   /** Only while still archived (Settings > Archived items); see `SESSION_NOT_ARCHIVED_MESSAGE`. */
-  requireArchived: Schema.optional(Schema.Boolean),
+  requireArchived: Schema.optionalWith(Schema.Boolean, { exact: true }),
 }).annotations({ message: () => 'Session delete options are invalid.' })
 
 /**

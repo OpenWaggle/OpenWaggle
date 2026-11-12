@@ -45,8 +45,7 @@ type HiveSessionSummaryFields = Pick<
 export interface HiveSession extends HiveSessionSummaryFields {
   /** Siblings in the Hive panel's tree are ordered by creation (#377). */
   readonly createdAt?: number
-  // explicit undefined: SessionSummary, which the Host catalog sends, still types lineage with undefined
-  readonly lineage?: HiveLineage | undefined
+  readonly lineage?: HiveLineage
 }
 
 export interface HiveRelationsPage {
