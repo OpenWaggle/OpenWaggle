@@ -1,29 +1,28 @@
 import { Schema } from '@shared/schema'
-import type {
-  ExtensionFrameConfig,
-  ExtensionFrameRegisterInput,
-  ExtensionFrameUnregisterInput,
-} from '@shared/types/extension-frame'
+import type { ExtensionFrameMountContext } from '@shared/types/extension-frame'
 import { isNetworkOrigin } from './extension-network-origin'
 import { extensionThemeSchema } from './extension-theme'
 import { jsonValueSchema } from './validation'
 
 const extensionNetworkOriginSchema = Schema.String.pipe(Schema.filter(isNetworkOrigin))
 
-export const extensionFrameRegisterInputSchema: Schema.Schema<ExtensionFrameRegisterInput> =
-  Schema.Struct({
-    frameId: Schema.String,
-    bootstrapUrl: Schema.String,
-    networkOrigins: Schema.optional(Schema.Array(extensionNetworkOriginSchema)),
-  })
+/*
+ * The extension frame requests and mount config; each schema is the one source of its type in
+ * `@shared/types/extension-frame`. The mount context keeps its annotation: its type is the
+ * extension-facing OpenWaggleExtensionSurfaceContext, declared in `@shared/extension-context`.
+ */
+export const extensionFrameRegisterInputSchema = Schema.Struct({
+  frameId: Schema.String,
+  bootstrapUrl: Schema.String,
+  networkOrigins: Schema.optionalWith(Schema.Array(extensionNetworkOriginSchema), { exact: true }),
+})
 
-export const extensionFrameUnregisterInputSchema: Schema.Schema<ExtensionFrameUnregisterInput> =
-  Schema.Struct({
-    frameId: Schema.String,
-    registrationId: Schema.String,
-  })
+export const extensionFrameUnregisterInputSchema = Schema.Struct({
+  frameId: Schema.String,
+  registrationId: Schema.String,
+})
 
-export const extensionFrameMountContextSchema: Schema.Schema<ExtensionFrameConfig['context']> =
+export const extensionFrameMountContextSchema: Schema.Schema<ExtensionFrameMountContext> =
   Schema.Struct({
     extension: Schema.Struct({
       id: Schema.String,
@@ -46,7 +45,7 @@ export const extensionFrameMountContextSchema: Schema.Schema<ExtensionFrameConfi
     theme: extensionThemeSchema,
   })
 
-export const extensionFrameConfigSchema: Schema.Schema<ExtensionFrameConfig> = Schema.Struct({
+export const extensionFrameConfigSchema = Schema.Struct({
   moduleUrl: Schema.String,
   context: extensionFrameMountContextSchema,
 })

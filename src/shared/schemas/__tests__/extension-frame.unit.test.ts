@@ -33,6 +33,24 @@ describe('extension frame schemas', () => {
     },
   )
 
+  it('refuses network origins set to undefined instead of omitted, naming the field', () => {
+    const base = {
+      frameId: 'frame-1',
+      bootstrapUrl: 'openwaggle://app/assets/extension-frame-bootstrap.js',
+    }
+
+    expect(safeDecodeUnknown(extensionFrameRegisterInputSchema, base)).toEqual({
+      success: true,
+      data: base,
+    })
+    const result = safeDecodeUnknown(extensionFrameRegisterInputSchema, {
+      ...base,
+      networkOrigins: undefined,
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.issues.join('\n')).toContain('networkOrigins: ')
+  })
+
   it('accepts a surface payload or no payload key, but not an undefined payload', () => {
     const context = {
       extension: { id: 'example', name: 'Example', version: '1.0.0' },

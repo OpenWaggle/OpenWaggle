@@ -1,3 +1,9 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  browserImportInputSchema,
+  browserImportTargetSchema,
+  guidedBrowserImportInputSchema,
+} from '@shared/schemas/browser-import'
 import type { BrowserProfile } from './browser-profile'
 
 export const BROWSER_IMPORT_SOURCE_IDS = [
@@ -52,11 +58,7 @@ export interface BrowserImportSource {
   readonly unavailable?: BrowserImportUnavailableReason
 }
 
-export interface BrowserImportInput {
-  readonly sourceId: BrowserImportSourceId
-  readonly sourceProfileDirectory: string
-  readonly targetProfileId: string
-}
+export type BrowserImportInput = SchemaType<typeof browserImportInputSchema>
 
 export interface BrowserImportResult {
   readonly imported: number
@@ -64,19 +66,8 @@ export interface BrowserImportResult {
   readonly skippedDomains: readonly string[]
 }
 
-export type BrowserImportTarget =
-  | { readonly kind: 'new'; readonly profileId: string }
-  | { readonly kind: 'existing'; readonly profileId: string }
-
-/**
- * Guided import request. The existing direct import request stays available for
- * callers that already manage a persistent destination profile.
- */
-export interface GuidedBrowserImportInput {
-  readonly sourceId: BrowserImportSourceId
-  readonly sourceProfileDirectory: string
-  readonly target: BrowserImportTarget
-}
+export type BrowserImportTarget = SchemaType<typeof browserImportTargetSchema>
+export type GuidedBrowserImportInput = SchemaType<typeof guidedBrowserImportInputSchema>
 
 export type GuidedBrowserImportResult =
   | {
