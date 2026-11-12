@@ -462,6 +462,8 @@ const ROOT_RULES: DummyRuleMap = {
   'openwaggle/no-lint-directive-comments': 'error',
   // A fixed key is read with dot access; outside data is decoded at the boundary [TS-06].
   'openwaggle/no-literal-key-lookup': 'error',
+  // An optional property is exact: a missing key is not a key set to undefined.
+  'openwaggle/no-optional-undefined': 'error',
   ...STRICT_CORRECTNESS_OFF,
 }
 
