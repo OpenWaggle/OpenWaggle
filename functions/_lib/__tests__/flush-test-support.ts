@@ -71,7 +71,11 @@ export async function flush(store: KeyValueStore | undefined, options: FlushOpti
     headers: { Authorization: `Bearer ${SNAPSHOT_TOKEN}`, ...options.headers },
     ...(options.cursor === undefined ? {} : { body: JSON.stringify({ cursor: options.cursor }) }),
   })
-  const env = environment({ STATS_KV: store, STATS_SNAPSHOT_TOKEN: SNAPSHOT_TOKEN, ...options.env })
+  const env = environment({
+    ...(store === undefined ? {} : { STATS_KV: store }),
+    STATS_SNAPSHOT_TOKEN: SNAPSHOT_TOKEN,
+    ...options.env,
+  })
   const dependencies = { ...test.dependencies, randomUuid: uniqueUuid }
   const result = await handleFlushRequest(routeContext(request, env, dependencies))
   return { ...test, result, body: await result.response.json() }
@@ -106,9 +110,9 @@ export function publishedCount(
   return records.find(
     (record) =>
       record.event === event &&
-      record.properties.field === field &&
-      record.properties.value === value,
-  )?.properties.count
+      record.properties['field'] === field &&
+      record.properties['value'] === value,
+  )?.properties['count']
 }
 
 /** The count of one row added up over records from several batches. */
@@ -122,8 +126,8 @@ export function totalCount(
     .filter(
       (record) =>
         record.event === event &&
-        record.properties.field === field &&
-        record.properties.value === value,
+        record.properties['field'] === field &&
+        record.properties['value'] === value,
     )
-    .reduce((sum, record) => sum + Number(record.properties.count), 0)
+    .reduce((sum, record) => sum + Number(record.properties['count']), 0)
 }

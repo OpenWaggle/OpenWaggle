@@ -55,8 +55,9 @@ function contributors(store: MemoryKeyValueStore): Contributors {
   for (const [key, { value }] of store.entries) {
     const day = bufferKeyDay(key)
     const entry = day === undefined ? undefined : parseBufferEntry(value, day)
-    for (const [event, field, text] of entry?.counts ?? [])
+    for (const [event, field, text] of entry?.counts ?? []) {
       add(JSON.stringify([event, field, text]), key)
+    }
     for (const [event, field] of entry?.sums ?? []) add(JSON.stringify([event, field, SUM]), key)
   }
   return entries
@@ -70,19 +71,20 @@ function groupOf(
   records: readonly PublishedRecord[],
   counted: Contributors,
 ) {
-  const field = String(record.properties.field)
-  if ('sum' in record.properties)
+  const field = String(record.properties['field'])
+  if ('sum' in record.properties) {
     return counted.get(JSON.stringify([record.event, field, SUM])) ?? new Set()
-  if (record.properties.value !== OTHER_VALUE) {
+  }
+  if (record.properties['value'] !== OTHER_VALUE) {
     return (
-      counted.get(JSON.stringify([record.event, field, String(record.properties.value)])) ??
+      counted.get(JSON.stringify([record.event, field, String(record.properties['value'])])) ??
       new Set()
     )
   }
   const published = new Set(
     records
-      .filter((other) => other.event === record.event && other.properties.field === field)
-      .map((other) => String(other.properties.value)),
+      .filter((other) => other.event === record.event && other.properties['field'] === field)
+      .map((other) => String(other.properties['value'])),
   )
   const folded = [...counted].filter(([row]) => {
     const [event, rowField, value] = JSON.parse(row)
@@ -98,9 +100,10 @@ function groupOf(
  */
 function expectNoSmallCells(records: readonly PublishedRecord[], counted: Contributors) {
   for (const record of records) {
-    const field = String(record.properties.field)
+    const field = String(record.properties['field'])
     if (field === '_count') continue
-    const label = `${record.event} ${field} ${String(record.properties.value ?? SUM)}`
+    const value: unknown = record.properties['value'] ?? SUM
+    const label = `${record.event} ${field} ${String(value)}`
     const group = groupOf(record, records, counted)
     const eventEntries = counted.get(JSON.stringify([record.event, '_count', '1'])) ?? new Set()
     const lacking = [...eventEntries].filter((entry) => !group.has(entry)).length
@@ -126,7 +129,7 @@ const LEVELS = (high: number, low: number) => (index: number) => {
 
 /** Every published row other than event totals: breakdown values, `(other)` and sums. */
 function breakdownRows(records: readonly PublishedRecord[]) {
-  return records.filter((record) => record.properties.field !== '_count')
+  return records.filter((record) => record.properties['field'] !== '_count')
 }
 
 describe('small-cell suppression', () => {
@@ -142,7 +145,7 @@ describe('small-cell suppression', () => {
     const { counted, records } = await flushStore(store)
 
     expect(publishedCount(records, 'run.finished', '_count', '1')).toBe(6)
-    expect(records.filter((record) => record.properties.field === 'arch')).toEqual([])
+    expect(records.filter((record) => record.properties['field'] === 'arch')).toEqual([])
     expect(publishedCount(records, 'run.finished', 'os', 'darwin')).toBe(6)
     expectNoSmallCells(records, counted)
   })
@@ -151,7 +154,7 @@ describe('small-cell suppression', () => {
     const store = new MemoryKeyValueStore()
     await bufferRequests(store, 6, YESTERDAY, (index) => [activeDay(index < 5)])
     const { counted, records } = await flushStore(store)
-    const fields = new Set(records.map((record) => record.properties.field))
+    const fields = new Set(records.map((record) => record.properties['field']))
 
     expect(publishedCount(records, 'install.active', '_count', '1')).toBe(6)
     expect(fields.has('terminal')).toBe(false)
@@ -167,8 +170,8 @@ describe('small-cell suppression', () => {
     const { counted, records } = await flushStore(store)
 
     expect(publishedCount(records, 'install.active', '_count', '1')).toBe(20)
-    expect(records.some((record) => record.properties.field === 'terminal')).toBe(false)
-    expect(records.some((record) => record.properties.field === 'mcp_servers')).toBe(false)
+    expect(records.some((record) => record.properties['field'] === 'terminal')).toBe(false)
+    expect(records.some((record) => record.properties['field'] === 'mcp_servers')).toBe(false)
     expectNoSmallCells(records, counted)
   })
 
@@ -195,14 +198,14 @@ describe('small-cell suppression', () => {
       },
     ])
     const { counted, records } = await flushStore(store)
-    const entryPointRows = records.filter((record) => record.properties.field === 'entry_points')
+    const entryPointRows = records.filter((record) => record.properties['field'] === 'entry_points')
     const published = entryPointRows.reduce(
-      (sum, record) => sum + Number(record.properties.count),
+      (sum, record) => sum + Number(record.properties['count']),
       0,
     )
 
     expect(publishedCount(records, 'install.active', '_count', '1')).toBe(12)
-    expect(entryPointRows.map((record) => record.properties.value)).not.toContain('app+cli')
+    expect(entryPointRows.map((record) => record.properties['value'])).not.toContain('app+cli')
     expect(published).toBe(12)
     expectNoSmallCells(records, counted)
   })
@@ -253,8 +256,8 @@ describe('small-cell suppression', () => {
     const { counted, records } = await flushStore(store)
 
     expect(publishedCount(records, 'run.finished', '_count', '1')).toBe(11)
-    expect(records.filter((record) => record.properties.field === 'model')).toEqual([])
-    expect(records.filter((record) => record.properties.field === 'thinking_level')).toEqual([])
+    expect(records.filter((record) => record.properties['field'] === 'model')).toEqual([])
+    expect(records.filter((record) => record.properties['field'] === 'thinking_level')).toEqual([])
     expect(publishedCount(records, 'run.finished', 'os', 'darwin')).toBe(11)
     expect(
       records.find((record) => record.event === 'run.finished' && 'sum' in record.properties),
@@ -286,7 +289,7 @@ describe('small-cell suppression', () => {
     expect(
       records.some((record) => record.event === 'run.finished' && 'sum' in record.properties),
     ).toBe(false)
-    expect(records.find((record) => record.properties.field === 'accepted')).toMatchObject({
+    expect(records.find((record) => record.properties['field'] === 'accepted')).toMatchObject({
       event: 'endpoint.requests',
       properties: { sum: 6, count: 6 },
     })

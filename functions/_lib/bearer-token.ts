@@ -14,7 +14,7 @@ export async function bearerTokenMatches(
   authorization: string | null,
   expected: string,
 ): Promise<boolean> {
-  const token = authorization === null ? undefined : BEARER.exec(authorization)?.groups?.token
+  const token = authorization === null ? undefined : BEARER.exec(authorization)?.groups?.['token']
   const [provided, wanted] = await Promise.all([sha256(token ?? ''), sha256(expected)])
   let difference = 0
   for (let index = 0; index < wanted.length; index += 1) {
