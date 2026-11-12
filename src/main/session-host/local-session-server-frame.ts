@@ -182,9 +182,9 @@ interface FrameWriteInput {
   readonly budget: LocalSessionOutboundByteBudget
   readonly signal: AbortSignal
   /** Names the connection's caller in logs, such as `gui:local-user`. */
-  readonly peer?: (() => string | undefined) | undefined
+  readonly peer?: () => string | undefined
   /** The most bytes the frame encodes to, for small frames such as the handshake's. */
-  readonly maxBytes?: number | undefined
+  readonly maxBytes?: number
 }
 
 export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {

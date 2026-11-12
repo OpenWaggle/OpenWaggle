@@ -17,8 +17,8 @@ import {
 const degradedSnapshotSchema = Schema.Struct({
   reason: Schema.Literal('content-limit'),
   omittedBytes: Schema.Number,
-  toolCallIds: Schema.optional(Schema.Array(Schema.String)),
-  messageCutShort: Schema.optional(Schema.Unknown),
+  toolCallIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  messageCutShort: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded'] | undefined {
@@ -85,14 +85,14 @@ const activeRunSnapshotCandidateSchema = Schema.Struct({
   mode: Schema.Literal('classic', 'waggle'),
   startedAt: Schema.Number,
   parts: Schema.Array(Schema.Unknown),
-  messageId: Schema.optional(Schema.String),
-  runId: Schema.optional(Schema.String),
-  messageStartedAt: Schema.optional(Schema.Unknown),
-  degraded: Schema.optional(Schema.Unknown),
-  worktreeLaunch: Schema.optional(Schema.Unknown),
-  activityEvents: Schema.optional(Schema.Unknown),
-  userMessages: Schema.optional(Schema.Unknown),
-  assistantMessages: Schema.optional(Schema.Unknown),
+  messageId: Schema.optionalWith(Schema.String, { exact: true }),
+  runId: Schema.optionalWith(Schema.String, { exact: true }),
+  messageStartedAt: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  degraded: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  worktreeLaunch: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  activityEvents: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  userMessages: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  assistantMessages: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 const snapshotSessionIdSchema = Schema.Struct({ sessionId: Schema.String })

@@ -61,6 +61,8 @@ export const messagePartSchema = Schema.Union(
   Schema.Struct({
     type: Schema.Literal('attachment'),
     attachment: Schema.Struct({
+      // `Schema.optional` (explicit undefined accepted) because this mirrors `MessagePart`'s
+      // attachment, whose optional fields are still typed `T | undefined` (see the type test).
       id: Schema.String,
       kind: Schema.Literal('text', 'image', 'pdf'),
       origin: Schema.optionalWith(
@@ -171,7 +173,7 @@ export function decodeAssistantMessageSnapshots(
  * for the whole message over a longer copy it already shows.
  */
 export function decodeStreamingParts(
-  candidate: { readonly parts: readonly unknown[]; readonly messageId?: string | undefined },
+  candidate: { readonly parts: readonly unknown[]; readonly messageId?: string },
   context: SnapshotContext,
 ) {
   const parts: MessagePart[] = []

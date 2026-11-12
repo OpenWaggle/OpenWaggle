@@ -73,7 +73,7 @@ export class LocalSessionOutboundWriter {
           value,
           budget: this.budget,
           signal: this.signal,
-          peer: this.peer,
+          ...(this.peer === undefined ? {} : { peer: this.peer }),
           ...options,
         })
       })
