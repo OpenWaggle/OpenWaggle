@@ -6,8 +6,8 @@ import type { WorktreeRemovalPreview, WorktreeUsage } from './worktree-usage'
 /** The Host derives the workspace from the Session; clients cannot supply an arbitrary cwd. */
 export interface ActionManagementScope {
   readonly projectPath: string
-  readonly sessionId?: string | undefined
-  readonly workspaceId?: string | undefined
+  readonly sessionId?: string
+  readonly workspaceId?: string
 }
 
 export type ActionManagementOperation =
@@ -21,8 +21,8 @@ export type ActionManagementOperation =
       readonly type: 'start'
       readonly actionId: string
       readonly requestId: string
-      readonly expectedExecutionKey?: string | undefined
-      readonly restartRunId?: string | undefined
+      readonly expectedExecutionKey?: string
+      readonly restartRunId?: string
     }
   | { readonly type: 'output'; readonly runId: string; readonly afterOffset: number }
   | { readonly type: 'stop'; readonly runId: string }

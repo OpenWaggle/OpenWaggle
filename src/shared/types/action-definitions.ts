@@ -23,7 +23,7 @@ export interface ProjectTaskReference {
   readonly source: string
   readonly task: string
   readonly directory: string
-  readonly environment?: string | undefined
+  readonly environment?: string
 }
 
 export type ActionInvocation =
@@ -38,8 +38,8 @@ export interface ActionDefinition {
   readonly kind: 'task' | 'service'
   readonly allowConcurrent: boolean
   readonly autoOpenPreview: boolean
-  readonly previewUrl?: string | undefined
-  readonly shortcutRules?: readonly ProjectActionShortcutRule[] | undefined
+  readonly previewUrl?: string
+  readonly shortcutRules?: readonly ProjectActionShortcutRule[]
 }
 
 export interface PreparationProfile {
@@ -134,7 +134,7 @@ export interface CommandRepairProposal {
   readonly current: {
     readonly command: string
     readonly directory: string
-    readonly resolved?: boolean | undefined
+    readonly resolved?: boolean
   }
   readonly proposed: { readonly command: string; readonly directory: string }
   readonly reason: string

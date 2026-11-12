@@ -53,7 +53,7 @@ export interface TerminalReadinessSnapshot {
 
 export interface TerminalAttachResult {
   /** Stable while the native record survives, including shell Restart; new after deletion. */
-  readonly inputIncarnation?: string | undefined
+  readonly inputIncarnation?: string
   /**
    * Persisted scrollback replay for the terminal, already sanitized so replay
    * never re-triggers terminal query sequences. Empty for a brand-new terminal.
@@ -70,19 +70,19 @@ export interface TerminalAttachResult {
   /** Null when no shell exists for the requested Working path. */
   readonly readiness: TerminalReadinessSnapshot | null
   /** Bytes already accepted by main but still held behind prompt readiness. */
-  readonly pendingInputBytes?: number | undefined
+  readonly pendingInputBytes?: number
   /** Whether a live shell process is running or a spawn was just requested. */
   readonly running: boolean
   /** Present when no shell is running and the Working path no longer exists. */
-  readonly cwdMissing?: boolean | undefined
+  readonly cwdMissing?: boolean
   /** Exit code of the last dead shell, when `running` is false and cwd exists. */
-  readonly exitCode?: number | undefined
+  readonly exitCode?: number
   /** Current foreground child process, resynchronized on every attach. */
   readonly processName: string | null
   /** Current listening ports, resynchronized on every attach. */
   readonly ports: readonly number[]
   /** Browser-loadable endpoints verified from those listeners. */
-  readonly portPreviews?: readonly TerminalPortPreview[] | undefined
+  readonly portPreviews?: readonly TerminalPortPreview[]
   /** Main has accepted a Project Action that has not yet returned to idle. */
   readonly projectActionPending: boolean
 }
@@ -105,7 +105,7 @@ export type TerminalRuntimeEvent =
       readonly type: 'readiness'
       readonly readiness: TerminalReadinessSnapshot
       /** Correlates readiness that races attach with the native record that emitted it. */
-      readonly inputIncarnation?: string | undefined
+      readonly inputIncarnation?: string
     }
   | { readonly type: 'activity'; readonly processName: string | null }
   | { readonly type: 'ports'; readonly ports: readonly number[] }
@@ -131,7 +131,7 @@ export interface TerminalActivitySummary {
   /** Listening ports owned by the shell process tree. */
   readonly ports: readonly number[]
   /** Browser-loadable endpoints owned by the shell process tree. */
-  readonly portPreviews?: readonly TerminalPortPreview[] | undefined
+  readonly portPreviews?: readonly TerminalPortPreview[]
   /** Prevents stale-idle snapshots from reusing a terminal for another action. */
   readonly projectActionPending: boolean
 }
@@ -155,7 +155,7 @@ export type TerminalWriteResult =
       readonly status: 'written' | 'queued'
       readonly acceptedBytes: number
       /** Echoes the idempotency identity supplied with this write. */
-      readonly identity?: TerminalInputIdentity | undefined
+      readonly identity?: TerminalInputIdentity
     }
   | {
       readonly status: 'rejected'
@@ -171,7 +171,7 @@ export type TerminalWriteResult =
         | 'sequence-conflict'
         | 'project-action-pending'
       /** Echoes the idempotency identity supplied with this write. */
-      readonly identity?: TerminalInputIdentity | undefined
+      readonly identity?: TerminalInputIdentity
     }
 
 export type TerminalInputReleaseResult =

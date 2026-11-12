@@ -16,8 +16,8 @@ export const actionManagementRequestSchema: Schema.Schema<ActionManagementReques
       Schema.minLength(1),
       Schema.maxLength(ACTION_DEFINITION_LIMITS.PATH_LENGTH),
     ),
-    sessionId: Schema.optional(identifier),
-    workspaceId: Schema.optional(identifier),
+    sessionId: Schema.optionalWith(identifier, { exact: true }),
+    workspaceId: Schema.optionalWith(identifier, { exact: true }),
   }).pipe(Schema.filter((scope) => !scope.sessionId || !scope.workspaceId)),
   operation: Schema.Union(
     Schema.Struct({ type: Schema.Literal('stop-setup'), attemptId: identifier }),
@@ -57,10 +57,11 @@ export const actionManagementRequestSchema: Schema.Schema<ActionManagementReques
       type: Schema.Literal('start'),
       actionId: actionDefinitionIdSchema,
       requestId: identifier,
-      expectedExecutionKey: Schema.optional(
+      expectedExecutionKey: Schema.optionalWith(
         Schema.String.pipe(Schema.minLength(1), Schema.maxLength(EXECUTION_KEY_LENGTH)),
+        { exact: true },
       ),
-      restartRunId: Schema.optional(identifier),
+      restartRunId: Schema.optionalWith(identifier, { exact: true }),
     }),
     Schema.Struct({
       type: Schema.Literal('output'),

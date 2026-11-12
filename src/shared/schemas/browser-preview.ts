@@ -86,7 +86,10 @@ export const browserPreviewBoundsSchema: Schema.Schema<BrowserPreviewBounds> = S
   y: dipPositionSchema,
   width: dipSizeSchema,
   height: dipSizeSchema,
-  sourceViewport: Schema.optional(Schema.Struct({ width: dipSizeSchema, height: dipSizeSchema })),
+  sourceViewport: Schema.optionalWith(
+    Schema.Struct({ width: dipSizeSchema, height: dipSizeSchema }),
+    { exact: true },
+  ),
 }).pipe(
   Schema.filter(
     (bounds) =>
@@ -103,8 +106,8 @@ export const browserPreviewOpenInputSchema: Schema.Schema<BrowserPreviewOpenInpu
   url: browserPreviewUrlSchema,
   bounds: browserPreviewBoundsSchema,
   visible: Schema.Boolean,
-  audioMuted: Schema.optional(Schema.Boolean),
-  initialControls: Schema.optional(browserPreviewInitialControlsSchema),
+  audioMuted: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  initialControls: Schema.optionalWith(browserPreviewInitialControlsSchema, { exact: true }),
 })
 
 export const browserPreviewIdAndAudioMutedSchema = Schema.Tuple(

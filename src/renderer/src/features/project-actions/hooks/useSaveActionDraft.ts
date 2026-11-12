@@ -20,11 +20,13 @@ function saveError(cause: unknown) {
 }
 
 function finalDefinition(draft: ActionDraft) {
-  const previewUrl = draft.definition.previewUrl?.trim()
+  // A cleared preview URL is left out: the saved definition has no explicit undefined.
+  const { previewUrl: draftPreviewUrl, ...definition } = draft.definition
+  const previewUrl = draftPreviewUrl?.trim()
   return safeDecodeUnknown(actionDefinitionSchema, {
-    ...draft.definition,
+    ...definition,
     name: draft.definition.name.trim(),
-    previewUrl: previewUrl ? previewUrl : undefined,
+    ...(previewUrl ? { previewUrl } : {}),
     invocation:
       draft.definition.invocation.type === 'command'
         ? { ...draft.definition.invocation, command: draft.definition.invocation.command.trim() }

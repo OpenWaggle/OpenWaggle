@@ -25,20 +25,20 @@ export interface McpServerNameRequest extends McpConfigurationScopeRequest {
  * reported in that OpenWaggle file, refusing anything else.
  */
 export interface McpRemoveServerRequest extends McpServerNameRequest {
-  readonly orphanedOverride?: { readonly fileId: McpWriteDestination } | undefined
+  readonly orphanedOverride?: { readonly fileId: McpWriteDestination }
 }
 
 export interface McpSetServerEnabledRequest extends McpServerNameRequest {
   readonly enabled: boolean
   /** `project` switches a global server for this project only. */
   readonly target: 'server' | 'project'
-  readonly destination?: McpWriteDestination | undefined
+  readonly destination?: McpWriteDestination
 }
 
 export interface McpSetServerExposureRequest extends McpServerNameRequest {
-  readonly exposure?: McpServerExposure | undefined
+  readonly exposure?: McpServerExposure
   /** Per-tool exposure; `null` removes a tool's own setting. */
-  readonly toolExposure?: Readonly<Record<string, McpServerExposure | null>> | undefined
+  readonly toolExposure?: Readonly<Record<string, McpServerExposure | null>>
 }
 
 /** A Pi `mcpServers` entry as JSON. */
@@ -47,7 +47,7 @@ export type McpServerEntryInput = Readonly<Record<string, McpJsonValue>>
 export interface McpAddServerRequest extends McpServerNameRequest {
   readonly scope: McpConfigFileScope
   /** Defaults to OpenWaggle's file for `scope`. */
-  readonly destination?: McpWriteDestination | undefined
+  readonly destination?: McpWriteDestination
   readonly entry: McpServerEntryInput
 }
 
@@ -55,7 +55,7 @@ export interface McpInstallCatalogServerRequest extends McpConfigurationScopeReq
   /** The `name` of an `MCP_CATALOG_SERVERS` item. */
   readonly catalogName: string
   readonly scope: McpConfigFileScope
-  readonly destination?: McpWriteDestination | undefined
+  readonly destination?: McpWriteDestination
 }
 
 export interface McpSignInResultView {
@@ -119,7 +119,7 @@ export interface McpSetSessionEnabledRequest extends McpSessionRequest {
 }
 
 export interface McpImportPreviewRequest extends McpConfigurationScopeRequest {
-  readonly sources?: readonly McpImportSourceId[] | undefined
+  readonly sources?: readonly McpImportSourceId[]
 }
 
 export interface McpImportApplyRequest extends McpImportPreviewRequest {

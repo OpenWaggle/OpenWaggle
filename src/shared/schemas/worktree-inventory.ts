@@ -31,12 +31,12 @@ export const worktreeArchiveAndRemovePayloadSchema = Schema.Struct({
     Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MAX_SESSION_ID_LENGTH)),
   ).pipe(Schema.maxItems(MAX_NAMED_SESSIONS)),
   /** Override Git's lock. Uncommitted changes always keep the worktree: this never discards. */
-  force: Schema.optional(Schema.Boolean),
+  force: Schema.optionalWith(Schema.Boolean, { exact: true }),
   /**
    * Archive the Sessions and stop there ("Archive Sessions", for a worktree that may have
    * changes): the worktree is kept whatever its state, for an explicit decision later.
    */
-  keepWorktree: Schema.optional(Schema.Boolean),
+  keepWorktree: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const automaticWorktreeRemovalRunIdSchema = Schema.String.pipe(
