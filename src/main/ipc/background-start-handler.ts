@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import { readBackgroundStart, writeBackgroundStart } from '../background-start'
 import { typedHandle } from './typed-ipc'
@@ -6,6 +7,9 @@ import { typedHandle } from './typed-ipc'
 export function registerBackgroundStartHandlers(): void {
   typedHandle('app:get-background-start', () => Effect.promise(readBackgroundStart))
   typedHandle('app:set-background-start', (_event, enabled: boolean) =>
-    Effect.promise(() => writeBackgroundStart(enabled)),
+    Effect.gen(function* () {
+      const decoded = yield* Effect.try(() => decodeUnknownOrThrow(Schema.Boolean, enabled))
+      return yield* Effect.promise(() => writeBackgroundStart(decoded))
+    }),
   )
 }

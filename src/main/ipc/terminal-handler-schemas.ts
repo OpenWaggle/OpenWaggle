@@ -57,6 +57,12 @@ export const terminalOwnerSchema = Schema.Struct({
   terminalId: terminalIdSchema,
 })
 
+export const terminalCloseSchema = Schema.Struct({
+  ownerKey: terminalOwnerKeySchema,
+  terminalId: terminalIdSchema,
+  deleteHistory: Schema.Boolean,
+})
+
 export const terminalInputReleaseSchema = Schema.Struct({
   ownerKey: terminalOwnerKeySchema,
   terminalId: terminalIdSchema,
