@@ -64,7 +64,7 @@ function nextWithTimeout(
       signal?.addEventListener('abort', onAbort, { once: true })
       subscription.next().then(
         (delivery) => finish(() => resolve(delivery)),
-        (error) => finish(() => reject(error)),
+        (error: unknown) => finish(() => reject(error)),
       )
     },
   )

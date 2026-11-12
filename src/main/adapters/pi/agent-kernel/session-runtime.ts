@@ -30,6 +30,7 @@ import {
   resolveSessionWorkingPath,
 } from './session-manager'
 import { sessionFallbackModelReference } from './session-model-fallback'
+import { piSessionFileField } from './pi-session-file-field'
 
 export type PiSessionOperation<T> = (session: AgentSession) => T | Promise<T>
 
@@ -191,7 +192,7 @@ export async function createPiSessionRuntime(
         services: selectedRuntime.runtime.services,
         model: selectedRuntime.runtime.model,
         sessionManager: options.sessionManager,
-        sessionStartEvent: options.sessionStartEvent,
+        ...(options.sessionStartEvent ? { sessionStartEvent: options.sessionStartEvent } : {}),
       })
 
       return sessionRuntimeWithDiagnostics(selectedRuntime, sessionRuntime)
@@ -206,7 +207,7 @@ export async function createPiSessionRuntime(
         services: fallbackRuntime.services,
         model: fallbackRuntime.model,
         sessionManager: options.sessionManager,
-        sessionStartEvent: options.sessionStartEvent,
+        ...(options.sessionStartEvent ? { sessionStartEvent: options.sessionStartEvent } : {}),
       })
 
       return {
@@ -233,6 +234,6 @@ export async function createPiSession(projectPath: string) {
   )
   return {
     piSessionId: sessionManager.getSessionId(),
-    piSessionFile: sessionManager.getSessionFile(),
+    ...piSessionFileField(sessionManager.getSessionFile()),
   }
 }

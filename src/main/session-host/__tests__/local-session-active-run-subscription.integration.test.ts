@@ -58,9 +58,11 @@ describe('Local Session active-run subscriptions', () => {
       }),
       refreshCaller: async (caller) => ({
         ...caller,
-        profileAuthority: caller.profileAuthority
-          ? { ...caller.profileAuthority, capabilities: ['sessions:discover'] }
-          : undefined,
+        ...(caller.profileAuthority
+          ? {
+              profileAuthority: { ...caller.profileAuthority, capabilities: ['sessions:discover'] },
+            }
+          : {}),
       }),
       snapshotActiveRuns: () => [
         {

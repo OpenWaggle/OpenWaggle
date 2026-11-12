@@ -7,10 +7,10 @@ import {
   type ScheduledTaskStatusSummary,
 } from '@shared/types/scheduled-task'
 import { SESSION_QUERY_CONTRACT_VERSION, type SessionQuery } from '@shared/types/session-query'
-import { app } from 'electron'
 import { STATUS_CLI_AGENT_REFUSAL } from './cli-agent-refusals'
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions } from './command-cli-option-contract'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import {
   type LocalSessionCliClientInput,
   prepareLocalSessionCliClientInput,
@@ -40,7 +40,6 @@ export {
   formatStatusReport,
   type HostProbe,
   mapWithConcurrency,
-  type StatusActiveRun,
   type StatusReport,
 } from './status-cli-report'
 
@@ -95,7 +94,7 @@ async function snapshotActiveRuns(input: ClientInput) {
 }
 
 export const defaultStatusCliDependencies: StatusCliDependencies = {
-  version: () => app.getVersion(),
+  version: () => appLifecycle.version(),
   now: Date.now,
   prepareClientInput: prepareLocalSessionCliClientInput,
   probe: async (input) =>
@@ -187,13 +186,9 @@ async function describeActiveRun(
       ? (statusOutcome.activeRunId ?? null)
       : null
   const session =
-    readOutcome && readOutcome.operation === 'read' && 'session' in readOutcome
-      ? readOutcome.session
-      : undefined
+    readOutcome?.operation === 'read' && 'session' in readOutcome ? readOutcome.session : undefined
   const pendingQuestions =
-    requestsOutcome &&
-    requestsOutcome.operation === 'requests-list' &&
-    'requests' in requestsOutcome
+    requestsOutcome?.operation === 'requests-list' && 'requests' in requestsOutcome
       ? requestsOutcome.requests.length
       : null
   return {

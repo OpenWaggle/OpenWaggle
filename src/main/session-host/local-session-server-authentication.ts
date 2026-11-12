@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH } from '@shared/types/local-session-profile'
+import { includesEvery } from '@shared/utils/set-membership'
 import {
   deriveProfileCredentialServerKey,
   type ProfileCredentialServerChallenge,
@@ -44,26 +45,26 @@ export type LocalSessionServerAuthenticator = (
 function isExactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const actual = Object.keys(value)
-  return actual.length === keys.length && keys.every((key) => actual.includes(key))
+  return actual.length === keys.length && includesEvery(actual, keys)
 }
 
 function decodeRequest(value: unknown): LocalSessionServerAuthenticationRequest {
   if (
     (!isExactRecord(value, ['kind', 'nonce']) &&
       !isExactRecord(value, ['kind', 'nonce', 'profile'])) ||
-    value.kind !== 'server-authentication-request' ||
-    typeof value.nonce !== 'string' ||
-    !BASE64URL_32_BYTE_PATTERN.test(value.nonce) ||
+    value['kind'] !== 'server-authentication-request' ||
+    typeof value['nonce'] !== 'string' ||
+    !BASE64URL_32_BYTE_PATTERN.test(value['nonce']) ||
     ('profile' in value &&
-      (typeof value.profile !== 'string' ||
-        value.profile.length === 0 ||
-        value.profile.length > LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH))
+      (typeof value['profile'] !== 'string' ||
+        value['profile'].length === 0 ||
+        value['profile'].length > LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH))
   ) {
     throw new Error('Invalid Local Session server-authentication request.')
   }
-  return typeof value.profile === 'string'
-    ? { kind: 'server-authentication-request', nonce: value.nonce, profile: value.profile }
-    : { kind: 'server-authentication-request', nonce: value.nonce }
+  return typeof value['profile'] === 'string'
+    ? { kind: 'server-authentication-request', nonce: value['nonce'], profile: value['profile'] }
+    : { kind: 'server-authentication-request', nonce: value['nonce'] }
 }
 
 function proofFor(
@@ -92,7 +93,7 @@ function proofFor(
 export function createLocalSessionServerAuthenticationRequest(
   profile?: string,
 ): LocalSessionServerAuthenticationRequest {
-  if (profile !== undefined && profile.length === 0) {
+  if (profile?.length === 0) {
     throw new Error('A Local Session profile name is required for server authentication.')
   }
   return {
@@ -175,36 +176,36 @@ function decodeProfileResponse(
 } {
   if (
     !isExactRecord(value, ['kind', 'nonce', 'authority', 'profile', 'challenge', 'proof']) ||
-    value.kind !== 'server-authentication-response' ||
-    value.nonce !== request.nonce ||
-    value.authority !== 'profile' ||
-    value.profile !== request.profile ||
-    !isExactRecord(value.challenge, ['kind', 'salt']) ||
-    value.challenge.kind !== 'scrypt-v1' ||
-    typeof value.challenge.salt !== 'string' ||
-    typeof value.proof !== 'string' ||
-    !BASE64URL_32_BYTE_PATTERN.test(value.proof)
+    value['kind'] !== 'server-authentication-response' ||
+    value['nonce'] !== request.nonce ||
+    value['authority'] !== 'profile' ||
+    value['profile'] !== request.profile ||
+    !isExactRecord(value['challenge'], ['kind', 'salt']) ||
+    value['challenge']['kind'] !== 'scrypt-v1' ||
+    typeof value['challenge']['salt'] !== 'string' ||
+    typeof value['proof'] !== 'string' ||
+    !BASE64URL_32_BYTE_PATTERN.test(value['proof'])
   ) {
     throw identityVerificationFailed()
   }
   return {
-    challenge: { kind: value.challenge.kind, salt: value.challenge.salt },
-    proof: value.proof,
+    challenge: { kind: value['challenge']['kind'], salt: value['challenge']['salt'] },
+    proof: value['proof'],
   }
 }
 
 function decodeLocalUserProof(value: unknown, request: { readonly nonce: string }) {
   if (
     !isExactRecord(value, ['kind', 'nonce', 'authority', 'proof']) ||
-    value.kind !== 'server-authentication-response' ||
-    value.nonce !== request.nonce ||
-    value.authority !== 'local-user' ||
-    typeof value.proof !== 'string' ||
-    !BASE64URL_32_BYTE_PATTERN.test(value.proof)
+    value['kind'] !== 'server-authentication-response' ||
+    value['nonce'] !== request.nonce ||
+    value['authority'] !== 'local-user' ||
+    typeof value['proof'] !== 'string' ||
+    !BASE64URL_32_BYTE_PATTERN.test(value['proof'])
   ) {
     throw identityVerificationFailed()
   }
-  return value.proof
+  return value['proof']
 }
 
 async function verifyProfileResponse(input: {

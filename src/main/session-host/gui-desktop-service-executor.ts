@@ -90,8 +90,9 @@ export function makeGuiDesktopServiceExecutor(services: {
   })
 
   function dispatch(command: DesktopServiceCommand): Effect.Effect<DesktopServiceResult, Error> {
-    if (command.service === 'terminal')
+    if (command.service === 'terminal') {
       return executeDesktopTerminalCommand(services.terminal, command)
+    }
     if (command.service === 'fence') {
       return Effect.tryPromise({
         try: () => {
@@ -127,20 +128,24 @@ export function makeGuiDesktopServiceExecutor(services: {
       outcome: 'failure',
       message,
     })
-    if (envelope.leaseId !== leaseId || envelope.deadline <= Date.now())
+    if (envelope.leaseId !== leaseId || envelope.deadline <= Date.now()) {
       return failure('The desktop command lease or deadline is stale.')
-    if (running.has(envelope.commandId) || finished.has(envelope.commandId))
+    }
+    if (running.has(envelope.commandId) || finished.has(envelope.commandId)) {
       return failure('The desktop command was already dispatched.')
-    if (running.size >= DESKTOP_SERVICE_LIMITS.pendingCommands)
+    }
+    if (running.size >= DESKTOP_SERVICE_LIMITS.pendingCommands) {
       return failure('The desktop executor is full.')
+    }
     let command: DesktopServiceCommand
     try {
       command = decodeUnknownExactOrThrow(desktopServiceCommandSchema, envelope.command)
     } catch {
       return failure('The desktop command did not match the supported schema.')
     }
-    if (fences.blocks(command))
+    if (fences.blocks(command)) {
       return failure('This Session or Workspace has an active desktop mutation fence.')
+    }
     const controller = new AbortController()
     const settled = Promise.withResolvers<void>()
     running.set(envelope.commandId, { controller, command, settled: settled.promise })

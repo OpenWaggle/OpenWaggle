@@ -50,7 +50,8 @@ export async function projectOfWorkspacePath(
   sources: WorkspaceProjectSources,
   options: { readonly insideManagedWorktrees?: boolean } = {},
 ): Promise<string | null> {
-  const opened = candidates.find((candidate) => sources.userProjects.includes(candidate))
+  const userProjects = new Set(sources.userProjects)
+  const opened = candidates.find((candidate) => userProjects.has(candidate))
   if (opened) return opened
   for (const candidate of candidates) {
     const project = await sources.managedWorktreeProject(candidate)
@@ -59,7 +60,7 @@ export async function projectOfWorkspacePath(
   if (!options.insideManagedWorktrees) return null
   for (const candidate of candidates) {
     for (const ancestor of strictAncestors(candidate)) {
-      if (sources.userProjects.includes(ancestor)) break
+      if (userProjects.has(ancestor)) break
       const project = await sources.managedWorktreeProject(ancestor)
       if (project) return project
     }

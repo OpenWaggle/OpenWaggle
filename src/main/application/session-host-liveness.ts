@@ -80,15 +80,14 @@ export class SessionHostLiveness {
   private acceptedClient = false
   private readonly clientHandoffGracePeriodMs: number
 
-  constructor(private readonly options: SessionHostLivenessOptions) {
-    this.assertGracePeriod(options.idleGracePeriodMs)
-    this.assertGracePeriod(options.clientHandoffGracePeriodMs ?? 0)
+  private readonly options: SessionHostLivenessOptions
+
+  constructor(options: SessionHostLivenessOptions) {
+    this.options = options
+    nonNegativeSafeInteger(options.idleGracePeriodMs, 'idle grace period')
+    nonNegativeSafeInteger(options.clientHandoffGracePeriodMs ?? 0, 'idle grace period')
     this.idleGracePeriodMs = options.idleGracePeriodMs
     this.clientHandoffGracePeriodMs = options.clientHandoffGracePeriodMs ?? 0
-  }
-
-  private assertGracePeriod(value: number) {
-    nonNegativeSafeInteger(value, 'idle grace period')
   }
 
   private totalOwners() {
@@ -266,8 +265,9 @@ export class SessionHostLiveness {
     reason: SessionHostDrainReason = 'recovery',
     options: SessionHostDrainOptions = {},
   ): void {
-    if (options.deadlineMs !== undefined)
+    if (options.deadlineMs !== undefined) {
       nonNegativeSafeInteger(options.deadlineMs, 'drain deadline')
+    }
     if (this.closed) return
     if (!this.draining) {
       this.draining = true
@@ -288,7 +288,7 @@ export class SessionHostLiveness {
 
   /** Shut down once idle for the grace period, and not before `delayMs` from now. */
   armIdleShutdown(delayMs = this.idleGracePeriodMs): void {
-    this.assertGracePeriod(delayMs)
+    nonNegativeSafeInteger(delayMs, 'idle grace period')
     // Recorded even while background work runs, so its end does not skip the startup grace.
     this.startupFloorAt = SessionHostLiveness.raised(this.startupFloorAt, delayMs)
     if (!this.hasActivityOwners()) this.idleSince ??= Date.now()
@@ -301,7 +301,7 @@ export class SessionHostLiveness {
    * client that just left keeps its handoff grace.
    */
   updateIdleGracePeriod(idleGracePeriodMs: number): void {
-    this.assertGracePeriod(idleGracePeriodMs)
+    nonNegativeSafeInteger(idleGracePeriodMs, 'idle grace period')
     if (idleGracePeriodMs === this.idleGracePeriodMs) return
     this.idleGracePeriodMs = idleGracePeriodMs
     if (this.draining || this.shutdownRequested || this.hasActivityOwners()) return

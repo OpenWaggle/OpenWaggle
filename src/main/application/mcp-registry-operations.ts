@@ -66,7 +66,10 @@ export function installMcpRegistryServerOperation(raw: unknown) {
     // A chosen name is checked before anything is downloaded.
     if (input.serverName) yield* assertNameFree(projectPath, input.serverName)
     const registry = yield* McpRegistryService
-    const prepared = yield* registry.prepareEntry(input)
+    const { method, ...server } = input
+    const prepared = yield* registry.prepareEntry(
+      method === undefined ? server : { ...server, method },
+    )
     const name = input.serverName ?? prepared.suggestedName
     if (!input.serverName) yield* assertNameFree(projectPath, name)
     const destination: McpWriteDestination =

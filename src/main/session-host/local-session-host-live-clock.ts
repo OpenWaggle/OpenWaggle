@@ -18,11 +18,19 @@ export class LocalSessionHostLiveClock {
   private lastTickAt = 0
   private ticker: ReturnType<typeof setInterval> | undefined
 
+  private readonly wallNow: () => number
+  private readonly tickMs: number
+  private readonly toleranceMs: number
+
   constructor(
-    private readonly wallNow: () => number,
-    private readonly tickMs = DEFAULT_TICK_MS,
-    private readonly toleranceMs = DEFAULT_TOLERANCE_MS,
-  ) {}
+    wallNow: () => number,
+    tickMs: number = DEFAULT_TICK_MS,
+    toleranceMs: number = DEFAULT_TOLERANCE_MS,
+  ) {
+    this.wallNow = wallNow
+    this.tickMs = tickMs
+    this.toleranceMs = toleranceMs
+  }
 
   now(): number {
     const at = this.wallNow()

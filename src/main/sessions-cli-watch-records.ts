@@ -1,8 +1,9 @@
-import type {
-  SessionHostEventCursor,
-  SessionHostEventEnvelope,
-  SessionHostEventPayload,
-  SessionHostEventResyncReason,
+import {
+  isSessionlessHostEvent,
+  type SessionHostEventCursor,
+  type SessionHostEventEnvelope,
+  type SessionHostEventPayload,
+  type SessionHostEventResyncReason,
 } from '@shared/types/session-host-event'
 import type { LocalSessionWatchResult } from './session-host/local-session-event-client'
 
@@ -25,6 +26,11 @@ export type SessionsCliWatchRecord =
       readonly reason: SessionHostEventResyncReason
       readonly cursor: SessionHostEventCursor
     }
+
+/** The Session an event belongs to; Host-wide events belong to none. */
+export function watchEventSessionId(envelope: SessionHostEventEnvelope) {
+  return isSessionlessHostEvent(envelope.payload) ? undefined : envelope.payload.sessionId
+}
 
 export function watchCursorRecord(cursor: SessionHostEventCursor): SessionsCliWatchRecord {
   return { kind: 'cursor', cursor }

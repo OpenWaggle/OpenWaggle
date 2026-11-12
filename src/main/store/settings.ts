@@ -214,7 +214,7 @@ function updateProjectToggleMapDurably(
     const currentMap = settingsCache[mapKey]
     const nextMap = {
       ...currentMap,
-      [projectPath]: { ...(currentMap[projectPath] ?? {}), [entryId]: enabled },
+      [projectPath]: { ...currentMap[projectPath], [entryId]: enabled },
     }
     return mapKey === 'skillTogglesByProject'
       ? persistSettingsPatch({ skillTogglesByProject: nextMap })

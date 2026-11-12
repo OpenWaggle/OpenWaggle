@@ -77,7 +77,8 @@ export async function keepMcpFileOutOfGit(filePath: string) {
     `${separator}# OpenWaggle created this MCP file while upgrading; it stays out of git.\n${line}\n`,
   )
   // The line must match the file: confirmed by git itself.
-  if (!(await isIgnored(root, gitPath)))
+  if (!(await isIgnored(root, gitPath))) {
     throw new Error(`git does not ignore ${gitPath} after excluding it`)
+  }
   return true
 }

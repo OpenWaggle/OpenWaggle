@@ -63,7 +63,7 @@ describe('DesktopNotificationObserver', () => {
 
     const later = setup()
     await later.emit(settled('run-1', 'completed'), 100)
-    later.fixture.visits.root = 200
+    later.fixture.visits['root'] = 200
     await later.emit(
       fromPartial<SessionHostEventPayload>({
         kind: 'session-list-changed',
@@ -83,7 +83,7 @@ describe('DesktopNotificationObserver', () => {
       sessions: { worker: session('worker', { parentSessionId: 'queen', parentTitle: 'Queen' }) },
       preferences: { ...DEFAULT_DESKTOP_NOTIFICATION_SETTINGS, mutedSessionIds: ['worker'] },
     })
-    fixture.pending.worker = 'approval'
+    fixture.pending['worker'] = 'approval'
     await emit(approvalRequest('worker'))
     expect(ledger.list()[0]).toMatchObject({
       reason: 'awaiting-approval',
@@ -96,7 +96,7 @@ describe('DesktopNotificationObserver', () => {
     await emit(resolved('worker'))
     expect(ledger.list()).toHaveLength(1)
 
-    delete fixture.pending.worker
+    delete fixture.pending['worker']
     await emit(resolved('worker'))
     expect(shownKinds(published)).toEqual([
       'shown:awaiting-approval',

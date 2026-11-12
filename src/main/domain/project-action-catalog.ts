@@ -68,13 +68,15 @@ export function resolveActionCatalog(
     (count, { definition }) => count + (definition.shortcutRules?.length ?? 0),
     0,
   )
-  if (shortcutRules > PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT)
+  if (shortcutRules > PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT) {
     throw new Error(
       `A project may have at most ${String(PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT)} effective action shortcut rules across personal and shared definitions.`,
     )
+  }
   const profiles = effective(document.manifest.profiles, shared.profiles)
-  if (!profiles.some(({ definition }) => definition.id === 'default'))
+  if (!profiles.some(({ definition }) => definition.id === 'default')) {
     profiles.unshift({ definition: { id: 'default', name: 'Default' }, source: 'local' })
+  }
   const preparation = effectivePreparation(document.manifest.preparation, shared.preparation).map(
     (entry) => {
       const stored = document.reviews.find((review) => review.definitionId === entry.definition.id)
@@ -90,13 +92,15 @@ export function resolveActionCatalog(
   )
   const phases = new Set<string>()
   for (const { definition } of preparation) {
-    if (!profiles.some(({ definition: profile }) => profile.id === definition.profileId))
+    if (!profiles.some(({ definition: profile }) => profile.id === definition.profileId)) {
       throw new Error(`Preparation profile ${definition.profileId} is missing.`)
+    }
     const phase = `${definition.profileId}:${definition.phase}`
-    if (phases.has(phase))
+    if (phases.has(phase)) {
       throw new Error(
         `Multiple ${definition.phase} definitions for profile ${definition.profileId}.`,
       )
+    }
     phases.add(phase)
   }
   return { revision, actions, profiles, preparation }
@@ -113,10 +117,11 @@ function validateSharedProfiles(shared: ActionManifest) {
     if (
       definition.profileId !== 'default' &&
       !shared.profiles.some((profile) => profile.id === definition.profileId)
-    )
+    ) {
       throw new Error(
         'Shared preparation requires a shared profile. Move or remove its setup and cleanup first.',
       )
+    }
   }
 }
 
@@ -162,8 +167,9 @@ function moveActionCatalogDefinition(
     .with('preparation', () => {
       const moved = move(document.manifest.preparation, shared.preparation, upsertPreparation)
       let project = { ...shared, preparation: moved.project }
-      for (const definition of moved.project)
+      for (const definition of moved.project) {
         project = sharePreparationProfile(document.manifest, project, definition.profileId)
+      }
       return {
         document: {
           ...document,
@@ -261,13 +267,14 @@ export function editActionCatalog(
       },
     }
   }
-  if (edit.type === 'save-preparation')
+  if (edit.type === 'save-preparation') {
     nextDocument = withSaverEnablement({
       before: { document, shared },
       document: nextDocument,
       shared: nextShared,
       definition: edit.definition,
     })
+  }
   nextDocument = {
     ...nextDocument,
     manifest: retainPrivatePreparationProfiles(

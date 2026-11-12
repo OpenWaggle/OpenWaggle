@@ -4,6 +4,7 @@ import {
   resolveAgentDefinitionProject,
 } from './agent-definition-project'
 import { listAgentDefinitions, searchAgentDefinitions } from './agents/agent-definition-catalog'
+import { agentDefinitionEnabled } from './agents/agent-definition-discovery'
 import { agentDefinitionsProjectPath } from './agents-cli-options'
 import { compactAgentCatalog, writeAgentsCliCatalog } from './agents-cli-output'
 import { asUsageErrorsSync } from './cli-error'
@@ -68,7 +69,7 @@ export async function runAgentDefinitionDiscoveryCommand(
         })
       : await listAgentDefinitions({ projectPath, userHome })
   const definitions = compactAgentCatalog(
-    items.filter((item) => enabledByName[item.name] !== false),
+    items.filter((item) => agentDefinitionEnabled(enabledByName, item.name)),
   )
   if (hasFlag(arguments_, 'json')) {
     await stdout(sessionsCliResponseText(`hive ${command}`, { definitions }, true))

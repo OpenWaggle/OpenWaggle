@@ -16,17 +16,16 @@ import { McpMigrationRecord, migrationRecordPath } from './migration-record'
 
 /** A file the migration reads could not be read or understood. */
 export class McpMigrationSourceError extends Error {
-  constructor(
-    readonly filePath: string,
-    what: string,
-    cause: unknown,
-  ) {
+  readonly filePath: string
+
+  constructor(filePath: string, what: string, cause: unknown) {
     super(
       `Invalid ${what} at ${filePath}: ${cause instanceof Error ? cause.message : String(cause)}`,
       {
         cause,
       },
     )
+    this.filePath = filePath
     this.name = 'McpMigrationSourceError'
   }
 }

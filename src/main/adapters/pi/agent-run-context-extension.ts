@@ -1,6 +1,5 @@
 import type {
   ExtensionAPI,
-  ExtensionFactory,
   NormalizedBuildSystemPromptOptions,
 } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE } from '@shared/constants/run-identity'
@@ -12,6 +11,7 @@ import {
   withRunIdentities,
 } from './agent-run-identity'
 import { OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE } from './openwaggle-on-demand-tools'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 export interface AgentRunContextExtensionInput {
   /** User-authored instructions frozen into the Session execution profile at creation time. */
@@ -57,7 +57,7 @@ function allowlistOf(
  */
 export function createAgentToolAllowlistGuard(
   input: Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'>,
-): ExtensionFactory | undefined {
+): SynchronousExtensionFactory | undefined {
   const allows = allowlistOf(input)
   if (!allows) return undefined
   return (pi) => {
@@ -93,6 +93,7 @@ export function agentRunContextAllowlists(input: {
  */
 function allowedToolLoadout(pi: ExtensionAPI, allows: (toolName: string) => boolean) {
   const active = pi.getActiveTools().filter(allows)
+  const activeNames = new Set(active)
   const named = pi
     .getAllTools()
     .filter(
@@ -100,7 +101,7 @@ function allowedToolLoadout(pi: ExtensionAPI, allows: (toolName: string) => bool
         tool.exposure === 'deferred' &&
         tool.namespace?.name === OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE.name &&
         allows(tool.name) &&
-        !active.includes(tool.name),
+        !activeNames.has(tool.name),
     )
     .map((tool) => tool.name)
   return [...active, ...named]
@@ -138,7 +139,7 @@ function setSection(
  */
 export function createAgentRunContextExtension(
   input: AgentRunContextExtensionInput,
-): ExtensionFactory {
+): SynchronousExtensionFactory {
   const allows = allowlistOf(input)
   const runIdentity = input.runIdentityContext?.trim()
   return (pi) => {

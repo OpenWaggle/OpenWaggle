@@ -125,7 +125,7 @@ export function desktopNotificationReadByVisit(category: DesktopNotificationCate
   return category !== 'needs-you'
 }
 
-/** What still runs in a root Session's Hive, as Ready to read needs it (ADR 0063). */
+/** What still runs in a root Session's Hive, as Ready to read needs it (ADR 0065). */
 export interface ReadyToReadHiveWork {
   readonly rootRunning: boolean
   readonly workersRunning: boolean
@@ -134,7 +134,7 @@ export interface ReadyToReadHiveWork {
 }
 
 /**
- * When a root Session's completed Run is Ready to read (ADR 0063):
+ * When a root Session's completed Run is Ready to read (ADR 0065):
  * - `now`: nothing runs in its Hive and no Hive wake is coming, so the work is finished;
  * - `mid-work-answer`: the person asked while Workers ran, so the reply answers that question
  *   now, and the request the Workers serve still waits;

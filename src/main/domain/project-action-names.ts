@@ -20,8 +20,9 @@ export function assertUniqueActionName(
     (entry) =>
       entry.definition.id !== definition.id && actionNameKey(entry.definition.name) === key,
   )
-  if (clash)
+  if (clash) {
     throw new Error(
       `You already have an action called “${clash.definition.name}”. Choose a different name.`,
     )
+  }
 }

@@ -5,9 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import './apply-build-identity'
 import './restore-host-temporary-directory' // before any module caches a temp path
 import './apply-pi-package-directory' // before any Pi module reads its package.json
-import { electronApp, is } from '@electron-toolkit/utils'
 import { MAC_DEV_DOCK_ICON_FILE } from '@shared/build-identity-runtime'
-import { app, session } from 'electron'
 import {
   configureDefaultSessionEmbeddingModelForPackagedRuntime,
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
@@ -16,12 +14,18 @@ import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
-import { watchChromiumCacheSize } from './chromium-disk-cache'
 import { installDesktopNotificationPresenter } from './desktop-notification-presenter'
 import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
-import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
+import { installDesktopShellEnvironment } from './desktop-shell-environment-process'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
+import { desktopWindows } from './desktop-shell/desktop-windows'
+import { systemIntegration } from './desktop-shell/system-integration'
+import { webSecurity } from './desktop-shell/web-security'
+import { focusExistingWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
-import { env, installDesktopShellEnvironment } from './env'
+import { env } from './env'
+import { openExternalFromRenderer as openLink } from './external-navigation'
 import { describeError } from './error-description'
 import { disposeGuiAutoUpdater, isGuiInstallingUpdate } from './gui-auto-updater'
 import { holdGuiBackendGate } from './gui-backend-gate'
@@ -36,9 +40,7 @@ import {
 import { exitAfterBootstrapFailure, reportGuiStartupFailure } from './gui-bootstrap-failure'
 import { createGuiStartupCoordinator, type GuiStartupCoordinator } from './gui-startup-coordinator'
 import { openWindowThenRegisterIpc } from './gui-window-bootstrap'
-import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { createLogger, initFileLogger } from './logger'
-import { createMainWindow, focusExistingWindow } from './main-window'
 import { claimAppInstance } from './open-project-requests'
 import {
   configureInlineVisualizationProcessIsolation,
@@ -49,6 +51,7 @@ import { setAppDatabaseAccessMode } from './services/database-access-mode'
 import { configureAppStoragePaths } from './session-data'
 import { hasSessionHostPrelaunch } from './session-host/session-host-prelaunch-handoff'
 import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
+import { sessionLinkHost } from './session-link-host'
 import { installSessionLinkProtocol } from './session-link-protocol'
 import { requestOpenSessionLink } from './session-link-requests'
 import { createStartupMark } from './startup-timing'
@@ -73,13 +76,13 @@ type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
-if (app.isPackaged) {
+if (appLifecycle.isPackaged()) {
   configureDefaultSessionEmbeddingModelForPackagedRuntime(
     join(process.resourcesPath, SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY),
   )
 }
 
-const appIconPath = is.dev
+const appIconPath = !appLifecycle.isPackaged()
   ? join(__dirname, '../../build/icon-dev.png')
   : join(process.resourcesPath, 'icon.png')
 // Unpackaged builds have no bundle icon, so macOS takes their Dock icon at runtime; use the
@@ -95,21 +98,21 @@ let runtimeModulePromise: Promise<RuntimeModule> | null = null
 const startupMark = createStartupMark('main/index')
 
 function quitAutomationSecondInstance() {
-  const markerPath = app.commandLine.getSwitchValue(
+  const markerPath = appLifecycle.commandLine.getSwitchValue(
     AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH,
   )
   if (!markerPath) {
     logger.error('Automation second-instance probe omitted its lock-denied marker path')
-    app.exit(FAILURE_EXIT_CODE)
+    appLifecycle.exit(FAILURE_EXIT_CODE)
     return
   }
   void writeFile(markerPath, AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT, {
     flag: 'wx',
   }).then(
-    () => setTimeout(() => app.quit(), AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS),
+    () => setTimeout(() => appLifecycle.quit(), AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS),
     (error: unknown) => {
       logger.error('Automation second-instance lock-denied marker failed', describeError(error))
-      app.exit(FAILURE_EXIT_CODE)
+      appLifecycle.exit(FAILURE_EXIT_CODE)
     },
   )
 }
@@ -154,7 +157,7 @@ async function bootstrapServicesAndWindow() {
   startupMark('bootstrap-start')
   // Never awaited by startup: terminals, project actions and git wait for it themselves (A-F7).
   void installDesktopShellEnvironment({
-    cacheFile: shellEnvironmentCacheFile(app.getPath('userData')),
+    cacheFile: shellEnvironmentCacheFile(appPaths.userData()),
   }).refreshed.then(
     () => startupMark('desktop-shell-environment-refreshed'),
     (error: unknown) => {
@@ -185,8 +188,8 @@ async function bootstrapServicesAndWindow() {
     onFailure: reportGuiStartupFailure,
     describeFailure: describeStartupFailure,
     restart: () => {
-      app.relaunch()
-      app.quit()
+      appLifecycle.relaunch()
+      appLifecycle.quit()
     },
   })
   // The Host launch starts now, in parallel with the window (A-F1). Its process is spawned
@@ -221,36 +224,35 @@ function revealMainWindow() {
 }
 
 function createMainWindowWithVisualizationGuard() {
-  createMainWindow({ appIconPath, startupMark })
-  const mainWindow = getAllBrowserWindows()[0]
-  if (mainWindow) installInlineVisualizationNavigationGuard(mainWindow.webContents)
+  const mainWindow = desktopWindows.openMainWindow({ appIconPath, startupMark, openLink })
+  webSecurity.guardEmbeddedFrames(mainWindow.webContents)
 }
 
 function registerAppLifecycle() {
-  app
+  appLifecycle
     .whenReady()
     .then(() => {
-      electronApp.setAppUserModelId('com.openwaggle.app')
-      configureDesktopUiAfterReady(app, devDockIconPath)
+      systemIntegration.setAppUserModelId('com.openwaggle.app')
+      configureDesktopUiAfterReady(devDockIconPath)
       installDesktopNotificationPresenter({ revealWindow: revealMainWindow })
 
       // Initialize file logger now that app paths are available
-      void initFileLogger(app.getPath('logs'))
-      watchChromiumCacheSize(session.defaultSession)
+      void initFileLogger(appPaths.logs())
+      webSecurity.maintainCaches()
 
       // CLI recovery must remain available even if the Session Host or window cannot start.
-      const cliSetup = beginAppCliShimSetupWhen(app.isPackaged && !isAutomationMode())
+      const cliSetup = beginAppCliShimSetupWhen(appLifecycle.isPackaged() && !isAutomationMode())
 
       void bootstrapServicesAndWindow().catch((error: unknown) =>
         exitAfterBootstrapFailure({
           error,
           cliSetup,
           cleanupDesktopServices: async () => guiDesktopServicesCleanup()?.(),
-          exit: (code) => app.exit(code),
+          exit: (code) => appLifecycle.exit(code),
         }),
       )
 
-      app.on('activate', () => {
+      appLifecycle.onActivate(() => {
         if (getAllBrowserWindows().length === 0) {
           createMainWindowWithVisualizationGuard()
         }
@@ -260,10 +262,10 @@ function registerAppLifecycle() {
       logger.error('App startup failed before ready', describeError(error))
     })
 
-  app.on('window-all-closed', () => {
+  appLifecycle.onWindowAllClosed(() => {
     // Session terminals outlive window closes; shells die in the quit shutdown.
     if (process.platform !== 'darwin') {
-      app.quit()
+      appLifecycle.quit()
     }
   })
 
@@ -293,20 +295,25 @@ function registerAppLifecycle() {
 }
 
 function startApp(launch: Extract<TopLevelCliLaunch, { readonly kind: 'gui' }>) {
-  configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
-  prepareDesktopUi(app)
+  configureAppStoragePaths(env.OPENWAGGLE_USER_DATA_DIR)
+  prepareDesktopUi()
 
   const singleInstance = env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1'
-  const instance = { host: app, ...launch, singleInstance, revealWindow: revealMainWindow }
+  const instance = {
+    host: systemIntegration,
+    ...launch,
+    singleInstance,
+    revealWindow: revealMainWindow,
+  }
   if (claimAppInstance(instance) === 'secondary') {
     logger.warn('Another OpenWaggle instance is already running; quitting this instance')
     if (env.OPENWAGGLE_AUTOMATION === '1') quitAutomationSecondInstance()
-    else app.quit()
+    else appLifecycle.quit()
     return
   }
 
   installSessionLinkProtocol({
-    host: app,
+    host: sessionLinkHost(),
     automation: isAutomationMode(),
     openLink: (url) => {
       if (requestOpenSessionLink(url)) revealMainWindow()
@@ -315,8 +322,10 @@ function startApp(launch: Extract<TopLevelCliLaunch, { readonly kind: 'gui' }>) 
   registerAppLifecycle()
 }
 
-const cliArguments = applicationCliArguments(process.argv, { isPackaged: app.isPackaged })
+const cliArguments = applicationCliArguments(process.argv, {
+  isPackaged: appLifecycle.isPackaged(),
+})
 
 const launch = startTopLevelCli(cliArguments)
 if (launch.kind === 'gui') startApp(launch)
-else forwardSessionLinksFromBackgroundProcess(app)
+else forwardSessionLinksFromBackgroundProcess(sessionLinkHost())

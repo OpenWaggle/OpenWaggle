@@ -13,7 +13,6 @@ import { AutomaticWorktreeRemovalLogStore } from '../ports/automatic-worktree-re
 import { GitWorktreeService } from '../ports/git-worktree-service'
 import { WorktreeSpaceService } from '../ports/worktree-space-service'
 import { removeHostUiWorktree } from './host-ui-worktree-operation'
-import { dispatchNonHostUiLocalSessionCommand } from './local-session-command-dispatcher'
 import { createCanonicalizer, gatherWorktreeUsageFacts, usageOfWorktree } from './worktree-usage'
 
 /** The registered linked worktree at `worktreePath`; main checkouts and other folders fail. */
@@ -51,7 +50,9 @@ export function measureWorktreeOperation(rawProjectPath: unknown, rawWorktreePat
  */
 function archiveSession(sessionId: string) {
   return Effect.gen(function* () {
-    const result = yield* dispatchNonHostUiLocalSessionCommand({
+    // Loaded on first use: the dispatcher reaches this module through Host UI requests.
+    const dispatcher = yield* Effect.promise(() => import('./local-session-command-dispatcher'))
+    const result = yield* dispatcher.dispatchNonHostUiLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'session-control-v2',

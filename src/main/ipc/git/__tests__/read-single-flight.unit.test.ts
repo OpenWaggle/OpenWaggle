@@ -16,7 +16,7 @@ vi.mock('../../../adapters/git/run-git', async (original) => ({
 }))
 vi.mock('../../../utils/broadcast', () => ({ broadcastToWindows: vi.fn() }))
 
-type ReadHandler = (event: unknown, path: unknown) => Effect<unknown, never, never>
+type ReadHandler = (event: unknown, path: unknown) => Effect<unknown>
 const handlers = new Map<string, ReadHandler>()
 vi.mock('../../typed-ipc', () => ({
   typedHandle: (channel: string, handler: ReadHandler) => handlers.set(channel, handler),

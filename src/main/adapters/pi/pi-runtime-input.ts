@@ -73,7 +73,9 @@ function buildImageContent(
   }
 }
 
-type PiInputCapabilities = { readonly input: readonly PiModel['input'][number][] }
+interface PiInputCapabilities {
+  readonly input: readonly PiModel['input'][number][]
+}
 
 function modelSupportsImage(model: PiInputCapabilities) {
   return model.input.includes('image')

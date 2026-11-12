@@ -183,10 +183,10 @@ describe('production Session Resource tool projection', () => {
           },
         }),
       },
-    ] satisfies ReadonlyArray<{
+    ] satisfies readonly {
       readonly kind: SessionResourceKind
       readonly message: Message
-    }>
+    }[]
 
     for (const scenario of scenarios) {
       const failedPassUpserts: UpsertSessionResourceInput[] = []

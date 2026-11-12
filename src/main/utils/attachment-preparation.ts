@@ -259,10 +259,9 @@ export async function prepareAttachmentFiles(input: {
     ? await assertCanonicalDirectoryRoots(input.allowedRoots, 'Profile attachment root')
     : undefined
   const snapshots = await Promise.all(
-    unique.map(async (entry) => ({
-      ...(await readAttachmentSnapshot(entry.path, entry.origin, roots, input.beforeRead)),
-      browserPreview: entry.browserPreview,
-      browserAnnotationText: entry.browserAnnotationText,
+    unique.map(async ({ path: entryPath, origin, ...browserContext }) => ({
+      ...(await readAttachmentSnapshot(entryPath, origin, roots, input.beforeRead)),
+      ...browserContext,
     })),
   )
   const totalSize = snapshots.reduce((sum, snapshot) => sum + snapshot.buffer.byteLength, 0)

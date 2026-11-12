@@ -159,7 +159,7 @@ function makeDocsBundleLayer() {
 
 function makeSettingsLayer(input: {
   readonly projectPath: string | null
-  readonly failure?: Error
+  readonly failure?: Error | undefined
 }) {
   if (input.failure === undefined) {
     return makeBrokerSettingsLayer(input.projectPath)

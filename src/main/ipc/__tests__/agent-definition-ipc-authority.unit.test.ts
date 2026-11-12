@@ -157,7 +157,7 @@ describe('Agent definition IPC authority', () => {
       }),
     ).rejects.toThrow('cannot be written by the UI')
 
-    const resolvedScopes: Array<string | undefined> = []
+    const resolvedScopes: (string | undefined)[] = []
     const refreshInput = {
       senderId: SENDER_ID,
       command: { operation: 'refresh-plan', projectPath, name: 'reviewer', scope: 'user' },

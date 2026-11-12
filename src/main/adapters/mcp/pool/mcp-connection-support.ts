@@ -64,12 +64,13 @@ export interface McpPooledConnectionOptions {
 }
 
 export class McpServerError extends Error {
-  constructor(
-    message: string,
-    readonly code: number,
-    readonly data?: unknown,
-  ) {
+  readonly code: number
+  readonly data: unknown
+
+  constructor(message: string, code: number, data?: unknown) {
     super(message)
+    this.code = code
+    this.data = data
     this.name = 'McpServerError'
   }
 }
@@ -109,14 +110,14 @@ export function errorResponse(id: JsonRpcId, code: number, message: string): Jso
 }
 
 export function progressTokenOf(params: unknown): JsonRpcId | undefined {
-  if (!isRecord(params) || !isRecord(params._meta)) return undefined
-  const token = params._meta.progressToken
+  if (!isRecord(params) || !isRecord(params['_meta'])) return undefined
+  const token = params['_meta']['progressToken']
   return isJsonRpcId(token) ? token : undefined
 }
 
 export function withProgressToken(params: unknown, token: JsonRpcId) {
-  if (!isRecord(params) || !isRecord(params._meta)) return params
-  return { ...params, _meta: { ...params._meta, progressToken: token } }
+  if (!isRecord(params) || !isRecord(params['_meta'])) return params
+  return { ...params, _meta: { ...params['_meta'], progressToken: token } }
 }
 
 /**

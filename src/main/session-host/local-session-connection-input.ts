@@ -28,7 +28,9 @@ export function bindLocalSessionConnectionInput(options: LocalSessionConnectionI
             await options.handleValue(value)
           }
         })
-        .catch((error) => options.failed('protocol_error', describeLocalSessionServerError(error)))
+        .catch((error: unknown) =>
+          options.failed('protocol_error', describeLocalSessionServerError(error)),
+        )
         .finally(() => {
           batch.release()
           if (!options.closed()) options.socket.resume()

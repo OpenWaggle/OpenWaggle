@@ -27,6 +27,12 @@ export function makeNativeModel(
   }
 }
 
+/** The model without `compat`, as from a provider that declares no compatibility flags. */
+export function withoutCompat(model: Model<'openai-responses'>): Model<'openai-responses'> {
+  const { compat: _compat, ...rest } = model
+  return rest
+}
+
 export function makePreparation(): Parameters<typeof compact>[0] {
   const portableFallback: Parameters<typeof compact>[0] = {
     firstKeptEntryId: 'kept-entry',

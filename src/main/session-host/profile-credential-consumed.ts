@@ -57,7 +57,7 @@ export async function markConsumedPending(
   const sourceLocation = path.join(input.stagingDirectory, sourceName)
   const markerName = consumedMarkerName(prefix, sourceName, sourceIdentity)
   const markerHandle = await openUnlinkedCredentialSource(CONSUMED_MARKER_CONTENT).catch(
-    (cause) => {
+    (cause: unknown) => {
       throw new ProfileCredentialPendingRecoveryError(sourceLocation, { cause })
     },
   )

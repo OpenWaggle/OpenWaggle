@@ -11,7 +11,7 @@ export interface DeliveryTracker {
   readonly entriesBefore: number
   readonly steerTextsBefore: readonly string[]
   readonly inFlightUserTextsBefore: ReadonlyMap<string, number>
-  readonly candidates: Array<{ readonly message: object; readonly originalText: string }>
+  readonly candidates: { readonly message: object; readonly originalText: string }[]
 }
 
 /** Snapshot what Pi already holds, so an identical earlier message is not taken for this steer. */

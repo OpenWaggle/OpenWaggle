@@ -6,7 +6,7 @@ import { BASE_TEN } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
 import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { getSourceControlCliEnv } from '../env'
 import { createLogger, getLogFilePath, sessionHostLogPathFor } from '../logger'
 import { userFacingErrorDetail } from '../utils/describe-error'
@@ -52,7 +52,7 @@ function humanOsName() {
 function collectDiagnostics(): DiagnosticsInfo {
   return {
     os: humanOsName(),
-    appVersion: app.getVersion(),
+    appVersion: appLifecycle.version(),
     electronVersion: process.versions.electron,
     nodeVersion: process.versions.node,
     arch: process.arch,
@@ -194,21 +194,23 @@ async function buildMarkdownBody(payload: FeedbackPayload) {
 export function registerFeedbackHandlers(): void {
   typedHandle('feedback:check-gh', () =>
     Effect.gen(function* () {
-      const ghAvailable = yield* Effect.tryPromise({
-        try: () => execFilePromise('which', ['gh']).then(() => true),
-        catch: () => false,
-      })
+      // A failed command answers false; it is not an IPC failure.
+      const ghAvailable = yield* Effect.promise(() =>
+        execFilePromise('which', ['gh']).then(
+          () => true,
+          () => false,
+        ),
+      )
       if (!ghAvailable) {
         return { available: false, authenticated: false }
       }
 
-      const authenticated = yield* Effect.tryPromise({
-        try: () =>
-          execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
-            () => true,
-          ),
-        catch: () => false,
-      })
+      const authenticated = yield* Effect.promise(() =>
+        execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
+          () => true,
+          () => false,
+        ),
+      )
       return { available: true, authenticated }
     }),
   )

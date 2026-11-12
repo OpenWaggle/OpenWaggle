@@ -22,14 +22,16 @@ const occurrenceSchema = Schema.Struct({
 
 const sessionGitOutputsSchema = Schema.Struct({
   occurrence: occurrenceSchema,
-  commit: Schema.optional(
+  commit: Schema.optionalWith(
     Schema.Struct({
       commitHash: Schema.String.pipe(Schema.minLength(1)),
       summary: Schema.String,
     }),
+    { exact: true },
   ),
-  changeRequest: Schema.optional(
+  changeRequest: Schema.optionalWith(
     Schema.Struct({ title: Schema.String, url: Schema.String.pipe(Schema.minLength(1)) }),
+    { exact: true },
   ),
 })
 

@@ -1,6 +1,6 @@
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { vi } from 'vitest'
+import { type Mock, vi } from 'vitest'
 import type * as AttachmentsHandler from '../attachments-handler'
 import { resetAttachmentExtractionMocks } from './attachment-extraction-mocks.test-support'
 import {
@@ -9,6 +9,8 @@ import {
 } from './attachment-file-handle.test-support'
 
 type TestMock = ReturnType<typeof vi.fn>
+/** A stand-in for an async `node:fs/promises` function. */
+type AsyncTestMock = Mock<(...args: never[]) => Promise<unknown>>
 
 interface AttachmentHandlerMocks {
   readonly typedHandleMock: TestMock
@@ -19,16 +21,16 @@ interface AttachmentHandlerMocks {
     readonly warn: TestMock
     readonly error: TestMock
   }
-  readonly statMock: TestMock
-  readonly readFileMock: TestMock
-  readonly writeFileMock: TestMock
-  readonly renameMock: TestMock
-  readonly rmMock: TestMock
-  readonly realpathMock: TestMock
-  readonly mkdirMock: TestMock
-  readonly openMock: TestMock
-  readonly readdirMock: TestMock
-  readonly unlinkMock: TestMock
+  readonly statMock: AsyncTestMock
+  readonly readFileMock: AsyncTestMock
+  readonly writeFileMock: AsyncTestMock
+  readonly renameMock: AsyncTestMock
+  readonly rmMock: AsyncTestMock
+  readonly realpathMock: AsyncTestMock
+  readonly mkdirMock: AsyncTestMock
+  readonly openMock: AsyncTestMock
+  readonly readdirMock: AsyncTestMock
+  readonly unlinkMock: AsyncTestMock
   readonly appGetPathMock: TestMock
   readonly broadcastToWindowsMock: TestMock
   readonly showMessageBoxMock: TestMock
@@ -66,16 +68,16 @@ export const typedHandleMock: TestMock = mocks.typedHandleMock
 export const createLoggerMock: TestMock = mocks.createLoggerMock
 export const attachmentsLoggerMock: AttachmentHandlerMocks['attachmentsLoggerMock'] =
   mocks.attachmentsLoggerMock
-export const statMock: TestMock = mocks.statMock
-export const readFileMock: TestMock = mocks.readFileMock
-export const writeFileMock: TestMock = mocks.writeFileMock
-export const renameMock: TestMock = mocks.renameMock
-export const rmMock: TestMock = mocks.rmMock
-export const realpathMock: TestMock = mocks.realpathMock
-export const mkdirMock: TestMock = mocks.mkdirMock
-export const openMock: TestMock = mocks.openMock
-export const readdirMock: TestMock = mocks.readdirMock
-export const unlinkMock: TestMock = mocks.unlinkMock
+export const statMock: AsyncTestMock = mocks.statMock
+export const readFileMock: AsyncTestMock = mocks.readFileMock
+export const writeFileMock: AsyncTestMock = mocks.writeFileMock
+export const renameMock: AsyncTestMock = mocks.renameMock
+export const rmMock: AsyncTestMock = mocks.rmMock
+export const realpathMock: AsyncTestMock = mocks.realpathMock
+export const mkdirMock: AsyncTestMock = mocks.mkdirMock
+export const openMock: AsyncTestMock = mocks.openMock
+export const readdirMock: AsyncTestMock = mocks.readdirMock
+export const unlinkMock: AsyncTestMock = mocks.unlinkMock
 export const appGetPathMock: TestMock = mocks.appGetPathMock
 export const broadcastToWindowsMock: TestMock = mocks.broadcastToWindowsMock
 export const showMessageBoxMock: TestMock = mocks.showMessageBoxMock

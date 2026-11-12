@@ -27,11 +27,18 @@ export class LocalSessionOutboundLeases {
   private readonly bytesByOwner = new Map<LocalSessionOutboundOwner, number>()
   private readonly evictedOwners = new WeakSet<LocalSessionOutboundOwner>()
 
+  private readonly clock: LocalSessionHostLiveClock
+  /** How long a frame stays unread before its connection counts as stopped. */
+  private readonly stoppedAfterMs: number
+
   constructor(
-    private readonly clock: LocalSessionHostLiveClock,
-    /** How long a frame stays unread before its connection counts as stopped. */
-    private readonly stoppedAfterMs: number,
-  ) {}
+    clock: LocalSessionHostLiveClock,
+
+    stoppedAfterMs: number,
+  ) {
+    this.clock = clock
+    this.stoppedAfterMs = stoppedAfterMs
+  }
 
   add(bytes: number, owner: LocalSessionOutboundOwner | undefined): RetainedOutboundLease {
     const lease: RetainedOutboundLease = { bytes, owner, progressAt: this.clock.now() }

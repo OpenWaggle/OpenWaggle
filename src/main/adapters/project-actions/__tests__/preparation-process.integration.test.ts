@@ -23,7 +23,7 @@ const shellCases = [
     value: 'zsh',
   },
   {
-    shell: getSessionHostChildEnv().OPENWAGGLE_QA_FISH ?? '/usr/bin/fish',
+    shell: getSessionHostChildEnv()['OPENWAGGLE_QA_FISH'] ?? '/usr/bin/fish',
     command: 'set -gx OW_SELECTED_SHELL fish; exit 0',
     value: 'fish',
   },
@@ -56,7 +56,7 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
         onOutput: () => {},
       })
       expect(prepared.exitCode).toBe(0)
-      expect(prepared.environment.HTTPS_PROXY).toBeNull()
+      expect(prepared.environment['HTTPS_PROXY']).toBeNull()
       const command = `test -z "\${HTTPS_PROXY+x}" && test "$OW_READY" = yes`
       const action = await runner.start({
         invocation: { type: 'command', command, cwd: directory },
@@ -102,7 +102,7 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
           invocation: { type: 'command', command, directory: '.' },
         })
         expect(result).toMatchObject({ exitCode: 0, environment: { OW_SELECTED_SHELL: value } })
-        if (value !== 'fish') expect(result.environment.OW_SOURCED_VALUE).toBe('loaded')
+        if (value !== 'fish') expect(result.environment['OW_SOURCED_VALUE']).toBe('loaded')
         const failed = await execute({
           ...input,
           invocation: { type: 'command', command: 'exit 9', directory: '.' },

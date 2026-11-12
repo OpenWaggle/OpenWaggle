@@ -304,21 +304,19 @@ describe('a Session agent archiving its own Session', () => {
     ])
   }, 45_000)
 
-  it('does not archive when the Run that asked is stopped', async () => {
-    const result = await runScenario(database('interrupted'), { terminalStatus: 'interrupted' })
+  it.each([
+    ['is stopped', 'interrupted'],
+    ['fails', 'failed'],
+  ] as const)(
+    'does not archive when the Run that asked %s',
+    async (_label, terminalStatus) => {
+      const result = await runScenario(database(terminalStatus), { terminalStatus })
 
-    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
-    expect(result.archivedAfterRun).toBe(false)
-    expect(result.runs).toEqual([{ id: result.runId, status: 'interrupted' }])
-    expect(result.journal).toEqual([])
-  }, 45_000)
-
-  it('does not archive when the Run that asked fails', async () => {
-    const result = await runScenario(database('failed'), { terminalStatus: 'failed' })
-
-    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
-    expect(result.archivedAfterRun).toBe(false)
-    expect(result.runs).toEqual([{ id: result.runId, status: 'failed' }])
-    expect(result.journal).toEqual([])
-  }, 45_000)
+      expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
+      expect(result.archivedAfterRun).toBe(false)
+      expect(result.runs).toEqual([{ id: result.runId, status: terminalStatus }])
+      expect(result.journal).toEqual([])
+    },
+    45_000,
+  )
 })

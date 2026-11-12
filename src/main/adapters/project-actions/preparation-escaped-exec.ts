@@ -59,7 +59,7 @@ function isEscapedExecPrefix(command: string, index: number) {
 }
 
 function isCommentStart(command: string, index: number) {
-  return command[index] === '#' && (index === 0 || /[\s;&|(){}]/.test(command[index - 1]))
+  return command[index] === '#' && (index === 0 || /[\s;&|(){}]/.test(command.charAt(index - 1)))
 }
 
 function visitNewline(command: string, index: number, state: ScanState) {
@@ -67,8 +67,9 @@ function visitNewline(command: string, index: number, state: ScanState) {
   state.comment = false
   if (state.heredoc) {
     const line = command.slice(state.lineStart, index)
-    if ((state.heredoc.stripTabs ? line.replace(/^\t+/, '') : line) === state.heredoc.delimiter)
+    if ((state.heredoc.stripTabs ? line.replace(/^\t+/, '') : line) === state.heredoc.delimiter) {
       state.heredoc = undefined
+    }
   }
   if (!state.heredoc) state.heredoc = state.pendingHeredocs.shift()
   state.lineStart = index + 1
@@ -131,8 +132,9 @@ function visitCommandWord(command: string, index: number, state: ScanState) {
   if (
     isEscapedExecPrefix(command, index) &&
     isEvalCommandPosition(command, index, state.commandStart)
-  )
+  ) {
     return index
+  }
   return undefined
 }
 
@@ -182,8 +184,9 @@ function visitSubstitutionBoundary(command: string, index: number, state: ScanSt
     character === '(' &&
     state.substitutionDepth > 0 &&
     !isCasePatternOpening(command, index, state)
-  )
+  ) {
     state.substitutionDepth += 1
+  }
   if (character !== ')' || state.substitutionDepth === 0) return undefined
   if (arm?.depth === state.substitutionDepth && arm.phase === 'pattern') {
     arm.phase = 'body'
@@ -251,7 +254,8 @@ export function enableEscapedExecCapture(
     caseArms: [],
     quotedBuiltinSyntax,
   }
-  for (let index = 0; index < command.length; index += 1)
+  for (let index = 0; index < command.length; index += 1) {
     index = visitCharacter(command, index, state)
+  }
   return state.result
 }

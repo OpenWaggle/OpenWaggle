@@ -112,8 +112,9 @@ export function getMcpImportPaths(options: McpImportPathOptions): readonly McpIm
   ]
   const unique = new Map<string, McpImportPath>()
   for (const candidate of paths) {
-    if (selected.has(candidate.source))
+    if (selected.has(candidate.source)) {
       unique.set(`${candidate.source}\0${candidate.path}`, candidate)
+    }
   }
   return [...unique.values()]
 }

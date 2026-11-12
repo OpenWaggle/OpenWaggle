@@ -150,7 +150,7 @@ function applyOverride(
   }
   const baseOn = base.offByOverride === true || base.config.enabled !== false
   const offByOverride =
-    'enabled' in value ? value.enabled === false && baseOn : base.offByOverride === true
+    'enabled' in value ? value['enabled'] === false && baseOn : base.offByOverride === true
   const { offByOverride: _previous, ...rest } = base
   state.servers.set(name, {
     ...rest,
@@ -205,19 +205,22 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
   const parsed = content.value
   if (
     !isJsonRecord(parsed) ||
-    (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))
+    (parsed['mcpServers'] !== undefined && !isJsonRecord(parsed['mcpServers']))
   ) {
     state.unreadLayer = true
     state.errors.push(`${layer.path}: expected an object with an "mcpServers" object`)
     return
   }
-  if (typeof parsed.autoEnableCodemode === 'boolean') {
-    state.autoEnableCodemode = parsed.autoEnableCodemode
+  if (typeof parsed['autoEnableCodemode'] === 'boolean') {
+    state.autoEnableCodemode = parsed['autoEnableCodemode']
   }
-  if (parsed.autoEnableCodemode !== undefined && typeof parsed.autoEnableCodemode !== 'boolean') {
+  if (
+    parsed['autoEnableCodemode'] !== undefined &&
+    typeof parsed['autoEnableCodemode'] !== 'boolean'
+  ) {
     state.errors.push(`${layer.path}: autoEnableCodemode must be a boolean`)
   }
-  const servers = isJsonRecord(parsed.mcpServers) ? parsed.mcpServers : {}
+  const servers = isJsonRecord(parsed['mcpServers']) ? parsed['mcpServers'] : {}
   for (const [name, value] of Object.entries(servers)) {
     if (!isFirst && isJsonRecord(value) && isMcpOverrideEntry(value)) {
       applyOverride(state, layer, name, value)

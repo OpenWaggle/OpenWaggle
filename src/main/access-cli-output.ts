@@ -10,17 +10,12 @@ import { CliError } from './cli-error'
 import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
 import {
   classifySessionsCliError,
-  SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
   type SessionsCliErrorKind,
   sessionsCliResponseText,
   writeSessionsCliError,
 } from './sessions-cli-output'
 
-export const ACCESS_CLI_OUTPUT_SCHEMA_VERSION = SESSIONS_CLI_OUTPUT_SCHEMA_VERSION
-
 export class AmbiguousProfileOperationError extends Error {
-  readonly preserveStagedCredential = true
-
   constructor(message: string, options?: ErrorOptions) {
     super(message, options)
     this.name = 'AmbiguousProfileOperationError'
@@ -170,8 +165,9 @@ export function accessCliResponseText(input: {
           },
         }
       : input.response
-  if (input.json)
+  if (input.json) {
     return sessionsCliResponseText(`access profiles ${input.operation}`, response, true)
+  }
   const destination = input.response.credentialDestination
   return `${[
     humanAccessOutcome(response.outcome),

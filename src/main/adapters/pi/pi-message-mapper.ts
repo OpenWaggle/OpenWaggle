@@ -8,12 +8,12 @@ function makeProjectedMessage(
   role: 'user' | 'assistant' | 'system',
   parts: MessagePart[],
   model?: string,
-) {
+): Message {
   return {
     id: MessageId(randomUUID()),
     role,
     parts,
-    model: model ? SupportedModelId(model) : undefined,
+    ...(model ? { model: SupportedModelId(model) } : {}),
     createdAt: Date.now(),
   }
 }
@@ -38,7 +38,12 @@ export function toJsonValue(value: unknown): JsonValue {
     )
   }
 
-  return String(value)
+  // JSON has no value for these, so they keep their text.
+  if (typeof value === 'bigint' || typeof value === 'symbol' || typeof value === 'function') {
+    return value.toString()
+  }
+  // Every other type returned above.
+  return 'undefined'
 }
 
 export function toJsonObject(value: unknown): JsonObject {
@@ -54,12 +59,12 @@ function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined
     return fallbackArgs ?? {}
   }
 
-  const args = toJsonObject(details.args)
+  const args = toJsonObject(details['args'])
   return Object.keys(args).length > 0 ? args : (fallbackArgs ?? {})
 }
 
 function toToolResultDuration(details: unknown) {
-  return isRecord(details) && typeof details.duration === 'number' ? details.duration : 0
+  return isRecord(details) && typeof details['duration'] === 'number' ? details['duration'] : 0
 }
 
 function toProjectedToolResultValue(content: readonly unknown[], details: unknown) {
@@ -120,14 +125,14 @@ function projectAssistantPart(
   part: unknown,
   toolCallArgs: Map<string, JsonObject>,
 ): MessagePart | null {
-  if (!isRecord(part) || typeof part.type !== 'string') {
+  if (!isRecord(part) || typeof part['type'] !== 'string') {
     return null
   }
-  if (part.type === 'text' && typeof part.text === 'string') {
-    return { type: 'text', text: part.text }
+  if (part['type'] === 'text' && typeof part['text'] === 'string') {
+    return { type: 'text', text: part['text'] }
   }
-  if (part.type === 'thinking' && typeof part.thinking === 'string') {
-    return { type: 'reasoning', text: part.thinking }
+  if (part['type'] === 'thinking' && typeof part['thinking'] === 'string') {
+    return { type: 'reasoning', text: part['thinking'] }
   }
   return isPiToolCallContent(part) ? projectToolCallPart(part, toolCallArgs) : null
 }
@@ -135,10 +140,10 @@ function projectAssistantPart(
 function isPiToolCallContent(part: unknown): part is PiToolCallContent {
   return (
     isRecord(part) &&
-    part.type === 'toolCall' &&
-    typeof part.id === 'string' &&
-    typeof part.name === 'string' &&
-    isRecord(part.arguments)
+    part['type'] === 'toolCall' &&
+    typeof part['id'] === 'string' &&
+    typeof part['name'] === 'string' &&
+    isRecord(part['arguments'])
   )
 }
 
@@ -188,7 +193,7 @@ function projectToolResultPart(
       result: Array.isArray(message.content)
         ? toProjectedToolResultValue(message.content, message.details)
         : '',
-      isError: message.isError === true,
+      isError: message.isError,
       duration: toToolResultDuration(message.details),
       details: toJsonValue(message.details ?? null),
     },
@@ -209,7 +214,7 @@ function handleToolResultMessage(
 }
 
 export function piHistoryToProjectedMessages(
-  messages: ReadonlyArray<PiProjectedHistoryMessage>,
+  messages: readonly PiProjectedHistoryMessage[],
 ): Message[] {
   const state: PiProjectionState = {
     result: [],

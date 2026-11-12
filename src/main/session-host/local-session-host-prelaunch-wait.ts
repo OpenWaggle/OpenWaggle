@@ -35,11 +35,11 @@ export async function waitForPrelaunchedLocalSessionHost(
 ) {
   let answered = false
   let handingOver = false
-  let lastError: unknown = null
+  let lastFailure: { readonly error: unknown } | undefined
   const settled = await waitForCondition({
     timeoutMs: input.timeoutMs ?? PRELAUNCHED_HOST_ANSWER_TIMEOUT_MS,
     dependencies,
-    signal: input.signal,
+    ...(input.signal ? { signal: input.signal } : {}),
     condition: async () => {
       if (input.prelaunch.hasEnded()) return true
       const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
@@ -62,11 +62,11 @@ export async function waitForPrelaunchedLocalSessionHost(
           return true
         }
         // It may still be opening; kept, so a Host that never accepts the window says why.
-        lastError = error
+        lastFailure = { error }
         return false
       }
     },
   })
-  if (!settled && !handingOver && lastError !== null) throw lastError
+  if (!settled && !handingOver && lastFailure) throw lastFailure.error
   return answered
 }

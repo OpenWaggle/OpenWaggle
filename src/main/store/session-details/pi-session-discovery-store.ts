@@ -300,7 +300,7 @@ export async function getPiSessionProjectionState(
           ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(sessionId) }
           : {}),
         projectedPiEntryCount: nodes.length - auditNodes,
-        projectedNodeIds: new Set(nodes.map((node) => String(node.id))),
+        projectedNodeIds: new Set(nodes.map((node) => node.id)),
         revision,
         fingerprint,
         projectedTail,

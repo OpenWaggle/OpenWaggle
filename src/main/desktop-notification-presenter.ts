@@ -8,14 +8,12 @@ import { DEFAULT_DESKTOP_NOTIFICATION_SETTINGS } from '@shared/types/desktop-not
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import { sessionLink } from '@shared/utils/session-link'
 import * as Schema from 'effect/Schema'
-import type { BrowserWindow, Notification as NativeNotification } from 'electron'
 import { nativeNotificationBody } from './adapters/electron-desktop-notification-host-presenter'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { BADGE_OVERLAY_SIZE, badgeOverlayPixels } from './desktop-notification-badge-overlay'
 import {
   getAllBrowserWindows,
   getFocusedBrowserWindow,
-  nativeImageFromBitmap,
   nativeNotificationsSupported,
   playSystemAlertSound,
   removeDeliveredNativeNotification,
@@ -30,6 +28,8 @@ import {
 } from './domain/desktop-notifications/desktop-notification-presentation'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
+import type { DesktopWindow } from './ports/desktop-shell/desktop-windows'
+import type { SystemNotificationHandle } from './ports/desktop-shell/system-notifications'
 import { requestOpenSessionLink } from './session-link-requests'
 import type * as SettingsStore from './store/settings'
 import { broadcastToWindows } from './utils/broadcast'
@@ -46,7 +46,7 @@ interface PresenterState {
   /** The GUI's Host-hydrated settings store, loaded on demand like the rest of the backend. */
   settingsStore: typeof SettingsStore | null
   readonly outstanding: Map<string, DesktopNotification>
-  readonly shown: Map<string, NativeNotification>
+  readonly shown: Map<string, SystemNotificationHandle>
   viewingSessionId: string | null
   permission: DesktopNotificationPermissionStatus
   /** The count the Windows overlay shows, 0 while it is hidden. */
@@ -221,14 +221,14 @@ export function refreshDesktopNotificationBadge() {
   setApplicationBadgeCount(count)
 }
 
-function applyWindowsOverlay(window: BrowserWindow, count: number) {
+function applyWindowsOverlay(window: DesktopWindow, count: number) {
   const update = windowsBadgeOverlayUpdate(state.overlayCount, count)
   if (!update) return
   state.overlayCount = count
   setWindowOverlayIcon(
     window,
     update.show
-      ? nativeImageFromBitmap(badgeOverlayPixels(), BADGE_OVERLAY_SIZE, BADGE_OVERLAY_SIZE)
+      ? { pixels: badgeOverlayPixels(), width: BADGE_OVERLAY_SIZE, height: BADGE_OVERLAY_SIZE }
       : null,
     update.description,
   )
@@ -293,13 +293,4 @@ export function sendTestDesktopNotification() {
   )
   if (native) state.shown.set(sample.id, native)
   return state.permission
-}
-
-export function resetDesktopNotificationPresenterForTests() {
-  state.input = null
-  state.outstanding.clear()
-  state.shown.clear()
-  state.viewingSessionId = null
-  state.permission = 'not-asked'
-  state.overlayCount = 0
 }

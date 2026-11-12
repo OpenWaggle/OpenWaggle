@@ -78,7 +78,7 @@ export function continueWithPiSessionSettings(
   state: PiSessionProjectionState,
   snapshot: PiSessionFileSnapshot,
   options: ContinuationOptions = {},
-): Effect.Effect<ContinuationOutcome, never, never> {
+): Effect.Effect<ContinuationOutcome> {
   const changeOptions: SessionSettingChangeOptions = options.forRun
     ? { forRun: options.forRun }
     : {}

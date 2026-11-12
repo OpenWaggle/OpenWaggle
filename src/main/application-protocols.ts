@@ -6,8 +6,8 @@ import { registerRendererProtocolOnce } from './renderer-protocol'
 import { registerSessionResourceProtocolOnce } from './session-resource-protocol'
 
 type InlineVisualizationReader = NonNullable<
-  Parameters<typeof registerInlineVisualizationProtocolOnce>[0]
->['readSource']
+  NonNullable<Parameters<typeof registerInlineVisualizationProtocolOnce>[0]>['readSource']
+>
 
 export function registerApplicationProtocols(input: {
   readonly readInlineVisualizationSource: InlineVisualizationReader

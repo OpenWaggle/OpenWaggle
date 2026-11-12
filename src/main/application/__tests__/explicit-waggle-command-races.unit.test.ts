@@ -130,7 +130,7 @@ function runWaggleCommand(withAttachment = false, hostRunCeiling?: number) {
     Effect.provideService(ExplicitWaggleOperationJournal, operationJournal),
     Effect.provideService(SessionProjectionRepository, sessionProjection),
   )
-  return Effect.runPromise(fromAny<Effect.Effect<unknown, Error, never>, unknown>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<unknown, Error>, unknown>(effect))
 }
 
 describe('explicit Waggle command cleanup and admission races', () => {

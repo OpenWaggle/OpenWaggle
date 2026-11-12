@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
 import { link, open, realpath, rename, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import { assertFilesystemWriteScope } from '../utils/filesystem-write-scope'
 import {
@@ -195,9 +196,9 @@ export async function installArtifactDescriptorInBoundDirectory(
       input.overwriteExisting ? 'overwrite' : 'create',
     ]
     await input.beforeSpawn?.()
-    const child = spawn(process.execPath, scriptArguments, {
+    const child = spawn(childScriptRuntime.executable(), scriptArguments, {
       cwd: directory,
-      env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+      env: childScriptRuntime.environment(getSafeChildEnv()),
       stdio: ['pipe', 'pipe', 'pipe', input.sourceHandle.fd],
     })
     const exitCodePromise = waitForChildExit(child)

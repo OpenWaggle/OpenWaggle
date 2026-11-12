@@ -148,7 +148,7 @@ export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>)
     return Effect.runPromise(
       invokeExtensionCapability(invocation, {
         now: () => TIMESTAMP,
-        invocationBinding,
+        ...(invocationBinding === undefined ? {} : { invocationBinding }),
       }).pipe(Effect.provide(layer)),
     )
   }

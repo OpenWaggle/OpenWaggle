@@ -2,15 +2,9 @@ import { existsSync } from 'node:fs'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import type { SessionWorktreeCheck } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import {
-  worktreeCreatePayloadSchema,
-  worktreeRemovePayloadSchema,
-} from '../../application/host-ui-worktree-operation'
 import { hostHandle, typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
 import { listGitWorktrees } from './worktree-service'
-
-export { worktreeCreatePayloadSchema, worktreeRemovePayloadSchema }
 
 export function registerGitWorktreeHandlers(): void {
   typedHandle('git:worktrees:list', (_event, rawPath: unknown) =>

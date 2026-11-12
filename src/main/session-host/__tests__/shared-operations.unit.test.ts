@@ -7,7 +7,7 @@ function deferred() {
 
 describe('shared operations', () => {
   it('runs one operation for callers that arrive while it runs', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     const done = deferred()
     const operation = vi.fn(() => done.promise)
@@ -21,7 +21,7 @@ describe('shared operations', () => {
   })
 
   it('runs again once the previous operation settled', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     const operation = vi.fn(async () => undefined)
 
@@ -32,7 +32,7 @@ describe('shared operations', () => {
   })
 
   it('keeps separate operations for separate keys and owners', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     const operation = vi.fn(async () => undefined)
 
@@ -46,7 +46,7 @@ describe('shared operations', () => {
   })
 
   it('gives every caller the operation failure', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     const operation = async () => {
       throw new Error('launch failed')
@@ -61,7 +61,7 @@ describe('shared operations', () => {
   })
 
   it('stops only the aborting caller while another still waits', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     const done = deferred()
     let operationSignal: AbortSignal | undefined
@@ -83,7 +83,7 @@ describe('shared operations', () => {
   })
 
   it('aborts the operation once every waiting caller has aborted', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     let operationSignal: AbortSignal | undefined
     const operation = (signal: AbortSignal) => {
@@ -106,7 +106,7 @@ describe('shared operations', () => {
   })
 
   it('starts afresh for a caller that arrives after every waiter aborted', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     const signals: AbortSignal[] = []
     const operation = (signal: AbortSignal) => {
@@ -131,7 +131,7 @@ describe('shared operations', () => {
   })
 
   it('keeps a fresh run when the aborted run it replaced settles', async () => {
-    const shared = makeSharedOperations<object>()
+    const shared = makeSharedOperations()
     const owner = {}
     const fresh = deferred()
     let runs = 0

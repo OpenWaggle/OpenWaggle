@@ -24,7 +24,7 @@ const toolCallRequestSchema = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   args: sessionJsonObjectSchema,
-  state: Schema.optional(Schema.Literal('input-complete')),
+  state: Schema.optionalWith(Schema.Literal('input-complete'), { exact: true }),
 })
 
 const toolCallResultSchema = Schema.Struct({
@@ -34,8 +34,8 @@ const toolCallResultSchema = Schema.Struct({
   result: sessionJsonValueSchema,
   isError: Schema.Boolean,
   duration: Schema.Number,
-  details: Schema.optional(sessionJsonValueSchema),
-  nestedCalls: Schema.optional(nestedToolCallsSchema),
+  details: Schema.optionalWith(sessionJsonValueSchema, { exact: true }),
+  nestedCalls: Schema.optionalWith(nestedToolCallsSchema, { exact: true }),
 })
 
 const messagePartSchema = Schema.Union(
@@ -47,14 +47,15 @@ const messagePartSchema = Schema.Union(
     attachment: Schema.Struct({
       id: Schema.String,
       kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(
+      origin: Schema.optionalWith(
         Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
+        { exact: true },
       ),
       name: Schema.String,
       path: Schema.String,
       mimeType: Schema.String,
       sizeBytes: Schema.Number,
-      contentSha256: Schema.optional(Schema.String),
+      contentSha256: Schema.optionalWith(Schema.String, { exact: true }),
       extractedText: Schema.String,
     }),
   }),
@@ -63,21 +64,23 @@ const messagePartSchema = Schema.Union(
 )
 
 const messageMetadataSchema = Schema.Struct({
-  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
-  scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
-  hiveWake: Schema.optional(Schema.Literal(true)),
-  visualizationSessionId: Schema.optional(Schema.String),
-  waggle: Schema.optional(waggleMetadataSchema),
-  waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
-  selectedModel: Schema.optional(Schema.String),
-  stopReason: Schema.optional(Schema.String),
-  errorMessage: Schema.optional(Schema.NullOr(Schema.String)),
-  omittedFromContext: Schema.optional(Schema.Boolean),
+  durableTextSha256: Schema.optionalWith(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)), {
+    exact: true,
+  }),
+  scheduledTask: Schema.optionalWith(messageScheduledTaskOriginSchema, { exact: true }),
+  hiveWake: Schema.optionalWith(Schema.Literal(true), { exact: true }),
+  visualizationSessionId: Schema.optionalWith(Schema.String, { exact: true }),
+  waggle: Schema.optionalWith(waggleMetadataSchema, { exact: true }),
+  waggleInvocation: Schema.optionalWith(waggleInvocationMetadataSchema, { exact: true }),
+  selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
+  stopReason: Schema.optionalWith(Schema.String, { exact: true }),
+  errorMessage: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
+  omittedFromContext: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 const messageNodeContentSchema = Schema.Struct({
   parts: Schema.mutable(Schema.Array(messagePartSchema)),
-  model: Schema.optional(Schema.NullOr(Schema.String)),
+  model: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
 })
 
 type ParsedPart = SchemaType<typeof messagePartSchema>
@@ -90,25 +93,11 @@ function transformPart(part: ParsedPart) {
     .with('attachment', (value) => ({ type: 'attachment', attachment: value.attachment }))
     .with('tool-call', (value) => ({
       type: 'tool-call',
-      toolCall: {
-        id: ToolCallId(value.toolCall.id),
-        name: value.toolCall.name,
-        args: value.toolCall.args,
-        state: value.toolCall.state,
-      },
+      toolCall: { ...value.toolCall, id: ToolCallId(value.toolCall.id) },
     }))
     .with('tool-result', (value) => ({
       type: 'tool-result',
-      toolResult: {
-        id: ToolCallId(value.toolResult.id),
-        name: value.toolResult.name,
-        args: value.toolResult.args,
-        result: value.toolResult.result,
-        isError: value.toolResult.isError,
-        duration: value.toolResult.duration,
-        details: value.toolResult.details,
-        ...(value.toolResult.nestedCalls ? { nestedCalls: value.toolResult.nestedCalls } : {}),
-      },
+      toolResult: { ...value.toolResult, id: ToolCallId(value.toolResult.id) },
     }))
     .exhaustive()
 }
@@ -119,26 +108,34 @@ function hydrateMessageMetadata(raw: string) {
     return undefined
   }
 
-  const { stopReason, errorMessage, omittedFromContext, ...metadata } = parsedMetadata.data
+  const {
+    stopReason,
+    errorMessage,
+    omittedFromContext,
+    visualizationSessionId,
+    selectedModel,
+    waggle,
+    ...metadata
+  } = parsedMetadata.data
   // An attempt Pi retried and dropped from the context is not the turn's failure.
   const failed = stopReason === 'error' && errorMessage && omittedFromContext !== true
   return {
     ...metadata,
     ...(failed ? { error: errorMessage } : {}),
-    visualizationSessionId: parsedMetadata.data.visualizationSessionId
-      ? SessionId(parsedMetadata.data.visualizationSessionId)
-      : undefined,
-    selectedModel: parsedMetadata.data.selectedModel
-      ? SupportedModelId(parsedMetadata.data.selectedModel)
-      : undefined,
-    waggle: parsedMetadata.data.waggle
-      ? {
-          ...parsedMetadata.data.waggle,
-          agentModel: parsedMetadata.data.waggle.agentModel
-            ? SupportedModelId(parsedMetadata.data.waggle.agentModel)
-            : undefined,
-        }
-      : undefined,
+    ...(visualizationSessionId
+      ? { visualizationSessionId: SessionId(visualizationSessionId) }
+      : {}),
+    ...(selectedModel ? { selectedModel: SupportedModelId(selectedModel) } : {}),
+    ...(waggle ? { waggle: hydrateWaggleMetadata(waggle) } : {}),
+  }
+}
+
+function hydrateWaggleMetadata(waggle: SchemaType<typeof waggleMetadataSchema>) {
+  const { agentModel, sessionId, ...rest } = waggle
+  return {
+    ...rest,
+    ...(agentModel ? { agentModel: SupportedModelId(agentModel) } : {}),
+    ...(sessionId === undefined ? {} : { sessionId }),
   }
 }
 
@@ -159,7 +156,7 @@ export function hydrateSessionMessage(row: SessionNodeRow) {
     id: MessageId(row.id),
     role: row.role ?? 'assistant',
     parts: parsedContent.data.parts.map(transformPart),
-    model: modelId ? SupportedModelId(modelId) : undefined,
+    ...(modelId ? { model: SupportedModelId(modelId) } : {}),
     metadata: {
       ...hydrateMessageMetadata(row.metadata_json),
       sessionNodeCreatedOrder: row.created_order,
@@ -216,7 +213,11 @@ export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | 
       role: 'assistant',
       parts: [{ type: 'text', text: `Compaction summary\n\n${summary}` }],
       ...(tokensBefore !== null
-        ? { metadata: { compactionSummary: { summary, tokensBefore, reason } } }
+        ? {
+            metadata: {
+              compactionSummary: { summary, tokensBefore, ...(reason ? { reason } : {}) },
+            },
+          }
         : {}),
       createdAt: row.timestamp_ms,
     }

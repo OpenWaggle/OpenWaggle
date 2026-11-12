@@ -42,7 +42,7 @@ export function resolveEditorConfigIndentStyle(
 export function resolveEditorConfigPolicy(
   editorConfig: Readonly<Record<string, unknown>>,
 ): WorkspaceEditorConfigPolicy {
-  const charset = editorConfig.charset
+  const charset = editorConfig['charset']
   const encoding =
     charset === 'utf-8' ||
     charset === 'utf-8-bom' ||
@@ -50,16 +50,16 @@ export function resolveEditorConfigPolicy(
     charset === 'utf-16be'
       ? charset
       : undefined
-  const endOfLine = editorConfig.end_of_line
+  const endOfLine = editorConfig['end_of_line']
   const lineEnding = endOfLine === 'lf' || endOfLine === 'crlf' ? endOfLine : undefined
   return {
     ...(encoding ? { encoding } : {}),
     ...(lineEnding ? { lineEnding } : {}),
-    ...(typeof editorConfig.insert_final_newline === 'boolean'
-      ? { finalNewline: editorConfig.insert_final_newline }
+    ...(typeof editorConfig['insert_final_newline'] === 'boolean'
+      ? { finalNewline: editorConfig['insert_final_newline'] }
       : {}),
-    ...(typeof editorConfig.trim_trailing_whitespace === 'boolean'
-      ? { trimTrailingWhitespace: editorConfig.trim_trailing_whitespace }
+    ...(typeof editorConfig['trim_trailing_whitespace'] === 'boolean'
+      ? { trimTrailingWhitespace: editorConfig['trim_trailing_whitespace'] }
       : {}),
   }
 }

@@ -12,6 +12,7 @@ import {
   type SessionExportBundleManifest,
   type SessionExportManifest,
 } from '@shared/types/session-export'
+import { allInOrder } from '@shared/utils/all-in-order'
 import JSZip from 'jszip'
 
 const BUNDLE_MANIFEST_PATH = 'manifest.json'
@@ -172,12 +173,12 @@ export async function finalizeSessionExportBundle(input: {
   const transcript = input.sources.find((source) => source.path === BUNDLE_TRANSCRIPT_PATH)
   if (!transcript) throw new Error('Bundle transcript is missing.')
   await validateTranscript(transcript, input.signal)
-  const entries: SessionExportBundleEntry[] = []
-  for (const source of [...input.sources].sort((left, right) =>
-    left.path.localeCompare(right.path),
-  )) {
-    entries.push(await bundleEntry(source, input.signal))
-  }
+  // Each source is measured and hashed with positional reads, so all of them can be at once. The
+  // first failure in path order is the one reported, as when they were hashed in turn.
+  const sorted = [...input.sources].sort((left, right) => left.path.localeCompare(right.path))
+  const entries: SessionExportBundleEntry[] = await allInOrder(
+    sorted.map((source) => bundleEntry(source, input.signal)),
+  )
   const manifest = {
     schemaVersion: SESSION_EXPORT_BUNDLE_SCHEMA_VERSION,
     kind: 'openwaggle-session-export-bundle',

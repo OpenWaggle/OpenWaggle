@@ -22,7 +22,7 @@ type WorktreeRemoveHandler = (
 const handlers = new Map<string, WorktreeRemoveHandler>()
 
 const mocks = vi.hoisted(() => {
-  const statusInvalidations: Array<string | undefined> = []
+  const statusInvalidations: (string | undefined)[] = []
   return {
     removeGitWorktree: vi.fn(),
     statusInvalidations,
@@ -53,7 +53,7 @@ vi.mock('../../../services/git-status-cache', () => ({
   },
 }))
 
-const closeAllUnderPathCalls: Array<readonly [string, boolean]> = []
+const closeAllUnderPathCalls: (readonly [string, boolean])[] = []
 const operationOrder: string[] = []
 const mutationScopes: unknown[] = []
 let closeAllUnderPathFailure: Error | null = null

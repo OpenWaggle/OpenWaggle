@@ -1,11 +1,11 @@
 import type { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import type { WebContents } from 'electron'
 import { getAllBrowserWindows } from '../desktop-ui'
+import type { RendererSurface } from '../ports/desktop-shell/renderer-surfaces'
 import { AgentEventDelivery, type AgentEventTarget } from './agent-event-delivery'
 
 const agentEvents = new AgentEventDelivery()
-const trackedContents = new WeakSet<WebContents>()
+const trackedContents = new WeakSet<RendererSurface>()
 
 function liveWindows() {
   return getAllBrowserWindows().filter((win) => !win.isDestroyed())
@@ -66,7 +66,10 @@ export function readAfterFlushingSession<T>(sessionId: SessionId, read: () => T)
 }
 
 /** The Sessions a window shows, whose deltas it gets about 30 times a second. */
-export function setWindowShownSessions(webContents: WebContents, sessionIds: readonly SessionId[]) {
+export function setWindowShownSessions(
+  webContents: RendererSurface,
+  sessionIds: readonly SessionId[],
+) {
   agentEvents.setShownSessions(webContents.id, sessionIds)
   if (trackedContents.has(webContents)) return
   trackedContents.add(webContents)

@@ -10,8 +10,8 @@ import {
   type LocalSessionProfileUiCommand,
 } from '@shared/types/local-session-profile-management'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
 import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { appPaths } from '../desktop-shell/app-paths'
 import { resolveLocalSessionHostPaths } from '../session-host/local-session-paths'
 import {
   disconnectLocalSessionProfile,
@@ -45,11 +45,16 @@ type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>
 class UnknownProfileCredentialOutcomeError extends Error {
   readonly code = 'profile_credential_outcome_unknown'
 
+  readonly operation: LocalSessionProfileUiCommand['operation']
+  readonly profileName: string
+  readonly idempotencyKey: string
+  readonly recoveryLocation: string
+
   constructor(
-    readonly operation: LocalSessionProfileUiCommand['operation'],
-    readonly profileName: string,
-    readonly idempotencyKey: string,
-    readonly recoveryLocation: string,
+    operation: LocalSessionProfileUiCommand['operation'],
+    profileName: string,
+    idempotencyKey: string,
+    recoveryLocation: string,
   ) {
     super(
       `The ${operation} outcome for profile "${profileName}" is unknown. ` +
@@ -58,6 +63,10 @@ class UnknownProfileCredentialOutcomeError extends Error {
         'Confirm the Host outcome and recover the credential before removing it. ' +
         'A new GUI or CLI request is not a replay of this operation.',
     )
+    this.operation = operation
+    this.profileName = profileName
+    this.idempotencyKey = idempotencyKey
+    this.recoveryLocation = recoveryLocation
     this.name = 'UnknownProfileCredentialOutcomeError'
   }
 }
@@ -66,10 +75,14 @@ class RetainedProfileCredentialRecoveryError extends Error {
   readonly code = 'profile_credential_recovery_required'
   readonly outcome = 'rejected'
 
+  readonly operation: LocalSessionProfileUiCommand['operation']
+  readonly idempotencyKey: string
+  readonly recoveryLocation: string
+
   constructor(
-    readonly operation: LocalSessionProfileUiCommand['operation'],
-    readonly idempotencyKey: string,
-    readonly recoveryLocation: string,
+    operation: LocalSessionProfileUiCommand['operation'],
+    idempotencyKey: string,
+    recoveryLocation: string,
   ) {
     super(
       `The ${operation} request was rejected (operation reference: ${idempotencyKey}). ` +
@@ -77,6 +90,9 @@ class RetainedProfileCredentialRecoveryError extends Error {
         'The earlier outcome is unknown; confirm it and recover the credential before removing it. ' +
         'This reference belongs to the rejected request, not the earlier operation.',
     )
+    this.operation = operation
+    this.idempotencyKey = idempotencyKey
+    this.recoveryLocation = recoveryLocation
     this.name = 'RetainedProfileCredentialRecoveryError'
   }
 }
@@ -85,12 +101,18 @@ export class AcceptedProfileCredentialRecoveryError extends Error {
   readonly code = 'profile_credential_recovery_required'
   readonly additionalRecoveryLocations: readonly string[]
 
+  readonly operation: 'create' | 'rotate'
+  readonly profileId: string
+  readonly profileName: string
+  readonly idempotencyKey: string
+  readonly recoveryLocation: string
+
   constructor(
-    readonly operation: 'create' | 'rotate',
-    readonly profileId: string,
-    readonly profileName: string,
-    readonly idempotencyKey: string,
-    readonly recoveryLocation: string,
+    operation: 'create' | 'rotate',
+    profileId: string,
+    profileName: string,
+    idempotencyKey: string,
+    recoveryLocation: string,
     options: ErrorOptions & { readonly additionalRecoveryLocations?: readonly string[] },
   ) {
     const effect = operation === 'create' ? 'created' : 'rotated'
@@ -105,6 +127,11 @@ export class AcceptedProfileCredentialRecoveryError extends Error {
         'Recover the credential before removing it; a new GUI or CLI request is not a replay.',
       options,
     )
+    this.operation = operation
+    this.profileId = profileId
+    this.profileName = profileName
+    this.idempotencyKey = idempotencyKey
+    this.recoveryLocation = recoveryLocation
     this.name = 'AcceptedProfileCredentialRecoveryError'
     this.additionalRecoveryLocations = additionalRecoveryLocations
   }
@@ -216,7 +243,7 @@ export function registerProfileAccessHandlers() {
       const credential = generateCommandCredential(command)
       const idempotencyKey = randomUUID()
       const profileName = commandProfileName(command)
-      const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
+      const paths = resolveLocalSessionHostPaths({ userDataRoot: appPaths.userData() })
       const staged = yield* stageCommandCredential({
         command,
         credential,

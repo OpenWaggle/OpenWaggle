@@ -2,7 +2,8 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
 import { assertDesktopNativeAdmission } from '../../desktop-native-admission'
-import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
+import { getInteractiveTerminalEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { observeTerminalProcessLifecycle } from './terminal-process-exit-observation'
 import { installTerminalProcessKernelApi } from './terminal-process-kernel-api'
@@ -37,7 +38,6 @@ const logger = createLogger('terminal-pty-runner')
 
 const MIN_SPAWN_COLS = TERMINAL.MIN_COLS
 const MIN_SPAWN_ROWS = TERMINAL.MIN_ROWS
-export const SPAWN_FAILURE_EXIT_CODE = -1
 
 /**
  * node-pty 1.1.0 creates the master-side tty.ReadStream without resuming it.

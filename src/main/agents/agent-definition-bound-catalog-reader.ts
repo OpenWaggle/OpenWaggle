@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
@@ -58,7 +59,7 @@ export interface BoundAgentDefinitionSource {
 }
 
 export function agentDefinitionCatalogChildEnvironment() {
-  return { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' }
+  return childScriptRuntime.environment(getSafeChildEnv())
 }
 
 function filesystemCode(error: unknown) {
@@ -166,8 +167,9 @@ async function readChildOutput(child: ReturnType<typeof spawn>) {
     )
   }
   const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-  if (!Array.isArray(value))
+  if (!Array.isArray(value)) {
     throw new Error('Agent definition catalog reader returned invalid data.')
+  }
   return value.map((entry: unknown) => {
     if (
       typeof entry !== 'object' ||
@@ -194,7 +196,7 @@ export async function readBoundAgentDefinitionSources(input: {
   if (!bound) return []
   await input.beforeRead?.()
   return readChildOutput(
-    spawn(process.execPath, ['-e', BOUND_CATALOG_READER, bound.identity], {
+    spawn(childScriptRuntime.executable(), ['-e', BOUND_CATALOG_READER, bound.identity], {
       cwd: bound.path,
       env: agentDefinitionCatalogChildEnvironment(),
       stdio: ['ignore', 'pipe', 'pipe'],

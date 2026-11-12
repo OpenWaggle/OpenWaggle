@@ -5,6 +5,7 @@ import {
   type StartedDesktopShellEnvironment,
   startDesktopShellEnvironment,
 } from './desktop-shell-environment-start'
+import { liveProcessEnvironment } from './env'
 
 let desktopShellEnvironment: StartedDesktopShellEnvironment | null = null
 let cacheRefreshStartedAt: number | null = null
@@ -18,6 +19,16 @@ function userLoginShell() {
     return userInfo().shell || undefined
   } catch {
     return undefined
+  }
+}
+
+/** The login shell and uid of this process's user, leaving out the ones it does not have. */
+function processUserIdentity(): { readonly userShell?: string; readonly uid?: number } {
+  const userShell = userLoginShell()
+  const uid = process.getuid?.()
+  return {
+    ...(userShell === undefined ? {} : { userShell }),
+    ...(uid === undefined ? {} : { uid }),
   }
 }
 
@@ -48,8 +59,7 @@ export function installProcessDesktopShellEnvironment(
   desktopShellEnvironment = startDesktopShellEnvironment({
     env: environment,
     platform: process.platform,
-    userShell: userLoginShell(),
-    uid: process.getuid?.(),
+    ...processUserIdentity(),
     exists: existsSync,
     ...(options.cacheFile ? { cache: fileShellEnvironmentCache(options.cacheFile) } : {}),
     writeCache: writesCache,
@@ -63,6 +73,13 @@ export function installProcessDesktopShellEnvironment(
         }),
   })
   return desktopShellEnvironment
+}
+
+/** Hydrates this process's environment from the login shell. */
+export function installDesktopShellEnvironment(
+  options: ProcessDesktopShellEnvironmentOptions = {},
+) {
+  return installProcessDesktopShellEnvironment(liveProcessEnvironment(), options)
 }
 
 /**

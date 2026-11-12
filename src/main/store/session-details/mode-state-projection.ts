@@ -26,11 +26,11 @@ function modeStateFromNode(node: ProjectedSessionNodeInput) {
   if (node.piEntryType !== 'custom') return null
 
   const content = parseJsonValue(node.contentJson)
-  if (!isRecord(content) || content.customType !== PI_WAGGLE_MODE_STATE_CUSTOM_TYPE) {
+  if (!isRecord(content) || content['customType'] !== PI_WAGGLE_MODE_STATE_CUSTOM_TYPE) {
     return null
   }
 
-  const state = parsePiWaggleModeState(content.data)
+  const state = parsePiWaggleModeState(content['data'])
   if (!state) return null
 
   const config = hydrateWaggleConfig(state.config)

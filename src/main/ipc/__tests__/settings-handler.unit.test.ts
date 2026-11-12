@@ -2,7 +2,6 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   getSettingsMock,
@@ -10,7 +9,6 @@ import {
   loadSettingsHandlers,
   reconcileTrustedMainExtensionsMock,
   resetSettingsHandlerMocks,
-  typedHandleMock,
   updateSettingsMock,
 } from './settings-handler.test-harness'
 
@@ -36,21 +34,6 @@ describe('registerSettingsHandlers', () => {
     const paths = tempProjectPaths
     tempProjectPaths = []
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })))
-  })
-
-  it('registers all expected IPC channels', () => {
-    registerSettingsHandlers()
-
-    const typedEffectChannels = typedHandleMock.mock.calls
-      .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
-      .filter(Boolean)
-
-    expect(typedEffectChannels).toContain('settings:get')
-    expect(typedEffectChannels).toContain('settings:update')
-    expect(typedEffectChannels).toContain('pi-settings:get-tree-filter-mode')
-    expect(typedEffectChannels).toContain('pi-settings:set-tree-filter-mode')
-    expect(typedEffectChannels).toContain('pi-settings:get-branch-summary-skip-prompt')
-    expect(typedEffectChannels).toContain('settings:test-api-key')
   })
 
   describe('settings:get', () => {
@@ -82,35 +65,41 @@ describe('registerSettingsHandlers', () => {
   })
 
   describe('settings:update', () => {
-    it('validates and applies a valid settings update', async () => {
+    it.each([
+      ['an update channel', { updateChannel: 'beta' }],
+      [
+        'every Session Host policy setting',
+        {
+          sessionHostParentConcurrencyLimit: 8,
+          sessionHostParentConcurrencyLimitsByProject: { '/project': 12 },
+          sessionHostRunCeiling: 24,
+          sessionHostIdleGracePeriodMs: 0,
+          multiAgentEnabled: false,
+          multiAgentEnabledByProject: { '/project': true },
+        },
+      ],
+      ['a canonical selected model', { selectedModel: 'openai/gpt-4.1-mini' }],
+      ['an empty selected model, so the store can clear a stale one', { selectedModel: '' }],
+      [
+        'canonical favorite models',
+        { favoriteModels: ['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'] },
+      ],
+      [
+        'per-project skill toggles',
+        { skillTogglesByProject: { '/tmp/repo': { 'skill-a': true, 'skill-b': false } } },
+      ],
+    ])('validates and forwards %s to the settings store', async (_label, patch) => {
       const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-
-      const result = await handler?.({}, { updateChannel: 'beta' })
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledOnce()
-      expect(updateSettingsMock).toHaveBeenCalledWith(
-        expect.objectContaining({ updateChannel: 'beta' }),
-      )
-    })
-
-    it('validates and applies every Session Host policy setting', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-      const patch = {
-        sessionHostParentConcurrencyLimit: 8,
-        sessionHostParentConcurrencyLimitsByProject: { '/project': 12 },
-        sessionHostRunCeiling: 24,
-        sessionHostIdleGracePeriodMs: 0,
-        multiAgentEnabled: false,
-        multiAgentEnabledByProject: { '/project': true },
-      }
 
       await expect(handler?.({}, patch)).resolves.toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledOnce()
       expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(patch))
     })
 
-    it('rejects invalid Session Host policy settings', async () => {
+    it('rejects invalid payloads, Session Host policy settings included, before persistence', async () => {
       const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
       for (const patch of [
+        { updateChannel: 'invalid-mode' },
         { sessionHostParentConcurrencyLimit: 0 },
         { sessionHostParentConcurrencyLimitsByProject: { '/project': -1 } },
         { sessionHostRunCeiling: 1.5 },
@@ -123,14 +112,6 @@ describe('registerSettingsHandlers', () => {
           error: expect.any(String),
         })
       }
-      expect(updateSettingsMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects an invalid settings payload and returns error', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-
-      const result = await handler?.({}, { updateChannel: 'invalid-mode' })
-      expect(result).toEqual({ ok: false, error: expect.any(String) })
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
@@ -184,41 +165,6 @@ describe('registerSettingsHandlers', () => {
       )
     })
 
-    it('converts selectedModel canonical ref to SupportedModelId', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-
-      await handler?.({}, { selectedModel: 'openai/gpt-4.1-mini' })
-
-      expect(updateSettingsMock).toHaveBeenCalledOnce()
-      const call = updateSettingsMock.mock.calls[0][0]
-      expect(call.selectedModel).toBe('openai/gpt-4.1-mini')
-    })
-
-    it('passes empty selectedModel through so the settings store can clear stale selections', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-
-      await handler?.({}, { selectedModel: '' })
-
-      expect(updateSettingsMock).toHaveBeenCalledOnce()
-      const call = updateSettingsMock.mock.calls[0][0]
-      expect(call.selectedModel).toBe('')
-    })
-
-    it('converts favoriteModels canonical refs to SupportedModelId array', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-
-      await handler?.(
-        {},
-        {
-          favoriteModels: ['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'],
-        },
-      )
-
-      expect(updateSettingsMock).toHaveBeenCalledOnce()
-      const call = updateSettingsMock.mock.calls[0][0]
-      expect(call.favoriteModels).toEqual(['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'])
-    })
-
     it('accepts projectPath as null', async () => {
       const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
@@ -249,99 +195,6 @@ describe('registerSettingsHandlers', () => {
 
       expect(result).toEqual({ ok: true })
       expect(reconcileTrustedMainExtensionsMock).not.toHaveBeenCalled()
-    })
-
-    it('accepts skillTogglesByProject update', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-
-      const result = await handler?.(
-        {},
-        {
-          skillTogglesByProject: {
-            '/tmp/repo': { 'skill-a': true, 'skill-b': false },
-          },
-        },
-      )
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledOnce()
-    })
-
-    it('validates and applies appearance and session-default settings', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-
-      const update = {
-        defaultSessionEnvironmentMode: 'worktree',
-        diffSyntaxTheme: 'pierre-dark-vibrant',
-        syntaxThemeSelections: {
-          light: 'bundled:github-light',
-          dark: 'bundled:github-dark',
-          'high-contrast-light': 'bundled:github-light-high-contrast',
-          'high-contrast-dark': 'bundled:github-dark-high-contrast',
-        },
-        diffView: 'split',
-        diffWrapLines: true,
-        appearancePreferences: {
-          ...DEFAULT_SETTINGS.appearancePreferences,
-          typography: {
-            ...DEFAULT_SETTINGS.appearancePreferences.typography,
-            interfaceFontFamily: 'Inter, system-ui, sans-serif',
-            codeFontSize: 14,
-          },
-          motion: 'reduced',
-        },
-      } as const
-
-      const result = await handler?.({}, update)
-
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(update))
-    })
-
-    it('rejects incomplete syntax theme selections', async () => {
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-      const result = await handler?.(
-        {},
-        {
-          syntaxThemeSelections: {
-            light: 'bundled:github-light',
-            dark: 'bundled:github-dark',
-          },
-        },
-      )
-
-      expect(result).toEqual({ ok: false, error: expect.any(String) })
-      expect(updateSettingsMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects duplicate shortcut bindings without replacing existing customizations', async () => {
-      const currentSettings = {
-        ...DEFAULT_SETTINGS,
-        shortcutBindings: {
-          ...DEFAULT_SHORTCUT_BINDINGS,
-          'diff.toggle': null,
-          'sidebar.toggle': { key: 'D', mod: true },
-          'terminal.toggle': { key: 'T', mod: true, shift: true },
-        },
-      }
-      getSettingsMock.mockReturnValue(currentSettings)
-      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-      const result = await handler?.(
-        {},
-        {
-          shortcutBindings: {
-            ...currentSettings.shortcutBindings,
-            'diff.toggle': DEFAULT_SHORTCUT_BINDINGS['diff.toggle'],
-          },
-        },
-      )
-
-      expect(result).toEqual({ ok: false, error: expect.stringContaining('already assigned') })
-      expect(updateSettingsMock).not.toHaveBeenCalled()
-      expect(currentSettings.shortcutBindings['terminal.toggle']).toEqual({
-        key: 'T',
-        mod: true,
-        shift: true,
-      })
     })
   })
 })

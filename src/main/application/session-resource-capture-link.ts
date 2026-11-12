@@ -20,7 +20,7 @@ export interface LinkCaptureInput {
   readonly createdAt: number
   readonly branchId?: string | null
   readonly label?: string | null
-  readonly displayOrder?: number | null
+  readonly displayOrder?: number | null | undefined
 }
 
 export function linkOccurrenceId(input: LinkCaptureInput) {

@@ -27,11 +27,13 @@ export async function recoverActionPublication(
     !pending?.publication ||
     !(await publicationWorkspaceCurrent(persistence, projectPath, pending)) ||
     !(await actionPublicationCurrent(pending.workspacePath, pending.publication))
-  )
+  ) {
     return stored
+  }
   const requireWorkspace = async () => {
-    if (!(await publicationWorkspaceCurrent(persistence, projectPath, pending)))
+    if (!(await publicationWorkspaceCurrent(persistence, projectPath, pending))) {
       throw new Error('The publication Workspace changed. Your draft has been kept.')
+    }
   }
   try {
     const published = await writeActionManifest(
@@ -48,8 +50,9 @@ export async function recoverActionPublication(
     if (
       !(await publicationWorkspaceCurrent(persistence, projectPath, pending)) ||
       !(await actionPublicationCurrent(pending.workspacePath, pending.publication))
-    )
+    ) {
       return stored
+    }
     throw error
   }
   return persistence.write(projectPath, stored.revision, {

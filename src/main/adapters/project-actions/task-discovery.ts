@@ -24,11 +24,12 @@ export async function discoverProjectTasks(workspace: string): Promise<ProjectTa
   const discoveries = await Promise.all(READERS.map((reader) => reader.list(workspace)))
   const tasks = discoveries.flatMap((discovery) => discovery.tasks)
   const diagnostics = discoveries.flatMap((discovery) => discovery.diagnostics)
-  if (tasks.length > ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
+  if (tasks.length > ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS) {
     diagnostics.push({
       source: '.',
       message: 'Task discovery reached its size limit. Narrow the workspace package patterns.',
     })
+  }
   return { tasks: tasks.slice(0, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS), diagnostics }
 }
 
@@ -37,12 +38,13 @@ export async function resolveActionInvocation(
   input: ActionInvocation,
 ): Promise<ResolvedActionInvocation> {
   const invocation = decodeUnknownOrThrow(actionInvocationSchema, input)
-  if (invocation.type === 'command')
+  if (invocation.type === 'command') {
     return {
       type: 'command',
       command: invocation.command,
       cwd: await resolveActionDirectory(workspace, invocation.directory),
     }
+  }
   const reference = invocation.task
   const reader = READERS.find((candidate) => candidate.provider === reference.provider)
   if (!reader) throw new Error(`Unsupported task provider: ${reference.provider}`)
@@ -50,12 +52,14 @@ export async function resolveActionInvocation(
   const task = discovery.tasks.find((candidate) =>
     sameTaskReference(candidate.reference, reference),
   )
-  if (!task)
+  if (!task) {
     throw new Error(
       `Task unavailable: ${reference.source} · ${reference.task}. ${discovery.diagnostics.map((diagnostic) => diagnostic.message).join(' ')}`.trim(),
     )
-  if (task.runner === null)
+  }
+  if (task.runner === null) {
     throw new Error(task.unavailableReason ?? 'The project task runner could not be determined.')
+  }
   return {
     type: 'executable',
     executable: task.runner,

@@ -5,6 +5,14 @@ const DEFAULT_AGENT_DEFINITION_RESULTS = 50
 /** A discovery limit that keeps every definition, for callers that filter before they cut. */
 export const ALL_AGENT_DEFINITIONS = Number.POSITIVE_INFINITY
 
+/** A definition stays on unless the project's toggle turns it off; an unknown name is on. */
+export function agentDefinitionEnabled(
+  enabledByName: Readonly<Partial<Record<string, boolean>>>,
+  name: string,
+) {
+  return enabledByName[name] !== false
+}
+
 /**
  * Agent-definition discovery as the hive tool's `agent_definitions_list` and
  * `agent_definitions_search` and the `openwaggle_hive` MCP operations of the same name answer it:
@@ -15,7 +23,7 @@ export async function discoverAgentDefinitions(input: {
   readonly projectPath: string
   readonly query?: string
   readonly limit?: number
-  readonly enabledByName?: Readonly<Record<string, boolean>>
+  readonly enabledByName?: Readonly<Partial<Record<string, boolean>>>
   readonly userHome?: string
 }) {
   const location = {
@@ -29,7 +37,7 @@ export async function discoverAgentDefinitions(input: {
   const enabledByName = input.enabledByName ?? {}
   return {
     definitions: definitions
-      .filter((item) => enabledByName[item.name] !== false)
+      .filter((item) => agentDefinitionEnabled(enabledByName, item.name))
       .slice(0, input.limit ?? DEFAULT_AGENT_DEFINITION_RESULTS)
       .map((item) => ({
         name: item.name,

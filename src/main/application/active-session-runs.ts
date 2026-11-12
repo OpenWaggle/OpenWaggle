@@ -17,14 +17,12 @@ import {
 
 export {
   type ActiveSessionRunReservation,
-  type ClaimedSessionWriterSuccessor,
   claimSessionWriterSuccessor,
   claimSessionWriterSuccessorAndWait,
   currentSessionWriterRunId,
   hasClaimedSessionWriterSuccessor,
   interruptSessionWriterAndWait,
   releaseClaimedSessionWriterSuccessor,
-  type SessionWriterKind,
 } from './session-writer-reservations'
 
 interface AgentRunMetadata {
@@ -257,21 +255,13 @@ export function interruptExactSessionRun(sessionId: SessionId, runId: string) {
 
 export function requestExactSessionRunInterruption(sessionId: SessionId, runId: string) {
   if (activeRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)) return true
-  if (pendingClassicRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId))
+  if (pendingClassicRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)) {
     return true
-  if (activeWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId))
+  }
+  if (activeWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)) {
     return true
+  }
   return pendingWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)
-}
-
-/** Keep ownership until the handler persists partial results and runs its finalizer. */
-export function requestSessionRunCancellation(sessionId: SessionId): void {
-  const controllers = new Set([
-    activeRuns.get(sessionId)?.controller,
-    activeCompactions.get(sessionId)?.controller,
-    activeWaggleRuns.get(sessionId)?.controller,
-  ])
-  for (const controller of controllers) controller?.abort()
 }
 
 export function getAllActiveRunSessionIds(): SessionId[] {

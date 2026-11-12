@@ -23,8 +23,9 @@ describe('desktop owner recovery over the SQLite journal and wire schemas', () =
     const schema = Layer.effectDiscard(
       Effect.gen(function* () {
         const database = yield* SqlClient.SqlClient
-        for (const statement of DESKTOP_FENCE_MIGRATION.statements)
+        for (const statement of DESKTOP_FENCE_MIGRATION.statements) {
           yield* database.unsafe(statement)
+        }
         yield* database`INSERT INTO desktop_native_owner (singleton, gui_instance_id, host_instance_id, state)
           VALUES (1, ${STALE_GUI}, ${'host-old'}, ${'active'})`
       }),

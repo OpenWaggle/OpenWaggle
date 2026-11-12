@@ -31,8 +31,9 @@ it('undoes a shared setup approval if saving the reviewed snapshot fails', async
     ],
   })
   const write = vi.fn(async (state: StoredWorkspacePreparation, expectedRevision: number) => {
-    if ((storage.get(state.workspaceId)?.revision ?? 0) !== expectedRevision)
+    if ((storage.get(state.workspaceId)?.revision ?? 0) !== expectedRevision) {
       throw new Error('revision conflict')
+    }
     storage.set(state.workspaceId, structuredClone(state))
   })
   const rememberReview = vi.fn(async () => {

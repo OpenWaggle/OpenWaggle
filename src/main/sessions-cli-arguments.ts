@@ -61,8 +61,9 @@ export function runAuthorization(arguments_: ParsedArguments): AgentAuthorizatio
 export function thinkingLevel(value: string | undefined, label = '--thinking') {
   if (!value) return undefined
   const resolved = THINKING_LEVELS.find((candidate) => candidate === value)
-  if (!resolved)
+  if (!resolved) {
     throw new CommandCliUsageError(`${label} must be one of ${THINKING_LEVELS.join(', ')}.`)
+  }
   return resolved
 }
 

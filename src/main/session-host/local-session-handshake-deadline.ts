@@ -23,11 +23,14 @@ export class LocalSessionHandshakeDeadline {
   private settled = false
   private didExpire = false
 
-  constructor(
-    private readonly timeoutMs: number,
-    private readonly expire: () => void,
-    private readonly now: () => number = () => performance.now(),
-  ) {
+  private readonly timeoutMs: number
+  private readonly expire: () => void
+  private readonly now: () => number
+
+  constructor(timeoutMs: number, expire: () => void, now: () => number = () => performance.now()) {
+    this.timeoutMs = timeoutMs
+    this.expire = expire
+    this.now = now
     this.arm()
   }
 

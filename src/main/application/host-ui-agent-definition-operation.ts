@@ -18,12 +18,12 @@ export function decodeAgentDefinitionInput(value: unknown) {
     return { command: value, selectedSourcePaths: undefined }
   }
   if (
-    !Array.isArray(value.selectedSourcePaths) ||
-    !value.selectedSourcePaths.every((sourcePath) => typeof sourcePath === 'string')
+    !Array.isArray(value['selectedSourcePaths']) ||
+    !value['selectedSourcePaths'].every((sourcePath) => typeof sourcePath === 'string')
   ) {
     return null
   }
-  return { command: value.command, selectedSourcePaths: value.selectedSourcePaths }
+  return { command: value['command'], selectedSourcePaths: value['selectedSourcePaths'] }
 }
 
 export function manageHostUiAgentDefinitions(

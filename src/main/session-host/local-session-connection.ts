@@ -1,13 +1,12 @@
 import type { Socket } from 'node:net'
 import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
 import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
-import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import { createLogger } from '../logger'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import {
   type ActiveLocalSessionCommand,
+  abortProfileFencedCommands,
   isSelfProfileCredentialMutation,
-  LocalSessionProfileAdmissionChangedError,
 } from './local-session-command-admission'
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
 import { bindLocalSessionConnectionInput } from './local-session-connection-input'
@@ -54,14 +53,23 @@ export class LocalSessionConnection {
   private readonly outbound: LocalSessionOutboundWriter
   private readonly invalidationCloser = new LocalSessionInvalidationCloser()
 
+  private readonly socket: Socket
+  private readonly dependencies: LocalSessionServerDependencies
+  private readonly authenticationBudget: LocalSessionAuthenticationBudget
+  private readonly cursorProjection: LocalSessionEventCursorProjection
+
   constructor(
-    private readonly socket: Socket,
-    private readonly dependencies: LocalSessionServerDependencies,
+    socket: Socket,
+    dependencies: LocalSessionServerDependencies,
     inboundBudget: LocalSessionInboundByteBudget,
-    private readonly authenticationBudget: LocalSessionAuthenticationBudget,
+    authenticationBudget: LocalSessionAuthenticationBudget,
     outboundBudget: LocalSessionOutboundByteBudget,
-    private readonly cursorProjection: LocalSessionEventCursorProjection,
+    cursorProjection: LocalSessionEventCursorProjection,
   ) {
+    this.socket = socket
+    this.dependencies = dependencies
+    this.authenticationBudget = authenticationBudget
+    this.cursorProjection = cursorProjection
     this.inbound = new LocalSessionInboundRetention(inboundBudget)
     this.outbound = new LocalSessionOutboundWriter(
       socket,
@@ -78,7 +86,7 @@ export class LocalSessionConnection {
       caller: () => this.caller,
       negotiatedRevision: () => this.negotiatedRevision,
       closed: () => this.closed,
-      send: (frame) => this.send(frame),
+      send: (frame) => this.outbound.send(frame),
       connectionFailed: () => this.socket.destroy(),
     })
     this.serverAuthenticated = dependencies.authenticateServer === undefined
@@ -113,11 +121,7 @@ export class LocalSessionConnection {
     if (this.caller?.profileAuthority?.profileName !== profileName) return Promise.resolve()
     const drained = this.admission.fence()
     this.subscriptions.requireResync()
-    for (const command of this.commandControllers.values()) {
-      if (command.abortOnProfileFence) {
-        command.controller.abort(new LocalSessionProfileAdmissionChangedError())
-      }
-    }
+    abortProfileFencedCommands(this.commandControllers.values())
     return this.drainProfileAdmission(drained)
   }
 
@@ -165,10 +169,6 @@ export class LocalSessionConnection {
     )
   }
 
-  private send(frame: LocalSessionServerFrame | unknown): Promise<void> {
-    return this.outbound.send(frame)
-  }
-
   private async handleValue(value: unknown): Promise<void> {
     const authenticated = this.caller !== null && this.negotiatedRevision !== null
     // The connection already answered handshake_timeout and is ending.
@@ -187,8 +187,9 @@ export class LocalSessionConnection {
 
   private async handleServerAuthentication(value: unknown): Promise<void> {
     const authenticateServer = this.dependencies.authenticateServer
-    if (!authenticateServer)
+    if (!authenticateServer) {
       throw new Error('Local Session Host identity authority is unavailable.')
+    }
     await this.outbound.sendHandshakeFrame(await authenticateServer(value))
     this.serverAuthenticated = true
   }
@@ -222,8 +223,9 @@ export class LocalSessionConnection {
 
   private async handleClientFrame(frame: LocalSessionClientFrame): Promise<void> {
     if (frame.kind === 'command') return this.handleCommand(frame)
-    if (frame.kind === 'subscribe')
+    if (frame.kind === 'subscribe') {
       return this.subscriptions.subscribe(frame.requestId, frame.after, frame.sessionIds)
+    }
     return this.subscriptions.unsubscribe(frame.requestId, frame.subscriptionId)
   }
 
@@ -254,10 +256,7 @@ export class LocalSessionConnection {
           frame,
           negotiatedRevision,
         })
-        if (selfCredentialMutation) {
-          activeCommand.abortOnProfileFence = false
-          releaseAdmissionReader()
-        }
+        if (selfCredentialMutation) releaseAdmissionReader()
         try {
           await executeLocalSessionCommandFrame({
             frame,
@@ -268,8 +267,8 @@ export class LocalSessionConnection {
             resolveEventCursor: (cursor) => this.cursorProjection.resolve(caller, cursor),
             exposeEventCursor: (cursor) => this.cursorProjection.expose(caller, cursor),
             signal: controller.signal,
-            send: (response) => this.send(response),
-            ...(!selfCredentialMutation ? { releaseAdmissionReader: releaseAdmissionReader } : {}),
+            send: (response) => this.outbound.send(response),
+            ...(!selfCredentialMutation ? { releaseAdmissionReader } : {}),
           })
         } finally {
           releaseAdmissionReader()

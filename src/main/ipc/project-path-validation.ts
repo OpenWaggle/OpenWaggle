@@ -1,6 +1,1 @@
-export {
-  isPathInsideDirectory,
-  validateAuthorizedProjectPath,
-  validateProjectPath,
-  validateRequiredProjectPath,
-} from '../utils/project-path-validation'
+export { validateProjectPath, validateRequiredProjectPath } from '../utils/project-path-validation'

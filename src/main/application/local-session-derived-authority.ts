@@ -22,6 +22,20 @@ export interface LocalSessionAuthorizationTarget {
   readonly hiveRootSessionId?: string
 }
 
+/** A target naming a project, or no target when the request names none. */
+export function projectAuthorizationTarget(
+  projectPath: string | undefined,
+): LocalSessionAuthorizationTarget {
+  return projectPath === undefined ? {} : { projectPath }
+}
+
+/** A target naming a Session, or no target when the request names none. */
+export function sessionAuthorizationTarget(
+  sessionId: string | undefined,
+): LocalSessionAuthorizationTarget {
+  return sessionId === undefined ? {} : { sessionId }
+}
+
 function expandTransientWorkspaceScope(caller: LocalSessionCallerIdentity) {
   const authority = caller.profileAuthority
   const roots = authority?.scope.workspaceRoots

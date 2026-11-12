@@ -33,7 +33,7 @@ import type {
   TerminalHistoryStore,
 } from './terminal-history-store-types'
 
-export type { TerminalHistoryCacheSnapshot, TerminalHistoryStore }
+export type { TerminalHistoryStore }
 
 const logger = createLogger('terminal-history')
 
@@ -90,8 +90,9 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   append = (key: TerminalKey, chunk: string) => this.queueAppend(key, chunk, null)
 
   appendWithCursor(key: TerminalKey, chunk: string, endOffset: number) {
-    if (!Number.isSafeInteger(endOffset) || endOffset < 0)
+    if (!Number.isSafeInteger(endOffset) || endOffset < 0) {
       throw new Error('Invalid terminal history cursor.')
+    }
     this.queueAppend(key, chunk, endOffset)
   }
 
@@ -145,11 +146,8 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       await this.files.ensureDirectory()
       const entries = await this.files.listOwnerEntries(ownerKey)
       await this.files.remove(entries.map((entry) => this.files.pathForEntry(entry)))
-      for (const key of this.states.keys()) {
-        if (ownerKeyFromTerminalKey(key) === ownerKey) this.states.delete(key)
-      }
-      for (const key of this.workingDirectories.keys()) {
-        if (ownerKeyFromTerminalKey(key) === ownerKey) this.workingDirectories.delete(key)
+      for (const cache of [this.states, this.workingDirectories]) {
+        for (const key of cache.keys()) if (matches(key)) cache.delete(key)
       }
     })
   }
@@ -196,8 +194,9 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     this.flushTimer = null
     await this.queuePendingBatches()
     if (key !== undefined && this.failedFlushes.has(key)) throw this.failedFlushes.get(key)
-    if (key === undefined && this.failedFlushes.size > 0)
+    if (key === undefined && this.failedFlushes.size > 0) {
       throw this.failedFlushes.values().next().value
+    }
   }
 
   cacheSnapshotForTests = (): TerminalHistoryCacheSnapshot => ({

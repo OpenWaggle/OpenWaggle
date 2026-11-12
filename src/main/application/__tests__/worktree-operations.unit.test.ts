@@ -86,7 +86,7 @@ function run(
     ...flags,
   }).pipe(Effect.provide(gitLayer))
   return Effect.runPromise(
-    fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown, never>, typeof provided>(
+    fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown>, typeof provided>(
       provided,
     ),
   )

@@ -27,12 +27,12 @@ function legacyServerFiles(sources: McpFileSources, projects: readonly string[])
 /** The identity of what an old entry ran or connected to, as `mcpServerIdentity` makes it. */
 function legacyEntryIdentity(name: string, entry: unknown) {
   if (!isRecord(entry)) return undefined
-  if (typeof entry.url === 'string') return mcpServerIdentity(name, { url: entry.url })
-  if (typeof entry.command !== 'string') return undefined
-  const args = Array.isArray(entry.args)
-    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
+  if (typeof entry['url'] === 'string') return mcpServerIdentity(name, { url: entry['url'] })
+  if (typeof entry['command'] !== 'string') return undefined
+  const args = Array.isArray(entry['args'])
+    ? entry['args'].filter((arg): arg is string => typeof arg === 'string')
     : []
-  return mcpServerIdentity(name, { command: entry.command, args })
+  return mcpServerIdentity(name, { command: entry['command'], args })
 }
 
 /** For every server in the files the old code read: its name and what it was, by instance ID. */
@@ -44,9 +44,15 @@ export async function legacyServerRecords(input: {
   const names = new Map<string, string>()
   const identities = new Map<string, McpLegacyServerIdentity>()
   if (Object.keys(input.state.servers).length === 0) return { names, identities }
-  for (const filePath of legacyServerFiles(input.sources, input.projects)) {
-    // As the old code saw the file: a migrated file is read from its backup.
-    const config = await input.sources.legacyConfig(filePath).catch(() => undefined)
+  // As the old code saw each file: a migrated file is read from its backup. A file that cannot be
+  // read is skipped, so the files are read at once and handled in order.
+  const files = await Promise.all(
+    legacyServerFiles(input.sources, input.projects).map(async (filePath) => ({
+      filePath,
+      config: await input.sources.legacyConfig(filePath).catch(() => undefined),
+    })),
+  )
+  for (const { filePath, config } of files) {
     if (!isRecord(config)) continue
     for (const [name, entry] of Object.entries(legacyServerMap(config))) {
       const server = input.state.servers[legacyServerIdentityKey(filePath, name)]

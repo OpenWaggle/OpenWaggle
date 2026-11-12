@@ -65,7 +65,7 @@ async function originForPage(href: string, servers: readonly McpServerEntry[]) {
   if (!state) return undefined
   for (const entry of servers) {
     const origin = await mcpAuthorizationOrigin(entry)
-    if (origin && origin.oauthState === state) return origin
+    if (origin?.oauthState === state) return origin
   }
   return undefined
 }
@@ -104,8 +104,9 @@ export async function showSignInPage(
   href: string,
 ): Promise<McpSignInPageOutcome> {
   const origin = await mcpAuthorizationOrigin(entry)
-  if (!origin)
+  if (!origin) {
     return { kind: 'refused', error: new Error('This server does not sign in with OAuth.') }
+  }
   let page: URL
   try {
     page = checkMcpAuthorizationUrl(href, origin)

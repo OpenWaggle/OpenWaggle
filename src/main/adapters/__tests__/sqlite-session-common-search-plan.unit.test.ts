@@ -89,7 +89,7 @@ describe('SQLite common-term search plans', () => {
     expect(rankingSteps.map((step) => step.detail)).toContain(
       'SEARCH seed_terms USING PRIMARY KEY (term=?)',
     )
-    expect(rankingSteps.some((step) => /^SEARCH sessions /u.test(step.detail))).toBe(false)
+    expect(rankingSteps.some((step) => step.detail.startsWith('SEARCH sessions '))).toBe(false)
   })
 
   it('excludes archived hits before the window and preserves inclusion, scope, and live updates', async () => {

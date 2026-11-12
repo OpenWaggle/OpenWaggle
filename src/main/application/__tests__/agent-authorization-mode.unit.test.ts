@@ -22,35 +22,19 @@ describe('pickAuthorizationMode', () => {
     ).toBe('ask-for-approval')
   })
 
-  it('falls back to the global default when neither the session nor the project overrides', () => {
-    expect(
-      pickAuthorizationMode({
-        sessionOverride: undefined,
-        projectDefault: undefined,
-        globalDefault: 'ask-for-approval',
-      }),
-    ).toBe('ask-for-approval')
-  })
-
-  it('lets a tightened global default reach a session that was never overridden', () => {
-    const before = pickAuthorizationMode({ globalDefault: 'yolo' })
-    const after = pickAuthorizationMode({ globalDefault: 'ask-for-approval' })
-
-    expect(before).toBe('yolo')
-    expect(after).toBe('ask-for-approval')
-  })
-
-  it('treats an absent level as inherit rather than as yolo', () => {
-    // The regression this guards: reading a missing override as 'yolo' would make every
-    // unconfigured session silently full access and make the precedence chain unobservable.
-    expect(
-      pickAuthorizationMode({
-        sessionOverride: null,
-        projectDefault: null,
-        globalDefault: 'ask-for-approval',
-      }),
-    ).not.toBe('yolo')
-  })
+  // An absent override is inherit, never yolo: reading it as 'yolo' would make every unconfigured
+  // session silently full access, and a tightened global default must reach those sessions.
+  it.each([
+    { sessionOverride: undefined, projectDefault: undefined, globalDefault: 'ask-for-approval' },
+    { sessionOverride: null, projectDefault: null, globalDefault: 'ask-for-approval' },
+    { globalDefault: 'ask-for-approval' },
+    { globalDefault: 'yolo' },
+  ] as const)(
+    'falls back to the global default when neither the session nor the project overrides: %j',
+    (input) => {
+      expect(pickAuthorizationMode(input)).toBe(input.globalDefault)
+    },
+  )
 
   it('fails closed when no level can be determined', () => {
     expect(pickAuthorizationMode({})).toBe(FAIL_CLOSED_AUTHORIZATION_MODE)

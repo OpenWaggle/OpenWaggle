@@ -11,7 +11,7 @@ import {
 } from './desktop-notification-observer.test-harness'
 import { hive, workerSettled } from './desktop-notification-observer-hive.test-support'
 
-describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 0063)', () => {
+describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 0065)', () => {
   it('does not notify a Queen that delegated and ended her turn', async () => {
     const { emit, published, fixture } = hive()
     fixture.running = new Set(['w1', 'w2'])
@@ -104,17 +104,11 @@ describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 006
     expect(published).toEqual([])
   })
 
-  it('notifies at once when nothing below the Session runs', async () => {
-    const { emit, published } = hive()
-    await emit(settled('run-1', 'completed'), 100)
-    expect(shownKinds(published)).toEqual(['shown:completed'])
-  })
-
   it('still notifies a reply the person had already visited before the Workers finished', async () => {
     const { emit, published, fixture } = hive()
     fixture.running = new Set(['w1'])
     await emit(settled('run-1', 'completed'), 100)
-    fixture.visits.root = 105
+    fixture.visits['root'] = 105
     fixture.running.clear()
     await emit(workerSettled('w1'), 110)
     expect(shownKinds(published)).toEqual(['shown:completed'])

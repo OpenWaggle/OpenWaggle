@@ -59,7 +59,7 @@ function adopted(item: SessionControlFollowUp, callerId: string): SessionControl
   return {
     ...rest,
     // Another caller's open edit of it ends: the Follow-up is now the adopter's.
-    ...(editHold && editHold.holderCallerId === callerId ? { editHold } : {}),
+    ...(editHold?.holderCallerId === callerId ? { editHold } : {}),
     deliveryState: 'pending',
     intent: {
       ...intent,

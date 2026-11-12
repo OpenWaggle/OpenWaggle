@@ -1,6 +1,6 @@
-import { app } from 'electron'
 import { asUsageErrorsSync, CLI_EXIT, CliError, cliExitCodeForKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
+import { appPaths } from './desktop-shell/app-paths'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
 import { validateRecoveryCliOptions } from './recovery-cli-option-contract'
 import { recoveryCliResultText, writeRecoveryCliError } from './recovery-cli-output'
@@ -41,7 +41,7 @@ export async function runRecoveryCli(args: readonly string[]) {
       await writeCliStdout(`${usage()}\n`)
       return EXIT.SUCCESS
     }
-    const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
+    const paths = resolveLocalSessionHostPaths({ userDataRoot: appPaths.userData() })
     if (command === 'status') {
       await writeResult(command, await sessionHostRecoveryStatus(paths), json)
       return EXIT.SUCCESS

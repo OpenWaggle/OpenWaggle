@@ -23,7 +23,11 @@ interface HostStateNotificationDependencies {
 export class HostStateDesktopNotifications {
   private stuckWorkers: ReadonlySet<string> | null = null
 
-  constructor(private readonly dependencies: HostStateNotificationDependencies) {}
+  private readonly dependencies: HostStateNotificationDependencies
+
+  constructor(dependencies: HostStateNotificationDependencies) {
+    this.dependencies = dependencies
+  }
 
   /**
    * Workers that became Stuck notify once; one that stops being Stuck withdraws its notice. The

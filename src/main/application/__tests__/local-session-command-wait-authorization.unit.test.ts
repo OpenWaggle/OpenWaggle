@@ -14,7 +14,7 @@ import { SessionWaitService } from '../../ports/session-wait-service'
 import { SettingsService } from '../../services/settings-service'
 import { dispatchSessionWaitQuery } from '../local-session-command-dispatcher'
 
-type LiveProfile = {
+interface LiveProfile {
   capabilities: LocalSessionProfileAuthority['capabilities']
   scope: LocalSessionProfileAuthority['scope']
   authorizationCeiling: LocalSessionProfileAuthority['authorizationCeiling']
@@ -63,11 +63,11 @@ function waitPayload(operation: 'wait' | 'exports-wait'): LocalSessionCommandPay
 
 function testLayer(input: {
   readonly liveProfile: LiveProfile
-  readonly derivedAuthorities: Array<{
+  readonly derivedAuthorities: {
     sessionId: string
     capabilities: LocalSessionProfileAuthority['capabilities']
     authorizationCeiling: LocalSessionProfileAuthority['authorizationCeiling']
-  }>
+  }[]
   readonly beforeObservation: () => void
   readonly observeAuthority?: (authority: LocalSessionProfileAuthority | undefined) => void
 }) {

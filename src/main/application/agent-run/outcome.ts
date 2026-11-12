@@ -21,7 +21,7 @@ interface AgentKernelOutcomeInput {
 interface BuildAgentRunOutcomeInput {
   readonly agentResult: AgentKernelOutcomeInput
   readonly signal: AbortSignal
-  readonly assignedTitle?: string
+  readonly assignedTitle?: string | undefined
   readonly sessionId: SessionId
   readonly runId: string
   readonly model: SupportedModelId
@@ -35,7 +35,7 @@ interface BuildAgentRunFailureInput {
   readonly signal: AbortSignal
   /** Whether the agent already had the message when this failed - see the outcome below. */
   readonly reachedAgent?: boolean
-  readonly assignedTitle?: string
+  readonly assignedTitle?: string | undefined
   readonly sessionId: SessionId
   readonly runId: string
   readonly model: SupportedModelId
@@ -123,8 +123,9 @@ export function classifyRunFailure(error: unknown, reachedAgent: boolean) {
   if (direct.code !== 'unknown') return { classified: direct, detail }
   for (const cause of errorCauseChain(error).slice(1)) {
     const candidate = classifyAgentError(cause)
-    if (candidate.code !== 'unknown')
+    if (candidate.code !== 'unknown') {
       return { classified: { ...candidate, message: detail }, detail }
+    }
   }
   return { classified: { ...direct, message: detail }, detail }
 }
@@ -178,7 +179,7 @@ function terminalErrorOutcome(
     readonly sessionId: SessionId
     readonly runId: string
     readonly model: SupportedModelId
-    readonly assignedTitle?: string
+    readonly assignedTitle?: string | undefined
     readonly resources: PersistedRunResourceNodes
   },
 ): AgentRunResult {

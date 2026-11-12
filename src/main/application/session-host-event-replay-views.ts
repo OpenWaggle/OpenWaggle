@@ -21,15 +21,21 @@ export class SessionHostEventReplayView {
   #hostInstanceId: string
   #minimumCursorSequence: number
   #closed = false
+  private readonly replayByteCapacity: number
+  private readonly accepts: (event: SessionHostEventEnvelope) => boolean
+  private readonly onClose: () => void
 
   constructor(
     hostInstanceId: string,
     baselineSequence: number,
     replayCapacity: number,
-    private readonly replayByteCapacity: number,
-    private readonly accepts: (event: SessionHostEventEnvelope) => boolean,
-    private readonly onClose: () => void,
+    replayByteCapacity: number,
+    accepts: (event: SessionHostEventEnvelope) => boolean,
+    onClose: () => void,
   ) {
+    this.replayByteCapacity = replayByteCapacity
+    this.accepts = accepts
+    this.onClose = onClose
     this.#hostInstanceId = hostInstanceId
     this.#minimumCursorSequence = baselineSequence
     this.#replayWindow = new SessionHostEventReplayWindow(replayCapacity, replayByteCapacity)

@@ -26,11 +26,11 @@ const mocks: ProfileAccessMocks = vi.hoisted(() => ({
   stage: vi.fn(),
   typedHandle: vi.fn(),
   ProfileCredentialCommitError: class ProfileCredentialCommitError extends Error {
-    constructor(
-      message: string,
-      readonly recoveryLocation: string,
-    ) {
+    readonly recoveryLocation: string
+
+    constructor(message: string, recoveryLocation: string) {
       super(message)
+      this.recoveryLocation = recoveryLocation
     }
   },
 }))

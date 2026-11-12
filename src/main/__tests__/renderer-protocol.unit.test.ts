@@ -54,9 +54,10 @@ vi.mock('node:fs', () => ({
   existsSync: protocolMocks.existsSync,
 }))
 
-vi.mock('@electron-toolkit/utils', () => ({
-  is: protocolMocks.is,
-}))
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !protocolMocks.is.dev } }
+})
 
 vi.mock('electron', () => ({
   app: protocolMocks.app,

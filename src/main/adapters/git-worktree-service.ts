@@ -1,6 +1,7 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
 import { GitWorktreeService } from '../ports/git-worktree-service'
 import {
   createGitWorktree,
@@ -35,7 +36,7 @@ export const GitWorktreeServiceLive = Layer.succeed(
     // A packaged app runs from its bundle, which is no checkout, so this is null there.
     applicationCheckout: () =>
       Effect.promise(() =>
-        app.isPackaged ? Promise.resolve(null) : checkoutTopLevel(app.getAppPath()),
+        appLifecycle.isPackaged() ? Promise.resolve(null) : checkoutTopLevel(appPaths.appRoot()),
       ),
   }),
 )

@@ -61,10 +61,12 @@ export async function readCredentialHelperProviders(workingPath: string) {
   if (result.code !== 0) return providers
   for (const line of result.stdout.split('\n')) {
     const match = /^credential\.(?<url>.+)\.helper\s+(?<helper>.+)$/u.exec(line.trim())
-    const provider = match?.groups?.helper ? credentialHelperProvider(match.groups.helper) : null
-    if (!provider || !match?.groups?.url) continue
+    const provider = match?.groups?.['helper']
+      ? credentialHelperProvider(match.groups['helper'])
+      : null
+    if (!provider || !match?.groups?.['url']) continue
     try {
-      providers[sourceControlHostKey(new URL(match.groups.url).host)] = provider
+      providers[sourceControlHostKey(new URL(match.groups['url']).host)] = provider
     } catch {
       // A helper scoped by something other than a URL names no host.
     }

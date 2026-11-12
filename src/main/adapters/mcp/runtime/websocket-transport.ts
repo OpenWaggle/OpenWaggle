@@ -12,6 +12,12 @@ import {
 const NORMAL_WEBSOCKET_CLOSE_CODE = 1_000
 const WEBSOCKET_CLOSE_TIMEOUT_MS = 1_000
 
+/** A text frame's payload: one buffer, its fragments, or an ArrayBuffer, by the socket's binaryType. */
+function rawDataText(data: WebSocket.RawData) {
+  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
+  return (Buffer.isBuffer(data) ? data : Buffer.from(data)).toString('utf8')
+}
+
 export class LegacyWebSocketClientTransport implements Transport {
   readonly url: URL
   readonly headers: Readonly<Record<string, string>>
@@ -83,7 +89,7 @@ export class LegacyWebSocketClientTransport implements Transport {
         }
         try {
           // The SDK parses a decoded value, not text.
-          const decoded: unknown = JSON.parse(data.toString('utf8'))
+          const decoded: unknown = JSON.parse(rawDataText(data))
           this.onmessage?.(parseJSONRPCMessage(decoded))
         } catch (error) {
           this.onerror?.(error instanceof Error ? error : new Error(String(error)))

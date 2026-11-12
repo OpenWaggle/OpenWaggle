@@ -19,7 +19,6 @@ export {
   type McpToolCatalog,
   type McpToolCatalogStore,
   memoryMcpToolCatalogStore,
-  pruneMcpToolCatalogs,
 } from './mcp-tool-catalog-store'
 
 /** Hex characters of a catalog key: its file name. */
@@ -41,12 +40,14 @@ export function mcpToolCatalogKey(input: {
 }
 
 function cursorOf(params: unknown) {
-  return isRecord(params) && typeof params.cursor === 'string' ? params.cursor : ''
+  return isRecord(params) && typeof params['cursor'] === 'string' ? params['cursor'] : ''
 }
 
 export function hasToolsCapability(initialize: unknown) {
   return (
-    isRecord(initialize) && isRecord(initialize.capabilities) && 'tools' in initialize.capabilities
+    isRecord(initialize) &&
+    isRecord(initialize['capabilities']) &&
+    'tools' in initialize['capabilities']
   )
 }
 
@@ -58,11 +59,14 @@ export class McpConnectionCatalog {
   /** Set on the connection that fills a missing catalog for others (`McpCatalogFills`). */
   filled: (() => void) | undefined
 
-  constructor(
-    private readonly store: McpToolCatalogStore,
-    private readonly key: string,
-    private readonly now: () => number = Date.now,
-  ) {
+  private readonly store: McpToolCatalogStore
+  private readonly key: string
+  private readonly now: () => number
+
+  constructor(store: McpToolCatalogStore, key: string, now: () => number = Date.now) {
+    this.store = store
+    this.key = key
+    this.now = now
     this.reload()
   }
 
@@ -109,7 +113,7 @@ export class McpConnectionCatalog {
   /** Records a listed page; the last page (no `nextCursor`) completes and saves the catalog. */
   recordToolsPage(params: unknown, result: unknown) {
     this.pages[cursorOf(params)] = result
-    if (!(isRecord(result) && typeof result.nextCursor === 'string')) this.save()
+    if (!(isRecord(result) && typeof result['nextCursor'] === 'string')) this.save()
   }
 
   /** Whether the tools now recorded differ from those that were served. */

@@ -64,8 +64,9 @@ describe('scoped filesystem Session export artifact writer', () => {
 
   afterEach(async () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
-    if (legacyStagingDirectory)
+    if (legacyStagingDirectory) {
       await fs.rm(legacyStagingDirectory, { recursive: true, force: true })
+    }
     legacyStagingDirectory = null
   })
 

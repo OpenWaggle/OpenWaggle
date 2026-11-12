@@ -18,54 +18,49 @@ const MAX_DESCRIPTION_CHARACTERS = 500
 const MAX_MODEL_ID_CHARACTERS = 200
 
 /** Agent definition v1 frontmatter. The published JSON Schema is checked against it in tests. */
-export const agentDefinitionFrontmatterSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    $schema: z.url().optional(),
-    name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
-    description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
-    model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).optional(),
-    reasoning: z.enum(THINKING_LEVELS).optional(),
-    tools: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).optional(),
-    skills: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).optional(),
-    mcpServers: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).optional(),
-    sessionCapabilities: z
-      .array(z.enum(SESSION_CAPABILITIES))
-      .max(SESSION_CAPABILITIES.length)
-      .optional(),
-    authorizationMode: z.enum(AGENT_AUTHORIZATION_MODES).optional(),
-    workspace: z.enum(['share-parent', 'local', 'new-worktree']).optional(),
-    import: z
-      .object({
-        sourceTool: z.enum([
-          'openwaggle',
-          'codex',
-          'claude-code',
-          'cursor',
-          'gemini-cli',
-          'github-copilot',
-          'opencode',
-        ]),
-        sourcePath: z.string().min(1),
-        sourceName: z.string().min(1).optional(),
-        sourceDigest: z.string().regex(/^[a-f0-9]{64}$/),
-        importerVersion: z.literal(1),
-        baselineDigest: z.string().regex(/^[a-f0-9]{64}$/),
-        importedAt: z.number().int().nonnegative(),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict()
+export const agentDefinitionFrontmatterSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  $schema: z.url().exactOptional(),
+  name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
+  description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
+  model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).exactOptional(),
+  reasoning: z.enum(THINKING_LEVELS).exactOptional(),
+  tools: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).exactOptional(),
+  skills: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).exactOptional(),
+  mcpServers: z.array(z.string().trim().min(1)).max(MAX_LIST_ITEMS).exactOptional(),
+  sessionCapabilities: z
+    .array(z.enum(SESSION_CAPABILITIES))
+    .max(SESSION_CAPABILITIES.length)
+    .exactOptional(),
+  authorizationMode: z.enum(AGENT_AUTHORIZATION_MODES).exactOptional(),
+  workspace: z.enum(['share-parent', 'local', 'new-worktree']).exactOptional(),
+  import: z
+    .strictObject({
+      sourceTool: z.enum([
+        'openwaggle',
+        'codex',
+        'claude-code',
+        'cursor',
+        'gemini-cli',
+        'github-copilot',
+        'opencode',
+      ]),
+      sourcePath: z.string().min(1),
+      sourceName: z.string().min(1).exactOptional(),
+      sourceDigest: z.string().regex(/^[a-f0-9]{64}$/),
+      importerVersion: z.literal(1),
+      baselineDigest: z.string().regex(/^[a-f0-9]{64}$/),
+      importedAt: z.number().int().nonnegative(),
+    })
+    .exactOptional(),
+})
 
-const piFrontmatterSchema = z
-  .object({
-    name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
-    description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
-    model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).optional(),
-    tools: z.union([z.string(), z.array(z.string())]).optional(),
-  })
-  .strict()
+const piFrontmatterSchema = z.strictObject({
+  name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
+  description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
+  model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).optional(),
+  tools: z.union([z.string(), z.array(z.string())]).optional(),
+})
 
 const resolvedSnapshotSchema = agentDefinitionFrontmatterSchema.extend({
   instructions: z.string().trim().min(1).max(MAX_INSTRUCTION_BYTES),

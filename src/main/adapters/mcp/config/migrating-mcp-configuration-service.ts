@@ -148,9 +148,10 @@ export function withRuntimeConfigErrors(
         // A file's own line goes when a notice quotes it: the notice names the file and what to do.
         const quoted = (error: string) =>
           extra.errors.some((notice) => notice !== error && notice.includes(error))
+        const viewErrors = new Set(view.errors)
         const errors = [
           ...view.errors.filter((error) => !quoted(error)),
-          ...extra.errors.filter((error) => !view.errors.includes(error)),
+          ...extra.errors.filter((error) => !viewErrors.has(error)),
         ]
         const missing = extra.missingSecretErrors ?? []
         const servers = extra.missingSecretServers ?? []

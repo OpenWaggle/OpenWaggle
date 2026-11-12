@@ -13,7 +13,7 @@ import {
   waitForReleasedFence,
 } from './desktop-service-broker-release.test-harness'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 function harness(initial: readonly DesktopFenceRecord[] = []) {
   const instance = brokerHarness(initial)
   cleanups.push(() => instance.broker.close())

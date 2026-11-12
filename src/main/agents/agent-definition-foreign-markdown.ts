@@ -89,13 +89,13 @@ function mapIdentity(input: {
   readonly fields: AgentDefinitionImportFieldPlan[]
   readonly diagnostics: string[]
 }) {
-  const name = normalizedName(input.metadata.name, input.sourcePath)
+  const name = normalizedName(input.metadata['name'], input.sourcePath)
   if (!name) {
     input.diagnostics.push('A valid target Agent name could not be derived.')
     return {}
   }
   input.fields.push(
-    mapped(input.metadata.name ? 'name' : '$filename', 'name', input.metadata.name, name),
+    mapped(input.metadata['name'] ? 'name' : '$filename', 'name', input.metadata['name'], name),
   )
   const source = stringValue(input.metadata, ['description', 'summary'])
   const description = source?.value ?? `Imported ${input.sourceTool} Agent ${name}.`
@@ -167,12 +167,12 @@ function mapOptionalMetadata(
         : dropped(reasoningSource.key, reasoningSource.value, 'Unsupported reasoning value.'),
     )
   }
-  const workspace = metadata.isolation === 'worktree' ? ('new-worktree' as const) : undefined
-  if (metadata.isolation !== undefined) {
+  const workspace = metadata['isolation'] === 'worktree' ? ('new-worktree' as const) : undefined
+  if (metadata['isolation'] !== undefined) {
     fields.push(
       workspace
-        ? mapped('isolation', 'workspace', metadata.isolation, workspace)
-        : dropped('isolation', metadata.isolation, 'Unsupported isolation mode.'),
+        ? mapped('isolation', 'workspace', metadata['isolation'], workspace)
+        : dropped('isolation', metadata['isolation'], 'Unsupported isolation mode.'),
     )
   }
   return { model, reasoning, workspace }

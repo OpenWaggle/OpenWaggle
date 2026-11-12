@@ -106,6 +106,7 @@ export function hydrateBranch(
   row: SessionBranchRow,
   interruptedRunByBranchId?: ReadonlyMap<string, SessionInterruptedRun>,
 ) {
+  const interruptedRun = interruptedRunByBranchId?.get(row.id)
   return {
     id: SessionBranchId(row.id),
     sessionId: SessionId(row.session_id),
@@ -113,19 +114,20 @@ export function hydrateBranch(
     headNodeId: row.head_node_id ? SessionNodeId(row.head_node_id) : null,
     name: row.name,
     isMain: row.is_main === 1,
-    archived: row.archived_at === null ? undefined : true,
+    ...(row.archived_at === null ? {} : { archived: true }),
     archivedAt: row.archived_at,
-    interruptedRun: interruptedRunByBranchId?.get(row.id),
+    ...(interruptedRun === undefined ? {} : { interruptedRun }),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
 export function hydrateBranchState(row: SessionBranchStateRow) {
+  const waggleConfig = parseWaggleConfig(row.waggle_config_json)
   return {
     branchId: SessionBranchId(row.branch_id),
     futureMode: row.future_mode,
-    waggleConfig: parseWaggleConfig(row.waggle_config_json),
+    ...(waggleConfig === undefined ? {} : { waggleConfig }),
     lastActiveAt: row.last_active_at,
     uiStateJson: row.ui_state_json,
   }
@@ -163,7 +165,6 @@ export function fallbackBranchStates(session: SessionSummary) {
   const branchState = {
     branchId: mainBranchId(session.id),
     futureMode: STANDARD_FUTURE_MODE,
-    waggleConfig: undefined,
     lastActiveAt: session.updatedAt,
     uiStateJson: DEFAULT_UI_STATE_JSON,
   } satisfies SessionBranchState
@@ -177,6 +178,7 @@ export function fallbackBranches(
   interruptedRunByBranchId: ReadonlyMap<string, SessionInterruptedRun>,
 ) {
   const lastNode = nodes[nodes.length - 1]
+  const interruptedRun = interruptedRunByBranchId.get(String(mainBranchId(session.id)))
   return [
     {
       id: mainBranchId(session.id),
@@ -186,7 +188,7 @@ export function fallbackBranches(
       name: MAIN_BRANCH_NAME,
       isMain: true,
       archivedAt: null,
-      interruptedRun: interruptedRunByBranchId.get(String(mainBranchId(session.id))),
+      ...(interruptedRun === undefined ? {} : { interruptedRun }),
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     },

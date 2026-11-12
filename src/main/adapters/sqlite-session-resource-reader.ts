@@ -12,45 +12,6 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionResourceRepositoryError({ operation, cause })
 }
 
-export function readResourceById(
-  sql: SqlClient.SqlClient,
-  sessionId: SessionId,
-  resourceId: string,
-) {
-  return Effect.gen(function* () {
-    const rows = yield* sql<SessionResourceRow>`
-      SELECT
-        id,
-        session_id,
-        canonical_key,
-        kind,
-        title,
-        mime_type,
-        locator,
-        managed_path,
-        available,
-        is_source,
-        is_output,
-        created_at,
-        updated_at
-      FROM session_resources
-      WHERE session_id = ${sessionId}
-        AND id = ${resourceId}
-      LIMIT 1
-    `
-    const row = rows[0]
-    if (!row) return null
-    const occurrenceRows = yield* sql<SessionResourceOccurrenceRow>`
-      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
-             display_name, display_order, created_at
-      FROM session_resource_occurrences
-      WHERE resource_id = ${resourceId}
-      ORDER BY created_at ASC, id ASC
-    `
-    return rowToResource(row, occurrenceRows)
-  })
-}
-
 export function listResources(sql: SqlClient.SqlClient, sessionId: SessionId) {
   return Effect.gen(function* () {
     const resourceRows = yield* sql<SessionResourceRow>`

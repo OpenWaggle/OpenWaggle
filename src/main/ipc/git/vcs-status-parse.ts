@@ -53,7 +53,10 @@ export function parseRemoteRepositoryIdentity(remoteUrl: string): RemoteReposito
   const trimmed = remoteUrl.trim().replace(/\/+$/u, '')
   const scpMatch = /^[^@/]+@[^:/]+:(?<path>.+)$/u.exec(trimmed)
   const urlMatch = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?[^/]+\/(?<path>.+)$/iu.exec(trimmed)
-  const repositoryPath = (scpMatch?.groups?.path ?? urlMatch?.groups?.path)?.replace(/\.git$/u, '')
+  const repositoryPath = (scpMatch?.groups?.['path'] ?? urlMatch?.groups?.['path'])?.replace(
+    /\.git$/u,
+    '',
+  )
   const segments = repositoryPath?.split('/').filter(Boolean) ?? []
   const repository = segments.at(-1)
   const owner = segments.slice(0, -1).join('/')
@@ -66,7 +69,7 @@ export function parseRemoteRepositoryIdentity(remoteUrl: string): RemoteReposito
 
 function remoteRepositoryAuthority(remoteUrl: string): string | null {
   const scpMatch = /^[^@/]+@(?<authority>[^:/]+):/u.exec(remoteUrl)
-  if (scpMatch?.groups?.authority) return scpMatch.groups.authority.toLowerCase()
+  if (scpMatch?.groups?.['authority']) return scpMatch.groups['authority'].toLowerCase()
   try {
     return new URL(remoteUrl).host.toLowerCase() || null
   } catch {

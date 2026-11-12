@@ -4,11 +4,12 @@ import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
-import { app, clipboard } from 'electron'
 import {
   getDesktopNativeAdmissionIssue,
   recoverDesktopNativeAdmission,
 } from '../desktop-native-admission'
+import { appPaths } from '../desktop-shell/app-paths'
+import { clipboard } from '../desktop-shell/clipboard'
 import { AutomationDesktopUiError, openExternal, openPath, revealPath } from '../desktop-ui'
 import { env } from '../env'
 import { createLogger } from '../logger'
@@ -53,7 +54,7 @@ function requireExistingPath(targetPath: string) {
   return Effect.tryPromise(() => stat(targetPath)).pipe(
     Effect.asVoid,
     Effect.catchAll((failure) => {
-      const code = isRecord(failure.error) ? failure.error.code : undefined
+      const code = isRecord(failure.error) ? failure.error['code'] : undefined
       return MISSING_PATH_CODES.has(code)
         ? Effect.fail(new Error(missingPathMessage(targetPath)))
         : Effect.void
@@ -81,12 +82,12 @@ function parsedWebUrl(url: string) {
 export function registerShellHandlers(): void {
   typedHandle('app:open-logs-dir', () =>
     Effect.gen(function* () {
-      const result = yield* Effect.promise(() => openPath(app.getPath('logs')))
+      const result = yield* Effect.promise(() => openPath(appPaths.logs()))
       if (result) return yield* Effect.fail(new Error(result))
     }),
   )
 
-  typedHandle('app:get-logs-path', () => Effect.sync(() => app.getPath('logs')))
+  typedHandle('app:get-logs-path', () => Effect.sync(() => appPaths.logs()))
   typedHandle('app:get-native-admission-issue', () => Effect.sync(getDesktopNativeAdmissionIssue))
   // The window's own build and environment opt-out, for the Settings switch (#356).
   typedHandle('app:get-usage-statistics-block', () =>

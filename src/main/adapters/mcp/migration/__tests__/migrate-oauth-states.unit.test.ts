@@ -1,82 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import { type McpOAuthMigrationSink, SIGN_IN_OF_ANOTHER_BUILD } from '../oauth-state-migration'
 import {
-  HOME,
-  LEGACY_STATE,
-  legacyState,
-  memoryFs,
-  NOW,
-  OPENWAGGLE_GLOBAL,
-  oldIdentityKey,
-} from './migration-fixtures'
-
-const ISSUER = 'https://auth.example.com'
-const CLIENT = {
-  client_id: 'client-1',
-  redirect_uris: ['http://127.0.0.1:53111/oauth/callback'],
-  issuer: ISSUER,
-}
-const TOKENS = {
-  access_token: 'access-1',
-  token_type: 'Bearer',
-  refresh_token: 'refresh-1',
-  expires_in: 3600,
-  issuer: ISSUER,
-}
-
-function oldOAuthState(overrides: Record<string, unknown> = {}) {
-  return JSON.stringify({
-    version: 1,
-    tokensByIssuer: { [ISSUER]: TOKENS },
-    clientsByIssuer: { [ISSUER]: CLIENT },
-    lastTokenIssuer: ISSUER,
-    codeVerifier: 'verifier',
-    ...overrides,
-  })
-}
-
-function oauthSink(secrets: Record<string, string>) {
-  const written = new Map<string, unknown>()
-  const sink: McpOAuthMigrationSink = {
-    readOld: (name) => Promise.resolve(secrets[name]),
-    write: (key, state) => {
-      written.set(key, state)
-    },
-  }
-  return { sink, written }
-}
-
-function remoteInstall() {
-  return memoryFs({
-    [OPENWAGGLE_GLOBAL]: {
-      mcpServers: {
-        'sentry-prod': { url: 'https://mcp.sentry.dev/mcp', auth: { type: 'oauth' } },
-      },
-    },
-    [LEGACY_STATE]: legacyState({
-      servers: {
-        [oldIdentityKey(OPENWAGGLE_GLOBAL, 'sentry-prod')]: {
-          instanceId: 'sentry-id',
-          enabled: true,
-        },
-      },
-    }),
-  })
-}
+  CLIENT,
+  ISSUER,
+  migrate,
+  oauthSink,
+  oldOAuthState,
+  remoteInstall,
+  TOKENS,
+} from './oauth-migration.test-support'
 
 describe('migrating old MCP OAuth sign-ins', () => {
   it("stores a single-issuer sign-in as Pi's state under Pi's key", async () => {
     const fs = remoteInstall()
     const { sink, written } = oauthSink({ 'oauth.sentry-id': oldOAuthState() })
 
-    const report = await migrateOpenWaggleMcpFiles({
-      homeDir: HOME,
-      projectPaths: [],
-      now: () => NOW,
-      fs,
-      oauth: sink,
-    })
+    const report = await migrate(fs, sink)
 
     const key = 'mcp__sentry_prod|https://mcp.sentry.dev/mcp'
     expect(written.get(key)).toEqual({
@@ -98,22 +37,10 @@ describe('migrating old MCP OAuth sign-ins', () => {
   it('migrates a sign-in once', async () => {
     const fs = remoteInstall()
     const first = oauthSink({ 'oauth.sentry-id': oldOAuthState() })
-    await migrateOpenWaggleMcpFiles({
-      homeDir: HOME,
-      projectPaths: [],
-      now: () => NOW,
-      fs,
-      oauth: first.sink,
-    })
+    await migrate(fs, first.sink)
     const second = oauthSink({ 'oauth.sentry-id': oldOAuthState() })
 
-    const report = await migrateOpenWaggleMcpFiles({
-      homeDir: HOME,
-      projectPaths: [],
-      now: () => NOW,
-      fs,
-      oauth: second.sink,
-    })
+    const report = await migrate(fs, second.sink)
 
     expect(second.written.size).toBe(0)
     expect(report.oauth.map((result) => result.status)).toEqual(['already-migrated'])
@@ -129,13 +56,7 @@ describe('migrating old MCP OAuth sign-ins', () => {
       }),
     })
 
-    const report = await migrateOpenWaggleMcpFiles({
-      homeDir: HOME,
-      projectPaths: [],
-      now: () => NOW,
-      fs,
-      oauth: sink,
-    })
+    const report = await migrate(fs, sink)
 
     expect(written.size).toBe(0)
     expect(report.oauth).toEqual([
@@ -156,17 +77,8 @@ describe('migrating old MCP OAuth sign-ins', () => {
       },
       write: () => {},
     }
-    const migrate = () =>
-      migrateOpenWaggleMcpFiles({
-        homeDir: HOME,
-        projectPaths: [],
-        now: () => NOW,
-        fs,
-        oauth: sink,
-      })
-
-    const first = await migrate()
-    const second = await migrate()
+    const first = await migrate(fs, sink)
+    const second = await migrate(fs, sink)
 
     expect(first.oauth).toEqual([
       expect.objectContaining({ status: 'skipped', reason: 'not signed in' }),
@@ -192,21 +104,13 @@ describe('migrating old MCP OAuth sign-ins', () => {
       }
       return { sink, reads, written }
     }
-    const migrate = (sink: McpOAuthMigrationSink) =>
-      migrateOpenWaggleMcpFiles({
-        homeDir: HOME,
-        projectPaths: [],
-        now: () => NOW,
-        fs,
-        oauth: sink,
-      })
 
     // The dev build cannot decrypt the sign-in, which only the release build's key opens.
     const dev = read('dev', SIGN_IN_OF_ANOTHER_BUILD)
-    const devReport = await migrate(dev.sink)
-    await migrate(dev.sink)
+    const devReport = await migrate(fs, dev.sink)
+    await migrate(fs, dev.sink)
     const release = read('release', oldOAuthState())
-    const releaseReport = await migrate(release.sink)
+    const releaseReport = await migrate(fs, release.sink)
 
     expect(devReport.oauth).toEqual([expect.objectContaining({ status: 'skipped' })])
     // Not recorded: the next start of the dev build looks again.
@@ -223,13 +127,7 @@ describe('migrating old MCP OAuth sign-ins', () => {
       write: () => false,
     }
 
-    const report = await migrateOpenWaggleMcpFiles({
-      homeDir: HOME,
-      projectPaths: [],
-      now: () => NOW,
-      fs,
-      oauth: sink,
-    })
+    const report = await migrate(fs, sink)
 
     expect(report.oauth).toEqual([
       expect.objectContaining({ status: 'skipped', reason: 'already signed in' }),

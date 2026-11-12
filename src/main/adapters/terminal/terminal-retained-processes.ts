@@ -27,12 +27,18 @@ function mergeProcessPids(...groups: readonly (readonly number[])[]) {
 export class TerminalRetainedProcesses {
   private readonly entries = new Map<LiveTerminalProcess['pty'], RetainedCleanupEntry>()
 
+  private readonly onRecordInactive: (record: TerminalRecord) => void
+  private readonly shutdownDetachedProcess: (target: RetainedTerminalProcess) => Promise<boolean>
+
   constructor(
-    private readonly onRecordInactive: (record: TerminalRecord) => void,
-    private readonly shutdownDetachedProcess: (
+    onRecordInactive: (record: TerminalRecord) => void,
+    shutdownDetachedProcess: (
       target: RetainedTerminalProcess,
     ) => Promise<boolean> = shutdownDetachedTerminal,
-  ) {}
+  ) {
+    this.onRecordInactive = onRecordInactive
+    this.shutdownDetachedProcess = shutdownDetachedProcess
+  }
 
   readonly registerDetachedProcess = (
     owner: TerminalRecord,

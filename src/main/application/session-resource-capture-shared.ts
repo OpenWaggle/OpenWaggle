@@ -28,11 +28,11 @@ export function occurrence(input: {
   readonly actor: SessionResourceActor
   readonly activity: SessionResourceActivity
   readonly createdAt: number
-  readonly branchId?: string | null
-  readonly label?: string | null
-  readonly locator?: string | null
-  readonly displayName?: string | null
-  readonly displayOrder?: number | null
+  readonly branchId?: string | null | undefined
+  readonly label?: string | null | undefined
+  readonly locator?: string | null | undefined
+  readonly displayName?: string | null | undefined
+  readonly displayOrder?: number | null | undefined
 }) {
   return {
     id: input.id,

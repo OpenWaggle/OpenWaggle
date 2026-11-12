@@ -1,5 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type {
   LocalSessionCommandPayload,
@@ -7,7 +7,6 @@ import type {
 } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
 import { isRecord } from '@shared/utils/validation'
-import type { TSchema } from 'typebox'
 import type { AgentDefinitionProjectResolver } from '../../agent-definition-project'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
@@ -43,6 +42,7 @@ import {
   sessionsToolUnavailableNotes,
   sessionsToolUnavailableTopic,
 } from './sessions-tool-unavailable'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 const logger = createLogger('hive-tool')
 
@@ -72,7 +72,7 @@ function sendSessionsToolCommand(
     sourceSessionId: input.sessionId,
     sourceRunId: input.runId,
     workingDirectory: input.workingDirectory,
-    projectPath: input.projectPath,
+    ...(input.projectPath === undefined ? {} : { projectPath: input.projectPath }),
     payload,
     ...(signal ? { signal } : {}),
   })
@@ -175,14 +175,17 @@ function failedToolResult(error: unknown) {
 const HIVE_TOOL_DESCRIPTION =
   'Coordinate your Hive of durable OpenWaggle Sessions: spawn Workers, read and wait on Sessions, report peer context, send Follow-ups, steer or interrupt a Run, review Delegations, manage Scheduled tasks. The Hive root is the Queen Session; every descendant is a Worker, an ordinary Session with its own transcript that may continue after this Run. Session summaries and Delegations carry nextActor: user, parent, worker, or none.'
 
-export function createSessionsToolExtension(input: SessionsToolExtensionInput): ExtensionFactory {
+export function createSessionsToolExtension(
+  input: SessionsToolExtensionInput,
+): SynchronousExtensionFactory {
   const grant: SessionsToolActionGrant = {
     capabilities: input.sessionCapabilities,
     modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
   }
   return (pi) => {
-    // Typed as a plain schema: arguments stay unknown until parseSessionsToolActionArguments.
-    pi.registerTool<TSchema, unknown>({
+    // sessionsToolSchemaForGrant returns a plain TSchema, so arguments stay unknown until
+    // parseSessionsToolActionArguments.
+    pi.registerTool({
       name: HIVE_TOOL_NAME,
       label: 'Hive',
       description: HIVE_TOOL_DESCRIPTION,

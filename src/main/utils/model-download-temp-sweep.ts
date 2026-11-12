@@ -63,8 +63,9 @@ export async function sweepOrphanedModelDownloads(
       if (!stats?.isFile()) continue
       if (
         !isOrphanedModelDownload({ name: entry.name, modifiedAtMs: stats.mtimeMs }, now, currentPid)
-      )
+      ) {
         continue
+      }
       const removed = await fs.rm(entryPath).then(
         () => true,
         () => false,

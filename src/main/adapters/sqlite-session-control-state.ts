@@ -1,23 +1,16 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
-import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
-import { inlineVisualizationContextSchema } from '@shared/schemas/validation'
-import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
-import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
-import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import type {
   SessionControlFollowUp,
-  SessionControlIntentSnapshot,
-  SessionControlRunIntent,
   SessionControlRunState,
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
 import { monotonicNowMs } from '../utils/monotonic-clock'
 import { persistFollowUpEditHolds, withFollowUpEditLeaseState } from './sqlite-follow-up-edit-holds'
+import { decodeFollowUpIntent, decodeRunIntent } from './sqlite-session-control-intent'
 import { persistRun } from './sqlite-session-control-run-row'
 import { persistRunStartThinkingLevel } from './sqlite-session-run-start-settings'
 
@@ -48,54 +41,8 @@ interface SessionFollowUpRow {
   readonly intent_json: string
 }
 
-const followUpIntentFields = {
-  text: Schema.String,
-  attachmentIds: Schema.Array(Schema.String),
-  waggle: Schema.optional(waggleInvocationSchema),
-  visualizationContext: Schema.optional(inlineVisualizationContextSchema),
-  interactionTimeoutMs: Schema.optional(
-    Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
-  ),
-  callerId: Schema.String,
-  acceptedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  idempotencyKey: Schema.String,
-  returnedSteer: Schema.optional(Schema.Struct({ runId: Schema.String })),
-}
-
-/**
- * A starting Run's intent: its Follow-up intent snapshot plus what only a Run started on an idle
- * Session has: its settings (`thinkingLevel`, `runAuthorizationOverride`) and the Host's `hiveWake`.
- * A stored Follow-up decodes with the same schema; `decodeFollowUpIntent` drops those three.
- * `authorCallerId` is kept: who queued a Follow-up the desktop user adopted (`queue-adopt`).
- */
-const storedIntentSchema = Schema.Struct({
-  ...followUpIntentFields,
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  authorCallerId: Schema.optional(Schema.String),
-  hiveWake: Schema.optional(Schema.Literal(true)),
-})
-
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
-}
-
-function decodeRunIntent(raw: string): SessionControlRunIntent {
-  const { waggle, ...intent } = decodeUnknownExactOrThrow(storedIntentSchema, parseJsonUnknown(raw))
-  return {
-    ...intent,
-    ...(waggle ? { waggle: toWaggleInvocation(waggle) } : {}),
-  }
-}
-
-function decodeFollowUpIntent(raw: string): SessionControlIntentSnapshot {
-  const {
-    thinkingLevel: _thinkingLevel,
-    runAuthorizationOverride: _runAuthorizationOverride,
-    hiveWake: _hiveWake,
-    ...intent
-  } = decodeRunIntent(raw)
-  return intent
 }
 
 function decodeQueueState(raw: string): 'running' | 'paused' {

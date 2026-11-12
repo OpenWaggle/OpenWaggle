@@ -59,8 +59,8 @@ function interactionStatus(response: AgentLoopInteractionResponse): AgentLoopInt
 
 function emitResolved(input: {
   readonly interaction: AgentLoopInteraction
-  readonly response?: AgentLoopInteractionResponse
-  readonly status?: AgentLoopInteractionStatus
+  readonly response?: AgentLoopInteractionResponse | undefined
+  readonly status?: AgentLoopInteractionStatus | undefined
   readonly error?: {
     readonly code: AgentLoopInteractionErrorCode
     readonly message: string

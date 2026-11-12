@@ -132,7 +132,7 @@ async function authorize(
         },
         ...(signal ? { signal } : {}),
       })
-    : await ctx.ui.confirm(title, message, { signal })
+    : await ctx.ui.confirm(title, message, signal ? { signal } : {})
   if (!approved) throw new Error('The source control change was not authorized.')
 }
 
@@ -147,10 +147,13 @@ export async function configureSessionSourceControl(
   const filled = await sessionRequest(params, scope, backend)
   if (typeof filled === 'string') return failure(filled)
   const decoded = safeDecodeUnknown(sourceControlConfigureRequestSchema, filled)
-  if (!decoded.success)
+  if (!decoded.success) {
     return failure(`Invalid source control change: ${decoded.issues.join('; ')}`)
-  await authorize(ctx, decoded.data, signal)
+  }
+  // The schema only checks the filled change's bounds: `filled` is the typed change, while the
+  // decoded copy types its absent optional fields as `undefined`.
+  await authorize(ctx, filled, signal)
   signal?.throwIfAborted()
-  const result = await backend.configure(decoded.data, backend.access())
+  const result = await backend.configure(filled, backend.access())
   return result.ok ? result : failure(redactSourceControlText(result.message))
 }

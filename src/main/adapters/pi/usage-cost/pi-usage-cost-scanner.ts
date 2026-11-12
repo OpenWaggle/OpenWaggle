@@ -202,20 +202,17 @@ async function listSessionFiles(sessionsRoot: string) {
   } catch {
     return []
   }
-  const files: string[] = []
-  for (const directoryName of directoryNames) {
-    const directory = path.join(sessionsRoot, directoryName)
-    let entries: string[]
-    try {
-      entries = await readdir(directory)
-    } catch {
-      continue
-    }
-    for (const entry of entries) {
-      if (entry.endsWith(PI_SESSION_FILE_SUFFIX)) files.push(path.join(directory, entry))
-    }
-  }
-  return files
+  // A directory that cannot be listed adds nothing; the others keep their order.
+  const listed = await Promise.all(
+    directoryNames.map(async (directoryName) => {
+      const directory = path.join(sessionsRoot, directoryName)
+      const entries = await readdir(directory).catch((): string[] => [])
+      return entries
+        .filter((entry) => entry.endsWith(PI_SESSION_FILE_SUFFIX))
+        .map((entry) => path.join(directory, entry))
+    }),
+  )
+  return listed.flat()
 }
 
 /**

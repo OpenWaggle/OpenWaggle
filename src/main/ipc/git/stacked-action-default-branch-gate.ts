@@ -10,8 +10,9 @@ import {
   targetsDefaultRef,
 } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
-import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import type { MessageBoxRequest } from '../../ports/desktop-shell/dialogs'
+import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
 import { resolvePrimaryRemoteResult } from '../../services/git/primary-remote'
 import { resolveLocalDefaultRef } from './default-ref'
 import type { GitPinnedPushTarget } from './push-service'
@@ -44,10 +45,7 @@ export function resolvePlannedFeatureRef(options: GitRunStackedActionOptions): s
   return options.exactFeatureBranchName ? requested : sanitizeFeatureBranchName(requested)
 }
 
-function askDefaultBranchConfirmation(
-  event: IpcMainInvokeEvent,
-  copy: DefaultBranchActionDialogCopy,
-) {
+function askDefaultBranchConfirmation(event: IpcInvocation, copy: DefaultBranchActionDialogCopy) {
   return Effect.gen(function* () {
     const ownerWindow = browserWindowFromWebContents(event.sender)
     const dialogOptions = {
@@ -57,7 +55,7 @@ function askDefaultBranchConfirmation(
       cancelId: 0,
       message: copy.title,
       detail: copy.description,
-    } satisfies MessageBoxOptions
+    } satisfies MessageBoxRequest
     const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
     return confirmation.response === 1
   })
@@ -190,7 +188,7 @@ function buildPushTargetIdentity(
 
 /** Main-process default-branch gate from ADR 0012. */
 export function confirmDefaultBranchAction(
-  event: IpcMainInvokeEvent,
+  event: IpcInvocation,
   projectPath: string,
   options: GitRunStackedActionOptions,
 ) {

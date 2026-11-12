@@ -29,8 +29,6 @@ import { validateTerminalCwd } from './terminal-shell'
 
 const logger = createLogger('terminal-service-actions')
 
-export { PREVIOUS_TERMINAL_SESSION_SEPARATOR } from './terminal-replay'
-
 export const CLOSED_SNAPSHOT: TerminalAttachResult = {
   history: '',
   outputBytes: 0,
@@ -185,7 +183,7 @@ function reuseLiveTerminal(
   record: TerminalRecord | undefined,
   input: TerminalOpenInput,
 ): TerminalAttachResult {
-  if (record === undefined || record.live === null) return CLOSED_SNAPSHOT
+  if (!record?.live) return CLOSED_SNAPSHOT
   try {
     record.live.pty.resize(input.cols, input.rows)
   } catch (error) {

@@ -52,7 +52,7 @@ function legacySetting(database: HostSqliteDatabase, key: string): unknown {
     database,
     'SELECT value_json FROM settings_store WHERE key = ?',
     key,
-  )?.value_json
+  )?.['value_json']
   if (typeof valueJson !== 'string') return undefined
   try {
     const value: unknown = JSON.parse(valueJson)
@@ -99,7 +99,7 @@ export function normalizeLegacySessionColumns(database: HostSqliteDatabase) {
       .all()
       .flatMap((value) => {
         const row = cutoverRecord(value)
-        return typeof row?.name === 'string' ? [row.name] : []
+        return typeof row?.['name'] === 'string' ? [row['name']] : []
       }),
   )
   for (const [name, declaration] of LEGACY_SESSION_COLUMN_NORMALIZATIONS) {
@@ -206,8 +206,9 @@ function readLegacyRows(database: HostSqliteDatabase) {
     FROM session_active_runs ORDER BY run_id
   `)
     .all()
-  if (!Array.isArray(sessionValues) || !Array.isArray(activeRunValues))
+  if (!Array.isArray(sessionValues) || !Array.isArray(activeRunValues)) {
     throw new Error('Legacy Session rows could not be read.')
+  }
   return {
     sessions: sessionValues.map(decodeLegacySession),
     activeRuns: activeRunValues.map(decodeLegacyActiveRun),

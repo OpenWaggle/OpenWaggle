@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events'
 import { SessionId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+import type { RendererSurface } from '../ports/desktop-shell/renderer-surfaces'
 import {
   activateSessionResourceContentOwner,
   beginSessionResourceContentRequest,
@@ -12,7 +12,7 @@ import {
 describe('Session resource capability owner lifecycle', () => {
   it('purges capabilities on document replacement, renderer loss, and destruction', () => {
     const sender = Object.assign(new EventEmitter(), { id: 41 })
-    const webContents = fromPartial<WebContents>(sender)
+    const webContents = fromPartial<RendererSurface>(sender)
     const purge = vi.fn()
 
     monitorSessionResourceContentOwner(webContents, purge)
@@ -33,7 +33,7 @@ describe('Session resource capability owner lifecycle', () => {
     expect(sender.listenerCount('did-start-navigation')).toBe(0)
 
     const replacement = Object.assign(new EventEmitter(), { id: 42 })
-    const replacementContents = fromPartial<WebContents>(replacement)
+    const replacementContents = fromPartial<RendererSurface>(replacement)
     monitorSessionResourceContentOwner(replacementContents, purge)
     replacement.emit('destroyed')
     expect(purge).toHaveBeenLastCalledWith(42)
@@ -42,7 +42,7 @@ describe('Session resource capability owner lifecycle', () => {
 
   it('invalidates stale Session reads and in-flight reads across navigation', () => {
     const sender = Object.assign(new EventEmitter(), { id: 73 })
-    const webContents = fromPartial<WebContents>(sender)
+    const webContents = fromPartial<RendererSurface>(sender)
 
     const sessionA = beginSessionResourceContentRequest(webContents, SessionId('session-a'))
     const sessionAParallel = beginSessionResourceContentRequest(webContents, SessionId('session-a'))
@@ -64,7 +64,7 @@ describe('Session resource capability owner lifecycle', () => {
 
   it('revokes the prior Session when the displayed route changes without another resource read', () => {
     const sender = Object.assign(new EventEmitter(), { id: 74 })
-    const webContents = fromPartial<WebContents>(sender)
+    const webContents = fromPartial<RendererSurface>(sender)
     const purge = vi.fn()
     monitorSessionResourceContentOwner(webContents, purge)
 

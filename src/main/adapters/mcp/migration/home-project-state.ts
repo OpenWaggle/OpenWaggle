@@ -26,7 +26,7 @@ export async function reportHomeFolderProjectState(input: {
   })
   const parsed: unknown = computed.text === undefined ? undefined : JSON.parse(computed.text)
   const servers =
-    isRecord(parsed) && isRecord(parsed.mcpServers) ? Object.keys(parsed.mcpServers) : []
+    isRecord(parsed) && isRecord(parsed['mcpServers']) ? Object.keys(parsed['mcpServers']) : []
   if (servers.length === 0) return false
   input.logger.warn(
     'MCP migration left out the on/off choices of the project at the home folder, which shares its file with every project',

@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect'
-import type { OpenDialogOptions } from 'electron'
 import { browserWindowFromWebContents, showOpenDialog } from '../desktop-ui'
+import type { OpenDialogRequest } from '../ports/desktop-shell/dialogs'
 import {
   forgetAgentDefinitionImportSources,
   listAgentDefinitionImportSources,
@@ -15,7 +15,7 @@ export function registerAgentDefinitionsHandlers() {
   typedHandle('agent-definitions:select-source', (event) =>
     Effect.gen(function* () {
       const owner = browserWindowFromWebContents(event.sender)
-      const options: OpenDialogOptions = {
+      const options: OpenDialogRequest = {
         title: 'Select Agent definition source',
         properties: ['openFile'],
         filters: [

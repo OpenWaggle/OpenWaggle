@@ -9,7 +9,11 @@ export class LocalSessionOutboundTurn {
   private held = false
   private readonly waiters: TurnWaiter[] = []
 
-  constructor(private readonly aborted: () => Error) {}
+  private readonly aborted: () => Error
+
+  constructor(aborted: () => Error) {
+    this.aborted = aborted
+  }
 
   acquire(signal: AbortSignal): Promise<void> {
     if (signal.aborted) return Promise.reject(this.aborted())
@@ -54,7 +58,11 @@ export class LocalSessionOutboundTurn {
 export class LocalSessionOutboundReleaseSignal {
   private waiter: (() => void) | undefined
 
-  constructor(private readonly aborted: () => Error) {}
+  private readonly aborted: () => Error
+
+  constructor(aborted: () => Error) {
+    this.aborted = aborted
+  }
 
   notify(): void {
     this.waiter?.()

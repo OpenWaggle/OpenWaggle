@@ -89,41 +89,41 @@ describe('workspace cleanup removal boundary', () => {
     expect(await test.perform({ retryFailed: false })).toMatchObject({ code: 'cleanup-failed' })
     expect(test.run).not.toHaveBeenCalled()
   })
-  it('records an explicit Delete anyway and permits removal', async () => {
-    const test = fixture('review-required')
-    expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
-    expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
-    expect(test.run).not.toHaveBeenCalled()
-  })
-  it('does not run idle cleanup when Force remove explicitly skips it', async () => {
-    const test = fixture('idle')
-    expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
-    expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
-    expect(test.run).not.toHaveBeenCalled()
-    expect(test.order).toEqual(['stop'])
-  })
+  it.each(['review-required', 'idle'] as const)(
+    'records an explicit Delete anyway for %s cleanup and permits removal without running it',
+    async (status) => {
+      const test = fixture(status)
+      expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
+      expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+      expect(test.run).not.toHaveBeenCalled()
+      expect(test.order).toEqual(['stop'])
+    },
+  )
   it('permits removal after successful cleanup', async () => {
     const test = fixture('succeeded')
     expect(await test.perform({ retryFailed: true })).toBeNull()
   })
-  it('never runs retained cleanup in a replacement checkout at the same path', async () => {
-    const test = fixture('failed', replaced)
-    expect(await test.perform({ retryFailed: true })).toMatchObject({
-      ok: false,
-      code: 'cleanup-failed',
-      message: expect.stringContaining(
-        'no longer matches the checkout that captured its preparation: /repo/worktree is a different folder from the one that was prepared. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup. Prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, created 2026-10-21 06:17:40 UTC.',
-      ),
-    })
-    expect(warn).toHaveBeenCalledWith(
-      'Worktree cleanup refused: it failed its saved-preparation check',
-      { workspaceId: workspace.workspaceId, ...replaced },
-    )
-    expect(test.run).not.toHaveBeenCalled()
-    expect(test.skip).not.toHaveBeenCalled()
-    expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
-    expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
-  })
+  it.each(['failed', 'succeeded'] as const)(
+    'never runs retained %s cleanup in a replacement checkout at the same path',
+    async (status) => {
+      const test = fixture(status, replaced)
+      expect(await test.perform({ retryFailed: true })).toMatchObject({
+        ok: false,
+        code: 'cleanup-failed',
+        message: expect.stringContaining(
+          'no longer matches the checkout that captured its preparation: /repo/worktree is a different folder from the one that was prepared. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup. Prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, created 2026-10-21 06:17:40 UTC.',
+        ),
+      })
+      expect(warn).toHaveBeenCalledWith(
+        'Worktree cleanup refused: it failed its saved-preparation check',
+        { workspaceId: workspace.workspaceId, ...replaced },
+      )
+      expect(test.run).not.toHaveBeenCalled()
+      expect(test.skip).not.toHaveBeenCalled()
+      expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
+      expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+    },
+  )
   it.each([
     ['no definitions', []],
     ['only a setup definition', [definition('setup')]],
@@ -147,17 +147,6 @@ describe('workspace cleanup removal boundary', () => {
     })
     expect(test.skip).not.toHaveBeenCalled()
     expect(test.run).not.toHaveBeenCalled()
-  })
-  it('still offers explicit Delete anyway when old cleanup had succeeded', async () => {
-    const test = fixture('succeeded', replaced)
-    expect(await test.perform({ retryFailed: true })).toMatchObject({
-      ok: false,
-      code: 'cleanup-failed',
-      message: expect.stringContaining('Delete anyway'),
-    })
-    expect(test.run).not.toHaveBeenCalled()
-    expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
-    expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
   })
   it.each([
     [

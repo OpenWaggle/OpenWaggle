@@ -5,7 +5,11 @@ import {
   hostTemporaryDirectory,
 } from '../../../../utils/session-scratch-directory'
 
-type SpawnContext = { command: string; cwd: string; env: NodeJS.ProcessEnv }
+interface SpawnContext {
+  command: string
+  cwd: string
+  env: NodeJS.ProcessEnv
+}
 type SpawnHook = (context: SpawnContext) => SpawnContext
 const mocks = vi.hoisted(() => ({
   hooks: new Map<string, SpawnHook>(),
@@ -264,7 +268,7 @@ it("gives both Pi shell tools the user's PI_PACKAGE_DIR, not OpenWaggle's own", 
       cwd: '/workspace',
       env: { ...hostEnvironment, KEEP: 'value' },
     })
-    expect(spawned.env.PI_PACKAGE_DIR).toBe('/nix/store/pi')
-    expect(spawned.env.KEEP).toBe('value')
+    expect(spawned.env['PI_PACKAGE_DIR']).toBe('/nix/store/pi')
+    expect(spawned.env['KEEP']).toBe('value')
   }
 })

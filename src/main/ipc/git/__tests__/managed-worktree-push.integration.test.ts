@@ -5,8 +5,8 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import type { IpcMainInvokeEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { IpcInvocation } from '../../../ports/desktop-shell/ipc-transport'
 
 vi.mock('electron', () => ({
   app: { getPath: () => tmpdir(), getName: () => 'openwaggle-test' },
@@ -283,7 +283,7 @@ describe('a push target Git cannot reduce to one branch', () => {
 })
 
 describe('the Session Summary Push gate', () => {
-  const event = fromPartial<IpcMainInvokeEvent>({ sender: {} })
+  const event = fromPartial<IpcInvocation>({ sender: {} })
 
   it.each(['unset', 'simple'] as const)(
     'pins the branch of the same name without asking, then pushes there, with push.default=%s',

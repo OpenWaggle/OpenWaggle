@@ -42,8 +42,8 @@ function narrowRoots(live: readonly string[] | undefined, limits: readonly strin
   )
 }
 
-function nonEmpty<K extends keyof LocalSessionProfileScope>(
-  key: K,
+function nonEmpty(
+  key: keyof LocalSessionProfileScope,
   values: readonly string[],
 ): Partial<LocalSessionProfileScope> {
   return values.length > 0 ? { [key]: values } : {}

@@ -44,7 +44,10 @@ export class LocalSessionFrameReader {
   private waiter: ((value: unknown) => void) | null = null
   private failure: Error | null = null
 
-  constructor(private readonly socket: Socket) {
+  private readonly socket: Socket
+
+  constructor(socket: Socket) {
+    this.socket = socket
     socket.pause()
     socket.on('data', (chunk) => {
       try {
@@ -94,8 +97,12 @@ export class LocalSessionFrameReader {
             }, timeoutMs)
       this.waiter = (value) => {
         if (timer) clearTimeout(timer)
-        if (isRecord(value) && value.kind === '__client-error' && value.error instanceof Error) {
-          reject(value.error)
+        if (
+          isRecord(value) &&
+          value['kind'] === '__client-error' &&
+          value['error'] instanceof Error
+        ) {
+          reject(value['error'])
           return
         }
         resolve(value)
@@ -109,9 +116,11 @@ export class LocalSessionFrameReader {
   }
 }
 
+export type LocalSessionClientKind = 'gui' | 'cli' | 'mcp' | 'internal'
+
 export interface LocalSessionClientConnectionInput {
   readonly paths: LocalSessionHostPaths
-  readonly clientKind?: 'gui' | 'cli' | 'mcp' | 'internal'
+  readonly clientKind?: LocalSessionClientKind
   readonly clientVersion: string
   readonly workingDirectory?: string
   readonly profile?: string
@@ -215,7 +224,7 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
       credential: authentication.credential,
     })
     const negotiationFrame = await reader.next(timeoutMs)
-    if (isRecord(negotiationFrame) && negotiationFrame.kind === 'error') {
+    if (isRecord(negotiationFrame) && negotiationFrame['kind'] === 'error') {
       throw localSessionClientProtocolError(
         negotiationFrame,
         'Local Session authentication failed.',

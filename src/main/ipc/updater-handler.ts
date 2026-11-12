@@ -3,13 +3,13 @@ import { SessionId } from '@shared/types/brand'
 import { isUpdateChannel, type UpdateChannel } from '@shared/types/update-channel'
 import type { UpdateStatus } from '@shared/types/updater'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
 import {
   dispatchGuiSessionCommand,
   GuiSessionCommandNotAttachedError,
 } from '../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../application/gui-session-command-router'
 import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { getAllBrowserWindows, showMessageBox } from '../desktop-ui'
 import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
@@ -120,5 +120,5 @@ export function registerUpdaterHandlers(): void {
 
   typedHandle('updater:get-status', () => Effect.sync(() => getUpdateStatus()))
 
-  typedHandle('app:get-version', () => Effect.sync(() => app.getVersion()))
+  typedHandle('app:get-version', () => Effect.sync(() => appLifecycle.version()))
 }

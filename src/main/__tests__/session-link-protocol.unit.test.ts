@@ -6,15 +6,16 @@ import {
   type SessionLinkProtocolHost,
 } from '../session-link-protocol'
 
-type OpenUrlListener = Parameters<SessionLinkProtocolHost['on']>[1]
+type OpenUrlListener = Parameters<SessionLinkProtocolHost['onOpenUrl']>[0]
 
 function fakeHost(isPackaged = true) {
   const listeners: OpenUrlListener[] = []
   const setAsDefaultProtocolClient = vi.fn(() => true)
   const host: SessionLinkProtocolHost = {
     isPackaged,
-    on: (_event, listener) => {
+    onOpenUrl: (listener) => {
       listeners.push(listener)
+      return () => undefined
     },
     setAsDefaultProtocolClient,
   }
@@ -137,7 +138,7 @@ describe('forwardSessionLinksToDesktopApp', () => {
       { host: fakeHost().host, platform: 'darwin', channel: 'dev' },
       { host: fakeHost(false).host, platform: 'darwin', channel: 'stable' },
     ] as const) {
-      const on = vi.spyOn(input.host, 'on')
+      const on = vi.spyOn(input.host, 'onOpenUrl')
       forwardSessionLinksToDesktopApp({ ...input, automation: false, launchDesktopApp: vi.fn() })
       expect(on).not.toHaveBeenCalled()
     }

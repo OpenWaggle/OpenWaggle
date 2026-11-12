@@ -15,7 +15,7 @@
 /** Ordered key alphabet: lexicographic order over these equals their index order. */
 const DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz'
 const BASE = DIGITS.length
-const LOWEST_DIGIT = DIGITS[0]
+const LOWEST_DIGIT = DIGITS.charAt(0)
 /** Exclusive lower bound for an unbounded start: sorts before every valid key. */
 const UNBOUNDED_START = ''
 const HALF = 0.5
@@ -53,19 +53,19 @@ function midpoint(before: string, after: string | null): string {
     }
   }
 
-  const low = before === '' ? 0 : digitValue(before[0])
-  const high = after === null ? BASE : digitValue(after[0])
+  const low = before === '' ? 0 : digitValue(before.charAt(0))
+  const high = after === null ? BASE : digitValue(after.charAt(0))
 
   if (high - low > 1) {
     // A gap exists in this position: land in the middle of it and stop.
-    return DIGITS[Math.round(HALF * (low + high))]
+    return DIGITS.charAt(Math.round(HALF * (low + high)))
   }
   if (after !== null && after.length > 1) {
     // Digits are adjacent but `after` continues, so its own first digit is free.
     return after.slice(0, 1)
   }
   // Adjacent digits with nothing to borrow: keep the low digit and extend right.
-  return DIGITS[low] + midpoint(before.slice(1), null)
+  return DIGITS.charAt(low) + midpoint(before.slice(1), null)
 }
 
 /**

@@ -27,6 +27,7 @@ function ansiCharacter(command: string, cursor: number) {
   if (!numeric) return undefined
   const [, hex, shortUnicode, longUnicode, octal] = numeric
   const digits = hex ?? shortUnicode ?? longUnicode ?? octal
+  if (digits === undefined) return undefined
   const value = Number.parseInt(digits, octal ? OCTAL_RADIX : HEX_RADIX)
   if (value > ASCII_MAX) return undefined
   return { character: String.fromCharCode(value), length: numeric[0].length + 1 }

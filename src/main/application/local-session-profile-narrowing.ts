@@ -4,7 +4,6 @@ import type {
   LocalSessionProfileAuthority,
   LocalSessionProfileScope,
 } from '@shared/types/local-session-profile'
-import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import {
   LocalSessionCommandAuthorizationError,
@@ -115,10 +114,11 @@ function intersectTargets(
       }
     }
     const profileSessionIds = yield* listAuthorizedSessionIds(profileScope)
+    const narrowingProjectSet = new Set(narrowingProjects)
     return {
       projectPaths: (profileScope.projectPaths ?? []).filter(
         (projectPath) =>
-          narrowingProjects.includes(projectPath) ||
+          narrowingProjectSet.has(projectPath) ||
           roots.some((root) => isPathInside(root, projectPath)),
       ),
       sessionIds: unique(profileSessionIds.filter((id) => reachableSessionIds.has(id))),
@@ -154,7 +154,7 @@ function unique<T>(values: readonly T[]) {
   return [...new Set(values)]
 }
 
-function intersect<T extends string | SessionCapability>(left: readonly T[], right: readonly T[]) {
+function intersect<T extends string>(left: readonly T[], right: readonly T[]) {
   const allowed = new Set(right)
   return unique(left.filter((value) => allowed.has(value)))
 }

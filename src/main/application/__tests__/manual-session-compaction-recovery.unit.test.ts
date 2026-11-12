@@ -18,14 +18,29 @@ vi.mock('../../session-host/session-host-events', () => ({
 
 import { activeCompactions, listActiveCompactions } from '../active-session-runs'
 import { dispatchHostUiRequest } from '../host-ui-request-dispatcher'
-import { executeManualSessionCompaction } from '../manual-session-compaction-service'
+import {
+  executeManualSessionCompaction,
+  executeManualSessionCompactionCancellation,
+} from '../manual-session-compaction-service'
 
 const SESSION_ID = SessionId('manual-compaction-recovery-session')
 const MODEL = SupportedModelId('openai/gpt-5.4')
 
+function cancelCompaction(callerId = 'gui:local-user') {
+  return Effect.runPromise(
+    executeManualSessionCompactionCancellation({
+      caller: { callerId },
+      payload: {
+        contract: 'local-compaction-cancel-v1',
+        request: { requestId: 'cancel-request', sessionId: SESSION_ID },
+      },
+    }),
+  )
+}
+
 function compact() {
   return Effect.runPromise(
-    fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+    fromAny<Effect.Effect<unknown, Error>, unknown>(
       executeManualSessionCompaction({
         caller: { callerId: 'gui:local-user' },
         payload: {
@@ -95,7 +110,7 @@ describe('owner manual compaction recovery', () => {
     })
 
     const activities = await Effect.runPromise(
-      fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+      fromAny<Effect.Effect<unknown, Error>, unknown>(
         dispatchHostUiRequest({
           caller: { callerId: 'gui:local-user' },
           request: {
@@ -135,5 +150,28 @@ describe('owner manual compaction recovery', () => {
       sessionId: SESSION_ID,
       event: expect.objectContaining({ type: 'compaction_end', reason: 'manual', aborted: true }),
     })
+  })
+
+  it('cancels the owner-side manual compaction for the GUI only, and reports when none is running', async () => {
+    let compactionSignal: AbortSignal | undefined
+    mocks.compactAgentSession.mockImplementation((input) =>
+      Effect.async<void>((resume) => {
+        compactionSignal = input.signal
+        input.signal.addEventListener('abort', () => resume(Effect.void), { once: true })
+      }),
+    )
+    const pending = compact()
+    await vi.waitFor(() => expect(activeCompactions.has(SESSION_ID)).toBe(true))
+
+    await expect(cancelCompaction('cli:external')).rejects.toThrow('authenticated local GUI caller')
+    expect(compactionSignal?.aborted).toBe(false)
+    await expect(cancelCompaction()).resolves.toEqual({
+      contract: 'local-compaction-cancel-v1',
+      response: { requestId: 'cancel-request', sessionId: SESSION_ID, cancelled: true },
+    })
+    expect(compactionSignal?.aborted).toBe(true)
+    await pending.catch(() => undefined)
+    expect(activeCompactions.has(SESSION_ID)).toBe(false)
+    await expect(cancelCompaction()).resolves.toMatchObject({ response: { cancelled: false } })
   })
 })

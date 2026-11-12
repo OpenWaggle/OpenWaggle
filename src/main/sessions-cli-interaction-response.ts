@@ -38,8 +38,9 @@ export function interactionResponseFromInput(
   arguments_: ParsedArguments,
   structured: unknown,
 ) {
-  if (structured !== undefined)
+  if (structured !== undefined) {
     return decodeUnknownExactOrThrow(agentLoopResponseSchema, structured)
+  }
   if (command === 'approval-respond') return approvalResponse(arguments_)
   // The CLI reads the pending request to pick the response kind (sessions-cli-host-input.ts).
   throw new Error('request-respond needs the response for the pending request.')
@@ -209,8 +210,9 @@ export function interactionResponseFor(
   return matchBy(interaction, 'kind')
     .with('confirm', (confirm) => confirmResponse(confirm, answer))
     .with('select', (select): AgentLoopInteractionResponse => {
-      if (answer.kind === 'choice')
+      if (answer.kind === 'choice') {
         return { kind: 'select', selected: listedChoice(select, answer.choice) }
+      }
       if (answer.kind === 'dismiss') return { kind: 'select', selected: null }
       throw mismatch(select, answer, '--choice <item> or --dismiss')
     })

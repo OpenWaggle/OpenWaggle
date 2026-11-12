@@ -99,7 +99,7 @@ describe('Session Host explicit recovery', () => {
 
     const restored = await restorePreCutoverDatabase(paths, 2_000, fakeEmbeddingModel)
     expect(restored).toMatchObject({ status: 'restored', migration: { status: 'migrated' } })
-    await expect(fs.access(restored.preservedActivePath)).resolves.toBeUndefined()
+    await expect(fs.access(restored.preservedActivePath)).resolves.not.toThrow()
     await expect(sessionHostRecoveryStatus(paths)).resolves.toMatchObject({
       active: { exists: true, schema: { compatible: true } },
       recovery: { exists: true },

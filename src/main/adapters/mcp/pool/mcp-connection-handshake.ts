@@ -40,7 +40,11 @@ export class McpConnectionHandshake {
   private initializedSent = false
   private readonly waiters = new Map<McpConnectionLease, JsonRpcId>()
 
-  constructor(private readonly channel: HandshakeChannel) {}
+  private readonly channel: HandshakeChannel
+
+  constructor(channel: HandshakeChannel) {
+    this.channel = channel
+  }
 
   get isDone() {
     return this.result !== undefined
@@ -60,8 +64,8 @@ export class McpConnectionHandshake {
         (value) => {
           this.result = { value }
           this.channel.onResult?.(value)
-          if (isRecord(value) && typeof value.protocolVersion === 'string') {
-            this.channel.onProtocolVersion(value.protocolVersion)
+          if (isRecord(value) && typeof value['protocolVersion'] === 'string') {
+            this.channel.onProtocolVersion(value['protocolVersion'])
           }
           return value
         },

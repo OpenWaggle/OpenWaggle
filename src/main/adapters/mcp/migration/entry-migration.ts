@@ -48,29 +48,30 @@ type PiCopyDecision =
   | { readonly kind: 'not-a-pi-copy' }
 
 function withoutKeys(entry: Record<string, unknown>, keys: readonly string[]) {
-  return Object.fromEntries(Object.entries(entry).filter(([key]) => !keys.includes(key)))
+  const omitted = new Set(keys)
+  return Object.fromEntries(Object.entries(entry).filter(([key]) => !omitted.has(key)))
 }
 
 function piProvenance(entry: JsonEntry) {
-  const provenance = entry.provenance
-  if (!isRecord(provenance) || provenance.source !== 'pi') return undefined
+  const provenance = entry['provenance']
+  if (!isRecord(provenance) || provenance['source'] !== 'pi') return undefined
   const { sourcePath, fingerprint } = provenance
   if (typeof sourcePath !== 'string' || typeof fingerprint !== 'string') return undefined
   return { sourcePath, fingerprint }
 }
 
 function disabledInPiFile(config: Record<string, unknown>, name: string) {
-  const openwaggle = config.openwaggle
-  if (!isRecord(openwaggle) || !isRecord(openwaggle.disabledMcpServers)) return false
-  return openwaggle.disabledMcpServers[name] !== undefined
+  const openwaggle = config['openwaggle']
+  if (!isRecord(openwaggle) || !isRecord(openwaggle['disabledMcpServers'])) return false
+  return openwaggle['disabledMcpServers'][name] !== undefined
 }
 
 /** Whether any `env` or `headers` value is a `{ secret }` vault reference. */
 function holdsVaultSecret(entry: JsonEntry) {
-  return [entry.env, entry.headers].some(
+  return [entry['env'], entry['headers']].some(
     (values) =>
       isRecord(values) &&
-      Object.values(values).some((value) => isRecord(value) && typeof value.secret === 'string'),
+      Object.values(values).some((value) => isRecord(value) && typeof value['secret'] === 'string'),
   )
 }
 
@@ -92,7 +93,7 @@ function decidePiCopy(
   const sourcePath = path.resolve(provenance.sourcePath)
   const config = context.livePiConfigs.get(sourcePath)
   if (!config) return { kind: 'kept', reason: `${provenance.sourcePath} is not read live here.` }
-  const servers = isRecord(config.mcpServers) ? config.mcpServers : {}
+  const servers = isRecord(config['mcpServers']) ? config['mcpServers'] : {}
   const piEntry = servers[name]
   if (!isFullEntry(piEntry) || disabledInPiFile(config, name)) {
     return { kind: 'kept', reason: `${provenance.sourcePath} no longer defines it.` }
@@ -131,7 +132,7 @@ export function migrateLegacyEntry(
   if (!isRecord(value)) return { entry: value }
   const decision = decidePiCopy(name, value, context)
   if (decision.kind === 'live') {
-    const override = directToolsOverride(value.directTools, liveExposureOf(decision.entry))
+    const override = directToolsOverride(value['directTools'], liveExposureOf(decision.entry))
     const kept = Object.keys(override)
     return {
       entry: kept.length > 0 ? override : undefined,

@@ -112,8 +112,9 @@ function prepareControlAttachments(input: {
   if (command.input.attachmentIds.length > 0) {
     return Effect.fail(new Error('Use attachment paths or prepared attachment IDs, not both.'))
   }
-  if (paths.length === 0)
+  if (paths.length === 0) {
     return Effect.succeed({ contract: payload.contract, request: payload.request })
+  }
   if (!input.workingDirectory) {
     return Effect.fail(new Error('Attachment paths require a caller working directory.'))
   }
@@ -152,8 +153,9 @@ function prepareLifecycleAttachments(input: {
   if ((command.attachmentIds ?? []).length > 0) {
     return Effect.fail(new Error('Use attachment paths or prepared attachment IDs, not both.'))
   }
-  if (paths.length === 0)
+  if (paths.length === 0) {
     return Effect.succeed({ contract: payload.contract, request: payload.request })
+  }
   if (!input.workingDirectory) {
     return Effect.fail(new Error('Attachment paths require a caller working directory.'))
   }

@@ -13,8 +13,9 @@ import { connectLocalSessionTestClient, TestFrameReader } from './local-session-
 function cursorFromResponse(frame: unknown) {
   if (typeof frame !== 'object' || frame === null) throw new Error('Expected a response frame.')
   const payload = Reflect.get(frame, 'payload')
-  if (typeof payload !== 'object' || payload === null)
+  if (typeof payload !== 'object' || payload === null) {
     throw new Error('Expected a response payload.')
+  }
   const cursor = Reflect.get(payload, 'cursor')
   if (typeof cursor !== 'object' || cursor === null) throw new Error('Expected an event cursor.')
   const hostInstanceId = Reflect.get(cursor, 'hostInstanceId')

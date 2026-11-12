@@ -90,7 +90,7 @@ function loadLatestRunRows(sql: SqlClient.SqlClient, sessionIds: readonly string
 }
 
 /**
- * Each requested Session's Running Workers and when the last Run below it ended (ADR 0063): the
+ * Each requested Session's Running Workers and when the last Run below it ended (ADR 0065): the
  * whole Spawn-lineage subtree at any depth, never retired task-runner lineage. The Host counts so
  * a Worker on a page the window never loaded still keeps its parent Working.
  */

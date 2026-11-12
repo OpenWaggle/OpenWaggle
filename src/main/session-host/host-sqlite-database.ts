@@ -8,7 +8,7 @@ import Database from 'better-sqlite3'
  * own copy of SQLite, POSIX advisory locks belong to the process, and one copy closing a file
  * descriptor drops the locks the other copy holds on the same file, which can corrupt it
  * (https://www.sqlite.org/howtocorrupt.html#_multiple_copies_of_sqlite_linked_into_the_same_application).
- * `pnpm check:repository-standards` rejects `node:sqlite` outside the files it allows (#371).
+ * `bun run check:repository-standards` rejects `node:sqlite` outside the files it allows (#371).
  */
 export type HostSqliteDatabase = Database.Database
 

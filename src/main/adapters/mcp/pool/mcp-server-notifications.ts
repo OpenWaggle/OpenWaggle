@@ -17,12 +17,12 @@ export function deliverServerNotification(
 ) {
   const params = isRecord(notification.params) ? notification.params : undefined
   if (notification.method === PROGRESS && params) {
-    const route = ledger.progressRoute(params.progressToken)
+    const route = ledger.progressRoute(params['progressToken'])
     route?.lease.deliver({ ...notification, params: { ...params, progressToken: route.token } })
     return
   }
   if (notification.method === CANCELLED && params) {
-    router.cancelled(params.requestId)?.deliver(notification)
+    router.cancelled(params['requestId'])?.deliver(notification)
     return
   }
   for (const lease of leases) lease.deliver(notification)

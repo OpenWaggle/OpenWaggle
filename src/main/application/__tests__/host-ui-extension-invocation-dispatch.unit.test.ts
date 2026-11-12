@@ -39,9 +39,7 @@ function invoke(args: HostUiV1Request['args']) {
     request: request(args),
   })
   return Effect.runPromise(
-    fromAny<Effect.Effect<Effect.Effect.Success<typeof effect>, unknown, never>, typeof effect>(
-      effect,
-    ),
+    fromAny<Effect.Effect<Effect.Effect.Success<typeof effect>, unknown>, typeof effect>(effect),
   )
 }
 

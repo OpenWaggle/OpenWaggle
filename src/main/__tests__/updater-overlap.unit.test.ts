@@ -21,7 +21,10 @@ const {
   }
 })
 
-vi.mock('@electron-toolkit/utils', () => ({ is: { dev: false } }))
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => true } }
+})
 vi.mock('@shared/build-identity-runtime', () => ({
   get BUILD_CHANNEL() {
     return buildChannel.value
@@ -66,6 +69,8 @@ describe('updater overlapping checks', () => {
     vi.useFakeTimers()
     checkForUpdatesMock.mockReset()
     configureUpdaterFeedMock.mockReset()
+    // The feed lists a release, so each check goes on to ask the updater.
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v0.5.0-alpha.1' })
     quitAndInstallMock.mockReset()
     broadcastMock.mockReset()
     updaterRef.current?.removeAllListeners()
@@ -90,15 +95,15 @@ describe('updater overlapping checks', () => {
     initAutoUpdater('alpha')
 
     checkForUpdates('alpha')
+    await vi.advanceTimersByTimeAsync(0)
     checkForUpdates('stable')
+    await vi.advanceTimersByTimeAsync(0)
     expect(checkForUpdatesMock).toHaveBeenCalledOnce()
     updaterRef.current?.emit('update-not-available')
     expect(broadcastMock).not.toHaveBeenCalled()
 
     resolveFirstCheck?.({ isUpdateAvailable: false })
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(0)
 
     expect(checkForUpdatesMock).toHaveBeenCalledTimes(2)
     expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
@@ -170,19 +175,21 @@ describe('updater overlapping checks', () => {
     const downloadPromise = new Promise<void>((resolve) => {
       settleDownload = resolve
     })
-    checkForUpdatesMock.mockResolvedValueOnce({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.5.0-alpha.1' },
-      cancellationToken: { cancel },
-      downloadPromise,
+    // electron-updater announces the check and the update while checkForUpdates runs.
+    checkForUpdatesMock.mockImplementationOnce(async () => {
+      updaterRef.current?.emit('checking-for-update')
+      updaterRef.current?.emit('update-available', { version: '0.5.0-alpha.1' })
+      return {
+        isUpdateAvailable: true,
+        updateInfo: { version: '0.5.0-alpha.1' },
+        cancellationToken: { cancel },
+        downloadPromise,
+      }
     })
     initAutoUpdater('stable')
 
     checkForUpdates('stable')
-    updaterRef.current?.emit('checking-for-update')
-    updaterRef.current?.emit('update-available', { version: '0.5.0-alpha.1' })
-    await Promise.resolve()
-    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(0)
     updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
 
     expect(cancel).toHaveBeenCalledOnce()

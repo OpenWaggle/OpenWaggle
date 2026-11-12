@@ -23,10 +23,10 @@ function perUserCacheRoot(environment: MainCompileCacheEnvironment) {
     return path.join(homeDirectory, 'Library', 'Caches', APPLICATION_DIRECTORY_NAME)
   }
   if (platform === 'win32') {
-    const localAppData = env.LOCALAPPDATA || path.join(homeDirectory, 'AppData', 'Local')
+    const localAppData = env['LOCALAPPDATA'] || path.join(homeDirectory, 'AppData', 'Local')
     return path.join(localAppData, APPLICATION_DIRECTORY_NAME, 'Cache')
   }
-  const xdgCacheHome = env.XDG_CACHE_HOME
+  const xdgCacheHome = env['XDG_CACHE_HOME']
   const cacheHome =
     xdgCacheHome && path.isAbsolute(xdgCacheHome)
       ? xdgCacheHome
@@ -49,9 +49,11 @@ export function mainCompileCacheLocation(
   environment: MainCompileCacheEnvironment,
 ): MainCompileCacheLocation {
   const { env, platform, channel } = environment
-  if (env.OPENWAGGLE_DISABLE_COMPILE_CACHE === '1') return { kind: 'disabled', reason: 'opted-out' }
-  if (platform === 'linux' && env.APPIMAGE) return { kind: 'disabled', reason: 'appimage' }
-  const override = env.OPENWAGGLE_COMPILE_CACHE_DIR
+  if (env['OPENWAGGLE_DISABLE_COMPILE_CACHE'] === '1') {
+    return { kind: 'disabled', reason: 'opted-out' }
+  }
+  if (platform === 'linux' && env['APPIMAGE']) return { kind: 'disabled', reason: 'appimage' }
+  const override = env['OPENWAGGLE_COMPILE_CACHE_DIR']
   if (override && path.isAbsolute(override)) {
     return { kind: 'enabled', directory: path.join(override, channel) }
   }

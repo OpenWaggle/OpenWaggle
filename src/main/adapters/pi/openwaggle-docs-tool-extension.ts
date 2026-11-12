@@ -1,5 +1,4 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_DOCS_TOOL_NAME } from '@shared/constants/openwaggle-docs'
 import type { DocsDiscoveryView, DocsListInput } from '@shared/types/docs'
 import * as Effect from 'effect/Effect'
@@ -16,6 +15,7 @@ import {
   sortDocsToolTopics,
 } from './openwaggle-docs-tool-topics'
 import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on-demand-tools'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 const logger = createLogger('openwaggle-docs-tool')
 
@@ -162,7 +162,7 @@ async function discover(input: OpenWaggleDocsToolInput, includeExtensions: boole
       error: error instanceof Error ? error.message : String(error),
     })
     throw new Error(
-      `The OpenWaggle docs bundle could not be loaded from ${JSON.stringify(expected)}. In a development checkout, run \`pnpm docs:generate\` to build it; in an installed app, reinstall OpenWaggle. Answer from what you already know and say the docs were unavailable.`,
+      `The OpenWaggle docs bundle could not be loaded from ${JSON.stringify(expected)}. In a development checkout, run \`bun run docs:generate\` to build it; in an installed app, reinstall OpenWaggle. Answer from what you already know and say the docs were unavailable.`,
       { cause: error },
     )
   }
@@ -259,7 +259,7 @@ export const OPENWAGGLE_DOCS_PROMPT_SECTION = `OpenWaggle and Pi documentation: 
 
 export function createOpenWaggleDocsToolExtension(
   input: OpenWaggleDocsToolInput,
-): ExtensionFactory {
+): SynchronousExtensionFactory {
   return (pi) => {
     onDemandToolRegistration(pi).registerTool({
       name: OPENWAGGLE_DOCS_TOOL_NAME,

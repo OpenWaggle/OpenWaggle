@@ -1,6 +1,7 @@
 import type {
   ScheduledTaskAttention,
   ScheduledTaskAttentionReason,
+  ScheduledTaskRun,
   ScheduledTaskRunReason,
 } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
@@ -18,8 +19,6 @@ import {
   type ScheduledTaskRunStart,
 } from '../ports/scheduled-task-repository'
 
-export type ScheduledTaskFiringOutcome = 'recorded' | 'waiting'
-
 export interface Firing {
   readonly record: ScheduledTaskRecord
   readonly now: number
@@ -36,7 +35,7 @@ export function newRunStart(
   timing: ReturnType<typeof firingTiming>,
   now: number,
   firing: {
-    readonly previous: { readonly sessionId?: string; readonly firedAt: number } | null
+    readonly previous: Pick<ScheduledTaskRun, 'sessionId' | 'firedAt'> | null
     readonly byAgent: boolean
   },
 ): ScheduledTaskRunStart {

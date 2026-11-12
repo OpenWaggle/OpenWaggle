@@ -25,8 +25,9 @@ export function mcpCliServerState(
 }
 
 export function mcpCliStateLabel(state: string, toolCount: number) {
-  if (state === 'connected')
+  if (state === 'connected') {
     return `connected, ${String(toolCount)} tool${toolCount === 1 ? '' : 's'}`
+  }
   if (state === 'needs-sign-in') return 'needs sign-in'
   return state === MCP_NEEDS_SECRET_STATE ? 'needs secret' : state
 }

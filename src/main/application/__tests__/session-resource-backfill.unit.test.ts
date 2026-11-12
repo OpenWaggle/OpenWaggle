@@ -120,7 +120,7 @@ describe('captureProjectedSessionResources', () => {
     const existingResource: SessionResource = {
       id: 'existing-image',
       sessionId: SessionId('session-1'),
-      canonicalKey: `sha256:${'unused'}`,
+      canonicalKey: `sha256:unused`,
       kind: 'image',
       title: 'Generated image.png',
       mimeType: 'image/png',

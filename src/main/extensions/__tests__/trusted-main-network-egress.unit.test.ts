@@ -94,7 +94,7 @@ describe('trusted main network egress guard', () => {
 
   it('only forces Electron net redirect errors while a trusted main policy is active', async () => {
     installHostFetchMock()
-    const { net } = await import('electron')
+    const { net } = electronNetMocks
     const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } =
       await import('../trusted-main-network-egress')
     const policy = createTrustedMainNetworkPolicy(policyPackage())

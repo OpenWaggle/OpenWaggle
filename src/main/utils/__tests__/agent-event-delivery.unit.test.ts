@@ -22,7 +22,7 @@ function textDelta(delta: string, timestamp: number, messageId = 'm1'): AgentTra
 }
 
 function target(id = 1) {
-  const sent: Array<{ readonly sessionId: SessionId; readonly event: AgentTransportEvent }> = []
+  const sent: { readonly sessionId: SessionId; readonly event: AgentTransportEvent }[] = []
   const value: AgentEventTarget = { id, send: (payload) => sent.push(payload) }
   return { value, sent }
 }

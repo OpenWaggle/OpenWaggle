@@ -6,29 +6,36 @@ interface ManifestEntryContribution {
 }
 
 interface ManifestSidePanelContribution extends ManifestEntryContribution {
-  readonly icon?: string | { readonly svg: string }
+  readonly icon?: string | { readonly svg: string } | undefined
 }
 
+/** The manifest fields the content hash reads, as a decoded manifest carries them. */
 export interface ManifestContentHashSource {
   readonly builtArtifacts: readonly string[]
-  readonly contributions?: {
-    readonly routes?: readonly ManifestEntryContribution[]
-    readonly settingsSections?: readonly ManifestEntryContribution[]
-    readonly sidePanels?: readonly ManifestSidePanelContribution[]
-    readonly dialogs?: readonly ManifestEntryContribution[]
-    readonly transcriptRenderers?: readonly ManifestEntryContribution[]
-    readonly toolRenderers?: readonly ManifestEntryContribution[]
-    readonly customMessageRenderers?: readonly ManifestEntryContribution[]
-    readonly interactionRenderers?: readonly ManifestEntryContribution[]
-    readonly statusWidgets?: readonly ManifestEntryContribution[]
-  }
-  readonly trusted?: {
-    readonly main?: string
-    readonly renderer?: string
-  }
-  readonly runtimeRequirements?: readonly {
-    readonly command?: string
-  }[]
+  readonly contributions?:
+    | {
+        readonly routes?: readonly ManifestEntryContribution[] | undefined
+        readonly settingsSections?: readonly ManifestEntryContribution[] | undefined
+        readonly sidePanels?: readonly ManifestSidePanelContribution[] | undefined
+        readonly dialogs?: readonly ManifestEntryContribution[] | undefined
+        readonly transcriptRenderers?: readonly ManifestEntryContribution[] | undefined
+        readonly toolRenderers?: readonly ManifestEntryContribution[] | undefined
+        readonly customMessageRenderers?: readonly ManifestEntryContribution[] | undefined
+        readonly interactionRenderers?: readonly ManifestEntryContribution[] | undefined
+        readonly statusWidgets?: readonly ManifestEntryContribution[] | undefined
+      }
+    | undefined
+  readonly trusted?:
+    | {
+        readonly main?: string | undefined
+        readonly renderer?: string | undefined
+      }
+    | undefined
+  readonly runtimeRequirements?:
+    | readonly {
+        readonly command?: string | undefined
+      }[]
+    | undefined
 }
 
 function pushContributionEntryPaths(

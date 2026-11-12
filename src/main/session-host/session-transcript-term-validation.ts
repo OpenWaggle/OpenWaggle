@@ -8,7 +8,7 @@ export function validateTranscriptTermCounts(database: HostSqliteDatabase) {
       (SELECT COUNT(*) FROM session_nodes) AS nodes,
       (SELECT COUNT(*) FROM session_node_search_rows) AS indexed_nodes`,
   )
-  if (nodeRows?.nodes !== nodeRows?.indexed_nodes) {
+  if (nodeRows?.['nodes'] !== nodeRows?.['indexed_nodes']) {
     throw new Error('Session Host node search row mapping is incomplete.')
   }
   const invalid = queryCutoverRecord(
@@ -19,7 +19,7 @@ export function validateTranscriptTermCounts(database: HostSqliteDatabase) {
         SELECT SUM(terms.occurrences) FROM session_transcript_terms AS terms
         WHERE terms.session_id = documents.session_id
       ), 0)`,
-  )?.count
+  )?.['count']
   if (invalid !== 0) {
     throw new Error('Session Host transcript term counts do not match their inverted index.')
   }

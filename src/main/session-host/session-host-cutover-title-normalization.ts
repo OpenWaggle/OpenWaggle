@@ -10,10 +10,10 @@ export function normalizeLegacySessionTitles(database: HostSqliteDatabase) {
   const update = database.prepare('UPDATE sessions SET title = ? WHERE id = ?')
   for (const value of values) {
     const row = cutoverRecord(value)
-    if (typeof row?.id !== 'string' || typeof row.title !== 'string') {
+    if (typeof row?.['id'] !== 'string' || typeof row['title'] !== 'string') {
       throw new Error('Legacy Session title is invalid.')
     }
-    const title = boundGeneratedSessionTitle(row.title)
-    if (title !== row.title) update.run(title, row.id)
+    const title = boundGeneratedSessionTitle(row['title'])
+    if (title !== row['title']) update.run(title, row['id'])
   }
 }

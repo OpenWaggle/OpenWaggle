@@ -26,9 +26,13 @@ export class McpUpstreamSlot {
   private starting: Promise<void> | undefined
   private released: Promise<void> | undefined
   /** Stops listening to the process, so one that is replaced cannot close the connection. */
-  private readonly listeners: Array<() => void> = []
+  private readonly listeners: (() => void)[] = []
 
-  constructor(private readonly host: McpUpstreamSlotHost) {}
+  private readonly host: McpUpstreamSlotHost
+
+  constructor(host: McpUpstreamSlotHost) {
+    this.host = host
+  }
 
   get current() {
     return this.upstream

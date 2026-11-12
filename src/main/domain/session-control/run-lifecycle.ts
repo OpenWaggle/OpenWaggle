@@ -119,8 +119,7 @@ export function settleAndScheduleNextFollowUp(
   const nextFollowUp = state.followUpQueue.items[0]
   if (
     state.followUpQueue.state === 'paused' ||
-    !nextFollowUp ||
-    nextFollowUp.deliveryState !== 'pending' ||
+    nextFollowUp?.deliveryState !== 'pending' ||
     nextFollowUp.editHold
   ) {
     return settled
@@ -145,18 +144,17 @@ export function recoverSessionAfterHostLoss(
   state: SessionControlSessionState,
 ): SessionControlSessionState {
   if (state.run.state === 'idle') return state
+  const queue = state.followUpQueue
+  // A wait on agents' capacity gives way to the loss: the queue waits for the person's Resume.
+  const keepsPauseReason = queue.state === 'paused' && queue.pauseReason !== 'parent-limit'
   return {
     ...state,
     revision: state.revision + STATE_REVISION_INCREMENT,
     run: { state: 'idle' },
     followUpQueue: {
-      ...state.followUpQueue,
+      ...queue,
       state: 'paused',
-      // A wait on agents' capacity gives way to the loss: the queue waits for the person's Resume.
-      pauseReason:
-        state.followUpQueue.state === 'paused' && state.followUpQueue.pauseReason !== 'parent-limit'
-          ? state.followUpQueue.pauseReason
-          : ('host-lost' as const),
+      ...(keepsPauseReason ? {} : { pauseReason: 'host-lost' as const }),
       revision: state.followUpQueue.revision + QUEUE_REVISION_INCREMENT,
     },
   }

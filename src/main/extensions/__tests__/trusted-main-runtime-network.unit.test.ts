@@ -1,74 +1,23 @@
-import { EventEmitter } from 'node:events'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionBrokerTransport } from '@shared/extension-sdk-core'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { discoverExtensionPackages } from '../../adapters/extensions/discovery'
 import { removeTemporaryEntries } from '../../test-support/temporary-test-directory'
-import { activateTrustedMainExtension } from '../trusted-main-runtime'
-import type { DiscoveredExtensionPackage } from '../types'
+import {
+  activateTrustedMainPackage,
+  writeTrustedMainPackage as writeTrustedMainPackageIn,
+} from './trusted-main-test-package'
 
 // The runtime stages trusted entries in one cache directory per process, in the temp directory.
 afterAll(() => removeTemporaryEntries('openwaggle-trusted-main-'))
 
 let tmpRoot = ''
 
-const unusedTransport: ExtensionBrokerTransport = async () => {
-  throw new Error('Unexpected broker invocation.')
-}
-
-async function writeText(filePath: string, value: string) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, value, 'utf-8')
-}
-
-async function writeJson(filePath: string, value: unknown) {
-  await writeText(filePath, `${JSON.stringify(value, null, 2)}\n`)
-}
-
-function packageContentHash(extensionPackage: DiscoveredExtensionPackage) {
-  if (extensionPackage.contentHash === null) {
-    throw new Error('Expected extension package content hash.')
-  }
-  return extensionPackage.contentHash
-}
-
-async function writeTrustedMainPackage(input: {
+function writeTrustedMainPackage(input: {
   readonly mainModuleSource: string
   readonly networkOrigins?: readonly string[]
 }) {
-  const projectPath = path.join(tmpRoot, 'project')
-  const packagePath = path.join(projectPath, '.openwaggle', 'extensions', 'sample-extension')
-  const trustedMainPath = 'dist/main.mjs'
-
-  await writeJson(path.join(packagePath, OPENWAGGLE_EXTENSION.MANIFEST_FILE), {
-    manifestVersion: 1,
-    id: 'sample-extension',
-    name: 'Sample Extension',
-    version: '1.0.0',
-    sdk: { openwaggle: '>=0.1.0 <0.2.0' },
-    sourceFiles: ['src/index.ts'],
-    builtArtifacts: [trustedMainPath],
-    trusted: {
-      main: trustedMainPath,
-    },
-    ...(input.networkOrigins !== undefined ? { network: { origins: input.networkOrigins } } : {}),
-  })
-  await writeText(path.join(packagePath, 'src', 'index.ts'), 'export const source = true\n')
-  await writeText(path.join(packagePath, trustedMainPath), input.mainModuleSource)
-
-  const packages = await discoverExtensionPackages({
-    projectPath,
-    hostSdkVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
-  })
-  const extensionPackage = packages[0]
-  if (!extensionPackage) {
-    throw new Error('Expected discovered extension package.')
-  }
-
-  return extensionPackage
+  return writeTrustedMainPackageIn({ root: tmpRoot, ...input })
 }
 
 describe('trusted main extension runtime network policy', () => {
@@ -104,13 +53,9 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('Custom DNS lookup functions can bypass the declared origin')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'Custom DNS lookup functions can bypass the declared origin',
+    )
   })
 
   it('denies trusted main fetch egress with custom dispatchers', async () => {
@@ -129,13 +74,9 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('Custom fetch dispatchers can bypass the declared origin')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'Custom fetch dispatchers can bypass the declared origin',
+    )
   })
 
   it('denies trusted main fetch egress when a Request carries custom dispatchers', async () => {
@@ -155,13 +96,9 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('Request objects can preserve custom fetch agents or dispatchers')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'Request objects can preserve custom fetch agents or dispatchers',
+    )
   })
 
   it('denies trusted main Unix socket paths before opening a socket', async () => {
@@ -181,13 +118,7 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('Unix socket')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow('Unix socket')
   })
 
   it('denies trusted main child process network escape hatches', async () => {
@@ -202,17 +133,14 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('Child processes can bypass declared network origins')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'Child processes can bypass declared network origins',
+    )
   })
 
   it('keeps externally emitted trusted main callbacks inside the network policy', async () => {
     const eventName = 'openwaggle-test-trusted-main-external-callback'
+    const outcomeKey = 'openwaggleTestTrustedMainExternalCallbackOutcome'
     const extensionPackage = await writeTrustedMainPackage({
       networkOrigins: ['https://api.github.com'],
       mainModuleSource: `
@@ -220,21 +148,30 @@ describe('trusted main extension runtime network policy', () => {
 
         export function activate() {
           process.once(${JSON.stringify(eventName)}, () => {
-            spawnSync(process.execPath, ['-e', ''])
+            // Node's guard throws; Bun's spawnSync reports the denial in result.error, as it does
+            // any failure to start the process. Bun's native process.emit does not rethrow a
+            // listener's error, so the listener records the outcome.
+            try {
+              const result = spawnSync(process.execPath, ['-e', ''])
+              globalThis[${JSON.stringify(outcomeKey)}] = result.error?.message ?? 'spawned'
+            } catch (error) {
+              globalThis[${JSON.stringify(outcomeKey)}] = error.message
+            }
           })
         }
       `,
     })
 
-    await activateTrustedMainExtension({
-      extensionPackage,
-      contentHash: packageContentHash(extensionPackage),
-      transport: unusedTransport,
-    })
+    await activateTrustedMainPackage(extensionPackage)
 
-    expect(() => Reflect.apply(EventEmitter.prototype.emit, process, [eventName])).toThrow(
-      'Child processes can bypass declared network origins',
-    )
+    try {
+      Reflect.apply(process.emit, process, [eventName])
+      expect(Reflect.get(globalThis, outcomeKey)).toContain(
+        'Child processes can bypass declared network origins',
+      )
+    } finally {
+      Reflect.deleteProperty(globalThis, outcomeKey)
+    }
   })
 
   it('denies trusted main UDP socket network escape hatches', async () => {
@@ -244,18 +181,16 @@ describe('trusted main extension runtime network policy', () => {
         import { createSocket } from 'node:dgram'
 
         export function activate() {
-          createSocket('udp4')
+          // Bun cannot intercept constructing a UDP socket object; it opens no OS socket until it
+          // binds, which send does first.
+          createSocket('udp4').send('probe', 9, '127.0.0.1')
         }
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('UDP sockets are not permitted')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'UDP sockets are not permitted',
+    )
   })
 
   it('denies trusted main direct DNS resolution network escape hatches', async () => {
@@ -270,13 +205,9 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('Direct DNS resolution can bypass declared network origins')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'Direct DNS resolution can bypass declared network origins',
+    )
   })
 
   it('denies trusted main HTTP/2 network escape hatches', async () => {
@@ -291,13 +222,9 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('HTTP/2 clients are not permitted')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'HTTP/2 clients are not permitted',
+    )
   })
 
   it('denies trusted main worker thread network escape hatches', async () => {
@@ -312,12 +239,8 @@ describe('trusted main extension runtime network policy', () => {
       `,
     })
 
-    await expect(
-      activateTrustedMainExtension({
-        extensionPackage,
-        contentHash: packageContentHash(extensionPackage),
-        transport: unusedTransport,
-      }),
-    ).rejects.toThrow('Worker threads can bypass trusted main network guards')
+    await expect(activateTrustedMainPackage(extensionPackage)).rejects.toThrow(
+      'Worker threads can bypass trusted main network guards',
+    )
   })
 })

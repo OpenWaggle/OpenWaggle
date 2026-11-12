@@ -12,6 +12,7 @@ import {
 import {
   LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS,
   type LocalSessionClientConnectionInput,
+  type LocalSessionClientKind,
   openLocalSessionConnection,
   writeLocalSessionFrame,
 } from './local-session-client-connection'
@@ -22,7 +23,7 @@ export {
   type LocalSessionClientConnectionInput,
   LocalSessionHostUpgradePendingError,
 } from './local-session-client-connection'
-export { type LocalSessionWatchResult, watchLocalSessionEvents } from './local-session-event-client'
+export { watchLocalSessionEvents } from './local-session-event-client'
 
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
@@ -36,8 +37,9 @@ function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'local-host-v1') {
     return 'The connected Session Host does not support being stopped from the CLI.'
   }
-  if (payload.contract === 'desktop-service-v1')
+  if (payload.contract === 'desktop-service-v1') {
     return 'The connected Session Host does not support desktop services.'
+  }
   if (payload.contract === 'session-control-v2') {
     return payload.request.command.operation === 'queue-adopt'
       ? 'The connected Session Host does not support sending a queued message as yourself.'
@@ -99,7 +101,7 @@ export function resolveLocalSessionCommandTimeoutMs(
 export async function executeLocalSessionCommand(input: {
   readonly paths: LocalSessionClientConnectionInput['paths']
   readonly payload: LocalSessionCommandPayload
-  readonly clientKind?: LocalSessionClientConnectionInput['clientKind']
+  readonly clientKind?: LocalSessionClientKind
   readonly clientVersion: string
   readonly workingDirectory?: string
   readonly profile?: string

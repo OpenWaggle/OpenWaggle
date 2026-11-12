@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
 import { listDocsDiscoveryView } from './docs-discovery-service'
 
-function decodeSchema<A, I>(schema: Schema.Schema<A, I, never>, value: unknown) {
+function decodeSchema<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
   if (!decoded.success) return Effect.fail(new Error(decoded.issues.join('; ')))
   return Effect.succeed(decoded.data)
