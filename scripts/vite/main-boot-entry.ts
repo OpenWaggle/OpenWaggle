@@ -15,14 +15,14 @@ const MAIN_BUNDLE_FILE_NAME = 'index.js'
  */
 export function mainBootEntryPlugin(): Plugin {
   let outDir = ''
-  let define: UserConfig['define'] = {}
-  let alias: NonNullable<UserConfig['resolve']>['alias'] = []
+  let define: NonNullable<UserConfig['define']> = {}
+  let alias: NonNullable<NonNullable<UserConfig['resolve']>['alias']> = []
   return {
     name: 'openwaggle:main-boot-entry',
     apply: 'build',
     configResolved(config) {
       outDir = path.resolve(config.root, config.build.outDir)
-      define = config.define
+      define = config.define ?? {}
       alias = config.resolve.alias
     },
     async writeBundle(_options, bundle) {

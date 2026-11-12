@@ -72,7 +72,7 @@ function disablePluginTimingWarningsPlugin(): Plugin {
         pluginTimings: false,
       }
 
-      const existingWorkerOptions = config.worker.rolldownOptions ?? {}
+      const existingWorkerOptions = config.worker.rolldownOptions
       const existingWorkerChecks = existingWorkerOptions.checks ?? {}
       config.worker.rolldownOptions = {
         ...existingWorkerOptions,
@@ -156,6 +156,20 @@ export default defineConfig({
       sourcemap: 'hidden',
       // The chunk graph scripts/check-syntax-bundle.ts budgets. Not packaged (electron-builder.ts).
       manifest: true,
+      rolldownOptions: {
+        // Setting rolldownOptions drops electron-vite's default renderer input.
+        input: resolve('src/renderer/index.html'),
+        experimental: {
+          chunkOptimization: {
+            // On, this pass moves every module that each importer of a lazy chunk already loaded
+            // into the entry. The eager shell sat in a preloaded shared chunk only while a
+            // chat store -> shell import cycle blocked the pass; breaking that cycle folded it into
+            // the entry (283 -> 467 KB) with the same initial bytes. Off keeps the entry within
+            // its budget; the initial graph budget guards what boot actually loads.
+            avoidRedundantChunkLoads: false,
+          },
+        },
+      },
     },
     worker: {
       // Module workers preserve Shiki's per-language dynamic imports. The IIFE

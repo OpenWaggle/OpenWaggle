@@ -1,10 +1,26 @@
 {
+  /*
+   * The publishable packages' compiler settings, and the strictness flags that tsconfig.packages.json
+   * and tsconfig.scripts.json also check the package tests and scripts/ under.
+   */
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "noUncheckedSideEffectImports": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
     "declaration": true,
     "declarationMap": false,
     "sourceMap": false,
