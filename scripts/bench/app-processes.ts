@@ -44,7 +44,10 @@ export interface AppMemory {
   readonly byRole: Readonly<Partial<Record<ProcessRole, RoleTotal>>>
   readonly processes: readonly {
     readonly pid: number
+    readonly ppid: number
     readonly role: ProcessRole
+    /** Chromium's `--type` and `--utility-sub-type`, which tell its helpers apart. */
+    readonly kind: string
     readonly rssBytes: number
   }[]
 }
@@ -195,7 +198,10 @@ export function appMemory(rows: readonly ProcessRow[], installPaths: readonly st
     const role = processRole(row.command, installPaths)
     const total = byRole[role] ?? { count: 0, rssBytes: 0 }
     byRole[role] = { count: total.count + 1, rssBytes: total.rssBytes + row.rssBytes }
-    return { pid: row.pid, role, rssBytes: row.rssBytes }
+    const kind = [CHROMIUM_TYPE.exec(row.command)?.[1], UTILITY_SUB_TYPE.exec(row.command)?.[1]]
+      .filter((part) => part !== undefined)
+      .join(':')
+    return { pid: row.pid, ppid: row.ppid, role, kind, rssBytes: row.rssBytes }
   })
   return {
     rssBytes: rows.reduce((sum, row) => sum + row.rssBytes, 0),
