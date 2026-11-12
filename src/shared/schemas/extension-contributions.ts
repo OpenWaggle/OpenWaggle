@@ -5,7 +5,6 @@ export {
   type ExtensionContributionUnregistration,
   type ExtensionSessionSummaryContribution,
   type ExtensionSidePanelIcon,
-  extensionContributionFamilySchema,
   extensionContributionIdSchema,
   extensionContributionRegistrationSchema,
   extensionContributionUnregistrationSchema,

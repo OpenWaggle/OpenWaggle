@@ -1,11 +1,8 @@
-import {
-  firstPartyDocsTopicSummarySchema,
-  firstPartyDocTopicSchema,
-} from '@openwaggle/extension-sdk'
+import { firstPartyDocTopicSchema } from '@openwaggle/extension-sdk'
 import { Schema } from '@shared/schema'
 
 // The docs views extensions read through the broker are the public SDK contract.
-export { docsDiscoveryViewSchema, firstPartyDocTopicSchema } from '@openwaggle/extension-sdk'
+export { firstPartyDocTopicSchema } from '@openwaggle/extension-sdk'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 
@@ -46,5 +43,3 @@ export const installedDocsManifestSchema = Schema.Struct({
   groups: Schema.mutable(Schema.Array(installedDocsGroupSchema)),
   topics: Schema.mutable(Schema.Array(installedDocsTopicSchema)),
 })
-
-export const docsResolveTopicResultSchema = Schema.NullOr(firstPartyDocsTopicSummarySchema)

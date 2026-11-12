@@ -206,6 +206,8 @@ export const OPENWAGGLE_EXTENSION_BROKER = {
   STATE_SELECTORS: Object.freeze(Object.values(EXTENSION_BROKER_STATE_SELECTOR)),
   SETTING_KEY: EXTENSION_BROKER_SETTING_KEY,
   SETTING_KEYS: Object.freeze(Object.values(EXTENSION_BROKER_SETTING_KEY)),
+  /** The thinking levels a model preference names, as the app's settings define them. */
+  THINKING_LEVELS: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const,
 } as const
 
 export const OPENWAGGLE_EXTENSION = {
