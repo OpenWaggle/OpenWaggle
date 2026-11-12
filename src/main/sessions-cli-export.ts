@@ -23,7 +23,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 const exportPageSchema = Schema.Struct({
   manifest: Schema.Unknown,
   records: Schema.Array(Schema.Unknown),
-  nextCreatedOrder: Schema.optional(Schema.Unknown),
+  nextCreatedOrder: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function exportPage(value: unknown) {

@@ -10,6 +10,7 @@ import {
   getManifestFamilyContributions,
   isEntryContribution,
   isSessionSummaryContribution,
+  type ManifestCommandContribution,
   type ManifestContribution,
 } from './extension-contribution-family-model'
 import {
@@ -19,10 +20,7 @@ import {
 
 const DEFAULT_DECLARED_SCOPES = ['app'] as const
 
-interface ContributionBrokerBinding {
-  readonly method?: string | undefined
-  readonly methods?: readonly string[] | undefined
-}
+type ContributionBrokerBinding = Pick<ManifestCommandContribution, 'method' | 'methods'>
 
 type ContributionCapabilityBinding =
   | {
@@ -73,9 +71,9 @@ function contributionCapabilityBinding(
 export function contributionDiagnostic(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
-  readonly contributionId?: string | undefined
+  readonly contributionId?: string
   readonly message: string
-  readonly index?: number | undefined
+  readonly index?: number
 }): ExtensionDiagnostic {
   const suffix =
     input.index === undefined
@@ -129,8 +127,8 @@ export function manifestDeclaresContributionFamily(input: {
 export function familyDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
-  readonly contributionId?: string | undefined
-  readonly index?: number | undefined
+  readonly contributionId?: string
+  readonly index?: number
 }) {
   if (input.extensionPackage.manifest === null) {
     return [
@@ -162,7 +160,7 @@ function undeclaredMethodDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contributionId: string
-  readonly index?: number | undefined
+  readonly index?: number
   readonly capability: string
   readonly declaration: ExtensionCapabilityDeclaration
   readonly methods: readonly string[]
@@ -175,7 +173,7 @@ function undeclaredMethodDiagnostics(input: {
           extensionPackage: input.extensionPackage,
           family: input.family,
           contributionId: input.contributionId,
-          index: input.index,
+          ...(input.index === undefined ? {} : { index: input.index }),
           message: `Contribution requests method "${method}" for capability "${input.capability}", but the manifest capability does not declare that method.`,
         }),
       )
@@ -188,7 +186,7 @@ function capabilityDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestContribution
-  readonly index?: number | undefined
+  readonly index?: number
 }) {
   const binding = contributionCapabilityBinding(input.contribution)
 
@@ -201,7 +199,7 @@ function capabilityDiagnostics(input: {
             extensionPackage: input.extensionPackage,
             family: input.family,
             contributionId: input.contribution.id,
-            index: input.index,
+            ...(input.index === undefined ? {} : { index: input.index }),
             message: EXTENSION_PACKAGE_MUTATION_CAPABILITY_REJECTION,
           }),
         ]
@@ -217,7 +215,7 @@ function capabilityDiagnostics(input: {
             extensionPackage: input.extensionPackage,
             family: input.family,
             contributionId: input.contribution.id,
-            index: input.index,
+            ...(input.index === undefined ? {} : { index: input.index }),
             message: `Contribution requests capability "${bound.capability}", but the manifest does not declare that capability.`,
           }),
         ]
@@ -227,7 +225,7 @@ function capabilityDiagnostics(input: {
         extensionPackage: input.extensionPackage,
         family: input.family,
         contributionId: input.contribution.id,
-        index: input.index,
+        ...(input.index === undefined ? {} : { index: input.index }),
         capability: bound.capability,
         declaration,
         methods: bound.methods,
@@ -240,7 +238,7 @@ function trustedRendererRuntimeDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestContribution
-  readonly index?: number | undefined
+  readonly index?: number
 }) {
   if (
     !isEntryContribution(input.contribution) ||
@@ -255,7 +253,7 @@ function trustedRendererRuntimeDiagnostics(input: {
       extensionPackage: input.extensionPackage,
       family: input.family,
       contributionId: input.contribution.id,
-      index: input.index,
+      ...(input.index === undefined ? {} : { index: input.index }),
       message:
         'Trusted renderer contributions require trusted.renderer so privileged renderer runtime execution is explicitly consented.',
     }),
@@ -266,14 +264,14 @@ export function authorizeContributionRegistration(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestContribution
-  readonly index?: number | undefined
+  readonly index?: number
 }): ContributionRegistrationAuthorization {
   const diagnostics = [
     ...familyDiagnostics({
       extensionPackage: input.extensionPackage,
       family: input.family,
       contributionId: input.contribution.id,
-      index: input.index,
+      ...(input.index === undefined ? {} : { index: input.index }),
     }),
     ...capabilityDiagnostics(input),
     ...trustedRendererRuntimeDiagnostics(input),

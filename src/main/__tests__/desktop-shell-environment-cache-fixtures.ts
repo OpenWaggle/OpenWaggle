@@ -12,9 +12,9 @@ export function captured(name: string, value: string) {
  */
 /** The inherited variables the fake login shell passes on. */
 interface InheritedSessionVariables {
-  readonly PATH?: string | undefined
-  readonly XDG_SESSION_TYPE?: string | undefined
-  readonly SSH_AUTH_SOCK?: string | undefined
+  readonly PATH?: string
+  readonly XDG_SESSION_TYPE?: string
+  readonly SSH_AUTH_SOCK?: string
 }
 
 export function inheritingLoginShell(added: string) {

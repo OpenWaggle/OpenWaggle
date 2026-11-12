@@ -108,7 +108,7 @@ export async function createPiSessionForRun(input: {
     services: input.services,
     model: input.model,
     sessionManager: input.sessionManager,
-    openWaggleUi: input.openWaggleUi,
+    ...(input.openWaggleUi === undefined ? {} : { openWaggleUi: input.openWaggleUi }),
     customTools,
     ...(!hasExistingMessages && input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
   })

@@ -8,6 +8,7 @@ export function isJsonSchemaObject(value: unknown): value is JsonSchemaObject {
   return isMatching(P.record(P.string, P._), value) && !Array.isArray(value)
 }
 
+// explicit undefined: tool schemas are in-process objects from Pi, TypeBox or the MCP SDK
 const keyword = Schema.optional(Schema.Unknown)
 
 /**

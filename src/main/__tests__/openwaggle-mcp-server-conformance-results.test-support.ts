@@ -27,7 +27,7 @@ const queryPayloadSchema = Schema.Struct({
     requestId: Schema.Unknown,
     query: Schema.Struct({
       operation: Schema.Unknown,
-      sessionId: Schema.optional(Schema.Unknown),
+      sessionId: Schema.optionalWith(Schema.Unknown, { exact: true }),
     }),
   }),
 })

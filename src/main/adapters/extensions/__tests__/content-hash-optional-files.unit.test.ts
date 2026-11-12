@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -44,9 +45,9 @@ describe('optional files in the extension content hash', () => {
       builtArtifacts: ['dist/index.js'],
       contributions: {
         sidePanels: [
-          { entry: 'dist/index.js', icon: { svg: 'assets/icon.svg' } },
-          { entry: 'dist/index.js', icon: 'ticket' },
-          { entry: 'dist/index.js' },
+          fromPartial({ entry: 'dist/index.js', icon: { svg: 'assets/icon.svg' } }),
+          fromPartial({ entry: 'dist/index.js', icon: 'ticket' }),
+          fromPartial({ entry: 'dist/index.js' }),
         ],
       },
     })

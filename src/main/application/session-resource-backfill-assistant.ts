@@ -40,7 +40,7 @@ export interface BackfillImageInput {
   readonly branchId: string | null
   readonly actor: SessionResourceActor
   readonly label: string | null
-  readonly displayOrder?: number | null | undefined
+  readonly displayOrder?: number | null
 }
 
 interface DeferredBackfillImage {
@@ -97,7 +97,7 @@ export function attemptBackfilledImage(
       ...input,
       image: generatedImageInput(input.image),
       validatedImage: prepared.image,
-      sourcePath: capturedImageSourcePath(input.image),
+      ...capturedImageSourcePath(input.image),
     })
     if (repairResource) {
       const repository = yield* SessionResourceRepository
@@ -220,7 +220,9 @@ export function captureBackfilledAssistantResources(
               branchId,
               actor,
               label,
-              displayOrder: positions.images[localIndex],
+              ...(positions.images[localIndex] === undefined
+                ? {}
+                : { displayOrder: positions.images[localIndex] }),
             },
             imageState,
           )

@@ -134,3 +134,23 @@ describe('the Run identity of a turn an extension command starts', () => {
     expect(contents(result)).toEqual(['Command: go', 'rA', [], 'Command: go', []])
   })
 })
+
+describe('a stored Run identity', () => {
+  it('records no customType for a user prompt, and is not one when it sets customType to undefined', () => {
+    const prompt = user('Audit it', 1)
+    const history = [prompt]
+    const data = runIdentityEntryData('run-user', history)
+    expect(data?.prompt).not.toHaveProperty('customType')
+    const withUndefined = fromPartial<SessionEntry>({
+      type: 'custom',
+      customType: RUN_IDENTITY_CUSTOM_TYPE,
+      data: { ...data, prompt: { ...data?.prompt, customType: undefined } },
+    })
+
+    expect(
+      contents(withRunIdentities(history, [entry(prompt), stored('run-user', history)])),
+    ).toEqual(['Audit it', 'run-user'])
+    // No identity found: Pi's context stays as it is.
+    expect(withRunIdentities(history, [entry(prompt), withUndefined])).toBeUndefined()
+  })
+})

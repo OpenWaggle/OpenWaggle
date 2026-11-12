@@ -79,9 +79,9 @@ interface PagedOutcome {
 
 /** The fields of a hive result, its `response` and its items that paging reads. */
 const resultFieldsSchema = Schema.Struct({
-  response: Schema.optional(Schema.Unknown),
-  outcome: Schema.optional(Schema.Unknown),
-  items: Schema.optional(Schema.Unknown),
+  response: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  outcome: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  items: Schema.optionalWith(Schema.Unknown, { exact: true }),
   createdOrder: lenientOptional(Schema.Number),
 })
 

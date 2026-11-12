@@ -151,7 +151,7 @@ export function terminalOperationBlockDisposition(
   input: {
     readonly key: TerminalKey
     readonly ownerKey: TerminalOwnerKey
-    readonly cwd?: string | undefined
+    readonly cwd?: string
   },
 ) {
   if (queue.blockedAll > 0 || queue.blockedKeys.has(input.key)) return 'cancel'

@@ -38,7 +38,7 @@ export function usageStatisticsEntryPointForCaller(callerId: string): UsageStati
 /** What the Host knows of a Run's authorization at its start, before it asks for approval. */
 export interface UsageStatisticsStartAccess {
   readonly ceiling: AgentAuthorizationMode | null
-  readonly runOverride?: AgentAuthorizationMode | undefined
+  readonly runOverride?: AgentAuthorizationMode
   readonly sessionMode: AgentAuthorizationMode | null
   /** The project's default, from the project config the Run already loads; `null` when unset. */
   readonly projectDefault?: AgentAuthorizationMode | null

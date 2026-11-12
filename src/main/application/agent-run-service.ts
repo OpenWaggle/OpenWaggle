@@ -6,6 +6,7 @@
  * (abort controllers, active run tracking, stream buffers, IPC emission).
  */
 
+import type { SessionNode } from '@shared/types/session-node'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -39,11 +40,7 @@ const logger = createLogger('agent-run-service')
 export function resolveLatestAssistantNodeId(
   nodes: readonly ProjectedSessionNodeInput[],
   persistedNodes?:
-    | readonly {
-        readonly id: string
-        readonly createdOrder: number
-        readonly role?: string | undefined
-      }[]
+    | readonly (Pick<SessionNode, 'createdOrder' | 'role'> & { readonly id: string })[]
     | null,
 ): string | null {
   let latest: ProjectedSessionNodeInput | null = null
@@ -171,7 +168,7 @@ export function executeAgentRun(input: AgentRunInput) {
     return buildAgentRunOutcome({
       agentResult,
       signal: input.signal,
-      assignedTitle,
+      ...(assignedTitle === undefined ? {} : { assignedTitle }),
       sessionId: input.sessionId,
       runId: input.runId,
       model: input.model,
@@ -183,7 +180,7 @@ export function executeAgentRun(input: AgentRunInput) {
         reachedAgent,
         error,
         signal: input.signal,
-        assignedTitle,
+        ...(assignedTitle === undefined ? {} : { assignedTitle }),
         sessionId: input.sessionId,
         runId: input.runId,
         model: input.model,

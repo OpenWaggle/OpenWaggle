@@ -30,7 +30,9 @@ export function assertProjectDestination(destination: McpWriteDestination) {
   refuse(`${destination} is a global file; a switch for one project is saved to a project file.`)
 }
 
-const entryAuthSchema = Schema.Struct({ auth: Schema.optional(Schema.Unknown) })
+const entryAuthSchema = Schema.Struct({
+  auth: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
 /** Pi refuses provider `auth` outside a global `mcp.json`, so it is never written to a project file. */
 export function assertNoProjectAuth(

@@ -27,13 +27,13 @@ const fileRecordSchema = Schema.Struct({
 const oauthRecordSchema = Schema.Struct({
   migratedAt: Schema.String,
   status: Schema.Literal('migrated', 'skipped'),
-  reason: Schema.optional(Schema.String),
+  reason: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 const sessionSwitchRecordSchema = Schema.Struct({ migratedAt: Schema.String })
 
 const legacyServerIdentitySchema = Schema.Struct({
-  configHash: Schema.optional(Schema.String),
+  configHash: Schema.optionalWith(Schema.String, { exact: true }),
   identity: Schema.String,
 })
 
@@ -54,7 +54,7 @@ const migrationRecordSchema = Schema.Struct({
    * Decided on the first run: the projects whose on/off state the migration keeps, or null when
    * OpenWaggle had no MCP setup to keep (no old state.json and no ~/.openwaggle/mcp.json).
    */
-  legacyProjects: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+  legacyProjects: Schema.optionalWith(Schema.NullOr(Schema.Array(Schema.String)), { exact: true }),
   /**
    * The server name each old instance ID (state.json `servers[*].instanceId`) stood for, so Agent
    * definitions and Session profiles that still name a server by that ID keep reaching it.
@@ -75,7 +75,7 @@ const migrationRecordSchema = Schema.Struct({
   /** Home-folder projects whose left-out on/off choices were already logged. */
   homeFolderNotices: Schema.optionalWith(Schema.Array(Schema.String), { default: () => [] }),
   /** Every old MCP-off Session switch was carried over, so the old state is needed no more. */
-  sessionSwitchesDone: Schema.optional(Schema.Boolean),
+  sessionSwitchesDone: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type

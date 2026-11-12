@@ -1,6 +1,7 @@
 import { Schema, type SchemaType } from '@shared/schema'
 import { Option } from 'effect'
 
+// explicit undefined: the pool reads in-process MCP SDK messages, which may hold undefined
 const unchecked = Schema.optional(Schema.Unknown)
 
 /**

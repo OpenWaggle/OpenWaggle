@@ -73,7 +73,7 @@ export function closeTerminalAction(
     const blockDisposition = terminalOperationBlockDisposition(context.operationQueue, {
       key,
       ownerKey: record?.ownerKey ?? ownerKey,
-      cwd: record?.cwd,
+      ...(record?.cwd === undefined ? {} : { cwd: record?.cwd }),
     })
     if (blockDisposition === 'retry') {
       await waitForTerminalScopeOperation(context.operationQueue)

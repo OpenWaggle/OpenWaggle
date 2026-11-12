@@ -61,7 +61,7 @@ export async function executeWorkspacePreparation(input: {
       invocation,
       environment: state.environment,
       captureEnvironment: phase === 'setup',
-      signal: input.signal,
+      ...(input.signal === undefined ? {} : { signal: input.signal }),
       onOutput: (chunk) => {
         const output = state[phase].output + stripVTControlCharacters(sanitizer.feed(chunk))
         state = {

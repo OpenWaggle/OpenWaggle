@@ -22,7 +22,9 @@ export const PACKAGE_BIN_UNPINNED_TTL_MS = 24 * 60 * 60 * 1_000
 export const PACKAGE_BIN_PINNED_TTL_MS = 7 * PACKAGE_BIN_UNPINNED_TTL_MS
 const SHEBANG_BYTES = 256
 
-const PackageJsonSchema = Schema.Struct({ bin: Schema.optional(Schema.Unknown) })
+const PackageJsonSchema = Schema.Struct({
+  bin: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
 export function readJson(text: string): unknown {
   try {

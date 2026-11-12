@@ -37,8 +37,8 @@ const HUMAN_FIELDS: Readonly<
 }
 
 const outcomeTitleFieldsSchema = Schema.Struct({
-  effect: Schema.optional(Schema.Unknown),
-  operation: Schema.optional(Schema.Unknown),
+  effect: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  operation: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 function humanOutcome(value: unknown) {

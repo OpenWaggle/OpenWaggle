@@ -25,7 +25,6 @@ describe('pickAuthorizationMode', () => {
   // An absent override is inherit, never yolo: reading it as 'yolo' would make every unconfigured
   // session silently full access, and a tightened global default must reach those sessions.
   it.each([
-    { sessionOverride: undefined, projectDefault: undefined, globalDefault: 'ask-for-approval' },
     { sessionOverride: null, projectDefault: null, globalDefault: 'ask-for-approval' },
     { globalDefault: 'ask-for-approval' },
     { globalDefault: 'yolo' },

@@ -3,14 +3,14 @@ import { isJsonRecord, MCP_LOOPBACK_HOSTS, type McpOAuthConfig } from './mcp-ser
 
 /** The `oauth` members the rules check, each still unchecked so a rule names the one it refuses. */
 const oauthFieldsSchema = Schema.Struct({
-  clientId: Schema.optional(Schema.Unknown),
-  clientSecret: Schema.optional(Schema.Unknown),
-  callbackPort: Schema.optional(Schema.Unknown),
-  callbackUrl: Schema.optional(Schema.Unknown),
-  scope: Schema.optional(Schema.Unknown),
-  clientName: Schema.optional(Schema.Unknown),
-  clientRegistration: Schema.optional(Schema.Unknown),
-  authServerMetadataUrl: Schema.optional(Schema.Unknown),
+  clientId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  clientSecret: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  callbackPort: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  callbackUrl: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  scope: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  clientName: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  clientRegistration: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  authServerMetadataUrl: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 type OAuthFields = SchemaType<typeof oauthFieldsSchema>

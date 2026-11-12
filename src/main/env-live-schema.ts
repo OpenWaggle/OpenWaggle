@@ -1,5 +1,8 @@
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 
+// explicit undefined: a child-process env map (NodeJS.ProcessEnv) may set a variable to undefined
+const variable = Schema.optional(Schema.String)
+
 /**
  * The variables main-process code reads by name, out of `process.env` when they are used rather
  * than at startup (desktop-shell hydration and `withTemporaryProcessEnv` change it while the app
@@ -7,40 +10,40 @@ import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
  * built for a child process ({@link environmentVariables}).
  */
 export const liveEnvSchema = Schema.Struct({
-  PATH: Schema.optional(Schema.String),
+  PATH: variable,
   /** Windows spellings of PATH, in a map that is not case-insensitive like `process.env`. */
-  Path: Schema.optional(Schema.String),
-  path: Schema.optional(Schema.String),
-  LC_CTYPE: Schema.optional(Schema.String),
-  XDG_CACHE_HOME: Schema.optional(Schema.String),
-  APPIMAGE: Schema.optional(Schema.String),
-  OPENWAGGLE_HOST_TMPDIR: Schema.optional(Schema.String),
-  OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.String),
-  OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
-  OPENWAGGLE_CLI_OUTPUT_FD: Schema.optional(Schema.String),
-  OPENWAGGLE_DISABLE_COMPILE_CACHE: Schema.optional(Schema.String),
-  OPENWAGGLE_COMPILE_CACHE_DIR: Schema.optional(Schema.String),
-  HOME: Schema.optional(Schema.String),
-  SHELL: Schema.optional(Schema.String),
-  TERM: Schema.optional(Schema.String),
-  LANG: Schema.optional(Schema.String),
-  LC_ALL: Schema.optional(Schema.String),
-  USER: Schema.optional(Schema.String),
-  USERNAME: Schema.optional(Schema.String),
-  TMPDIR: Schema.optional(Schema.String),
-  TEMP: Schema.optional(Schema.String),
-  TMP: Schema.optional(Schema.String),
-  SystemRoot: Schema.optional(Schema.String),
-  WINDIR: Schema.optional(Schema.String),
-  USERPROFILE: Schema.optional(Schema.String),
-  APPDATA: Schema.optional(Schema.String),
-  LOCALAPPDATA: Schema.optional(Schema.String),
-  DBUS_SESSION_BUS_ADDRESS: Schema.optional(Schema.String),
-  DISPLAY: Schema.optional(Schema.String),
-  WAYLAND_DISPLAY: Schema.optional(Schema.String),
-  XDG_RUNTIME_DIR: Schema.optional(Schema.String),
+  Path: variable,
+  path: variable,
+  LC_CTYPE: variable,
+  XDG_CACHE_HOME: variable,
+  APPIMAGE: variable,
+  OPENWAGGLE_HOST_TMPDIR: variable,
+  OPENWAGGLE_LOG_LEVEL: variable,
+  OPENWAGGLE_USER_DATA_DIR: variable,
+  OPENWAGGLE_CLI_OUTPUT_FD: variable,
+  OPENWAGGLE_DISABLE_COMPILE_CACHE: variable,
+  OPENWAGGLE_COMPILE_CACHE_DIR: variable,
+  HOME: variable,
+  SHELL: variable,
+  TERM: variable,
+  LANG: variable,
+  LC_ALL: variable,
+  USER: variable,
+  USERNAME: variable,
+  TMPDIR: variable,
+  TEMP: variable,
+  TMP: variable,
+  SystemRoot: variable,
+  WINDIR: variable,
+  USERPROFILE: variable,
+  APPDATA: variable,
+  LOCALAPPDATA: variable,
+  DBUS_SESSION_BUS_ADDRESS: variable,
+  DISPLAY: variable,
+  WAYLAND_DISPLAY: variable,
+  XDG_RUNTIME_DIR: variable,
   /** Where Pi keeps its agent directory, when it is not `~/.pi/agent`. */
-  PI_CODING_AGENT_DIR: Schema.optional(Schema.String),
+  PI_CODING_AGENT_DIR: variable,
 })
 
 export type LiveEnv = SchemaType<typeof liveEnvSchema>

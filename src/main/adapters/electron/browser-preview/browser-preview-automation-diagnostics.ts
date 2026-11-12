@@ -17,8 +17,8 @@ const consoleMessageSchema = Schema.Struct({
   type: Schema.String,
   args: Schema.Array(
     Schema.Struct({
-      value: Schema.optional(Schema.Unknown),
-      description: Schema.optional(Schema.String),
+      value: Schema.optionalWith(Schema.Unknown, { exact: true }),
+      description: Schema.optionalWith(Schema.String, { exact: true }),
     }),
   ),
   timestamp: Schema.Number,
@@ -29,14 +29,14 @@ const logEntrySchema = Schema.Struct({
     level: Schema.String,
     text: Schema.String,
     timestamp: Schema.Number,
-    url: Schema.optional(Schema.String),
+    url: Schema.optionalWith(Schema.String, { exact: true }),
   }),
 })
 
 const requestSchema = Schema.Struct({
   requestId: Schema.String,
   request: Schema.Struct({ url: Schema.String, method: Schema.String }),
-  wallTime: Schema.optional(Schema.Number),
+  wallTime: Schema.optionalWith(Schema.Number, { exact: true }),
 })
 
 const responseSchema = Schema.Struct({

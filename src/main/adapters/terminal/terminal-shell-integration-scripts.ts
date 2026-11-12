@@ -22,7 +22,9 @@ export function buildZshStartupScripts(options: {
       ...shared,
       startupFile: '.zshenv',
       captureInitialState: true,
-      initialUserDirectory: options.originalZdotdir,
+      ...(options.originalZdotdir === undefined
+        ? {}
+        : { initialUserDirectory: options.originalZdotdir }),
       integration,
     }),
     '.zprofile': zshStartupWrapper({ ...shared, startupFile: '.zprofile', integration }),
@@ -124,7 +126,7 @@ interface ZshStartupWrapperOptions {
   readonly userDirectoryVariable: string
   readonly userDirectorySetVariable: string
   readonly captureInitialState?: boolean
-  readonly initialUserDirectory?: string | undefined
+  readonly initialUserDirectory?: string
   readonly integration?: string
   readonly finalStartupFile?: boolean
 }

@@ -29,10 +29,12 @@ export async function mcpAuthorizationOrigin(
   const serverUrl = mcpOAuthUrl(entry)
   if (!serverUrl) return undefined
   const state = await getOpenWaggleMcpCredentials().forServer(entry.name, serverUrl).load()
+  const authServerMetadataUrl = configuredMetadataUrl(entry)
+  const discovery = state?.discovery
   return {
     serverUrl,
-    authServerMetadataUrl: configuredMetadataUrl(entry),
-    discovery: state?.discovery,
+    ...(authServerMetadataUrl === undefined ? {} : { authServerMetadataUrl }),
+    ...(discovery === undefined ? {} : { discovery }),
     ...(state?.oauthState ? { oauthState: state.oauthState } : {}),
   }
 }

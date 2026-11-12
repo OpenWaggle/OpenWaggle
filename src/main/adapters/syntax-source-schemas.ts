@@ -111,8 +111,8 @@ export const themeSourceSchema = Schema.Struct({
   type: lenientOptional(Schema.String),
   include: lenientOptional(Schema.String),
   colors: lenientStringRecordSchema,
-  tokenColors: Schema.optional(Schema.Unknown),
-  settings: Schema.optional(Schema.Unknown),
+  tokenColors: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  settings: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export const themeTokenRulesSchema = lenientArray(tokenRuleSourceSchema)
@@ -161,7 +161,7 @@ const appearanceVariantSchema = Schema.Literal(
 
 /** An OpenWaggle native syntax package (`schemaVersion: 1`). */
 export const nativePackageSourceSchema = Schema.Struct({
-  schemaVersion: Schema.optional(Schema.Unknown),
+  schemaVersion: Schema.optionalWith(Schema.Unknown, { exact: true }),
   publisher: lenientOptional(Schema.String),
   name: lenientOptional(Schema.String),
   themes: lenientOptional(Schema.Array(Schema.Unknown)),
@@ -170,19 +170,19 @@ export const nativePackageSourceSchema = Schema.Struct({
 })
 
 export const nativeThemeEntrySchema = Schema.Struct({
-  theme: Schema.optional(Schema.Unknown),
+  theme: Schema.optionalWith(Schema.Unknown, { exact: true }),
   variant: lenientOptional(appearanceVariantSchema),
   label: lenientOptional(Schema.String),
 })
 
 export const nativeLanguageEntrySchema = Schema.Struct({
-  grammar: Schema.optional(Schema.Unknown),
-  language: Schema.optional(Schema.Unknown),
-  configuration: Schema.optional(Schema.Unknown),
+  grammar: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  language: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  configuration: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export const nativeAppearanceEntrySchema = Schema.Struct({
-  tokens: Schema.optional(Schema.Unknown),
+  tokens: Schema.optionalWith(Schema.Unknown, { exact: true }),
   variant: lenientOptional(appearanceVariantSchema),
   label: lenientOptional(Schema.String),
 })

@@ -19,7 +19,7 @@ import {
   stringArray,
 } from './import-values'
 
-const unknownField = Schema.optional(Schema.Unknown)
+const unknownField = Schema.optionalWith(Schema.Unknown, { exact: true })
 
 /**
  * The fields of a source entry the importer converts. Their values stay unknown here: each

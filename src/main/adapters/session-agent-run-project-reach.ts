@@ -26,6 +26,21 @@ interface RunSourceRow {
   readonly profile_revoked_at: number | null
 }
 
+/** What `rootSessionReachesEveryProject` reads from a Session's profile and authority rows. */
+function rootReachInput(row: Omit<RunSourceRow, 'initiator_caller_id'>) {
+  const liveProfileScope =
+    row.profile_scope_json && row.profile_revoked_at === null
+      ? decodeLocalSessionProfileScope(parseJsonUnknown(row.profile_scope_json))
+      : undefined
+  const snapshotScope = decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope
+  return {
+    isRoot: row.parent_session_id === null,
+    originCallerId: row.authority_origin_caller_id,
+    ...(liveProfileScope === undefined ? {} : { liveProfileScope }),
+    ...(snapshotScope === undefined ? {} : { snapshotScope }),
+  }
+}
+
 function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly scope_json: string; readonly revoked_at: number | null }>`
@@ -121,15 +136,7 @@ function runReachStep(
     const row = rows[0]
     if (!row?.initiator_caller_id) return NO_REACH
     const ownReach = yield* Effect.try(() =>
-      rootSessionReachesEveryProject({
-        isRoot: row.parent_session_id === null,
-        originCallerId: row.authority_origin_caller_id,
-        liveProfileScope:
-          row.profile_scope_json && row.profile_revoked_at === null
-            ? decodeLocalSessionProfileScope(parseJsonUnknown(row.profile_scope_json))
-            : undefined,
-        snapshotScope: decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope,
-      }),
+      rootSessionReachesEveryProject(rootReachInput(row)),
     ).pipe(Effect.orElseSucceed(() => false))
     if (!ownReach) return NO_REACH
     const reach = yield* callerReach(sql, row.initiator_caller_id)
@@ -170,16 +177,8 @@ export function sessionReachesEveryProject(
     `
     const row = rows[0]
     if (!row) return false
-    return yield* Effect.try(() =>
-      rootSessionReachesEveryProject({
-        isRoot: row.parent_session_id === null,
-        originCallerId: row.authority_origin_caller_id,
-        liveProfileScope:
-          row.profile_scope_json && row.profile_revoked_at === null
-            ? decodeLocalSessionProfileScope(parseJsonUnknown(row.profile_scope_json))
-            : undefined,
-        snapshotScope: decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope,
-      }),
-    ).pipe(Effect.orElseSucceed(() => true))
+    return yield* Effect.try(() => rootSessionReachesEveryProject(rootReachInput(row))).pipe(
+      Effect.orElseSucceed(() => true),
+    )
   })
 }

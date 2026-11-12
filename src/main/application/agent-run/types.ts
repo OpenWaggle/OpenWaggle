@@ -60,7 +60,7 @@ export interface AgentRunInput {
 }
 
 interface AgentRunResultBase {
-  readonly assignedTitle?: string | undefined
+  readonly assignedTitle?: string
   readonly resourceMessages?: PersistedRunResourceNodes['resourceMessages']
   readonly resourceNodeIds?: PersistedRunResourceNodes['resourceNodeIds']
   readonly resourceBranchIds?: PersistedRunResourceNodes['resourceBranchIds']

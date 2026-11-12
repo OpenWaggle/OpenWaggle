@@ -31,7 +31,7 @@ export async function authorizeBrowserPreviewTool(input: {
   readonly operation: string
   readonly params: unknown
   readonly ctx: ExtensionContext
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
 }) {
   if (!input.ctx.hasUI) {
     throw new Error('Browser preview automation requires an interactive OpenWaggle session.')

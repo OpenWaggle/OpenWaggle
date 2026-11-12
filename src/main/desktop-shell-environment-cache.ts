@@ -62,8 +62,8 @@ const cacheFileSchema = Schema.Struct({
   home: Schema.String,
   resolvedAt: Schema.Number,
   environment: Schema.Record({ key: Schema.String, value: Schema.String }),
-  launchctlPath: Schema.optional(Schema.String),
-  refreshFailedAt: Schema.optional(Schema.Number),
+  launchctlPath: Schema.optionalWith(Schema.String, { exact: true }),
+  refreshFailedAt: Schema.optionalWith(Schema.Number, { exact: true }),
 })
 
 type CacheFileEntry = typeof cacheFileSchema.Type

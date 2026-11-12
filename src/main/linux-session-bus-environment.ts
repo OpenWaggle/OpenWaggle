@@ -13,8 +13,8 @@ export interface LinuxSessionBusEnvironmentInput {
 
 /** The session bus variables of the environment map being filled. */
 interface SessionBusEnvironment {
-  DBUS_SESSION_BUS_ADDRESS?: string | undefined
-  readonly XDG_RUNTIME_DIR?: string | undefined
+  DBUS_SESSION_BUS_ADDRESS?: string
+  readonly XDG_RUNTIME_DIR?: string
 }
 
 export function fillLinuxSessionBusAddress(

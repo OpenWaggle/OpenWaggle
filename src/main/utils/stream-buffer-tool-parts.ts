@@ -43,11 +43,11 @@ export function applyToolExecutionEndToParts(
       parts,
       toolCallId: value.toolCallId,
       toolName: value.toolName,
-      args,
+      ...(args === undefined ? {} : { args }),
     }),
     toolCallId: value.toolCallId,
     toolName: value.toolName,
-    args,
+    ...(args === undefined ? {} : { args }),
     result: value.result,
     isError: value.isError,
   })

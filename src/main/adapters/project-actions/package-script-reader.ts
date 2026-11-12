@@ -23,12 +23,19 @@ import { readTaskSource, resolveActionPath } from './task-source-files'
 
 const stringList = Schema.Array(Schema.String)
 const manifestSchema = Schema.Struct({
-  name: Schema.optional(Schema.String),
-  packageManager: Schema.optional(Schema.String),
-  scripts: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
-  workspaces: Schema.optional(Schema.Union(stringList, Schema.Struct({ packages: stringList }))),
+  name: Schema.optionalWith(Schema.String, { exact: true }),
+  packageManager: Schema.optionalWith(Schema.String, { exact: true }),
+  scripts: Schema.optionalWith(Schema.Record({ key: Schema.String, value: Schema.String }), {
+    exact: true,
+  }),
+  workspaces: Schema.optionalWith(
+    Schema.Union(stringList, Schema.Struct({ packages: stringList })),
+    { exact: true },
+  ),
 })
-const workspaceSchema = Schema.Struct({ packages: Schema.optional(stringList) })
+const workspaceSchema = Schema.Struct({
+  packages: Schema.optionalWith(stringList, { exact: true }),
+})
 const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun'])
 const LOCKFILES = [
   ['package-lock.json', 'npm'],

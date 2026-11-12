@@ -26,7 +26,7 @@ export interface McpbCachedLauncher {
 
 const text = lenientOptional(nonBlankStringSchema)
 /** Checked by the reader of each field, which names the field when it has the wrong shape. */
-const checkedLater = Schema.optional(Schema.Unknown)
+const checkedLater = Schema.optionalWith(Schema.Unknown, { exact: true })
 
 const mcpbConfigFieldsSchema = Schema.Struct({
   command: text,

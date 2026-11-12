@@ -46,7 +46,10 @@ async function createSessionWithSlowBeforeSettleGate() {
   faux.setResponses([() => fauxAssistantMessage('the answer')])
 
   const gateStarted = deferred()
-  const observed: { signal?: AbortSignal | undefined; abortedWhenDone?: boolean | undefined } = {}
+  const observed: { signal: AbortSignal | undefined; abortedWhenDone: boolean | undefined } = {
+    signal: undefined,
+    abortedWhenDone: undefined,
+  }
   const slowGate: ExtensionFactory = (pi) => {
     pi.on('agent_before_settle', async (_event, ctx) => {
       const signal = ctx.signal

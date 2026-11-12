@@ -202,8 +202,8 @@ function defineServer(state: MergeState, layer: McpConfigLayer, name: string, va
 
 /** The members of an MCP config file this reader looks at; each is checked where it is read. */
 const mcpConfigFileFieldsSchema = Schema.Struct({
-  mcpServers: Schema.optional(Schema.Unknown),
-  autoEnableCodemode: Schema.optional(Schema.Unknown),
+  mcpServers: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  autoEnableCodemode: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 /** The file's members, or `undefined` when it is not an object with an `mcpServers` object. */

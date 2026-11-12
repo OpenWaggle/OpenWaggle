@@ -48,7 +48,9 @@ function recordStart(start: UsageStatisticsRunStart, facts: UsageStatisticsSessi
     attachments: start.attachments,
     access: {
       ceiling: facts?.authorizationCeiling ?? null,
-      runOverride: start.runAuthorizationOverride,
+      ...(start.runAuthorizationOverride === undefined
+        ? {}
+        : { runOverride: start.runAuthorizationOverride }),
       sessionMode: facts?.sessionAuthorizationMode ?? null,
       globalDefault: globalDefaultAuthorizationMode(),
     },

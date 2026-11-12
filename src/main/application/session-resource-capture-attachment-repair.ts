@@ -15,7 +15,7 @@ function resourceOccurrence(input: CaptureAttachmentInput, id: string): SessionR
   return occurrence({
     id,
     nodeId: input.nodeId,
-    branchId: input.branchId,
+    ...(input.branchId === undefined ? {} : { branchId: input.branchId }),
     actor: 'user',
     activity: 'provided',
     locator: input.attachment.path,

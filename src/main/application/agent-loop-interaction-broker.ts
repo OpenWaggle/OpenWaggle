@@ -59,8 +59,8 @@ function interactionStatus(response: AgentLoopInteractionResponse): AgentLoopInt
 
 function emitResolved(input: {
   readonly interaction: AgentLoopInteraction
-  readonly response?: AgentLoopInteractionResponse | undefined
-  readonly status?: AgentLoopInteractionStatus | undefined
+  readonly response?: AgentLoopInteractionResponse
+  readonly status?: AgentLoopInteractionStatus
   readonly error?: {
     readonly code: AgentLoopInteractionErrorCode
     readonly message: string
@@ -90,7 +90,7 @@ function settlePending(input: {
   emitResolved({
     interaction: input.pending.interaction,
     response: input.response,
-    status: input.status,
+    ...(input.status === undefined ? {} : { status: input.status }),
     onEvent: input.pending.onEvent,
   })
   input.pending.resolve(input.response)

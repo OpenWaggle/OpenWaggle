@@ -60,7 +60,7 @@ function attachmentOccurrence(
   return occurrence({
     id,
     nodeId: input.nodeId,
-    branchId: input.branchId,
+    ...(input.branchId === undefined ? {} : { branchId: input.branchId }),
     actor: 'user',
     activity: 'provided',
     label: input.attachment.name,
@@ -257,7 +257,7 @@ export function captureAttachment(input: CaptureAttachmentInput) {
       {
         sessionId: input.sessionId,
         sourcePath: input.attachment.path,
-        repairResource: input.repairResource,
+        ...(input.repairResource === undefined ? {} : { repairResource: input.repairResource }),
       },
       id,
       fallbackCanonicalKey,

@@ -80,7 +80,7 @@ export type RegistryServer = SchemaType<typeof registryServerSchema>
  * `_meta` beside it, or bare as older registries answer.
  */
 export const registryListEntrySchema = Schema.Struct({
-  server: Schema.optional(Schema.Unknown),
+  server: Schema.optionalWith(Schema.Unknown, { exact: true }),
   _meta: lenientOptional(
     Schema.Struct({
       'io.modelcontextprotocol.registry/official': lenientOptional(

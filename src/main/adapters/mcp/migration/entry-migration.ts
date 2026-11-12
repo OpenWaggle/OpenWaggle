@@ -68,7 +68,7 @@ const legacyEntryFieldsSchema = Schema.Struct({
   /** Only the values that are `{ secret }` vault references. */
   env: lenientOptional(lenientRecord(Schema.Struct({ secret: Schema.String }))),
   headers: lenientOptional(lenientRecord(Schema.Struct({ secret: Schema.String }))),
-  directTools: Schema.optional(Schema.Unknown),
+  directTools: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 const piConfigFieldsSchema = Schema.Struct({

@@ -27,20 +27,20 @@ import {
  * checks one at a time so its error names the member, as Pi's does. Other members are dropped.
  */
 const mcpServerEntryFieldsSchema = Schema.Struct({
-  exposure: Schema.optional(Schema.Unknown),
-  toolExposure: Schema.optional(Schema.Unknown),
-  enabled: Schema.optional(Schema.Unknown),
-  description: Schema.optional(Schema.Unknown),
-  timeout: Schema.optional(Schema.Unknown),
-  type: Schema.optional(Schema.Unknown),
-  url: Schema.optional(Schema.Unknown),
-  headers: Schema.optional(Schema.Unknown),
-  oauth: Schema.optional(Schema.Unknown),
-  auth: Schema.optional(Schema.Unknown),
-  command: Schema.optional(Schema.Unknown),
-  args: Schema.optional(Schema.Unknown),
-  env: Schema.optional(Schema.Unknown),
-  cwd: Schema.optional(Schema.Unknown),
+  exposure: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  toolExposure: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  enabled: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  description: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  timeout: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  type: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  url: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  headers: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  oauth: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  auth: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  command: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  args: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  env: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  cwd: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 type McpServerEntryFields = SchemaType<typeof mcpServerEntryFieldsSchema>

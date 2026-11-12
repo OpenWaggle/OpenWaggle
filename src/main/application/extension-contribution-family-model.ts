@@ -3,50 +3,19 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributions,
   ExtensionSessionSummaryContribution,
-  ExtensionSidePanelIcon,
 } from '@shared/schemas/extensions'
-import type {
-  ExtensionContributionFamily,
-  ExtensionContributionRuntime,
-  ExtensionExecutionPlacement,
-} from '@shared/types/extensions'
+import type { ExtensionContributionFamily } from '@shared/types/extensions'
 
-/** A decoded manifest target; the manifest schema decodes absent keys as undefined. */
-export interface ManifestContributionTarget {
-  readonly projectPaths?: readonly string[] | undefined
-  readonly sessionIds?: readonly string[] | undefined
-}
+/** A decoded manifest command or slash command. */
+export type ManifestCommandContribution = NonNullable<ExtensionContributions['commands']>[number]
 
-export interface ManifestContributionMatches {
-  readonly toolNames?: readonly string[] | undefined
-  readonly customMessageNames?: readonly string[] | undefined
-  readonly interactionKinds?: readonly string[] | undefined
-}
+/** A decoded manifest entry contribution; only side panels declare an `icon` (ADR 0043). */
+export type ManifestEntryContribution = NonNullable<ExtensionContributions['sidePanels']>[number]
 
-export interface ManifestCommandContribution {
-  readonly id: string
-  readonly title: string
-  readonly category?: string | undefined
-  readonly target?: ManifestContributionTarget | undefined
-  readonly capability?: string | undefined
-  readonly method?: string | undefined
-  readonly methods?: readonly string[] | undefined
-}
+/** A decoded manifest target. */
+export type ManifestContributionTarget = NonNullable<ManifestEntryContribution['target']>
 
-export interface ManifestEntryContribution {
-  readonly id: string
-  readonly title: string
-  readonly runtime: ExtensionContributionRuntime
-  readonly execution: ExtensionExecutionPlacement
-  readonly entry: string
-  readonly target?: ManifestContributionTarget | undefined
-  readonly matches?: ManifestContributionMatches | undefined
-  readonly capability?: string | undefined
-  readonly method?: string | undefined
-  readonly methods?: readonly string[] | undefined
-  /** Declared only by side panels (ADR 0043). */
-  readonly icon?: ExtensionSidePanelIcon | undefined
-}
+export type ManifestContributionMatches = NonNullable<ManifestEntryContribution['matches']>
 
 export type ManifestSessionSummaryContribution = ExtensionSessionSummaryContribution
 export type ManifestContribution =

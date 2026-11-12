@@ -1,46 +1,16 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
 import type { ContentHashInput } from './package-files'
 
-interface ManifestEntryContribution {
-  readonly entry: string
-}
-
-interface ManifestSidePanelContribution extends ManifestEntryContribution {
-  readonly icon?: string | { readonly svg: string } | undefined
-}
-
 /** The manifest fields the content hash reads, as a decoded manifest carries them. */
-export interface ManifestContentHashSource {
-  readonly builtArtifacts: readonly string[]
-  readonly contributions?:
-    | {
-        readonly routes?: readonly ManifestEntryContribution[] | undefined
-        readonly settingsSections?: readonly ManifestEntryContribution[] | undefined
-        readonly sidePanels?: readonly ManifestSidePanelContribution[] | undefined
-        readonly dialogs?: readonly ManifestEntryContribution[] | undefined
-        readonly transcriptRenderers?: readonly ManifestEntryContribution[] | undefined
-        readonly toolRenderers?: readonly ManifestEntryContribution[] | undefined
-        readonly customMessageRenderers?: readonly ManifestEntryContribution[] | undefined
-        readonly interactionRenderers?: readonly ManifestEntryContribution[] | undefined
-        readonly statusWidgets?: readonly ManifestEntryContribution[] | undefined
-      }
-    | undefined
-  readonly trusted?:
-    | {
-        readonly main?: string | undefined
-        readonly renderer?: string | undefined
-      }
-    | undefined
-  readonly runtimeRequirements?:
-    | readonly {
-        readonly command?: string | undefined
-      }[]
-    | undefined
-}
+export type ManifestContentHashSource = Pick<
+  OpenWaggleExtensionManifest,
+  'builtArtifacts' | 'contributions' | 'trusted' | 'runtimeRequirements'
+>
 
 function pushContributionEntryPaths(
   entryPaths: string[],
-  contributions: readonly ManifestEntryContribution[] | undefined,
+  contributions: readonly { readonly entry: string }[] | undefined,
 ) {
   for (const contribution of contributions ?? []) {
     entryPaths.push(contribution.entry)

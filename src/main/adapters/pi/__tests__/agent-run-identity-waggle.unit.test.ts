@@ -62,7 +62,7 @@ const answer = (text: string, timestamp: number) => ({
 })
 const runIdentityMessageSchema = Schema.Struct({
   customType: Schema.Literal(RUN_IDENTITY_CUSTOM_TYPE),
-  content: Schema.optional(Schema.Unknown),
+  content: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 const identityContents = (messages: readonly unknown[]) =>
   messages.flatMap((message) =>

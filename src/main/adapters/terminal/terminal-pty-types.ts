@@ -10,7 +10,7 @@ export interface PtySpawnRequest {
   readonly rows: number
   readonly env: PreparedEnvironment
   /** Prevent a canceled action launch from spawning after native module loading. */
-  readonly signal?: AbortSignal | undefined
+  readonly signal?: AbortSignal
   /** Generation-scoped token required by the shell prompt-readiness marker. */
   readonly readinessNonce: string
   /** An owned finite command. It bypasses interactive prompt integration and exits with the task. */
