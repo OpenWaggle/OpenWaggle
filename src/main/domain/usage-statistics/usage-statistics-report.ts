@@ -75,11 +75,13 @@ function installActiveProperties(
   for (const flag of USAGE_STATISTICS_FEATURE_FLAGS) {
     if (observations.features.includes(flag)) properties[flag] = true
   }
-  if (observations.mcpServers.length > 0) {
-    properties.mcp_servers = [...observations.mcpServers].sort()
+  return {
+    ...properties,
+    ...(observations.mcpServers.length > 0
+      ? { mcp_servers: [...observations.mcpServers].sort() }
+      : {}),
+    ...(observations.skills.length > 0 ? { skills: [...observations.skills].sort() } : {}),
   }
-  if (observations.skills.length > 0) properties.skills = [...observations.skills].sort()
-  return properties
 }
 
 /** Onboarding steps of the Install's first day. Every later step implies the earlier ones. */

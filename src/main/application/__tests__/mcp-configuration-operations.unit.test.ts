@@ -79,7 +79,7 @@ describe('MCP configuration operations', () => {
       }),
     )
 
-    expect(servers(owGlobal()).sentry).toEqual({
+    expect(servers(owGlobal())).toHaveProperty('sentry', {
       url: 'https://mcp.sentry.dev/mcp',
       timeout: 30,
       oauth: { clientName: 'Example Client', callbackPort: 8765 },
@@ -100,7 +100,7 @@ describe('MCP configuration operations', () => {
       }),
     )
 
-    expect(servers(owGlobal()).vaulted).toEqual(entry)
+    expect(servers(owGlobal())).toHaveProperty('vaulted', entry)
     expect(message).toMatch(/secret/i)
   })
 
@@ -116,8 +116,8 @@ describe('MCP configuration operations', () => {
       }),
     )
 
-    expect(servers(owProject()).docs).toEqual({ enabled: false })
-    expect(servers(piGlobal()).docs).toEqual({ url: 'https://docs.example/mcp' })
+    expect(servers(owProject())).toHaveProperty('docs', { enabled: false })
+    expect(servers(piGlobal())).toHaveProperty('docs', { url: 'https://docs.example/mcp' })
     expect(view.servers[0]).toMatchObject({
       enabled: false,
       override: { fileId: 'project-openwaggle' },
@@ -177,7 +177,7 @@ describe('MCP configuration operations', () => {
       }),
     )
 
-    expect(servers(owGlobal()).github).toEqual({
+    expect(servers(owGlobal())).toHaveProperty('github', {
       url: 'https://github.example/mcp',
       exposure: 'deferred',
       toolExposure: { search_code: 'direct' },
@@ -244,7 +244,7 @@ describe('MCP configuration operations', () => {
       }),
     )
 
-    expect(servers(owGlobal()).playwright).toEqual({
+    expect(servers(owGlobal())).toHaveProperty('playwright', {
       command: 'npx',
       args: ['@playwright/mcp@latest'],
     })

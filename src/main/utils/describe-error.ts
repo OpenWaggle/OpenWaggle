@@ -18,7 +18,7 @@ export function unwrapFiberFailure(error: unknown) {
 
 /** An object with nothing that identifies it is named by its class; its fields may hold secrets. */
 function className(value: object) {
-  const constructor: unknown = Reflect.get(value, 'constructor')
+  const { constructor } = value
   return typeof constructor === 'function' && constructor.name ? constructor.name : 'Object'
 }
 
@@ -61,8 +61,8 @@ export function errorCauseChain(error: unknown): unknown[] {
     seen.add(unwrapped)
     chain.push(unwrapped)
     current =
-      typeof unwrapped === 'object' && unwrapped !== null
-        ? Reflect.get(unwrapped, 'cause')
+      typeof unwrapped === 'object' && unwrapped !== null && 'cause' in unwrapped
+        ? unwrapped.cause
         : undefined
   }
   return chain

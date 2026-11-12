@@ -1,5 +1,10 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { describe, expect, it } from 'vitest'
 import { run, server, view } from './mcp-cli-management.test-fixtures'
+
+const listedServersSchema = Schema.Struct({
+  result: Schema.Struct({ servers: Schema.Array(Schema.Unknown) }),
+})
 
 /** Maintainer decision 1: OpenWaggle runs `direct` as `codemode` and never offers it. */
 describe('openwaggle mcp and direct exposure', () => {
@@ -63,13 +68,15 @@ describe('openwaggle mcp and direct exposure', () => {
     })
     const parsed: unknown = JSON.parse(result.logs)
 
-    expect(Reflect.get(Object(parsed), 'result')).toMatchObject({
-      servers: [
-        { name: 'docs', exposure: 'codemode', configuredExposure: 'direct' },
-        { name: 'plain', exposure: 'codemode' },
-      ],
+    expect(parsed).toMatchObject({
+      result: {
+        servers: [
+          { name: 'docs', exposure: 'codemode', configuredExposure: 'direct' },
+          { name: 'plain', exposure: 'codemode' },
+        ],
+      },
     })
-    const servers = Reflect.get(Object(Reflect.get(Object(parsed), 'result')), 'servers')
-    expect(Array.isArray(servers) ? servers[1] : undefined).not.toHaveProperty('configuredExposure')
+    const listed = decodeUnknownOrThrow(listedServersSchema, parsed)
+    expect(listed.result.servers[1]).not.toHaveProperty('configuredExposure')
   })
 })

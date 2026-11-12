@@ -214,17 +214,17 @@ describe('updater service', () => {
       checkForUpdates('stable')
 
       expect(mockCancelDownload).toHaveBeenCalledOnce()
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
     })
 
     it('invalidates an already downloaded Alpha update when switching to Stable', async () => {
       initAutoUpdater('alpha')
       emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
 
       checkForUpdates('stable')
 
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
       expect(getUpdateStatus()).not.toEqual({ type: 'downloaded', version: '0.5.0-alpha.1' })
       await installUpdate()
       expect(mockQuitAndInstall).not.toHaveBeenCalled()
@@ -233,7 +233,7 @@ describe('updater service', () => {
       emitter().emit('update-available', { version: '0.5.0-alpha.1' })
       emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
 
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
       const statusTypes = mockBroadcastToWindows.mock.calls.map(([, status]) => status.type)
       expect(statusTypes).not.toContain('available')
       expect(statusTypes).not.toContain('downloaded')
@@ -252,16 +252,16 @@ describe('updater service', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'alpha'
       initAutoUpdater('alpha')
-      expect(Reflect.get(emitter(), 'channel')).toBe('alpha')
-      expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(true)
-      expect(Reflect.get(emitter(), 'allowDowngrade')).toBe(false)
+      expect(emitter()).toHaveProperty('channel', 'alpha')
+      expect(emitter()).toHaveProperty('allowPrerelease', true)
+      expect(emitter()).toHaveProperty('allowDowngrade', false)
     })
 
     it('maps the Stable preference to the electron-updater latest feed', () => {
       initAutoUpdater('stable')
-      expect(Reflect.get(emitter(), 'channel')).toBe('latest')
-      expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(false)
-      expect(Reflect.get(emitter(), 'allowDowngrade')).toBe(false)
+      expect(emitter()).toHaveProperty('channel', 'latest')
+      expect(emitter()).toHaveProperty('allowPrerelease', false)
+      expect(emitter()).toHaveProperty('allowDowngrade', false)
     })
   })
 

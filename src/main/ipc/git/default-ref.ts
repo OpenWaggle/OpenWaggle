@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 import { networkGitOptions } from '../../adapters/git/run-git'
 import { runGit } from './shared'
 
@@ -98,8 +99,9 @@ async function resolveAdvertisedDefaultRef(
 
   for (const line of advertised.stdout.split('\n')) {
     // `ref: refs/heads/<name>\tHEAD`
-    const match = /^ref:\s+refs\/heads\/(?<name>\S+)\s+HEAD$/.exec(line.trim())
-    const name = match?.groups?.name
+    const name = namedGroups(/^ref:\s+refs\/heads\/(?<name>\S+)\s+HEAD$/.exec(line.trim()), [
+      'name',
+    ])?.name
     if (name) return name
   }
   return null

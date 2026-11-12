@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -12,6 +13,9 @@ import {
   advertisedOperations,
   listedSessionIds,
 } from './openwaggle-mcp-server-conformance-results.test-support'
+
+const textContentSchema = Schema.Struct({ text: Schema.String })
+const toolErrorSchema = Schema.Struct({ isError: Schema.Literal(true) })
 
 describe('OpenWaggle as an MCP server: protocol conformance (#350)', () => {
   const host = createMcpConformanceHost()
@@ -65,7 +69,7 @@ describe('OpenWaggle as an MCP server: protocol conformance (#350)', () => {
       response: { outcome: { operation: 'list' } },
     })
     const [content] = Array.isArray(result.content) ? result.content : []
-    expect(JSON.parse(String(Reflect.get(Object(content), 'text')))).toEqual(
+    expect(JSON.parse(decodeUnknownOrThrow(textContentSchema, content).text)).toEqual(
       result.structuredContent,
     )
     await expect(listedSessionIds(client)).resolves.toEqual(['session-a', 'session-b'])
@@ -108,7 +112,7 @@ describe('OpenWaggle as an MCP server: protocol conformance (#350)', () => {
         (error: unknown) => ({ rejected: true, value: error }),
       )
 
-    expect(result.rejected || Reflect.get(Object(result.value), 'isError') === true).toBe(true)
+    expect(result.rejected || Schema.is(toolErrorSchema)(result.value)).toBe(true)
     const detail =
       result.value instanceof Error ? result.value.message : JSON.stringify(result.value)
     expect(detail).toMatch(/openwaggle_sessions/)
@@ -122,7 +126,7 @@ describe('OpenWaggle as an MCP server: protocol conformance (#350)', () => {
     const resource = await client.readResource({ uri: 'openwaggle://caller/capabilities' })
     const [content] = resource.contents
 
-    expect(JSON.parse(String(Reflect.get(Object(content), 'text')))).toMatchObject({
+    expect(JSON.parse(decodeUnknownOrThrow(textContentSchema, content).text)).toMatchObject({
       authority: 'profile',
       profile: 'repo-a-reviewer',
       grants: ['sessions:discover'],

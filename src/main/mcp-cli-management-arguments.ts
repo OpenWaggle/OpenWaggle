@@ -192,12 +192,12 @@ function isGiven(args: McpManagementArguments, option: string) {
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
 function httpEntry(args: McpManagementArguments, url: string): Record<string, JsonValue> {
+  const bearer = args.values.get('bearer-token-env-var')
   const headers: Record<string, JsonValue> = {
     ...pairs('header', args.lists.get('header')),
     ...secretPairs('header-secret', args.lists.get('header-secret')),
+    ...(bearer === undefined ? {} : { Authorization: `Bearer \${${bearer}}` }),
   }
-  const bearer = args.values.get('bearer-token-env-var')
-  if (bearer !== undefined) headers.Authorization = `Bearer \${${bearer}}`
   const port = args.values.get('oauth-callback-port')
   if (port !== undefined && !/^\d+$/.test(port)) {
     throw new McpCliUsageError('--oauth-callback-port must be a port number.')
@@ -212,7 +212,7 @@ function httpEntry(args: McpManagementArguments, url: string): Record<string, Js
     const value = args.values.get(option)
     if (value !== undefined) oauth[key] = value
   }
-  if (port !== undefined) oauth.callbackPort = Number(port)
+  if (port !== undefined) Object.assign(oauth, { callbackPort: Number(port) })
   return {
     url,
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
@@ -258,12 +258,13 @@ export function mcpCliAddInput(args: McpManagementArguments): McpCliAddInput {
       `--${misplaced} only applies to ${url === undefined ? 'HTTP servers (--url)' : 'stdio servers'}.`,
     )
   }
-  const entry: Record<string, JsonValue> =
-    url === undefined ? stdioEntry(args, command) : httpEntry(args, url)
   const exposure = mcpCliExposureOption(args.values.get('exposure'))
-  if (exposure !== undefined) entry.exposure = exposure
   const description = args.values.get('description')
-  if (description !== undefined) entry.description = description
+  const entry: Record<string, JsonValue> = {
+    ...(url === undefined ? stdioEntry(args, command) : httpEntry(args, url)),
+    ...(exposure === undefined ? {} : { exposure }),
+    ...(description === undefined ? {} : { description }),
+  }
   const file = args.values.get('file')
   const destination = MCP_CONFIG_FILE_ID_VALUES.find((candidate) => candidate === file)
   if (file !== undefined && !destination) {

@@ -38,8 +38,7 @@ export function runtimeHarness(
 ) {
   const postedMessages: unknown[] = []
   const rootStyleValues = new Map<string, string>()
-  const rootDataset: Record<string, string> = {}
-  if (initialReducedMotion) rootDataset.motion = 'reduced'
+  const rootDataset: Record<string, string> = initialReducedMotion ? { motion: 'reduced' } : {}
   const documentElement = {
     dataset: rootDataset,
     style: {

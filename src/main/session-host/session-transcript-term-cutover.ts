@@ -1,6 +1,21 @@
+import { Schema } from '@shared/schema'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import type { HostSqliteDatabase } from './host-sqlite-database'
-import { queryCutoverRecord } from './session-host-cutover-database'
+import { queryCutoverRow } from './session-host-cutover-database'
+
+/** A row the cutover reads; its columns are checked where it is used. */
+const nodeCursorRowSchema = Schema.Struct({
+  session_id: Schema.Unknown,
+  created_order: Schema.Unknown,
+  node_id: Schema.Unknown,
+})
+const nodeCursorSchema = Schema.Struct({
+  session_id: Schema.String,
+  created_order: Schema.Number,
+  node_id: Schema.String,
+})
+const mismatchRowSchema = Schema.Struct({ mismatch: Schema.Literal(1) })
+const presentRowSchema = Schema.Struct({ present: Schema.Literal(1) })
 
 const CUTOVER_NODE_BATCH_SIZE = 1_024
 const CUTOVER_BATCH_BYTE_LIMIT = 4 * 1_024 * 1_024
@@ -119,19 +134,16 @@ function stageBatch(database: HostSqliteDatabase, cursor: CutoverCursor) {
       CUTOVER_NODE_BATCH_SIZE,
       CUTOVER_BATCH_BYTE_LIMIT,
     )
-  const last = queryCutoverRecord(
+  const last = queryCutoverRow(
     database,
+    nodeCursorRowSchema,
     `SELECT session_id, created_order, node_id
      FROM temp.${CUTOVER_SOURCE_TABLE}
      ORDER BY session_id DESC, created_order DESC, node_id DESC
      LIMIT 1`,
   )
   if (!last) return null
-  if (
-    typeof last.session_id !== 'string' ||
-    typeof last.created_order !== 'number' ||
-    typeof last.node_id !== 'string'
-  ) {
+  if (!Schema.is(nodeCursorSchema)(last)) {
     throw new Error('Session transcript cutover node cursor is invalid.')
   }
   database.exec(`
@@ -191,8 +203,9 @@ function populateBatch(database: HostSqliteDatabase) {
 }
 
 function validateBatch(database: HostSqliteDatabase) {
-  const documentMismatch = queryCutoverRecord(
+  const documentMismatch = queryCutoverRow(
     database,
+    mismatchRowSchema,
     `WITH expected AS (
       SELECT requested.session_id,
         requested.previous_token_count + COALESCE(token_counts.token_count, 0) AS token_count
@@ -209,12 +222,13 @@ function validateBatch(database: HostSqliteDatabase) {
       ON documents.session_id = expected.session_id
     WHERE documents.session_id IS NULL OR documents.token_count <> expected.token_count
     LIMIT 1`,
-  )?.mismatch
-  if (documentMismatch === 1) {
+  )
+  if (documentMismatch) {
     throw new Error('Session Host transcript document counts do not match the FTS vocabulary.')
   }
-  const termMismatch = queryCutoverRecord(
+  const termMismatch = queryCutoverRow(
     database,
+    mismatchRowSchema,
     `WITH expected AS (
       SELECT groups.term, groups.session_id,
         groups.previous_occurrences + groups.occurrences AS occurrences,
@@ -236,8 +250,8 @@ function validateBatch(database: HostSqliteDatabase) {
         OR terms.first_run_id IS NOT expected.first_run_id
       ))
     LIMIT 1`,
-  )?.mismatch
-  if (termMismatch === 1) {
+  )
+  if (termMismatch) {
     throw new Error('Session Host transcript terms do not match the FTS vocabulary.')
   }
 }
@@ -245,12 +259,13 @@ function validateBatch(database: HostSqliteDatabase) {
 function dropBulkLoadIndexes(database: HostSqliteDatabase) {
   const existingNames = new Set<string>()
   for (const index of TRANSCRIPT_TERM_SECONDARY_INDEXES) {
-    const exists = queryCutoverRecord(
+    const exists = queryCutoverRow(
       database,
+      presentRowSchema,
       "SELECT 1 AS present FROM sqlite_master WHERE type = 'index' AND name = ?",
       index.name,
-    )?.present
-    if (exists === 1) {
+    )
+    if (exists) {
       existingNames.add(index.name)
       database.exec(`DROP INDEX ${index.name}`)
     }

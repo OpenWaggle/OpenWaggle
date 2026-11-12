@@ -2,11 +2,11 @@
  * Validates one `mcpServers` entry the way Pi's `validateMcpServerConfig` does, plus OpenWaggle's
  * legacy transports and vault secret references (see `mcp-server-config.ts`).
  */
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import { validateMcpOAuthConfig } from './mcp-oauth-config'
 import {
   isJsonRecord,
   isMcpExposure,
-  type JsonRecord,
   MCP_EXPOSURES,
   MCP_LOOPBACK_HOSTS,
   MCP_SERVER_NAME,
@@ -22,6 +22,32 @@ import {
   resolveMcpExposureAlias,
 } from './mcp-server-config'
 
+/**
+ * The members of an `mcpServers` entry this validator reads, each still unchecked: the validator
+ * checks one at a time so its error names the member, as Pi's does. Other members are dropped.
+ */
+const mcpServerEntryFieldsSchema = Schema.Struct({
+  exposure: Schema.optional(Schema.Unknown),
+  toolExposure: Schema.optional(Schema.Unknown),
+  enabled: Schema.optional(Schema.Unknown),
+  description: Schema.optional(Schema.Unknown),
+  timeout: Schema.optional(Schema.Unknown),
+  type: Schema.optional(Schema.Unknown),
+  url: Schema.optional(Schema.Unknown),
+  headers: Schema.optional(Schema.Unknown),
+  oauth: Schema.optional(Schema.Unknown),
+  auth: Schema.optional(Schema.Unknown),
+  command: Schema.optional(Schema.Unknown),
+  args: Schema.optional(Schema.Unknown),
+  env: Schema.optional(Schema.Unknown),
+  cwd: Schema.optional(Schema.Unknown),
+})
+
+type McpServerEntryFields = SchemaType<typeof mcpServerEntryFieldsSchema>
+
+const secretReferenceSchema = Schema.Struct({ secret: Schema.String.pipe(Schema.minLength(1)) })
+const providerAuthSchema = Schema.Struct({ provider: Schema.String.pipe(Schema.minLength(1)) })
+
 interface Failure {
   readonly ok: false
   readonly error: string
@@ -36,8 +62,7 @@ const EXPOSURE_LIST = MCP_EXPOSURES.map((exposure) => `"${exposure}"`).join(', '
 function isSecretReference(value: unknown): value is McpVaultSecretReference {
   return (
     isJsonRecord(value) &&
-    typeof value.secret === 'string' &&
-    value.secret.length > 0 &&
+    Schema.is(secretReferenceSchema)(value) &&
     Object.keys(value).length === 1
   )
 }
@@ -93,7 +118,7 @@ function validateToolExposure(name: string, value: unknown): ExposureResult {
 
 type BaseResult = { readonly ok: true; readonly base: McpServerConfigBase } | Failure
 
-function scalarBaseError(name: string, value: JsonRecord): Failure | undefined {
+function scalarBaseError(name: string, value: McpServerEntryFields): Failure | undefined {
   if (value.enabled !== undefined && typeof value.enabled !== 'boolean') {
     return failure(name, 'enabled must be a boolean')
   }
@@ -106,7 +131,7 @@ function scalarBaseError(name: string, value: JsonRecord): Failure | undefined {
   return undefined
 }
 
-function validateBase(name: string, value: JsonRecord): BaseResult {
+function validateBase(name: string, value: McpServerEntryFields): BaseResult {
   const exposure = resolveMcpExposureAlias(value.exposure)
   if (exposure !== undefined && !isMcpExposure(exposure)) {
     return failure(name, `exposure must be one of ${EXPOSURE_LIST}`)
@@ -150,7 +175,7 @@ type AuthResult = { readonly ok: true; readonly auth: { provider: string } | und
 
 function validateProviderAuth(name: string, value: unknown, url: string): AuthResult {
   if (value === undefined) return { ok: true, auth: undefined }
-  if (!isJsonRecord(value) || typeof value.provider !== 'string' || !value.provider) {
+  if (!isJsonRecord(value) || !Schema.is(providerAuthSchema)(value)) {
     return failure(name, 'auth.provider must be a provider name')
   }
   const parsed = new URL(url)
@@ -162,7 +187,7 @@ function validateProviderAuth(name: string, value: unknown, url: string): AuthRe
 
 function validateUrlServer(
   name: string,
-  value: JsonRecord,
+  value: McpServerEntryFields,
   url: string,
   base: McpServerConfigBase,
   options: McpServerValidationOptions,
@@ -199,7 +224,7 @@ function isStringArray(value: unknown): value is string[] {
 
 function validateStdioServer(
   name: string,
-  value: JsonRecord,
+  value: McpServerEntryFields,
   command: string,
   base: McpServerConfigBase,
   options: McpServerValidationOptions,
@@ -235,14 +260,15 @@ export function validateMcpServerEntry(
     return { ok: false, error: `invalid server name "${name}" (use letters, digits, "_" and "-")` }
   }
   if (!isJsonRecord(raw)) return { ok: false, error: `server "${name}" must be an object` }
-  const base = validateBase(name, raw)
+  const entry = decodeUnknownOrThrow(mcpServerEntryFieldsSchema, raw)
+  const base = validateBase(name, entry)
   if (!base.ok) return base
-  if (typeof raw.url === 'string') {
-    const server = validateUrlServer(name, raw, raw.url, base.base, options)
+  if (typeof entry.url === 'string') {
+    const server = validateUrlServer(name, entry, entry.url, base.base, options)
     if (server) return server
   }
-  if (typeof raw.command === 'string' && (raw.type === undefined || raw.type === 'stdio')) {
-    return validateStdioServer(name, raw, raw.command, base.base, options)
+  if (typeof entry.command === 'string' && (entry.type === undefined || entry.type === 'stdio')) {
+    return validateStdioServer(name, entry, entry.command, base.base, options)
   }
   return {
     ok: false,

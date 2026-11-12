@@ -96,7 +96,11 @@ export function isJsonRecord(value: unknown): value is JsonRecord {
 }
 
 /** Whether an entry overrides a server defined in an earlier file instead of defining one. */
-export function isMcpOverrideEntry(value: JsonRecord) {
+export function isMcpOverrideEntry(value: {
+  readonly command?: unknown
+  readonly url?: unknown
+  readonly type?: unknown
+}) {
   return value.command === undefined && value.url === undefined && value.type === undefined
 }
 

@@ -1,3 +1,4 @@
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 /**
  * The global `desktopNotifications` Setting (ADR 0062): on by default. A present value that does
  * not decode is refused by persisted-settings validation rather than read as the defaults; each
@@ -60,8 +61,9 @@ function muteList(value: unknown): readonly string[] {
   return [...seen]
 }
 
-export function resolveDesktopNotificationSettings(raw: unknown): DesktopNotificationSettings {
-  if (!isRecord(raw)) return DEFAULTS
+export function resolveDesktopNotificationSettings(value: unknown): DesktopNotificationSettings {
+  if (!isRecord(value)) return DEFAULTS
+  const raw: UncheckedFields<DesktopNotificationSettings> = value
   return {
     enabled: booleanOr(raw.enabled, DEFAULTS.enabled),
     categories: perCategory(raw.categories, DEFAULTS.categories, booleanOr),

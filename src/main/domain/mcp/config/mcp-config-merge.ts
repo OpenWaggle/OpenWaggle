@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 /**
  * Merges the MCP configuration file set of ADR 0051 into the server list Pi's MCP extension
  * receives.
@@ -105,6 +106,11 @@ interface MergeState {
   autoEnableCodemode?: boolean
 }
 
+/** The `enabled` member of a server entry layer, still unchecked. */
+function enabledField(entry: { readonly enabled?: unknown }) {
+  return entry.enabled
+}
+
 function applyOverride(
   state: MergeState,
   layer: McpConfigLayer,
@@ -150,7 +156,7 @@ function applyOverride(
   }
   const baseOn = base.offByOverride === true || base.config.enabled !== false
   const offByOverride =
-    'enabled' in value ? value.enabled === false && baseOn : base.offByOverride === true
+    'enabled' in value ? enabledField(value) === false && baseOn : base.offByOverride === true
   const { offByOverride: _previous, ...rest } = base
   state.servers.set(name, {
     ...rest,
@@ -194,6 +200,18 @@ function defineServer(state: MergeState, layer: McpConfigLayer, name: string, va
   })
 }
 
+/** The members of an MCP config file this reader looks at; each is checked where it is read. */
+const mcpConfigFileFieldsSchema = Schema.Struct({
+  mcpServers: Schema.optional(Schema.Unknown),
+  autoEnableCodemode: Schema.optional(Schema.Unknown),
+})
+
+/** The file's members, or `undefined` when it is not an object with an `mcpServers` object. */
+function configFileFields(value: unknown) {
+  if (!isJsonRecord(value) || !Schema.is(mcpConfigFileFieldsSchema)(value)) return undefined
+  return value.mcpServers === undefined || isJsonRecord(value.mcpServers) ? value : undefined
+}
+
 function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
   const { content } = layer
   if (content.kind === 'missing') return
@@ -202,11 +220,8 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
     state.errors.push(`${layer.path}: ${content.error}`)
     return
   }
-  const parsed = content.value
-  if (
-    !isJsonRecord(parsed) ||
-    (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))
-  ) {
+  const parsed = configFileFields(content.value)
+  if (!parsed) {
     state.unreadLayer = true
     state.errors.push(`${layer.path}: expected an object with an "mcpServers" object`)
     return

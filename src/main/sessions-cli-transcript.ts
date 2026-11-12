@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
 import { pageQueryRefusal } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { writeSessionsCliStreamRecord } from './sessions-cli-output'
 import { FULL_TRANSCRIPT_PAGE_LIMIT } from './sessions-cli-payload'
+import { commandResponseOutcome, pageRefusalOf } from './sessions-cli-response-fields'
 
 interface TranscriptCursor {
   afterCreatedOrder?: number
@@ -15,37 +16,40 @@ interface TranscriptCursor {
   snapshotHeadNodeId?: string | null
 }
 
-function transcriptOutcome(value: unknown) {
-  if (!isRecord(value) || !isRecord(value.response)) return undefined
-  const outcome = value.response.outcome
-  return isRecord(outcome) ? outcome : undefined
-}
+/** The members of a transcript page outcome the CLI reads, each still unchecked but `items`. */
+const transcriptPageSchema = Schema.Struct({
+  items: Schema.Array(Schema.Unknown),
+  highWaterMark: Schema.optional(Schema.Unknown),
+  nextCreatedOrder: Schema.optional(Schema.Unknown),
+  branchScope: Schema.optional(Schema.Unknown),
+  selectedBranchId: Schema.optional(Schema.Unknown),
+  snapshotHeadNodeId: Schema.optional(Schema.Unknown),
+})
 
-function optionalNumber(record: Record<string, unknown>, key: string) {
-  const value = record[key]
+function optionalNumber(value: unknown) {
   return typeof value === 'number' ? value : undefined
 }
 
-function optionalNullableString(record: Record<string, unknown>, key: string) {
-  const value = record[key]
+function optionalNullableString(value: unknown) {
   return typeof value === 'string' || value === null ? value : undefined
 }
 
 function transcriptPage(value: unknown) {
-  const outcome = transcriptOutcome(value)
+  const outcome = commandResponseOutcome(value)
   if (!outcome) return
-  if (isRecord(outcome.error)) throw pageQueryRefusal(outcome.error)
-  if (!Array.isArray(outcome.items)) return
+  const refusal = pageRefusalOf(outcome)
+  if (refusal) throw pageQueryRefusal(refusal)
+  if (!Schema.is(transcriptPageSchema)(outcome)) return
   return {
     items: outcome.items.map((item: unknown) => item),
-    highWaterMark: optionalNumber(outcome, 'highWaterMark'),
-    nextCreatedOrder: optionalNumber(outcome, 'nextCreatedOrder'),
+    highWaterMark: optionalNumber(outcome.highWaterMark),
+    nextCreatedOrder: optionalNumber(outcome.nextCreatedOrder),
     branchScope:
       outcome.branchScope === 'tree' || outcome.branchScope === 'active-branch'
         ? outcome.branchScope
         : undefined,
-    selectedBranchId: optionalNullableString(outcome, 'selectedBranchId'),
-    snapshotHeadNodeId: optionalNullableString(outcome, 'snapshotHeadNodeId'),
+    selectedBranchId: optionalNullableString(outcome.selectedBranchId),
+    snapshotHeadNodeId: optionalNullableString(outcome.snapshotHeadNodeId),
   }
 }
 

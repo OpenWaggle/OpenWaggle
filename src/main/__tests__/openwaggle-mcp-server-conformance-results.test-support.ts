@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, safeDecodeUnknown, Schema } from '@shared/schema'
 import type { Client } from '@modelcontextprotocol/client'
 import type {
   LocalSessionCallerIdentity,
@@ -10,6 +11,26 @@ import {
   authorizeSessionTargetForCaller,
 } from '../domain/session-control/session-capability-authorization'
 import { LocalSessionCommandAuthorizationError } from '../errors'
+
+/** The `list` answer's Session IDs, as the MCP tool's structured content carries them. */
+const listedSessionsContentSchema = Schema.Struct({
+  response: Schema.Struct({
+    outcome: Schema.Struct({
+      sessions: Schema.Array(Schema.Struct({ sessionId: Schema.Unknown })),
+    }),
+  }),
+})
+
+/** The query command the MCP server sends the fake Host. */
+const queryPayloadSchema = Schema.Struct({
+  request: Schema.Struct({
+    requestId: Schema.Unknown,
+    query: Schema.Struct({
+      operation: Schema.Unknown,
+      sessionId: Schema.optional(Schema.Unknown),
+    }),
+  }),
+})
 
 export interface StoredSession {
   readonly id: string
@@ -82,13 +103,9 @@ export async function listedSessionIds(client: Client) {
     arguments: { operation: 'list' },
   })
   if (result.isError) throw new Error(JSON.stringify(result.content))
-  const outcome = Reflect.get(
-    Object(Reflect.get(Object(result.structuredContent), 'response')),
-    'outcome',
-  )
-  const listed: unknown = Reflect.get(Object(outcome), 'sessions')
-  return Array.isArray(listed)
-    ? listed.map((session) => Reflect.get(Object(session), 'sessionId'))
+  const listed = safeDecodeUnknown(listedSessionsContentSchema, result.structuredContent)
+  return listed.success
+    ? listed.data.response.outcome.sessions.map((session) => session.sessionId)
     : []
 }
 
@@ -149,10 +166,9 @@ export function queryResult(
   payload: unknown,
   caller: LocalSessionCallerIdentity,
 ) {
-  const request = Reflect.get(Object(payload), 'request')
-  const requestId = String(Reflect.get(Object(request), 'requestId'))
-  const query = Reflect.get(Object(request), 'query')
-  return Reflect.get(Object(query), 'operation') === 'read'
-    ? readResult(sessions, requestId, String(Reflect.get(Object(query), 'sessionId')), caller)
+  const { request } = decodeUnknownOrThrow(queryPayloadSchema, payload)
+  const requestId = String(request.requestId)
+  return request.query.operation === 'read'
+    ? readResult(sessions, requestId, String(request.query.sessionId), caller)
     : listResult(sessions, requestId, caller)
 }

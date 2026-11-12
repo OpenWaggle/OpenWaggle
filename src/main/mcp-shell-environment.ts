@@ -12,7 +12,7 @@ import {
   type ShellEnvironmentCommandRunner,
 } from './desktop-shell-environment-probes'
 import { desktopShellEnvironmentReady } from './desktop-shell-environment-process'
-import { getEnvWithOverrides } from './env'
+import { getEnvWithOverrides, readLiveEnv } from './env'
 
 const START = '__OPENWAGGLE_ENV_ALL_START__'
 const END = '__OPENWAGGLE_ENV_ALL_END__'
@@ -68,7 +68,7 @@ function defaultShells(platform: NodeJS.Platform) {
   } catch {
     userShell = undefined
   }
-  return [...new Set([getEnvWithOverrides({}).SHELL, userShell, fallback])].filter(
+  return [...new Set([readLiveEnv().SHELL, userShell, fallback])].filter(
     (shell): shell is string => typeof shell === 'string' && shell.trim().length > 0,
   )
 }

@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 /** Provider ref namespaces that expose a change request's head commit, including from a fork. */
 const PROVIDER_HEAD_REF_PATTERNS = [
   // GitHub: https://github.com/owner/repo/pull/163
@@ -35,7 +36,7 @@ export interface ChangeRequestFetchPlan {
  */
 export function planChangeRequestFetch(changeRequestUrl: string): ChangeRequestFetchPlan | null {
   for (const pattern of PROVIDER_HEAD_REF_PATTERNS) {
-    const number = pattern.url.exec(changeRequestUrl)?.groups?.number
+    const number = namedGroups(pattern.url.exec(changeRequestUrl), ['number'])?.number
     if (number !== undefined) {
       return {
         remoteRef: pattern.headRef(number),

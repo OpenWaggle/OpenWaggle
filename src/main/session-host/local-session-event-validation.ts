@@ -8,18 +8,11 @@ import type {
 } from '@shared/types/session-host-event'
 import { THINKING_LEVELS } from '@shared/types/settings'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const eventCursorSchema: Schema.Schema<SessionHostEventCursor> = Schema.Struct({
+  hostInstanceId: Schema.String,
+  sequence: Schema.Number,
+})
 
-function isEventCursor(
-  value: Record<string, unknown>,
-): value is Record<string, unknown> & SessionHostEventCursor {
-  return typeof value.hostInstanceId === 'string' && typeof value.sequence === 'number'
-}
-
-const SESSION_LIST_CHANGES = new Set(['created', 'updated', 'archived', 'unarchived', 'deleted'])
-const RUN_MODES = new Set(['classic', 'waggle'])
 const worktreeLaunchEventSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('progress'), progress: worktreeLaunchProgressSchema }),
   Schema.Struct({ type: Schema.Literal('failure'), errorMessage: Schema.String }),
@@ -34,84 +27,120 @@ function decodes(schema: Schema.Schema.AnyNoContext, value: unknown) {
   }
 }
 
+const transportEventFieldsSchema = Schema.Struct({
+  type: Schema.optional(Schema.Unknown),
+  role: Schema.optional(Schema.Unknown),
+  userMessage: Schema.optional(Schema.Unknown),
+})
+
+/** A JSON object: not null and not an array, which `Schema.Object` would also accept. */
+const recordObjectSchema = Schema.declare(
+  (value: unknown): value is object =>
+    typeof value === 'object' && value !== null && !Array.isArray(value),
+)
+
 /** A transport event; a user message it carries must be display content, never model input. */
 function isTransportEvent(value: unknown) {
-  if (!isRecord(value)) return false
+  if (Array.isArray(value) || !Schema.is(transportEventFieldsSchema)(value)) return false
   if (value.type !== 'message_start' || value.userMessage === undefined) return true
   return value.role === 'user' && decodes(agentTransportUserMessageSchema, value.userMessage)
 }
 
-function isWorktreeLaunchEvent(value: unknown) {
-  return decodes(worktreeLaunchEventSchema, value)
+const transportEventSchema = Schema.declare((value: unknown): value is object =>
+  isTransportEvent(value),
+)
+const worktreeLaunchEventExactSchema = Schema.declare((value: unknown): value is object =>
+  decodes(worktreeLaunchEventSchema, value),
+)
+const desktopNotificationExactSchema = Schema.declare((value: unknown): value is object =>
+  decodes(desktopNotificationSchema, value),
+)
+
+function sessionEvent<const Kind extends string, Fields extends Schema.Struct.Fields>(
+  kind: Kind,
+  fields: Fields,
+) {
+  return Schema.Struct({ kind: Schema.Literal(kind), sessionId: Schema.String, ...fields })
 }
 
-const sessionEventValidators: Readonly<
-  Record<string, (value: Record<string, unknown>) => boolean>
-> = {
-  'session-transport': (value) => isTransportEvent(value.event),
-  'session-worktree-launch': (value) =>
-    typeof value.model === 'string' &&
-    typeof value.mode === 'string' &&
-    RUN_MODES.has(value.mode) &&
-    isWorktreeLaunchEvent(value.event),
-  'session-waggle-transport': (value) => isTransportEvent(value.event) && isRecord(value.meta),
-  'session-waggle-turn': (value) => isRecord(value.event),
-  'session-export-changed': (value) =>
-    typeof value.exportOperationId === 'string' &&
-    typeof value.status === 'string' &&
-    isRecord(value.progress),
-  'session-state-changed': (value) =>
-    typeof value.stateRevision === 'number' && typeof value.operation === 'string',
-  'session-list-changed': (value) =>
-    typeof value.change === 'string' && SESSION_LIST_CHANGES.has(value.change),
-}
+/**
+ * The fields this client relies on, per event kind. The check leaves every other field of the
+ * payload as the Host wrote it, so the envelope relays unchanged.
+ */
+const eventPayloadSchema = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal('semantic-discovery-readiness-changed'),
+    readiness: Schema.Struct({ status: Schema.String }),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('default-thinking-level-changed'),
+    level: Schema.Literal(...THINKING_LEVELS),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('desktop-notification-shown'),
+    notification: desktopNotificationExactSchema,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('desktop-notification-withdrawn'),
+    notificationId: Schema.String,
+    revision: Schema.Number,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('session-title-model-refused'),
+    model: Schema.String,
+    reason: Schema.String,
+    retryAt: Schema.Number,
+  }),
+  sessionEvent('session-transport', { event: transportEventSchema }),
+  sessionEvent('session-worktree-launch', {
+    model: Schema.String,
+    mode: Schema.Literal('classic', 'waggle'),
+    event: worktreeLaunchEventExactSchema,
+  }),
+  sessionEvent('session-waggle-transport', {
+    event: transportEventSchema,
+    meta: recordObjectSchema,
+  }),
+  sessionEvent('session-waggle-turn', { event: recordObjectSchema }),
+  sessionEvent('session-export-changed', {
+    exportOperationId: Schema.String,
+    status: Schema.String,
+    progress: recordObjectSchema,
+  }),
+  sessionEvent('session-state-changed', {
+    stateRevision: Schema.Number,
+    operation: Schema.String,
+  }),
+  sessionEvent('session-list-changed', {
+    change: Schema.Literal('created', 'updated', 'archived', 'unarchived', 'deleted'),
+  }),
+)
 
-function isEventPayload(value: Record<string, unknown>) {
-  if (value.kind === 'semantic-discovery-readiness-changed') {
-    return isRecord(value.readiness) && typeof value.readiness.status === 'string'
-  }
-  if (value.kind === 'default-thinking-level-changed') {
-    return THINKING_LEVELS.some((level) => level === value.level)
-  }
-  if (value.kind === 'desktop-notification-shown') {
-    return decodes(desktopNotificationSchema, value.notification)
-  }
-  if (value.kind === 'desktop-notification-withdrawn') {
-    return typeof value.notificationId === 'string' && typeof value.revision === 'number'
-  }
-  if (value.kind === 'session-title-model-refused') {
-    return (
-      typeof value.model === 'string' &&
-      typeof value.reason === 'string' &&
-      typeof value.retryAt === 'number'
-    )
-  }
-  if (typeof value.kind !== 'string' || typeof value.sessionId !== 'string') return false
-  return sessionEventValidators[value.kind]?.(value) ?? false
-}
+const eventEnvelopeSchema = Schema.Struct({
+  cursor: eventCursorSchema,
+  timestamp: Schema.Number,
+  payload: eventPayloadSchema,
+})
 
 export function isSessionHostEventEnvelope(value: unknown): value is SessionHostEventEnvelope {
-  return (
-    isRecord(value) &&
-    isRecord(value.cursor) &&
-    isEventCursor(value.cursor) &&
-    typeof value.timestamp === 'number' &&
-    isRecord(value.payload) &&
-    isEventPayload(value.payload)
-  )
+  return Schema.is(eventEnvelopeSchema)(value)
 }
 
-const TRANSPORT_EVENT_KINDS = new Set(['session-transport', 'session-waggle-transport'])
+const envelopeCursorSchema = Schema.Struct({ cursor: eventCursorSchema })
+
+const userMessageCarrierSchema = Schema.Struct({
+  payload: Schema.Struct({
+    kind: Schema.Literal('session-transport', 'session-waggle-transport'),
+    event: Schema.Struct({ type: Schema.Literal('message_start'), userMessage: Schema.Unknown }),
+  }),
+})
 
 /** The envelope with its transport event's user message left out, when it carries one. */
-function withoutUserMessage(envelope: Record<string, unknown>) {
-  const payload = envelope.payload
-  if (!isRecord(payload) || !TRANSPORT_EVENT_KINDS.has(String(payload.kind))) return undefined
-  const event = payload.event
-  if (!isRecord(event) || event.type !== 'message_start' || event.userMessage === undefined) {
-    return undefined
-  }
-  const { userMessage: _userMessage, ...rest } = event
+function withoutUserMessage(envelope: unknown) {
+  if (!Schema.is(userMessageCarrierSchema)(envelope)) return undefined
+  const { payload } = envelope
+  if (payload.event.userMessage === undefined) return undefined
+  const { userMessage: _userMessage, ...rest } = payload.event
   return { ...envelope, payload: { ...payload, event: rest } }
 }
 
@@ -138,9 +167,7 @@ export function decideSessionHostEvent(value: unknown): SessionHostEventDecision
   if (isSessionHostEventEnvelope(value)) {
     return { action: 'relay', envelope: value, droppedUserMessage: false }
   }
-  if (!isRecord(value) || !isRecord(value.cursor) || !isEventCursor(value.cursor)) {
-    return { action: 'invalid' }
-  }
+  if (!Schema.is(envelopeCursorSchema)(value)) return { action: 'invalid' }
   const withoutMessage = withoutUserMessage(value)
   if (withoutMessage && isSessionHostEventEnvelope(withoutMessage)) {
     return { action: 'relay', envelope: withoutMessage, droppedUserMessage: true }

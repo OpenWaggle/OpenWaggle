@@ -1,3 +1,4 @@
+import { environmentVariables } from '../env-live-schema'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
@@ -108,7 +109,7 @@ export function runCredentialHelper(
 }
 
 export function windowsPowerShellExecutable() {
-  const environment = getBrowserCredentialChildEnv()
+  const environment = environmentVariables(getBrowserCredentialChildEnv())
   const windowsRoot = environment.SystemRoot ?? environment.WINDIR
   return windowsRoot
     ? path.win32.join(windowsRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')

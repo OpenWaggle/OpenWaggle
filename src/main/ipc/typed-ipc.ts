@@ -41,31 +41,33 @@ type EffectIpcHandler<C extends IpcInvokeChannel> = (
   ...args: IpcInvokeArgs<C>
 ) => EffectType<MaybeVoid<IpcInvokeReturn<C>>, unknown, GuiServices>
 
-function isObjectWithUnknownValues(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null
+function hasTag(error: unknown, tag: string): error is object & { readonly _tag: unknown } {
+  return typeof error === 'object' && error !== null && '_tag' in error && error._tag === tag
 }
 
 function isValidationIssuesError(error: unknown): error is ValidationIssuesError {
-  if (!isObjectWithUnknownValues(error) || error._tag !== 'ValidationIssuesError') {
-    return false
-  }
-
-  return Array.isArray(error.issues) && error.issues.every((issue) => typeof issue === 'string')
+  return (
+    hasTag(error, 'ValidationIssuesError') &&
+    'issues' in error &&
+    Array.isArray(error.issues) &&
+    error.issues.every((issue) => typeof issue === 'string')
+  )
 }
 
 function isDatabaseBootstrapTaggedError(error: unknown): error is DatabaseBootstrapError {
   return (
-    isObjectWithUnknownValues(error) &&
-    error._tag === 'DatabaseBootstrapError' &&
+    hasTag(error, 'DatabaseBootstrapError') &&
+    'stage' in error &&
     typeof error.stage === 'string' &&
+    'message' in error &&
     typeof error.message === 'string'
   )
 }
 
 function isDatabaseQueryTaggedError(error: unknown): error is DatabaseQueryError {
   return (
-    isObjectWithUnknownValues(error) &&
-    error._tag === 'DatabaseQueryError' &&
+    hasTag(error, 'DatabaseQueryError') &&
+    'operation' in error &&
     typeof error.operation === 'string'
   )
 }

@@ -113,6 +113,32 @@ describe('decideSessionHostEvent', () => {
     })
   })
 
+  it.each([
+    {
+      name: 'a Waggle turn whose event is an array',
+      fields: { kind: 'session-waggle-turn', event: [] },
+    },
+    {
+      name: 'an export whose progress is an array',
+      fields: { kind: 'session-export-changed', exportOperationId: 'e', status: 's', progress: [] },
+    },
+    {
+      name: 'a transport event that is an array',
+      fields: { kind: 'session-transport', event: [] },
+    },
+  ])('skips $name, as it did before the payload schema', ({ fields }) => {
+    const envelope = {
+      cursor: { hostInstanceId: 'host-1', sequence: 8 },
+      timestamp: 10,
+      payload: { sessionId: 'session-1', ...fields },
+    }
+
+    expect(decideSessionHostEvent(envelope)).toEqual({
+      action: 'skip',
+      cursor: { hostInstanceId: 'host-1', sequence: 8 },
+    })
+  })
+
   it('cannot skip an event that has no cursor', () => {
     expect(decideSessionHostEvent({ timestamp: 1, payload: {} })).toEqual({ action: 'invalid' })
     expect(decideSessionHostEvent('event')).toEqual({ action: 'invalid' })

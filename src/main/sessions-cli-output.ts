@@ -1,4 +1,6 @@
 import { sessionHostErrorKindForThrownCode } from '@shared/domain/session-host-refusals'
+import { Schema } from '@shared/schema'
+import { errorCode } from '@shared/utils/node-error'
 import { CliError, type CliErrorKind } from './cli-error'
 import { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION } from './cli-output-schema'
 import { writeCliStdout } from './cli-stdout'
@@ -8,12 +10,9 @@ import {
   LocalSessionHostUnavailableError,
   LocalSessionHostUpgradePendingError,
 } from './session-host/local-session-client-protocol-error'
+import { commandResponseOutcome } from './sessions-cli-response-fields'
 
 const JSON_INDENT_SPACES = 2
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function humanLabel(value: string) {
   return value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
@@ -37,16 +36,21 @@ const HUMAN_FIELDS: Readonly<
   },
 }
 
+const outcomeTitleFieldsSchema = Schema.Struct({
+  effect: Schema.optional(Schema.Unknown),
+  operation: Schema.optional(Schema.Unknown),
+})
+
 function humanOutcome(value: unknown) {
-  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) {
-    return JSON.stringify(value, null, JSON_INDENT_SPACES)
-  }
-  const outcome = value.response.outcome
+  const outcome = commandResponseOutcome(value)
+  if (!outcome) return JSON.stringify(value, null, JSON_INDENT_SPACES)
+  const { effect, operation }: { readonly effect?: unknown; readonly operation?: unknown } =
+    Schema.is(outcomeTitleFieldsSchema)(outcome) ? outcome : {}
   const title =
-    typeof outcome.effect === 'string'
-      ? humanLabel(outcome.effect)
-      : typeof outcome.operation === 'string'
-        ? humanLabel(outcome.operation)
+    typeof effect === 'string'
+      ? humanLabel(effect)
+      : typeof operation === 'string'
+        ? humanLabel(operation)
         : 'Session Result'
   const details = Object.entries(outcome)
     .filter(([key]) => key !== 'effect' && key !== 'operation')
@@ -117,8 +121,9 @@ export type SessionsCliErrorKind = CliErrorKind
 function isHostConnectionError(error: unknown) {
   return (
     error instanceof Error &&
-    Reflect.get(error, 'syscall') === 'connect' &&
-    typeof Reflect.get(error, 'code') === 'string'
+    'syscall' in error &&
+    error.syscall === 'connect' &&
+    typeof errorCode(error) === 'string'
   )
 }
 

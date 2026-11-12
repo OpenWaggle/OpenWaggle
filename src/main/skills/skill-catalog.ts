@@ -252,8 +252,8 @@ function parseSkillDocument(markdown: string): ParsedSkillDocument {
   const body = (frontmatterMatch[DOUBLE_FACTOR] ?? '').trim()
   const fields = parseFrontmatterFields(frontmatter)
 
-  const name = fields.name?.trim()
-  const description = fields.description?.trim()
+  const name = fields.get('name')?.trim()
+  const description = fields.get('description')?.trim()
   if (!name) {
     throw new Error('SKILL.md frontmatter requires "name"')
   }
@@ -265,7 +265,7 @@ function parseSkillDocument(markdown: string): ParsedSkillDocument {
 }
 
 function parseFrontmatterFields(frontmatter: string) {
-  const fields: Record<string, string> = {}
+  const fields = new Map<string, string>()
   const lines = frontmatter.split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
@@ -274,7 +274,7 @@ function parseFrontmatterFields(frontmatter: string) {
     if (separator <= 0) continue
     const key = trimmed.slice(0, separator).trim()
     const rawValue = trimmed.slice(separator + 1).trim()
-    fields[key] = stripQuotes(rawValue)
+    fields.set(key, stripQuotes(rawValue))
   }
   return fields
 }

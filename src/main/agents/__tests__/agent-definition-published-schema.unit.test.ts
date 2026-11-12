@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
@@ -14,6 +15,24 @@ function record(value: unknown): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value))
 }
 
+/** The JSON Schema keywords these tests read by name; a node keeps every other keyword too. */
+interface JsonSchemaKeywords {
+  readonly $ref?: unknown
+  readonly $defs?: unknown
+  readonly properties?: unknown
+  readonly pattern?: unknown
+  readonly items?: unknown
+  readonly enum?: unknown
+  readonly const?: unknown
+  readonly type?: unknown
+  readonly maxItems?: unknown
+}
+
+/** A JSON object read through the keywords it may declare. */
+function keywords(value: unknown): JsonSchemaKeywords {
+  return record(value)
+}
+
 async function publishedSchema() {
   const schemaPath = fileURLToPath(
     new URL('../../../../website/public/schemas/agent-definition-v1.schema.json', import.meta.url),
@@ -21,8 +40,22 @@ async function publishedSchema() {
   return record(JSON.parse(await readFile(schemaPath, 'utf8')))
 }
 
+/** The published top-level properties these tests check. */
+const publishedPropertiesSchema = Schema.Struct({
+  name: Schema.Unknown,
+  description: Schema.Unknown,
+  model: Schema.Unknown,
+  reasoning: Schema.Unknown,
+  sessionCapabilities: Schema.Unknown,
+})
+const publishedDefinitionsSchema = Schema.Struct({ nameList: Schema.Unknown })
+
+function publishedProperties(schema: unknown) {
+  return decodeUnknownOrThrow(publishedPropertiesSchema, keywords(schema).properties)
+}
+
 function stringPattern(value: unknown) {
-  const pattern = record(value).pattern
+  const { pattern } = keywords(value)
   if (typeof pattern !== 'string') throw new Error('Expected a string pattern.')
   return new RegExp(pattern, 'u')
 }
@@ -67,11 +100,11 @@ function resolveLocalReference(
   node: Record<string, unknown>,
   visited: ReadonlySet<string> = new Set(),
 ): Record<string, unknown> {
-  const reference = node.$ref
+  const reference = keywords(node).$ref
   if (typeof reference !== 'string') return node
   if (visited.has(reference)) throw new Error(`${reference} refers to itself.`)
   const name = reference.replace(/^#\/\$defs\//u, '')
-  const definition = record(record(root.$defs)[name])
+  const definition = record(record(keywords(root).$defs)[name])
   const siblings = Object.entries(node).filter(([keyword]) => keyword !== '$ref')
   for (const [keyword, value] of siblings) {
     if (keyword in definition && JSON.stringify(definition[keyword]) !== JSON.stringify(value)) {
@@ -128,13 +161,14 @@ function contractOf(root: Record<string, unknown>, value: unknown): Record<strin
     if (IGNORED_KEYWORDS.has(keyword)) continue
     contract[keyword] = keywordContract(root, keyword, keywordValue)
   }
-  const values = Array.isArray(contract.enum)
-    ? contract.enum
-    : 'const' in contract
-      ? [contract.const]
+  const constraint = keywords(contract)
+  const values = Array.isArray(constraint.enum)
+    ? constraint.enum
+    : 'const' in constraint
+      ? [constraint.const]
       : undefined
-  if (values && (contract.type === undefined || typeAgreesWithValues(contract.type, values))) {
-    delete contract.type
+  if (values && (constraint.type === undefined || typeAgreesWithValues(constraint.type, values))) {
+    return Object.fromEntries(Object.entries(contract).filter(([keyword]) => keyword !== 'type'))
   }
   return contract
 }
@@ -145,7 +179,8 @@ function patternsOf(
   path = '#',
 ): [string, unknown][] {
   const node = resolveLocalReference(root, record(value))
-  const own: [string, unknown][] = node.pattern === undefined ? [] : [[path, node.pattern]]
+  const { pattern, properties } = keywords(node)
+  const own: [string, unknown][] = pattern === undefined ? [] : [[path, pattern]]
   const subschemas = [...SUBSCHEMA_KEYWORDS].flatMap((keyword) => {
     const subschema = node[keyword]
     if (subschema === undefined) return []
@@ -154,17 +189,17 @@ function patternsOf(
       patternsOf(root, entry, `${path}/${keyword}/${index}`),
     )
   })
-  const properties = Object.entries(record(node.properties ?? {})).flatMap(([key, property]) =>
+  const propertyPatterns = Object.entries(record(properties ?? {})).flatMap(([key, property]) =>
     patternsOf(root, property, `${path}/properties/${key}`),
   )
-  return [...own, ...subschemas, ...properties]
+  return [...own, ...subschemas, ...propertyPatterns]
 }
 
 describe('published Agent definition schema', () => {
   it('matches the runtime reasoning levels and portable name policy', async () => {
-    const properties = record((await publishedSchema()).properties)
-    const reasoning = record(properties.reasoning)
-    const name = record(properties.name)
+    const properties = publishedProperties(await publishedSchema())
+    const reasoning = keywords(properties.reasoning)
+    const name = keywords(properties.name)
     if (!Array.isArray(reasoning.enum) || typeof name.pattern !== 'string') {
       throw new Error('The published Agent definition schema is incomplete.')
     }
@@ -213,9 +248,11 @@ describe('published Agent definition schema', () => {
 
   it('matches runtime non-whitespace requirements for user-authored strings', async () => {
     const schema = await publishedSchema()
-    const properties = record(schema.properties)
-    const nameList = record(record(schema.$defs).nameList)
-    const nameListPattern = stringPattern(record(nameList.items))
+    const properties = publishedProperties(schema)
+    const nameList = keywords(
+      decodeUnknownOrThrow(publishedDefinitionsSchema, keywords(schema).$defs).nameList,
+    )
+    const nameListPattern = stringPattern(nameList.items)
     const whitespace = ' \t '
 
     expect(stringPattern(properties.description).test(whitespace)).toBe(false)
@@ -239,10 +276,9 @@ describe('published Agent definition schema', () => {
   })
 
   it('lists every Session capability the parser accepts, and no more', async () => {
-    const properties = record((await publishedSchema()).properties)
-    const capabilities = record(properties.sessionCapabilities)
+    const capabilities = keywords(publishedProperties(await publishedSchema()).sessionCapabilities)
 
-    expect(record(capabilities.items).enum).toEqual([...SESSION_CAPABILITIES])
+    expect(keywords(capabilities.items).enum).toEqual([...SESSION_CAPABILITIES])
     expect(capabilities.maxItems).toBe(SESSION_CAPABILITIES.length)
   })
 
