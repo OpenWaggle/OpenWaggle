@@ -1,4 +1,6 @@
 import { Schema } from '@shared/schema'
+import { DELEGATION_STATES } from '@shared/types/session-collaboration'
+import { delegationVerificationOutcomeSchema } from './session-collaboration-control'
 
 export const delegationUpdatedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal(
@@ -14,15 +16,7 @@ export const delegationUpdatedOutcomeSchema = Schema.Struct({
   delegationId: Schema.String,
   parentSessionId: Schema.String,
   workerSessionId: Schema.String,
-  delegationState: Schema.Literal(
-    'working',
-    'waiting',
-    'needs_attention',
-    'ready_for_review',
-    'revision_requested',
-    'accepted',
-    'cancelled',
-  ),
+  delegationState: Schema.Literal(...DELEGATION_STATES),
   specificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   specificationChanged: Schema.optional(Schema.Boolean),
@@ -51,15 +45,7 @@ export const delegationDependenciesUpdatedOutcomeSchema = Schema.Struct({
   effect: Schema.Literal('delegation-dependencies-updated'),
   sessionId: Schema.String,
   delegationId: Schema.String,
-  delegationState: Schema.Literal(
-    'working',
-    'waiting',
-    'needs_attention',
-    'ready_for_review',
-    'revision_requested',
-    'accepted',
-    'cancelled',
-  ),
+  delegationState: Schema.Literal(...DELEGATION_STATES),
   specificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   dependencyCount: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   workerSessionId: Schema.String,
@@ -79,15 +65,7 @@ export const delegationSpecificationAmendedOutcomeSchema = Schema.Struct({
   effect: Schema.Literal('delegation-specification-amended'),
   sessionId: Schema.String,
   delegationId: Schema.String,
-  delegationState: Schema.Literal(
-    'working',
-    'waiting',
-    'needs_attention',
-    'ready_for_review',
-    'revision_requested',
-    'accepted',
-    'cancelled',
-  ),
+  delegationState: Schema.Literal(...DELEGATION_STATES),
   specificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   appliedProposalId: Schema.optional(Schema.String),
   workerSessionId: Schema.String,
@@ -100,6 +78,6 @@ export const delegationVerificationRecordedOutcomeSchema = Schema.Struct({
   delegationId: Schema.String,
   verificationId: Schema.String,
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  verificationOutcome: Schema.Literal('passed', 'failed', 'inconclusive'),
+  verificationOutcome: delegationVerificationOutcomeSchema,
   createdAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
 })

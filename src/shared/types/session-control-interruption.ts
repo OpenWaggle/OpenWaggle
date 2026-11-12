@@ -1,22 +1,16 @@
-export interface SessionControlInterruptCommand {
-  readonly operation: 'interrupt'
-  readonly sessionId: string
-  readonly expectedRunId: string
-}
+import type { SchemaType } from '@shared/schema'
+import type {
+  interruptCommandSchema,
+  interruptDescendantsCommandSchema,
+} from '@shared/schemas/session-control-commands'
+import type { descendantInterruptionsRequestedOutcomeSchema } from '@shared/schemas/session-control-outcomes'
 
-export interface SessionControlInterruptDescendantsCommand {
-  readonly operation: 'interrupt-descendants'
-  readonly sessionId: string
-}
+export type SessionControlInterruptCommand = SchemaType<typeof interruptCommandSchema>
 
-export interface SessionControlDescendantInterruptionOutcome {
-  readonly operation: 'interrupt-descendants'
-  readonly effect: 'descendant-interruptions-requested'
-  readonly sessionId: string
-  readonly interrupted: readonly {
-    readonly sessionId: string
-    readonly runId: string
-    readonly stateRevision: number
-  }[]
-  readonly stateRevision: number
-}
+export type SessionControlInterruptDescendantsCommand = SchemaType<
+  typeof interruptDescendantsCommandSchema
+>
+
+export type SessionControlDescendantInterruptionOutcome = SchemaType<
+  typeof descendantInterruptionsRequestedOutcomeSchema
+>

@@ -7,12 +7,10 @@ import {
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
-import type {
-  SessionLifecycleOutcome,
-  SessionLifecycleRequest,
-  SessionLifecycleResponse,
+import {
+  SESSION_LIFECYCLE_CONTRACT_VERSION,
+  SESSION_LIFECYCLE_OPERATIONS,
 } from '@shared/types/session-lifecycle'
-import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { sessionAttachmentIdsSchema } from './session-attachment'
 import {
@@ -25,7 +23,7 @@ import { sessionTitleSchema } from './session-title'
 
 const projectPathSchema = sessionInputPathSchema
 
-const specializationSchema = Schema.Struct({
+export const specializationSchema = Schema.Struct({
   modelId: Schema.optional(sessionInputIdSchema),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   agentDefinitionName: Schema.optional(sessionInputIdSchema),
@@ -37,27 +35,27 @@ const newWorktreeSchema = Schema.Struct({
   startFromOrigin: Schema.optional(Schema.Boolean),
 })
 
-const launchWorkspaceSchema = Schema.Union(
+export const launchWorkspaceSchema = Schema.Union(
   Schema.Struct({ mode: Schema.Literal('current') }),
   Schema.Struct({ mode: Schema.Literal('local') }),
   newWorktreeSchema,
   Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
 )
 
-const spawnWorkspaceSchema = Schema.Union(
+export const spawnWorkspaceSchema = Schema.Union(
   Schema.Struct({ mode: Schema.Literal('share-parent') }),
   Schema.Struct({ mode: Schema.Literal('local') }),
   newWorktreeSchema,
 )
 
-const forkWorkspaceSchema = Schema.Union(
+export const forkWorkspaceSchema = Schema.Union(
   Schema.Struct({ mode: Schema.Literal('share-source') }),
   Schema.Struct({ mode: Schema.Literal('local') }),
   newWorktreeSchema,
   Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
 )
 
-const createCommandSchema = Schema.Struct({
+export const createCommandSchema = Schema.Struct({
   operation: Schema.Literal('create'),
   projectPath: projectPathSchema,
   title: Schema.optional(sessionTitleSchema),
@@ -65,7 +63,7 @@ const createCommandSchema = Schema.Struct({
   specialization: Schema.optional(specializationSchema),
 })
 
-const launchCommandSchema = Schema.Struct({
+export const launchCommandSchema = Schema.Struct({
   operation: Schema.Literal('launch'),
   projectPath: projectPathSchema,
   title: Schema.optional(sessionTitleSchema),
@@ -110,10 +108,11 @@ export const delegationSpecificationSchema = Schema.Struct({
   resourceReferences: uniqueSpecificationStringsSchema,
 })
 
-const spawnCommandSchema = Schema.Struct({
+export const spawnCommandSchema = Schema.Struct({
   operation: Schema.Literal('spawn'),
   parentSessionId: sessionInputIdSchema,
   expectedParentRunId: sessionInputIdSchema,
+  /** A manual title; without one the Worker is titled from its objective. */
   title: Schema.optional(sessionTitleSchema),
   workspace: Schema.optional(spawnWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
@@ -125,7 +124,7 @@ const spawnCommandSchema = Schema.Struct({
   delegation: delegationSpecificationSchema,
 })
 
-const forkCommandSchema = Schema.Struct({
+export const forkCommandSchema = Schema.Struct({
   operation: Schema.Literal('fork'),
   sourceSessionId: sessionInputIdSchema,
   targetNodeId: Schema.optional(sessionInputIdSchema),
@@ -134,16 +133,18 @@ const forkCommandSchema = Schema.Struct({
   workspace: Schema.optional(forkWorkspaceSchema),
 })
 
-export const sessionLifecycleRequestSchema: Schema.Schema<SessionLifecycleRequest> = Schema.Struct({
+export const sessionLifecycleCommandSchema = Schema.Union(
+  createCommandSchema,
+  forkCommandSchema,
+  launchCommandSchema,
+  spawnCommandSchema,
+)
+
+export const sessionLifecycleRequestSchema = Schema.Struct({
   contractVersion: Schema.Literal(SESSION_LIFECYCLE_CONTRACT_VERSION),
   requestId: sessionInputIdSchema,
   idempotencyKey: sessionInputIdSchema,
-  command: Schema.Union(
-    createCommandSchema,
-    forkCommandSchema,
-    launchCommandSchema,
-    spawnCommandSchema,
-  ),
+  command: sessionLifecycleCommandSchema,
 })
 
 const createdRootSchema = Schema.Struct({
@@ -187,18 +188,21 @@ const spawnedWorkerSchema = Schema.Struct({
 })
 
 const rejectedSchema = Schema.Struct({
-  operation: Schema.Literal('create', 'fork', 'launch', 'spawn'),
+  operation: Schema.Literal(...SESSION_LIFECYCLE_OPERATIONS),
   effect: Schema.Literal('rejected'),
   code: Schema.String,
+  /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
   kind: Schema.Literal(...SESSION_HOST_ERROR_KINDS),
   retryable: Schema.Boolean,
   parentConcurrencyLimit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
   parentRunningChildren: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  /** The Host's ceiling on Runs of agents' work; it never refuses a Run the person starts. */
   hostRunCeiling: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
+  /** Active Runs of agents' work across the Host when the request was refused. */
   hostActiveRuns: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
 })
 
-export const sessionLifecycleOutcomeSchema: Schema.Schema<SessionLifecycleOutcome> = Schema.Union(
+export const sessionLifecycleOutcomeSchema = Schema.Union(
   createdRootSchema,
   forkedSessionSchema,
   launchedRootSchema,
@@ -206,14 +210,13 @@ export const sessionLifecycleOutcomeSchema: Schema.Schema<SessionLifecycleOutcom
   rejectedSchema,
 )
 
-export const sessionLifecycleResponseSchema: Schema.Schema<SessionLifecycleResponse> =
-  Schema.Struct({
-    contractVersion: Schema.Literal(SESSION_LIFECYCLE_CONTRACT_VERSION),
-    requestId: Schema.String,
-    idempotencyKey: Schema.String,
-    replayed: Schema.Boolean,
-    outcome: sessionLifecycleOutcomeSchema,
-  })
+export const sessionLifecycleResponseSchema = Schema.Struct({
+  contractVersion: Schema.Literal(SESSION_LIFECYCLE_CONTRACT_VERSION),
+  requestId: Schema.String,
+  idempotencyKey: Schema.String,
+  replayed: Schema.Boolean,
+  outcome: sessionLifecycleOutcomeSchema,
+})
 
 export function decodeSessionLifecycleRequest(value: unknown) {
   return decodeUnknownExactOrThrow(sessionLifecycleRequestSchema, value)

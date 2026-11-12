@@ -1,14 +1,7 @@
-export interface SessionItemsQuery {
-  readonly operation: 'items'
-  readonly sessionId: string
-  readonly limit: number
-  readonly runId?: string | undefined
-  readonly branchScope?: 'active-branch' | 'tree' | undefined
-  readonly branchId?: string | undefined
-  readonly afterCreatedOrder?: number | undefined
-  readonly throughCreatedOrder?: number | undefined
-  readonly snapshotHeadNodeId?: string | undefined
-}
+import type { SchemaType } from '@shared/schema'
+import type { sessionItemsQuerySchema } from '@shared/schemas/session-query'
+
+export type SessionItemsQuery = SchemaType<typeof sessionItemsQuerySchema>
 
 export interface SessionItemsOutcome {
   readonly operation: 'items'
