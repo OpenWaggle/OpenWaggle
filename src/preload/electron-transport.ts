@@ -12,8 +12,9 @@ import { contextBridge, type IpcRendererEvent, ipcRenderer, webUtils } from 'ele
 /**
  * The preload's only link to the desktop shell (ADR 0064): the typed channel contract of
  * `@shared/types/ipc` over Electron's `ipcRenderer`, the `contextBridge` that exposes `window.api`,
- * and file paths of dropped files. Every other preload module builds on these, so an Electrobun
- * preload replaces this module (and the crash-report SDK bridge in `error-reporting-bridge.ts`).
+ * and file paths of dropped files. Every other preload module builds on these, so another shell's
+ * preload would replace this module (and the crash-report SDK bridge in
+ * `error-reporting-bridge.ts`).
  */
 
 /** Exposes `value` to the renderer page as `window[key]`, across context isolation. */

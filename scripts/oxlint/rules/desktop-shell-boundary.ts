@@ -3,10 +3,10 @@ import type { Context, Node, Rule } from '@oxlint/plugins'
 import { hasNodeType, moduleSpecifierOf, normalizedFilename, property } from '../ast-helpers.ts'
 
 /**
- * The desktop shell boundary (ADR 0064): OpenWaggle moves from Electron to Electrobun behind the
- * desktop shell ports in `src/main/ports/desktop-shell/`. Only the Electron adapters and the
- * preload transport may reach Electron, so the shell switch replaces those modules and nothing
- * else. Every reference counts, type-only imports, `import()` types, `require()` and the ambient
+ * The desktop shell boundary (ADR 0064): main code reaches Electron through the desktop shell
+ * ports in `src/main/ports/desktop-shell/`. Only the Electron adapters and the preload transport
+ * may reach Electron, so a shell switch would replace those modules and nothing else. Every
+ * reference counts, type-only imports, `import()` types, `require()` and the ambient
  * `Electron.*` namespace included.
  */
 const ELECTRON_SHELL_PACKAGES = ['electron', 'electron-updater', '@electron-toolkit/']

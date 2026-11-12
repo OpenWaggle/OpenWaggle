@@ -15,16 +15,11 @@
  * package in `app.asar` declares for the target in `optionalDependencies` must ship as well
  * (scripts/packaged-native-dependencies.ts), which catches a build that is missing entirely.
  * Run it after packaging and before upload: `bun scripts/check-native-platform-floor.ts`.
- *
- * Electrobun apps are read the same way. Their main executable is Electrobun's launcher, and the
- * packaged app is a self-extracting wrapper whose `Resources/*.tar.zst` payload is the real app, so
- * the guard unpacks each payload and checks it as an app of its own. `--devkit` checks an
- * Electrobun native-layer devkit (vendor/electrobun/build.ts output) before any app is packaged:
- * every binary, with no bundle or dependency checks.
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { readAsarArchive } from './asar-archive'
 import {
   type BinaryArchitecture,
   compareVersions,
@@ -32,24 +27,15 @@ import {
   type NativeBinary,
   readNativeBinary,
 } from './native-binary-formats'
-import {
-  applicationArchive,
-  detectShell,
-  type FloorOptions,
-  type FloorPlatform,
-  type FloorShell,
-  listFiles,
-  payloadReports,
-} from './native-floor-layout'
 import { resolveFloorTargets } from './native-platform-floor-targets'
 import { missingNativeDependencies } from './packaged-native-dependencies'
 import { SUPPORTED_PLATFORM_FLOOR } from './supported-platform-floor'
 
-export type { FloorOptions, FloorPlatform, FloorShell } from './native-floor-layout'
+export type FloorPlatform = 'darwin' | 'linux' | 'win32'
+
 export interface FloorReport {
   readonly root: string
   readonly platform: FloorPlatform
-  readonly shell: FloorShell
   readonly architectures: readonly BinaryArchitecture[]
   readonly checked: number
   /** Binaries that cannot load in this app; each one is also a violation. */
@@ -62,6 +48,16 @@ type Evaluation =
   | { readonly kind: 'checked'; readonly violations: readonly string[] }
   | { readonly kind: 'foreign'; readonly label: string }
 
+const MAIN_EXECUTABLE: Readonly<Record<FloorPlatform, string>> = {
+  darwin: 'Contents/MacOS/OpenWaggle',
+  linux: 'openwaggle',
+  win32: 'OpenWaggle.exe',
+}
+const APP_ASAR: Readonly<Record<FloorPlatform, string>> = {
+  darwin: 'Contents/Resources/app.asar',
+  linux: 'resources/app.asar',
+  win32: 'resources/app.asar',
+}
 const INFO_PLIST = 'Contents/Info.plist'
 const LS_MINIMUM_SYSTEM_VERSION = /<key>LSMinimumSystemVersion<\/key>\s*<string>([^<]*)<\/string>/u
 const FORMAT_LABEL = { elf: 'ELF', 'mach-o': 'Mach-O', pe: 'PE' } as const
@@ -178,7 +174,18 @@ async function readBinaryAt(filePath: string) {
   }
 }
 
-async function mainExecutable(root: string, relative: string) {
+async function listFiles(root: string) {
+  const entries = await fs.readdir(root, { recursive: true, withFileTypes: true })
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'),
+    )
+    .sort((left, right) => left.localeCompare(right))
+}
+
+async function mainExecutable(root: string, platform: FloorPlatform) {
+  const relative = MAIN_EXECUTABLE[platform]
   const binary = await readBinaryAt(path.join(root, relative)).catch(() => null)
   if (binary === null) throw new Error(`${root} has no readable main executable at ${relative}.`)
   return { relative, binary, architectures: [...new Set(binaryArchitectures(binary))] }
@@ -216,10 +223,8 @@ export async function checkNativePlatformFloor(
   root: string,
   platform: FloorPlatform,
   floor: Floor = SUPPORTED_PLATFORM_FLOOR,
-  options: FloorOptions = {},
 ): Promise<FloorReport> {
-  const { shell, executable: executablePath } = await detectShell(root, platform, options)
-  const executable = await mainExecutable(root, executablePath)
+  const executable = await mainExecutable(root, platform)
   const foreign: string[] = []
   const violations: string[] = []
   let checked = 0
@@ -237,39 +242,21 @@ export async function checkNativePlatformFloor(
     checked += 1
     violations.push(...evaluation.violations)
   }
-  const archive = await applicationArchive(root, platform, shell)
-  if (archive !== null) {
-    for (const architecture of executable.architectures) {
-      violations.push(...(await missingNativeDependencies(archive, platform, architecture)))
-    }
+  const archive = await readAsarArchive(path.join(root, APP_ASAR[platform]))
+  for (const architecture of executable.architectures) {
+    violations.push(...(await missingNativeDependencies(archive, platform, architecture)))
   }
-  if (platform === 'darwin' && shell !== 'electrobun-devkit') {
+  if (platform === 'darwin') {
     violations.push(
       ...(await macosLaunchViolations(root, executable.relative, executable.binary, floor)),
     )
   }
-  if (shell === 'electrobun') {
-    const inner = await payloadReports(root, platform, (appRoot) =>
-      checkNativePlatformFloor(appRoot, platform, floor, options),
-    )
-    checked += inner.checked
-    foreign.push(...inner.foreign)
-    violations.push(...inner.violations)
-  }
-  return {
-    root,
-    platform,
-    shell,
-    architectures: executable.architectures,
-    checked,
-    foreign,
-    violations,
-  }
+  return { root, platform, architectures: executable.architectures, checked, foreign, violations }
 }
 
 export function formatFloorReport(report: FloorReport) {
   return [
-    `${report.platform} ${report.shell} native floor (${report.architectures.join('+')}): ${report.root}`,
+    `${report.platform} native floor (${report.architectures.join('+')}): ${report.root}`,
     `checked ${report.checked} native binaries, ${report.foreign.length} for another platform or architecture`,
     ...report.violations.map((violation) => `  FAIL ${violation}`),
     report.violations.length === 0 ? 'PASS' : `FAIL: ${report.violations.length} floor violations`,
@@ -280,12 +267,7 @@ async function main() {
   const targets = await resolveFloorTargets(process.argv.slice(FIRST_CLI_ARGUMENT))
   let failed = false
   for (const target of targets) {
-    const report = await checkNativePlatformFloor(
-      target.root,
-      target.platform,
-      SUPPORTED_PLATFORM_FLOOR,
-      { devkit: target.devkit },
-    )
+    const report = await checkNativePlatformFloor(target.root, target.platform)
     console.log(formatFloorReport(report))
     failed ||= report.violations.length > 0 || report.checked === 0
   }

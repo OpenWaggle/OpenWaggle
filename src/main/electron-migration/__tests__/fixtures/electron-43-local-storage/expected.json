@@ -1,1 +1,0 @@
-{"ascii-key":"plain ascii value, edited in phase three","empty-value":"","latin1-key-é":"café crème","openwaggle:appearance":"{\"theme\":\"dark\",\"accent\":\"amber\"}","phase-three-key":"kept in the write-ahead log","phase-two-key":"added after reopen","to-be-overwritten":"new value","utf16-key-✓":"значение 値 😀"}

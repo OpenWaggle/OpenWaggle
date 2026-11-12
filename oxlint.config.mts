@@ -473,8 +473,6 @@ export default defineConfig({
     'website/**/*.astro',
     'src/renderer/src/env.d.ts',
     'src/renderer/src/routeTree.gen.ts',
-    // Built by Hutch against the Electrobun devkit's own types, not the repository's tsconfig.
-    'vendor/electrobun/probe/**',
   ],
   options: {
     typeAware: true,

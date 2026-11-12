@@ -186,24 +186,6 @@ const config: DoctorConfig = {
         rules: ['react-doctor/async-await-in-loop'],
       },
       {
-        // The Electron-to-Electrobun migrator, one item at a time on purpose: DPAPI unwraps
-        // and keychain re-seals each touch the OS keychain, which can prompt, so a refusal
-        // stops before the next item asks again; LevelDB tables and logs are replayed in file
-        // order, because a later record overrides an earlier one.
-        files: [
-          'src/main/electron-migration/electron-safe-storage.ts',
-          'src/main/electron-migration/leveldb.ts',
-          'src/main/electron-migration/secret-files.ts',
-        ],
-        rules: ['react-doctor/async-await-in-loop'],
-      },
-      {
-        // The Electrobun CEF probe types into the preview over CDP one key at a time: each
-        // keyDown/keyUp pair must reach the page in order, or the typed value is scrambled.
-        files: ['vendor/electrobun/probe/src/bun/index.ts'],
-        rules: ['react-doctor/async-await-in-loop'],
-      },
-      {
         // Each vault secret is decrypted through the OS keychain (Electron safeStorage).
         // The loop returns at the first secret that cannot be read, so a locked or refused
         // keychain is not asked again for the same server's other secrets.

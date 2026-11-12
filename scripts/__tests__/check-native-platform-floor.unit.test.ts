@@ -196,7 +196,7 @@ describe('formatFloorReport', () => {
       'other.node': elfImage({ machine: ELF_MACHINE.aarch64 }),
     })
     const text = formatFloorReport(await checkNativePlatformFloor(root, 'linux'))
-    expect(text).toContain(`linux electron native floor (x64): ${root}`)
+    expect(text).toContain(`linux native floor (x64): ${root}`)
     expect(text).toContain('checked 1 native binaries, 1 for another platform or architecture')
     expect(text).toContain('  FAIL other.node (ELF arm64) cannot load in this x64 app')
     expect(text).toContain(

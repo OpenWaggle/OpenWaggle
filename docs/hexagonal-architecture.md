@@ -65,35 +65,35 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 
 ### Desktop shell ports (`src/main/ports/desktop-shell/`)
 
-ADR 0064 moves the desktop shell from Electron to Electrobun. Until the switch, main-process code reaches the shell only through these ports, and `src/main/adapters/electron/` is the only main directory that imports `electron`, `electron-updater` or `@electron-toolkit/*`. In the preload, only `src/preload/electron-transport.ts` does (`openwaggle/desktop-shell-boundary`, [SHELL-06]).
+ADR 0064 puts the Electron desktop shell behind ports. Main-process code reaches the shell only through these ports, and `src/main/adapters/electron/` is the only main directory that imports `electron`, `electron-updater` or `@electron-toolkit/*`. In the preload, only `src/preload/electron-transport.ts` does (`openwaggle/desktop-shell-boundary`, [SHELL-06]).
 
-Shell ports differ from service ports in two ways. Shell APIs are synchronous, and startup code calls them before the Effect runtime exists (the boot shim, `apply-build-identity.ts`, the CLI entries). So each port is a plain shape with a `Context.Tag`, and code calls it through a binding in `src/main/desktop-shell/<port>.ts` (`export const appPaths: AppPathsShape = electronAppPaths`). The shell switch changes only those bindings. `BootShell` is a `Pick` of other ports' members for the boot shim, which keeps the shim within its `check:main-bundle` budget. The Electron adapters reuse the same functions behind it.
+Shell ports differ from service ports in two ways. Shell APIs are synchronous, and startup code calls them before the Effect runtime exists (the boot shim, `apply-build-identity.ts`, the CLI entries). So each port is a plain shape with a `Context.Tag`, and code calls it through a binding in `src/main/desktop-shell/<port>.ts` (`export const appPaths: AppPathsShape = electronAppPaths`). A shell switch would change only those bindings. `BootShell` is a `Pick` of other ports' members for the boot shim, which keeps the shim within its `check:main-bundle` budget. The Electron adapters reuse the same functions behind it.
 
-Every port has a contract suite in `src/main/ports/desktop-shell/__tests__/contracts/`. Each suite is a set of named cases over a harness. The Electron runners in `src/main/adapters/electron/__tests__/contracts/` run every case against a fake `electron`. An Electrobun adapter must pass the same suites before its binding replaces Electron's. Under non-disruptive automation each OS-visible port fails closed with `AutomationDesktopUiError`, and the suites check that too.
+Every port has a contract suite in `src/main/ports/desktop-shell/__tests__/contracts/`. Each suite is a set of named cases over a harness. The Electron runners in `src/main/adapters/electron/__tests__/contracts/` run every case against a fake `electron`. An adapter for another shell must pass the same suites before its binding replaces Electron's. Under non-disruptive automation each OS-visible port fails closed with `AutomationDesktopUiError`, and the suites check that too.
 
-| Electron surface | Port (`src/main/ports/desktop-shell/`) | Electron adapter | Electrobun target (spike report §4) |
-| --- | --- | --- | --- |
-| `BrowserWindow`, `BaseWindow`, window policy, shortcuts | `DesktopWindows` (`desktop-windows.ts`) | `electron-desktop-windows.ts`, `electron-window-policy.ts`, `electron-main-window.ts` | `BrowserWindow` |
-| `Menu`, app and context menus | `DesktopMenus` (`menus.ts`) | `electron-menus.ts` | `ApplicationMenu`, `ContextMenu` |
-| `dialog` | `DesktopDialogs` (`dialogs.ts`) | `electron-dialogs.ts` | `Utils.openFileDialog`, `showMessageBox` |
-| `shell` | `OsShell` (`os-shell.ts`) | `electron-os-shell.ts` | `Utils.openExternal`, `openPath`, `moveToTrash` |
-| `clipboard`, `nativeImage` | `Clipboard` (`clipboard.ts`) | `electron-clipboard.ts` | `Utils.clipboard*`; `sharp` for image encoding |
-| `Notification` | `SystemNotifications` (`system-notifications.ts`) | `electron-system-notifications.ts` | `Utils.showNotification` |
-| `app` lifecycle, `isPackaged`, `getVersion`, `commandLine`, `before-quit-for-update` | `AppLifecycle` (`app-lifecycle.ts`) | `electron-app-lifecycle.ts` | `before-quit` (sync), `quit`; hold async quits in the quit protocol |
-| `app.getPath`, `setPath`, `setName`, `sessionData` | `AppPaths` (`app-paths.ts`) | `electron-app-paths.ts`, `electron-web-profile.ts` | OpenWaggle-resolved paths, not `Utils.paths` |
-| Boot shim's slice of the three above | `BootShell` (`boot-shell.ts`) | `electron-boot-shell.ts` | The same functions as the full adapters |
-| `safeStorage` | `SecureStorage` (`secure-storage.ts`) | `electron-secure-storage.ts` | `Bun.secrets`, with a one-time re-encryption |
-| `protocol.handle`, `registerSchemesAsPrivileged` (6 schemes) | `TrustedOrigins` (`trusted-origins.ts`) | `electron-trusted-origins.ts` | One `Bun.serve` loopback origin per trust domain, with a per-launch token |
-| `net.fetch`, `net.request` and the extension egress guard | `NetworkFetch` (`network-fetch.ts`) | `electron-network-fetch.ts` | Bun `fetch` plus system proxy/PAC resolution |
-| `ipcMain` | `IpcMainTransport` (`ipc-transport.ts`) | `electron-ipc-main-transport.ts` | Typed RPC (`defineRPC`), same channel contract |
-| `contextBridge`, `ipcRenderer` | Preload transport module | `src/preload/electron-transport.ts` | Electrobun `preload` plus typed RPC |
-| `webContents` lookup and events | `RendererSurfaces` (`renderer-surfaces.ts`) | `electron-renderer-surfaces.ts` | Webview ids over RPC; a heartbeat for crash detection |
-| `session` (CSP, frame guard, storage clear, cache upkeep) | `WebSecurity` (`web-security.ts`) | `electron-web-security.ts`, `electron-embedded-frame-guard.ts`, `electron-chromium-disk-cache.ts` | `navigationRules`, `Session`, CSP from the loopback server |
-| `WebContentsView` Browser preview, `webContents.debugger` (CDP) | `BrowserPreviewViews` (`browser-preview-views.ts`) | `electron-browser-preview-views.ts`, `browser-preview/` | `BrowserView` with `partition`, `renderer: "cef"` for CDP |
-| `electron-updater` | `UpdateEngine` (`update-engine.ts`) | `electron-update-engine.ts` | Transition artifacts in electron-updater's format, then Electrobun Updater |
-| Single instance, login items, badge, Dock, activation policy, `powerMonitor`, `open-url`, `*-process-gone` | `SystemIntegration` (`system-integration.ts`) | `electron-system-integration.ts` | Native helpers: lock file + socket/pipe, `SMAppService`/Run key/autostart, `dockTile` via `bun:ffi`, wall-clock resume timer, `urlSchemes` + registry/`.desktop`, heartbeat RPC |
-| `@sentry/electron` | `ErrorReporter` (`src/main/ports/error-reporter.ts`) | `error-reporting/sentry-main-error-reporter.ts` | `@sentry/bun` in main, `@sentry/browser` in the renderer |
-| `ELECTRON_RUN_AS_NODE` script children | `ChildScriptRuntime` (`child-runtime.ts`) | `electron-child-script-runtime.ts` | `process.execPath` (Bun) runs scripts as is |
+| Electron surface | Port (`src/main/ports/desktop-shell/`) | Electron adapter |
+| --- | --- | --- |
+| `BrowserWindow`, `BaseWindow`, window policy, shortcuts | `DesktopWindows` (`desktop-windows.ts`) | `electron-desktop-windows.ts`, `electron-window-policy.ts`, `electron-main-window.ts` |
+| `Menu`, app and context menus | `DesktopMenus` (`menus.ts`) | `electron-menus.ts` |
+| `dialog` | `DesktopDialogs` (`dialogs.ts`) | `electron-dialogs.ts` |
+| `shell` | `OsShell` (`os-shell.ts`) | `electron-os-shell.ts` |
+| `clipboard`, `nativeImage` | `Clipboard` (`clipboard.ts`) | `electron-clipboard.ts` |
+| `Notification` | `SystemNotifications` (`system-notifications.ts`) | `electron-system-notifications.ts` |
+| `app` lifecycle, `isPackaged`, `getVersion`, `commandLine`, `before-quit-for-update` | `AppLifecycle` (`app-lifecycle.ts`) | `electron-app-lifecycle.ts` |
+| `app.getPath`, `setPath`, `setName`, `sessionData` | `AppPaths` (`app-paths.ts`) | `electron-app-paths.ts`, `electron-web-profile.ts` |
+| Boot shim's slice of the three above | `BootShell` (`boot-shell.ts`) | `electron-boot-shell.ts` |
+| `safeStorage` | `SecureStorage` (`secure-storage.ts`) | `electron-secure-storage.ts` |
+| `protocol.handle`, `registerSchemesAsPrivileged` (6 schemes) | `TrustedOrigins` (`trusted-origins.ts`) | `electron-trusted-origins.ts` |
+| `net.fetch`, `net.request` and the extension egress guard | `NetworkFetch` (`network-fetch.ts`) | `electron-network-fetch.ts` |
+| `ipcMain` | `IpcMainTransport` (`ipc-transport.ts`) | `electron-ipc-main-transport.ts` |
+| `contextBridge`, `ipcRenderer` | Preload transport module | `src/preload/electron-transport.ts` |
+| `webContents` lookup and events | `RendererSurfaces` (`renderer-surfaces.ts`) | `electron-renderer-surfaces.ts` |
+| `session` (CSP, frame guard, storage clear, cache upkeep) | `WebSecurity` (`web-security.ts`) | `electron-web-security.ts`, `electron-embedded-frame-guard.ts`, `electron-chromium-disk-cache.ts` |
+| `WebContentsView` Browser preview, `webContents.debugger` (CDP) | `BrowserPreviewViews` (`browser-preview-views.ts`) | `electron-browser-preview-views.ts`, `browser-preview/` |
+| `electron-updater` | `UpdateEngine` (`update-engine.ts`) | `electron-update-engine.ts` |
+| Single instance, login items, badge, Dock, activation policy, `powerMonitor`, `open-url`, `*-process-gone` | `SystemIntegration` (`system-integration.ts`) | `electron-system-integration.ts` |
+| `@sentry/electron` | `ErrorReporter` (`src/main/ports/error-reporter.ts`) | `error-reporting/sentry-main-error-reporter.ts` |
+| `ELECTRON_RUN_AS_NODE` script children | `ChildScriptRuntime` (`child-runtime.ts`) | `electron-child-script-runtime.ts` |
 
 ### Application Services (`src/main/application/`)
 

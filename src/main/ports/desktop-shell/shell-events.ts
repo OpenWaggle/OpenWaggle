@@ -1,8 +1,8 @@
 /**
- * Shared vocabulary of the desktop shell ports (ADR 0064, "Electrobun shell"). Every port in this
- * directory describes one capability the desktop shell gives the main process, in OpenWaggle's
- * terms. Only `src/main/adapters/electron/` implements them today; the Electrobun adapters
- * implement the same shapes and must pass the same contract suites
+ * Shared vocabulary of the desktop shell ports (ADR 0064). Every port in this directory describes
+ * one capability the desktop shell gives the main process, in OpenWaggle's terms. Only
+ * `src/main/adapters/electron/` implements them; another shell's adapters would implement the
+ * same shapes and must pass the same contract suites
  * (`src/main/ports/desktop-shell/__tests__/contracts/`).
  */
 

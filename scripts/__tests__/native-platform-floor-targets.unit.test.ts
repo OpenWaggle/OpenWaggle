@@ -32,7 +32,6 @@ describe('parseFloorArguments', () => {
     expect(parseFloorArguments(['--', 'a.app'], 'darwin')).toEqual({
       platform: 'darwin',
       paths: ['a.app'],
-      devkit: false,
     })
   })
 
@@ -40,17 +39,7 @@ describe('parseFloorArguments', () => {
     expect(parseFloorArguments(['--platform', 'linux', 'root'], 'darwin')).toEqual({
       platform: 'linux',
       paths: ['root'],
-      devkit: false,
     })
-  })
-
-  it('checks an Electrobun native-layer devkit, which has to be named', () => {
-    expect(parseFloorArguments(['--devkit', 'devkit'], 'linux')).toEqual({
-      platform: 'linux',
-      paths: ['devkit'],
-      devkit: true,
-    })
-    expect(() => parseFloorArguments(['--devkit'], 'linux')).toThrow(/needs the devkit/u)
   })
 
   it('rejects platforms the guard does not know', () => {

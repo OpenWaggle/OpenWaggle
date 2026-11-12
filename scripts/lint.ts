@@ -37,7 +37,6 @@ const LINT_PATHS = [
   'functions',
   'fixtures',
   '.pi',
-  'vendor',
   'electron.vite.config.ts',
   'electron-builder.ts',
 ]
