@@ -6,7 +6,7 @@ status: accepted
 
 Date: 2026-11-06
 
-Amended by: [ADR 0063](0063-parents-show-their-running-workers.md). A root Session's Ready to read waits until no Worker below it is running, unless the person asked while Workers were already running.
+Amended by: [ADR 0065](0065-parents-show-their-running-workers.md). A root Session's Ready to read waits until no Worker below it is running, unless the person asked while Workers were already running.
 
 OpenWaggle needs Desktop notifications before v1, so the person learns when a Session needs them (**Needs you**) or has something to read, without watching the window. T3 Code decides and shows its notifications in the renderer, and Codex's TUI does both in the terminal, so either one is silent once its window is gone. OpenWaggle's work does not stop with the window. The Session Host is detached and keeps Runs going after the app quits, does not idle-exit while a Scheduled task is enabled, and with Background start runs at login with no window at all (ADR 0057). A Heartbeat that fails at 3 a.m. after the person quit the app is exactly what a notification is for. So the Session Host decides when a Desktop notification is due, the desktop app shows it while connected, and the Host shows it itself when no desktop app is connected.
 
