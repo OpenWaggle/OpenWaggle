@@ -2,17 +2,20 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
 import type {
-  DelegationHistoryDescriptor,
   DelegationHistoryHighWater,
-  DelegationHistoryHighWaterRow,
   DelegationReadCursor,
 } from './sqlite-delegation-query-model'
-import type { DelegationSummaryRow } from './sqlite-delegation-query-rows'
+import {
+  delegationHistoryDescriptorRowSchema,
+  delegationHistoryHighWaterRowSchema,
+  delegationSummaryRowSchema,
+} from './sqlite-delegation-query-rows'
+import { decodeSqlRows } from './sqlite-row-schema'
 import { authorizedSessionScope } from './sqlite-session-query-support'
 
 export function readDelegationSummary(sql: SqlClient.SqlClient, delegationId: string) {
   return Effect.gen(function* () {
-    const delegations = yield* sql<DelegationSummaryRow>`
+    const delegations = yield* sql`
       SELECT contracts.id AS delegation_id,
         contracts.parent_session_id,
         contracts.child_session_id AS worker_session_id,
@@ -30,14 +33,14 @@ export function readDelegationSummary(sql: SqlClient.SqlClient, delegationId: st
       WHERE contracts.id = ${delegationId}
       GROUP BY contracts.id
       LIMIT 1
-    `
+    `.pipe(Effect.flatMap(decodeSqlRows(delegationSummaryRowSchema, 'delegation_contracts')))
     return delegations[0]
   })
 }
 
 export function readDelegationHistoryHighWater(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
-    const rows = yield* sql<DelegationHistoryHighWaterRow>`
+    const rows = yield* sql`
       SELECT
         COALESCE((SELECT MAX(rowid) FROM delegation_amendment_proposals), 0) AS amendment,
         COALESCE((SELECT MAX(rowid) FROM delegation_claim_revisions), 0) AS claim,
@@ -48,7 +51,7 @@ export function readDelegationHistoryHighWater(sql: SqlClient.SqlClient) {
         COALESCE((SELECT MAX(rowid) FROM delegation_state_transitions), 0) AS transition,
         COALESCE((SELECT MAX(rowid) FROM delegation_undeclared_writes), 0) AS undeclared_write,
         COALESCE((SELECT MAX(rowid) FROM delegation_verifications), 0) AS verification
-    `
+    `.pipe(Effect.flatMap(decodeSqlRows(delegationHistoryHighWaterRowSchema, 'delegation history')))
     const row = rows[0]
     if (!row) throw new Error('Expected Delegation history high-water marks.')
     return {
@@ -74,7 +77,7 @@ export function readDelegationHistoryDescriptors(
   limit: number,
 ) {
   const allowed = authorizedSessionScope(authority)
-  return sql<DelegationHistoryDescriptor>`
+  return sql`
     WITH history(kind, cursor_id, created_at, estimated_bytes) AS (
       SELECT 'specification', rowid, created_at,
         length(CAST(specification_json AS BLOB)) + COALESCE(length(CAST(reason AS BLOB)), 0) + 8192
@@ -170,5 +173,5 @@ export function readDelegationHistoryDescriptors(
         AND cursor_id > ${cursor?.cursorId ?? null}))
     ORDER BY created_at, kind, cursor_id
     LIMIT ${limit + 1}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(delegationHistoryDescriptorRowSchema, 'delegation history')))
 }

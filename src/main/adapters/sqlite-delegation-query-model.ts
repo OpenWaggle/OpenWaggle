@@ -1,5 +1,9 @@
+import type { SchemaType } from '@shared/schema'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import type {
+  delegationHistoryDescriptorRowSchema,
+  delegationHistoryHighWaterRowSchema,
+  delegationHistoryKindSchema,
   AmendmentProposalRow,
   ClaimRevisionRow,
   ClaimRow,
@@ -24,23 +28,9 @@ export type DelegationReadRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { readonly operation: 'delegations-read' }>
 }
 
-export type DelegationHistoryKind =
-  | 'amendment'
-  | 'claim'
-  | 'conflict'
-  | 'review'
-  | 'specification'
-  | 'submission'
-  | 'transition'
-  | 'undeclared-write'
-  | 'verification'
+export type DelegationHistoryKind = SchemaType<typeof delegationHistoryKindSchema>
 
-export interface DelegationHistoryDescriptor {
-  readonly kind: DelegationHistoryKind
-  readonly cursor_id: number
-  readonly created_at: number
-  readonly estimated_bytes: number
-}
+export type DelegationHistoryDescriptor = SchemaType<typeof delegationHistoryDescriptorRowSchema>
 
 export interface DelegationReadCursor {
   readonly createdAt: number
@@ -51,17 +41,7 @@ export interface DelegationReadCursor {
 
 export type DelegationHistoryHighWater = Readonly<Record<DelegationHistoryKind, number>>
 
-export interface DelegationHistoryHighWaterRow {
-  readonly amendment: number
-  readonly claim: number
-  readonly conflict: number
-  readonly review: number
-  readonly specification: number
-  readonly submission: number
-  readonly transition: number
-  readonly undeclared_write: number
-  readonly verification: number
-}
+export type DelegationHistoryHighWaterRow = SchemaType<typeof delegationHistoryHighWaterRowSchema>
 
 export type HistoryRow<T> = T & { readonly cursor_id: number }
 
