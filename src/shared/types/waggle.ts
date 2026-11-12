@@ -16,11 +16,9 @@ import type {
   waggleInvocationSourceSchema,
   waggleMetadataSchema,
   wagglePresetDomainSchema,
-  waggleStopConfigSchema,
 } from '@shared/schemas/waggle'
 import type {
   waggleConsensusCheckResultSchema,
-  waggleConsensusSignalSchema,
   waggleFileConflictWarningSchema,
   waggleStreamMetadataSchema,
   waggleTurnEventSchema,
@@ -51,7 +49,6 @@ export function isInheritedWaggleModelBinding(
  * `toWaggleConfig` makes it.
  */
 export type WaggleAgentSlot = SchemaType<typeof waggleAgentSlotDomainSchema>
-export type WaggleStopConfig = SchemaType<typeof waggleStopConfigSchema>
 export type WaggleConfig = SchemaType<typeof waggleConfigDomainSchema>
 export type WagglePreset = SchemaType<typeof wagglePresetDomainSchema>
 export type WaggleInvocationSource = SchemaType<typeof waggleInvocationSourceSchema>
@@ -72,7 +69,6 @@ export const WAGGLE_COLLABORATION_STATUSES = [
 export type WaggleCollaborationStatus = (typeof WAGGLE_COLLABORATION_STATUSES)[number]
 
 export type WaggleFileConflictWarning = SchemaType<typeof waggleFileConflictWarningSchema>
-export type WaggleConsensusSignal = SchemaType<typeof waggleConsensusSignalSchema>
 export type WaggleConsensusCheckResult = SchemaType<typeof waggleConsensusCheckResultSchema>
 export type WaggleStreamMetadata = SchemaType<typeof waggleStreamMetadataSchema>
 export type WaggleMessageMetadata = SchemaType<typeof waggleMetadataSchema>

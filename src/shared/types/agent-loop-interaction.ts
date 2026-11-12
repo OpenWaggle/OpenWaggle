@@ -3,11 +3,6 @@ import type {
   agentLoopResponseInputSchema,
   agentLoopResponseSchema,
   confirmResponseSchema,
-  customResponseSchema,
-  editorResponseSchema,
-  inputResponseSchema,
-  notifyResponseSchema,
-  selectResponseSchema,
 } from '@shared/schemas/agent-loop-interaction'
 import type {
   agentLoopConfirmInteractionSchema,
@@ -19,7 +14,6 @@ import type {
   agentLoopInteractionErrorCodeSchema,
   agentLoopInteractionKindSchema,
   agentLoopInteractionSchema,
-  agentLoopInteractionSourceSchema,
   agentLoopInteractionStatusSchema,
   agentLoopInteractionSubmitResultSchema,
   agentLoopNotifyInteractionSchema,
@@ -30,7 +24,6 @@ import type {
 /* Inferred from the schemas in `@shared/schemas/agent-loop-interaction-request` and `-interaction`. */
 export type AgentLoopInteractionKind = SchemaType<typeof agentLoopInteractionKindSchema>
 export type AgentLoopInteractionStatus = SchemaType<typeof agentLoopInteractionStatusSchema>
-export type AgentLoopInteractionSource = SchemaType<typeof agentLoopInteractionSourceSchema>
 export type AgentLoopNotifyLevel = SchemaType<typeof agentLoopNotifyLevelSchema>
 export type AgentLoopInteractionBase = SchemaType<typeof agentLoopInteractionBaseSchema>
 export type AgentLoopConfirmPurpose = SchemaType<typeof agentLoopConfirmPurposeSchema>
@@ -43,11 +36,6 @@ export type AgentLoopCustomInteraction = SchemaType<typeof agentLoopCustomIntera
 export type AgentLoopInteraction = SchemaType<typeof agentLoopInteractionSchema>
 
 export type AgentLoopConfirmResponse = SchemaType<typeof confirmResponseSchema>
-export type AgentLoopSelectResponse = SchemaType<typeof selectResponseSchema>
-export type AgentLoopInputResponse = SchemaType<typeof inputResponseSchema>
-export type AgentLoopEditorResponse = SchemaType<typeof editorResponseSchema>
-export type AgentLoopNotifyResponse = SchemaType<typeof notifyResponseSchema>
-export type AgentLoopCustomResponse = SchemaType<typeof customResponseSchema>
 export type AgentLoopInteractionResponse = SchemaType<typeof agentLoopResponseSchema>
 export type AgentLoopInteractionResponseInput = SchemaType<typeof agentLoopResponseInputSchema>
 

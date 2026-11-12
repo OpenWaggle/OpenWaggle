@@ -16,6 +16,13 @@ export const worktreeSetupActionTerminalSchema = Schema.Struct({
   cwd: Schema.String,
 })
 
+/**
+ * OpenWaggle-owned setup stages that run before Pi starts the task.
+ *
+ * The name predates local launches: a local-checkout Session reports the stages it runs too
+ * (`syncing-branch`, `connecting-tools`, `starting-task`), so a first send never sits silent while
+ * the Host pulls, connects MCP servers, or builds the Pi runtime.
+ */
 export const worktreeLaunchStageSchema = Schema.Literal(
   'preparing-workspace',
   'fetching-base',

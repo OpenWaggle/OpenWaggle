@@ -8,7 +8,6 @@ export const BROWSER_PROFILE_LIMITS = {
 } as const
 
 export const BROWSER_PROFILE_KINDS = ['persistent', 'incognito'] as const
-export type BrowserProfileKind = (typeof BROWSER_PROFILE_KINDS)[number]
 
 export type BrowserProfile = SchemaType<typeof browserProfileSchema>
 

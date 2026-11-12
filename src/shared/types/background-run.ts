@@ -10,7 +10,6 @@ import type {
   worktreeLaunchEventPayloadSchema,
   worktreeLaunchProgressSchema,
   worktreeLaunchSnapshotSchema,
-  worktreeLaunchStageSchema,
   worktreeLaunchStepSchema,
   worktreeSetupActionTerminalSchema,
 } from '@shared/schemas/background-run'
@@ -23,15 +22,6 @@ export type RunMode = SchemaType<typeof runModeSchema>
 
 /** Compaction and retry events needed to restore the live chat activity after reconnecting. */
 export type BackgroundRunActivityEvent = SchemaType<typeof backgroundRunActivityEventSchema>
-
-/**
- * OpenWaggle-owned setup stages that run before Pi starts the task.
- *
- * The name predates local launches: a local-checkout Session reports the stages it runs too
- * (`syncing-branch`, `connecting-tools`, `starting-task`), so a first send never sits silent while
- * the Host pulls, connects MCP servers, or builds the Pi runtime.
- */
-export type WorktreeLaunchStage = SchemaType<typeof worktreeLaunchStageSchema>
 
 /** Where the launched task will run. Absent means a managed worktree (the original launch kind). */
 export type WorktreeLaunchEnvironment = SchemaType<typeof worktreeLaunchEnvironmentSchema>
