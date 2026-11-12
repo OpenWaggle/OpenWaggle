@@ -5,7 +5,7 @@ import { useRouterState } from '@tanstack/react-router'
  * page that is not a Session. The active Session survives a visit to Settings; commands that act
  * on "the open Session", such as copying its link, follow the route instead (ADR 0056).
  */
-export function useViewedSessionId(): string | null {
+export function useViewedSessionId() {
   return useRouterState({
     select: (state) => {
       const [, segment, sessionId] = state.location.pathname.split('/')

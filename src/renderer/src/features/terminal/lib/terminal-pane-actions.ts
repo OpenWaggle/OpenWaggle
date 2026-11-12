@@ -1,6 +1,5 @@
 import type { Terminal } from '@xterm/xterm'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { TerminalContextRange } from './terminal-context'
 import type { TerminalLaunchEnvironment } from './terminal-launch-environment'
 
 export interface TerminalRestartOptions {
@@ -23,7 +22,7 @@ export interface ContextMenuModifiers {
   readonly shiftKey: boolean
 }
 
-function selectionRange(terminal: Terminal | null): TerminalContextRange | null {
+function selectionRange(terminal: Terminal | null) {
   const position = terminal?.getSelectionPosition()
   if (position === undefined) return null
   const startLine = position.start.y + 1

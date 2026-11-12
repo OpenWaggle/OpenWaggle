@@ -27,18 +27,16 @@ function stringRecord(value: unknown) {
   )
 }
 
-function readAssociations(
-  storage: Storage,
-  projectIdentity: string,
-): WorkspaceLanguageAssociations {
+function readAssociations(storage: Storage, projectIdentity: string) {
   try {
     const parsed: unknown = JSON.parse(storage.getItem(storageKey(projectIdentity)) ?? '{}')
     const stored = uncheckedFields<WorkspaceLanguageAssociations>(parsed)
-    return {
+    const associations: WorkspaceLanguageAssociations = {
       exact: stringRecord(stored.exact),
       extensions: stringRecord(stored.extensions),
       fileNames: stringRecord(stored.fileNames),
     }
+    return associations
   } catch {
     return EMPTY_ASSOCIATIONS
   }

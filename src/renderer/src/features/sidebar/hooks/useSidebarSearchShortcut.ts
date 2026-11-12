@@ -16,7 +16,7 @@ import { activeViewFromPathname } from './sidebar-view'
  * Escape is handled directly by the focused input. Keeping it at the target avoids a focus-state
  * subscription race and prevents a document hotkey from cancelling Escape for native dialogs.
  */
-export function useSidebarSearchShortcut(): void {
+export function useSidebarSearchShortcut() {
   const sidebarOpen = useUIStore((state) => state.sidebarOpen)
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
   const requestFocus = useSidebarFilterStore((state) => state.requestFocus)

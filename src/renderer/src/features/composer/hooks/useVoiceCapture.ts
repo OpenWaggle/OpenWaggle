@@ -111,7 +111,7 @@ export function useVoiceCapture({
   insertText,
   sendComposed,
   sendAfterInsert = null,
-}: UseVoiceCaptureOptions): VoiceCaptureController {
+}: UseVoiceCaptureOptions) {
   const [error, setError] = useState<string | null>(null)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [lastElapsedSeconds, setLastElapsedSeconds] = useState(0)
@@ -236,7 +236,7 @@ export function useVoiceCapture({
     setError(null)
   }
 
-  return {
+  const controller: VoiceCaptureController = {
     canStart: !disabled && mode === 'idle',
     clearError,
     elapsedSeconds,
@@ -248,9 +248,10 @@ export function useVoiceCapture({
     toggleVoice,
     visualizerControls,
   }
+  return controller
 }
 
-export function formatVoiceDuration(totalSeconds: number): string {
+export function formatVoiceDuration(totalSeconds: number) {
   const seconds = Math.max(0, Math.floor(totalSeconds))
   const minutesPart = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
   const secondsPart = seconds % TIME_UNIT.SECONDS_PER_MINUTE

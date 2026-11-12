@@ -1,6 +1,5 @@
 import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
-import type { AgentTransportEvent } from '@shared/types/stream'
 import { type AnswerSegment, inlineToolCallIds, segmentParts } from './transcript-order.answers'
 
 export const SESSION_ID = SessionId('order-session')
@@ -35,11 +34,12 @@ export function textDigest(text: string) {
   return `digest:${text}`
 }
 
-function textPart(text: string): MessagePart {
-  return { type: 'text', text }
+function textPart(text: string) {
+  const part: MessagePart = { type: 'text', text }
+  return part
 }
 
-function toolResultMessage(entry: TruthEntry, id: string, index: number): Message {
+function toolResultMessage(entry: TruthEntry, id: string, index: number) {
   return {
     id: MessageId(`${entry.piId}-result-${String(index)}`),
     role: 'assistant',
@@ -58,13 +58,13 @@ function toolResultMessage(entry: TruthEntry, id: string, index: number): Messag
     ],
     createdAt: entry.timestamp,
     metadata: { sessionNodeCreatedOrder: entry.order + 1 + index },
-  }
+  } satisfies Message
 }
 
 /** A persisted log entry as the Host projects it into the Session detail. */
-export function persistedMessages(entry: TruthEntry): Message[] {
+export function persistedMessages(entry: TruthEntry) {
   if (entry.role === 'user') {
-    return [
+    const message: Message[] = [
       {
         id: MessageId(entry.piId),
         role: 'user',
@@ -76,15 +76,19 @@ export function persistedMessages(entry: TruthEntry): Message[] {
         },
       },
     ]
+    return message
   }
   // A tool call the answer made between its segments is one of them.
   const inline = new Set(inlineToolCallIds(entry.segments ?? []))
   const toolCalls = entry.toolCallIds
     .filter((id) => !inline.has(id))
-    .map((id): MessagePart => ({
-      type: 'tool-call',
-      toolCall: { id: ToolCallId(id), name: 'bash', args: { command: id } },
-    }))
+    .map((id) => {
+      const part: MessagePart = {
+        type: 'tool-call',
+        toolCall: { id: ToolCallId(id), name: 'bash', args: { command: id } },
+      }
+      return part
+    })
   const assistant: Message = {
     id: MessageId(entry.piId),
     role: 'assistant',
@@ -98,11 +102,15 @@ export function persistedMessages(entry: TruthEntry): Message[] {
       ? { compactionSummary: { summary: entry.text, tokensBefore: 100 } }
       : { sessionNodeCreatedOrder: entry.order },
   }
-  return [assistant, ...entry.toolCallIds.map((id, index) => toolResultMessage(entry, id, index))]
+  const message: Message[] = [
+    assistant,
+    ...entry.toolCallIds.map((id, index) => toolResultMessage(entry, id, index)),
+  ]
+  return message
 }
 
 /** The events of the tools an assistant entry ran, each started then ended (`tick`: Host time). */
-export function toolEventsOf(entry: TruthEntry, tick: () => number): AgentTransportEvent[] {
+export function toolEventsOf(entry: TruthEntry, tick: () => number) {
   return entry.toolCallIds.flatMap((toolCallId) => {
     const tool = { toolCallId, toolName: 'bash' }
     return [

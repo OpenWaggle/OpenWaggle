@@ -69,8 +69,8 @@ function selectedImage(resourceId: string | null, images: readonly SessionResour
 function selectedZoom(
   resource: SessionResource | null,
   zoomState: { readonly resourceId: string; readonly zoom: Zoom } | undefined,
-): Zoom {
-  return resource && zoomState?.resourceId === resource.id ? zoomState.zoom : 'fit'
+) {
+  return resource && zoomState?.resourceId === resource.id ? zoomState.zoom : ('fit' as const)
 }
 
 function messageGalleryAdjacency(

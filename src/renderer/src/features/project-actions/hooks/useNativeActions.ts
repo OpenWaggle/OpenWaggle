@@ -1,4 +1,4 @@
-import type { ActionCatalog, ActionCatalogEdit } from '@shared/types/action-definitions'
+import type { ActionCatalogEdit } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
 import { SessionId } from '@shared/types/brand'
@@ -6,7 +6,6 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/r
 import { useChatStore } from '@/features/chat/state'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { queryKeys } from '@/queries/query-keys'
-import type { OpenWaggleQueryOptions } from '@/queries/query-options'
 import { api } from '@/shared/lib/ipc'
 
 const PROJECT_QUERY_PREFIX_LENGTH = 2
@@ -28,9 +27,9 @@ export const PROJECT_ACTIONS_QUERY_ROOT = queryKeys.projectActions
 export function actionRunsRefetchInterval(
   runs: readonly Pick<ActionRun, 'status'>[] | undefined,
   agentWorking: boolean,
-): number | false {
+) {
   if (runs?.some(isActiveActionRun)) return RUN_REFRESH_MS
-  return agentWorking ? AGENT_WORKING_REFRESH_MS : false
+  return (agentWorking ? AGENT_WORKING_REFRESH_MS : false) satisfies number | false
 }
 
 /** Whether the scope's Session has a Run in progress (its runs and preparation may change). */
@@ -49,7 +48,7 @@ export const actionQueryKey = (scope: ActionManagementScope | null) =>
     scope?.sessionId ?? scope?.workspaceId ?? null,
   ] as const
 
-export function useActionScope(projectPath: string | null): ActionManagementScope | null {
+export function useActionScope(projectPath: string | null) {
   const activeSession = useChatStore((state) => state.activeSession)
   if (!projectPath) return null
   return {
@@ -60,9 +59,7 @@ export function useActionScope(projectPath: string | null): ActionManagementScop
 
 const catalogKey = (scope: ActionManagementScope | null) =>
   [...actionQueryKey(scope), 'catalog'] as const
-export function nativeActionCatalogOptions(
-  scope: ActionManagementScope | null,
-): OpenWaggleQueryOptions<ActionCatalog, Error, ActionCatalog, ReturnType<typeof catalogKey>> {
+export function nativeActionCatalogOptions(scope: ActionManagementScope | null) {
   return queryOptions({
     queryKey: catalogKey(scope),
     enabled: scope !== null,

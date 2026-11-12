@@ -13,7 +13,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     listActiveRuns: vi.fn(async () => []),
     getBackgroundRun: vi.fn(async () => null),
-    getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
+    getSessionDetail: vi.fn<() => Promise<SessionDetail | null>>(async () => null),
   },
 }))
 
@@ -31,16 +31,16 @@ function resetStore() {
   })
 }
 
-function userMessage(id: string, content: string): UIMessage {
+function userMessage(id: string, content: string) {
   return {
     id,
     role: 'user',
     parts: [{ type: 'text', content }],
     createdAt: new Date(1),
-  }
+  } satisfies UIMessage
 }
 
-function assistantTextEvent(messageId: string, delta: string): AgentTransportEvent {
+function assistantTextEvent(messageId: string, delta: string) {
   return {
     type: 'message_update',
     messageId,
@@ -51,14 +51,14 @@ function assistantTextEvent(messageId: string, delta: string): AgentTransportEve
       delta,
     },
     timestamp: Date.now(),
-  }
+  } satisfies AgentTransportEvent
 }
 
 function sessionDetail(
   messages: SessionDetail['messages'] = [],
   environmentMode: SessionDetail['environmentMode'] = 'worktree',
-): SessionDetail {
-  return {
+) {
+  const detail: SessionDetail = {
     id: SESSION_A,
     title: 'Session A',
     projectPath: '/repo',
@@ -68,6 +68,7 @@ function sessionDetail(
     environmentMode,
     worktreePath: '/repo-worktree',
   }
+  return detail
 }
 
 describe('useBackgroundRunStore', () => {

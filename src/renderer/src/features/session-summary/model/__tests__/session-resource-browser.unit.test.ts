@@ -8,7 +8,7 @@ import {
   resolveResourceBranchName,
 } from '../session-resource-browser'
 
-function branch(id: string, name: string): SessionBranch {
+function branch(id: string, name: string) {
   return {
     id: SessionBranchId(id),
     sessionId: SessionId('session-1'),
@@ -18,7 +18,7 @@ function branch(id: string, name: string): SessionBranch {
     isMain: false,
     createdAt: 1,
     updatedAt: 2,
-  }
+  } satisfies SessionBranch
 }
 
 describe('session resource branch names', () => {

@@ -87,26 +87,20 @@ function findTranscriptNode(
  * has not arrived. A message id is not a node id: a row sent in this window keeps its optimistic id
  * after the snapshot reconciles it, and Pi rejects that id as a fork target.
  */
-export function findUserMessageNode(
-  input: CreateBranchDraftSelectionInput,
-): SessionTranscriptNode | null {
+export function findUserMessageNode(input: CreateBranchDraftSelectionInput) {
   const message = input.messages.find((candidate) => candidate.id === input.messageId)
   const node = findTranscriptNode(input.workspace, input.messageId, message)
   return node?.kind === 'user_message' ? node : null
 }
 
 /** The persisted assistant-message node of a turn's reply, or null before it is projected. */
-export function findAssistantMessageNode(
-  input: CreateBranchDraftSelectionInput,
-): SessionTranscriptNode | null {
+export function findAssistantMessageNode(input: CreateBranchDraftSelectionInput) {
   const message = input.messages.find((candidate) => candidate.id === input.messageId)
   const node = findTranscriptNode(input.workspace, input.messageId, message)
   return node?.kind === 'assistant_message' ? node : null
 }
 
-export function createBranchDraftSelectionFromNode(
-  node: SessionTranscriptNode,
-): BranchDraftSelection {
+export function createBranchDraftSelectionFromNode(node: SessionTranscriptNode) {
   if (node.kind === 'user_message' && node.parentId) {
     // A Hive wake notice is the Host's text: branching there must not send it as the user's.
     const hiveWake = node.hiveWake || node.message?.metadata?.hiveWake
@@ -128,7 +122,7 @@ export function createBranchDraftSelection({
   messages,
   workspace,
   messageId,
-}: CreateBranchDraftSelectionInput): BranchDraftSelection | null {
+}: CreateBranchDraftSelectionInput) {
   const message = messages.find((candidate) => candidate.id === messageId)
   const node = findTranscriptNode(workspace, messageId, message)
 
@@ -153,7 +147,7 @@ export function createBranchDraftSelection({
 export function shouldPromptForBranchSummary(
   workspace: SessionWorkspace | null,
   targetNodeId: SessionNodeId,
-): boolean {
+) {
   if (!workspace?.activeNodeId || workspace.activeNodeId === targetNodeId) {
     return false
   }

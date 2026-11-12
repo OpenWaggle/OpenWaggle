@@ -20,7 +20,7 @@ interface WorktreePlanState {
 export const PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY = 'draft:projectless'
 
 /** Store key for a not-yet-created session's plan, keyed by the opened project. */
-export function draftWorktreePlanKey(projectPath: string): string {
+export function draftWorktreePlanKey(projectPath: string) {
   return `draft:${projectPath}`
 }
 
@@ -32,7 +32,7 @@ export function draftWorktreePlanKey(projectPath: string): string {
 export function prepareDraftWorktreePlan(
   previousProjectPath: string | null,
   nextProjectPath: string | null,
-): void {
+) {
   useWorktreePlanStore.setState((state) => {
     const next = { ...state.bySessionId }
     const projectless = next[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY]

@@ -5,24 +5,24 @@ import { trackExtensionStatus, useExtensionStatusStore } from '../extension-stat
 
 const SESSION_ID = SessionId('session-1')
 
-function status(key: string, text?: string, runId = 'run-1'): AgentTransportEvent {
+function status(key: string, text?: string, runId = 'run-1') {
   return {
     type: 'extension_status',
     runId,
     slot: { kind: 'status', key },
     ...(text !== undefined ? { text } : {}),
     timestamp: 1,
-  }
+  } satisfies AgentTransportEvent
 }
 
-function workingMessage(text?: string): AgentTransportEvent {
+function workingMessage(text?: string) {
   return {
     type: 'extension_status',
     runId: 'run-1',
     slot: { kind: 'working-message' },
     ...(text !== undefined ? { text } : {}),
     timestamp: 1,
-  }
+  } satisfies AgentTransportEvent
 }
 
 const current = () => useExtensionStatusStore.getState().bySessionId.get(SESSION_ID)

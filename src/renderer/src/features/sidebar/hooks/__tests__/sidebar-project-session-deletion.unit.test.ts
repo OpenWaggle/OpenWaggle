@@ -9,7 +9,7 @@ function session(
   parentSessionId: SessionId | null,
   directWorkerCount: number,
   delegationState: DelegationState = 'accepted',
-): SessionSummary {
+) {
   return {
     id: SessionId(id),
     title: id,
@@ -23,7 +23,7 @@ function session(
       activeDirectWorkerCount: directWorkerCount,
       ...(parentSessionId ? { agentDefinitionName: 'worker', delegationState } : {}),
     },
-  }
+  } satisfies SessionSummary
 }
 
 describe('project Session deletion order', () => {

@@ -18,7 +18,7 @@ function pathSegments(pathValue: string) {
     .filter((segment) => segment.length > 0)
 }
 
-export function changedFileName(pathValue: string): string {
+export function changedFileName(pathValue: string) {
   return pathSegments(pathValue).at(-1) ?? pathValue
 }
 
@@ -30,7 +30,7 @@ function changedFileScope(pathValue: string) {
 export function shouldAutoExpandChangedFiles(
   files: readonly TurnDiffFileSummary[],
   isLatestTurn: boolean,
-): boolean {
+) {
   if (!isLatestTurn || files.length > CHANGED_FILES_AUTO_EXPAND_FILE_LIMIT) return false
   const changedLines = files.reduce((total, file) => total + file.additions + file.deletions, 0)
   return changedLines <= CHANGED_FILES_AUTO_EXPAND_LINE_LIMIT
@@ -39,7 +39,7 @@ export function shouldAutoExpandChangedFiles(
 export function summarizeChangedFileScopes(
   files: readonly TurnDiffFileSummary[],
   limit = CHANGED_FILES_PREVIEW_SCOPE_LIMIT,
-): ChangedFilesScopeSummary[] {
+) {
   const scopes = new Map<string, { fileCount: number; firstIndex: number }>()
   files.forEach((file, index) => {
     const label = changedFileScope(file.path)
@@ -50,7 +50,7 @@ export function summarizeChangedFileScopes(
     })
   })
 
-  return Array.from(scopes, ([label, scope]) => ({
+  const summary: ChangedFilesScopeSummary[] = Array.from(scopes, ([label, scope]) => ({
     label,
     fileCount: scope.fileCount,
     firstIndex: scope.firstIndex,
@@ -63,13 +63,14 @@ export function summarizeChangedFileScopes(
     )
     .slice(0, limit)
     .map(({ label, fileCount }) => ({ label, fileCount }))
+  return summary
 }
 
 /** One representative file per directory scope, then fill with the remaining files. */
 export function selectChangedFilePreview(
   files: readonly TurnDiffFileSummary[],
   limit = CHANGED_FILES_PREVIEW_FILE_LIMIT,
-): TurnDiffFileSummary[] {
+) {
   const selected: TurnDiffFileSummary[] = []
   const selectedPaths = new Set<string>()
   const selectedScopes = new Set<string>()
@@ -93,9 +94,7 @@ export function selectChangedFilePreview(
 }
 
 /** Highest turn index across the session's checkpoints (latest settled turn). */
-export function latestTurnIndex(
-  turns: ReadonlyMap<string, { readonly turnIndex: number }>,
-): number {
+export function latestTurnIndex(turns: ReadonlyMap<string, { readonly turnIndex: number }>) {
   let latest = -1
   for (const turn of turns.values()) {
     if (turn.turnIndex > latest) latest = turn.turnIndex
@@ -139,7 +138,7 @@ function compareByName(a: { name: string }, b: { name: string }) {
   return a.name.localeCompare(b.name, undefined, SORT_LOCALE_OPTIONS)
 }
 
-function statOf(file: TurnDiffFileSummary): TurnDiffStat | null {
+function statOf(file: TurnDiffFileSummary) {
   if (typeof file.additions !== 'number' || typeof file.deletions !== 'number') return null
   return { additions: file.additions, deletions: file.deletions }
 }
@@ -179,7 +178,7 @@ function toTreeNodes(directory: MutableDirectoryNode): readonly TurnDiffTreeNode
   return [...subdirectories, ...directory.files.sort(compareByName)]
 }
 
-export function summarizeTurnDiffStats(files: readonly TurnDiffFileSummary[]): TurnDiffStat {
+export function summarizeTurnDiffStats(files: readonly TurnDiffFileSummary[]) {
   return files.reduce<TurnDiffStat>(
     (acc, file) => {
       const stat = statOf(file)
@@ -194,9 +193,7 @@ export function summarizeTurnDiffStats(files: readonly TurnDiffFileSummary[]): T
 }
 
 /** Directory-grouped file tree for the expanded changed-files card (T3 Code reference). */
-export function buildTurnDiffTree(
-  files: readonly TurnDiffFileSummary[],
-): readonly TurnDiffTreeNode[] {
+export function buildTurnDiffTree(files: readonly TurnDiffFileSummary[]) {
   const root: MutableDirectoryNode = {
     name: '',
     path: '',

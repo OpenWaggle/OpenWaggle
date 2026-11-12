@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { HiveSession } from '@/queries/session-hive-contract'
 import { hiveAgentCounts } from '../hive-agent-presentation'
 
-function session(id: string, agent?: string, archived?: boolean): HiveSession {
+function session(id: string, agent?: string, archived?: boolean) {
   return {
     id: SessionId(id),
     title: id,
@@ -14,7 +14,7 @@ function session(id: string, agent?: string, archived?: boolean): HiveSession {
       ...(agent ? { agentDefinitionName: agent } : {}),
     },
     ...(archived !== undefined ? { archived } : {}),
-  }
+  } satisfies HiveSession
 }
 
 describe('hiveAgentCounts', () => {

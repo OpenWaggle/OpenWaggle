@@ -12,8 +12,14 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
 
-function summary(id: string, title = id): SessionSummary {
-  return { id: SessionId(id), title, projectPath: null, createdAt: 1, updatedAt: 2 }
+function summary(id: string, title = id) {
+  return {
+    id: SessionId(id),
+    title,
+    projectPath: null,
+    createdAt: 1,
+    updatedAt: 2,
+  } satisfies SessionSummary
 }
 
 function deferred<T>() {

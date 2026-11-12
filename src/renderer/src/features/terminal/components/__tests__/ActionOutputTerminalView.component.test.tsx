@@ -66,7 +66,7 @@ import { TerminalPanel } from '../TerminalPanel'
 
 const OWNER = 'session-1'
 
-function runSnapshot(status: ActionRun['status']): ActionRun {
+function runSnapshot(status: ActionRun['status']) {
   return {
     id: 'run-1',
     requestId: 'request',
@@ -91,10 +91,10 @@ function runSnapshot(status: ActionRun['status']): ActionRun {
     previewUrl: null,
     ready: false,
     outputBytes: 20,
-  }
+  } satisfies ActionRun
 }
 
-function outputPage(status: ActionRun['status']): ActionOutputSnapshot {
+function outputPage(status: ActionRun['status']) {
   return {
     run: runSnapshot(status),
     output: 'VITE ready in 120 ms\r\n',
@@ -102,7 +102,7 @@ function outputPage(status: ActionRun['status']): ActionOutputSnapshot {
     endOffset: 20,
     truncated: false,
     hasMore: false,
-  }
+  } satisfies ActionOutputSnapshot
 }
 
 describe('Action output terminal view', () => {

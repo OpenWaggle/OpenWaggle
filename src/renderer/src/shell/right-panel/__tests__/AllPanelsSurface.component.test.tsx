@@ -22,10 +22,7 @@ vi.mock('@/shared/lib/right-panel-surfaces', async (importOriginal) => ({
 import { AllPanelsSurface } from '../AllPanelsSurface'
 import { useRightPanelRailStore } from '../right-panel-rail-store'
 
-function entry(
-  id: RightPanelSurfaceId,
-  overrides: Partial<RightPanelSurfaceEntry> = {},
-): RightPanelSurfaceEntry {
+function entry(id: RightPanelSurfaceId, overrides: Partial<RightPanelSurfaceEntry> = {}) {
   return {
     id,
     title: id,
@@ -41,13 +38,10 @@ function entry(
     running: false,
     attention: false,
     ...overrides,
-  }
+  } satisfies RightPanelSurfaceEntry
 }
 
-function extensionPanel(
-  sidePanelId: string,
-  status: RailExtensionPanel['status'],
-): RailExtensionPanel {
+function extensionPanel(sidePanelId: string, status: RailExtensionPanel['status']) {
   return {
     id: `extension:linear:${sidePanelId}`,
     extensionId: 'linear',
@@ -57,7 +51,7 @@ function extensionPanel(
     packagePath: '/extensions/linear',
     contentHash: 'hash',
     status,
-  }
+  } satisfies RailExtensionPanel
 }
 
 describe('AllPanelsSurface', () => {

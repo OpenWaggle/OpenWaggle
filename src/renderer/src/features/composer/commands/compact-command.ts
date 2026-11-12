@@ -6,15 +6,17 @@ export interface CompactCommand {
 
 const COMPACT_COMMAND = BUILT_IN_COMPOSER_SLASH_COMMAND.COMPACT
 
-export function parseCompactCommand(text: string): CompactCommand | null {
+export function parseCompactCommand(text: string) {
   const trimmed = text.trim()
   if (trimmed === COMPACT_COMMAND) {
-    return {}
+    const command: CompactCommand | null = {}
+    return command
   }
   if (!trimmed.startsWith(`${COMPACT_COMMAND} `)) {
     return null
   }
 
   const customInstructions = trimmed.slice(COMPACT_COMMAND.length).trim()
-  return customInstructions ? { customInstructions } : {}
+  const command: CompactCommand | null = customInstructions ? { customInstructions } : {}
+  return command
 }

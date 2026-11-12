@@ -50,7 +50,7 @@ const GIT_STATUS: GitStatusSummary = {
   behind: 0,
 }
 
-function vcsStatus(provider: SourceControlProviderId, isDefaultRef: boolean): VcsStatus {
+function vcsStatus(provider: SourceControlProviderId, isDefaultRef: boolean) {
   return fromPartial<VcsStatus>({
     isRepo: true,
     sourceControlProvider: { id: provider, host: `${provider}.com` },

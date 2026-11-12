@@ -8,22 +8,21 @@ export interface ScheduledTaskProjectGroup {
 }
 
 /** Tasks grouped by owning project, projects and tasks in name order. */
-export function groupTasksByProject(
-  tasks: readonly ScheduledTask[],
-): readonly ScheduledTaskProjectGroup[] {
+export function groupTasksByProject(tasks: readonly ScheduledTask[]) {
   const byProject = new Map<string | null, ScheduledTask[]>()
   for (const task of tasks) {
     const group = byProject.get(task.projectPath)
     if (group) group.push(task)
     else byProject.set(task.projectPath, [task])
   }
-  return [...byProject.entries()]
+  const result: readonly ScheduledTaskProjectGroup[] = [...byProject.entries()]
     .map(([projectPath, grouped]) => ({
       projectPath,
       label: projectName(projectPath),
       tasks: grouped.sort((left, right) => left.name.localeCompare(right.name)),
     }))
     .sort((left, right) => left.label.localeCompare(right.label))
+  return result
 }
 
 /** Heartbeats whose target is this Session. */

@@ -60,7 +60,7 @@ function hasRenderableText(message: UIMessage) {
   return message.parts.some((part) => part.type === 'text' && part.content.trim().length > 0)
 }
 
-function segmentsStartAtUserMessages(rows: readonly ChatRow[]): FoldableUnit[] {
+function segmentsStartAtUserMessages(rows: readonly ChatRow[]) {
   const units: FoldableUnit[] = []
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]
@@ -93,7 +93,7 @@ function segmentsStartAtUserMessages(rows: readonly ChatRow[]): FoldableUnit[] {
   return units
 }
 
-function waggleTurnUnits(rows: readonly ChatRow[]): FoldableUnit[] {
+function waggleTurnUnits(rows: readonly ChatRow[]) {
   const units: FoldableUnit[] = []
   for (const [index, row] of rows.entries()) {
     if (row?.type !== 'waggle-turn') continue
@@ -172,7 +172,7 @@ function buildFoldPlan(
   rows: readonly ChatRow[],
   units: readonly FoldableUnit[],
   input: TurnFoldInput,
-): FoldPlan {
+) {
   const plan: FoldPlan = {
     hiddenRowIndexes: new Set(),
     foldRowByPlacementIndex: new Map(),
@@ -222,7 +222,7 @@ function buildFoldPlan(
  * Turns without work, carve-out rows, and the active run are left untouched.
  * Waggle agent turns fold as colored units inside their own section.
  */
-export function applyTurnFolds(rows: readonly ChatRow[], input: TurnFoldInput): ChatRow[] {
+export function applyTurnFolds(rows: readonly ChatRow[], input: TurnFoldInput) {
   // A reset phase timer (0 on session load) is "unknown", not a zero-second run.
   const normalized: TurnFoldInput = {
     ...input,
@@ -242,7 +242,7 @@ export function applyTurnFolds(rows: readonly ChatRow[], input: TurnFoldInput): 
     plan.foldRowByPlacementIndex.size === 0 &&
     plan.foldedWaggleByIndex.size === 0
   ) {
-    return [...rows]
+    return [...rows] satisfies ChatRow[]
   }
 
   const result: ChatRow[] = []

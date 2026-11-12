@@ -1,6 +1,6 @@
 /** Native ownership is already committed: finish every in-memory transfer even
  * when a persisted Zustand write throws after updating its in-memory state. */
-export function collectOwnerReconciliationErrors(steps: readonly (() => void)[]): unknown[] {
+export function collectOwnerReconciliationErrors(steps: readonly (() => void)[]) {
   const errors: unknown[] = []
   for (const step of steps) {
     try {

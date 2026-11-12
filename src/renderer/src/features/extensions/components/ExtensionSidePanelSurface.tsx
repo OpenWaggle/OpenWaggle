@@ -107,7 +107,7 @@ function extensionSidePanelBody({
   readonly onRefresh: () => void
   readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
   readonly surfacePayload?: JsonValue
-}): ReactNode {
+}) {
   if (loading && registry === null) {
     return <ExtensionSidePanelLoadingCard />
   }

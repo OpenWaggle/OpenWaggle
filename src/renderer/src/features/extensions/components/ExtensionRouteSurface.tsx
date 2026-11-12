@@ -208,7 +208,7 @@ function extensionRouteBody({
   readonly loading: boolean
   readonly error: string | null
   readonly onRefresh: () => void
-}): ReactNode {
+}) {
   if (loading && registry === null) {
     return <ExtensionRouteLoadingCard />
   }

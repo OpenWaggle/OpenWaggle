@@ -20,9 +20,10 @@ interface KeyboardApi {
   readonly getLayoutMap: () => Promise<unknown>
 }
 
-function keyboardApi(): object | null {
+function keyboardApi() {
   const keyboard = 'keyboard' in navigator ? navigator.keyboard : null
-  return typeof keyboard === 'object' && keyboard !== null ? keyboard : null
+  const result: object | null = typeof keyboard === 'object' && keyboard !== null ? keyboard : null
+  return result
 }
 
 function layoutEntries(map: object) {

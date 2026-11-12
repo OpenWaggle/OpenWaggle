@@ -32,7 +32,7 @@ vi.mock('@/features/terminal', async (importOriginal) => ({
   watchSessionTerminalCommand: apiMocks.watchSessionTerminalCommand,
 }))
 
-function details(overrides: Partial<VcsChangeRequestDetails> = {}): VcsChangeRequestDetails {
+function details(overrides: Partial<VcsChangeRequestDetails> = {}) {
   return {
     title: 'Ship lifecycle panel',
     url: 'https://github.com/o/r/pull/7',
@@ -55,7 +55,7 @@ function details(overrides: Partial<VcsChangeRequestDetails> = {}): VcsChangeReq
     unresolvedReviewThreadsCount: null,
     merge: { allowed: true, reason: null, methods: ['merge', 'squash'] },
     ...overrides,
-  }
+  } satisfies VcsChangeRequestDetails
 }
 
 describe('ChangeRequestPanel', () => {

@@ -16,7 +16,7 @@ export function registerSidebarSessionActions(next: SidebarSessionActions | null
   for (const listener of listeners) listener()
 }
 
-export function sidebarSessionActions(): SidebarSessionActions | null {
+export function sidebarSessionActions() {
   return registered
 }
 

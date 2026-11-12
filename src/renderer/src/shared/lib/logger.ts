@@ -5,7 +5,8 @@
  * In dev: outputs to browser console with namespace prefix.
  * In prod: errors are forwarded to main process via IPC for aggregation.
  */
-import type { Logger, LogLevel } from '@shared/types/logger'
+import type { LogLevel } from '@shared/types/logger'
+import { loggerMethods } from '@shared/utils/logger-methods'
 import { env } from '@/env'
 import { lenientJsonStringify } from './lenient-json'
 
@@ -20,7 +21,7 @@ function isLevelEnabled(level: LogLevel) {
   return LOG_LEVEL_PRIORITIES[level] >= LOG_LEVEL_PRIORITIES[env.logLevel]
 }
 
-export function createRendererLogger(namespace: string): Logger {
+export function createRendererLogger(namespace: string) {
   const log = (level: LogLevel, message: string, data?: object) => {
     if (!isLevelEnabled(level)) {
       return
@@ -49,22 +50,5 @@ export function createRendererLogger(namespace: string): Logger {
     consoleMethod(prefix)
   }
 
-  return {
-    isLevelEnabled,
-    isDebugEnabled() {
-      return isLevelEnabled('debug')
-    },
-    debug(message, data) {
-      log('debug', message, data)
-    },
-    info(message, data) {
-      log('info', message, data)
-    },
-    warn(message, data) {
-      log('warn', message, data)
-    },
-    error(message, data) {
-      log('error', message, data)
-    },
-  }
+  return loggerMethods(log, isLevelEnabled)
 }

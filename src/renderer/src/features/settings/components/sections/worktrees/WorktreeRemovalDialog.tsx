@@ -9,10 +9,7 @@ import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { Spinner } from '@/shared/ui/Spinner'
 import type { WorktreeRemovalRequest } from './use-worktree-removal'
 
-async function readRemovalPreview(
-  repositoryPath: RepositoryPath,
-  worktreePath: string,
-): Promise<WorktreeRemovalPreview> {
+async function readRemovalPreview(repositoryPath: RepositoryPath, worktreePath: string) {
   const result = await api.manageProjectActions({
     scope: { projectPath: repositoryPath },
     operation: { type: 'worktree-removal-preview', path: worktreePath },

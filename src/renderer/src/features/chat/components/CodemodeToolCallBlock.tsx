@@ -42,10 +42,12 @@ function scriptPhase(
   state: string,
   result: ToolCallResultPayload | undefined,
   isStreaming: boolean,
-): ScriptPhase {
+) {
   const finished = result !== undefined && result.state !== 'partial'
-  if (!finished) return isStreaming ? 'running' : 'requested'
-  return view.failed || result.state === 'error' || state === 'error' ? 'failed' : 'completed'
+  if (!finished) return isStreaming ? ('running' as const) : ('requested' as const)
+  return view.failed || result.state === 'error' || state === 'error'
+    ? ('failed' as const)
+    : ('completed' as const)
 }
 
 /** A failed script keeps its text; the row marks the failure, as every tool row does. */

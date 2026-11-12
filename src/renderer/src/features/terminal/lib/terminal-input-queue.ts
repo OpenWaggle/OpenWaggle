@@ -44,7 +44,7 @@ function utf8Width(character: string) {
 }
 
 /** Returns null as soon as the UTF-8 input exceeds the supplied byte budget. */
-function boundedUtf8ByteLength(data: string, byteBudget: number): number | null {
+function boundedUtf8ByteLength(data: string, byteBudget: number) {
   let byteLength = 0
   for (const character of data) {
     byteLength += utf8Width(character)
@@ -59,8 +59,9 @@ function exactUtf8ByteLength(data: string) {
   return byteLength
 }
 
-export function createTerminalInputQueue(): TerminalInputQueue {
-  return { items: [], head: 0, byteLength: 0 }
+export function createTerminalInputQueue() {
+  const queue: TerminalInputQueue = { items: [], head: 0, byteLength: 0 }
+  return queue
 }
 
 export function terminalInputQueueLength(queue: TerminalInputQueue) {
@@ -71,18 +72,14 @@ export function terminalInputQueueHead(queue: TerminalInputQueue) {
   return queue.items[queue.head]
 }
 
-export function appendTerminalInput(
-  queue: TerminalInputQueue,
-  data: string,
-  byteBudget: number,
-): TerminalInputQueueAppendResult {
+export function appendTerminalInput(queue: TerminalInputQueue, data: string, byteBudget: number) {
   const byteLength = boundedUtf8ByteLength(data, byteBudget)
-  if (byteLength === null) return { status: 'capacity' }
+  if (byteLength === null) return { status: 'capacity' } satisfies TerminalInputQueueAppendResult
   for (const chunk of chunkTerminalInput(data)) {
     queue.items.push({ data: chunk, byteLength: exactUtf8ByteLength(chunk) })
   }
   queue.byteLength += byteLength
-  return { status: 'accepted', byteLength }
+  return { status: 'accepted', byteLength } satisfies TerminalInputQueueAppendResult
 }
 
 /** Append one semantic command without splitting its main-process arbitration boundary. */
@@ -92,9 +89,9 @@ export function appendTerminalProjectAction(
   byteBudget: number,
   executionId: string,
   settle: (result: TerminalProjectActionEnqueueResult) => void,
-): TerminalInputQueueAppendResult {
+) {
   const byteLength = boundedUtf8ByteLength(data, byteBudget)
-  if (byteLength === null) return { status: 'capacity' }
+  if (byteLength === null) return { status: 'capacity' } satisfies TerminalInputQueueAppendResult
   queue.items.push({
     data,
     byteLength,
@@ -102,7 +99,7 @@ export function appendTerminalProjectAction(
     settle,
   })
   queue.byteLength += byteLength
-  return { status: 'accepted', byteLength }
+  return { status: 'accepted', byteLength } satisfies TerminalInputQueueAppendResult
 }
 
 export function hasQueuedTerminalProjectAction(queue: TerminalInputQueue) {
@@ -110,7 +107,7 @@ export function hasQueuedTerminalProjectAction(queue: TerminalInputQueue) {
 }
 
 /** Reserve an async read's position so later synchronous keys cannot overtake it. */
-export function appendTerminalInputPlaceholder(queue: TerminalInputQueue): QueuedTerminalInput {
+export function appendTerminalInputPlaceholder(queue: TerminalInputQueue) {
   const placeholder = { data: '', byteLength: 0, pending: true } as const
   queue.items.push(placeholder)
   return placeholder
@@ -136,13 +133,13 @@ export function resolveTerminalInputPlaceholder(
   placeholder: QueuedTerminalInput,
   data: string,
   byteBudget: number,
-): TerminalInputPlaceholderResolution {
+) {
   const index = placeholderIndex(queue, placeholder)
-  if (index < 0) return { status: 'inactive' }
+  if (index < 0) return { status: 'inactive' } satisfies TerminalInputPlaceholderResolution
   const byteLength = boundedUtf8ByteLength(data, byteBudget)
   if (byteLength === null) {
     queue.items.splice(index, 1)
-    return { status: 'capacity' }
+    return { status: 'capacity' } satisfies TerminalInputPlaceholderResolution
   }
   const chunks = chunkTerminalInput(data).map((chunk) => ({
     data: chunk,
@@ -150,7 +147,7 @@ export function resolveTerminalInputPlaceholder(
   }))
   queue.items.splice(index, 1, ...chunks)
   queue.byteLength += byteLength
-  return { status: 'accepted', byteLength }
+  return { status: 'accepted', byteLength } satisfies TerminalInputPlaceholderResolution
 }
 
 export function removeTerminalInputHead(queue: TerminalInputQueue, expected: QueuedTerminalInput) {

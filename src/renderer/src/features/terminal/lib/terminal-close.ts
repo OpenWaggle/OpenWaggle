@@ -64,9 +64,9 @@ export async function confirmTerminalStop(
 export async function confirmAndCloseTerminals(
   ownerKey: string,
   targets: readonly [TerminalCloseTarget, ...TerminalCloseTarget[]],
-): Promise<'cancelled' | 'closed'> {
-  if (!(await confirmTerminalStop(ownerKey, targets, 'close'))) return 'cancelled'
+) {
+  if (!(await confirmTerminalStop(ownerKey, targets, 'close'))) return 'cancelled' as const
 
   await Promise.all(targets.map((target) => api.closeTerminal(ownerKey, target.terminalId, true)))
-  return 'closed'
+  return 'closed' as const
 }

@@ -30,43 +30,47 @@ const PROJECT_ACTION_CAPACITY_ERROR =
   'The Project Action command was not sent because terminal input capacity is full.'
 const PROJECT_ACTION_PENDING_ERROR = 'Another Project Action is already pending in this terminal.'
 
-function inactiveResult(state?: TerminalInputState): TerminalInputEnqueueResult {
+function inactiveResult(state?: TerminalInputState) {
   return {
     status: 'rejected',
     reason: 'inactive',
     error:
       state?.errorKind === 'retired' ? (state.error ?? INACTIVE_INPUT_ERROR) : INACTIVE_INPUT_ERROR,
-  }
+  } satisfies TerminalInputEnqueueResult
 }
 
-function capacityResult(state: TerminalInputState, error: string): TerminalInputEnqueueResult {
+function capacityResult(state: TerminalInputState, error: string) {
   setTerminalInputError(state, 'capacity', error, {
     blocked: false,
     waiting: state.remotePendingBytes > 0,
   })
-  return { status: 'rejected', reason: 'capacity', error }
+  return { status: 'rejected', reason: 'capacity', error } satisfies TerminalInputEnqueueResult
 }
 
 export function enqueueTerminalInput(
   context: TerminalInputDispatcherContext,
   state: TerminalInputState,
   data: string,
-): TerminalInputEnqueueResult {
-  if (state.disposed || state.errorKind === 'retired') return inactiveResult(state)
-  if (data.length === 0) return { status: 'accepted' }
+) {
+  if (state.disposed || state.errorKind === 'retired') {
+    return inactiveResult(state) satisfies TerminalInputEnqueueResult
+  }
+  if (data.length === 0) return { status: 'accepted' } satisfies TerminalInputEnqueueResult
   const remainingBytes = Math.max(
     0,
     context.maxPendingBytes - state.remotePendingBytes - state.queue.byteLength,
   )
   const result = appendTerminalInput(state.queue, data, remainingBytes)
-  if (result.status === 'capacity') return capacityResult(state, QUEUE_CAPACITY_ERROR)
+  if (result.status === 'capacity') {
+    return capacityResult(state, QUEUE_CAPACITY_ERROR) satisfies TerminalInputEnqueueResult
+  }
 
   if (state.errorKind === 'capacity' || state.errorKind === 'operation') {
     clearTerminalInputError(state)
     emitTerminalInputState(state)
   }
   void drainTerminalInput(context, state)
-  return { status: 'accepted' }
+  return { status: 'accepted' } satisfies TerminalInputEnqueueResult
 }
 
 export function enqueueTerminalProjectAction(
@@ -74,17 +78,17 @@ export function enqueueTerminalProjectAction(
   state: TerminalInputState,
   data: string,
   executionId: string,
-): Promise<TerminalProjectActionEnqueueResult> {
+) {
   if (state.disposed || state.errorKind === 'retired') return Promise.resolve(inactiveResult(state))
   if (hasQueuedTerminalProjectAction(state.queue)) {
-    return Promise.resolve({
+    return Promise.resolve<TerminalProjectActionEnqueueResult>({
       status: 'rejected',
       reason: 'project-action-pending',
       error: PROJECT_ACTION_PENDING_ERROR,
     })
   }
   if (data.length === 0 || executionId.length === 0) {
-    return Promise.resolve({
+    return Promise.resolve<TerminalProjectActionEnqueueResult>({
       status: 'rejected',
       reason: 'transport',
       error: 'The Project Action command is invalid.',
@@ -138,7 +142,7 @@ export function enqueueTerminalInputAsync(
   context: TerminalInputDispatcherContext,
   state: TerminalInputState,
   resolveData: () => Promise<string>,
-): Promise<TerminalInputEnqueueResult> {
+) {
   if (state.disposed || state.errorKind === 'retired') return Promise.resolve(inactiveResult(state))
   if (state.pendingOperations >= context.maxPendingOperations) {
     return Promise.resolve(capacityResult(state, OPERATION_CAPACITY_ERROR))
@@ -146,7 +150,7 @@ export function enqueueTerminalInputAsync(
   const operationVersion = state.operationVersion
   const placeholder = appendTerminalInputPlaceholder(state.queue)
   state.pendingOperations += 1
-  const operation = state.operationTail.then(async (): Promise<TerminalInputEnqueueResult> => {
+  const operation = state.operationTail.then(async () => {
     if (state.disposed || state.operationVersion !== operationVersion) {
       removeTerminalInputPlaceholder(state.queue, placeholder)
       return inactiveResult()
@@ -182,7 +186,7 @@ export function enqueueTerminalInputAsync(
     }
     emitTerminalInputState(state)
     void drainTerminalInput(context, state)
-    return { status: 'accepted' }
+    return { status: 'accepted' } satisfies TerminalInputEnqueueResult
   })
   const finalized = operation.finally(() => {
     if (state.operationVersion === operationVersion) {

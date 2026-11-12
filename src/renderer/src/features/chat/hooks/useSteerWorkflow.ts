@@ -24,11 +24,6 @@ interface SteerWorkflowDeps {
   readonly showToast: (message: string) => void
 }
 
-interface SteerWorkflowReturn {
-  readonly isSteering: boolean
-  readonly handleSteer: (messageId: string) => Promise<void>
-}
-
 /** Promotes a queued Follow-up into the active Run; kept out of the hook (see `withFinally`). */
 async function steerQueuedFollowUp(
   activeSessionId: SessionId,
@@ -86,7 +81,7 @@ async function steerQueuedFollowUp(
   }
 }
 
-export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
+export function useSteerWorkflow(deps: SteerWorkflowDeps) {
   const { activeSessionId } = deps
   const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(activeSessionId))
 

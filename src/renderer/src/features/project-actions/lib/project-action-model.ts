@@ -53,15 +53,13 @@ export interface ProjectActionDraft {
   readonly shortcutRules: readonly ProjectActionShortcutRuleDraft[]
 }
 
-export function emptyProjectActionShortcutRuleDraft(
-  draftKey = 'new-binding-0',
-): ProjectActionShortcutRuleDraft {
+export function emptyProjectActionShortcutRuleDraft(draftKey = 'new-binding-0') {
   return {
     draftKey,
     shortcut: null,
     when: '',
     order: null,
-  }
+  } satisfies ProjectActionShortcutRuleDraft
 }
 
 const EMPTY_PROJECT_ACTION_SHORTCUT_RULE: ProjectActionShortcutRuleDraft = {
@@ -97,14 +95,12 @@ type ShortcutRulesValidation =
   | { readonly ok: true; readonly rules: readonly ProjectActionShortcutRule[] }
   | { readonly ok: false; readonly error: string }
 
-function validateShortcutRules(
-  rules: readonly ProjectActionShortcutRuleDraft[],
-): ShortcutRulesValidation {
+function validateShortcutRules(rules: readonly ProjectActionShortcutRuleDraft[]) {
   if (rules.length > PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT) {
     return {
       ok: false,
       error: `An action may have at most ${String(PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT)} bindings.`,
-    }
+    } satisfies ShortcutRulesValidation
   }
   const shortcutRules: ProjectActionShortcutRule[] = []
   for (const [index, rule] of rules.entries()) {
@@ -114,7 +110,7 @@ function validateShortcutRules(
         return {
           ok: false,
           error: `Binding ${String(index + 1)} needs a shortcut or an empty condition.`,
-        }
+        } satisfies ShortcutRulesValidation
       }
       continue
     }
@@ -122,13 +118,13 @@ function validateShortcutRules(
       return {
         ok: false,
         error: `Binding ${String(index + 1)} condition is too long.`,
-      }
+      } satisfies ShortcutRulesValidation
     }
     if (when.length > 0 && parseProjectActionWhenExpression(when) === null) {
       return {
         ok: false,
         error: `Binding ${String(index + 1)} condition must use variables with !, &&, ||, and parentheses.`,
-      }
+      } satisfies ShortcutRulesValidation
     }
     shortcutRules.push({
       shortcut: rule.shortcut,
@@ -136,20 +132,25 @@ function validateShortcutRules(
       ...(rule.order === null ? {} : { order: rule.order }),
     })
   }
-  return { ok: true, rules: shortcutRules }
+  return { ok: true, rules: shortcutRules } satisfies ShortcutRulesValidation
 }
 
-export function validateProjectActionDraft(
-  draft: ProjectActionDraft,
-): ProjectActionDraftValidation {
+export function validateProjectActionDraft(draft: ProjectActionDraft) {
   const name = draft.name.trim()
   const command = draft.command.trim()
   const previewUrl = draft.previewUrl.trim()
-  if (name.length === 0) return { ok: false, error: 'Name is required.' }
-  if (command.length === 0) return { ok: false, error: 'Command is required.' }
+  if (name.length === 0) {
+    return { ok: false, error: 'Name is required.' } satisfies ProjectActionDraftValidation
+  }
+  if (command.length === 0) {
+    return { ok: false, error: 'Command is required.' } satisfies ProjectActionDraftValidation
+  }
   const normalizedPreview = previewUrl.length === 0 ? null : normalizeBrowserPreviewUrl(previewUrl)
   if (previewUrl.length > 0 && normalizedPreview === null) {
-    return { ok: false, error: 'Preview URL must be a valid http or https address.' }
+    return {
+      ok: false,
+      error: 'Preview URL must be a valid http or https address.',
+    } satisfies ProjectActionDraftValidation
   }
   const shortcutRules = validateShortcutRules(draft.shortcutRules)
   if (!shortcutRules.ok) return shortcutRules
@@ -164,7 +165,7 @@ export function validateProjectActionDraft(
       autoOpenPreview: normalizedPreview !== null && draft.autoOpenPreview,
       shortcutRules: shortcutRules.rules,
     },
-  }
+  } satisfies ProjectActionDraftValidation
 }
 
 export interface ShortcutEventLike {
@@ -190,10 +191,7 @@ function shortcutModifiers(event: ShortcutEventLike, applePlatform: boolean) {
   }
 }
 
-export function projectActionBindingFromEvent(
-  event: ShortcutEventLike,
-  applePlatform: boolean,
-): ShortcutBinding | null {
+export function projectActionBindingFromEvent(event: ShortcutEventLike, applePlatform: boolean) {
   if (MODIFIER_KEYS.has(event.key)) return null
   const binding: ShortcutBinding = {
     key: normalizedShortcutKey(event.key),

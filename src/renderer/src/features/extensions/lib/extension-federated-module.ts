@@ -21,8 +21,9 @@ export interface OpenWaggleFederatedModule {
   ) => ExtensionFederatedModuleMountResult | Promise<ExtensionFederatedModuleMountResult>
 }
 
-function moduleMountExport(value: object): unknown {
-  return Object.getOwnPropertyDescriptor(value, 'mount')?.value
+function moduleMountExport(value: object) {
+  const result: unknown = Object.getOwnPropertyDescriptor(value, 'mount')?.value
+  return result
 }
 
 export function isFederatedModule(value: unknown): value is OpenWaggleFederatedModule {

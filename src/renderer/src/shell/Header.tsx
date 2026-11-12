@@ -53,14 +53,14 @@ function sessionIdentity(
   }
 }
 
-function directCommitToast(result: GitCommitSuccess): {
-  readonly message: string
-  readonly variant: 'error' | undefined
-} {
+function directCommitToast(result: GitCommitSuccess) {
   const outputFailure = result.commitOutput?.ok === false ? result.commitOutput : null
   return {
     message: outputFailure?.message ?? `Commit created: ${result.summary}`,
     variant: outputFailure ? 'error' : undefined,
+  } satisfies {
+    readonly message: string
+    readonly variant: 'error' | undefined
   }
 }
 

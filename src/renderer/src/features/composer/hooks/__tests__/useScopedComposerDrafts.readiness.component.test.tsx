@@ -40,7 +40,7 @@ function ComposerWithDelayedWorkspace({
   )
 }
 
-function workspace(sessionId = SESSION_ID): SessionWorkspace {
+function workspace(sessionId = SESSION_ID) {
   return fromPartial<SessionWorkspace>({
     tree: { session: { id: sessionId, projectPath: '/workspace' } },
     activeBranchId: SessionBranchId(`${sessionId}:main`),

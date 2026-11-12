@@ -7,12 +7,12 @@
  * still in flight, may reflect a change made since it started, so it gets one trailing read that
  * every later caller shares; a read never answers with data older than the call that asked.
  */
-export function coalescedRead<T>(read: () => Promise<T>): () => Promise<T> {
+export function coalescedRead<T>(read: () => Promise<T>) {
   let inFlight: Promise<T> | null = null
   let joinable = false
   let trailing: Promise<T> | null = null
 
-  function start(): Promise<T> {
+  function start() {
     const promise = read()
     inFlight = promise
     joinable = true
@@ -44,14 +44,14 @@ export function coalescedRead<T>(read: () => Promise<T>): () => Promise<T> {
  * {@link coalescedRead} for each key, such as one Git status read per working path. Keys are few
  * (paths, Sessions) and an idle reader holds nothing, so readers are kept.
  */
-export function keyedCoalescedRead<K, T>(read: (key: K) => Promise<T>): (key: K) => Promise<T> {
+export function keyedCoalescedRead<K, T>(read: (key: K) => Promise<T>) {
   const readers = new Map<K, () => Promise<T>>()
-  return (key) => {
+  return ((key) => {
     let reader = readers.get(key)
     if (!reader) {
       reader = coalescedRead(() => read(key))
       readers.set(key, reader)
     }
     return reader()
-  }
+  }) satisfies (key: K) => Promise<T>
 }

@@ -7,7 +7,7 @@ import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 export function actionTaskUnavailable(
   invocation: ActionInvocation,
   discovery: ProjectTaskDiscovery | undefined,
-): string | undefined {
+) {
   if (invocation.type !== 'task' || !discovery) return undefined
   const task = findDiscoveredTask(invocation.task, discovery)
   if (task) return task.unavailableReason

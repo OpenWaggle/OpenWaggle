@@ -66,7 +66,7 @@ function builtInShortcutDraftRule(
   row: BuiltInShortcutBrowserRow,
   binding: ShortcutBinding,
   when: string,
-): ShortcutRule {
+) {
   return {
     command: row.command,
     shortcut: binding,

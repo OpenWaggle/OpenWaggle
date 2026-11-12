@@ -84,7 +84,7 @@ const ACTIVE_SESSION: SessionDetail = {
   worktreePath: WORKTREE,
 }
 
-function summary(id: string, title: string, lineage: SessionLineageSummary): SessionSummary {
+function summary(id: string, title: string, lineage: SessionLineageSummary) {
   return {
     id: SessionId(id),
     title,
@@ -93,7 +93,7 @@ function summary(id: string, title: string, lineage: SessionLineageSummary): Ses
     updatedAt: 2,
     lastActiveBranchId: SessionBranchId('branch-1'),
     lineage,
-  }
+  } satisfies SessionSummary
 }
 
 function tree(session: SessionSummary) {

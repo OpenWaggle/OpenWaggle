@@ -174,12 +174,12 @@ function pinnedRowHighlight(input: {
   readonly activeSessionId: string | null
   readonly activeHiveRootId: string | null
   readonly sessionId: string
-}): SessionRowHighlight {
-  if (input.activeSessionId === input.sessionId) return 'active'
+}) {
+  if (input.activeSessionId === input.sessionId) return 'active' as const
   if (input.activeHiveRootId !== null && input.activeHiveRootId === input.sessionId) {
-    return 'hive-home'
+    return 'hive-home' as const
   }
-  return 'none'
+  return 'none' as const
 }
 
 function PinnedSessionListItem({

@@ -1,12 +1,6 @@
-import type {
-  UsageCostQuery,
-  UsageCostSessionQuery,
-  UsageCostSessionsResult,
-  UsageCostView,
-} from '@shared/types/usage-cost'
+import type { UsageCostQuery, UsageCostSessionQuery } from '@shared/types/usage-cost'
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
-import type { OpenWaggleQueryOptions } from './query-options'
 
 /** Usage & Cost view data, scanned from Pi session records on demand. */
 
@@ -17,14 +11,7 @@ export const usageCostQueryKeys = {
   sessions: (query: UsageCostSessionQuery) => ['usageCostSessions', query] as const,
 }
 
-export function usageCostViewQueryOptions(
-  query: UsageCostQuery,
-): OpenWaggleQueryOptions<
-  UsageCostView,
-  Error,
-  UsageCostView,
-  ReturnType<typeof usageCostQueryKeys.view>
-> {
+export function usageCostViewQueryOptions(query: UsageCostQuery) {
   return queryOptions({
     queryKey: usageCostQueryKeys.view(query),
     queryFn: () => api.getUsageCostView(query),
@@ -35,14 +22,7 @@ export function usageCostViewQueryOptions(
   })
 }
 
-export function usageCostSessionsQueryOptions(
-  query: UsageCostSessionQuery,
-): OpenWaggleQueryOptions<
-  UsageCostSessionsResult,
-  Error,
-  UsageCostSessionsResult,
-  ReturnType<typeof usageCostQueryKeys.sessions>
-> {
+export function usageCostSessionsQueryOptions(query: UsageCostSessionQuery) {
   return queryOptions({
     queryKey: usageCostQueryKeys.sessions(query),
     queryFn: () => api.getUsageCostSessions(query),

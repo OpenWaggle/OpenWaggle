@@ -1,6 +1,6 @@
 import { canonicalJson } from '@shared/canonical-json'
 import type { WorkingPath } from '@shared/types/brand'
-import type { LocalVcsStatus, RemoteVcsStatus, VcsStatus } from '@shared/types/git'
+import type { LocalVcsStatus, RemoteVcsStatus } from '@shared/types/git'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -44,28 +44,32 @@ async function loadLocalStatus(
     readonly loadedPath: MutableRef<WorkingPath | null>
     readonly loadedRef: MutableRef<string | null>
   },
-): Promise<LocalLoadOutcome> {
+) {
   const { workingPath, requestedPath, requestId, thisRequest } = input
   try {
     const result = await api.getLocalVcsStatus(workingPath)
-    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return 'stale'
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) {
+      return 'stale' as const
+    }
     if (!result.ok) {
       if (result.code === 'not-a-repo') {
         input.setLocal(null)
-        return 'settled-failure'
+        return 'settled-failure' as const
       }
       if (!input.revalidating) input.setLocal(null)
-      return 'retryable-failure'
+      return 'retryable-failure' as const
     }
     input.setLocal(result.status)
     input.loadedPath.current = workingPath
     input.loadedRef.current = refIdentity(result.status)
-    return 'loaded'
+    return 'loaded' as const
   } catch (error) {
     logger.warn('Failed to load local VCS status', { error: String(error) })
-    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return 'stale'
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) {
+      return 'stale' as const
+    }
     if (!input.revalidating) input.setLocal(null)
-    return 'retryable-failure'
+    return 'retryable-failure' as const
   }
 }
 
@@ -144,9 +148,9 @@ function isRevalidation(
   return workingPath !== null && workingPath === previousPath && workingPath === loadedPath
 }
 
-function localStateFor(outcome: Exclude<LocalLoadOutcome, 'stale'>): LocalVcsLoadState {
-  if (outcome === 'loaded') return 'loaded'
-  return outcome === 'settled-failure' ? 'unavailable' : 'error'
+function localStateFor(outcome: Exclude<LocalLoadOutcome, 'stale'>) {
+  if (outcome === 'loaded') return 'loaded' as const
+  return outcome === 'settled-failure' ? ('unavailable' as const) : ('error' as const)
 }
 
 /**
@@ -297,7 +301,7 @@ const EMPTY_REMOTE: RemoteVcsStatus = {
  * null. A stale remote half kept through a failed revalidation never overrides a newer local
  * decision such as the user's own choice.
  */
-function combineVcsStatus(local: LocalVcsStatus, remote: RemoteVcsStatus | null): VcsStatus {
+function combineVcsStatus(local: LocalVcsStatus, remote: RemoteVcsStatus | null) {
   const { sourceControlProvider, sourceControlHost, ...remoteFields } = remote ?? EMPTY_REMOTE
   return {
     ...local,

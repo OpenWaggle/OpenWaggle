@@ -43,7 +43,7 @@ function renderWizard(
   const onClose = vi.fn()
   const onImport =
     options.onImport ??
-    vi.fn(async (): Promise<GuidedBrowserImportResult> => ({
+    vi.fn<() => Promise<GuidedBrowserImportResult>>(async () => ({
       ok: true,
       result: { imported: 1, skipped: 0, skippedDomains: [] },
       targetName: 'Chrome',
@@ -176,7 +176,7 @@ describe('BrowserImportWizard', () => {
 
   it('offers selection recovery when the profile cap changes during import', async () => {
     renderWizard({
-      onImport: vi.fn(async (): Promise<GuidedBrowserImportResult> => ({
+      onImport: vi.fn<() => Promise<GuidedBrowserImportResult>>(async () => ({
         ok: false,
         reason: 'profile-limit-reached',
         message: 'Limit reached.',

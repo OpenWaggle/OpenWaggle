@@ -76,7 +76,7 @@ function addVisibleAncestors(input: {
 export function filterSessionTreeNodes(
   nodes: readonly SessionTreeNode[],
   mode: SessionTreeFilterMode,
-): readonly SessionTreeNode[] {
+) {
   return match(mode)
     .with('all', () => nodes)
     .with('user-only', () => nodes.filter(isUserNode))
@@ -92,7 +92,7 @@ export function searchSessionTreeNodes(input: {
   readonly query: string
   /** Node ids whose full transcript text the Host matched for this query. */
   readonly textMatchNodeIds?: ReadonlySet<string>
-}): readonly SessionTreeNode[] {
+}) {
   const normalizedQuery = normalizeSearchText(input.query)
   if (!normalizedQuery) {
     return input.filteredNodes

@@ -11,7 +11,7 @@ import { required } from '@/test-utils/required'
 
 const SESSION_ID = SessionId('session-1')
 
-function assistantNode(id: string, content: string, createdOrder: number): SessionNode {
+function assistantNode(id: string, content: string, createdOrder: number) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -31,16 +31,16 @@ function assistantNode(id: string, content: string, createdOrder: number): Sessi
     },
     contentJson: JSON.stringify({ parts: [{ type: 'text', text: content }], model: null }),
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
-function uiMessage(id: string, role: 'user' | 'assistant', content: string): UIMessage {
+function uiMessage(id: string, role: 'user' | 'assistant', content: string) {
   return {
     id,
     role,
     parts: [{ type: 'text', content }],
     createdAt: new Date(1),
-  }
+  } satisfies UIMessage
 }
 
 describe('resolveTranscriptMessages at an inactive branch head', () => {

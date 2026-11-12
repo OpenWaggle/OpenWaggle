@@ -10,7 +10,7 @@ const extensions = {
   projectPaths: ['/test/project'],
 }
 
-function customInteractionRequest(): AgentTransportInteractionRequestEvent {
+function customInteractionRequest() {
   return {
     type: 'agent_interaction_request',
     timestamp: 1,
@@ -24,7 +24,7 @@ function customInteractionRequest(): AgentTransportInteractionRequestEvent {
       createdAt: 1,
       renderer: { kind: 'pi-tui-custom', supported: false },
     },
-  }
+  } satisfies AgentTransportInteractionRequestEvent
 }
 
 describe('InteractionEventRow', () => {
@@ -49,10 +49,7 @@ describe('InteractionEventRow', () => {
   })
 })
 
-function notifyRequest(
-  level: 'info' | 'warning' | 'error',
-  message = `Notice at ${level} level`,
-): AgentTransportInteractionRequestEvent {
+function notifyRequest(level: 'info' | 'warning' | 'error', message = `Notice at ${level} level`) {
   return {
     type: 'agent_interaction_request',
     timestamp: 1,
@@ -66,7 +63,7 @@ function notifyRequest(
       message,
       level,
     },
-  }
+  } satisfies AgentTransportInteractionRequestEvent
 }
 
 describe('InteractionEventRow notification durability', () => {
@@ -96,7 +93,7 @@ describe('InteractionEventRow notification durability', () => {
 
 const UNBROKEN_TOKEN = `/very/long/path/${'segment'.repeat(40)}`
 
-function confirmRequest(message: string): AgentTransportInteractionRequestEvent {
+function confirmRequest(message: string) {
   return {
     type: 'agent_interaction_request',
     timestamp: 1,
@@ -111,7 +108,7 @@ function confirmRequest(message: string): AgentTransportInteractionRequestEvent 
       title: 'Run this command?',
       message,
     },
-  }
+  } satisfies AgentTransportInteractionRequestEvent
 }
 
 function rowSection(container: HTMLElement) {

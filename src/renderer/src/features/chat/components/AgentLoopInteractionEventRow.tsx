@@ -33,9 +33,7 @@ function eventTimeLabel(timestamp: number) {
 }
 
 function extensionInteractionState(resolution: AgentTransportInteractionResolvedEvent | undefined) {
-  if (!resolution) {
-    return 'pending'
-  }
+  if (!resolution) return 'pending'
 
   return resolution.status === 'resolved' ? 'submitted' : 'cancelled'
 }
@@ -70,21 +68,25 @@ interface StatusView {
   readonly icon: LucideIcon
 }
 
-function pendingStatus(): StatusView {
-  return { label: 'Waiting', tone: 'pending', icon: Clock3 }
+function pendingStatus() {
+  const view: StatusView = { label: 'Waiting', tone: 'pending', icon: Clock3 }
+  return view
 }
 
-function completedStatus(): StatusView {
-  return { label: 'Completed', tone: 'success', icon: CheckCircle2 }
+function completedStatus() {
+  const view: StatusView = { label: 'Completed', tone: 'success', icon: CheckCircle2 }
+  return view
 }
 
-function terminalStatus(resolution: AgentTransportInteractionResolvedEvent): StatusView | null {
+function terminalStatus(resolution: AgentTransportInteractionResolvedEvent) {
   if (resolution.status === 'errored') {
-    return { label: 'Failed', tone: 'error', icon: XCircle }
+    const view: StatusView | null = { label: 'Failed', tone: 'error', icon: XCircle }
+    return view
   }
 
   if (resolution.status === 'cancelled') {
-    return { label: 'Cancelled', tone: 'muted', icon: CircleSlash }
+    const view: StatusView | null = { label: 'Cancelled', tone: 'muted', icon: CircleSlash }
+    return view
   }
 
   return null
@@ -93,42 +95,46 @@ function terminalStatus(resolution: AgentTransportInteractionResolvedEvent): Sta
 function confirmStatus(
   interaction: Extract<AgentLoopInteraction, { kind: 'confirm' }>,
   accepted: boolean,
-): StatusView {
+) {
   if (!accepted) {
-    return {
+    const view: StatusView = {
       label: interaction.purpose === 'authorization' ? 'Denied' : 'Cancelled',
       tone: 'muted',
       icon: CircleSlash,
     }
+    return view
   }
 
-  return {
+  const view: StatusView = {
     label: interaction.purpose === 'authorization' ? 'Allowed' : 'Confirmed',
     tone: 'success',
     icon: CheckCircle2,
   }
+  return view
 }
 
-function selectStatus(selected: string | null): StatusView {
-  return {
+function selectStatus(selected: string | null) {
+  const view: StatusView = {
     label: selected ? `Selected: ${selected}` : 'No selection',
     tone: selected ? 'success' : 'muted',
     icon: selected ? CheckCircle2 : CircleSlash,
   }
+  return view
 }
 
-function textStatus(value: string | null): StatusView {
-  return {
+function textStatus(value: string | null) {
+  const view: StatusView = {
     label: value === null ? 'Cancelled' : 'Submitted',
     tone: value === null ? 'muted' : 'success',
     icon: value === null ? CircleSlash : CheckCircle2,
   }
+  return view
 }
 
 function statusLabel(input: {
   readonly interaction: AgentLoopInteraction
   readonly resolution?: AgentTransportInteractionResolvedEvent
-}): StatusView {
+}) {
   const { interaction, resolution } = input
   if (!resolution) return pendingStatus()
 

@@ -15,7 +15,7 @@ vi.mock('@/shared/lib/logger', () => ({
   createRendererLogger: () => ({ warn: loggerWarn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }))
 
-function actions(overrides: Partial<CoreCommandActions> = {}): CoreCommandActions {
+function actions(overrides: Partial<CoreCommandActions> = {}) {
   return {
     compactSession: vi.fn().mockResolvedValue(undefined),
     copySessionLink: vi.fn(),
@@ -39,7 +39,7 @@ function actions(overrides: Partial<CoreCommandActions> = {}): CoreCommandAction
     toggleSidePanelMaximized: vi.fn(),
     closeActiveTerminal: vi.fn(async () => undefined),
     ...overrides,
-  }
+  } satisfies CoreCommandActions
 }
 
 describe('global command core items', () => {

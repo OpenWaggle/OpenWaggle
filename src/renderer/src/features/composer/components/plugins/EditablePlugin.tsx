@@ -5,7 +5,7 @@ interface EditablePluginProps {
   readonly disabled?: boolean
 }
 
-export function EditablePlugin({ disabled }: EditablePluginProps): null {
+export function EditablePlugin({ disabled }: EditablePluginProps) {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {

@@ -3,14 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { markTurnReplies } from '../turn-reply-actions'
 import type { ChatRow, MessageChatRow } from '../types-chat-row'
 
-function row(id: string, role: UIMessage['role'], parts: UIMessage['parts']): MessageChatRow {
-  return {
+function row(id: string, role: UIMessage['role'], parts: UIMessage['parts']) {
+  const result: MessageChatRow = {
     type: 'message',
     message: { id, role, parts, createdAt: new Date(0) },
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
   }
+  return result
 }
 
 const user = (id: string) => row(id, 'user', [{ type: 'text', content: id }])
@@ -94,13 +95,14 @@ describe('markTurnReplies: what is a reply', () => {
   })
 
   it("marks each Waggle agent turn's reply, the last one latest", () => {
-    const turn = (id: string, messages: MessageChatRow[]): ChatRow => ({
-      type: 'waggle-turn',
-      id,
-      turnDividerProps: { turnNumber: 0, agentLabel: id, agentColor: 'blue' },
-      agentColor: 'blue',
-      messages,
-    })
+    const turn = (id: string, messages: MessageChatRow[]) =>
+      ({
+        type: 'waggle-turn',
+        id,
+        turnDividerProps: { turnNumber: 0, agentLabel: id, agentColor: 'blue' },
+        agentColor: 'blue',
+        messages,
+      }) satisfies ChatRow
     const rows = [
       user('u1'),
       turn('w1', [toolStep('w1-tools'), reply('w1-reply')]),

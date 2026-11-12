@@ -43,11 +43,11 @@ interface MountExtensionFrameInput {
   readonly surfacePayloadJson?: string
 }
 
-export function missingEntryPathStatus(): MountStatus {
+export function missingEntryPathStatus() {
   return {
     kind: 'error',
     message: 'Extension contribution is missing its runtime module entry path.',
-  }
+  } satisfies MountStatus
 }
 
 export function supportsExtensionExecutionPlacement(entry: ExtensionContributionRegistryEntry) {
@@ -93,7 +93,7 @@ export function federatedModuleSurfacePayloadJson(surfacePayload: JsonValue | un
   return surfacePayload === undefined ? undefined : JSON.stringify(surfacePayload)
 }
 
-function surfacePayloadFromJson(surfacePayloadJson: string | undefined): JsonValue | undefined {
+function surfacePayloadFromJson(surfacePayloadJson: string | undefined) {
   if (surfacePayloadJson === undefined) {
     return undefined
   }
@@ -182,12 +182,12 @@ function registerProtocolFrame(input: {
 export function initialMountStatus(input: {
   readonly frameRuntimeSupported: boolean
   readonly moduleUrl: string | null
-}): MountStatus {
+}) {
   if (!input.frameRuntimeSupported) {
-    return { kind: 'idle' }
+    return { kind: 'idle' } satisfies MountStatus
   }
 
-  return input.moduleUrl === null ? missingEntryPathStatus() : { kind: 'loading' }
+  return input.moduleUrl === null ? missingEntryPathStatus() : ({ kind: 'loading' } as const)
 }
 
 interface FrameMountRuntime {

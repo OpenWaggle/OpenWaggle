@@ -10,7 +10,7 @@ export interface TargetOption {
 }
 
 /** Non-archived Sessions a Heartbeat can deliver into, plus the one it already targets. */
-export function useHeartbeatSessionOptions(currentSessionId: string): readonly TargetOption[] {
+export function useHeartbeatSessionOptions(currentSessionId: string) {
   const sessions = useSessionStore((state) => state.sessions)
   const options = sessions
     .filter((session) => session.archived !== true)
@@ -25,7 +25,7 @@ export function useHeartbeatSessionOptions(currentSessionId: string): readonly T
 }
 
 /** The projects OpenWaggle knows: the open one, recent ones, and those listed Sessions use. */
-export function useLaunchProjectOptions(currentProjectPath: string): readonly TargetOption[] {
+export function useLaunchProjectOptions(currentProjectPath: string) {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const recentProjects = usePreferencesStore((state) => state.settings.recentProjects)
   const sessions = useSessionStore((state) => state.sessions)
@@ -41,7 +41,7 @@ export function useLaunchProjectOptions(currentProjectPath: string): readonly Ta
     .sort((left, right) => left.label.localeCompare(right.label))
 }
 
-export function useEnabledModelOptions(currentModelId: string): readonly TargetOption[] {
+export function useEnabledModelOptions(currentModelId: string) {
   const enabledModels = usePreferencesStore((state) => state.settings.enabledModels)
   const models = new Set<string>(enabledModels)
   if (currentModelId) models.add(currentModelId)
@@ -49,10 +49,7 @@ export function useEnabledModelOptions(currentModelId: string): readonly TargetO
 }
 
 /** Agent definitions in the chosen project, or none until a project is chosen. */
-export function useAgentDefinitionOptions(
-  projectPath: string,
-  currentName: string,
-): readonly TargetOption[] {
+export function useAgentDefinitionOptions(projectPath: string, currentName: string) {
   const definitions = useQuery(agentDefinitionsQueryOptions(projectPath || null))
   const names = new Set(
     (definitions.data ?? [])

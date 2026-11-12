@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SessionContextRowState } from '@/features/git/hooks/useSessionContextRow'
 import { SessionContextRow } from '../SessionContextRow'
 
-function stripState(overrides: Partial<SessionContextRowState> = {}): SessionContextRowState {
-  return {
+function stripState(overrides: Partial<SessionContextRowState> = {}) {
+  const state: SessionContextRowState = {
     visible: true,
     editable: true,
     envMode: 'worktree',
@@ -24,6 +24,7 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     switchToLocalMode: vi.fn(),
     ...overrides,
   }
+  return state
 }
 
 describe('SessionContextRow', () => {

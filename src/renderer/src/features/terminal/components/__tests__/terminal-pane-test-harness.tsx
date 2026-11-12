@@ -38,7 +38,7 @@ interface TerminalInstanceMock {
 type SearchAddonMethod = 'clearDecorations' | 'dispose' | 'findNext' | 'findPrevious'
 type SearchAddonInstanceMock = Record<SearchAddonMethod, Mock>
 
-interface TerminalPaneMocks {
+export interface TerminalPaneMocks {
   readonly fitTerminal: Mock
   readonly terminalInstances: TerminalInstanceMock[]
   readonly searchAddonInstances: SearchAddonInstanceMock[]
@@ -236,7 +236,7 @@ type RenderPaneOptions = Partial<TerminalPaneModel> & {
   readonly onFocus?: () => void
 }
 
-export function renderPane(options: RenderPaneOptions = {}): RenderResult {
+export function renderPane(options: RenderPaneOptions = {}) {
   const pane: TerminalPaneModel = {
     ownerKey: options.ownerKey ?? OWNER,
     runtimeOwnerKey: options.runtimeOwnerKey ?? OWNER,
@@ -247,7 +247,7 @@ export function renderPane(options: RenderPaneOptions = {}): RenderResult {
     defaultProvenance: options.defaultProvenance ?? 'draft-checkout',
     label: options.label ?? 'Terminal 1',
   }
-  return render(
+  const result: RenderResult = render(
     <TerminalPane
       pane={pane}
       focused={options.focused ?? true}
@@ -255,16 +255,18 @@ export function renderPane(options: RenderPaneOptions = {}): RenderResult {
       onSearchAddon={() => undefined}
     />,
   )
+  return result
 }
 
-export function renderTerminalPanel(defaultCwd: string | null = '/tmp/project-x'): RenderResult {
-  return render(
+export function renderTerminalPanel(defaultCwd: string | null = '/tmp/project-x') {
+  const result: RenderResult = render(
     <TerminalPanel
       ownerKey={defaultCwd === null ? '' : OWNER}
       defaultCwd={defaultCwd}
       onClose={() => undefined}
     />,
   )
+  return result
 }
 
 export function resetTerminalPaneHarness() {

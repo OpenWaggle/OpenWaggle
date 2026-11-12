@@ -35,10 +35,7 @@ interface TreeSearchResult {
  * matches for the same Session and query stay shown; a result for another query or Session never
  * is.
  */
-export function useSessionTreeTextSearch(
-  tree: SessionTree | null,
-  query: string,
-): ReadonlySet<string> | undefined {
+export function useSessionTreeTextSearch(tree: SessionTree | null, query: string) {
   const sessionId = tree?.session.id ?? null
   const treeRevision = tree ? `${String(tree.session.updatedAt)}:${String(tree.nodes.length)}` : ''
   const normalized = query.trim().replace(/\s+/g, ' ')

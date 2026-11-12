@@ -17,14 +17,15 @@ function message(
   role: UIMessage['role'],
   content: string,
   sessionNodeCreatedOrder?: number,
-): UIMessage {
-  return {
+) {
+  const result: UIMessage = {
     id,
     role,
     parts: [{ type: 'text', content }],
     createdAt: new Date(0),
     ...(sessionNodeCreatedOrder === undefined ? {} : { metadata: { sessionNodeCreatedOrder } }),
   }
+  return result
 }
 
 describe('steering receipts after working-context compaction', () => {

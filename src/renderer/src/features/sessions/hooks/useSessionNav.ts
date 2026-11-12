@@ -21,15 +21,8 @@ interface SessionNavDeps {
   readonly refreshGitBranches: (repositoryPath: RepositoryPath | null) => Promise<void>
 }
 
-interface SessionNavHandlers {
-  readonly handleSelectSession: (id: SessionId) => Promise<void>
-  readonly handleNewSession: () => void
-  readonly handleOpenProject: () => Promise<void>
-  readonly handleSelectProjectPath: (path: string) => Promise<void>
-}
-
 /** Pure factory — testable without React. */
-export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandlers {
+export function createSessionNavHandlers(deps: SessionNavDeps) {
   const {
     sessions,
     projectPath,
@@ -93,6 +86,6 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
 }
 
 /** Hook wrapper — calls the factory with current deps. */
-export function useSessionNav(deps: SessionNavDeps): SessionNavHandlers {
+export function useSessionNav(deps: SessionNavDeps) {
   return createSessionNavHandlers(deps)
 }

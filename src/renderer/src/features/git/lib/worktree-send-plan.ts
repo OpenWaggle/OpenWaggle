@@ -39,23 +39,25 @@ export const WORKTREE_MISSING_REASON = SESSION_WORKTREE_MISSING_MESSAGE
  * Decide whether a send proceeds directly, must first birth a Session worktree
  * off a chosen base ref, or is blocked because no base ref is resolvable.
  */
-export function resolveWorktreeSendPlan(input: WorktreeSendPlanInput): WorktreeSendPlan {
+export function resolveWorktreeSendPlan(input: WorktreeSendPlanInput) {
   /*
    * A worktree that vanished stops the send. Recreating it silently would hand the
    * agent an empty tree while the session's earlier work is gone, with nothing in the
    * UI saying so, so the user chooses: recreate, or run in the opened checkout.
    */
   if (input.envMode === 'worktree' && input.hasWorktree && input.worktreeExists === false) {
-    return { kind: 'worktree-missing', reason: WORKTREE_MISSING_REASON }
+    return { kind: 'worktree-missing', reason: WORKTREE_MISSING_REASON } satisfies WorktreeSendPlan
   }
 
   const shouldCreateWorktree =
     input.isFirstMessage && input.envMode === 'worktree' && !input.hasWorktree
-  if (!shouldCreateWorktree) return { kind: 'proceed' }
+  if (!shouldCreateWorktree) return { kind: 'proceed' } satisfies WorktreeSendPlan
 
   const baseRef = input.baseRef?.trim()
-  if (!baseRef) return { kind: 'blocked', reason: WORKTREE_BASE_REF_REQUIRED }
-  return { kind: 'create-worktree', baseRef }
+  if (!baseRef) {
+    return { kind: 'blocked', reason: WORKTREE_BASE_REF_REQUIRED } satisfies WorktreeSendPlan
+  }
+  return { kind: 'create-worktree', baseRef } satisfies WorktreeSendPlan
 }
 
 /**
@@ -64,6 +66,6 @@ export function resolveWorktreeSendPlan(input: WorktreeSendPlanInput): WorktreeS
  */
 export function resolveDefaultWorktreeBaseRef(
   branchList: { readonly currentBranch: string | null } | null,
-): string | null {
+) {
   return branchList?.currentBranch?.trim() || null
 }

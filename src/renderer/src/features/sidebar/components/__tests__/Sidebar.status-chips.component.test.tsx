@@ -57,14 +57,14 @@ function session(id: SessionId, title: string, projectPath: string, updatedAt: n
   return { id, title, projectPath, createdAt: 1, updatedAt } satisfies SessionSummary
 }
 
-function makeSessions(): SessionSummary[] {
+function makeSessions() {
   return [
     session(WORKING_ID, 'Working session', ALPHA, 50),
     session(ERROR_ID, 'Failed session', ALPHA, 40),
     session(INPUT_ID, 'Question session', ALPHA, 30),
     session(IDLE_ID, 'Quiet session', ALPHA, 20),
     session(BETA_ERROR_ID, 'Other project failure', BETA, 10),
-  ]
+  ] satisfies SessionSummary[]
 }
 
 /** Statuses spread across two projects, so a filter has to reach beyond one group. */

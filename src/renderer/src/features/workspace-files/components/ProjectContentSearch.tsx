@@ -61,14 +61,37 @@ function contentSearchNotice(input: {
   readonly searching: boolean
   readonly error: Error | null
   readonly matchCount: number
-}): { readonly text: string; readonly error?: boolean } | null {
-  if (!input.projectPath) return { text: 'Open a project to search its contents.' }
-  if (input.query.trim().length === 0) {
-    return { text: 'Type to search text across indexed project files.' }
+}) {
+  if (!input.projectPath) {
+    return { text: 'Open a project to search its contents.' } satisfies {
+      readonly text: string
+      readonly error?: boolean
+    }
   }
-  if (input.searching) return { text: 'Searching project contents…' }
-  if (input.error) return { text: input.error.message, error: true }
-  if (input.matchCount === 0) return { text: 'No matching lines.' }
+  if (input.query.trim().length === 0) {
+    return { text: 'Type to search text across indexed project files.' } satisfies {
+      readonly text: string
+      readonly error?: boolean
+    }
+  }
+  if (input.searching) {
+    return { text: 'Searching project contents…' } satisfies {
+      readonly text: string
+      readonly error?: boolean
+    }
+  }
+  if (input.error) {
+    return { text: input.error.message, error: true } satisfies {
+      readonly text: string
+      readonly error?: boolean
+    }
+  }
+  if (input.matchCount === 0) {
+    return { text: 'No matching lines.' } satisfies {
+      readonly text: string
+      readonly error?: boolean
+    }
+  }
   return null
 }
 

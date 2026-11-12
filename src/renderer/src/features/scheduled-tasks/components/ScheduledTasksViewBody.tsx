@@ -15,10 +15,12 @@ import { ScheduledTaskEditor } from './ScheduledTaskEditor'
 function editorTarget(
   view: Extract<ScheduledTasksView, { kind: 'edit' | 'new' }>,
   tasks: readonly ScheduledTask[] | undefined,
-): ScheduledTaskEditorTarget | null {
-  if (view.kind === 'new') return { mode: 'create', ...view.defaults }
+) {
+  if (view.kind === 'new') {
+    return { mode: 'create', ...view.defaults } satisfies ScheduledTaskEditorTarget
+  }
   const task = tasks?.find((candidate) => candidate.id === view.taskId)
-  return task ? { mode: 'edit', task } : null
+  return (task ? { mode: 'edit', task } : null) satisfies ScheduledTaskEditorTarget | null
 }
 
 /** Remounts the editor, and so its draft, for another task or another New task's defaults. */

@@ -33,7 +33,7 @@ function isAuthoritySkip(run: ScheduledTaskRun) {
   return run.status === 'skipped' && run.reason === 'creator-authority-revoked'
 }
 
-function runNotice(task: ScheduledTask, run: ScheduledTaskRun): ScheduledTaskNotice | null {
+function runNotice(task: ScheduledTask, run: ScheduledTaskRun) {
   const reason = runReasonText(run)
   if (run.status === 'failed' || isAuthoritySkip(run)) {
     const verb = run.status === 'failed' ? 'failed' : 'was skipped'
@@ -42,7 +42,7 @@ function runNotice(task: ScheduledTask, run: ScheduledTaskRun): ScheduledTaskNot
       variant: 'error',
       message: `Scheduled task “${task.name}” ${verb}${reason ? `: ${reason}` : '.'}`,
       action: 'open',
-    }
+    } satisfies ScheduledTaskNotice
   }
   if (run.status === 'started' && task.notificationPolicy === 'every-run') {
     const what = task.kind === 'launch' ? 'started a Session' : 'delivered its prompt'
@@ -51,7 +51,7 @@ function runNotice(task: ScheduledTask, run: ScheduledTaskRun): ScheduledTaskNot
       variant: 'neutral',
       message: `Scheduled task “${task.name}” ${what}.`,
       action: 'open',
-    }
+    } satisfies ScheduledTaskNotice
   }
   return null
 }
@@ -93,7 +93,9 @@ function taskNotices(task: ScheduledTask, previous: ScheduledTaskNoticeSnapshot 
 export function scheduledTaskNotices(
   previous: ReadonlyMap<string, ScheduledTaskNoticeSnapshot> | null,
   tasks: readonly ScheduledTask[],
-): readonly ScheduledTaskNotice[] {
-  if (previous === null) return []
-  return tasks.flatMap((task) => taskNotices(task, previous.get(task.id)))
+) {
+  if (previous === null) return [] satisfies readonly ScheduledTaskNotice[]
+  return tasks.flatMap((task) =>
+    taskNotices(task, previous.get(task.id)),
+  ) satisfies readonly ScheduledTaskNotice[]
 }

@@ -8,8 +8,8 @@ import { DeletedPiSessionFileNotice } from '../DeletedPiSessionFileNotice'
 const DELETED =
   "This Session's Pi session file was deleted outside OpenWaggle (/p/s.jsonl), so its history is gone and it cannot be continued. Restore the file to continue it. The Session stays, to read, because fork f1 still depends on it."
 
-function session(piSessionFileDeleted?: string): SessionDetail {
-  return {
+function session(piSessionFileDeleted?: string) {
+  const detail: SessionDetail = {
     id: SessionId('discovered'),
     title: 'Discovered',
     projectPath: '/repo',
@@ -18,6 +18,7 @@ function session(piSessionFileDeleted?: string): SessionDetail {
     updatedAt: 1,
     ...(piSessionFileDeleted ? { piSessionFileDeleted } : {}),
   }
+  return detail
 }
 
 describe('DeletedPiSessionFileNotice', () => {

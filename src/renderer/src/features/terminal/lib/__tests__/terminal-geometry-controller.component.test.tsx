@@ -5,14 +5,7 @@ const FRAME_INTERVAL_MS = 16
 const MAX_STABLE_OPEN_LATENCY_MS = 50
 const RESIZE_DEBOUNCE_MS = 150
 
-interface AnimationFrameHarness {
-  readonly cancel: ReturnType<typeof vi.fn>
-  readonly elapsedMs: () => number
-  readonly flush: () => void
-  readonly pending: () => number
-}
-
-function installAnimationFrames(): AnimationFrameHarness {
+function installAnimationFrames() {
   let nextHandle = 1
   let timestamp = 0
   const callbacks = new Map<number, FrameRequestCallback>()

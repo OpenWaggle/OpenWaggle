@@ -9,7 +9,7 @@ import {
   useGit,
 } from './session-summary-hub.test-harness'
 
-function branch(name: string): GitBranchInfo {
+function branch(name: string) {
   return {
     name,
     localName: name,
@@ -19,7 +19,7 @@ function branch(name: string): GitBranchInfo {
     upstream: null,
     ahead: 0,
     behind: 0,
-  }
+  } satisfies GitBranchInfo
 }
 
 describe('SessionSummaryHub branch scope', () => {

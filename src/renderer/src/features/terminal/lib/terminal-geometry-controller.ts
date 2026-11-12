@@ -14,7 +14,7 @@ interface TerminalContainerGeometry {
   readonly height: number
 }
 
-function containerGeometry(container: HTMLElement): TerminalContainerGeometry {
+function containerGeometry(container: HTMLElement) {
   const rect = container.getBoundingClientRect()
   return { width: rect.width, height: rect.height }
 }

@@ -13,8 +13,8 @@ function session(input: {
   readonly updatedAt: number
   readonly branches?: readonly SessionBranch[]
   readonly branchesSidebarCollapsed?: boolean
-}): SessionSummary {
-  return {
+}) {
+  const summary: SessionSummary = {
     id: SessionId(input.id),
     title: input.title,
     projectPath: input.projectPath,
@@ -32,9 +32,10 @@ function session(input: {
             updatedAt: input.updatedAt,
           },
   }
+  return summary
 }
 
-function branch(input: { readonly id: string; readonly archived?: boolean }): SessionBranch {
+function branch(input: { readonly id: string; readonly archived?: boolean }) {
   return {
     id: SessionBranchId(input.id),
     sessionId: SessionId('session-a'),
@@ -45,10 +46,10 @@ function branch(input: { readonly id: string; readonly archived?: boolean }): Se
     archived: input.archived ?? false,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies SessionBranch
 }
 
-function projectAt<TProject>(projects: readonly TProject[], index: number): TProject {
+function projectAt<TProject>(projects: readonly TProject[], index: number) {
   const project = projects[index]
   if (!project) {
     throw new Error(`Expected project at index ${String(index)}`)

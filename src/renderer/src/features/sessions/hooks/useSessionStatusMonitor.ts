@@ -118,7 +118,7 @@ async function loadRunningWorkerParents(
  * When a terminal status arrives for the currently active session,
  * it is immediately marked as visited so the icon doesn't flash.
  */
-export function useSessionStatusMonitor(): void {
+export function useSessionStatusMonitor() {
   const setStatus = useSessionStatusStore((s) => s.setStatus)
   const markWaggleRunning = useSessionStatusStore((s) => s.markWaggleRunning)
   const markRunCompleted = useSessionStatusStore((s) => s.markRunCompleted)

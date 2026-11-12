@@ -18,8 +18,10 @@ import { HivePanel } from '../HivePanel'
 
 import { hivePage, summary, workerLineage } from './hive-panel.test-utils'
 
-function worker(id: string, agent?: Partial<SessionSummary['lineage']>): SessionSummary {
-  return summary(id, { lineage: { ...workerLineage, delegationState: 'working', ...agent } })
+function worker(id: string, agent?: Partial<SessionSummary['lineage']>) {
+  return summary(id, {
+    lineage: { ...workerLineage, delegationState: 'working', ...agent },
+  })
 }
 
 const reviewer = {

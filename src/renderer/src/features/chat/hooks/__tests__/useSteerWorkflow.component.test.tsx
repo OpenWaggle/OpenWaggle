@@ -36,11 +36,13 @@ function setup() {
       setReceipt: vi.fn(),
       setDeliveryState: vi.fn(),
     })),
-    promoteFollowUp: vi.fn(async (_id: string): Promise<SessionControlSteeringReceipt> => ({
-      delivery: 'queued',
-      durableTextSha256: 'a'.repeat(64),
-      minimumCreatedOrder: 1,
-    })),
+    promoteFollowUp: vi.fn<(_id: string) => Promise<SessionControlSteeringReceipt>>(
+      async (_id: string) => ({
+        delivery: 'queued',
+        durableTextSha256: 'a'.repeat(64),
+        minimumCreatedOrder: 1,
+      }),
+    ),
     withDeferredSnapshotRefresh: <T,>(operation: () => Promise<T>) => operation(),
     showToast: vi.fn(),
   }

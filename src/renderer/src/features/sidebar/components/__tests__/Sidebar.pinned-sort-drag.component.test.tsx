@@ -69,7 +69,7 @@ const PINNED_ID = SessionId('session-pinned')
 const PLAIN_ID = SessionId('session-plain')
 const SOLO_ID = SessionId('session-solo')
 
-function makeSessions(): SessionSummary[] {
+function makeSessions() {
   return [
     {
       id: PINNED_ID,
@@ -92,11 +92,11 @@ function makeSessions(): SessionSummary[] {
       createdAt: 5,
       updatedAt: 10,
     },
-  ]
+  ] satisfies SessionSummary[]
 }
 
-function pin(sessionId: SessionId, sortKey: string): PinnedSession {
-  return { sessionId, pinnedAt: 1, sortKey }
+function pin(sessionId: SessionId, sortKey: string) {
+  return { sessionId, pinnedAt: 1, sortKey } satisfies PinnedSession
 }
 
 function resetStores(pins: readonly PinnedSession[]) {

@@ -71,14 +71,14 @@ type ToolCallPart = Extract<UIMessagePart, { readonly type: 'tool-call' }>
  * A stall can keep either copy from seeing a call start or finish, and a call's status changes
  * without changing how many calls a record holds, so neither record is newer as a whole.
  */
-function mergeToolCalls(existing: ToolCallPart, incoming: ToolCallPart): ToolCallPart {
+function mergeToolCalls(existing: ToolCallPart, incoming: ToolCallPart) {
   const later = toolStateRank(incoming.state) >= toolStateRank(existing.state) ? incoming : existing
   const nestedCalls = mergeNestedToolCalls(existing.nestedCalls, incoming.nestedCalls)
   return nestedCalls ? { ...later, nestedCalls } : later
 }
 
 /** Two copies of one part: a tool call in its later state, a thought with the longer text. */
-function mergeIdentical(existing: UIMessagePart, incoming: UIMessagePart): UIMessagePart {
+function mergeIdentical(existing: UIMessagePart, incoming: UIMessagePart) {
   if (existing.type === 'tool-call' && incoming.type === 'tool-call') {
     return mergeToolCalls(existing, incoming)
   }
@@ -147,16 +147,16 @@ function withShownPart(
   merged: readonly UIMessagePart[],
   part: UIMessagePart,
   before: UIMessagePart | undefined,
-): UIMessagePart[] {
+) {
   // Shown only after the read: all of it streamed since, even into a part the buffer has.
   if (before === undefined) {
-    return isTextLike(part)
-      ? withDelta(merged, part, part.content)
-      : withIdentical(merged, part, true)
+    return (
+      isTextLike(part) ? withDelta(merged, part, part.content) : withIdentical(merged, part, true)
+    ) satisfies UIMessagePart[]
   }
   if (!isTextLike(part) || !isTextLike(before)) return withIdentical(merged, part, false)
   const delta = part.content.slice(before.content.length)
-  return delta ? withDelta(merged, part, delta) : [...merged]
+  return (delta ? withDelta(merged, part, delta) : [...merged]) satisfies UIMessagePart[]
 }
 
 /**
@@ -168,7 +168,7 @@ export function mergeReconnectedAnswerParts(
   bufferParts: readonly UIMessagePart[],
   shownParts: readonly UIMessagePart[],
   streaming?: StreamingPartsBaseline,
-): UIMessagePart[] {
+) {
   if (streaming?.degraded) {
     return bufferParts.reduce<UIMessagePart[]>(
       (merged, part) => withIdentical(merged, part, false),

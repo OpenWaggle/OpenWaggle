@@ -9,18 +9,18 @@ import {
 
 type MessagePart = UIMessage['parts'][number]
 
-function textPart(content: string): MessagePart {
-  return { type: 'text', content }
+function textPart(content: string) {
+  return { type: 'text', content } satisfies MessagePart
 }
 
-function toolCallPart(name: string, id = 'tc-1'): MessagePart {
+function toolCallPart(name: string, id = 'tc-1') {
   return {
     type: 'tool-call',
     id,
     name,
     arguments: '{}',
     state: 'output-available',
-  }
+  } satisfies MessagePart
 }
 
 describe('isRenderableTextPart', () => {

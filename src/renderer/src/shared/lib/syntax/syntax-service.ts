@@ -45,7 +45,7 @@ export class SyntaxService {
   private readonly importedLanguages = new Map<string, SyntaxLanguageResource>()
   private readonly languageQuarantine = new SyntaxLanguageQuarantine()
 
-  highlight(input: SyntaxHighlightRequest): Promise<SyntaxHighlightResult> {
+  highlight(input: SyntaxHighlightRequest) {
     const languageRevision =
       this.importedLanguages.get(input.language.toLowerCase())?.revision ?? 'bundled'
     const { sourceKey, admission } = this.sourceState.resolve(input, languageRevision)
@@ -63,23 +63,23 @@ export class SyntaxService {
           ...input,
           diagnostic: 'This imported grammar was disabled after repeated worker failures.',
         }),
-      )
+      ) satisfies Promise<SyntaxHighlightResult>
     }
     const cacheKey = syntaxRequestCacheKey(sourceKey, input.lineRange)
     const cached = this.cache.get(cacheKey, input.source)
-    if (cached) return Promise.resolve(cached)
+    if (cached) return Promise.resolve(cached) satisfies Promise<SyntaxHighlightResult>
     if (input.signal?.aborted) {
       return Promise.resolve(
         plainSyntaxResult({ ...input, diagnostic: 'Syntax request was cancelled.' }),
-      )
+      ) satisfies Promise<SyntaxHighlightResult>
     }
     if (typeof Worker === 'undefined') {
       return Promise.resolve(
         plainSyntaxResult({ ...input, diagnostic: 'Syntax worker is unavailable.' }),
-      )
+      ) satisfies Promise<SyntaxHighlightResult>
     }
 
-    return new Promise((resolve) => {
+    return new Promise<SyntaxHighlightResult>((resolve) => {
       const queued: SyntaxQueuedRequest = {
         requestId: this.nextRequestId,
         input,
@@ -160,7 +160,7 @@ export class SyntaxService {
     }
   }
 
-  private makeSlot(): SyntaxWorkerSlot {
+  private makeSlot() {
     const themes = [...this.importedThemes.values()]
     const languages = [
       ...new Map(

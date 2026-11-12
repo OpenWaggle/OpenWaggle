@@ -63,8 +63,8 @@ export function newTaskDraft(input: {
   readonly timeZone: string
   readonly sessionId?: string
   readonly projectPath?: string
-}): TaskEditorDraft {
-  return {
+}) {
+  const draft: TaskEditorDraft = {
     name: '',
     prompt: '',
     kind: input.kind,
@@ -83,17 +83,19 @@ export function newTaskDraft(input: {
     notificationPolicy: defaultNotificationPolicy(input.kind),
     ...NEW_HEARTBEAT_DRAFT_FIELDS,
   }
+  return draft
 }
 
 /** Switching kind while creating also switches the defaults that depend on it. */
-export function withDraftKind(draft: TaskEditorDraft, kind: ScheduledTaskKind): TaskEditorDraft {
+export function withDraftKind(draft: TaskEditorDraft, kind: ScheduledTaskKind) {
   if (draft.kind === kind) return draft
-  return {
+  const result: TaskEditorDraft = {
     ...draft,
     kind,
     schedule: defaultScheduleDraft(kind),
     notificationPolicy: defaultNotificationPolicy(kind),
   }
+  return result
 }
 
 function pad(value: number) {
@@ -112,17 +114,17 @@ function launchDraftFields(target: ScheduledTaskTarget) {
     modelId: target.modelId ?? '',
     thinkingLevel: target.thinkingLevel ?? '',
   }
-  if (target.kind !== 'launch') return model satisfies Partial<TaskEditorDraft>
+  if (target.kind !== 'launch') return model
   return {
     ...model,
     projectPath: target.projectPath,
     workspace: target.workspace,
     agentDefinitionName: target.agentDefinitionName ?? '',
     archiveFinishedSessions: target.archiveFinishedSessions,
-  } satisfies Partial<TaskEditorDraft>
+  }
 }
 
-export function draftFromTask(task: ScheduledTask): TaskEditorDraft {
+export function draftFromTask(task: ScheduledTask) {
   const base = newTaskDraft({ kind: task.kind, timeZone: task.timeZone })
   return {
     ...base,
@@ -146,17 +148,27 @@ function modelChoiceFromDraft(draft: TaskEditorDraft) {
   }
 }
 
-function targetFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskTarget> {
+function targetFromDraft(draft: TaskEditorDraft) {
   if (draft.kind === 'heartbeat') {
-    if (draft.sessionId === '') return { ok: false, error: 'Choose the Session to deliver into.' }
-    return {
+    if (draft.sessionId === '') {
+      const result: TaskDraftResult<ScheduledTaskTarget> = {
+        ok: false,
+        error: 'Choose the Session to deliver into.',
+      }
+      return result
+    }
+    const result: TaskDraftResult<ScheduledTaskTarget> = {
       ok: true,
       value: { kind: 'heartbeat', sessionId: draft.sessionId, ...modelChoiceFromDraft(draft) },
     }
+    return result
   }
-  if (draft.projectPath === '') return { ok: false, error: 'Choose a project.' }
+  if (draft.projectPath === '') {
+    const result: TaskDraftResult<ScheduledTaskTarget> = { ok: false, error: 'Choose a project.' }
+    return result
+  }
   const agentDefinitionName = draft.agentDefinitionName.trim()
-  return {
+  const result: TaskDraftResult<ScheduledTaskTarget> = {
     ok: true,
     value: {
       kind: 'launch',
@@ -167,13 +179,20 @@ function targetFromDraft(draft: TaskEditorDraft): TaskDraftResult<ScheduledTaskT
       archiveFinishedSessions: draft.archiveFinishedSessions,
     },
   }
+  return result
 }
 
 /** The last moment of the chosen day on the task's own time zone clock. */
-export function endsAtFromDraft(endDate: string, timeZone: string): TaskDraftResult<number | null> {
-  if (endDate === '') return { ok: true, value: null }
+export function endsAtFromDraft(endDate: string, timeZone: string) {
+  if (endDate === '') {
+    const result: TaskDraftResult<number | null> = { ok: true, value: null }
+    return result
+  }
   const match = DATE_PATTERN.exec(endDate)
-  if (!match || !isValidTimeZone(timeZone)) return { ok: false, error: 'Choose a valid end date.' }
+  if (!match || !isValidTimeZone(timeZone)) {
+    const result: TaskDraftResult<number | null> = { ok: false, error: 'Choose a valid end date.' }
+    return result
+  }
   const groups = namedGroups(match, ['year', 'month', 'day'])
   const day = {
     year: Number(groups?.year),
@@ -181,18 +200,30 @@ export function endsAtFromDraft(endDate: string, timeZone: string): TaskDraftRes
     day: Number(groups?.day),
   }
   const nextMidnight = zonedEpoch(addDays(day, 1), 0, 0, timeZone)
-  if (Number.isNaN(nextMidnight)) return { ok: false, error: 'Choose a valid end date.' }
-  return { ok: true, value: nextMidnight - 1 }
+  if (Number.isNaN(nextMidnight)) {
+    const result: TaskDraftResult<number | null> = { ok: false, error: 'Choose a valid end date.' }
+    return result
+  }
+  const result: TaskDraftResult<number | null> = { ok: true, value: nextMidnight - 1 }
+  return result
 }
 
-function maxRunsFromDraft(maxRuns: string): TaskDraftResult<number | null> {
+function maxRunsFromDraft(maxRuns: string) {
   const trimmed = maxRuns.trim()
-  if (trimmed === '') return { ok: true, value: null }
+  if (trimmed === '') {
+    const result: TaskDraftResult<number | null> = { ok: true, value: null }
+    return result
+  }
   const count = INTEGER_PATTERN.test(trimmed) ? Number(trimmed) : 0
   if (count < 1 || count > SCHEDULED_TASK_MAX_RUNS_LIMIT) {
-    return { ok: false, error: 'Max runs must be a whole number of at least 1.' }
+    const result: TaskDraftResult<number | null> = {
+      ok: false,
+      error: 'Max runs must be a whole number of at least 1.',
+    }
+    return result
   }
-  return { ok: true, value: count }
+  const result: TaskDraftResult<number | null> = { ok: true, value: count }
+  return result
 }
 
 const NAME_WORD_LIMIT = 6
@@ -214,15 +245,21 @@ export function nameFromPrompt(prompt: string) {
 }
 
 /** The create input an editor draft describes, or the first reason it does not yet. */
-export function taskInputFromDraft(
-  draft: TaskEditorDraft,
-  original?: ScheduledTask | null,
-): TaskDraftResult<ScheduledTaskInput> {
-  if (draft.prompt.trim() === '') return { ok: false, error: 'Write the prompt to deliver.' }
+export function taskInputFromDraft(draft: TaskEditorDraft, original?: ScheduledTask | null) {
+  if (draft.prompt.trim() === '') {
+    const result: TaskDraftResult<ScheduledTaskInput> = {
+      ok: false,
+      error: 'Write the prompt to deliver.',
+    }
+    return result
+  }
   const target = targetFromDraft(draft)
   if (!target.ok) return target
   const schedule = scheduleFromDraft(draft.schedule, draft.kind)
-  if (!schedule.ok) return { ok: false, error: schedule.error }
+  if (!schedule.ok) {
+    const result: TaskDraftResult<ScheduledTaskInput> = { ok: false, error: schedule.error }
+    return result
+  }
   const endsAt = endsAtFromDraft(draft.endDate, draft.timeZone)
   if (!endsAt.ok) return endsAt
   const maxRuns = maxRunsFromDraft(draft.maxRuns)
@@ -236,7 +273,7 @@ export function taskInputFromDraft(
         )
       : null
   if (heartbeat && !heartbeat.ok) return heartbeat
-  return {
+  const result: TaskDraftResult<ScheduledTaskInput> = {
     ok: true,
     value: {
       name: draft.name.trim() || nameFromPrompt(draft.prompt),
@@ -251,17 +288,16 @@ export function taskInputFromDraft(
       ...(heartbeat ? { heartbeat: heartbeat.value } : {}),
     },
   }
+  return result
 }
 
 /**
  * The update patch for an edited task. A Heartbeat keeps its Session (the target only carries its
  * own model), and its Wake check is sent only when the user changed it.
  */
-export function taskPatchFromDraft(
-  draft: TaskEditorDraft,
-  original: ScheduledTask,
-): TaskDraftResult<ScheduledTaskPatch> {
+export function taskPatchFromDraft(draft: TaskEditorDraft, original: ScheduledTask) {
   const input = taskInputFromDraft(draft, original)
   if (!input.ok) return input
-  return { ok: true, value: input.value }
+  const result: TaskDraftResult<ScheduledTaskPatch> = { ok: true, value: input.value }
+  return result
 }

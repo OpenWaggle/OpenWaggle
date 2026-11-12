@@ -95,15 +95,15 @@ const {
         return () => {}
       }),
       onSessionHostResyncRequired: vi.fn((_handler: () => void) => () => {}),
-      getBackgroundRun: vi.fn(async (): Promise<BackgroundRunSnapshot | null> => null),
-      getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
+      getBackgroundRun: vi.fn<() => Promise<BackgroundRunSnapshot | null>>(async () => null),
+      getSessionDetail: vi.fn<() => Promise<SessionDetail | null>>(async () => null),
       /*
        * Both send channels report what became of the run. A harness that resolved with nothing described an
        * IPC contract that no longer exists, and the code under test would have read a refusal as a success.
        */
-      sendMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
-      sendWaggleMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
-      cancelAgent: vi.fn(async (): Promise<void> => undefined),
+      sendMessage: vi.fn<() => Promise<AgentSendReport>>(async () => DELIVERED_REPORT),
+      sendWaggleMessage: vi.fn<() => Promise<AgentSendReport>>(async () => DELIVERED_REPORT),
+      cancelAgent: vi.fn<() => Promise<void>>(async () => undefined),
       querySessionControl: vi.fn(
         async (request: {
           readonly requestId: string

@@ -13,7 +13,7 @@ import { renderWithQueryClient } from '@/test-utils/query-test-utils'
  */
 const host = vi.hoisted(() => ({ previewMarkdown: '' }))
 
-function catalogFor(projectPath: string): SkillCatalogResult {
+function catalogFor(projectPath: string) {
   const id = projectPath === '/tmp/project' ? 'skill-one' : 'other-skill'
   return {
     projectPath,
@@ -29,7 +29,7 @@ function catalogFor(projectPath: string): SkillCatalogResult {
         loadStatus: 'ok',
       },
     ],
-  }
+  } satisfies SkillCatalogResult
 }
 
 vi.mock('@/shared/lib/ipc', async () => ({

@@ -123,7 +123,7 @@ export function withoutSavedRunAnswers(
   messages: readonly UIMessage[],
   persistedMessages: readonly UIMessage[],
   scope: SavedAnswerScope,
-): UIMessage[] {
+) {
   const persistedIds = new Set<string>()
   const persistedUserOrders = new Set<number>()
   const savedAnswers = new Map<string, number>()
@@ -138,7 +138,7 @@ export function withoutSavedRunAnswers(
     // like any other, each saved copy once: kept, its stream copy showed twice beside it.
     savedAnswers.set(key, (savedAnswers.get(key) ?? 0) + 1)
   }
-  if (savedAnswers.size === 0) return [...messages]
+  if (savedAnswers.size === 0) return [...messages] satisfies UIMessage[]
   let afterUnsavedUser = false
   return messages.filter((message) => {
     if (message.role === 'user' && !persistedIds.has(message.id)) {

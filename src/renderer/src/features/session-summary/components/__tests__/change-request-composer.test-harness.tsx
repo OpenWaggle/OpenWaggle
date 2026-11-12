@@ -63,7 +63,7 @@ export const GIT_STATUS: GitStatusSummary = {
   behind: 0,
 }
 
-export function vcsStatus(provider: SourceControlProviderId, isDefaultRef: boolean): VcsStatus {
+export function vcsStatus(provider: SourceControlProviderId, isDefaultRef: boolean) {
   return fromPartial<VcsStatus>({
     isRepo: true,
     sourceControlProvider: { id: provider, host: `${provider}.com` },
@@ -96,7 +96,7 @@ export function renderComposer(
     readonly gitStatus?: GitStatusSummary | null
     readonly vcs?: VcsStatus
   } = {},
-): ComposerRenderResult {
+) {
   const onClose = vi.fn()
   const onCompleted = vi.fn()
   const renderResult = renderWithQueryClient(
@@ -109,7 +109,8 @@ export function renderComposer(
       onCompleted={onCompleted}
     />,
   )
-  return { onClose, onCompleted, queryClient: renderResult.client }
+  const result: ComposerRenderResult = { onClose, onCompleted, queryClient: renderResult.client }
+  return result
 }
 
 export function setupChangeRequestComposerMocks() {

@@ -30,7 +30,7 @@ export interface StorageTotals {
 export function storageTotals(
   entries: readonly Pick<WorktreeInventoryEntry, 'path' | 'group'>[],
   space: WorktreeSpaceByPath,
-): StorageTotals {
+) {
   const byGroup = { safe: 0, decide: 0, 'in-use': 0 }
   let measuring = 0
   let unreadable = 0

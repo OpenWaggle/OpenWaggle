@@ -15,7 +15,7 @@ interface RoutedView {
  * Renders `element` at `pathname` under a real memory router and a fresh query client, so it
  * reads the route and the test preload the way the app does.
  */
-export async function renderAtRoute(element: ReactNode, pathname = '/'): Promise<RoutedView> {
+export async function renderAtRoute(element: ReactNode, pathname = '/') {
   const client = createRendererQueryClient()
   const { router, unmount } = await renderInMemoryRouter(
     <QueryClientProvider client={client}>{element}</QueryClientProvider>,
@@ -27,11 +27,11 @@ export async function renderAtRoute(element: ReactNode, pathname = '/'): Promise
       act(async () => {
         await router.navigate({ to })
       }),
-  }
+  } satisfies RoutedView
 }
 
 /** The workspace shell around `<main>Route content</main>`, at `pathname`; see renderAtRoute. */
-export function renderWorkspaceShell(pathname = '/'): Promise<RoutedView> {
+export function renderWorkspaceShell(pathname = '/') {
   return renderAtRoute(
     <WorkspaceShell>
       <main>Route content</main>

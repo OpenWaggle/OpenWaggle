@@ -7,6 +7,6 @@ import { settledThinkingLevelWrites } from './session-thinking-level-writes'
  * settled. The Host reads both from the Session when a Run starts, so a send or an enqueue waits
  * for a pick made just before it.
  */
-export async function settledSessionSettingWrites(sessionId: SessionId): Promise<void> {
+export async function settledSessionSettingWrites(sessionId: SessionId) {
   await Promise.all([settledSessionModelWrites(sessionId), settledThinkingLevelWrites(sessionId)])
 }

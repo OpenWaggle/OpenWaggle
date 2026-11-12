@@ -50,10 +50,11 @@ const SCRIPT_ERROR_PREFIX = 'Script error:\n'
 const DRAWABLE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/u
 
-function callStatus(value: unknown): CodemodeCallStatus {
-  return match(value)
+function callStatus(value: unknown) {
+  const result: CodemodeCallStatus = match(value)
     .with(P.union('running', 'ok', 'error', 'cancelled'), (status) => status)
     .otherwise(() => 'error' as const)
+  return result
 }
 
 function optionalNumber(value: unknown) {
@@ -92,15 +93,16 @@ interface CodemodeContentBlock {
   readonly mimeType: string
 }
 
-function unchecked<T>(value: unknown): UncheckedFields<T> {
-  return isObjectValue(value) ? value : {}
+function unchecked<T>(value: unknown) {
+  const fields: UncheckedFields<T> = isObjectValue(value) ? value : {}
+  return fields
 }
 
 /** One row of codemode's own `details.calls` (CodemodeNestedCall). */
-function detailsCall(value: unknown, index: number): CodemodeCallView | null {
+function detailsCall(value: unknown, index: number) {
   const call = unchecked<CodemodeNestedCall>(value)
   if (typeof call.name !== 'string') return null
-  return {
+  const view: CodemodeCallView | null = {
     key: `${String(call.id)}:${String(index)}`,
     name: call.name,
     args: typeof call.args === 'string' ? call.args : '',
@@ -109,17 +111,19 @@ function detailsCall(value: unknown, index: number): CodemodeCallView | null {
     ...withOptional('error', optionalString(call.error)),
     ...withOptional('cost', optionalNumber(call.cost)),
   }
+  return view
 }
 
-function rows(
-  values: unknown,
-  read: (value: unknown, index: number) => CodemodeCallView | null,
-): CodemodeCallView[] {
-  if (!Array.isArray(values)) return []
-  return values.flatMap((value, index) => {
+function rows(values: unknown, read: (value: unknown, index: number) => CodemodeCallView | null) {
+  if (!Array.isArray(values)) {
+    const view: CodemodeCallView[] = []
+    return view
+  }
+  const view: CodemodeCallView[] = values.flatMap((value, index) => {
     const row = read(value, index)
     return row ? [row] : []
   })
+  return view
 }
 
 /** Codemode's own `details.calls`, republished while the script runs and kept on its result. */
@@ -132,16 +136,22 @@ export function isCodemodeModelCall(call: CodemodeCallView) {
   return call.name.startsWith(MODELS_CALL_PREFIX)
 }
 
-function contentBlocks(payload: UncheckedFields<CodemodeResultPayload>): readonly unknown[] {
-  return Array.isArray(payload.content) ? payload.content : []
+function contentBlocks(payload: UncheckedFields<CodemodeResultPayload>) {
+  const result: readonly unknown[] = Array.isArray(payload.content) ? payload.content : []
+  return result
 }
 
-function drawableImage(block: unknown, index: number): CodemodeImageView | null {
+function drawableImage(block: unknown, index: number) {
   const { type, data, mimeType } = unchecked<CodemodeContentBlock>(block)
   if (type !== 'image') return null
   if (typeof data !== 'string' || typeof mimeType !== 'string') return null
   if (!DRAWABLE_IMAGE_TYPES.has(mimeType) || !BASE64.test(data)) return null
-  return { key: `image:${String(index)}`, src: `data:${mimeType};base64,${data}`, mimeType }
+  const view: CodemodeImageView | null = {
+    key: `image:${String(index)}`,
+    src: `data:${mimeType};base64,${data}`,
+    mimeType,
+  }
+  return view
 }
 
 function imagesOf(blocks: readonly unknown[]) {
@@ -151,8 +161,9 @@ function imagesOf(blocks: readonly unknown[]) {
   })
 }
 
-function codemodeArgs(args: JsonObject): UncheckedFields<{ readonly code: string }> {
-  return args
+function codemodeArgs(args: JsonObject) {
+  const fields: UncheckedFields<{ readonly code: string }> = args
+  return fields
 }
 
 function totalCost(calls: readonly CodemodeCallView[]) {
@@ -164,7 +175,7 @@ function totalCost(calls: readonly CodemodeCallView[]) {
  * What the codemode card shows for one call: its script, the script's output and images, and
  * the calls it made, from a live partial result, the final result, or a persisted one.
  */
-export function codemodeToolView(args: JsonObject, result: unknown): CodemodeToolView {
+export function codemodeToolView(args: JsonObject, result: unknown) {
   const payload = normalizeToolResultPayload(result)
   const record = unchecked<CodemodeResultPayload>(payload)
   const blocks = contentBlocks(record)
@@ -175,7 +186,7 @@ export function codemodeToolView(args: JsonObject, result: unknown): CodemodeToo
   })
   const { code } = codemodeArgs(args)
   const errorBlock = [...texts].reverse().find((text) => text.startsWith(SCRIPT_ERROR_PREFIX))
-  return {
+  const view: CodemodeToolView = {
     failed: texts[0]?.startsWith(SCRIPT_FAILED_HEADER) === true,
     ...withOptional('error', errorBlock?.slice(SCRIPT_ERROR_PREFIX.length)),
     script: typeof code === 'string' ? code : null,
@@ -185,4 +196,5 @@ export function codemodeToolView(args: JsonObject, result: unknown): CodemodeToo
     calls,
     ...withOptional('modelCost', totalCost(calls)),
   }
+  return view
 }

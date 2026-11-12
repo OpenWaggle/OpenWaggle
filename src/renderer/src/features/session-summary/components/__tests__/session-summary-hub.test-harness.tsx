@@ -4,8 +4,6 @@ import type { VcsStatus } from '@shared/types/git'
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import type { SessionDetail } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
-import type { QueryClient } from '@tanstack/react-query'
-import type { RenderResult } from '@testing-library/react'
 import { type Mock, vi } from 'vitest'
 import { useComposerActionStore, useComposerStore } from '@/features/composer/state'
 import type {
@@ -22,7 +20,7 @@ import { SessionSummaryHub } from '../SessionSummaryHub'
 import { SESSION_SUMMARY_SECTION_ORDER } from '../SessionSummaryPanelSections'
 
 const mocks = vi.hoisted(() => ({
-  actionRuns: ((): ActionRun[] => [])(),
+  actionRuns: new Array<ActionRun>(),
   toggleTerminal: vi.fn(),
   listSessionResources: vi.fn<OpenWaggleApi['listSessionResources']>(),
   listArchivedSessions: vi.fn(),
@@ -112,8 +110,8 @@ vi.mock('@/features/git', () => ({
   invalidateVcsStatus: mocks.invalidateVcsStatus,
 }))
 
-export function session(id = 'session-1'): SessionDetail {
-  return {
+export function session(id = 'session-1') {
+  const detail: SessionDetail = {
     id: SessionId(id),
     title: `Session ${id}`,
     projectPath: '/project',
@@ -122,10 +120,11 @@ export function session(id = 'session-1'): SessionDetail {
     createdAt: 1000,
     updatedAt: 1000,
   }
+  return detail
 }
 
-export function resource(overrides: Partial<SessionResource>): SessionResource {
-  return {
+export function resource(overrides: Partial<SessionResource>) {
+  const result: SessionResource = {
     id: 'resource-1',
     sessionId: SessionId('session-1'),
     canonicalKey: 'sha256:image',
@@ -142,12 +141,11 @@ export function resource(overrides: Partial<SessionResource>): SessionResource {
     ...overrides,
     managed: overrides.managed ?? true,
   }
+  return result
 }
 
-export function gitState(
-  overrides: Partial<ReturnType<typeof useGitHook>> = {},
-): ReturnType<typeof useGitHook> {
-  return {
+export function gitState(overrides: Partial<ReturnType<typeof useGitHook>> = {}) {
+  const result: ReturnType<typeof useGitHook> = {
     workingPath: WorkingPath('/project'),
     repositoryPath: RepositoryPath('/project'),
     status: {
@@ -175,6 +173,7 @@ export function gitState(
     createBranch: vi.fn(),
     ...overrides,
   }
+  return result
 }
 
 interface HubProps {
@@ -218,10 +217,7 @@ export function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
   )
 }
 
-export function renderHub(
-  props: HubProps = {},
-  includeHeaderToggle = false,
-): RenderResult & { readonly client: QueryClient } {
+export function renderHub(props: HubProps = {}, includeHeaderToggle = false) {
   return renderWithQueryClient(hubElement(props, includeHeaderToggle))
 }
 
@@ -230,8 +226,8 @@ export function sessionSummarySectionOrder() {
 }
 
 /** The Git status every Session Summary Hub test starts from. */
-export function hubVcsStatus(): VcsStatus {
-  return {
+export function hubVcsStatus() {
+  const status: VcsStatus = {
     isRepo: true,
     sourceControlProvider: { id: 'github', host: 'github.com' },
     sourceControlHost: { host: 'github.com', provider: 'github', source: 'public-host' },
@@ -253,6 +249,7 @@ export function hubVcsStatus(): VcsStatus {
     changeRequestAttention: null,
     changeRequestAccount: null,
   }
+  return status
 }
 
 export function setupSessionSummaryHubHarness() {

@@ -102,15 +102,15 @@ const TRUSTED_LIFECYCLE: PackageLifecycle = {
   updatedAt: 2000,
 }
 
-function viewWithPackage(
-  packageView: ExtensionManagerView['packages'][number],
-): ExtensionManagerView {
-  return { projectPath: '/tmp/project', projectPaths: ['/tmp/project'], packages: [packageView] }
+function viewWithPackage(packageView: ExtensionManagerView['packages'][number]) {
+  return {
+    projectPath: '/tmp/project',
+    projectPaths: ['/tmp/project'],
+    packages: [packageView],
+  } satisfies ExtensionManagerView
 }
 
-function packageWithLifecycle(
-  lifecycle: PackageLifecycle,
-): ExtensionManagerView['packages'][number] {
+function packageWithLifecycle(lifecycle: PackageLifecycle) {
   return { ...SAMPLE_PACKAGE, lifecycle }
 }
 

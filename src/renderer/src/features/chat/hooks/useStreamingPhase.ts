@@ -41,7 +41,7 @@ export interface StreamingPhaseHandle extends StreamingPhaseState {
  * giving an accurate picture of where time was spent from the user's
  * perspective.
  */
-export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHandle {
+export function useStreamingPhase(sessionId: SessionId | null) {
   const [currentLabel, setCurrentLabel] = useState<string | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [completedSnapshot, setCompletedSnapshot] = useState<readonly CompletedPhase[]>([])
@@ -204,5 +204,11 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
   const current = currentLabel ? { label: currentLabel, elapsedMs } : null
 
   // Every change of `completedRef` is mirrored into state; render never reads the ref.
-  return { current, completed: completedSnapshot, totalElapsedMs: totalSnapshot, reset }
+  const handle: StreamingPhaseHandle = {
+    current,
+    completed: completedSnapshot,
+    totalElapsedMs: totalSnapshot,
+    reset,
+  }
+  return handle
 }

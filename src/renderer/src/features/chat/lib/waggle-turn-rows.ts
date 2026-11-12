@@ -11,9 +11,10 @@ function getWaggleTurnId(meta: NonNullable<MessageChatRow['waggleMeta']>, firstM
   ].join(':')
 }
 
-function withoutInlineTurnDivider(row: MessageChatRow): MessageChatRow {
+function withoutInlineTurnDivider(row: MessageChatRow) {
   const { turnDividerProps: _divider, ...withoutDivider } = row
-  return { ...withoutDivider, showTurnDivider: false }
+  const result: MessageChatRow = { ...withoutDivider, showTurnDivider: false }
+  return result
 }
 
 function isAgentLoopCard(row: ChatRow) {
@@ -119,11 +120,11 @@ function lastTurnFailureHidden(input: {
 export function withWaggleTurnFailures(
   rows: readonly ChatRow[],
   run: { readonly isLoading?: boolean } = {},
-): ChatRow[] {
+) {
   const currentRunStart = lastIndexOf(rows, isUserRow)
   const lastTurn = lastIndexOf(rows, (row) => row.type === 'waggle-turn')
   const runError = shownRunError(rows)
-  return rows.map((row, index) => {
+  const result: ChatRow[] = rows.map((row, index) => {
     if (row.type !== 'waggle-turn') return row
     const failure = row.messages.at(-1)?.message.metadata?.error
     if (!failure) return row
@@ -137,4 +138,5 @@ export function withWaggleTurnFailures(
       })
     return hidden ? row : { ...row, failure }
   })
+  return result
 }

@@ -24,8 +24,8 @@ vi.mock('@/features/session-summary', () => ({
 
 import { UserMessageBubble } from '../UserMessageBubble'
 
-function createUserMessage(id: string, parts: UIMessage['parts']): UIMessage {
-  return { id, role: 'user', parts }
+function createUserMessage(id: string, parts: UIMessage['parts']) {
+  return { id, role: 'user', parts } satisfies UIMessage
 }
 
 describe('UserMessageBubble', () => {

@@ -120,24 +120,25 @@ describe('useSessionResources', () => {
     const nodeIds = Array.from({ length: 600 }, (_, index) => `node-${String(index)}`)
     let inFlight = 0
     let maxInFlight = 0
-    const imageForNode = (nodeId: string, suffix: string): SessionResource => ({
-      ...RESOURCE,
-      id: `image-${nodeId}-${suffix}`,
-      canonicalKey: `sha256:${nodeId}-${suffix}`,
-      title: `${nodeId}-${suffix}.png`,
-      occurrences: [
-        {
-          id: `occurrence-${nodeId}-${suffix}`,
-          nodeId,
-          branchId: null,
-          actor: 'agent',
-          activity: 'created',
-          label: null,
-          locator: `/images/${nodeId}-${suffix}.png`,
-          createdAt: Number(nodeId.slice('node-'.length)),
-        },
-      ],
-    })
+    const imageForNode = (nodeId: string, suffix: string) =>
+      ({
+        ...RESOURCE,
+        id: `image-${nodeId}-${suffix}`,
+        canonicalKey: `sha256:${nodeId}-${suffix}`,
+        title: `${nodeId}-${suffix}.png`,
+        occurrences: [
+          {
+            id: `occurrence-${nodeId}-${suffix}`,
+            nodeId,
+            branchId: null,
+            actor: 'agent',
+            activity: 'created',
+            label: null,
+            locator: `/images/${nodeId}-${suffix}.png`,
+            createdAt: Number(nodeId.slice('node-'.length)),
+          },
+        ],
+      }) satisfies SessionResource
     resourceMocks.nodePage.mockImplementation(
       async (_sessionId: SessionId, input: SessionResourceNodePageRequest) => {
         inFlight += 1

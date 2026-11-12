@@ -1,6 +1,5 @@
 import type {
   GitBranchInfo,
-  GitChangeStats,
   GitStackedAction,
   GitStatusSummary,
   VcsStatus,
@@ -16,7 +15,7 @@ export interface CommitCommandAction {
   readonly disabledReason: string | null
 }
 
-function fallbackStats(status: GitStatusSummary, kind: 'staged' | 'unstaged'): GitChangeStats {
+function fallbackStats(status: GitStatusSummary, kind: 'staged' | 'unstaged') {
   const files = status.changedFiles.filter((file) => file[kind])
   return {
     filesChanged: files.length,
@@ -89,7 +88,7 @@ export function resolveCommitCommandActions(input: {
   readonly branchReason: string | null
   readonly includeUnstaged: boolean
   readonly message: string
-}): readonly CommitCommandAction[] {
+}) {
   const stats = commitCommandStats(input.status)
   const branchReason = selectedBranchReason(input.branchReady, input.branchReason)
   const commitReason =
@@ -137,7 +136,7 @@ export function resolveCommitCommandActions(input: {
       enabled: pushReason === null,
       disabledReason: pushReason,
     },
-  ]
+  ] satisfies readonly CommitCommandAction[]
 }
 
 export function primaryCommitCommandAction(actions: readonly CommitCommandAction[]) {

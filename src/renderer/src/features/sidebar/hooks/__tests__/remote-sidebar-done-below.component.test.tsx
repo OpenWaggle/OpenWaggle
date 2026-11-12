@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 /** A Queen whose own Run completed at 1 and was seen at 2; her last Worker Run ended at 3. */
-function queen(): SessionSummary {
+function queen() {
   return {
     id: SessionId('queen'),
     title: 'Queen',
@@ -28,7 +28,7 @@ function queen(): SessionSummary {
       activeDirectWorkerCount: 0,
       workersLastRunEndedAt: 3,
     },
-  }
+  } satisfies SessionSummary
 }
 
 describe('remote sidebar filters with Done below parents (ADR 0065)', () => {
@@ -72,10 +72,10 @@ describe('remote sidebar filters with Done below parents (ADR 0065)', () => {
   })
 
   it('shows the loaded catalog entry, which follows Worker Runs, over a search copy', () => {
-    const withRunning = (runningWorkerCount: number): SessionSummary => {
+    const withRunning = (runningWorkerCount: number) => {
       const base = queen()
       if (!base.lineage) throw new Error('Expected a Queen lineage.')
-      return { ...base, lineage: { ...base.lineage, runningWorkerCount } }
+      return { ...base, lineage: { ...base.lineage, runningWorkerCount } } satisfies SessionSummary
     }
     const searched = withRunning(2)
     const loaded = withRunning(0)

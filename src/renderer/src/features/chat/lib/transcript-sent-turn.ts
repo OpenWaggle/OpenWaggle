@@ -55,7 +55,7 @@ export interface SentTurnLayout {
 }
 
 /** Where a held sent turn sits and how much reply space it still reserves; `null` when unmounted. */
-export function measureSentTurn(geometry: ViewportGeometry, turn: HeldRow): SentTurnLayout | null {
+export function measureSentTurn(geometry: ViewportGeometry, turn: HeldRow) {
   const rowTop = geometry.getRowTop(turn.key)
   const rowHeight = geometry.getRowHeight(turn.key)
   if (rowTop === null || rowHeight === null) return null

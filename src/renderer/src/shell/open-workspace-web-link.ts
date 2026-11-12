@@ -20,7 +20,7 @@ async function ensureSettingsLoaded() {
 }
 
 /** Routes a validated Session web link through the user's persisted destination. */
-export async function openWorkspaceWebLink(ownerKey: string, rawUrl: string): Promise<void> {
+export async function openWorkspaceWebLink(ownerKey: string, rawUrl: string) {
   const url = normalizeBrowserPreviewUrl(rawUrl)
   if (url === null) throw new Error('Only http and https links can be opened.')
   await ensureSettingsLoaded()

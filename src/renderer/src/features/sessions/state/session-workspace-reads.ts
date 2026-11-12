@@ -103,11 +103,7 @@ function startedFlight(key: string, sessionId: SessionId, promise: Promise<void>
   return flight
 }
 
-function joinOrStart(
-  flight: WorkspaceFlight | null,
-  key: string,
-  start: () => Promise<void>,
-): Promise<void> {
+function joinOrStart(flight: WorkspaceFlight | null, key: string, start: () => Promise<void>) {
   if (flight?.key !== key) return start()
   if (flight.joinable) return flight.promise
   flight.trailing ??= flight.promise.then(start, start)

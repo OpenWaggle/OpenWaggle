@@ -24,7 +24,7 @@ export interface BranchSummaryPromptOpenRequest {
   readonly projectPath: string | null
 }
 
-export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenRequest): void {
+export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenRequest) {
   useBranchSummaryStore.getState().clearPrompt()
 
   const workspace = input.activeWorkspace

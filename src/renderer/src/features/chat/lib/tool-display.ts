@@ -58,8 +58,9 @@ interface PiToolDisplayArgs {
   readonly command: string
 }
 
-function displayArgs(args: JsonObject): UncheckedFields<PiToolDisplayArgs> {
-  return args
+function displayArgs(args: JsonObject) {
+  const fields: UncheckedFields<PiToolDisplayArgs> = args
+  return fields
 }
 
 function searchRoot(args: JsonObject) {
@@ -149,14 +150,19 @@ interface ActionTextParams {
  * A failed call keeps the text of the call it was: the row marks the failure with its icon, as
  * T3 Code's work log does.
  */
-export function resolveActionText(params: ActionTextParams): string {
+export function resolveActionText(params: ActionTextParams) {
   const label = isPiNativeToolName(params.name)
     ? null
     : openWaggleToolLabel(params.name, params.args, params.sessionTarget ?? null)
   if (params.awaitingResult) {
-    return label?.requested ?? formatStatusActionText('Requested', params.name, params.args)
+    const result: string =
+      label?.requested ?? formatStatusActionText('Requested', params.name, params.args)
+    return result
   }
-  if (label) return params.isRunning ? label.running : label.done
+  if (label) {
+    const result: string = params.isRunning ? label.running : label.done
+    return result
+  }
   return getToolActionText(params.name, params.args, params.isRunning)
 }
 

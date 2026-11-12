@@ -33,7 +33,7 @@ interface EscapeHotkeyOptions {
   readonly shouldHandle?: (event: KeyboardEvent) => boolean
 }
 
-export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptions = {}): void {
+export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptions = {}) {
   const id = useId()
   const enabled = options.enabled ?? true
 

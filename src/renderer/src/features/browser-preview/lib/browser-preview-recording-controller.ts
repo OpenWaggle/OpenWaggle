@@ -54,14 +54,14 @@ export class BrowserPreviewRecordingController {
     this.preferredFrameRate = preferredFrameRate
   }
 
-  getSnapshot = (): BrowserPreviewRecordingSnapshot => this.snapshot
+  getSnapshot = () => this.snapshot
 
-  subscribe = (listener: () => void): (() => void) => {
+  subscribe = (listener: () => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
 
-  async start(previewId: string): Promise<void> {
+  async start(previewId: string) {
     if (this.session !== null || this.startingPreviewId !== null) {
       throw new Error('A browser preview recording is already active.')
     }
@@ -131,7 +131,7 @@ export class BrowserPreviewRecordingController {
     }
   }
 
-  async stop(): Promise<BrowserPreviewRecordingArtifact | null> {
+  async stop() {
     const session = this.session
     if (session !== null) {
       this.requestStop(session)
@@ -147,7 +147,7 @@ export class BrowserPreviewRecordingController {
     return null
   }
 
-  async cancel(): Promise<void> {
+  async cancel() {
     this.generation += 1
     const session = this.session
     if (session !== null && !session.finalized) {
@@ -173,7 +173,7 @@ export class BrowserPreviewRecordingController {
     this.publish({ phase: 'idle', previewId: null, bytes: 0, artifact: null, error: null })
   }
 
-  clearResult(): void {
+  clearResult() {
     if (this.session !== null || this.startingPreviewId !== null) return
     this.publish({ phase: 'idle', previewId: null, bytes: 0, artifact: null, error: null })
   }
@@ -184,7 +184,7 @@ export class BrowserPreviewRecordingController {
     recorder: MediaRecorder,
     mimeType: BrowserPreviewRecordingMimeType,
     grant: BrowserPreviewRecordingGrant,
-  ): BrowserPreviewRecordingSession {
+  ) {
     let resolve: BrowserPreviewRecordingSession['resolve'] = () => undefined
     let reject: BrowserPreviewRecordingSession['reject'] = () => undefined
     const completion = new Promise<BrowserPreviewRecordingArtifact | null>(
@@ -194,7 +194,7 @@ export class BrowserPreviewRecordingController {
       },
     )
     void completion.catch(() => undefined)
-    return {
+    const session: BrowserPreviewRecordingSession = {
       previewId,
       recorder,
       stream,
@@ -210,9 +210,10 @@ export class BrowserPreviewRecordingController {
       bytes: 0,
       finalized: false,
     }
+    return session
   }
 
-  private bindSession(session: BrowserPreviewRecordingSession): void {
+  private bindSession(session: BrowserPreviewRecordingSession) {
     session.recorder.addEventListener('dataavailable', (event) => {
       if (session.finalized || event.data.size === 0) return
       if (session.bytes + event.data.size > session.maxBytes) {
@@ -236,7 +237,7 @@ export class BrowserPreviewRecordingController {
     }
   }
 
-  private requestStop(session: BrowserPreviewRecordingSession): void {
+  private requestStop(session: BrowserPreviewRecordingSession) {
     if (session.finalized || this.session !== session) return
     if (session.timer !== null) this.environment.clearTimer(session.timer)
     session.timer = null
@@ -252,7 +253,7 @@ export class BrowserPreviewRecordingController {
     }
   }
 
-  private async finalize(session: BrowserPreviewRecordingSession, failure?: Error): Promise<void> {
+  private async finalize(session: BrowserPreviewRecordingSession, failure?: Error) {
     if (session.finalized) return
     session.finalized = true
     if (session.timer !== null) this.environment.clearTimer(session.timer)
@@ -298,7 +299,7 @@ export class BrowserPreviewRecordingController {
     session.resolve(result)
   }
 
-  private publish(snapshot: BrowserPreviewRecordingSnapshot): void {
+  private publish(snapshot: BrowserPreviewRecordingSnapshot) {
     this.snapshot = snapshot
     for (const listener of this.listeners) listener()
   }

@@ -1,4 +1,3 @@
-import type { OpenWaggleExtensionColorScheme } from '@shared/extension-theme'
 import { createOpenWaggleExtensionTheme } from '@shared/extension-theme'
 import { isOpenWaggleStandardAppearanceName } from '@/shared/lib/appearance'
 
@@ -30,7 +29,7 @@ export function createRendererExtensionTheme() {
   })
 }
 
-function rendererColorScheme(): OpenWaggleExtensionColorScheme {
+function rendererColorScheme() {
   const appearance = document.documentElement.getAttribute('data-theme')
-  return isOpenWaggleStandardAppearanceName(appearance) ? appearance : 'dark'
+  return isOpenWaggleStandardAppearanceName(appearance) ? appearance : ('dark' as const)
 }

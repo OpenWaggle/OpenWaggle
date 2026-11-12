@@ -30,8 +30,8 @@ const samplingKey: AgentAuthorizationScopeKey = {
  * `fromPartial` rather than a cast: these cases deliberately vary `kind` and `purpose`, which selects
  * a different member of the interaction union, and the repository forbids type assertions.
  */
-function unscopedInteraction(overrides: Partial<AgentLoopInteraction> = {}): AgentLoopInteraction {
-  return fromPartial({
+function unscopedInteraction(overrides: Partial<AgentLoopInteraction> = {}) {
+  const interaction: AgentLoopInteraction = fromPartial({
     createdAt: 1,
     interactionId: 'i-1',
     kind: 'confirm',
@@ -42,9 +42,10 @@ function unscopedInteraction(overrides: Partial<AgentLoopInteraction> = {}): Age
     title: 'Allow?',
     ...overrides,
   })
+  return interaction
 }
 
-function interaction(overrides: Partial<AgentLoopInteraction> = {}): AgentLoopInteraction {
+function interaction(overrides: Partial<AgentLoopInteraction> = {}) {
   return unscopedInteraction({ scopeKey: toolCallKey, ...overrides })
 }
 

@@ -30,7 +30,7 @@ function frameSurfaceSdk(
     input: OpenWaggleExtensionSyntaxHighlightInput,
     options?: OpenWaggleExtensionSyntaxHighlightOptions,
   ) => Promise<OpenWaggleExtensionSyntaxHighlightResult>,
-): ExtensionFrameSdk['surface'] {
+) {
   return {
     sendAction: (actionId, payload) => {
       post(
@@ -49,7 +49,7 @@ function frameSurfaceSdk(
       return Promise.resolve()
     },
     syntax: { highlight: highlightSyntax },
-  }
+  } satisfies ExtensionFrameSdk['surface']
 }
 
 export function createFrameExtensionSdk(input: {
@@ -59,7 +59,7 @@ export function createFrameExtensionSdk(input: {
     options?: OpenWaggleExtensionSyntaxHighlightOptions,
   ) => Promise<OpenWaggleExtensionSyntaxHighlightResult>
   readonly post: FramePost
-}): ExtensionFrameSdk {
+}) {
   const brokerSdk = createExtensionBrokerSdkFromInvoke(input.invokeBroker, {
     openExternal: frameOpenExternal(input.post),
   })
@@ -67,5 +67,5 @@ export function createFrameExtensionSdk(input: {
   return {
     ...brokerSdk,
     surface: frameSurfaceSdk(input.post, input.highlightSyntax),
-  }
+  } satisfies ExtensionFrameSdk
 }

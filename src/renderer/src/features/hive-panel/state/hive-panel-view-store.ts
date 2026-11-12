@@ -21,10 +21,13 @@ interface HivePanelViewState {
 const MAX_REMEMBERED_COLLAPSED = 500
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
-function resolveStorage(): StateStorage {
-  if (typeof window !== 'undefined') return window.localStorage
+function resolveStorage() {
+  if (typeof window !== 'undefined') {
+    const storage: StateStorage = window.localStorage
+    return storage
+  }
   const memory = new Map<string, string>()
-  return {
+  const storage: StateStorage = {
     getItem: (key) => memory.get(key) ?? null,
     setItem: (key, value) => {
       memory.set(key, value)
@@ -33,6 +36,7 @@ function resolveStorage(): StateStorage {
       memory.delete(key)
     },
   }
+  return storage
 }
 
 /** What the panel remembers between launches. */
@@ -40,28 +44,33 @@ type PersistedHivePanelView = Pick<HivePanelViewState, 'view' | 'showArchived' |
 
 const DEFAULT_VIEW: PersistedHivePanelView = { view: 'tree', showArchived: false, collapsed: {} }
 
-function rememberedCollapsed(value: unknown): Readonly<Record<string, true>> {
-  if (!isObjectValue(value)) return {}
-  return Object.fromEntries(
+function rememberedCollapsed(value: unknown) {
+  if (!isObjectValue(value)) {
+    const readonly: Readonly<Record<string, true>> = {}
+    return readonly
+  }
+  const readonly: Readonly<Record<string, true>> = Object.fromEntries(
     Object.entries(value).flatMap(([id, collapsed]) =>
       collapsed === true ? [[id, true] as const] : [],
     ),
   )
+  return readonly
 }
 
 /**
  * Reads a version-0 store: a remembered "By state" choice opens "By next actor", the view that
  * replaced it (issue 380). Anything unreadable starts from the defaults.
  */
-export function migrateHivePanelView(persisted: unknown): PersistedHivePanelView {
+export function migrateHivePanelView(persisted: unknown) {
   if (!isObjectValue(persisted)) return DEFAULT_VIEW
   const fields: UncheckedFields<PersistedHivePanelView> = persisted
-  return {
+  const result: PersistedHivePanelView = {
     // A version-0 store could also hold the retired 'by-state' view.
     view: fields.view === 'by-state' || fields.view === 'by-next-actor' ? 'by-next-actor' : 'tree',
     showArchived: fields.showArchived === true,
     collapsed: rememberedCollapsed(fields.collapsed),
   }
+  return result
 }
 
 export const useHivePanelViewStore = create<HivePanelViewState>()(
@@ -83,11 +92,14 @@ export const useHivePanelViewStore = create<HivePanelViewState>()(
     {
       name: 'openwaggle:hive-panel:v1',
       storage: createJSONStorage(resolveStorage),
-      partialize: ({ view, showArchived, collapsed }): PersistedHivePanelView => ({
-        view,
-        showArchived,
-        collapsed,
-      }),
+      partialize: ({ view, showArchived, collapsed }) => {
+        const result: PersistedHivePanelView = {
+          view,
+          showArchived,
+          collapsed,
+        }
+        return result
+      },
       // Version 1 renames the grouped view: "By state" became "By next actor" (issue 380).
       version: 1,
       migrate: (persisted) => migrateHivePanelView(persisted),

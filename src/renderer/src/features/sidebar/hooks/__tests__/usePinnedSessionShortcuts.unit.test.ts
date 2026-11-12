@@ -27,7 +27,7 @@ import { PINNED_SHORTCUT_HOTKEYS, usePinnedSessionShortcuts } from '../usePinned
  * Only the preload is replaced: the hotkey manager, the memory router and the chat, Session and
  * Pinned stores are the real ones, so a case presses a key and asserts which Session opens.
  */
-function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
+function session(id: string, overrides: Partial<SessionSummary> = {}) {
   return {
     id: SessionId(id),
     title: id,
@@ -35,14 +35,15 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
-  }
+  } satisfies SessionSummary
 }
 
-const pin = (id: string, sortKey: string): PinnedSession => ({
-  sessionId: SessionId(id),
-  pinnedAt: 1,
-  sortKey,
-})
+const pin = (id: string, sortKey: string) =>
+  ({
+    sessionId: SessionId(id),
+    pinnedAt: 1,
+    sortKey,
+  }) satisfies PinnedSession
 
 function ShortcutsProbe() {
   usePinnedSessionShortcuts()

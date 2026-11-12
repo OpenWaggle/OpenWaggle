@@ -34,7 +34,7 @@ export class BrowserPreviewRecordingRequestClient {
     this.respond = respond
   }
 
-  async handle(request: BrowserPreviewRecordingRequest): Promise<void> {
+  async handle(request: BrowserPreviewRecordingRequest) {
     if (this.disposed || request.previewId !== this.previewId) return
     if (this.pendingRequestId !== null) {
       await this.respond({
@@ -55,26 +55,28 @@ export class BrowserPreviewRecordingRequestClient {
     }
   }
 
-  async cancel(request: BrowserPreviewRecordingCancelRequest): Promise<void> {
+  async cancel(request: BrowserPreviewRecordingCancelRequest) {
     if (request.previewId !== this.previewId) return
     if (request.requestId !== null && request.requestId !== this.pendingRequestId) return
     this.pendingRequestId = null
     await this.controller.cancel()
   }
 
-  async dispose(): Promise<void> {
+  async dispose() {
     this.disposed = true
     this.pendingRequestId = null
     await this.controller.cancel()
   }
 
-  private async run(
-    request: BrowserPreviewRecordingRequest,
-  ): Promise<BrowserPreviewRecordingRequestResponse> {
+  private async run(request: BrowserPreviewRecordingRequest) {
     try {
       if (request.action === 'start') {
         await this.controller.start(request.previewId)
-        return { requestId: request.requestId, previewId: request.previewId, status: 'started' }
+        return {
+          requestId: request.requestId,
+          previewId: request.previewId,
+          status: 'started',
+        } satisfies BrowserPreviewRecordingRequestResponse
       }
       const artifact = await this.controller.stop()
       if (artifact === null) throw new Error('Browser preview recording was not active.')
@@ -83,14 +85,14 @@ export class BrowserPreviewRecordingRequestClient {
         previewId: request.previewId,
         status: 'stopped',
         artifact,
-      }
+      } satisfies BrowserPreviewRecordingRequestResponse
     } catch (error) {
       return {
         requestId: request.requestId,
         previewId: request.previewId,
         status: 'failed',
         error: failureMessage(error),
-      }
+      } satisfies BrowserPreviewRecordingRequestResponse
     }
   }
 }

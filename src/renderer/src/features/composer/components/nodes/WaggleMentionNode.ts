@@ -3,7 +3,6 @@ import type { WagglePreset } from '@shared/types/waggle'
 import {
   $applyNodeReplacement,
   DecoratorNode,
-  type DOMExportOutput,
   type EditorConfig,
   type NodeKey,
   type SerializedLexicalNode,
@@ -51,7 +50,7 @@ export class WaggleMentionNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  override exportDOM(): DOMExportOutput {
+  override exportDOM() {
     const element = document.createElement('span')
     element.textContent = this.__preset.name
     return { element }
@@ -100,8 +99,9 @@ export class WaggleMentionNode extends DecoratorNode<ReactNode> {
     return true
   }
 
-  override decorate(): ReactNode {
-    return createElement(WaggleMentionChip, { presetName: this.__preset.name })
+  override decorate() {
+    const node: ReactNode = createElement(WaggleMentionChip, { presetName: this.__preset.name })
+    return node
   }
 }
 

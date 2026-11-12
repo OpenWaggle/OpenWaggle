@@ -20,7 +20,7 @@ export function scriptCommandMemoryKey(projectPath: string, scriptKey: string) {
   return `${projectPath}\u0000${scriptKey}`
 }
 
-function sanitize(value: unknown): Record<string, string> {
+function sanitize(value: unknown) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   return Object.fromEntries(
     Object.entries(value)

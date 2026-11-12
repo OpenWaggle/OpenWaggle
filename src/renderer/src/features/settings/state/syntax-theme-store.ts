@@ -90,7 +90,7 @@ function registerResources(
   registerImportedSyntaxLanguageResources(languages)
 }
 
-function globalCatalog(state: SyntaxThemeCatalogState): SyntaxResourceCatalog {
+function globalCatalog(state: SyntaxThemeCatalogState) {
   return {
     themes: state.resources.filter((resource) => resource.scope !== 'project'),
     languages: state.languages.filter((resource) => resource.scope !== 'project'),

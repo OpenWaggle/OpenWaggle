@@ -22,7 +22,7 @@ vi.mock('@/shared/lib/ipc', async () => ({
   }),
 }))
 
-function image(id: string, nodeId: string): SessionResource {
+function image(id: string, nodeId: string) {
   return {
     id,
     sessionId: SessionId('session-1'),
@@ -49,20 +49,20 @@ function image(id: string, nodeId: string): SessionResource {
     ],
     createdAt: 1000,
     updatedAt: 1000,
-  }
+  } satisfies SessionResource
 }
 
-function remoteImage(id: string, nodeId: string): SessionResource {
+function remoteImage(id: string, nodeId: string) {
   return {
     ...image(id, nodeId),
     canonicalKey: `url:https://images.example/${id}.png`,
     mimeType: null,
     locator: `https://images.example/${id}.png`,
     managed: false,
-  }
+  } satisfies SessionResource
 }
 
-function agentImage(id: string, nodeId: string): SessionResource {
+function agentImage(id: string, nodeId: string) {
   const resource = image(id, nodeId)
   return {
     ...resource,
@@ -73,7 +73,7 @@ function agentImage(id: string, nodeId: string): SessionResource {
       actor: 'agent' as const,
       activity: 'created' as const,
     })),
-  }
+  } satisfies SessionResource
 }
 
 describe('SessionMessageImages', () => {

@@ -82,7 +82,7 @@ export function createTerminalSymbolsFontLoader<TFace extends LoadableFontFace<T
 let browserLoad: Promise<TerminalSymbolsFontLoadResult> | null = null
 
 /** Lazily registers the bundled symbols-only face on the first terminal. */
-export function ensureTerminalSymbolsFont(): Promise<TerminalSymbolsFontLoadResult> {
+export function ensureTerminalSymbolsFont() {
   browserLoad ??= (async () => {
     if (typeof FontFace !== 'function' || typeof document === 'undefined') {
       return {

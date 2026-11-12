@@ -7,10 +7,8 @@ import type {
 
 export { parseTerminalFileReference, resolveTerminalOsc8Target } from './terminal-link-paths'
 export type {
-  TerminalBufferCellLike,
   TerminalBufferLineLike,
   TerminalLinkActivationTarget,
-  TerminalLinkMatch,
   TerminalLinkResolutionContext,
 } from './terminal-link-types'
 export {
@@ -84,10 +82,7 @@ function collectPatternMatches(
 }
 
 /** Finds safe HTTP(S) URLs and file references in one logical terminal line. */
-export function extractTerminalLinkMatches(
-  line: string,
-  context: TerminalLinkResolutionContext,
-): readonly TerminalLinkMatch[] {
+export function extractTerminalLinkMatches(line: string, context: TerminalLinkResolutionContext) {
   const urls = collectPatternMatches(line, URL_PATTERN, [], (value) =>
     resolveTerminalUrlTarget(value, 'plain'),
   )

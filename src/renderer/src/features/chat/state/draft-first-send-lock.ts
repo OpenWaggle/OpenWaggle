@@ -7,7 +7,7 @@ import { draftMaterializationGeneration } from './draft-session-materialization'
  * Session exists. Returns the release, a no-op once the Session replaced the draft or the user
  * moved to another draft or Session.
  */
-export function lockDraftForFirstSend(projectPath: string): () => void {
+export function lockDraftForFirstSend(projectPath: string) {
   const state = useChatStore.getState()
   const draft = state.draftSession
   if (

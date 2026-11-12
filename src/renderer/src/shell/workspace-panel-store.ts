@@ -125,11 +125,8 @@ function removeGroup(set: WorkspacePanelSet, get: WorkspacePanelGet, ownerKey: s
   return previewIds
 }
 
-function createWorkspacePanelState(
-  set: WorkspacePanelSet,
-  get: WorkspacePanelGet,
-): WorkspacePanelState {
-  return {
+function createWorkspacePanelState(set: WorkspacePanelSet, get: WorkspacePanelGet) {
+  const state: WorkspacePanelState = {
     groups: {},
     newBrowser: (ownerKey, profileId) => newBrowser(set, get, ownerKey, profileId),
     openBrowser: (ownerKey, url, profileId) => openBrowser(set, get, ownerKey, url, profileId),
@@ -166,6 +163,7 @@ function createWorkspacePanelState(
     migrateGroup: (fromOwnerKey, toOwnerKey) => migrateGroup(set, get, fromOwnerKey, toOwnerKey),
     removeGroup: (ownerKey) => removeGroup(set, get, ownerKey),
   }
+  return state
 }
 
 export const useWorkspacePanelStore = create<WorkspacePanelState>()(

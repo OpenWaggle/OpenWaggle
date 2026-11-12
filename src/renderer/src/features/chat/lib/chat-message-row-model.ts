@@ -30,26 +30,33 @@ export function sameWaggleTurn(
   )
 }
 
-function summaryRowFor(message: UIMessage): SummaryRow | null {
+function summaryRowFor(message: UIMessage) {
   const branchSummary = message.metadata?.branchSummary
   if (branchSummary) {
-    return { type: 'branch-summary', id: message.id, summary: branchSummary.summary }
+    const row: SummaryRow | null = {
+      type: 'branch-summary',
+      id: message.id,
+      summary: branchSummary.summary,
+    }
+    return row
   }
   const compactionSummary = message.metadata?.compactionSummary
   if (compactionSummary) {
-    return {
+    const row: SummaryRow | null = {
       type: 'compaction-summary',
       id: message.id,
       summary: compactionSummary.summary,
       tokensBefore: compactionSummary.tokensBefore,
       ...(compactionSummary.reason === undefined ? {} : { reason: compactionSummary.reason }),
     }
+    return row
   }
   return null
 }
 
-export function getSummaryRow(message: UIMessage): SummaryRow | null {
-  return summaryRowFor(message)
+export function getSummaryRow(message: UIMessage) {
+  const row: SummaryRow | null = summaryRowFor(message)
+  return row
 }
 
 function toolCallIds(message: UIMessage) {
@@ -79,10 +86,14 @@ function appendToolResultParts(target: UIMessage, toolResults: readonly ToolResu
   return nextResults.length > 0 ? { ...target, parts: [...target.parts, ...nextResults] } : target
 }
 
-function nestedRow(previousRow: MessageChatRow, message: UIMessage): MessageChatRow | null {
+function nestedRow(previousRow: MessageChatRow, message: UIMessage) {
   const toolResults = message.parts.filter((part) => part.type === 'tool-result')
   if (!canNestToolResultMessage(previousRow.message, toolResults)) return null
-  return { ...previousRow, message: appendToolResultParts(previousRow.message, toolResults) }
+  const row: MessageChatRow | null = {
+    ...previousRow,
+    message: appendToolResultParts(previousRow.message, toolResults),
+  }
+  return row
 }
 
 const nestedRowByRow = new WeakMap<MessageChatRow, WeakMap<UIMessage, MessageChatRow | null>>()
@@ -124,10 +135,10 @@ function messageRowFor({
   previousVisibleWaggleMeta,
   isStreaming,
   isLoading,
-}: MessageRowInput): MessageChatRow {
+}: MessageRowInput) {
   const showTurnDivider =
     !!meta && message.role === 'assistant' && !sameWaggleTurn(meta, previousVisibleWaggleMeta)
-  return {
+  const row: MessageChatRow = {
     type: 'message',
     message,
     isStreaming,
@@ -141,16 +152,18 @@ function messageRowFor({
       ? { waggle: { agentLabel: meta.agentLabel, agentColor: meta.agentColor }, waggleMeta: meta }
       : {}),
   }
+  return row
 }
 
 /** The turn pill a Waggle agent's turn opens with. */
-export function waggleTurnDividerProps(meta: WaggleMessageMetadata): TurnDividerProps {
-  return {
+export function waggleTurnDividerProps(meta: WaggleMessageMetadata) {
+  const props: TurnDividerProps = {
     turnNumber: meta.turnNumber,
     agentLabel: meta.agentLabel,
     agentColor: meta.agentColor,
     ...(meta.agentModel === undefined ? {} : { agentModel: meta.agentModel }),
   }
+  return props
 }
 
 const messageRowCache = new WeakMap<
@@ -167,7 +180,7 @@ function sameRowInput(left: MessageRowInput, right: MessageRowInput) {
   )
 }
 
-export function createMessageRow(input: MessageRowInput): MessageChatRow {
+export function createMessageRow(input: MessageRowInput) {
   const cached = messageRowCache.get(input.message)
   if (cached && sameRowInput(cached.input, input)) return cached.row
   const row = messageRowFor(input)

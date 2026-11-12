@@ -40,7 +40,7 @@ export const branchItem: ArchivedItem = {
 export function archivedPage(
   items: readonly ArchivedItem[],
   overrides: Partial<ArchivedItemsPage> = {},
-): ArchivedItemsPage {
+) {
   const sessions = items.filter((item) => item.ref.kind === 'session').length
   return {
     items,
@@ -60,5 +60,5 @@ export function archivedPage(
       kinds: { all: items.length, session: sessions, branch: items.length - sessions },
     },
     ...overrides,
-  }
+  } satisfies ArchivedItemsPage
 }

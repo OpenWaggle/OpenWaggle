@@ -51,14 +51,14 @@ function argumentsFromToolCall(args: JsonObject) {
  * The MCP App a tool result opens. OpenWaggle's MCP layer adds `details.mcpApp` to the result of
  * a Pi MCP tool (`mcp__<server>__<tool>`) whose tool names a `ui://` resource.
  */
-export function getMcpAppLaunch(content: unknown, args: JsonObject): McpAppLaunch | null {
+export function getMcpAppLaunch(content: unknown, args: JsonObject) {
   const decoded = safeDecodeUnknown(
     mcpAppToolResultPayloadSchema,
     normalizeToolResultPayload(content),
   )
   if (!decoded.success) return null
   const { descriptor, toolResult } = decoded.data.details.mcpApp
-  return {
+  const launch: McpAppLaunch | null = {
     descriptor,
     initialArguments: argumentsFromToolCall(args),
     initialResult: {
@@ -74,4 +74,5 @@ export function getMcpAppLaunch(content: unknown, args: JsonObject): McpAppLaunc
       },
     },
   }
+  return launch
 }

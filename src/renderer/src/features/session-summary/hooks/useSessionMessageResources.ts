@@ -170,8 +170,8 @@ export interface SessionMessageResourceQueryResult {
 
 function combineNodeResourceQueries(
   results: readonly UseQueryResult<readonly SessionResource[]>[],
-): SessionMessageResourceQueryResult {
-  return {
+) {
+  const value: SessionMessageResourceQueryResult = {
     data: mergeNodeResources(results.flatMap((result) => result.data ?? [])),
     error: results.find((result) => result.error !== null)?.error ?? null,
     isError: results.some((result) => result.isError),
@@ -180,6 +180,7 @@ function combineNodeResourceQueries(
     isSuccess: results.every((result) => result.isSuccess),
     refetch: () => Promise.all(results.map((result) => result.refetch())),
   }
+  return value
 }
 
 interface CompletedMessageResourceQuery {
@@ -204,7 +205,7 @@ function isExpandedTranscriptWindow(
 export function useSessionImageResourcesByNodeIds(
   sessionId: string | null,
   nodeIds: readonly string[],
-): SessionMessageResourceQueryResult {
+) {
   const uniqueNodeIds = [...new Set(nodeIds)]
   const chunks = chunkNodeIds(uniqueNodeIds)
   const [previousCompleted, setPreviousCompleted] = useState<CompletedMessageResourceQuery | null>(
@@ -221,7 +222,7 @@ export function useSessionImageResourcesByNodeIds(
   if (query.isSuccess && previousCompleted?.data !== query.data) {
     setPreviousCompleted({ sessionId, nodeIds: uniqueNodeIds, data: query.data })
   }
-  return {
+  const result: SessionMessageResourceQueryResult = {
     data,
     error: query.error,
     isError: query.isError,
@@ -230,4 +231,5 @@ export function useSessionImageResourcesByNodeIds(
     isSuccess: query.isSuccess,
     refetch: query.refetch,
   }
+  return result
 }

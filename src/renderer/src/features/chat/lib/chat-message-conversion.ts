@@ -17,40 +17,55 @@ function nestedCallsToUI(nestedCalls: NestedToolCalls | undefined) {
  * Convert a persisted agent message part into renderer UI parts.
  * This is the boundary between storage transport shapes and chat presentation state.
  */
-export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
+export function messagePartToUIParts(part: MessagePart) {
   return matchBy(part, 'type')
-    .with('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
-    .with('tool-call', (value): UIMessage['parts'] => [
-      {
-        type: 'tool-call',
-        id: String(value.toolCall.id),
-        name: value.toolCall.name,
-        arguments: JSON.stringify(value.toolCall.args),
-        state: value.toolCall.state ?? 'input-complete',
-        ...nestedCallsToUI(value.toolCall.nestedCalls),
-      },
-    ])
-    .with('tool-result', (value): UIMessage['parts'] => [
-      {
-        type: 'tool-result',
-        toolCallId: String(value.toolResult.id),
-        content: value.toolResult.result,
-        state: value.toolResult.isError ? 'error' : 'complete',
-        ...nestedCallsToUI(value.toolResult.nestedCalls),
-      },
-    ])
-    .with('attachment', (value): UIMessage['parts'] => [
-      {
-        type: 'text',
-        content: formatAttachmentPreview(value.attachment),
-      },
-    ])
-    .with('reasoning', (value): UIMessage['parts'] => [
-      {
-        type: 'thinking',
-        content: value.text,
-      },
-    ])
+    .with('text', (value) => {
+      const message: UIMessage['parts'] = [{ type: 'text', content: value.text }]
+      return message
+    })
+    .with('tool-call', (value) => {
+      const message: UIMessage['parts'] = [
+        {
+          type: 'tool-call',
+          id: String(value.toolCall.id),
+          name: value.toolCall.name,
+          arguments: JSON.stringify(value.toolCall.args),
+          state: value.toolCall.state ?? 'input-complete',
+          ...nestedCallsToUI(value.toolCall.nestedCalls),
+        },
+      ]
+      return message
+    })
+    .with('tool-result', (value) => {
+      const message: UIMessage['parts'] = [
+        {
+          type: 'tool-result',
+          toolCallId: String(value.toolResult.id),
+          content: value.toolResult.result,
+          state: value.toolResult.isError ? 'error' : 'complete',
+          ...nestedCallsToUI(value.toolResult.nestedCalls),
+        },
+      ]
+      return message
+    })
+    .with('attachment', (value) => {
+      const message: UIMessage['parts'] = [
+        {
+          type: 'text',
+          content: formatAttachmentPreview(value.attachment),
+        },
+      ]
+      return message
+    })
+    .with('reasoning', (value) => {
+      const message: UIMessage['parts'] = [
+        {
+          type: 'thinking',
+          content: value.text,
+        },
+      ]
+      return message
+    })
     .exhaustive()
 }
 
@@ -69,11 +84,9 @@ function hasUIMetadata(metadata: MessageMetadata) {
 }
 
 /** The metadata of a stored message the transcript shows, whichever branch it is on. */
-export function messageMetadataToUI(
-  metadata: MessageMetadata | undefined,
-): UIMessageMetadata | undefined {
+export function messageMetadataToUI(metadata: MessageMetadata | undefined) {
   if (!metadata || !hasUIMetadata(metadata)) return undefined
-  return {
+  const result: UIMessageMetadata | undefined = {
     ...(metadata.sessionNodeCreatedOrder !== undefined
       ? { sessionNodeCreatedOrder: metadata.sessionNodeCreatedOrder }
       : {}),
@@ -88,10 +101,11 @@ export function messageMetadataToUI(
     ...(metadata.scheduledTask ? { scheduledTask: metadata.scheduledTask } : {}),
     ...(metadata.hiveWake ? { hiveWake: true as const } : {}),
   }
+  return result
 }
 
-export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
-  return session.messages.map((msg) => {
+export function sessionToUIMessages(session: SessionDetail) {
+  const message: UIMessage[] = session.messages.map((msg) => {
     const metadata = messageMetadataToUI(msg.metadata)
     return {
       id: String(msg.id),
@@ -101,39 +115,39 @@ export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
       ...(metadata === undefined ? {} : { metadata }),
     }
   })
+  return message
 }
 
 /**
  * A part of the Host stream buffer: a reasoning part it kept the content block of is named like
  * the thinking step the live view streamed it into, so a reconnect matches the two.
  */
-function bufferedPartToUIParts(part: MessagePart, messageId: string): UIMessage['parts'] {
+function bufferedPartToUIParts(part: MessagePart, messageId: string) {
   if (part.type !== 'reasoning' || part.contentIndex === undefined) {
     return messagePartToUIParts(part)
   }
-  return [
+  const message: UIMessage['parts'] = [
     {
       type: 'thinking',
       content: part.text,
       stepId: makeThinkingStepId(messageId, part.contentIndex),
     },
   ]
+  return message
 }
 
-export function buildPartialAssistantMessage(
-  parts: readonly MessagePart[],
-  messageId?: string,
-): UIMessage | null {
+export function buildPartialAssistantMessage(parts: readonly MessagePart[], messageId?: string) {
   const id = messageId ?? `bg-stream-${Date.now()}`
   const uiParts: UIMessage['parts'] = parts.flatMap((part) => bufferedPartToUIParts(part, id))
   if (uiParts.length === 0) {
     return null
   }
 
-  return {
+  const message: UIMessage | null = {
     id,
     role: 'assistant',
     parts: uiParts,
     createdAt: new Date(),
   }
+  return message
 }

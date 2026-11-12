@@ -47,10 +47,7 @@ export function retainInlineVisualizationState(
   }
 }
 
-export function retainedInlineVisualizationState(
-  sessionId: SessionId,
-  sourcePath: string,
-): JsonValue | null {
+export function retainedInlineVisualizationState(sessionId: SessionId, sourcePath: string) {
   const key = retainedStateKey(sessionId, sourcePath)
   const state = retainedStates.get(key)
   if (state === undefined) return null
@@ -92,7 +89,7 @@ function hasBoundedJsonShape(value: unknown) {
   return true
 }
 
-export function decodeInlineVisualizationState(value: unknown): JsonValue | null {
+export function decodeInlineVisualizationState(value: unknown) {
   if (!hasBoundedJsonShape(value)) return null
   const decoded = safeDecodeUnknown(jsonValueSchema, value)
   if (!decoded.success) return null
@@ -118,9 +115,7 @@ export function clearInlineVisualizationState(instanceId: string) {
   mountedStates.delete(instanceId)
 }
 
-export function latestInlineVisualizationContext(
-  sessionId: SessionId,
-): InlineVisualizationContext | null {
+export function latestInlineVisualizationContext(sessionId: SessionId) {
   let latest: MountedVisualizationState | null = null
   for (const value of mountedStates.values()) {
     if (value.sessionId !== sessionId || (latest && value.sequence <= latest.sequence)) continue
@@ -130,10 +125,7 @@ export function latestInlineVisualizationContext(
   return { title: latest.title, sourcePath: latest.sourcePath, state: latest.state }
 }
 
-export function withInlineVisualizationContext(
-  sessionId: SessionId,
-  payload: AgentSendPayload,
-): AgentSendPayload {
+export function withInlineVisualizationContext(sessionId: SessionId, payload: AgentSendPayload) {
   if (payload.visualizationContext) return payload
   const visualizationContext = latestInlineVisualizationContext(sessionId)
   return visualizationContext ? { ...payload, visualizationContext } : payload

@@ -46,16 +46,14 @@ export function eligibilityPills(entry: ExtensionContributionRegistryEntry) {
   return pills
 }
 
-export function settingsContributionEntries(
-  registry: ExtensionContributionRegistryView | null,
-): readonly ExtensionContributionRegistryEntry[] {
+export function settingsContributionEntries(registry: ExtensionContributionRegistryView | null) {
   if (!registry) {
-    return []
+    return [] satisfies readonly ExtensionContributionRegistryEntry[]
   }
 
   return registry.entries.filter(
     (entry) => entry.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
-  )
+  ) satisfies readonly ExtensionContributionRegistryEntry[]
 }
 
 export function contributionKey(entry: ExtensionContributionRegistryEntry) {

@@ -16,7 +16,7 @@ import { BrowserPreviewPanel } from '../BrowserPreviewPanel'
 const mocks = vi.hoisted(() => {
   let stateListener: ((state: BrowserPreviewState) => void) | null = null
   let shortcutListener: ((event: BrowserPreviewShortcutEvent) => void) | null = null
-  const state = (url = 'https://example.com/'): BrowserPreviewState => ({
+  const state: (url?: string) => BrowserPreviewState = (url = 'https://example.com/') => ({
     previewId: 'preview-1',
     ownerKey: 'session-1',
     profileId: 'default',

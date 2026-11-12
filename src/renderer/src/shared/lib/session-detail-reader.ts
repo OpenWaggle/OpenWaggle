@@ -41,14 +41,14 @@ interface HeldDetail {
 }
 
 /** The cursor for a read; with nothing held, the Host returns the newest messages and the revision. */
-function cursorFor(held: HeldDetail | undefined): SessionDetailCursor {
+function cursorFor(held: HeldDetail | undefined) {
   if (!held) {
     return {
       nodeMutationRevision: 0,
       messageCount: 0,
       lastMessageId: null,
       maxMessages: SESSION_DETAIL_MESSAGE_WINDOW,
-    }
+    } satisfies SessionDetailCursor
   }
   const last = held.messages.at(-1)
   return {
@@ -56,7 +56,7 @@ function cursorFor(held: HeldDetail | undefined): SessionDetailCursor {
     messageCount: held.startIndex + held.messages.length,
     lastMessageId: last ? String(last.id) : null,
     maxMessages: SESSION_DETAIL_MESSAGE_WINDOW,
-  }
+  } satisfies SessionDetailCursor
 }
 
 /** The messages a reply means, with where they start, or null when it continues unheld ones. */
@@ -73,7 +73,7 @@ function replyMessages(detail: SessionDetail, held: HeldDetail | undefined) {
   }
 }
 
-function completeDetail(detail: SessionDetail, held: HeldDetail | undefined): SessionDetail | null {
+function completeDetail(detail: SessionDetail, held: HeldDetail | undefined) {
   const replied = replyMessages(detail, held)
   if (!replied) return null
   const { messagesDelta: _delta, messagesWindow: _window, ...rest } = detail
@@ -114,7 +114,7 @@ export function createSessionDetailReader(read: DetailRead) {
     }
   }
 
-  async function readOnce(id: SessionId): Promise<SessionDetail | null> {
+  async function readOnce(id: SessionId) {
     // The cursor and what it names are taken together, so a reply is completed from exactly the
     // messages it continues.
     const held = heldBySession.get(String(id))
@@ -143,7 +143,7 @@ export function createSessionDetailReader(read: DetailRead) {
     return flight.promise
   }
 
-  return function readSessionDetail(id: SessionId): Promise<SessionDetail | null> {
+  return function readSessionDetail(id: SessionId) {
     const current = flights.get(String(id))
     if (!current) return start(id)
     current.trailing ??= current.promise.then(

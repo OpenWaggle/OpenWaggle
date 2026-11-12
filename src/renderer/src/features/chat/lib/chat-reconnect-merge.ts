@@ -64,7 +64,7 @@ export function mergeBackgroundReconnectMessages(
   reconnectMessages: UIMessage[],
   currentMessages: UIMessage[],
   context: ReconnectMergeContext = {},
-): UIMessage[] {
+) {
   const reconciledMessages = reconcileSnapshotUserMessages(reconnectMessages, currentMessages)
   const currentMessagesById = new Map(currentMessages.map((message) => [message.id, message]))
   const reconnectMessageIds = new Set(reconciledMessages.map((message) => message.id))
@@ -76,7 +76,7 @@ export function mergeBackgroundReconnectMessages(
       .with(undefined, () => message)
       .when(isAssistantMessage, (currentAssistantMessage) =>
         match(message)
-          .when(isAssistantMessage, (assistantMessage): UIMessage => {
+          .when(isAssistantMessage, (assistantMessage) => {
             const createdAt = currentAssistantMessage.createdAt ?? assistantMessage.createdAt
             const metadata = currentAssistantMessage.metadata ?? assistantMessage.metadata
             return {

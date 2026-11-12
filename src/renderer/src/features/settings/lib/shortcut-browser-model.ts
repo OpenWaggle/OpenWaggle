@@ -124,7 +124,7 @@ export function buildShortcutBrowserRows(
   shortcutRules: ShortcutRules,
   actions: readonly ProjectAction[],
   query = '',
-): readonly ShortcutBrowserRow[] {
+) {
   const builtInRows: BuiltInShortcutBrowserRow[] = shortcutRules.map((rule, ruleIndex) => {
     const metadata = commandMetadata(rule.command)
     return {

@@ -1,10 +1,8 @@
 import type { SessionId } from '@shared/types/brand'
 import type {
   SessionResource,
-  SessionResourceCatalogPage,
   SessionResourceCatalogPageRequest,
   SessionResourceCatalogView,
-  SessionResourceImageLocation,
   SessionResourceList,
   SessionResourceNodePageRequest,
 } from '@shared/types/session-resource'
@@ -33,7 +31,7 @@ function page(
   matching: readonly SessionResource[],
   cursor: string | null | undefined,
   limit: number,
-): SessionResourceCatalogPage {
+) {
   const offset = cursor ? Number(cursor) : 0
   const resources = matching.slice(offset, offset + limit)
   const nextOffset = offset + resources.length
@@ -64,10 +62,7 @@ export function sessionResourceCatalogOver(list: ListSessionResources) {
       resourceId: string,
       view: SessionResourceCatalogView,
     ) => (await resourcesIn(sessionId, view)).find(({ id }) => id === resourceId) ?? null,
-    locateSessionResourceImage: async (
-      sessionId: SessionId,
-      resourceId: string,
-    ): Promise<SessionResourceImageLocation | null> => {
+    locateSessionResourceImage: async (sessionId: SessionId, resourceId: string) => {
       const images = await resourcesIn(sessionId, 'images')
       const index = images.findIndex(({ id }) => id === resourceId)
       const resource = images[index]

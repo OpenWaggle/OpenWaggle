@@ -43,7 +43,10 @@ const mocks = vi.hoisted(() => {
     setLastPanel: (panel: RightSidebarPanel) => {
       lastRightSidebarPanel = panel
     },
-    shellState: (): ShellState => ({ lastRightSidebarPanel, setLastRightSidebarPanel }),
+    shellState: () => {
+      const state: ShellState = { lastRightSidebarPanel, setLastRightSidebarPanel }
+      return state
+    },
     setLastRightSidebarPanel,
     chatRouteEffects: vi.fn<() => void>(),
     sidePanelRefetch: vi.fn<() => void>(),
@@ -240,8 +243,8 @@ export function renderChatRoute({
   readonly workspace?: ChatRouteProps['workspace']
   readonly rightSidebar: Partial<ChatRouteProps['rightSidebar']>
   readonly actions?: Partial<ChatRouteProps['rightSidebarActions']>
-}): ChatRouteProps['rightSidebarActions'] {
-  const rightSidebarActions = {
+}) {
+  const rightSidebarActions: ChatRouteProps['rightSidebarActions'] = {
     onDiffOpenChange: vi.fn(),
     onExtensionSidePanelOpenChange: vi.fn(),
     onResourcesTargetChange: vi.fn(),

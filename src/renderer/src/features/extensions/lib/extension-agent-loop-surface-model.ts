@@ -3,7 +3,6 @@ import { EXTENSION_FRAME_SURFACE_ACTION } from '@shared/constants/extension-fram
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ChatToolCallPart } from '@shared/types/chat-ui'
 import type { JsonObject, JsonValue } from '@shared/types/json'
-import type { ExtensionAgentLoopTarget } from './extension-agent-loop-resolution'
 
 export const CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID = 'custom-renderer-unavailable'
 export const CUSTOM_INTERACTION_RESPONSE_ACTION_ID =
@@ -74,11 +73,11 @@ export type ExtensionAgentLoopSurfaceInput =
       readonly transcript: ExtensionTranscriptView
     }
 
-function textPayload(value: string): JsonValue {
+function textPayload(value: string) {
   return value
 }
 
-export function surfaceTarget(input: ExtensionAgentLoopSurfaceInput): ExtensionAgentLoopTarget {
+export function surfaceTarget(input: ExtensionAgentLoopSurfaceInput) {
   return matchBy(input, 'surface')
     .with('tool', (value) => ({ surface: 'tool', toolName: value.toolCall.name }))
     .with('custom-message', (value) => ({
@@ -94,7 +93,7 @@ export function surfaceTarget(input: ExtensionAgentLoopSurfaceInput): ExtensionA
     .exhaustive()
 }
 
-export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObject {
+export function surfacePayload(input: ExtensionAgentLoopSurfaceInput) {
   if (input.surface === 'tool') {
     return {
       surface: 'tool',
@@ -113,7 +112,7 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
             },
           }
         : {}),
-    }
+    } satisfies JsonObject
   }
 
   if (input.surface === 'custom-message') {
@@ -123,7 +122,7 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
         name: input.message.name,
         value: input.message.value,
       },
-    }
+    } satisfies JsonObject
   }
 
   if (input.surface === 'interaction') {
@@ -145,7 +144,7 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
           ...(action.tone !== undefined ? { tone: action.tone } : {}),
         })),
       },
-    }
+    } satisfies JsonObject
   }
 
   if (input.surface === 'transcript') {
@@ -157,7 +156,7 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
         messageCount: input.transcript.messageCount,
         state: input.transcript.state,
       },
-    }
+    } satisfies JsonObject
   }
 
   return {
@@ -167,7 +166,7 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
       ...(input.status.detail !== undefined ? { detail: input.status.detail } : {}),
       tone: input.status.tone,
     },
-  }
+  } satisfies JsonObject
 }
 
 export function surfaceLabel(input: ExtensionAgentLoopSurfaceInput) {

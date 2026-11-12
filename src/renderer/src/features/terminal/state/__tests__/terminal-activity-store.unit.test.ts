@@ -16,8 +16,8 @@ function summary(
   terminalId: string,
   activityStatus: TerminalActivityStatus,
   overrides: Partial<TerminalActivitySummary> = {},
-): TerminalActivitySummary {
-  return {
+) {
+  const result: TerminalActivitySummary = {
     ownerKey,
     terminalId,
     activityStatus,
@@ -26,13 +26,11 @@ function summary(
     projectActionPending: false,
     ...overrides,
   }
+  return result
 }
 
-function snapshot(
-  revision: number,
-  summaries: TerminalActivitySnapshot['summaries'],
-): TerminalActivitySnapshot {
-  return { revision, summaries, truncated: false }
+function snapshot(revision: number, summaries: TerminalActivitySnapshot['summaries']) {
+  return { revision, summaries, truncated: false } satisfies TerminalActivitySnapshot
 }
 
 describe('terminal activity store', () => {

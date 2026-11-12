@@ -18,7 +18,7 @@ import { WorkspaceProjectActionsSurface } from '../WorkspaceProjectActionsSurfac
 const PROJECT_A = '/projects/a'
 const PROJECT_B = '/projects/b'
 
-function action(id: string, name: string): ActionDefinition {
+function action(id: string, name: string) {
   return {
     id,
     name,
@@ -27,7 +27,7 @@ function action(id: string, name: string): ActionDefinition {
     kind: 'task',
     allowConcurrent: false,
     autoOpenPreview: false,
-  }
+  } satisfies ActionDefinition
 }
 
 const CATALOGS: Readonly<Record<string, ActionCatalog>> = {

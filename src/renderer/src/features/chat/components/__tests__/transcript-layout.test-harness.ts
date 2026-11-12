@@ -129,12 +129,13 @@ export function installLayout() {
   }
 }
 
-export function userMessage(id: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content: id }] }
+export function userMessage(id: string) {
+  const message: UIMessage = { id, role: 'user', parts: [{ type: 'text', content: id }] }
+  return message
 }
 
-export function assistantMessage(id: string, withToolCall: boolean): UIMessage {
-  return {
+export function assistantMessage(id: string, withToolCall: boolean) {
+  const message: UIMessage = {
     id,
     role: 'assistant',
     parts: [
@@ -152,14 +153,22 @@ export function assistantMessage(id: string, withToolCall: boolean): UIMessage {
         : []),
     ],
   }
+  return message
 }
 
-export function messageRow(message: UIMessage): MessageChatRow {
-  return { type: 'message', message, isStreaming: false, isRunActive: true, showTurnDivider: false }
+export function messageRow(message: UIMessage) {
+  const row: MessageChatRow = {
+    type: 'message',
+    message,
+    isStreaming: false,
+    isRunActive: true,
+    showTurnDivider: false,
+  }
+  return row
 }
 
-export function turnFoldRow(turnKey: string): ChatRow {
-  return {
+export function turnFoldRow(turnKey: string) {
+  const row: ChatRow = {
     type: 'turn-fold',
     id: `turn-fold:${turnKey}`,
     turnKey,
@@ -167,14 +176,15 @@ export function turnFoldRow(turnKey: string): ChatRow {
     durationMs: null,
     interrupted: false,
   }
+  return row
 }
 
 export function transcriptSection(
   messages: readonly UIMessage[],
   overrides: Partial<ChatTranscriptSectionState> = {},
-): ChatTranscriptSectionState {
+) {
   const lastUser = [...messages].reverse().find((message) => message.role === 'user')
-  return {
+  const state: ChatTranscriptSectionState = {
     messages: [...messages],
     isLoading: true,
     projectPath: '/repo',
@@ -207,4 +217,5 @@ export function transcriptSection(
     turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
+  return state
 }

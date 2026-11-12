@@ -33,7 +33,7 @@ function dispatch(payload: AgentEventPayload) {
   }
 }
 
-export function subscribeAgentEvents(listener: AgentEventListener): () => void {
+export function subscribeAgentEvents(listener: AgentEventListener) {
   listeners.add(listener)
   // The first listener opens the one bridge subscription; the last one to leave closes it.
   unsubscribeBridge ??= api.onAgentEvent(dispatch)

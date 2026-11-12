@@ -7,18 +7,18 @@ import {
 
 const lastErrorInfoMap = new Map<string, AgentErrorInfo>()
 
-export function getLastAgentErrorInfo(sessionId: string): AgentErrorInfo | null {
+export function getLastAgentErrorInfo(sessionId: string) {
   return lastErrorInfoMap.get(sessionId) ?? null
 }
 
-export function clearLastAgentErrorInfo(sessionId: string): void {
+export function clearLastAgentErrorInfo(sessionId: string) {
   lastErrorInfoMap.delete(sessionId)
 }
 
 export function setLastAgentErrorInfo(
   sessionId: string,
   error: { readonly message: string; readonly code?: string },
-): void {
+) {
   const info =
     error.code && isAgentErrorCode(error.code)
       ? makeErrorInfo(error.code, error.message)

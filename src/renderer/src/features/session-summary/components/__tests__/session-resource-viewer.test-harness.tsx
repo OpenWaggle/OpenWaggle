@@ -72,13 +72,8 @@ export const PREPARED_IMAGE: PreparedAttachment = {
   extractedText: '',
 }
 
-export function image(
-  id: string,
-  title: string,
-  nodeId: string | null = null,
-  updatedAt = 1000,
-): SessionResource {
-  return {
+export function image(id: string, title: string, nodeId: string | null = null, updatedAt = 1000) {
+  const resource: SessionResource = {
     id,
     sessionId: SessionId('session-1'),
     canonicalKey: `sha256:${id}`,
@@ -107,24 +102,27 @@ export function image(
     createdAt: 1000,
     updatedAt,
   }
+  return resource
 }
 
-export function remoteImage(id: string, title: string): SessionResource {
-  return {
+export function remoteImage(id: string, title: string) {
+  const resource: SessionResource = {
     ...image(id, title),
     canonicalKey: `url:https://images.example/${id}.png`,
     mimeType: null,
     locator: `https://images.example/${id}.png`,
   }
+  return resource
 }
 
-export function httpImage(id: string, title: string): SessionResource {
-  return {
+export function httpImage(id: string, title: string) {
+  const resource: SessionResource = {
     ...image(id, title),
     canonicalKey: `url:http://images.example/${id}.png`,
     mimeType: null,
     locator: `http://images.example/${id}.png`,
   }
+  return resource
 }
 
 function matchingImages(resources: readonly SessionResource[]) {
@@ -219,7 +217,7 @@ export function renderViewer(
   activeSessionId: string | null,
   activeBranchId: string | null = null,
   activePathNodeIds: readonly string[] = [],
-): ViewerRenderResult {
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
   })
@@ -232,7 +230,7 @@ export function renderViewer(
       />
     </QueryClientProvider>,
   )
-  return {
+  const result: ViewerRenderResult = {
     ...view,
     queryClient,
     rerenderSession: (sessionId: string | null) =>
@@ -266,4 +264,5 @@ export function renderViewer(
         </QueryClientProvider>,
       ),
   }
+  return result
 }

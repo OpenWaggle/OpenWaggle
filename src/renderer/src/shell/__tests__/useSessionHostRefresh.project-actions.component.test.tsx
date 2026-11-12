@@ -29,12 +29,12 @@ beforeAll(async () => {
 const ACTIVE = SessionId('session-active')
 const WORKERS = ['worker-1', 'worker-2', 'worker-3'].map(SessionId)
 
-function summary(id: SessionId, projectPath: string): SessionSummary {
-  return { id, title: String(id), projectPath, createdAt: 1, updatedAt: 1 }
+function summary(id: SessionId, projectPath: string) {
+  return { id, title: String(id), projectPath, createdAt: 1, updatedAt: 1 } satisfies SessionSummary
 }
 
 let sequence = 0
-function stateChanged(sessionId: SessionId): SessionHostEventEnvelope {
+function stateChanged(sessionId: SessionId) {
   sequence += 1
   return {
     cursor: { hostInstanceId: 'host', sequence },
@@ -45,7 +45,7 @@ function stateChanged(sessionId: SessionId): SessionHostEventEnvelope {
       stateRevision: sequence,
       operation: 'run-started',
     },
-  }
+  } satisfies SessionHostEventEnvelope
 }
 
 /** The Project Actions queries a window with the active Session's project open keeps mounted. */

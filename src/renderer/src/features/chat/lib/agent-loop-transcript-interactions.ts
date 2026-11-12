@@ -48,6 +48,11 @@ const persistedScopeKeySchema = Schema.Struct({
   resource: lenientExactOptional(Schema.String),
 })
 
+function userInputPurpose() {
+  const purpose: AgentLoopConfirmPurpose = 'user-input'
+  return purpose
+}
+
 const persistedConfirmInteractionSchema = Schema.Struct({
   ...agentLoopConfirmInteractionSchema.fields,
   ...persistedBaseFields,
@@ -55,10 +60,7 @@ const persistedConfirmInteractionSchema = Schema.Struct({
    * An unrecognised or missing purpose becomes `user-input`, the purpose nothing may answer on the
    * user's behalf. Replayed history must never widen into `authorization`.
    */
-  purpose: lenientWithFallback(
-    agentLoopConfirmPurposeSchema,
-    (): AgentLoopConfirmPurpose => 'user-input',
-  ),
+  purpose: lenientWithFallback(agentLoopConfirmPurposeSchema, userInputPurpose),
   scopeKey: lenientExactOptional(persistedScopeKeySchema),
 })
 
@@ -128,6 +130,7 @@ export const persistedAgentLoopInteractionSchema = Schema.Union(
 const decodeInteraction = Schema.decodeUnknownOption(persistedAgentLoopInteractionSchema)
 
 /** The interaction a persisted request holds, or null when it is not one this build can show. */
-export function parseInteraction(interaction: unknown): AgentLoopInteraction | null {
-  return Option.getOrNull(decodeInteraction(interaction))
+export function parseInteraction(interaction: unknown) {
+  const result: AgentLoopInteraction | null = Option.getOrNull(decodeInteraction(interaction))
+  return result
 }

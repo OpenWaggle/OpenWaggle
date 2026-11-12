@@ -14,7 +14,7 @@ function worker(
     readonly parent?: string
     readonly parentWillAct?: boolean
   } = {},
-): SessionSummary {
+) {
   return {
     id: SessionId(id),
     title: id,
@@ -32,7 +32,7 @@ function worker(
       delegationState,
       ...(extra.historical === undefined ? {} : { historical: extra.historical }),
     },
-  }
+  } satisfies SessionSummary
 }
 
 describe('workerAttentionByQueen', () => {

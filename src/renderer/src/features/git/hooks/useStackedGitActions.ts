@@ -2,7 +2,6 @@ import type { SessionId, WorkingPath } from '@shared/types/brand'
 import type {
   GitActionProgressEvent,
   GitRunStackedActionOptions,
-  GitRunStackedActionResult,
   GitStackedAction,
 } from '@shared/types/git'
 import { useEffect, useRef, useState } from 'react'
@@ -69,10 +68,7 @@ export function useStackedGitActions({
     })
   }, [workingPath])
 
-  async function run(
-    action: GitStackedAction,
-    options?: Partial<GitRunStackedActionOptions>,
-  ): Promise<GitRunStackedActionResult | undefined> {
+  async function run(action: GitStackedAction, options?: Partial<GitRunStackedActionOptions>) {
     if (!workingPath || runningRef.current) return
     const operationId = crypto.randomUUID()
     runningRef.current = true

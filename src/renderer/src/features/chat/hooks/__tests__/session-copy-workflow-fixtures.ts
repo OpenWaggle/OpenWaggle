@@ -1,7 +1,7 @@
 import { MessageId, type SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
 
-export function userNode(id: string, sessionId: SessionId): SessionNode {
+export function userNode(id: string, sessionId: SessionId) {
   return {
     id: SessionNodeId(id),
     sessionId,
@@ -20,10 +20,10 @@ export function userNode(id: string, sessionId: SessionId): SessionNode {
     },
     contentJson: '{}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
-export function assistantNode(id: string, sessionId: SessionId): SessionNode {
+export function assistantNode(id: string, sessionId: SessionId) {
   return {
     ...userNode(id, sessionId),
     kind: 'assistant_message',
@@ -34,5 +34,5 @@ export function assistantNode(id: string, sessionId: SessionId): SessionNode {
       parts: [{ type: 'text', text: 'Here is the answer' }],
       createdAt: 2,
     },
-  }
+  } satisfies SessionNode
 }

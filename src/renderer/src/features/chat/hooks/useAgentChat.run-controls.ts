@@ -34,7 +34,6 @@ import type {
   AgentRunActions,
   MutableValueRef,
   PendingRunWaiter,
-  RunCompletionRouting,
   SetAgentChatError,
   SetAgentChatStatus,
   SetBackgroundStreaming,
@@ -107,13 +106,9 @@ function shouldDeferSnapshotRefresh(refs: AgentRunControlRefs) {
  * own: a completion of an earlier Run is passed back to that Run's send, and one that arrives
  * before the send knows its Run is held until it does.
  */
-function settlePendingRun(
-  refs: AgentRunControlRefs,
-  nextError?: Error,
-  runId?: string,
-): RunCompletionRouting {
+function settlePendingRun(refs: AgentRunControlRefs, nextError?: Error, runId?: string) {
   const pending = refs.pendingRunWaiterRef.current
-  if (!pending) return 'settled'
+  if (!pending) return 'settled' as const
   const routing = offerRunCompletion(pending, {
     ...(runId === undefined ? {} : { runId }),
     ...(nextError ? { error: nextError } : {}),

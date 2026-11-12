@@ -26,7 +26,7 @@ function inputLanguage(input: OpenWaggleExtensionSyntaxHighlightInput) {
 export async function highlightExtensionSyntax(
   input: OpenWaggleExtensionSyntaxHighlightInput,
   options?: OpenWaggleExtensionSyntaxHighlightOptions,
-): Promise<OpenWaggleExtensionSyntaxHighlightResult> {
+) {
   const language = inputLanguage(input)
   const result = await syntaxService.highlight({
     source: input.source,
@@ -42,5 +42,5 @@ export async function highlightExtensionSyntax(
     ...(result.foreground ? { foreground: result.foreground } : {}),
     ...(result.background ? { background: result.background } : {}),
     ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}),
-  }
+  } satisfies OpenWaggleExtensionSyntaxHighlightResult
 }

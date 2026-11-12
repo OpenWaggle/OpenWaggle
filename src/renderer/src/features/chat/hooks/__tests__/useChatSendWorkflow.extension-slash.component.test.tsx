@@ -30,14 +30,13 @@ const MODEL = SupportedModelId('openai/gpt-5.5')
 
 type SendWorkflowParams = Parameters<typeof useChatSendWorkflow>[0]
 
-function payload(text: string): AgentSendPayload {
-  return { text, attachments: [] }
+function payload(text: string) {
+  const result: AgentSendPayload = { text, attachments: [] }
+  return result
 }
 
-function extensionSlashEntry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function extensionSlashEntry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample-extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -66,19 +65,18 @@ function extensionSlashEntry(
     invocationBinding: 'host-issued-binding',
     ...overrides,
   }
+  return entry
 }
 
-function extensionRegistry(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): ExtensionContributionRegistryView {
+function extensionRegistry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return {
     projectPaths: [PROJECT_PATH],
     entries,
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
-function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWorkflowParams {
-  return {
+function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}) {
+  const params: SendWorkflowParams = {
     activeSessionId: SESSION_ID,
     branchSummary: {
       materializeBranchSummary: vi.fn().mockResolvedValue(undefined),
@@ -118,7 +116,8 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
     stopWaggleCollaboration: vi.fn(),
     waggleStatus: 'idle',
     ...overrides,
-  } satisfies SendWorkflowParams
+  }
+  return params
 }
 
 describe('useChatSendWorkflow extension slash commands', () => {

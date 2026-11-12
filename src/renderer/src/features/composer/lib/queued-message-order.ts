@@ -26,7 +26,7 @@ export function moveQueuedMessage(
   lockedIds: ReadonlySet<string>,
   followUpId: string,
   anchor: QueuedMessageAnchor,
-): QueuedMessageMove | null {
+) {
   const visible = queueIds.filter((id) => !lockedIds.has(id))
   if (!visible.includes(followUpId) || anchor.followUpId === followUpId) return null
   const moved = visible.filter((id) => id !== followUpId)
@@ -41,17 +41,21 @@ export function moveQueuedMessage(
     next += 1
     return placed
   })
-  return { order, position: moved.indexOf(followUpId) + 1, count: moved.length }
+  const move: QueuedMessageMove | null = {
+    order,
+    position: moved.indexOf(followUpId) + 1,
+    count: moved.length,
+  }
+  return move
 }
 
 /** Dropping onto a row: a message dragged down lands after it, one dragged up lands before it. */
-export function dropAnchor(
-  visibleIds: readonly string[],
-  draggedId: string,
-  targetId: string,
-): QueuedMessageAnchor | null {
+export function dropAnchor(visibleIds: readonly string[], draggedId: string, targetId: string) {
   const from = visibleIds.indexOf(draggedId)
   const to = visibleIds.indexOf(targetId)
   if (from < 0 || to < 0 || from === to) return null
-  return { position: from < to ? 'after' : 'before', followUpId: targetId }
+  return {
+    position: from < to ? 'after' : 'before',
+    followUpId: targetId,
+  } satisfies QueuedMessageAnchor
 }

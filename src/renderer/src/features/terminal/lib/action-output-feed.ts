@@ -38,13 +38,13 @@ function defaultSchedule(callback: () => void, delayMs: number) {
   return () => clearTimeout(timer)
 }
 
-function splitPartialEscape(text: string): readonly [string, string] {
+function splitPartialEscape(text: string) {
   for (let length = ERASE_SCROLLBACK.length - 1; length > 0; length -= 1) {
     if (text.endsWith(ERASE_SCROLLBACK.slice(0, length))) {
-      return [text.slice(0, -length), text.slice(-length)]
+      return [text.slice(0, -length), text.slice(-length)] satisfies readonly [string, string]
     }
   }
-  return [text, '']
+  return [text, ''] satisfies readonly [string, string]
 }
 
 /**
@@ -114,7 +114,7 @@ export function createActionOutputFeed(options: ActionOutputFeedOptions) {
     return applyPage(segment, page)
   }
 
-  const pump = async (): Promise<void> => {
+  const pump = async () => {
     if (pumping || disposed) return
     pumping = true
     try {

@@ -33,14 +33,14 @@ const { apiMock, chatStoreMock } = getWorkerTranscriptMocks()
 
 const REPEATED_PROMPT = 'continue'
 
-function persistedMessage(id: string, role: Message['role'], text: string, order: number): Message {
+function persistedMessage(id: string, role: Message['role'], text: string, order: number) {
   return {
     id: MessageId(id),
     role,
     parts: [{ type: 'text', text }],
     createdAt: order,
     metadata: { sessionNodeCreatedOrder: order },
-  }
+  } satisfies Message
 }
 
 /** The Worker's first Run, persisted under its Session node ids when it ended. */
@@ -57,8 +57,13 @@ const RUN_2_PERSISTED: readonly Message[] = [
   persistedMessage('node-assistant-4', 'assistant', 'Writing the fix', 8),
 ]
 
-function workerDetail(messages: readonly Message[], updatedAt = 1): SessionDetail {
-  return { ...workerDetailWithoutRunMessages(), updatedAt, messages: [...messages] }
+function workerDetail(messages: readonly Message[], updatedAt = 1) {
+  const detail: SessionDetail = {
+    ...workerDetailWithoutRunMessages(),
+    updatedAt,
+    messages: [...messages],
+  }
+  return detail
 }
 
 /** The Worker's second Run, which repeats the first Run's prompt text. */
@@ -89,8 +94,8 @@ function emitSecondRunInBackground(options: { readonly compactAfterFirstAnswer?:
   emitAssistantText('live-assistant-3', 'Writing the fix', 30)
 }
 
-function secondRunReconnectBuffer(): BackgroundRunSnapshot {
-  return {
+function secondRunReconnectBuffer() {
+  const snapshot: BackgroundRunSnapshot = {
     ...workerReconnectBuffer(),
     startedAt: 20,
     userMessages: [
@@ -102,6 +107,7 @@ function secondRunReconnectBuffer(): BackgroundRunSnapshot {
       },
     ],
   }
+  return snapshot
 }
 
 const SECOND_RUN_TRANSCRIPT = [

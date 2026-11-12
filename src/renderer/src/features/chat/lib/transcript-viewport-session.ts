@@ -112,9 +112,9 @@ export class TranscriptViewportSession {
   }
 
   /** Keys of the rows currently intersecting the viewport. */
-  visibleRowKeys(): ReadonlySet<string> {
+  visibleRowKeys() {
     const scroller = this.scroller
-    if (!scroller || !this.content) return new Set()
+    if (!scroller || !this.content) return new Set<string>()
     const bounds = scroller.getBoundingClientRect()
     return rowKeysWithin(this.content, bounds.top, bounds.bottom)
   }

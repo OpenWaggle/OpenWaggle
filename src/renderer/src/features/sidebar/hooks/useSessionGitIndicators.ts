@@ -14,7 +14,7 @@ import { buildSessionGitIndicator } from '../lib/session-git-indicator'
  * short TTL and de-duplicates by path, so sessions sharing a working tree — every
  * local-mode session in one project — collapse to a single git invocation.
  */
-export function useSessionGitIndicators(sessions: readonly SessionSummary[]): void {
+export function useSessionGitIndicators(sessions: readonly SessionSummary[]) {
   const refreshStatus = useGitStore((s) => s.refreshStatus)
 
   const brandByPath = new Map<string, WorkingPath>()
@@ -52,7 +52,7 @@ export function useSessionGitIndicators(sessions: readonly SessionSummary[]): vo
 }
 
 /** The working tree a session row describes, or null when it has no project. */
-export function sessionWorkingPath(session: SessionSummary): WorkingPath | null {
+export function sessionWorkingPath(session: SessionSummary) {
   return resolveSessionWorkingDir(
     {
       ...(session.environmentMode === undefined
@@ -77,7 +77,7 @@ export function useSessionGitIndicator(session: SessionSummary) {
  * Read separately from the ahead/behind indicator because a row shows the branch as an
  * icon whose accessible name carries the value, while divergence renders as text.
  */
-export function useSessionGitBranch(session: SessionSummary): string | null {
+export function useSessionGitBranch(session: SessionSummary) {
   const workingPath = sessionWorkingPath(session)
   const branch = useGitStore((s) => selectWorkingTreeStatus(s, workingPath).status?.branch)
   const trimmed = branch?.trim()

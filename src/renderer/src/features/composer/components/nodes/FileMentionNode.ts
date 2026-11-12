@@ -1,7 +1,6 @@
 import {
   $applyNodeReplacement,
   DecoratorNode,
-  type DOMExportOutput,
   type EditorConfig,
   type NodeKey,
   type SerializedLexicalNode,
@@ -44,7 +43,7 @@ export class FileMentionNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  override exportDOM(): DOMExportOutput {
+  override exportDOM() {
     const element = document.createElement('span')
     element.textContent = `@${this.__path}`
     return { element }
@@ -76,14 +75,15 @@ export class FileMentionNode extends DecoratorNode<ReactNode> {
     return true
   }
 
-  override decorate(): ReactNode {
-    return createElement(FileMentionChip, {
+  override decorate() {
+    const node: ReactNode = createElement(FileMentionChip, {
       path: this.__path,
       basename: this.__basename,
     })
+    return node
   }
 }
 
-export function $createFileMentionNode(filePath: string, basename: string): FileMentionNode {
+export function $createFileMentionNode(filePath: string, basename: string) {
   return $applyNodeReplacement(new FileMentionNode(filePath, basename))
 }
