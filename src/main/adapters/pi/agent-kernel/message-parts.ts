@@ -1,5 +1,5 @@
 import { match, P } from '@diegogbrisa/ts-match'
-import type { MessagePart } from '@shared/types/agent'
+import type { MessagePart, TextPart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
@@ -8,15 +8,15 @@ import type { PiPromptInput } from '../pi-runtime-input'
 import { stripAtomicVisualizationContext } from '../pi-runtime-input'
 import { piToolResultDetails } from '../pi-tool-result-details'
 
-function textMessagePart(text: string): MessagePart {
+function textMessagePart(text: string): TextPart {
   return { type: 'text', text }
 }
 
-function emptyTextMessagePart(): MessagePart {
+function emptyTextMessagePart(): TextPart {
   return textMessagePart('')
 }
 
-function piTextOrImageBlockToPart(block: unknown): MessagePart | null {
+function piTextOrImageBlockToPart(block: unknown): TextPart | null {
   return match(block)
     .with({ type: 'text', text: P.select('text', P.string) }, ({ text }) =>
       textMessagePart(stripAtomicVisualizationContext(text)),
@@ -24,7 +24,9 @@ function piTextOrImageBlockToPart(block: unknown): MessagePart | null {
     .otherwise(() => null)
 }
 
-function nonEmptyMessageParts(parts: readonly MessagePart[]) {
+function nonEmptyMessageParts<Part extends MessagePart>(
+  parts: readonly Part[],
+): (Part | TextPart)[] {
   return parts.length > 0 ? [...parts] : [emptyTextMessagePart()]
 }
 
@@ -37,7 +39,7 @@ export function piTextAndImageContentToParts(content: unknown) {
     return [emptyTextMessagePart()]
   }
 
-  const parts: MessagePart[] = []
+  const parts: TextPart[] = []
   for (const block of content) {
     const part = piTextOrImageBlockToPart(block)
     if (part) {
@@ -63,8 +65,7 @@ export function piTextAndImageContentToParts(content: unknown) {
 const SYNTHESIZED_ATTACHMENT_BLOCK = /(?:^|\n\n)\[Attachment: [^\n]*\](?=\n|$)/u
 
 /** The typed text of a Pi user prompt, without the attachment blocks OpenWaggle appended to it. */
-function withoutSynthesizedAttachments(part: MessagePart): MessagePart[] {
-  if (part.type !== 'text') return [part]
+function withoutSynthesizedAttachments(part: TextPart): TextPart[] {
   const marker = SYNTHESIZED_ATTACHMENT_BLOCK.exec(part.text)
   if (!marker) return [part]
   const text = part.text.slice(0, marker.index).trim()

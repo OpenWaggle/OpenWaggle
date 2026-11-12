@@ -1,65 +1,46 @@
+import { Schema } from '@shared/schema'
+import { worktreeSetupActionTerminalSchema } from '@shared/schemas/background-run'
+import { lenientArray } from '@shared/schemas/lenient'
+import { lenientExactOptional } from '@shared/schemas/lenient-exact'
 import {
   WORKTREE_CREATED_CUSTOM_EVENT,
   type WorktreeLaunchSnapshot,
-  type WorktreeSetupActionTerminal,
 } from '@shared/types/background-run'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
+import { isObjectValue } from '@shared/utils/object-shape'
+import { Option } from 'effect'
 import type { ChatRow } from './types-chat-row'
-import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
 
-/** The value of a worktree-created event, as the Host emits it. */
-interface WorktreeCreatedValue {
-  readonly details: readonly string[]
-  readonly worktreePath: string
-  readonly branch: string
-  readonly baseRef: string
-  readonly setupAction: WorktreeSetupActionTerminal
-}
+/**
+ * The value of a worktree-created event, as the Host emits it. Persisted history is read
+ * tolerantly: a malformed or empty field is left out, and only the string details are kept.
+ */
+const decodeWorktreeCreatedValue = Schema.decodeUnknownOption(
+  Schema.Struct({
+    details: lenientArray(Schema.String),
+    worktreePath: lenientExactOptional(Schema.NonEmptyString),
+    branch: lenientExactOptional(Schema.NonEmptyString),
+    baseRef: lenientExactOptional(Schema.NonEmptyString),
+    setupAction: lenientExactOptional(worktreeSetupActionTerminalSchema),
+  }),
+)
 
 export function isWorktreeCreatedEvent(event: AgentTransportCustomEvent) {
   return event.name === WORKTREE_CREATED_CUSTOM_EVENT
 }
 
-function setupActionFromValue(value: unknown): WorktreeSetupActionTerminal | undefined {
-  const { terminalId, actionId, actionName, projectRoot, cwd } =
-    uncheckedFields<WorktreeSetupActionTerminal>(value)
-  if (
-    typeof terminalId !== 'string' ||
-    typeof actionId !== 'string' ||
-    typeof actionName !== 'string' ||
-    typeof projectRoot !== 'string' ||
-    typeof cwd !== 'string'
-  ) {
-    return undefined
-  }
-  return { terminalId, actionId, actionName, projectRoot, cwd }
-}
-
 export function worktreeLaunchFromCustomEvent(
   event: AgentTransportCustomEvent,
 ): WorktreeLaunchSnapshot | null {
-  if (!isWorktreeCreatedEvent(event) || !isObjectValue(event.value)) {
-    return null
-  }
-  const fields = uncheckedFields<WorktreeCreatedValue>(event.value)
-  const details = Array.isArray(fields.details)
-    ? fields.details.filter((detail): detail is string => typeof detail === 'string')
-    : []
-  const stringValue = (value: unknown) => (typeof value === 'string' ? value : undefined)
-  const worktreePath = stringValue(fields.worktreePath)
-  const branch = stringValue(fields.branch)
-  const baseRef = stringValue(fields.baseRef)
-  const setupAction = setupActionFromValue(fields.setupAction)
+  if (!isWorktreeCreatedEvent(event) || !isObjectValue(event.value)) return null
+  const value = decodeWorktreeCreatedValue(event.value)
+  if (Option.isNone(value)) return null
   return {
     status: 'complete',
     stage: 'starting-task',
     startedAt: event.timestamp,
     updatedAt: event.timestamp,
-    details,
-    ...(worktreePath ? { worktreePath } : {}),
-    ...(branch ? { branch } : {}),
-    ...(baseRef ? { baseRef } : {}),
-    ...(setupAction ? { setupAction } : {}),
+    ...value.value,
   }
 }
 
