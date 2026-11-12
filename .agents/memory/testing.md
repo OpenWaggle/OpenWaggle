@@ -53,10 +53,12 @@ The unit config runs in `environment: 'node'` and renders nothing, so it needs n
 `scripts/renderer-test-type-exemptions.json` is `[]`. Every renderer test file typechecks
 under `tsconfig.renderer-tests.json`, enforced by `bun run typecheck` (the runner's `typecheck` step, also in `bun run check`
 and `bun run verify`), which is binary per file: any test file with a type error fails. The
-dominant fix while clearing the original 330 was annotating fixture factory return types
+dominant fix while clearing the original 330 was typing fixture factory values
 (`ChatTextPart`, `UIMessage`, `SessionNode`, `MessageChatRow`, `ChatPanelSections`, etc.)
 so a literal like `type: 'text'` or `role: 'assistant'` is checked against the interface
-instead of widening to `string`. Do NOT use `fromPartial` to silence a whole-object
+instead of widening to `string`. Type the value (`const part: ChatTextPart = {...}` or
+`satisfies`), not the function's return: `openwaggle/no-unneeded-return-type` rejects the
+return annotation. Do NOT use `fromPartial` to silence a whole-object
 mismatch — it casts and hides real errors.
 
 ## Filed under "Renderer And Session Memory"

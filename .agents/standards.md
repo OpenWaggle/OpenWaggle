@@ -21,6 +21,7 @@ The full set is `oxlint.config.mts`, which also records why each rule that is of
 
 - TypeScript stays `strict` with the strongest practical strictness flags (`4bd0325e2`). A tsconfig change may only check more, measured by effect on every source file (`no-cheating/tsconfig`).
 - Instead of casts, use `satisfies`, explicit annotations, generics, type guards, discriminated unions and Effect Schema (`4bd0325e2`).
+- A function with a body infers its return type; where inference is too wide, type the returned value, not the function (`openwaggle/no-unneeded-return-type`, which removes the annotation).
 - `@total-typescript/shoehorn` only in tests, for partial mocks or intentionally invalid inputs (`openwaggle/no-shoehorn-outside-tests`).
 - Validate runtime inputs at boundaries with the Effect Schema helpers in `src/shared/schema.ts` and the schemas under `src/shared/schemas/` (`4bd0325e2`).
 - Read a fixed key with dot access, never `x['name']`; decoded outside data has declared fields, and a map keyed by a runtime value takes a variable key (`openwaggle/no-literal-key-lookup`, which fixes it).
