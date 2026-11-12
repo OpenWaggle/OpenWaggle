@@ -33,7 +33,7 @@ it('ends the Waggle when it may not start the next turn, though no Pi run is lef
       canStartNextTurn: () => !stopped,
       buildTurnMessage: () => ({ customType: 'turn', content: '', display: false }),
     })
-    extension.factory(
+    void extension.factory(
       fromPartial<ExtensionAPI>({
         on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
           handlers.set(event, handler)

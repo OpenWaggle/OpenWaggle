@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import { WAGGLE_INHERIT_MODEL } from '@openwaggle/waggle-core'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
-import { vi } from 'vitest'
+import { type Mock, vi } from 'vitest'
 import type { WaggleMenuAction } from '../default-control-center-view.js'
 import type { PiWaggleModel } from '../extension.js'
 import defaultPiWaggleExtension from '../extension.js'
@@ -30,7 +30,16 @@ const RESET_RETRY_DELAY_MS = 10
 type RegisteredCommandOptions = Parameters<ExtensionAPI['registerCommand']>[1]
 type SelectResponse = string | undefined
 
-type BranchEntry = {
+export interface CommandHarness {
+  readonly appendedEntries: readonly { readonly customType: string; readonly data: unknown }[]
+  readonly ctx: ExtensionCommandContext
+  readonly sendMessage: Mock<ExtensionAPI['sendMessage']>
+  readonly setModelCallCount: () => number
+  readonly standardCommand: RegisteredCommandOptions
+  readonly waggleCommand: RegisteredCommandOptions
+}
+
+interface BranchEntry {
   readonly id: string
   readonly parentId: string | null
   readonly timestamp: string
@@ -150,10 +159,10 @@ export function createHarness(
     readonly branchEntries?: readonly BranchEntry[]
     readonly hasUI?: boolean
   } = {},
-) {
+): CommandHarness {
   vi.stubEnv('HOME', userHomeDir)
   const commands = new Map<string, RegisteredCommandOptions>()
-  const appendedEntries: Array<{ readonly customType: string; readonly data: unknown }> = []
+  const appendedEntries: { readonly customType: string; readonly data: unknown }[] = []
   const selectQueue = [...(input.selectResponses ?? [])]
   const customQueue = [...(input.customResponses ?? [])]
   const editorQueue = [...(input.editorResponses ?? [])]

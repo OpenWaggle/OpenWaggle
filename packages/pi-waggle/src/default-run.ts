@@ -26,6 +26,7 @@ import {
   createPiWaggleTurnDetails,
   PI_WAGGLE_TURN_CUSTOM_TYPE,
   PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+  type PiWaggleTurnDetails,
 } from './protocol.js'
 import {
   createPiWaggleStopPolicyState,
@@ -65,11 +66,16 @@ export interface DefaultPiWaggleRunState {
 export function buildDefaultTurnMessage(
   run: Pick<DefaultPiWaggleRunState, 'config' | 'inheritedModelReference' | 'runId' | 'userPrompt'>,
   turn: WaggleTurn,
-  resolvedModelReference = effectiveAgentModelReference(
+  resolvedModelReference: string = effectiveAgentModelReference(
     turn.agent.model,
     run.inheritedModelReference,
   ),
-) {
+): {
+  customType: string
+  content: string
+  display: boolean
+  details: PiWaggleTurnDetails
+} {
   return {
     customType: PI_WAGGLE_TURN_CUSTOM_TYPE,
     content: buildWaggleTurnPrompt({

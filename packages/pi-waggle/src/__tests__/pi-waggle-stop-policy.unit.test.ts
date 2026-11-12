@@ -37,10 +37,10 @@ function assistantMessage(input: {
   readonly toolCallId?: string
   readonly toolCallName?: string
 }): AgentEndEvent['messages'][number] {
-  const content: Array<
+  const content: (
     | { type: 'text'; text: string }
     | { type: 'toolCall'; id: string; name: string; arguments: Record<string, never> }
-  > = []
+  )[] = []
   if (input.text) content.push({ type: 'text', text: input.text })
   if (input.toolCallId && input.toolCallName) {
     content.push({

@@ -54,7 +54,7 @@ export async function promptPrefilledText(input: {
   readonly ctx: ExtensionCommandContext
   readonly title: string
   readonly currentValue: string
-}) {
+}): Promise<string | null> {
   if (!input.ctx.hasUI) return input.currentValue
 
   if (typeof input.ctx.ui.custom !== 'function') {

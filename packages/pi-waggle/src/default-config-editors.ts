@@ -130,7 +130,7 @@ async function promptStopCondition(
 export async function promptFullWaggleConfig(input: {
   readonly ctx: ExtensionCommandContext
   readonly initialConfig: WaggleConfig
-}) {
+}): Promise<WaggleConfig | null> {
   const [firstAgent, secondAgent] = input.initialConfig.agents
   const nextFirstAgent = await promptAgentSlot({ ctx: input.ctx, agent: firstAgent })
   if (!nextFirstAgent) return null
@@ -239,7 +239,7 @@ export async function editWaggleConfigGuided(input: {
   readonly ctx: ExtensionCommandContext
   readonly initialConfig: WaggleConfig
   readonly title: string
-}) {
+}): Promise<WaggleConfig> {
   if (!input.ctx.hasUI) return input.initialConfig
 
   let config = input.initialConfig
@@ -254,7 +254,7 @@ export async function editWaggleConfigGuided(input: {
 export async function editActiveConfig(input: {
   readonly pi: Pick<ExtensionAPI, 'appendEntry'>
   readonly ctx: ExtensionCommandContext
-}) {
+}): Promise<void> {
   const config = editableActiveConfig(input.ctx)
   if (!config) return
 
@@ -278,8 +278,8 @@ export async function editActiveConfig(input: {
 export async function editActiveMaxTurns(input: {
   readonly pi: Pick<ExtensionAPI, 'appendEntry'>
   readonly ctx: ExtensionCommandContext
-  readonly maxTurns?: string
-}) {
+  readonly maxTurns?: string | undefined
+}): Promise<void> {
   const config = editableActiveConfig(input.ctx)
   if (!config) return
 

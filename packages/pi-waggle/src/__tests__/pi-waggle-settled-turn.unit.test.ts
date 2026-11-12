@@ -48,7 +48,7 @@ function settledTurnHarness() {
     onTurnComplete,
     buildTurnMessage: () => ({ customType: 'turn', content: '', display: false }),
   })
-  extension.factory(
+  void extension.factory(
     fromPartial<ExtensionAPI>({
       on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
         handlers.set(event, handler)
@@ -133,7 +133,7 @@ it('ends the loop when the host calls fail, so no later run is judged as a turn'
     onTurnComplete,
     buildTurnMessage: () => ({ customType: 'turn', content: '', display: false }),
   })
-  extension.factory(
+  void extension.factory(
     fromPartial<ExtensionAPI>({
       on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
         handlers.set(event, handler)

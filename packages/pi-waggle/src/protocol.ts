@@ -28,7 +28,7 @@ export interface PiWaggleModeState {
   readonly updatedAt: number
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -71,12 +71,12 @@ export function parsePiWaggleTurnDetails(value: unknown): PiWaggleTurnDetails | 
     return null
   }
 
-  const runId = optionalString(value.runId)
-  const turnNumber = nonNegativeInteger(value.turnNumber)
-  const agentIndex = nonNegativeInteger(value.agentIndex)
-  const agentLabel = optionalString(value.agentLabel)
-  const agentModel = optionalString(value.agentModel)
-  const agentColor = parseAgentColor(value.agentColor)
+  const runId = optionalString(value['runId'])
+  const turnNumber = nonNegativeInteger(value['turnNumber'])
+  const agentIndex = nonNegativeInteger(value['agentIndex'])
+  const agentLabel = optionalString(value['agentLabel'])
+  const agentModel = optionalString(value['agentModel'])
+  const agentColor = parseAgentColor(value['agentColor'])
 
   if (
     !runId ||
@@ -101,23 +101,24 @@ export function parsePiWaggleModeState(value: unknown): PiWaggleModeState | null
     return null
   }
 
-  if (typeof value.enabled !== 'boolean') {
+  if (typeof value['enabled'] !== 'boolean') {
     return null
   }
 
-  const updatedAt = nonNegativeTimestamp(value.updatedAt)
+  const updatedAt = nonNegativeTimestamp(value['updatedAt'])
   if (updatedAt === undefined) {
     return null
   }
 
-  const presetId = optionalString(value.presetId)
-  const configResult = value.config === undefined ? undefined : parseWaggleConfig(value.config)
+  const presetId = optionalString(value['presetId'])
+  const configResult =
+    value['config'] === undefined ? undefined : parseWaggleConfig(value['config'])
   if (configResult && !configResult.success) {
     return null
   }
 
   return {
-    enabled: value.enabled,
+    enabled: value['enabled'],
     ...(presetId ? { presetId } : {}),
     ...(configResult?.success ? { config: configResult.value } : {}),
     updatedAt,
