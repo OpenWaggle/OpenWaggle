@@ -13,7 +13,8 @@
 # It also starts the packaged app hidden and checks that its Session Host starts and
 # answers the CLI (scripts/qa/packaged-session-host-startup-smoke.ts). It shows no
 # window, so it does not cover renderer boot, CSP, visual pixels, or timing budgets -
-# those are local/manual only after E2E removal.
+# those are local/manual only after E2E removal. The development app (`pnpm dev`) gets the
+# same Session Host check (scripts/qa/dev-app-startup-smoke.ts).
 name: Nightly
 
 on:
@@ -132,6 +133,12 @@ jobs:
       - name: Smoke packaged Session Host startup
         shell: bash
         run: ${{ matrix.display }} pnpm qa:packaged-session-host-startup "${{ matrix.packaged_executable }}"
+
+      # Starts the development app with `pnpm dev`, hidden, as a contributor would (through
+      # cmd.exe on Windows), and checks that its Session Host starts and answers the CLI.
+      - name: Smoke development app startup
+        shell: bash
+        run: ${{ matrix.display }} pnpm qa:dev-app-startup
 
       - name: Verify Windows installer
         if: matrix.label == 'Windows'
