@@ -1,127 +1,147 @@
 # OpenWaggle Agent Standards
 
-Centralized repository standards for AI coding agents. Root `AGENTS.md` is the entrypoint; this file carries the durable details.
+Root `AGENTS.md` is the entrypoint; this file holds the repository's rules. Every rule here has one of two sources:
 
-## Type Safety
+- **A public lint rule.** The rule's name is the rule, and its public documentation says what it checks. `oxlint.config.mts` turns each one on, sets its options and says which files it covers.
+- **OpenWaggle itself.** Each OpenWaggle rule names its source in parentheses: an ADR (`ADR 0064`), a memory topic (`memory: testing`), an OpenWaggle lint rule (`openwaggle/<name>`, documented in `scripts/oxlint/rules/`), a check step (`bun scripts/check/run.ts --list`), a fix commit, or `4bd0325e2`, the last change to this file before the Bun migration (`git show 4bd0325e2:.agents/standards.md`).
 
-Type safety is stricter than convenience.
+A finding cites a lint rule by its name (`typescript/no-floating-promises`), a check by its step id (`dependency-pins`) or no-cheating kind (`no-cheating/cast`), and any other rule by its section here (`standards.md#pi-runtime`).
 
-- TypeScript stays `strict` and uses the strongest practical strictness flags.
-- Raw type assertions are forbidden everywhere except `as const`.
-- Use `satisfies`, explicit annotations, generics, type guards, discriminated unions, and Effect Schema instead of casts.
-- Use `@total-typescript/shoehorn` only in tests, and only when a test needs partial mocks or intentionally invalid inputs.
-- Never use `any`, `as unknown as`, `as never`, handler casts, `Record<string, unknown>` casts, or `// SAFETY:` comments.
-- Runtime inputs must be validated at boundaries with shared Effect Schema helpers from `src/shared/schema.ts` and schemas under `src/shared/schemas/`.
-- Do not use silent parse fallbacks. Log structured context or surface a visible error path.
+## Lint rules
 
-Mechanical enforcement:
+The full set is `oxlint.config.mts`, which also records why each rule that is off stays off. The ones reviews cite most, by area:
 
-- Oxlint's `typescript/consistent-type-assertions` bans raw assertions while allowing `as const`.
-- Oxlint's tsgolint-powered, type-aware `typescript/no-unsafe-*` rules catch unsafe flow from dependencies; intentional test and boundary exceptions stay narrowly scoped in `oxlint.config.mts`.
-- `openwaggle/no-shoehorn-outside-tests` keeps Shoehorn test-only.
-- Biome and ESLint ban explicit `any`, non-null assertions, disabled lint comments, and unsafe patterns.
+- Types: `typescript/consistent-type-assertions`, `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, `typescript/no-unsafe-argument`, `typescript/no-unsafe-assignment`, `typescript/no-unsafe-call`, `typescript/no-unsafe-member-access`, `typescript/no-unsafe-return`, `typescript/no-unsafe-type-assertion`, `typescript/ban-ts-comment`, `typescript/no-unnecessary-condition`.
+- Promises and `this`: `typescript/no-floating-promises`, `typescript/no-misused-promises`, `typescript/await-thenable`, `typescript/return-await`, `typescript/unbound-method`, `typescript/only-throw-error`.
+- Imports: `import/no-cycle`, `typescript/consistent-type-imports`, `node/no-process-env`.
+- React: `react/rules-of-hooks`, `react/jsx-key`, `react/refs`, `react/immutability`, `react/purity`, `react/set-state-in-effect`, `react/static-components`, the `jsx-a11y/*` rules, the `@tanstack/query/*` and `@tanstack/router/*` rules.
+- Size and shape: `complexity`, `max-lines`, `max-lines-per-function`, `curly`, `no-console`.
+
+## Type safety
+
+- TypeScript stays `strict` with the strongest practical strictness flags (`4bd0325e2`). A tsconfig change may only check more, measured by effect on every source file (`no-cheating/tsconfig`).
+- Instead of casts, use `satisfies`, explicit annotations, generics, type guards, discriminated unions and Effect Schema (`4bd0325e2`).
+- `@total-typescript/shoehorn` only in tests, for partial mocks or intentionally invalid inputs (`openwaggle/no-shoehorn-outside-tests`).
+- Validate runtime inputs at boundaries with the Effect Schema helpers in `src/shared/schema.ts` and the schemas under `src/shared/schemas/` (`4bd0325e2`).
+- No silent parse fallbacks: log structured context or surface a visible error (`4bd0325e2`).
+- No inline suppressions of any kind: fix the code, or change the shared config once with the reason there (`openwaggle/no-lint-directive-comments`, `openwaggle/no-architecture-ignore-comments`, `no-cheating/suppression`).
+- Import types at the top of the file, not as inline `import()` types (`openwaggle/no-inline-import-types`).
 
 ## ts-match
 
-OpenWaggle prefers `@diegogbrisa/ts-match` when pattern matching, exhaustive union handling, runtime guards, or boundary assertions improve clarity or type safety.
+Prefer `@diegogbrisa/ts-match` when pattern matching, exhaustive union handling, runtime guards or boundary assertions gain clarity or type safety from it; keep plain TypeScript for simple guard clauses or binary predicates (`4bd0325e2`, `ts-match/prefer-match-over-switch`, `ts-match/prefer-match-over-else-if`). Load `.agents/skills/ts-match/SKILL.md` before writing multi-branch discriminant or shape logic, runtime shape guards or boundary assertions.
 
-Before writing manual multi-branch discriminant/shape logic, runtime shape guards, or boundary assertions, load `.agents/skills/ts-match/SKILL.md` and apply its guidance.
+## Main process architecture
 
-Keep plain TypeScript for simple guard clauses or binary predicates where `ts-match` would add noise.
+Main-process code follows hexagonal architecture (ADR 0001, `openwaggle/main-architecture-boundaries`):
 
-## Main Process Architecture
-
-Main process code follows hexagonal architecture.
-
-- Domain: pure business logic. No Electron, Node fs/process, SQL, Pi SDK, or store imports.
+- Domain: pure business logic. No Electron, Node fs/process, SQL, Pi SDK or store imports.
 - Ports: Effect service interfaces. No vendor SDKs or stores.
-- Adapters: infrastructure and vendor code. OpenWaggle app Pi SDK imports stay under `src/main/adapters/pi/`; dedicated Pi packages may import Pi SDKs inside `packages/pi-*`.
-- Application services: orchestration through ports. No direct stores, IPC, or Pi SDK imports.
-- IPC handlers: transport only. Decode input, call application services, return DTOs.
-- Stores: persistence implementation details behind ports/services.
+- Adapters: infrastructure and vendor code. App Pi SDK imports stay under `src/main/adapters/pi/`; `packages/pi-*` may import Pi SDKs.
+- Application services: orchestration through ports. No direct store, IPC or Pi SDK imports.
+- IPC handlers: transport only. Decode input, call an application service, return DTOs.
+- Stores: persistence details behind ports and services.
 
-Mechanical enforcement:
+In the renderer:
 
-- `openwaggle/main-architecture-boundaries` enforces Pi isolation, domain purity, no provider registry, and store/application/IPC boundaries.
-- `import/no-cycle` catches dependency cycles.
+- A fire-and-forget `void api.*()` call handles its rejection, or it becomes an unhandled renderer error reported as a bare code (`openwaggle/no-uncaught-void-ipc`).
+- No `typeof api.*` guards. The `api` proxy answers every name with a function, so the guard is always true; check a real capability with `'name' in api` (`openwaggle/no-api-typeof-guard`, fix `1b1a55c33`: a long paste vanished because such a guard never fired).
 
-## Pi Runtime
+## Pi runtime
 
-OpenWaggle is a UI and product shell over Pi, not a parallel runtime.
+OpenWaggle is a UI and product shell over Pi, not a parallel runtime (ADR 0002, ADR 0051, `4bd0325e2`). Load `.agents/skills/pi-integration/SKILL.md` before Pi adapter, session projection, provider/auth/model, resource loading, MCP adapter or run orchestration work.
 
-- Keep Pi-native session, tool, provider, model, auth, thinking-level, and compaction semantics end-to-end.
-- Translate Pi details only at adapter boundaries into OpenWaggle-owned DTOs.
-- Do not add custom OpenWaggle tool/runtime layers unless implemented as explicit Pi-native extensions behind ports.
-- Project resources follow `.openwaggle > .pi > .agents` precedence for skills, extensions, prompts, and themes.
-- OpenWaggle project config is `.openwaggle/settings.json`; Pi settings live under the nested `pi` key.
-- Portable Waggle policy belongs in `packages/waggle-core` without Pi/OpenWaggle/Electron imports; Pi-specific Waggle behavior belongs in `packages/pi-waggle`.
+- Keep Pi-native session, tool, provider, model, auth, thinking-level and compaction semantics end to end.
+- Provider, model and auth metadata come from Pi through OpenWaggle ports, never a parallel registry (`AGENTS.md`, `openwaggle/main-architecture-boundaries`).
+- Translate Pi details into OpenWaggle-owned DTOs only at adapter boundaries.
+- Add tool or runtime layers only as Pi-native extensions behind ports.
+- Project resources resolve `.openwaggle > .pi > .agents` for skills, extensions, prompts and themes. Project config is `.openwaggle/settings.json`, with Pi settings under the nested `pi` key.
+- Portable Waggle policy goes in `packages/waggle-core` with no Pi, OpenWaggle or Electron imports; Pi-specific Waggle behaviour goes in `packages/pi-waggle` (ADR 0004).
 
-Load `.agents/skills/pi-integration/SKILL.md` before Pi adapter, session projection, provider/auth/model, resource loading, MCP adapter, or run orchestration work.
+## Publishable package boundaries
 
-## Publishable Package Boundaries
+`check:repository-standards` enforces these imports (`4bd0325e2`, `scripts/repository-package-boundaries.ts`):
 
-OpenWaggle publishable packages must preserve their public contract boundaries.
+- `packages/extension-sdk` stays browser-safe: no Electron, Node built-ins, Pi SDK, renderer stores, main-process services or app internals.
+- `packages/waggle-core` stays runtime-neutral: no Pi SDK, Electron, Node built-ins, renderer stores or app services.
+- `packages/extension-react` may use `@openwaggle/extension-sdk` and React peers, but no renderer components, app CSS, Tailwind internals, Electron or app services.
+- `packages/pi-waggle` may import Pi SDKs, but not Electron, renderer stores or app services.
 
-- `packages/extension-sdk/**` must stay browser-safe. Do not import Electron, Node built-ins, Pi SDK packages, renderer stores, main-process services, or OpenWaggle app internals.
-- `packages/waggle-core/**` must stay runtime-neutral reusable policy. Do not import Pi SDK packages, Electron, Node built-ins, renderer stores, or app services.
-- `packages/extension-react/**` may depend on `@openwaggle/extension-sdk` and React peers, but must not import OpenWaggle renderer components, app CSS, Tailwind internals, Electron, or app services.
-- `packages/pi-waggle/**` may import Pi SDK packages, but must not import Electron, renderer stores, or OpenWaggle app services.
-- These import boundaries must be enforced by `pnpm check:repository-standards`, not only by review.
+## Electron runtime
 
-## Electron Runtime
+Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native ABI, packaging, CDP or startup issues.
 
-- Main-process environment access is centralized in `src/main/env.ts`.
-- Child processes must use the appropriate env helper instead of spreading `process.env` directly.
-- Native modules need separate Node and Electron rebuild paths.
-- Packaged runtime behavior must be validated in packaged app builds when the bug only appears after packaging.
-- Main process logging uses structured loggers, not raw `console.*` outside logger modules.
-- Automated Electron runs must route OS-visible actions through the centralized automation policy. Repository checks reject unguarded window-show/focus, native-dialog, and external-application calls outside that boundary.
-
-Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native ABI, packaging, CDP, or Electron runtime startup issues.
+- Main-process environment access goes through `src/main/env.ts` (`4bd0325e2`, `node/no-process-env`), and child processes get their environment from the env helpers, never a spread of `process.env` (`4bd0325e2`).
+- Native modules keep separate Node and Electron rebuild paths, and a bug that only appears after packaging is verified in a packaged build (`4bd0325e2`).
+- Main-process code logs through the structured loggers (`4bd0325e2`, `no-console`).
+- Automated runs route window show and focus, native dialogs and external applications through the automation policy (`4bd0325e2`, `check:repository-standards`: `scripts/standards/electron-automation.ts`).
+- Electron sits behind the desktop shell ports in `src/main/ports/desktop-shell/`. Only `src/main/adapters/electron/` and `src/preload/electron-transport.ts` import Electron; main code uses the bindings in `src/main/desktop-shell/` (ADR 0064, `openwaggle/desktop-shell-boundary`).
 
 ## Renderer
 
-Detailed renderer architecture rules live in `docs/renderer-architecture.md`.
+`docs/renderer-architecture.md` holds the detailed renderer rules (ADR 0003).
 
-- React 19 and React Compiler are enabled; do not use `React.memo`, `React.FC`, or `forwardRef`.
-- Use `useMemo`/`useCallback` only for semantic identity required by an external API, not render optimization.
-- Prefer focused Zustand selectors and feature-owned hooks over prop-drilled controller objects.
-- Renderer features live under `src/renderer/src/features/<feature>/` with public indexes for cross-feature imports.
-- Shared renderer primitives live under `src/renderer/src/shared/` and `src/renderer/src/shell/`.
-- Use the shared UI primitives instead of raw renderer buttons except inside primitive implementations.
-- Route-adjacent TanStack Router test files need the configured ignored filename pattern.
-
-Mechanical enforcement:
-
-- `openwaggle/renderer-import-boundaries` enforces feature boundaries.
-- `openwaggle/no-raw-renderer-buttons` enforces shared button usage.
-- `openwaggle/renderer-design-token-guardrails` rejects arbitrary snapped-family values, raw renderer hex colors, and Tailwind palette colors. Its binary per-file exemption list can only shrink.
-- `openwaggle/jsx-max-props` discourages prop-drilled components.
-- React Doctor catches React Compiler and renderer anti-patterns.
+- React 19 with the React Compiler: no `React.memo`, `React.FC` or `forwardRef` (`4bd0325e2`, `openwaggle/no-react-legacy-patterns`). Chat and composer components compile with the React Compiler (check `react-compiler`).
+- `useMemo` and `useCallback` only for identity an external API needs, not render optimization (`4bd0325e2`).
+- Prefer focused Zustand selectors and feature-owned hooks over prop-drilled controller objects (`4bd0325e2`, `openwaggle/jsx-max-props`).
+- Features live under `src/renderer/src/features/<feature>/` and import each other through public indexes (`4bd0325e2`, `openwaggle/renderer-import-boundaries`).
+- Shared primitives live under `src/renderer/src/shared/` and `src/renderer/src/shell/`; use them instead of raw buttons (`4bd0325e2`, `openwaggle/no-raw-renderer-buttons`; website templates: `scripts/standards/astro-raw-buttons.ts`).
+- Styles use the design tokens: no arbitrary snapped values, raw hex or Tailwind palette colours. The per-file exemption list only shrinks (ADR 0024, `openwaggle/renderer-design-token-guardrails`, `no-cheating/only-shrinks`).
+- React Doctor reports nothing (`AGENTS.md`, check `react-doctor`).
 
 ## Testing
 
-- Unit, integration, and component tests live in nearby `__tests__/` folders.
-- Tests should verify behavior through public interfaces.
-- Use typed builders, `satisfies`, and Shoehorn test helpers instead of casts.
-- Mock setup must avoid hoisting races; dynamically import subject modules after `vi.mock(...)` setup when needed.
+- Unit, integration and component tests live in nearby `__tests__/` folders; route-adjacent TanStack Router test files use the configured ignored filename pattern (`4bd0325e2`, `openwaggle/test-colocation`).
+- Tests verify behaviour through public interfaces, with typed builders, `satisfies` and Shoehorn helpers instead of casts (`4bd0325e2`). A response field gets a decode test through the real schema: an Effect Schema `Struct` drops keys it does not declare, which once lost the approval scope while every test that answered the broker directly stayed green (memory: tooling).
+- A mocked `@/shared/lib/ipc` answers like the real bridge (memory: testing).
+- Avoid `vi.mock` hoisting races: import the subject dynamically after the mock setup when needed (`4bd0325e2`).
+- A test that spawns many real child processes is an integration test, and a large module graph loads once in `beforeAll` with its own timeout (memory: testing).
+- A new test file should cover a statement or branch arm no other test covers. Zero unique coverage is a candidate for review, not a verdict: contract and refusal tests legitimately show none (check `coverage-uniqueness`, advisory).
+- Never skip, focus or delete a test to get a change through (`no-cheating/test`).
 
-Mechanical enforcement:
+## Tooling and style
 
-- `openwaggle/test-colocation` rejects loose non-E2E test files under `src/`.
-- Vitest configs split unit, integration, component, and coverage runs.
+- TypeScript for project tooling and config files when it is supported (`4bd0325e2`, `check:repository-standards`).
+- No TypeScript `baseUrl`; use explicit `paths` entries (`4bd0325e2`, `check:repository-standards`).
+- `while (true)`, not `for (;;)` (`4bd0325e2`, `openwaggle/no-infinite-for-loop`).
+- Numeric literals outside tests are named `SCREAMING_SNAKE_CASE` constants (`4bd0325e2`, `openwaggle/no-inline-magic-numbers`).
+- Bun only: `bun install`, `bun run`, `bunx`. No npm, pnpm, yarn or tsx (ADR 0064).
+- oxfmt formats JavaScript and TypeScript with `.oxfmtrc.json` (ADR 0064, check `format`).
+- Change generated files only by running their generator (`no-cheating/generated-file`; the usage statistics catalog, API snapshots and package docs have their own check steps).
+- A skill copied from another repository is pinned in `skills-lock.json`; record an edit to it, with the reason, through `bun scripts/skills-lock.ts record <skill> --reason "<why>"` (`check:repository-standards`: `scripts/standards/skills-lock.ts`, memory: tooling).
+- ADR numbers are unique and contiguous, and each ADR is listed in the index in `docs/architecture.md`. The numbers two ADRs already shared are frozen in `scripts/standards/adr-numbering.ts` (`check:repository-standards`, `no-cheating/only-shrinks`, memory: tooling).
 
-## Tooling And Style
+## Dependencies
 
-- Use TypeScript for project tooling when supported.
-- Do not add JavaScript config/tooling files when a TypeScript equivalent is practical.
-- Do not add TypeScript `baseUrl`; use explicit `paths` entries.
-- Avoid inline `import()` types in source files; import types at the top.
-- Use `while (true)`, not `for (;;)`.
-- Use named `SCREAMING_SNAKE_CASE` constants for numeric literals outside tests.
-- Do not add `eslint-disable`, `biome-ignore`, or `fallow-ignore` comments to bypass architecture/style gates.
+`docs/dependency-updates.md` says when and how to move a pin.
 
-Mechanical enforcement:
+- Direct dependencies and catalog entries are exact versions; `workspace:` and `catalog:` references pass (`docs/dependency-updates.md`, `check:repository-standards`, check `dependency-pins`).
+- A pin that is not npm's `latest`, or that something holds where it is, has a line in `DEPENDENCIES.md` (check `dependency-pins`).
+- A release-age exception in `bunfig.toml` names one exact `name@version` with its reason, and goes once that version is seven days old (`docs/dependency-updates.md`; Pi entries: check `pi-runtime`). This holds for `@diegogbrisa/ts-match` too.
 
-- OpenWaggle ESLint rules catch inline import types, `for (;;)`, raw website/renderer buttons, architecture bypass comments, and inline magic numbers.
-- `pnpm check:repository-standards` catches repository standards drift.
+## Git
+
+- Commit subjects are Conventional Commits: `feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `perf`, `ci`, `build` or `revert` (check `commits`, the `commit-msg` hook).
+- Hooks always run, and force pushes are refused: the `pre-push` hook refuses a push that drops commits, and `.pi/extensions/git-guardrails.ts` blocks skipping hooks and force pushing, with no prompt (`.agents/verification.md`).
+- Commit, push, reset, clean, checkout, restore or delete branches only when the maintainer approved that exact action, and never overwrite work you did not create (`AGENTS.md`).
+
+## No cheating
+
+A finding is fixed in code. A false positive gets a `.fallowrc.jsonc`, `doctor.config.ts` or `oxlint.config.mts` entry with its reason, never a suppression comment (`AGENTS.md`, Definition of Done).
+
+The `no-cheating` check step (`bun run check:no-cheating`, `scripts/no-cheating/`) fails a change that gets through by checking less. It compares the working tree with the merge base with `origin/main`, runs in `check`, `verify` and CI, asks nothing, and prints one `file:line [no-cheating/<kind>] message` line per finding:
+
+- `suppression`: a new lint or type-check directive comment.
+- `cast`: a new `as any`, `as unknown as` or `as never`, including in files lint does not cover.
+- `tsconfig`: a source file no project reachable from `tsconfig.json` checks any more, or a strictness flag that got weaker for some file.
+- `lint-config`: a rule turned off or down to a warning, a new ignore or exemption entry, a raised limit or a check option turned off in `oxlint.config.mts`, `.fallowrc.jsonc` or `doctor.config.ts`, with no comment saying why.
+- `budget`: a raised bundle, output, first-turn prefix, memory token or syntax performance budget, or a lowered coverage threshold.
+- `only-shrinks`: a new entry in a list that only shrinks: the design-token and renderer-test type exemptions, the legacy ADR numbers, and the files over the size limits (`OVERSIZED_FILES` in `oxlint.config.mts`). `scripts/no-cheating/ratchets.ts` lists what it watches.
+- `test`: a new `.skip`, `.only` or `.todo`, a `skipIf` or `runIf` with no comment saying when it runs, or a deleted test file whose code still exists.
+- `generated-file`: a published JSON Schema or the syntax language metadata that differs from what its generator writes.
+
+## Docs and memory
+
+- User docs in `website/src/content/docs/` follow the `write-docs` skill (ADR 0061).
+- Significant technical findings go in the matching `.agents/memory/<topic>.md`, within its token cap (`AGENTS.md`, `check:repository-standards`: `scripts/standards/agent-memory.ts`).
+- Prose follows the `unslop` skill (`.agents/skills/unslop/SKILL.md`).

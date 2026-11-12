@@ -64,9 +64,9 @@ Keep OpenWaggle a product/UI layer over Pi. Pi semantics are the runtime source 
 Run targeted unit/integration tests for the touched adapter/service plus:
 
 ```bash
-pnpm check
-pnpm typecheck
-pnpm lint
+bun run check
+bun run typecheck
+bun run lint
 ```
 
 Use Electron QA for renderer/preload/IPC-visible behavior.
