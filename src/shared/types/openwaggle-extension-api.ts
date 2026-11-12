@@ -1,55 +1,19 @@
-import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
-import type {
-  ExtensionFrameRegisterInput,
-  ExtensionFrameRegisterResult,
-  ExtensionFrameUnregisterInput,
-} from './extension-frame'
-import type {
-  ExtensionAcceptUpdateInput,
-  ExtensionApplyPackageRemoveInput,
-  ExtensionApplyPackageWriteInput,
-  ExtensionApproveBuildInput,
-  ExtensionContributionRegistryView,
-  ExtensionListContributionsInput,
-  ExtensionListPackagesInput,
-  ExtensionManagerView,
-  ExtensionPackageRemoveProposalView,
-  ExtensionPackageWriteProposalView,
-  ExtensionProposePackageRemoveInput,
-  ExtensionProposePackageWriteInput,
-  ExtensionReloadInput,
-  ExtensionSetEnabledInput,
-  ExtensionSetProjectDisabledInput,
-  ExtensionSetTrustedInput,
-} from './extensions'
+import type { IpcInvokeMethod } from './ipc-api-methods'
 
 export interface OpenWaggleExtensionApi {
-  listExtensionPackages(input?: ExtensionListPackagesInput): Promise<ExtensionManagerView>
-  listExtensionContributions(
-    input?: ExtensionListContributionsInput,
-  ): Promise<ExtensionContributionRegistryView>
-  proposeExtensionPackageWrite(
-    input: ExtensionProposePackageWriteInput,
-  ): Promise<ExtensionPackageWriteProposalView>
-  applyExtensionPackageWrite(input: ExtensionApplyPackageWriteInput): Promise<ExtensionManagerView>
-  proposeExtensionPackageRemove(
-    input: ExtensionProposePackageRemoveInput,
-  ): Promise<ExtensionPackageRemoveProposalView>
-  applyExtensionPackageRemove(
-    input: ExtensionApplyPackageRemoveInput,
-  ): Promise<ExtensionManagerView>
-  invokeExtension(
-    input: ExtensionInvokeInput,
-    invocationBinding?: string,
-  ): Promise<ExtensionInvokeResult>
-  registerExtensionFrame(input: ExtensionFrameRegisterInput): Promise<ExtensionFrameRegisterResult>
-  unregisterExtensionFrame(input: ExtensionFrameUnregisterInput): Promise<void>
-  setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView>
-  setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView>
-  setExtensionProjectDisabled(
-    input: ExtensionSetProjectDisabledInput,
-  ): Promise<ExtensionManagerView>
-  acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView>
-  approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<ExtensionManagerView>
-  reloadExtension(input: ExtensionReloadInput): Promise<ExtensionManagerView>
+  listExtensionPackages: IpcInvokeMethod<'extensions:list-packages'>
+  listExtensionContributions: IpcInvokeMethod<'extensions:list-contributions'>
+  proposeExtensionPackageWrite: IpcInvokeMethod<'extensions:propose-package-write'>
+  applyExtensionPackageWrite: IpcInvokeMethod<'extensions:apply-package-write'>
+  proposeExtensionPackageRemove: IpcInvokeMethod<'extensions:propose-package-remove'>
+  applyExtensionPackageRemove: IpcInvokeMethod<'extensions:apply-package-remove'>
+  invokeExtension: IpcInvokeMethod<'extensions:invoke'>
+  registerExtensionFrame: IpcInvokeMethod<'extensions:register-frame'>
+  unregisterExtensionFrame: IpcInvokeMethod<'extensions:unregister-frame'>
+  setExtensionTrusted: IpcInvokeMethod<'extensions:set-trusted'>
+  setExtensionEnabled: IpcInvokeMethod<'extensions:set-enabled'>
+  setExtensionProjectDisabled: IpcInvokeMethod<'extensions:set-project-disabled'>
+  acceptExtensionUpdate: IpcInvokeMethod<'extensions:accept-update'>
+  approveExtensionBuild: IpcInvokeMethod<'extensions:approve-build'>
+  reloadExtension: IpcInvokeMethod<'extensions:reload'>
 }
