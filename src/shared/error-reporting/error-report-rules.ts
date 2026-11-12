@@ -31,9 +31,6 @@ import { ERROR_REPORT_ORIGIN_TAG } from './error-report-constants'
 
 export {
   ERROR_REPORT_BUILT_IN_ERROR_TYPES,
-  ERROR_REPORT_DEBUG_IMAGE_LOCATION_KEYS,
-  ERROR_REPORT_FRAME_LOCATION_KEYS,
-  ERROR_REPORT_FRAME_NAME_KEYS,
   isExternalErrorReportFrame,
   isOwnErrorReportCodeLocation,
   scrubErrorReportCodeLocation,
@@ -278,5 +275,5 @@ const LEADING_NODE_ERROR_CODE_PATTERN = /^(?<code>E[A-Z0-9]{2,31}|ERR_[A-Z0-9_]{
 
 /** The Node.js error code a message starts with, as in `ENOENT: no such file or directory`. */
 export function leadingNodeErrorCode(text: string): string | undefined {
-  return LEADING_NODE_ERROR_CODE_PATTERN.exec(text)?.groups?.code
+  return LEADING_NODE_ERROR_CODE_PATTERN.exec(text)?.groups?.['code']
 }

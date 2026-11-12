@@ -51,7 +51,7 @@ export interface AgentLoopConfirmInteraction extends AgentLoopInteractionBase {
   readonly message: string
   readonly purpose: AgentLoopConfirmPurpose
   /** Present only for `authorization`, naming what a kept approval would cover. */
-  readonly scopeKey?: AgentAuthorizationScopeKey
+  readonly scopeKey?: AgentAuthorizationScopeKey | undefined
 }
 
 export interface AgentLoopSelectInteraction extends AgentLoopInteractionBase {
@@ -101,7 +101,7 @@ export interface AgentLoopConfirmResponse {
   readonly kind: 'confirm'
   readonly accepted: boolean
   /** How far an acceptance reaches. Absent means this once only. */
-  readonly scope?: AgentAuthorizationDecisionScope
+  readonly scope?: AgentAuthorizationDecisionScope | undefined
 }
 
 export interface AgentLoopSelectResponse {

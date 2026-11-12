@@ -141,8 +141,9 @@ export function validateUsageStatisticsContext(
   const unknownKey = firstUnknownKey(value, (key) => Object.hasOwn(specs, key))
   if (unknownKey !== undefined) return failure(unknownKey, 'unknown field')
   const { version, build_channel, update_channel, os, arch } = value
-  if (!isVersion(version) || typeof version !== 'string')
+  if (!isVersion(version) || typeof version !== 'string') {
     return failure('version', 'expected a version')
+  }
   if (!includes(USAGE_STATISTICS_BUILD_CHANNELS, build_channel)) {
     return failure('build_channel', 'value is not in the published list')
   }

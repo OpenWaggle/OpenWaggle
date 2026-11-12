@@ -51,12 +51,12 @@ export interface GitStatusSummary {
 
 export interface GitCommitPayload {
   /** Originating Session, used by main to verify ownership and project the commit into Outputs. */
-  readonly sessionId?: SessionId
+  readonly sessionId?: SessionId | undefined
   readonly message: string
   readonly amend: boolean
   readonly paths: readonly string[]
   /** False commits the existing index without staging working-tree changes. Defaults to true. */
-  readonly includeUnstaged?: boolean
+  readonly includeUnstaged?: boolean | undefined
 }
 
 export const GIT_COMMIT_ERROR_CODES = [
@@ -143,8 +143,8 @@ export interface GitBranchCheckoutPayload {
 
 export interface GitBranchCreatePayload {
   readonly name: string
-  readonly startPoint?: string
-  readonly checkout?: boolean
+  readonly startPoint?: string | undefined
+  readonly checkout?: boolean | undefined
 }
 
 export const GIT_DIFF_ERROR_CODES = [

@@ -253,7 +253,7 @@ export interface AgentTransportCompactionEndEvent extends TransportEventBase {
   readonly result: JsonValue
   readonly aborted: boolean
   readonly willRetry: boolean
-  readonly errorMessage?: string
+  readonly errorMessage?: string | undefined
 }
 
 export interface AgentTransportAutoRetryStartEvent extends TransportEventBase {

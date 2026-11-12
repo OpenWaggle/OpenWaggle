@@ -2,12 +2,12 @@ export interface SessionItemsQuery {
   readonly operation: 'items'
   readonly sessionId: string
   readonly limit: number
-  readonly runId?: string
-  readonly branchScope?: 'active-branch' | 'tree'
-  readonly branchId?: string
-  readonly afterCreatedOrder?: number
-  readonly throughCreatedOrder?: number
-  readonly snapshotHeadNodeId?: string
+  readonly runId?: string | undefined
+  readonly branchScope?: 'active-branch' | 'tree' | undefined
+  readonly branchId?: string | undefined
+  readonly afterCreatedOrder?: number | undefined
+  readonly throughCreatedOrder?: number | undefined
+  readonly snapshotHeadNodeId?: string | undefined
 }
 
 export interface SessionItemsOutcome {

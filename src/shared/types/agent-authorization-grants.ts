@@ -64,12 +64,6 @@ export const AGENT_AUTHORIZATION_DECISION_SCOPES = ['once', 'session', 'project'
 
 export type AgentAuthorizationDecisionScope = (typeof AGENT_AUTHORIZATION_DECISION_SCOPES)[number]
 
-export function isAgentAuthorizationDecisionScope(
-  value: unknown,
-): value is AgentAuthorizationDecisionScope {
-  return AGENT_AUTHORIZATION_DECISION_SCOPES.some((scope) => scope === value)
-}
-
 /**
  * Stable string form of a key, for map lookups and for comparing two keys.
  *

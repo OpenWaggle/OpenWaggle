@@ -7,16 +7,16 @@ export interface SessionExportQuery {
   readonly operation: 'export'
   readonly sessionId: string
   readonly limit: number
-  readonly branchScope?: SessionExportBranchScope
-  readonly branchId?: string
-  readonly includeQueueBodies?: boolean
-  readonly afterCreatedOrder?: number
-  readonly throughCreatedOrder?: number
-  readonly snapshotStateRevision?: number
-  readonly snapshotHeadNodeId?: string
-  readonly capturedAt?: number
+  readonly branchScope?: SessionExportBranchScope | undefined
+  readonly branchId?: string | undefined
+  readonly includeQueueBodies?: boolean | undefined
+  readonly afterCreatedOrder?: number | undefined
+  readonly throughCreatedOrder?: number | undefined
+  readonly snapshotStateRevision?: number | undefined
+  readonly snapshotHeadNodeId?: string | undefined
+  readonly capturedAt?: number | undefined
   /** Exact immutable manifest returned by the first page. Required for stable continuation pages. */
-  readonly snapshotManifest?: SessionExportManifest
+  readonly snapshotManifest?: SessionExportManifest | undefined
 }
 
 export interface SessionExportManifest {
@@ -32,9 +32,9 @@ export interface SessionExportManifest {
     readonly queueRevision: number
     readonly capturedAt: number
     /** Monotonic guard against node mutation or deletion during paginated foreground exports. */
-    readonly nodeMutationRevision?: number
+    readonly nodeMutationRevision?: number | undefined
     /** Present for active-branch exports created by snapshot-aware clients. */
-    readonly selectedHeadNodeId?: string
+    readonly selectedHeadNodeId?: string | undefined
   }
   readonly activeRunId: string | null
   readonly activeTurnIncomplete: boolean
@@ -48,7 +48,7 @@ export interface SessionExportManifest {
       readonly position: number
       readonly createdAt: number
       readonly deliveryState: 'pending' | 'needs_attention'
-      readonly attentionReason?: 'profile_revoked' | 'authority_changed'
+      readonly attentionReason?: 'profile_revoked' | 'authority_changed' | undefined
       readonly intent?: unknown
     }[]
   }

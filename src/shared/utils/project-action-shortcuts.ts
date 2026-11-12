@@ -48,7 +48,7 @@ interface ProjectActionShortcutEvent {
 }
 
 interface LegacyProjectActionShortcutCarrier {
-  readonly shortcut?: ShortcutBinding
+  readonly shortcut?: ShortcutBinding | undefined
 }
 
 function normalizedEventKey(key: string) {
