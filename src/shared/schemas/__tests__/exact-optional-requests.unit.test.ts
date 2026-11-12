@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { safeDecodeUnknown } from '@shared/schema'
 import { actionManagementRequestSchema } from '../action-management'
+import { sessionWorkspaceSelectionSchema } from '../session-operation-requests'
 import { usageCostSessionQuerySchema } from '../usage-cost'
 
 function refusal(path: string) {
@@ -29,5 +30,14 @@ describe('exact optional IPC request fields', () => {
     expect(
       safeDecodeUnknown(usageCostSessionQuerySchema, { ...query, day: undefined }),
     ).toMatchObject(refusal('day: '))
+  })
+
+  it('refuses a Session workspace selection field set to undefined, naming the field', () => {
+    expect(safeDecodeUnknown(sessionWorkspaceSelectionSchema, { nodeId: null })).toMatchObject({
+      success: true,
+    })
+    expect(
+      safeDecodeUnknown(sessionWorkspaceSelectionSchema, { nodeId: null, branchId: undefined }),
+    ).toMatchObject(refusal('branchId: '))
   })
 })
