@@ -174,7 +174,10 @@ const DEV_SCRIPT = `['"\`](?:run['"\`]\\s*,\\s*['"\`])?dev(?::debug(?::headed)?)
 /** `pnpm` called with a dev script (`dev`, `run dev`, `dev:debug`, `dev:debug:headed`) in its list. */
 const PNPM_DEV_CALL = new RegExp(`['"\`]pnpm['"\`]\\s*,\\s*\\[[^\\]]*?${DEV_SCRIPT}`, 'u')
 /** `pnpm` (or pnpm's own script, `npm_execpath`) as the argument right before a dev script. */
-const PNPM_DEV_ARGV = new RegExp(`(?:['"\`]pnpm['"\`]|\\bnpm_execpath\\b)\\s*,\\s*${DEV_SCRIPT}`, 'u')
+const PNPM_DEV_ARGV = new RegExp(
+  `(?:['"\`]pnpm['"\`]|\\bnpm_execpath\\b[^,\\n]{0,40}?)\\s*,\\s*${DEV_SCRIPT}`,
+  'u',
+)
 /** Such a list built first, holding only the script or the script and its switches. */
 const DEV_SCRIPT_LIST = new RegExp(`\\[\\s*${DEV_SCRIPT}\\s*(?:\\]|,\\s*['"\`]--)`, 'u')
 const PNPM_LITERAL = /['"`]pnpm['"`]/u
