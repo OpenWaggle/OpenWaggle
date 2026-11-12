@@ -61,11 +61,35 @@ const STOP_TAIL_SECONDS = 0.02
 /** Exponential ramps cannot reach zero; this is silent. */
 const SILENT_GAIN = 0.0001
 
+/**
+ * How long a context stays open after its last tone ends, so sounds in quick succession share it.
+ * An open context holds an audio output stream, which keeps the engine's audio service running
+ * (a 45-80 MB helper process in Chromium) and rendering silence until the window closes.
+ */
+export const NOTIFICATION_AUDIO_RELEASE_MS = 2_000
+const MILLISECONDS_PER_SECOND = 1_000
+
 let audioContext: AudioContext | null = null
+let releaseTimer: ReturnType<typeof setTimeout> | null = null
 
 function context() {
+  if (releaseTimer !== null) clearTimeout(releaseTimer)
+  releaseTimer = null
   audioContext ??= new AudioContext()
   return audioContext
+}
+
+/** Closes `audio` once its tones have played, unless another sound reuses it first. */
+function releaseAfter(audio: AudioContext, endsAt: number) {
+  const delayMs =
+    Math.max(0, endsAt - audio.currentTime) * MILLISECONDS_PER_SECOND +
+    NOTIFICATION_AUDIO_RELEASE_MS
+  releaseTimer = setTimeout(() => {
+    releaseTimer = null
+    if (audioContext !== audio) return
+    audioContext = null
+    void audio.close().catch(() => undefined)
+  }, delayMs)
 }
 
 /** Play a bundled Notification sound now; a failure (no audio device) stays silent. */
@@ -73,6 +97,7 @@ export async function playNotificationSound(sound: BundledNotificationSoundId) {
   const audio = context()
   if (audio.state === 'suspended') await audio.resume()
   const start = audio.currentTime + START_LEAD_SECONDS
+  let endsAt = start
   for (const tone of SOUND_TONES[sound]) {
     const oscillator = audio.createOscillator()
     const gain = audio.createGain()
@@ -88,5 +113,7 @@ export async function playNotificationSound(sound: BundledNotificationSoundId) {
     oscillator.connect(gain).connect(audio.destination)
     oscillator.start(at)
     oscillator.stop(at + tone.duration + STOP_TAIL_SECONDS)
+    endsAt = Math.max(endsAt, at + tone.duration + STOP_TAIL_SECONDS)
   }
+  releaseAfter(audio, endsAt)
 }
