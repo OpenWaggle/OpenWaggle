@@ -5,6 +5,7 @@ import { createMcpAuthProvider } from '@earendil-works/pi-coding-agent'
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { isRecord } from '@shared/utils/validation'
 import { Effect } from 'effect'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
@@ -220,9 +221,10 @@ async function optionalList(
 }
 
 async function listCatalog(pool: McpConnectionPool, input: McpAppServerInput) {
-  // Both lists go over one connection, resolved once, as concurrent requests.
+  // Both lists go over one connection, resolved once, as concurrent requests. A failure reports
+  // the resources list's error first, as listing them one after the other did.
   const { connection } = await appConnection(pool, input)
-  const [resources, prompts] = await Promise.all([
+  const [resources, prompts] = await allInOrder([
     optionalList(pool, connection, input, 'resources/list', 'resources'),
     optionalList(pool, connection, input, 'prompts/list', 'prompts'),
   ])
