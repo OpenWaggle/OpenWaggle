@@ -1,0 +1,340 @@
+import path from 'node:path'
+import type { Context, Node, Rule } from '@oxlint/plugins'
+import { isTestFilename, moduleSpecifierOf, normalizedFilename, property } from '../ast-helpers.ts'
+
+/**
+ * Every Pi SDK package (`@earendil-works/pi-ai`, `pi-coding-agent`, `pi-mcp`, `pi-codemode`, ...),
+ * type-only imports included: the standards confine all of them to the Pi adapter and the
+ * dedicated `packages/pi-*` packages.
+ */
+const PI_SDK_PACKAGE_PATTERN = /^@earendil-works\/pi-[^/]+(?:\/|$)/
+const PROVIDER_REGISTRY_IDENTIFIER = 'providerRegistry'
+const MAIN_PROVIDERS_PREFIX = 'src/main/providers/'
+const MAIN_PI_ADAPTER_PREFIX = 'src/main/adapters/pi/'
+const PACKAGE_PI_PREFIX = 'packages/pi-'
+const PACKAGE_PI_WAGGLE_PREFIX = 'packages/pi-waggle/'
+const PACKAGE_WAGGLE_CORE_PREFIX = 'packages/waggle-core/'
+const PI_WAGGLE_IMPORT_PREFIX = '@openwaggle/pi-waggle'
+const RENDERER_ALIAS_PREFIX = '@/'
+const MAIN_IPC_PREFIX = 'src/main/ipc/'
+const MAIN_APPLICATION_PREFIX = 'src/main/application/'
+const MAIN_STORE_PREFIX = 'src/main/store/'
+const MAIN_ADAPTERS_PREFIX = 'src/main/adapters/'
+const MAIN_DOMAIN_PREFIX = 'src/main/domain/'
+const MAIN_USAGE_STATISTICS_PREFIX = 'src/main/usage-statistics/'
+const RENDERER_PREFIX = 'src/renderer/'
+const SHARED_PREFIX = 'src/shared/'
+const SHARED_DOMAIN_PREFIX = 'src/shared/domain/'
+const SHARED_ALIAS_PREFIX = '@shared/'
+const SHARED_ALIAS_LENGTH = SHARED_ALIAS_PREFIX.length
+
+const DOMAIN_FORBIDDEN_IMPORTS = new Set(['electron', 'node:child_process'])
+const DOMAIN_FORBIDDEN_IMPORT_PREFIXES = ['node:fs', '@effect/sql']
+const FILE_START_LOCATION = {
+  line: 1,
+  column: 0,
+}
+
+function toProjectPath(filename: string) {
+  const normalized = normalizedFilename(filename)
+  if (normalized.startsWith('packages/')) {
+    return normalized
+  }
+
+  const packageIndex = normalized.lastIndexOf('/packages/')
+  if (packageIndex !== -1) {
+    return normalized.slice(packageIndex + 1)
+  }
+
+  if (normalized.startsWith('src/')) {
+    return normalized
+  }
+
+  const srcIndex = normalized.indexOf('/src/')
+  if (srcIndex !== -1) {
+    return normalized.slice(srcIndex + 1)
+  }
+
+  return normalized
+}
+
+function stripExtension(value: string) {
+  return value.replace(/\.(ts|tsx|js|jsx)$/, '')
+}
+
+function resolveRelativeImport(importPath: string, importerPath: string) {
+  if (importPath.startsWith(SHARED_ALIAS_PREFIX)) {
+    return stripExtension(`src/shared/${importPath.slice(SHARED_ALIAS_LENGTH)}`)
+  }
+
+  if (importPath.startsWith(RENDERER_ALIAS_PREFIX)) {
+    return stripExtension(`src/renderer/src/${importPath.slice(RENDERER_ALIAS_PREFIX.length)}`)
+  }
+
+  if (!importPath.startsWith('.')) {
+    return null
+  }
+
+  return stripExtension(
+    path.posix.normalize(path.posix.join(path.posix.dirname(importerPath), importPath)),
+  )
+}
+
+function isDomainFile(projectPath: string) {
+  return projectPath.startsWith(MAIN_DOMAIN_PREFIX) || projectPath.startsWith(SHARED_DOMAIN_PREFIX)
+}
+
+function isDomainInfrastructureImport(importPath: string) {
+  return (
+    DOMAIN_FORBIDDEN_IMPORTS.has(importPath) ||
+    DOMAIN_FORBIDDEN_IMPORT_PREFIXES.some((prefix) => importPath.startsWith(prefix))
+  )
+}
+
+function isPiSdkImport(importPath: string) {
+  return PI_SDK_PACKAGE_PATTERN.test(importPath)
+}
+
+function isDedicatedPiPackageFile(projectPath: string) {
+  return projectPath.startsWith(PACKAGE_PI_PREFIX)
+}
+
+function isMainProcessFile(projectPath: string) {
+  return projectPath.startsWith('src/main/')
+}
+
+function isOpenWaggleAppImport(importPath: string, resolvedImport: string | null) {
+  return (
+    importPath.startsWith(SHARED_ALIAS_PREFIX) ||
+    importPath.startsWith(RENDERER_ALIAS_PREFIX) ||
+    importPath.startsWith('src/') ||
+    resolvedImport?.startsWith('src/') === true
+  )
+}
+
+function waggleCoreBoundaryReason(importPath: string, resolvedImport: string | null) {
+  if (isOpenWaggleAppImport(importPath, resolvedImport)) {
+    return 'packages/waggle-core must stay portable and must not import OpenWaggle app modules.'
+  }
+
+  if (
+    importPath === PI_WAGGLE_IMPORT_PREFIX ||
+    importPath.startsWith(`${PI_WAGGLE_IMPORT_PREFIX}/`) ||
+    resolvedImport?.startsWith(PACKAGE_PI_WAGGLE_PREFIX)
+  ) {
+    return 'packages/waggle-core must stay Pi-adapter free and must not import packages/pi-waggle.'
+  }
+
+  return importPath === 'electron' || isPiSdkImport(importPath)
+    ? 'packages/waggle-core must stay portable and may not import Electron or Pi SDK modules.'
+    : null
+}
+
+function piPackageBoundaryReason(
+  importPath: string,
+  projectPath: string,
+  resolvedImport: string | null,
+) {
+  if (projectPath.startsWith(PACKAGE_WAGGLE_CORE_PREFIX)) {
+    return waggleCoreBoundaryReason(importPath, resolvedImport)
+  }
+
+  if (
+    projectPath.startsWith(PACKAGE_PI_WAGGLE_PREFIX) &&
+    isOpenWaggleAppImport(importPath, resolvedImport)
+  ) {
+    return 'packages/pi-waggle must stay reusable and must not import OpenWaggle app modules.'
+  }
+
+  return null
+}
+
+function piWaggleRendererBoundaryReason(importPath: string, projectPath: string) {
+  return (projectPath.startsWith(RENDERER_PREFIX) || projectPath.startsWith(SHARED_PREFIX)) &&
+    (importPath === PI_WAGGLE_IMPORT_PREFIX || importPath.startsWith(`${PI_WAGGLE_IMPORT_PREFIX}/`))
+    ? 'OpenWaggle renderer/shared code may not import pi-waggle adapter package surfaces; use @openwaggle/waggle-core or shared DTOs.'
+    : null
+}
+
+function piWaggleDesktopRootImportReason(importPath: string, projectPath: string) {
+  return importPath === PI_WAGGLE_IMPORT_PREFIX && projectPath.startsWith(MAIN_PI_ADAPTER_PREFIX)
+    ? 'Desktop Pi adapters must import narrow @openwaggle/pi-waggle subpaths instead of the UI-heavy package root.'
+    : null
+}
+
+/** OpenWaggle app code; scripts are development tooling outside the app's layers. */
+function isAppFile(projectPath: string) {
+  return projectPath.startsWith('src/') || projectPath.startsWith('packages/')
+}
+
+function piSdkBoundaryReason(importPath: string, projectPath: string) {
+  return isPiSdkImport(importPath) &&
+    !projectPath.startsWith(MAIN_PI_ADAPTER_PREFIX) &&
+    !isDedicatedPiPackageFile(projectPath)
+    ? 'Pi SDK imports are confined to src/main/adapters/pi/ for the desktop app; dedicated packages under packages/pi-* may import them.'
+    : null
+}
+
+function mainLayerBoundaryReason(projectPath: string, resolvedImport: string | null) {
+  if (projectPath.startsWith(MAIN_IPC_PREFIX) && resolvedImport?.startsWith(MAIN_STORE_PREFIX)) {
+    return 'IPC handlers must use application services/ports instead of direct store imports.'
+  }
+
+  if (
+    projectPath.startsWith(MAIN_APPLICATION_PREFIX) &&
+    resolvedImport?.startsWith(MAIN_STORE_PREFIX)
+  ) {
+    return 'Application services must depend on ports, not direct store imports.'
+  }
+
+  if (
+    projectPath.startsWith(MAIN_APPLICATION_PREFIX) &&
+    resolvedImport?.startsWith(MAIN_IPC_PREFIX)
+  ) {
+    return 'Application services must not depend on IPC handlers.'
+  }
+
+  /*
+   * Adapters must not reach into the IPC layer. This direction was documented in prose (and in a
+   * comment inside the Pi adapter) but unenforced, and an adapter did import an IPC module that
+   * contained no handler at all - so the rule could not catch the next one either.
+   */
+  return projectPath.startsWith(MAIN_ADAPTERS_PREFIX) && resolvedImport?.startsWith(MAIN_IPC_PREFIX)
+    ? 'Adapters must not depend on IPC handlers; move shared logic to src/main/services/ or a port.'
+    : null
+}
+
+/** Layers that record Usage statistics only through the UsageStatisticsRecorder port. */
+const USAGE_STATISTICS_PORT_LAYERS = [
+  MAIN_APPLICATION_PREFIX,
+  MAIN_IPC_PREFIX,
+  MAIN_STORE_PREFIX,
+  MAIN_DOMAIN_PREFIX,
+]
+
+/*
+ * src/main/usage-statistics/ is infrastructure, like an adapter: it owns process-global recorder
+ * state, files and timers. Application, IPC, store and domain code reach it through the
+ * UsageStatisticsRecorder port, and it never reaches back into IPC handlers or application
+ * services. Tests may import both sides to check the wiring.
+ */
+function usageStatisticsBoundaryReason(projectPath: string, resolvedImport: string | null) {
+  if (isTestFilename(projectPath) || !resolvedImport) return null
+  if (
+    resolvedImport.startsWith(MAIN_USAGE_STATISTICS_PREFIX) &&
+    USAGE_STATISTICS_PORT_LAYERS.some((prefix) => projectPath.startsWith(prefix))
+  ) {
+    return 'Application, IPC, store and domain code must record Usage statistics through the UsageStatisticsRecorder port, not src/main/usage-statistics/.'
+  }
+  return projectPath.startsWith(MAIN_USAGE_STATISTICS_PREFIX) &&
+    (resolvedImport.startsWith(MAIN_IPC_PREFIX) ||
+      resolvedImport.startsWith(MAIN_APPLICATION_PREFIX))
+    ? 'src/main/usage-statistics/ is infrastructure and must not depend on IPC handlers or application services.'
+    : null
+}
+
+function reasonForInvalidImport(importPath: string, projectPath: string) {
+  const resolvedImport = resolveRelativeImport(importPath, projectPath)
+
+  return (
+    piPackageBoundaryReason(importPath, projectPath, resolvedImport) ??
+    piWaggleRendererBoundaryReason(importPath, projectPath) ??
+    piWaggleDesktopRootImportReason(importPath, projectPath) ??
+    piSdkBoundaryReason(importPath, projectPath) ??
+    mainLayerBoundaryReason(projectPath, resolvedImport) ??
+    usageStatisticsBoundaryReason(projectPath, resolvedImport) ??
+    (isDomainFile(projectPath) && isDomainInfrastructureImport(importPath)
+      ? 'Domain modules must not import infrastructure packages.'
+      : null)
+  )
+}
+
+/**
+ * The Pi SDK boundary for module references that are not declarations: dynamic `import()`, an
+ * `import()` type and a literal `require()`, which otherwise bypass the static rule in app code.
+ * Development scripts may load Pi dynamically, for example an ESM-only Pi entry point.
+ */
+function reasonForInvalidPiReference(importPath: string, projectPath: string) {
+  if (!isAppFile(projectPath)) return null
+  if (projectPath.startsWith(PACKAGE_WAGGLE_CORE_PREFIX) && isPiSdkImport(importPath)) {
+    return waggleCoreBoundaryReason(importPath, null)
+  }
+  return piSdkBoundaryReason(importPath, projectPath)
+}
+
+function reportViolation(context: Context, node: Node, reason: string) {
+  context.report({
+    node,
+    messageId: 'invalidBoundary',
+    data: { reason },
+  })
+}
+
+export const mainArchitectureBoundariesRule: Rule = {
+  meta: {
+    type: 'problem',
+    messages: {
+      invalidBoundary: 'Invalid hexagonal architecture boundary: {{reason}}',
+    },
+  },
+  create(context) {
+    const projectPath = toProjectPath(context.filename)
+    const isProductionFile = !isTestFilename(projectPath)
+
+    function checkImport(node: Node) {
+      const importPath = moduleSpecifierOf(node)
+      if (!importPath) {
+        return
+      }
+
+      const reason = reasonForInvalidImport(importPath, projectPath)
+      if (reason) {
+        reportViolation(context, node, reason)
+      }
+    }
+
+    function checkPiReference(node: Node) {
+      const importPath = moduleSpecifierOf(node)
+      const reason = importPath ? reasonForInvalidPiReference(importPath, projectPath) : null
+      if (reason) reportViolation(context, node, reason)
+    }
+
+    return {
+      CallExpression: checkPiReference,
+      ExportAllDeclaration: checkImport,
+      ExportNamedDeclaration: checkImport,
+      Identifier(node: Node) {
+        if (
+          !isProductionFile ||
+          !isMainProcessFile(projectPath) ||
+          projectPath.startsWith(MAIN_PI_ADAPTER_PREFIX)
+        ) {
+          return
+        }
+
+        if (property(node, 'name') === PROVIDER_REGISTRY_IDENTIFIER) {
+          reportViolation(
+            context,
+            node,
+            'providerRegistry references are not allowed in production main-process source.',
+          )
+        }
+      },
+      ImportDeclaration: checkImport,
+      ImportExpression: checkPiReference,
+      TSImportType: checkPiReference,
+      Program() {
+        if (projectPath.startsWith(MAIN_PROVIDERS_PREFIX)) {
+          context.report({
+            loc: FILE_START_LOCATION,
+            messageId: 'invalidBoundary',
+            data: {
+              reason:
+                'src/main/providers is not a valid runtime directory; provider metadata comes from Pi adapter ports.',
+            },
+          })
+        }
+      },
+    }
+  },
+}
