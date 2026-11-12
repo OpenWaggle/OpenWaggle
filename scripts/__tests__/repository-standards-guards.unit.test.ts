@@ -109,7 +109,10 @@ describe('non-disruptive Electron automation boundary', () => {
     ["spawn('pnpm', ['run', 'dev'])", 1],
     ["spawn('pnpm', ['dev:debug:headed'])", 1],
     ["execSync('pnpm dev')", 1],
-    ["spawn('pnpm', ['install']);\nif (BUILD_CHANNEL === 'dev') {}", 0],
+    ["const args = ['dev', '--']\nreturn { command: 'pnpm', args }", 1],
+    ["spawn('pnpm', ['--filter', 'app', 'dev'])", 1],
+    ["spawnSync('pnpm', ['install'])\nif (BUILD_CHANNEL === 'dev') {}", 0],
+    ["run('pnpm', ['build'])\nconst CHANNELS = ['dev', 'beta', 'stable']", 0],
     ["const commands = ['pnpm install', 'pnpm dev']", 0],
   ] as const)('counts %s as %i development app launch', (source, launches) => {
     expect(collectScriptedElectronLaunchViolations('scripts/x.ts', source)).toHaveLength(launches)

@@ -170,17 +170,21 @@ function launchesWithPlaywright(code: string) {
   )
 }
 
-/** `pnpm dev`, `pnpm run dev`, `pnpm dev:debug` or `pnpm dev:debug:headed`, as arguments or one string. */
-const PNPM_DEV_ARGUMENTS =
-  /['"`]pnpm['"`][^;]{0,200}?['"`](?:run['"`]\s*,\s*['"`])?dev(?::debug(?::headed)?)?['"`]/su
+const DEV_SCRIPT = `['"\`](?:run['"\`]\\s*,\\s*['"\`])?dev(?::debug(?::headed)?)?['"\`]`
+/** `pnpm` called with a dev script (`dev`, `run dev`, `dev:debug`, `dev:debug:headed`) in its list. */
+const PNPM_DEV_CALL = new RegExp(`['"\`]pnpm['"\`]\\s*,\\s*\\[[^\\]]*?${DEV_SCRIPT}`, 'u')
+/** Such a list built first, holding only the script or the script and `--` before its switches. */
+const DEV_SCRIPT_LIST = new RegExp(`\\[\\s*${DEV_SCRIPT}\\s*(?:\\]|,\\s*['"\`]--['"\`])`, 'u')
+const PNPM_LITERAL = /['"`]pnpm['"`]/u
+/** A `pnpm dev` command string passed to exec or spawn. */
 const PNPM_DEV_COMMAND =
   /\b(?:exec|execSync|spawn|spawnSync)\s*\(\s*['"`]pnpm\s+(?:run\s+)?dev(?::debug(?::headed)?)?(?=[\s'"`])/u
 
 /**
  * `electron-vite dev` spawned directly, the development launcher (called, imported or run by its
- * path), or a pnpm dev script.
+ * path; importing only its helpers counts too, which keeps the rule simple), or a pnpm dev script.
  */
-function launchesDevelopmentApp(code: string, inScripts: boolean) {
+function launchesDevelopmentApp(code: string, checksPnpm: boolean) {
   const spawns =
     /\bspawn\s*\(/u.test(code) ||
     childProcessSpawnAliases(code).some((alias) => new RegExp(`\\b${alias}\\s*\\(`, 'u').test(code))
@@ -189,7 +193,10 @@ function launchesDevelopmentApp(code: string, inScripts: boolean) {
     /\belectronDevInvocation\s*\(/u.test(code) ||
     /\brun-electron-dev\b/u.test(code) ||
     // The app's own code runs a project's `pnpm dev` for the user (project actions), and shows it.
-    (inScripts && (PNPM_DEV_ARGUMENTS.test(code) || PNPM_DEV_COMMAND.test(code)))
+    (checksPnpm &&
+      (PNPM_DEV_CALL.test(code) ||
+        (PNPM_LITERAL.test(code) && DEV_SCRIPT_LIST.test(code)) ||
+        PNPM_DEV_COMMAND.test(code)))
   )
 }
 
@@ -200,7 +207,7 @@ export function collectScriptedElectronLaunchViolations(file: string, contents: 
   if (normalized.startsWith('scripts/standards/')) return []
   const code = withoutCommentLines(contents)
   const playwright = launchesWithPlaywright(code)
-  const devApp = launchesDevelopmentApp(code, normalized.startsWith('scripts/'))
+  const devApp = launchesDevelopmentApp(code, !normalized.startsWith('src/'))
   if (playwright && normalized === PLAYWRIGHT_ELECTRON_LAUNCH_OWNER) return []
   if (devApp && ELECTRON_VITE_LAUNCH_OWNERS.includes(normalized)) return []
   if (!playwright && !devApp) return []
