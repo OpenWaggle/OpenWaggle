@@ -1,5 +1,4 @@
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
-import { allInOrder } from '@shared/utils/all-in-order'
 import type { StartManagedActionInput } from '../../ports/action-run-service'
 import type { ManagedActionDependencies } from './managed-action-runs'
 import { resolveActionInvocation } from './task-discovery'
@@ -20,10 +19,13 @@ export async function resolveManagedActionLaunch(
       'The action changed during authorization. Review its current execution before starting.',
     )
   }
-  const [invocation, environment] = await allInOrder([
-    resolveActionInvocation(input.workspace.workspacePath, definition.invocation),
-    deps.environment(input.workspace),
-  ])
+  const invocation = await resolveActionInvocation(
+    input.workspace.workspacePath,
+    definition.invocation,
+  )
+  // Only after the invocation resolved: reading the environment can complete a pending worktree's
+  // setup, which a launch that fails here must not do.
+  const environment = await deps.environment(input.workspace)
   await deps.runner.validate(invocation, environment)
   return { definition, invocation, environment }
 }
