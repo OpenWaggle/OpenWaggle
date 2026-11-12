@@ -10,7 +10,7 @@ import { docsPageFiles } from './docs-page-files'
 // Pending package lines (src/content/package-docs-next/) are checked as `packages/<package>/next/<page>`,
 // because Release Please promotes them into the docs unchanged.
 
-const ONLY = (process.env.DOCS_STYLE_ONLY ?? '')
+const ONLY = (process.env['DOCS_STYLE_ONLY'] ?? '')
   .split(',')
   .map((prefix) => prefix.trim())
   .filter((prefix) => prefix.length > 0)
@@ -297,6 +297,7 @@ describe('docs wording', () => {
 
   it('writes glossary nouns in lowercase except at the start of a sentence', () => {
     const nameStart = new RegExp(`^(?:${NAMES.join('|')})\\b`, 'u')
+    const lineStart = /(?:^|\n)\s*(?:[-*>]|\d+\.|#+|\|)?\s*$/u
     const offenders = pages()
       .filter((page) => !isGenerated(page))
       .flatMap((page) => {
@@ -309,13 +310,7 @@ describe('docs wording', () => {
             if (nameStart.test(text.slice(index))) continue
             const before = text.slice(Math.max(0, index - 3), index)
             // A sentence, list item, table cell, heading or label starts here.
-            if (
-              index === 0 ||
-              /(?:^|\n)\s*(?:[-*>]|\d+\.|#+|\|)?\s*$/u.test(
-                text.slice(Math.max(0, index - 12), index),
-              )
-            )
-              continue
+            if (index === 0 || lineStart.test(text.slice(Math.max(0, index - 12), index))) continue
             if (/[.!?:"(]\s$|\|\s?$/u.test(before)) continue
             found.add(`${page.slug}:${lineOf(page, text, index)} ${noun}`)
           }

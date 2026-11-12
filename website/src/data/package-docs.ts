@@ -1,6 +1,5 @@
 import {
   packageDocumentationDefinitions,
-  packageDocumentationForSlug as findPackageDocumentationForSlug,
   packageDocumentationPage as resolvePackageDocumentationPage,
   packageDocumentationRoute,
   versionPackageDocumentation,
@@ -10,7 +9,6 @@ import { docsPath } from '../lib/site-paths'
 export {
   packageDocumentationPageRoute,
   packageDocumentationRoute,
-  packageDocumentationUrl,
 } from '../../../scripts/package-documentation-model'
 export type {
   PackageDocumentationPage,
