@@ -1,3 +1,5 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionSummaryRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
 import type { HivePendingRequest } from '@shared/types/hive-next-actor'
@@ -87,9 +89,9 @@ function catalogPage(sessions: readonly SessionSummary[], limit: number): Sessio
 function loadSessionRowsById(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   const emptyRows: readonly SessionSummaryRow[] = []
   if (sessionIds.length === 0) return Effect.succeed(emptyRows)
-  return sql<SessionSummaryRow>`
+  return sql`
     SELECT ${sessionSummaryColumns(sql)} FROM sessions WHERE id IN ${sql.in(sessionIds)}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
 export async function listSessionCatalogPage(
@@ -101,14 +103,14 @@ export async function listSessionCatalogPage(
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<SessionSummaryRow>`
+      const rows = yield* sql`
         SELECT ${sessionSummaryColumns(sql)} FROM sessions
         WHERE archived = ${archived ? 1 : 0}
           AND (${cursor?.updatedAt ?? null} IS NULL
             OR updated_at < ${cursor?.updatedAt ?? null}
             OR (updated_at = ${cursor?.updatedAt ?? null} AND id < ${cursor?.sessionId ?? null}))
         ORDER BY updated_at DESC, id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       return catalogPage(yield* hydrateSessionNavigationRows(sql, rows), limit)
     }),
   )
@@ -189,7 +191,7 @@ export async function listHiveSessionCatalogPage(
         sql,
         yield* loadSessionRowsById(sql, contextIds),
       )
-      const rows = yield* sql<SessionSummaryRow>`
+      const rows = yield* sql`
         SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
         LEFT JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
         LEFT JOIN session_lineage AS historical ON historical.session_id = sessions.id
@@ -199,7 +201,7 @@ export async function listHiveSessionCatalogPage(
             OR (sessions.updated_at = ${cursor?.updatedAt ?? null}
               AND sessions.id < ${cursor?.sessionId ?? null}))
         ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       const workerPage = catalogPage(yield* hydrateSessionNavigationRows(sql, rows), limit)
       return {
         context,
@@ -232,7 +234,7 @@ export async function listHiveTreeSessionCatalogPage(
       const rootRows = yield* loadSessionRowsById(sql, [rootId])
       // Hydrated like every member, so the root carries its lineage (role, Worker counts).
       const root = (yield* hydrateSessionNavigationRows(sql, rootRows))[0] ?? null
-      const memberRows = yield* sql<SessionSummaryRow>`
+      const memberRows = yield* sql`
         SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
         JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
         WHERE live.hive_root_session_id = ${rootId}
@@ -242,7 +244,7 @@ export async function listHiveTreeSessionCatalogPage(
             OR (sessions.updated_at = ${cursor?.updatedAt ?? null}
               AND sessions.id < ${cursor?.sessionId ?? null}))
         ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       const memberPage = catalogPage(yield* hydrateSessionNavigationRows(sql, memberRows), limit)
       const needsYouCount = yield* countHiveNeedsYou(sql, rootId, pendingRequests)
       return {
@@ -264,7 +266,7 @@ export async function listArchivedSessionBranchCatalogPage(
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<SessionSummaryRow>`
+      const rows = yield* sql`
         SELECT ${sessionSummaryColumns(sql)} FROM sessions
         WHERE archived = 0
           AND EXISTS (
@@ -276,7 +278,7 @@ export async function listArchivedSessionBranchCatalogPage(
             OR updated_at < ${cursor?.updatedAt ?? null}
             OR (updated_at = ${cursor?.updatedAt ?? null} AND id < ${cursor?.sessionId ?? null}))
         ORDER BY updated_at DESC, id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       const page = catalogPage(hydrateSessionRows(rows) ?? [], limit)
       if (page.sessions.length === 0) return page
       return {

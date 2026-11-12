@@ -1,3 +1,5 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionTreeUiStateRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionTreeUiStatePatch } from '@shared/types/session'
@@ -57,7 +59,7 @@ export async function updateSessionTreeUiState(
 }
 
 function loadExistingUiState(sql: SqlClient.SqlClient, sessionId: SessionId) {
-  return sql<SessionTreeUiStateRow>`
+  return sql`
     SELECT
       session_tree_ui_state.session_id,
       expanded_node_ids_json,
@@ -70,7 +72,7 @@ function loadExistingUiState(sql: SqlClient.SqlClient, sessionId: SessionId) {
       ON session_visit_receipts.session_id = session_tree_ui_state.session_id
     WHERE session_tree_ui_state.session_id = ${sessionId}
     LIMIT 1
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionTreeUiStateRowSchema, 'session_tree_ui_state')))
 }
 
 function expandedNodeIdsJson(
