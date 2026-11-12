@@ -167,8 +167,8 @@ async function oauthCandidates(input: {
     if (!file.config) continue
     for (const [name, entry] of Object.entries(legacyServerMap(file.config))) {
       const serverState = input.state.servers[legacyServerIdentityKey(file.path, name)]
-      if (!isRecord(entry) || typeof entry['url'] !== 'string' || !serverState) continue
-      candidates.push({ name, url: entry['url'], instanceId: serverState.instanceId })
+      if (!isRecord(entry) || typeof entry.url !== 'string' || !serverState) continue
+      candidates.push({ name, url: entry.url, instanceId: serverState.instanceId })
     }
   }
   return candidates

@@ -26,7 +26,7 @@ describe('Hive tool capability schema', () => {
 
     expect(shape.type).toBe('object')
     expect(shape.anyOf).toBeUndefined()
-    expect(shape.properties?.['action']).toBeDefined()
+    expect(shape.properties?.action).toBeDefined()
   })
 
   it('removes operations the current Session grant does not carry', () => {

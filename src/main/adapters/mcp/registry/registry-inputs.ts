@@ -25,22 +25,22 @@ function text(value: unknown) {
 }
 
 export function resolveRegistryInput(input: Readonly<Record<string, unknown>>) {
-  const raw = text(input['value']) ?? text(input['default'])
+  const raw = text(input.value) ?? text(input.default)
   if (raw === undefined) return { kind: 'empty' } satisfies RegistryInputResolution
-  const variables = isRecord(input['variables']) ? input['variables'] : {}
+  const variables = isRecord(input.variables) ? input.variables : {}
   let unfilled: RegistryInputResolution | undefined
   let usesSecret = false
   const value = raw.replace(VARIABLE_PATTERN, (placeholder, name: string) => {
     const variable = variables[name]
     if (!isRecord(variable)) return placeholder
-    const secret = variable['isSecret'] === true
+    const secret = variable.isSecret === true
     usesSecret ||= secret
-    const filled = text(variable['value']) ?? text(variable['default'])
+    const filled = text(variable.value) ?? text(variable.default)
     if (filled === undefined) {
       unfilled ??= {
         kind: 'unfilled',
         variable: name,
-        required: variable['isRequired'] === true,
+        required: variable.isRequired === true,
         secret,
       }
     }

@@ -78,9 +78,9 @@ describe('project_actions repair proposals', () => {
     const shape = fromAny<{ properties?: Record<string, unknown> }, unknown>(
       structuredClone(tool.parameters),
     )
-    expect(shape.properties?.['command']).toBeDefined()
-    expect(shape.properties?.['directory']).toBeDefined()
-    expect(shape.properties?.['reason']).toBeDefined()
+    expect(shape.properties?.command).toBeDefined()
+    expect(shape.properties?.directory).toBeDefined()
+    expect(shape.properties?.reason).toBeDefined()
   })
 
   it('returns a Command repair proposal as data without authorizing, saving or launching', async () => {

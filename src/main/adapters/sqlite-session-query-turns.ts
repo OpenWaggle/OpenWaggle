@@ -17,8 +17,8 @@ export function readTurns(sql: SqlClient.SqlClient, request: TurnsRequest) {
   const cursor = decodeSessionQueryCursor(request.query.cursor)
   if (cursor === 'invalid') return Effect.succeed(invalidSessionQueryCursor(request))
   const runCursor =
-    cursor && typeof cursor['createdAt'] === 'number' && typeof cursor['runId'] === 'string'
-      ? { createdAt: cursor['createdAt'], runId: cursor['runId'] }
+    cursor && typeof cursor.createdAt === 'number' && typeof cursor.runId === 'string'
+      ? { createdAt: cursor.createdAt, runId: cursor.runId }
       : cursor
         ? 'invalid'
         : null

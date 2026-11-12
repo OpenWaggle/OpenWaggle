@@ -19,11 +19,11 @@ function tokenRules(value: unknown) {
   if (!Array.isArray(value)) return []
   const rules: SyntaxThemeTokenRule[] = []
   for (const candidate of value) {
-    if (!isRecord(candidate) || !isRecord(candidate['settings'])) continue
-    const foreground = candidate['settings']['foreground']
-    const background = candidate['settings']['background']
-    const fontStyle = candidate['settings']['fontStyle']
-    const scopeValue = candidate['scope']
+    if (!isRecord(candidate) || !isRecord(candidate.settings)) continue
+    const foreground = candidate.settings.foreground
+    const background = candidate.settings.background
+    const fontStyle = candidate.settings.fontStyle
+    const scopeValue = candidate.scope
     const scope =
       typeof scopeValue === 'string'
         ? scopeValue
@@ -31,7 +31,7 @@ function tokenRules(value: unknown) {
           ? scopeValue
           : undefined
     rules.push({
-      ...(typeof candidate['name'] === 'string' ? { name: candidate['name'] } : {}),
+      ...(typeof candidate.name === 'string' ? { name: candidate.name } : {}),
       ...(scope ? { scope } : {}),
       settings: {
         ...(typeof foreground === 'string' ? { foreground } : {}),
@@ -44,8 +44,8 @@ function tokenRules(value: unknown) {
 }
 
 function inferredThemeType(raw: Readonly<Record<string, unknown>>, label: string) {
-  if (raw['type'] === 'light') return 'light' as const
-  if (raw['type'] === 'dark') return 'dark' as const
+  if (raw.type === 'light') return 'light' as const
+  if (raw.type === 'dark') return 'dark' as const
   if (/\blight\b/i.test(label)) return 'light' as const
   return 'dark' as const
 }
@@ -72,7 +72,7 @@ export function normalizedTheme(input: {
   const resolved = toJsonObject(input.raw)
   const type = inferredThemeType(input.raw, input.label)
   const variant = input.forcedVariant ?? inferredVariant(type, input.label)
-  const settings = tokenRules(input.raw['settings'] ?? input.raw['tokenColors'])
+  const settings = tokenRules(input.raw.settings ?? input.raw.tokenColors)
   if (settings.length === 0) throw new Error(`Theme "${input.label}" has no TextMate token rules.`)
   const revision = createHash('sha256').update(JSON.stringify({ original, resolved })).digest('hex')
   const declaredIdentity = input.declaredIdentity
@@ -93,7 +93,7 @@ export function normalizedTheme(input: {
       name: runtimeName,
       displayName: input.label,
       type,
-      colors: stringRecord(input.raw['colors']),
+      colors: stringRecord(input.raw.colors),
       settings,
     },
     original,

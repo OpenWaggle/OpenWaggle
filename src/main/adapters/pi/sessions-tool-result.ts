@@ -52,7 +52,7 @@ function compactNode(value: unknown, key?: string): unknown {
  */
 export function compactHiveResult(result: unknown): unknown {
   if (!isRecord(result)) return result
-  const response = isRecord(result['response']) ? result['response'] : result
+  const response = isRecord(result.response) ? result.response : result
   const { replayed, ...kept } = withoutKeys(
     { ...withoutKeys(result, new Set(['response'])), ...response },
     ENVELOPE_KEYS,
@@ -79,22 +79,18 @@ interface PagedOutcome {
  */
 function pagedOutcome(result: unknown): PagedOutcome | undefined {
   if (!isRecord(result)) return undefined
-  if (isRecord(result['outcome']) && Array.isArray(result['outcome']['items'])) {
+  if (isRecord(result.outcome) && Array.isArray(result.outcome.items)) {
     return {
-      outcome: result['outcome'],
-      items: result['outcome']['items'],
+      outcome: result.outcome,
+      items: result.outcome.items,
       withOutcome: (outcome) => ({ ...result, outcome }),
     }
   }
   const { response } = result
-  if (
-    isRecord(response) &&
-    isRecord(response['outcome']) &&
-    Array.isArray(response['outcome']['items'])
-  ) {
+  if (isRecord(response) && isRecord(response.outcome) && Array.isArray(response.outcome.items)) {
     return {
-      outcome: response['outcome'],
-      items: response['outcome']['items'],
+      outcome: response.outcome,
+      items: response.outcome.items,
       withOutcome: (outcome) => ({ ...result, response: { ...response, outcome } }),
     }
   }
@@ -102,9 +98,7 @@ function pagedOutcome(result: unknown): PagedOutcome | undefined {
 }
 
 function createdOrderOf(item: unknown) {
-  return isRecord(item) && typeof item['createdOrder'] === 'number'
-    ? item['createdOrder']
-    : undefined
+  return isRecord(item) && typeof item.createdOrder === 'number' ? item.createdOrder : undefined
 }
 
 function pageText(

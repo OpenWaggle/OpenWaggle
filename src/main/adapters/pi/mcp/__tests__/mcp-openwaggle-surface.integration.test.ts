@@ -123,9 +123,9 @@ async function firstPrompt(
 /** The text of every tool result the model was given in the Session. */
 function toolResultTexts(session: { readonly messages: readonly unknown[] }) {
   return session.messages.flatMap((message) =>
-    isRecord(message) && message['role'] === 'toolResult' && Array.isArray(message['content'])
-      ? message['content'].flatMap((part: unknown) =>
-          isRecord(part) && typeof part['text'] === 'string' ? [part['text']] : [],
+    isRecord(message) && message.role === 'toolResult' && Array.isArray(message.content)
+      ? message.content.flatMap((part: unknown) =>
+          isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
         )
       : [],
   )

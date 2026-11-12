@@ -11,7 +11,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 
 function markdownContent(content: unknown) {
   if (typeof content === 'string') return content
-  if (isRecord(content) && typeof content['text'] === 'string') return content['text']
+  if (isRecord(content) && typeof content.text === 'string') return content.text
   return `\`\`\`json\n${JSON.stringify(content, null, JSON_INDENT_SPACES)}\n\`\`\``
 }
 

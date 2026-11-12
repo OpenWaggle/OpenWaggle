@@ -138,17 +138,17 @@ export function piAssistantContentToParts(content: readonly unknown[]) {
 }
 
 function getToolResultDuration(details: unknown) {
-  if (!isRecord(details) || typeof details['duration'] !== 'number') {
+  if (!isRecord(details) || typeof details.duration !== 'number') {
     return 0
   }
-  return details['duration']
+  return details.duration
 }
 
 function getToolResultArgs(details: unknown): JsonObject {
   if (!isRecord(details)) {
     return {}
   }
-  return toJsonObject(details['args'])
+  return toJsonObject(details.args)
 }
 
 interface PiNestedToolCallRecord {

@@ -58,8 +58,8 @@ describe('hive two-tier schema', () => {
   it('names every permitted action and help, but types only the hot actions', () => {
     const schema = schemaOf(register())
 
-    expect(schema.properties['action']?.enum).toEqual(expect.arrayContaining(['rename', 'spawn']))
-    expect(schema.properties['action']?.enum?.at(-1)).toBe('help')
+    expect(schema.properties.action?.enum).toEqual(expect.arrayContaining(['rename', 'spawn']))
+    expect(schema.properties.action?.enum?.at(-1)).toBe('help')
     expect(Object.keys(schema.properties)).toEqual(
       expect.arrayContaining(['objective', 'sessionIds', 'delegationId', 'target', 'topic']),
     )
@@ -71,9 +71,7 @@ describe('hive two-tier schema', () => {
   })
 
   it('declares spawn’s agent with a description that points at the definitions', () => {
-    const agent = fromAny<{ description?: string }, unknown>(
-      schemaOf(register()).properties['agent'],
-    )
+    const agent = fromAny<{ description?: string }, unknown>(schemaOf(register()).properties.agent)
 
     expect(agent).toMatchObject({ type: 'string' })
     expect(agent.description).toMatch(/available_agents or agent_definitions_list/)
@@ -81,7 +79,7 @@ describe('hive two-tier schema', () => {
   })
 
   it('declares a union of object shapes as one object, so report stays short', () => {
-    const target = schemaOf(register()).properties['target']
+    const target = schemaOf(register()).properties.target
     expect(target).toMatchObject({ type: 'object' })
     expect(target).not.toHaveProperty('anyOf')
   })

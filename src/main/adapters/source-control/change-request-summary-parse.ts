@@ -4,32 +4,32 @@ import { asObject, asString } from './change-request-parse-shared'
 /** Map a GitHub PR JSON object (from `gh pr view --json ...`) to a request summary. */
 export function mapGhPullRequest(raw: unknown): VcsChangeRequest | null {
   const record = asObject(raw)
-  const url = asString(record?.['url'])
-  const title = asString(record?.['title'])
+  const url = asString(record?.url)
+  const title = asString(record?.title)
   if (!record || !url || title === null) return null
   return {
     title,
     url,
-    baseRef: asString(record['baseRefName']) ?? '',
-    headRef: asString(record['headRefName']) ?? '',
-    state: mapGhState(asString(record['state']), record['isDraft'] === true),
+    baseRef: asString(record.baseRefName) ?? '',
+    headRef: asString(record.headRefName) ?? '',
+    state: mapGhState(asString(record.state), record.isDraft === true),
   }
 }
 
 /** Map a GitLab MR JSON object (from `glab mr view -F json`) to a request summary. */
 export function mapGlabMergeRequest(raw: unknown): VcsChangeRequest | null {
   const record = asObject(raw)
-  const url = asString(record?.['web_url'])
-  const title = asString(record?.['title'])
+  const url = asString(record?.web_url)
+  const title = asString(record?.title)
   if (!record || !url || title === null) return null
   return {
     title,
     url,
-    baseRef: asString(record['target_branch']) ?? '',
-    headRef: asString(record['source_branch']) ?? '',
+    baseRef: asString(record.target_branch) ?? '',
+    headRef: asString(record.source_branch) ?? '',
     state: mapGlabState(
-      asString(record['state']),
-      record['draft'] === true || record['work_in_progress'] === true,
+      asString(record.state),
+      record.draft === true || record.work_in_progress === true,
     ),
   }
 }

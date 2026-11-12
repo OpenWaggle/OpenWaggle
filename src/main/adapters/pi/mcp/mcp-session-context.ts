@@ -34,8 +34,8 @@ const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app'
 /** Declares what OpenWaggle answers on Pi's behalf: sampling, elicitation, and MCP Apps. */
 export function withOpenWaggleClientCapabilities(params: unknown) {
   if (!isRecord(params)) return params
-  const capabilities = isRecord(params['capabilities']) ? params['capabilities'] : {}
-  const extensions = isRecord(capabilities['extensions']) ? capabilities['extensions'] : {}
+  const capabilities = isRecord(params.capabilities) ? params.capabilities : {}
+  const extensions = isRecord(capabilities.extensions) ? capabilities.extensions : {}
   return {
     ...params,
     capabilities: {

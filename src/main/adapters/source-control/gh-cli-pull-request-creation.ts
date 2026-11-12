@@ -71,7 +71,7 @@ async function repositoryContext(
   const nameWithOwner = jsonStringProperty(parsed, 'nameWithOwner')
   const repositoryUrl = jsonStringProperty(parsed, 'url')
   const decoded = safeDecodeUnknown(jsonObjectSchema, parsed)
-  const defaultBranchRef = decoded.success ? decoded.data['defaultBranchRef'] : null
+  const defaultBranchRef = decoded.success ? decoded.data.defaultBranchRef : null
   const defaultBranch = jsonStringProperty(defaultBranchRef, 'name')
   const expectedNameWithOwner = `${repository.owner}/${repository.repository}`
   if (
@@ -131,9 +131,9 @@ async function createOrganizationForkPullRequest(
 function pullRequestHeadOwner(raw: unknown): string | null {
   const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
   if (!decoded.success) return null
-  const owner = safeDecodeUnknown(jsonObjectSchema, decoded.data['headRepositoryOwner'])
+  const owner = safeDecodeUnknown(jsonObjectSchema, decoded.data.headRepositoryOwner)
   if (!owner.success) return null
-  const login = owner.data['login']
+  const login = owner.data.login
   return typeof login === 'string' ? login : null
 }
 

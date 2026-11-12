@@ -24,7 +24,7 @@ export function mcpConfigFilePaths(input: {
 }
 
 function isMissingFile(error: unknown) {
-  return isRecord(error) && (error['code'] === 'ENOENT' || error['code'] === 'ENOTDIR')
+  return isRecord(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')
 }
 
 async function readServerNames(filePath: string) {
@@ -38,7 +38,7 @@ async function readServerNames(filePath: string) {
   if (!raw.trim()) return []
   const parsed: unknown = JSON.parse(raw)
   if (!isRecord(parsed)) throw new Error('expected a JSON object')
-  const servers = parsed['mcpServers']
+  const servers = parsed.mcpServers
   if (servers === undefined) return []
   if (!isRecord(servers)) throw new Error('`mcpServers` must be an object')
   return Object.keys(servers)

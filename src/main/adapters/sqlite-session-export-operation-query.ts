@@ -53,8 +53,8 @@ function listCursor(request: ListRequest) {
   const cursor = decodeSessionQueryCursor(request.query.cursor)
   if (cursor === 'invalid') return 'invalid' as const
   if (!cursor) return null
-  return typeof cursor['updatedAt'] === 'number' && typeof cursor['exportOperationId'] === 'string'
-    ? { updatedAt: cursor['updatedAt'], exportOperationId: cursor['exportOperationId'] }
+  return typeof cursor.updatedAt === 'number' && typeof cursor.exportOperationId === 'string'
+    ? { updatedAt: cursor.updatedAt, exportOperationId: cursor.exportOperationId }
     : ('invalid' as const)
 }
 
