@@ -1,9 +1,10 @@
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import type {
   ChangeRequestCheckoutResult,
   ChangeRequestPreflightPayload,
   ChangeRequestPreflightResult,
 } from '@shared/types/git'
+import { changeRequestPreflightPayloadSchema } from '@shared/schemas/git-requests'
 import { resolveAutoFeatureBranchName } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
 import { networkGitOptions } from '../../adapters/git/run-git'
@@ -27,15 +28,6 @@ const NO_PROVIDER = {
 
 /** Longer than a ref advertisement, because this transfers objects. */
 const CHANGE_REQUEST_FETCH_TIMEOUT_MS = 30_000
-
-const openChangeRequestPayloadSchema = Schema.Struct({
-  headRef: Schema.String,
-  baseRef: Schema.optional(Schema.String),
-  title: Schema.String,
-  body: Schema.optional(Schema.String),
-  draft: Schema.optional(Schema.Boolean),
-  createFeatureBranch: Schema.optional(Schema.Boolean),
-})
 
 async function planChangeRequestHead(projectPath: string, payload: ChangeRequestPreflightPayload) {
   if (!payload.createFeatureBranch) return payload.headRef
@@ -98,10 +90,7 @@ export function registerGitChangeRequestHandlers(): void {
   typedHandle('git:change-request:preflight', (_event, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const payload = decodeUnknownOrThrow(
-        openChangeRequestPayloadSchema,
-        rawPayload,
-      ) satisfies ChangeRequestPreflightPayload
+      const payload = decodeUnknownOrThrow(changeRequestPreflightPayloadSchema, rawPayload)
       const plannedHeadRef = yield* Effect.promise(() =>
         planChangeRequestHead(projectPath, payload),
       )
