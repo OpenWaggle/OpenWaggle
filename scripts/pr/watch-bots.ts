@@ -50,9 +50,9 @@ interface CodexState {
 const CodexStateSchema = Schema.parseJson(
   Schema.Struct({
     code_review: Schema.Struct({
-      commit_sha: Schema.optional(Schema.NullOr(Schema.String)),
-      has_unresolved_findings: Schema.optional(Schema.NullOr(Schema.Boolean)),
-      status: Schema.optional(Schema.NullOr(Schema.String)),
+      commit_sha: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
+      has_unresolved_findings: Schema.optionalWith(Schema.NullOr(Schema.Boolean), { exact: true }),
+      status: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
     }),
   }),
 )

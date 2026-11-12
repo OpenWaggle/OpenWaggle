@@ -1,26 +1,11 @@
-import { Schema } from '@shared/schema'
+import { Schema, type SchemaType } from '@shared/schema'
+import { lenientExactOptional } from '@shared/schemas/lenient-exact'
+import { jsonValueSchema } from '@shared/schemas/validation'
 import { objectFields, unknownField } from './support/object-fields'
 import type {
   PackageDocumentationDefinition,
   VersionedPackageDocumentationDefinition,
 } from './package-documentation-model'
-
-export interface PackageManifest {
-  readonly bugs?: { readonly url?: string | undefined } | undefined
-  readonly description?: string | undefined
-  readonly exports?: Readonly<Record<string, unknown>> | undefined
-  readonly homepage?: string | undefined
-  readonly keywords?: readonly string[] | undefined
-  readonly name?: string | undefined
-  readonly repository?:
-    | {
-        readonly directory?: string | undefined
-        readonly type?: string | undefined
-        readonly url?: string | undefined
-      }
-    | undefined
-  readonly version?: string | undefined
-}
 
 type JsonObject = Readonly<Record<string, unknown>>
 
@@ -28,12 +13,6 @@ const SEMVER_DOCS_PART_COUNT = 2
 
 function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function stringArray(value: unknown) {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
-    ? value
-    : undefined
 }
 
 /** The `package.json` fields the docs metadata reads; a field of the wrong type reads as absent. */
@@ -47,38 +26,36 @@ const manifestFieldsSchema = Schema.Struct({
   repository: unknownField,
   version: unknownField,
 })
-const urlFieldSchema = Schema.Struct({ url: unknownField })
-const repositoryFieldsSchema = Schema.Struct({
-  directory: unknownField,
-  type: unknownField,
-  url: unknownField,
+/**
+ * The `package.json` metadata the docs check reads. A field that is missing or of the wrong type
+ * is left out, never set to undefined.
+ */
+const packageManifestSchema = Schema.Struct({
+  bugs: lenientExactOptional(Schema.Struct({ url: lenientExactOptional(Schema.String) })),
+  description: lenientExactOptional(Schema.String),
+  exports: lenientExactOptional(
+    // A runtime-keyed map: each subpath to its export target.
+    Schema.Record({ key: Schema.String, value: jsonValueSchema }).pipe(
+      Schema.filter((exportsValue) => !Array.isArray(exportsValue)),
+    ),
+  ),
+  homepage: lenientExactOptional(Schema.String),
+  keywords: lenientExactOptional(Schema.Array(Schema.String)),
+  name: lenientExactOptional(Schema.String),
+  repository: lenientExactOptional(
+    Schema.Struct({
+      directory: lenientExactOptional(Schema.String),
+      type: lenientExactOptional(Schema.String),
+      url: lenientExactOptional(Schema.String),
+    }),
+  ),
+  version: lenientExactOptional(Schema.String),
 })
 
-function stringField(value: unknown) {
-  return typeof value === 'string' ? value : undefined
-}
+export type PackageManifest = SchemaType<typeof packageManifestSchema>
 
 export function packageManifest(value: unknown): PackageManifest {
-  const manifest = objectFields(manifestFieldsSchema, value)
-  if (manifest === undefined) return {}
-  const repository = objectFields(repositoryFieldsSchema, manifest.repository)
-  const bugsUrl = stringField(objectFields(urlFieldSchema, manifest.bugs)?.url)
-  return {
-    bugs: bugsUrl === undefined ? undefined : { url: bugsUrl },
-    description: stringField(manifest.description),
-    exports: isJsonObject(manifest.exports) ? manifest.exports : undefined,
-    homepage: stringField(manifest.homepage),
-    keywords: stringArray(manifest.keywords),
-    name: stringField(manifest.name),
-    repository: repository
-      ? {
-          directory: stringField(repository.directory),
-          type: stringField(repository.type),
-          url: stringField(repository.url),
-        }
-      : undefined,
-    version: stringField(manifest.version),
-  }
+  return isJsonObject(value) ? Schema.decodeUnknownSync(packageManifestSchema)(value) : {}
 }
 
 export function packageManifestDocumentationViolations(

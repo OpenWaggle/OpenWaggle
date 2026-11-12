@@ -153,9 +153,11 @@ export function createRulesetPayload() {
 /** A ruleset rule this module reads: its `type` and, when it has them, its `parameters`. */
 const rulesetRuleSchema = Schema.Struct({
   type: Schema.String,
-  parameters: Schema.optional(Schema.Unknown),
+  parameters: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
-const rulesetRulesSchema = Schema.Struct({ rules: Schema.optional(Schema.Unknown) })
+const rulesetRulesSchema = Schema.Struct({
+  rules: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 const isRulesetRule = Schema.is(rulesetRuleSchema)
 
 function rulesetRuleParameters(rules: unknown, type: string) {
@@ -209,12 +211,14 @@ const bootstrapRecordSchema = Schema.Struct({
   name: Schema.String,
   version: Schema.Literal(BOOTSTRAP_VERSION),
   openwaggleNamespaceBootstrap: Schema.Literal(true),
-  dist: Schema.optional(Schema.Unknown),
-  files: Schema.optional(Schema.Unknown),
-  directories: Schema.optional(Schema.Unknown),
-  deprecated: Schema.optional(Schema.Unknown),
+  dist: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  files: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  directories: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  deprecated: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
-const distMetadataSchema = Schema.Struct({ fileCount: Schema.optional(Schema.Unknown) })
+const distMetadataSchema = Schema.Struct({
+  fileCount: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
 function distFileCountOf(dist: unknown) {
   return isJsonObject(dist) && Schema.is(distMetadataSchema)(dist) ? dist.fileCount : undefined
@@ -242,7 +246,9 @@ export function isCompatibleBootstrapRecord(value: unknown, packageName: string)
   )
 }
 
-const deprecationSchema = Schema.Struct({ deprecated: Schema.optional(Schema.Unknown) })
+const deprecationSchema = Schema.Struct({
+  deprecated: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
 export function isCompatibleBootstrapMetadata(value: unknown, packageName: string) {
   return (
@@ -261,7 +267,7 @@ export function needsBootstrapDeprecation(value: unknown) {
 /** The npm dist-tags the bootstrap owns: `bootstrap`, and `latest` when npm added it. */
 const bootstrapTagsSchema = Schema.Struct({
   bootstrap: Schema.Literal(BOOTSTRAP_VERSION),
-  latest: Schema.optional(Schema.Unknown),
+  latest: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 export function hasCompatibleTags(value: unknown) {

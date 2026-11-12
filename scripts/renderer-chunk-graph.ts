@@ -10,7 +10,7 @@ export type RendererManifest = Readonly<Record<string, RendererManifestChunk>>
 /** A Vite manifest chunk: its file and, when it has any, the chunks it imports. */
 const manifestChunkSchema = Schema.Struct({
   file: Schema.String,
-  imports: Schema.optional(Schema.Array(Schema.String)),
+  imports: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
 })
 
 function isManifestChunk(value: unknown): value is RendererManifestChunk {

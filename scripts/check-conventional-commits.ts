@@ -22,16 +22,16 @@ const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
 export type { CommitSubject } from './commit-subjects'
 
 export interface ConventionalCommitValidationOptions {
-  readonly baseline?: string | undefined
+  readonly baseline?: string
   readonly cwd?: string
-  readonly from?: string | undefined
+  readonly from?: string
   /**
    * Whether a missing package tag or a shallow clone fails the package documentation line check.
    * CI fetches full history and tags, so it fails there; the local pre-push check skips with a warning.
    */
   readonly missingReleaseHistory?: 'fail' | 'skip'
-  readonly prTitle?: string | undefined
-  readonly to?: string | undefined
+  readonly prTitle?: string
+  readonly to?: string
 }
 
 export function hasPackageReleaseIntent(title: string) {
@@ -288,16 +288,9 @@ export function validateCommitMessage(message: string): string[] {
 
 function readArgumentValue(args: readonly string[], name: string) {
   const index = args.indexOf(name)
-
-  if (index === -1) {
-    return undefined
-  }
-
+  if (index === -1) return undefined
   const value = args[index + 1]
-  if (value === undefined || value.startsWith('--')) {
-    throw new Error(`${name} requires a value.`)
-  }
-
+  if (value === undefined || value.startsWith('--')) throw new Error(`${name} requires a value.`)
   return value
 }
 
@@ -312,11 +305,15 @@ async function main() {
     }
     return
   }
+  const baseline = readArgumentValue(args, '--baseline')
+  const from = readArgumentValue(args, '--from')
+  const prTitle = readArgumentValue(args, '--pr-title')
+  const to = readArgumentValue(args, '--to')
   const result = await validateConventionalCommits({
-    baseline: readArgumentValue(args, '--baseline'),
-    from: readArgumentValue(args, '--from'),
-    prTitle: readArgumentValue(args, '--pr-title'),
-    to: readArgumentValue(args, '--to'),
+    ...(baseline === undefined ? {} : { baseline }),
+    ...(from === undefined ? {} : { from }),
+    ...(prTitle === undefined ? {} : { prTitle }),
+    ...(to === undefined ? {} : { to }),
   })
 
   if (result.violations.length === 0) {

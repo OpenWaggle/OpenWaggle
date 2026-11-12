@@ -147,7 +147,7 @@ export function aliasesFor(input: {
   readonly section: string | undefined
   readonly source: InstalledDocTopic['source']
   /** The page's `aliases` frontmatter: other names readers search for, comma-separated. */
-  readonly extraAliases?: string | undefined
+  readonly extraAliases?: string
 }) {
   const basename = input.slug.split('/').at(-1) ?? input.slug
   return unique([

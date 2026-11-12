@@ -72,13 +72,13 @@ function isVersionAtLeast(version: string, minimum: string) {
 
 /** The npm profile fields the preflight reads; `npm profile get --json` spells 2FA either way. */
 const npmProfileSchema = Schema.Struct({
-  name: Schema.optional(Schema.Unknown),
-  tfa: Schema.optional(Schema.Unknown),
-  'two-factor auth': Schema.optional(Schema.Unknown),
+  name: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  tfa: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  'two-factor auth': Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 const npmTwoFactorSchema = Schema.Struct({
   mode: Schema.Literal('auth-and-writes'),
-  pending: Schema.optional(Schema.Unknown),
+  pending: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 type NpmProfile = Schema.Schema.Type<typeof npmProfileSchema>
 

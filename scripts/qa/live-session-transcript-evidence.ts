@@ -12,8 +12,8 @@ const isItemStreamLine = Schema.is(
 )
 /** The fields that name what a transcript entry is. */
 const entryMarkerSchema = Schema.Struct({
-  type: Schema.optional(Schema.Unknown),
-  kind: Schema.optional(Schema.Unknown),
+  type: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  kind: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 const spawnArgumentsSchema = Schema.Union(
   Schema.Struct({ action: Schema.Literal('spawn') }),
