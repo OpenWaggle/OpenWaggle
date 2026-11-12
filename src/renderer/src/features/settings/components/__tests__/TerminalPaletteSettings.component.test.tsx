@@ -44,7 +44,7 @@ const THEME: SyntaxThemeResource = {
 }
 
 function installTheme() {
-  document.documentElement.dataset.theme = 'dark'
+  document.documentElement.dataset['theme'] = 'dark'
   document.documentElement.style.setProperty('--color-bg', testHexColor('141719'))
   document.documentElement.style.setProperty('--color-text-primary', testHexColor('e7e9ee'))
   document.documentElement.style.setProperty('--color-text-muted', testHexColor('8f98a8'))

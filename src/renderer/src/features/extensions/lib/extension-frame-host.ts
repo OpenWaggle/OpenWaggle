@@ -93,20 +93,18 @@ const extensionMountInvokeInputSchema = Schema.Struct({
   scope: extensionInvokeScopeSchema,
   payload: Schema.optional(Schema.Unknown),
 })
-
-export type ExtensionFrameMessage = SchemaType<typeof extensionFrameMessageSchema>
 export type ExtensionFrameInvokeMessage = SchemaType<typeof extensionFrameInvokeMessageSchema>
 
 export function extensionFrameConfig(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly moduleUrl: string
-  readonly surfacePayload?: JsonValue
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   return {
     moduleUrl: input.moduleUrl,
     context: createOpenWaggleExtensionSurfaceContext({
       entry: input.entry,
-      surfacePayload: input.surfacePayload,
+      ...(input.surfacePayload === undefined ? {} : { surfacePayload: input.surfacePayload }),
       theme: createRendererExtensionTheme(),
     }),
   } satisfies ExtensionFrameConfig

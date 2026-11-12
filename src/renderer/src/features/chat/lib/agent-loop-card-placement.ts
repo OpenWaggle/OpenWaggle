@@ -70,7 +70,7 @@ function messageIndexById(messages: readonly UIMessage[]) {
   for (const [index, message] of messages.entries()) {
     indexById.set(message.id, index)
     const nodeId = message.metadata?.sessionNodeId
-    if (nodeId !== undefined) indexById.set(String(nodeId), index)
+    if (nodeId !== undefined) indexById.set(nodeId, index)
   }
   return indexById
 }
@@ -95,7 +95,7 @@ export function placeAgentLoopCards(input: {
   readonly messages: readonly UIMessage[]
   readonly customMessages: readonly AgentTransportCustomEvent[]
   readonly interactionEvents: readonly AgentInteractionEvent[]
-  readonly anchorMessageIdByEventKey?: ReadonlyMap<string, string>
+  readonly anchorMessageIdByEventKey?: ReadonlyMap<string, string> | undefined
 }): AgentLoopCardPlacement {
   const cards = agentLoopCards(input.customMessages, input.interactionEvents)
   if (cards.length === 0) return EMPTY_PLACEMENT

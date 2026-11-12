@@ -79,16 +79,22 @@ function TabButton(props: TabButtonProps) {
   )
   const [draft, setDraft] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
+  // Renaming starts from the tab's current name.
+  const renameSeed = props.renaming ? (props.tab.customName ?? title) : null
+  const [seededName, setSeededName] = useState<string | null>(null)
+  if (seededName !== renameSeed) {
+    setSeededName(renameSeed)
+    if (renameSeed !== null) setDraft(renameSeed)
+  }
 
   useEffect(() => {
     if (!props.renaming) return
-    setDraft(props.tab.customName ?? title)
     const frame = requestAnimationFrame(() => {
       renameInputRef.current?.focus()
       renameInputRef.current?.select()
     })
     return () => cancelAnimationFrame(frame)
-  }, [props.renaming, props.tab.customName, title])
+  }, [props.renaming])
 
   if (props.renaming) {
     return (

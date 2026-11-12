@@ -57,6 +57,10 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSessionWorkspace,
     showToast,
   } = env
+  // Reports its own failure in a toast, so the transcript and composer never await it.
+  const selectProjectPath = (path: string) => {
+    void handleSelectProjectPath(path)
+  }
 
   const {
     messages,
@@ -205,7 +209,7 @@ export function useChatPanelSections(): ChatPanelSections {
     extensionRegistry,
     extensionProjectPaths,
     handleOpenProject,
-    handleSelectProjectPath,
+    handleSelectProjectPath: selectProjectPath,
     handleSendText: (content) => sendStarterPrompt({ content, model, handleSendText, showToast }),
     openSettings,
     handleDismissInterruptedRun,
@@ -254,7 +258,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleSelectForkTarget: sessionCopy.selectForkTarget,
     handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
     handleOpenProject,
-    handleSelectProjectPath,
+    handleSelectProjectPath: selectProjectPath,
     handleSetAuthorizationMode: (authorizationMode) =>
       setComposerSessionAuthorizationMode({
         activeSessionId,

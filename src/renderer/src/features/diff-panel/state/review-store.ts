@@ -1,5 +1,4 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { ReviewComment } from '@shared/types/review'
 import { create } from 'zustand'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
@@ -217,6 +216,3 @@ export function selectReviewThread(
 ): ReviewThread {
   return state.byReviewKey[reviewKey] ?? EMPTY_THREAD
 }
-
-/** Legacy alias kept so callers that only need the base shape still compile. */
-export type { ReviewComment }

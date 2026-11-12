@@ -120,8 +120,9 @@ export function markTerminalInputOpening(
       state.disposed ||
       state.openVersion !== openVersion ||
       state.inputIncarnation !== previous.incarnation
-    )
+    ) {
       return
+    }
     const observedReadiness = state.pendingReadiness
     state.open = previous.open
     state.awaitingAttach = previous.awaitingAttach

@@ -8,7 +8,7 @@ import {
 
 interface ResolveTranscriptMessagesInput {
   readonly activeSessionId: SessionId | null
-  readonly activeSessionUpdatedAt?: number
+  readonly activeSessionUpdatedAt?: number | undefined
   readonly activeWorkspace: SessionWorkspace | null
   readonly messages: UIMessage[]
   readonly draftBranchSourceNodeId?: SessionNodeId | null
@@ -60,7 +60,7 @@ function fromWorkspaceNode(
  */
 function persistedNodeId(message: UIMessage) {
   const nodeId = message.metadata?.sessionNodeId
-  return nodeId === undefined ? null : String(nodeId)
+  return nodeId ?? null
 }
 
 function indexMessagesByPersistedIdentity(messages: readonly UIMessage[]) {

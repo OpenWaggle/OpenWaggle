@@ -121,7 +121,7 @@ export function usePanelRailDrag(
     if (dragging === null) return
     const rail = event.currentTarget.closest<HTMLElement>('[data-panel-rail]')
     const hit = rail === null ? null : railItemAt(rail, event.clientY)
-    const target = hit?.element.dataset.railSurface
+    const target = hit?.element.dataset['railSurface']
     const surface = railIds.find((id) => id === target)
     setDrop(
       surface === undefined || surface === dragging || hit === null

@@ -11,6 +11,7 @@ import { useTerminalStore } from '../../state/terminal-store'
 import { TerminalPane } from '../TerminalPane'
 import { TerminalPanel } from '../TerminalPanel'
 import type { TerminalPaneModel } from '../terminal-pane-model'
+import { attachResult } from './terminal-attach-result'
 
 export const OWNER = 'draft:/tmp/project-x'
 export const TERMINAL_ID = 'term-1'
@@ -59,7 +60,6 @@ interface TerminalPaneMocks {
   readonly closeTerminal: Mock
   readonly openExternal: Mock
   readonly openPath: Mock
-  readonly openWorkspaceFile: Mock
   readonly copyToClipboard: Mock
   readonly readFromClipboard: Mock
   readonly prepareAttachmentFromText: Mock
@@ -118,7 +118,6 @@ const mocks: TerminalPaneMocks = vi.hoisted(() => {
     closeTerminal: vi.fn(),
     openExternal: vi.fn(),
     openPath: vi.fn(),
-    openWorkspaceFile: vi.fn(),
     copyToClipboard: vi.fn(),
     readFromClipboard: vi.fn(),
     prepareAttachmentFromText: vi.fn(),
@@ -132,8 +131,8 @@ const mocks: TerminalPaneMocks = vi.hoisted(() => {
 
 export const getTerminalPaneMocks = () => mocks
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     openTerminal: mocks.openTerminal,
     restartTerminal: mocks.restartTerminal,
     detachTerminal: mocks.detachTerminal,
@@ -155,13 +154,17 @@ vi.mock('@/shared/lib/ipc', () => ({
       mocks.setEventHandler(handler)
       return () => undefined
     }),
-  },
+  }),
 }))
 
-vi.mock('@/features/workspace-files/hooks', () => ({
-  useOpenWorkspaceFile: () => mocks.openWorkspaceFile,
-}))
+// The file opener needs a router, which renders after an async load; renderPane must stay sync.
+vi.mock('@/features/workspace-files/hooks', () => {
+  // One opener for every render, as the real hook's memoized callback is.
+  const openWorkspaceFile = () => undefined
+  return { useOpenWorkspaceFile: () => openWorkspaceFile }
+})
 
+// xterm renders to a canvas jsdom cannot draw; the fake records input, output and selection.
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     cols = TERMINAL.DEFAULT_COLS
@@ -206,6 +209,7 @@ vi.mock('@xterm/xterm', () => ({
   },
 }))
 
+// The xterm addons measure and search the canvas renderer the fake terminal does not have.
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
     fit = mocks.fitTerminal
@@ -214,6 +218,7 @@ vi.mock('@xterm/addon-fit', () => ({
 }))
 
 vi.mock('@xterm/addon-search', () => ({
+  // Needs the canvas renderer, like the fit addon above.
   SearchAddon: class {
     findNext = vi.fn()
     findPrevious = vi.fn()
@@ -308,12 +313,3 @@ export function resetTerminalPaneHarness() {
   useUIStore.getState().clearToast()
   usePreferencesStore.setState({ settings: DEFAULT_SETTINGS, isLoaded: true, loadError: null })
 }
-
-const attachResult = () => ({
-  inputIncarnation: 'native-record-1',
-  history: '',
-  outputBytes: 0,
-  outputGeneration: 1,
-  readiness: { phase: 'ready' as const, generation: 1 },
-  running: true,
-})

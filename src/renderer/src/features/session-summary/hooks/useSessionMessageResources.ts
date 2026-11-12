@@ -2,11 +2,9 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-resource'
 import { queryOptions, type UseQueryResult, useQueries } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
-import { loadLegacyCatalogPage } from './useSessionResourceCatalog'
 
-const SESSION_RESOURCE_NODE_LOOKUP_LIMIT = 512
 const SESSION_RESOURCE_NODE_CHUNK_SIZE = 64
 const SESSION_RESOURCE_NODE_PAGE_SIZE = 128
 const SESSION_RESOURCE_NODE_QUERY_CONCURRENCY = 4
@@ -84,25 +82,6 @@ async function loadNodeResourceChunk(
   signal: AbortSignal,
 ) {
   if (signal.aborted) return []
-  if (typeof api.listSessionResourceNodePage !== 'function') {
-    if (typeof api.listSessionResourcesByNodeIds === 'function') {
-      const resources = await api.listSessionResourcesByNodeIds(
-        SessionId(sessionId),
-        nodeIds,
-        'image',
-        SESSION_RESOURCE_NODE_LOOKUP_LIMIT,
-      )
-      return signal.aborted ? [] : resources
-    }
-    const page = await loadLegacyCatalogPage(sessionId, 'images')
-    if (signal.aborted) return []
-    const ids = new Set(nodeIds)
-    return page.resources.filter((resource) =>
-      resource.occurrences.some(
-        (occurrence) => occurrence.nodeId !== null && ids.has(occurrence.nodeId),
-      ),
-    )
-  }
   for (let attempt = 0; attempt < SESSION_RESOURCE_NODE_STALE_ATTEMPTS; attempt += 1) {
     const resources: SessionResource[] = []
     let cursor: string | null = null
@@ -190,7 +169,7 @@ export interface SessionMessageResourceQueryResult {
 }
 
 function combineNodeResourceQueries(
-  results: readonly UseQueryResult<readonly SessionResource[], Error>[],
+  results: readonly UseQueryResult<readonly SessionResource[]>[],
 ): SessionMessageResourceQueryResult {
   return {
     data: mergeNodeResources(results.flatMap((result) => result.data ?? [])),
@@ -228,22 +207,20 @@ export function useSessionImageResourcesByNodeIds(
 ): SessionMessageResourceQueryResult {
   const uniqueNodeIds = [...new Set(nodeIds)]
   const chunks = chunkNodeIds(uniqueNodeIds)
-  const previousCompleted = useRef<CompletedMessageResourceQuery | null>(null)
+  const [previousCompleted, setPreviousCompleted] = useState<CompletedMessageResourceQuery | null>(
+    null,
+  )
   const query = useQueries({
     queries: chunks.map((chunk) => sessionMessageResourceChunkQueryOptions(sessionId, chunk)),
     combine: combineNodeResourceQueries,
   })
-  const data = isExpandedTranscriptWindow(previousCompleted.current, sessionId, uniqueNodeIds)
-    ? mergeNodeResources([...(previousCompleted.current?.data ?? []), ...query.data])
+  const data = isExpandedTranscriptWindow(previousCompleted, sessionId, uniqueNodeIds)
+    ? mergeNodeResources([...(previousCompleted?.data ?? []), ...query.data])
     : query.data
-  useEffect(() => {
-    if (!query.isSuccess) return
-    previousCompleted.current = {
-      sessionId,
-      nodeIds: [...new Set(nodeIds)],
-      data: query.data,
-    }
-  }, [nodeIds, query.data, query.isSuccess, sessionId])
+  // Remember the last complete answer, so a window that grows keeps its rows while it loads.
+  if (query.isSuccess && previousCompleted?.data !== query.data) {
+    setPreviousCompleted({ sessionId, nodeIds: uniqueNodeIds, data: query.data })
+  }
   return {
     data,
     error: query.error,

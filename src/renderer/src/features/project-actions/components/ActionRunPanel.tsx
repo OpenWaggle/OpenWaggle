@@ -21,8 +21,9 @@ export function ActionRunPanel({
   const outputRef = useRef<HTMLDivElement>(null)
   const follow = useRef(true)
   useEffect(() => {
-    if (state.output && follow.current && outputRef.current)
+    if (state.output && follow.current && outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
+    }
   }, [state.output])
   return (
     <section aria-label="Action output" className="flex min-h-0 flex-1 flex-col bg-bg">

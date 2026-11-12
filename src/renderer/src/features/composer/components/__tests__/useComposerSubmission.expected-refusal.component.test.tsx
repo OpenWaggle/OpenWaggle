@@ -77,7 +77,9 @@ describe('composer send the Session refused for a reason it already shows', () =
       onToast,
     })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     expect(useComposerStore.getState().input).toBe('')
     await act(async () => {
       send.reject(new Error("This Session's Pi session file was deleted outside OpenWaggle"))
@@ -99,7 +101,9 @@ describe('composer send the Session refused for a reason it already shows', () =
       onToast,
     })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     await act(async () => {
       send.reject(new Error('The Host stopped'))
       await Promise.resolve()
@@ -119,7 +123,9 @@ describe('composer send the Session refused for a reason it already shows', () =
       onToast,
     })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     await act(async () => {
       send.reject(new Error('handler died'))
       await Promise.resolve()

@@ -17,7 +17,7 @@ function ExtensionAgentLoopStatusWidget({
   onSurfaceAction,
 }: {
   readonly auxiliary: ExtensionAgentLoopAuxiliaryContribution
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
 }) {
   const entry = auxiliary.contribution.entry
 
@@ -51,7 +51,7 @@ export function ExtensionAgentLoopStatusWidgets({
   readonly input: ExtensionAgentLoopSurfaceInput
   readonly registry: ExtensionContributionRegistryView | null
   readonly projectPaths: readonly string[]
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
 }) {
   const widgets = resolveExtensionAgentLoopAuxiliaryContributions({
     input,

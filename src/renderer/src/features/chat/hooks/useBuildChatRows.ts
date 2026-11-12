@@ -28,26 +28,26 @@ interface BuildChatRowsParams {
   customMessages?: readonly AgentTransportCustomEvent[]
   interactionEvents?: readonly AgentInteractionEvent[]
   /** The message each persisted agent-loop event follows (`readAgentLoopEventsFromWorkspace`). */
-  agentLoopAnchorMessageIds?: ReadonlyMap<string, string>
+  agentLoopAnchorMessageIds?: ReadonlyMap<string, string> | undefined
   isLoading: boolean
-  isFinishing?: boolean
+  isFinishing?: boolean | undefined
   error: Error | undefined
   lastUserMessage: string | null
   dismissedError: string | null
   sessionId: string | null
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: StreamingPhaseState
-  interruptedRun?: SessionInterruptedRun
-  worktreeLaunch?: WorktreeLaunchSnapshot | null
+  interruptedRun?: SessionInterruptedRun | undefined
+  worktreeLaunch?: WorktreeLaunchSnapshot | null | undefined
   /** A first send is on its way to a Session that has not started running yet. */
-  firstSendPending?: boolean
-  compactionStatus?: AgentCompactionStatus | null
+  firstSendPending?: boolean | undefined
+  compactionStatus?: AgentCompactionStatus | null | undefined
   /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
-  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number> | undefined
   /** Turn keys the user expanded in this session (fold state is in-memory). */
-  expandedTurnKeys?: ReadonlySet<string>
+  expandedTurnKeys?: ReadonlySet<string> | undefined
   /** What the Run's Pi extensions say they are doing, shown on its status row. */
-  extensionStatus?: ExtensionStatusRowInput
+  extensionStatus?: ExtensionStatusRowInput | undefined
 }
 
 /** A first send that nothing (no launch step, no run, no reply) has answered yet. */
@@ -150,9 +150,8 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   }
 
   appendCardsAfter(BEFORE_FIRST_MESSAGE)
-  for (let index = 0; index < params.messages.length; index += 1) {
+  for (const [index, message] of params.messages.entries()) {
     appendCompactionRowsAt(index)
-    const message = params.messages[index]
     if (message.role === 'assistant') appendLaunchRows()
     appendMessage(message, index)
     appendCardsAfter(index)

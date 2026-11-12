@@ -13,8 +13,9 @@ export function trackBrowserPreviewOwnerWork<T>(ownerKey: string, operation: () 
   pendingByOwner.set(ownerKey, pending)
   return work.finally(() => {
     pending.delete(settled)
-    if (pending.size === 0 && pendingByOwner.get(ownerKey) === pending)
+    if (pending.size === 0 && pendingByOwner.get(ownerKey) === pending) {
       pendingByOwner.delete(ownerKey)
+    }
   })
 }
 

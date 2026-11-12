@@ -74,8 +74,7 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
 
   const [context, setContext] = useState<ChatRowRenderContext | null>(null)
   const current =
-    context &&
-    context.runtime.sessionId === sessionId &&
+    context?.runtime.sessionId === sessionId &&
     context.extensions.registry === registry &&
     context.extensions.projectPaths === projectPaths &&
     context.turnsByAnchorNodeId === turnsByAnchorNodeId &&

@@ -4,8 +4,8 @@ import { cn } from '@/shared/lib/cn'
 import type { WaggleInfo } from './AssistantMessageBubble'
 
 interface AgentLabelProps {
-  assistantModel?: SupportedModelId
-  waggle?: WaggleInfo
+  assistantModel?: SupportedModelId | undefined
+  waggle?: WaggleInfo | undefined
 }
 
 export function AgentLabel({ assistantModel, waggle }: AgentLabelProps) {

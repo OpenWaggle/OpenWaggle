@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import {
   resolveSidebarRowState,
@@ -14,13 +14,15 @@ import {
 } from './remote-sidebar-terminal-status'
 
 /**
- * The state each row shows, including Host-listed Sessions the sidebar has not loaded. The shared
- * map resolves those from their status alone, so a parent reading Done below (ADR 0063) would look
- * quiet there. A remote summary carries its lineage, so it is resolved by the same rule a row uses.
+ * The state each row shows, including Host-listed Sessions the sidebar has not loaded, and the
+ * Host-discovered terminal rows that still hold their state. The shared map resolves unloaded
+ * Sessions from their status alone, so a parent reading Done below (ADR 0065) would look quiet
+ * there. A remote summary carries its lineage, so it is resolved by the same rule a row uses.
  */
 export function useRemoteSidebarRowStates(input: {
-  /** Host-discovered terminal rows, pruned here once they no longer hold their state. */
   readonly hydratedTerminalIds: HydratedTerminalIds
+  /** Stores the pruned ids; called while rendering, only when some id was forgotten. */
+  readonly setHydratedTerminalIds: (next: HydratedTerminalIds) => void
   readonly stateBySessionId: ReadonlyMap<string, SidebarRowState>
   readonly loadedSessions: readonly SessionSummary[]
   readonly remoteSessions: readonly SessionSummary[]
@@ -52,33 +54,22 @@ export function useRemoteSidebarRowStates(input: {
     }
     return states
   }, [stateBySessionId, loadedSessions, remoteSessions, statuses, completedAt, lastVisitedAt])
-  usePruneHydratedTerminalIds({ ...input, stateBySessionId: states })
-  return states
-}
 
-/**
- * Forgets Host-discovered terminal rows once they no longer hold their state. The ids are live (a
- * ref a page load fills), so the raw statuses are read live too; the shown states come from the
- * render, and only loaded and Host-listed rows are resolved with their lineage there, so any other
- * id was loaded after that render and is left alone.
- */
-function usePruneHydratedTerminalIds(input: {
-  readonly hydratedTerminalIds: HydratedTerminalIds
-  readonly stateBySessionId: ReadonlyMap<string, SidebarRowState>
-  readonly loadedSessions: readonly SessionSummary[]
-  readonly remoteSessions: readonly SessionSummary[]
-}) {
-  const { hydratedTerminalIds, stateBySessionId, loadedSessions, remoteSessions } = input
-  // The shown states change with every raw status change, so they alone say when to run.
-  useEffect(() => {
-    const resolvedIds = new Set(
-      [...loadedSessions, ...remoteSessions].map((session) => String(session.id)),
-    )
-    pruneHydratedTerminalIds(
-      hydratedTerminalIds,
-      useSessionStatusStore.getState().statuses,
-      stateBySessionId,
-      resolvedIds,
-    )
-  }, [hydratedTerminalIds, stateBySessionId, loadedSessions, remoteSessions])
+  // Only loaded and Host-listed rows are resolved with their lineage in this render; an id a page
+  // hydrated before its summary reached `remoteSessions` is left to the new-Run rule.
+  const resolvedIds = new Set(
+    [...loadedSessions, ...remoteSessions].map((session) => String(session.id)),
+  )
+  const hydratedTerminalIds = pruneHydratedTerminalIds(
+    input.hydratedTerminalIds,
+    statuses,
+    states,
+    resolvedIds,
+  )
+  // Adjusting state while rendering (React's documented pattern): the forgotten ids are gone
+  // from this render on, and the next render starts from the pruned state.
+  if (hydratedTerminalIds !== input.hydratedTerminalIds) {
+    input.setHydratedTerminalIds(hydratedTerminalIds)
+  }
+  return { stateBySessionId: states, hydratedTerminalIds }
 }

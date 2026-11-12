@@ -59,11 +59,6 @@ export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenReque
     })
   }
 
-  if (typeof api.getPiBranchSummarySkipPrompt !== 'function') {
-    openIfCurrent()
-    return
-  }
-
   void api
     .getPiBranchSummarySkipPrompt(projectPath)
     .then((skipPrompt) => {

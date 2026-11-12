@@ -7,6 +7,7 @@ import { usePreferencesStore } from '@/features/settings'
 import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
 import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import {
+  dispatchInAct,
   getWorkspaceLifecycleMocks,
   loadUseWorkspaceLifecycle,
   resetWorkspaceLifecycleMocks,
@@ -130,7 +131,7 @@ describe('useWorkspaceLifecycle Right panel shortcuts', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => window.dispatchEvent(press))
+    dispatchInAct(window, press)
 
     expect(controller.toggleSurface).toHaveBeenCalledWith(NOTES)
     expect(press.defaultPrevented).toBe(true)
@@ -157,7 +158,7 @@ describe('useWorkspaceLifecycle Right panel shortcuts', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => window.dispatchEvent(press))
+    dispatchInAct(window, press)
 
     expect(controller.toggleSurface).not.toHaveBeenCalled()
     expect(press.defaultPrevented).toBe(false)

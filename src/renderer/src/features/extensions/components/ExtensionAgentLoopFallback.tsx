@@ -21,7 +21,7 @@ function renderToolFallback({
   toolResult,
 }: {
   readonly toolCall: ChatToolCallPart
-  readonly toolResult?: ExtensionToolResultView
+  readonly toolResult?: ExtensionToolResultView | undefined
 }) {
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3">
@@ -93,7 +93,7 @@ function renderInteractionFallback({
   onAction,
 }: {
   readonly interaction: ExtensionInteractionView
-  readonly onAction?: (interactionId: string, actionId: string) => void
+  readonly onAction?: ((interactionId: string, actionId: string) => void) | undefined
 }) {
   if (interaction.kind === 'custom') {
     // Only a pending interaction is urgent. Announcing a historical, already-resolved card

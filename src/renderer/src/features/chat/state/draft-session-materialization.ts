@@ -31,8 +31,9 @@ export function takeDraftMaterialization(projectPath: string | null, sessionId: 
   if (
     pendingMaterialization?.projectPath !== projectPath ||
     pendingMaterialization?.sessionId !== sessionId
-  )
+  ) {
     return false
+  }
   pendingMaterialization = null
   return true
 }

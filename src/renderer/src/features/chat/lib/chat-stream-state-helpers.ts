@@ -1,4 +1,5 @@
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
+import { lenientJsonStringify } from '@/shared/lib/lenient-json'
 
 function createAssistantMessage(messageId: string, startedAt?: number): UIMessage {
   return {
@@ -162,7 +163,7 @@ export function stringifyToolInput(input: unknown) {
   try {
     return JSON.stringify(input)
   } catch {
-    return String(input)
+    return lenientJsonStringify(input)
   }
 }
 

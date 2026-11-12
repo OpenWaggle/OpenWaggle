@@ -142,7 +142,8 @@ function placeAnchoredMessages(
     while (waiting.length > 0) {
       const before = waitersBefore(waiting, message)
       if (before.length === 0) break
-      waiting = waiting.filter((waiter) => !before.includes(waiter))
+      const placing = new Set(before)
+      waiting = waiting.filter((waiter) => !placing.has(waiter))
       for (const waiter of before) place(waiter)
     }
     place(message)

@@ -71,8 +71,8 @@ export function TranscriptRows({
   const exitingGroup = exiting ? (
     <ExitingRowGroup exiting={exiting} context={context} onExited={onExited} />
   ) : null
-  const exitingPlaced =
-    exiting !== null && exiting.beforeKey !== null && keys.includes(exiting.beforeKey)
+  const exitingBeforeKey = exiting?.beforeKey ?? null
+  const exitingPlaced = exitingBeforeKey !== null && keys.includes(exitingBeforeKey)
 
   return (
     <>

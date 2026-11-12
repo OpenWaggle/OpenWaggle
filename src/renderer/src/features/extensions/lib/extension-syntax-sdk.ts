@@ -2,7 +2,6 @@ import type {
   OpenWaggleExtensionSyntaxHighlightInput,
   OpenWaggleExtensionSyntaxHighlightOptions,
   OpenWaggleExtensionSyntaxHighlightResult,
-  OpenWaggleExtensionSyntaxSdk,
 } from '@shared/extension-sdk'
 import { bundledShikiTheme } from '@shared/types/syntax'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -34,7 +33,7 @@ export async function highlightExtensionSyntax(
     language,
     theme: currentSyntaxTheme(),
     priority: input.priority ?? 'visible',
-    signal: options?.signal,
+    ...(options?.signal === undefined ? {} : { signal: options.signal }),
   })
   return {
     status: result.status,
@@ -44,8 +43,4 @@ export async function highlightExtensionSyntax(
     ...(result.background ? { background: result.background } : {}),
     ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}),
   }
-}
-
-export function createRendererExtensionSyntaxSdk(): OpenWaggleExtensionSyntaxSdk {
-  return { highlight: highlightExtensionSyntax }
 }

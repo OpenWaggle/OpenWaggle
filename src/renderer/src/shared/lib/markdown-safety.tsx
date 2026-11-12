@@ -57,11 +57,11 @@ export const safeMarkdownUrlTransform: UrlTransform = (url) => {
 export const safeMarkdownSanitizeSchema: SanitizeSchema = {
   ...defaultSchema,
   protocols: {
-    ...(defaultSchema.protocols ?? {}),
+    ...defaultSchema.protocols,
     href: ALLOWED_HREF_PROTOCOLS,
   },
   attributes: {
-    ...(defaultSchema.attributes ?? {}),
+    ...defaultSchema.attributes,
     a: [...schemaAttributesForTag('a'), anchorTargetDefinition, anchorRelDefinition],
     code: [...schemaAttributesForTag('code'), shikiClassDefinition, styleAttributeDefinition],
     pre: [...schemaAttributesForTag('pre'), shikiClassDefinition, styleAttributeDefinition],

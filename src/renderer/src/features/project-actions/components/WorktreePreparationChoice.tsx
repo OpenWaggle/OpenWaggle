@@ -12,8 +12,9 @@ export function WorktreePreparationChoice({ projectPath }: { readonly projectPat
   const draft = useDraftPreparationProfile(projectPath)
   useEffect(() => {
     if (scope?.sessionId || !catalog.data || !draft.profileId) return
-    if (!catalog.data.profiles.some(({ definition }) => definition.id === draft.profileId))
+    if (!catalog.data.profiles.some(({ definition }) => definition.id === draft.profileId)) {
       draft.select(undefined)
+    }
   }, [catalog.data, draft.profileId, draft.select, scope?.sessionId])
   const profiles = catalog.data?.profiles ?? []
   if (profiles.length < MULTIPLE_PROFILES) return null
@@ -32,13 +33,13 @@ export function WorktreePreparationChoice({ projectPath }: { readonly projectPat
         disabled={preparation.mutation.isPending || Boolean(state && state.setup.status !== 'idle')}
         onChange={(event) => {
           const profileId = event.target.value
-          if (scope?.sessionId)
+          if (scope?.sessionId) {
             preparation.mutation.mutate({
               type: 'select-preparation',
               profileId,
               expectedRevision: state?.revision ?? 0,
             })
-          else draft.select(profileId)
+          } else draft.select(profileId)
         }}
       >
         <option disabled value="">

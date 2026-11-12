@@ -32,12 +32,9 @@ import {
 import { drainTerminalInput } from './terminal-input-transport'
 
 export type {
-  TerminalInputClient,
   TerminalInputDispatcher,
   TerminalInputDispatcherOptions,
-  TerminalInputDispatchSnapshot,
   TerminalInputEnqueueResult,
-  TerminalProjectActionEnqueueResult,
 } from './terminal-input-dispatch-types'
 
 const MAX_PENDING_ASYNC_INPUT_OPERATIONS = 8

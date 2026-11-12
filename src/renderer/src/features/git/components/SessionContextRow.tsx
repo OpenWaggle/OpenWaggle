@@ -87,7 +87,7 @@ export function SessionContextRow({ strip }: SessionContextRowProps) {
     return <MissingWorktreeNotice reason={strip.sendPlan.reason} strip={strip} />
   }
 
-  if (strip.editable === false) {
+  if (!strip.editable) {
     const Icon = strip.envMode === 'worktree' ? GitFork : Laptop
     return (
       <span

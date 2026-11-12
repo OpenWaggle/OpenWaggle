@@ -26,7 +26,7 @@ describe("an MCP App frame's layout", () => {
   })
 
   it('measures the frame width, and again whenever the panel resizes', () => {
-    const observers: Array<{ readonly callback: () => void; disconnected: boolean }> = []
+    const observers: { readonly callback: () => void; disconnected: boolean }[] = []
     vi.stubGlobal(
       'ResizeObserver',
       class {

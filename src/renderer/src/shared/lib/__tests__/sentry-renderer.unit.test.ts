@@ -51,7 +51,8 @@ describe('Sentry renderer options', () => {
     expect(options.maxBreadcrumbs).toBe(0)
     expect(options.beforeBreadcrumb?.({ message: 'clicked' })).toBeNull()
     expect(options.tracesSampleRate).toBeUndefined()
-    expect(options.dsn).toBeUndefined()
+    // The DSN belongs to the main process only; the renderer options never carry one.
+    expect(options).not.toHaveProperty('dsn')
     expect(options.tunnel).toBeUndefined()
   })
 

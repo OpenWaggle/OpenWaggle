@@ -170,9 +170,9 @@ function MaterializedBrowserPreviewPanel({
         <BrowserPreviewDeviceToolbar
           aspectRatio={aspectRatio}
           viewport={controlState.viewport}
-          onClose={() => advanced.setViewport({ mode: 'fill' })}
+          onClose={() => void advanced.setViewport({ mode: 'fill' })}
           onAspectRatioChange={setAspectRatio}
-          onViewportChange={advanced.setViewport}
+          onViewportChange={(viewport) => void advanced.setViewport(viewport)}
         />
       ) : null}
       <BrowserPreviewViewport

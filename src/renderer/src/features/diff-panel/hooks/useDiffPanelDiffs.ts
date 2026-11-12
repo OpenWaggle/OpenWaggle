@@ -209,8 +209,9 @@ export function useDiffPanelDiffs(
           currentWorkingPath.current,
           workingPathToRefresh,
         )
-      )
+      ) {
         return
+      }
       dispatch(
         result.ok ? loadSuccessAction(result) : { type: 'load-failure', error: result.message },
       )
@@ -222,8 +223,9 @@ export function useDiffPanelDiffs(
           currentWorkingPath.current,
           workingPathToRefresh,
         )
-      )
+      ) {
         return
+      }
       dispatch({ type: 'load-failure', error: DIFF_TRANSPORT_FAILURE_MESSAGE })
     }
   }

@@ -103,10 +103,6 @@ export class SyntaxService {
       this.dispatch()
     })
   }
-  clearCache() {
-    this.cache.clear()
-    this.sourceState.clear()
-  }
   registerThemes(themes: readonly SyntaxThemeRegistration[]) {
     this.importedThemes.clear()
     for (const theme of themes) {

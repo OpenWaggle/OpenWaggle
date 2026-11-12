@@ -5,11 +5,7 @@ import { CommitOrPushDialogForm } from './CommitOrPushDialogForm'
 import type { CommitOrPushDialogProps } from './commit-or-push-dialog-types'
 import { useCommitOrPushDialogController } from './use-commit-or-push-dialog-controller'
 
-export type {
-  CommitOrPushDialogProps,
-  CommitOrPushOperation,
-  CommitOrPushRepositoryContext,
-} from './commit-or-push-dialog-types'
+export type { CommitOrPushDialogProps } from './commit-or-push-dialog-types'
 
 export function CommitOrPushDialog(props: CommitOrPushDialogProps) {
   const controller = useCommitOrPushDialogController(props)

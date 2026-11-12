@@ -55,18 +55,20 @@ describe('CommandDialog', () => {
 
   it('returns focus to the first opener when one dialog replaces another', () => {
     function Surfaces({ surface }: { readonly surface: 'palette' | 'files' | null }) {
-      if (surface === 'palette')
+      if (surface === 'palette') {
         return (
           <CommandDialog key="palette" title="Commands" onClose={vi.fn()}>
             <TextInput aria-label="Search commands" />
           </CommandDialog>
         )
-      if (surface === 'files')
+      }
+      if (surface === 'files') {
         return (
           <CommandDialog key="files" title="Go to file" onClose={vi.fn()}>
             <TextInput aria-label="Search files" />
           </CommandDialog>
         )
+      }
       return null
     }
     render(<Button>Opener</Button>)

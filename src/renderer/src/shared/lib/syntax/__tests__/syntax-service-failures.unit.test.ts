@@ -30,7 +30,7 @@ describe('SyntaxService failure containment', () => {
       })
       const worker = MockWorker.instances[0]
       const request = worker ? highlightMessages(worker).at(-1) : undefined
-      if (!worker || !request || request.type !== 'highlight') throw new Error('Expected work.')
+      if (!worker || request?.type !== 'highlight') throw new Error('Expected work.')
       worker.emitMessage({ type: 'failed', requestId: request.requestId, message: 'bad grammar' })
       await expect(resultPromise).resolves.toMatchObject({ status: 'plain-text' })
     }

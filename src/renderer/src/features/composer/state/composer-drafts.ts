@@ -146,8 +146,9 @@ function clearMatchingScopedDrafts(
   // A queued-message edit in a cleared draft has nowhere left to go: end it and drop its stash.
   const abandonedStashKeys = new Set(abandonQueuedMessageEdits(matchesContext))
   for (const contextKey of Object.keys(nextDrafts)) {
-    if (matchesContext(contextKey) || abandonedStashKeys.has(contextKey))
+    if (matchesContext(contextKey) || abandonedStashKeys.has(contextKey)) {
       delete nextDrafts[contextKey]
+    }
   }
   for (const contextKey of Object.keys(editedPendingDrafts)) {
     if (matchesContext(contextKey)) delete editedPendingDrafts[contextKey]

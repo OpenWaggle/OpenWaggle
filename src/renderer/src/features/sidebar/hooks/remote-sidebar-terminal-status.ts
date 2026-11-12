@@ -7,9 +7,27 @@ export function isTerminalState(state: SidebarRowState | null): state is Sidebar
   return state === 'completed' || state === 'error'
 }
 
-export type HydratedTerminalIds = {
-  completed: Set<string>
-  error: Set<string>
+/**
+ * The terminal rows Host pages have hydrated so far. It is React state, so every change makes a
+ * new object: the React Compiler caches what is derived from it by identity.
+ */
+export interface HydratedTerminalIds {
+  readonly completed: ReadonlySet<string>
+  readonly error: ReadonlySet<string>
+}
+
+export function emptyHydratedTerminalIds(): HydratedTerminalIds {
+  return { completed: new Set<string>(), error: new Set<string>() }
+}
+
+/** `current` with `ids` added under `state`, or `current` itself when it holds them all. */
+export function withHydratedTerminalIds(
+  current: HydratedTerminalIds,
+  state: SidebarTerminalState,
+  ids: readonly string[],
+): HydratedTerminalIds {
+  if (ids.every((id) => current[state].has(id))) return current
+  return { ...current, [state]: new Set([...current[state], ...ids]) }
 }
 
 export function sidebarRemoteStatusIds(
@@ -49,30 +67,31 @@ const STATUSES_AFTER_A_NEW_RUN: ReadonlySet<SessionStatus> = new Set([
 /**
  * Forgets Host-discovered terminal rows that no longer hold that state. A row keeps its id while
  * its raw status still holds it, so a visit and Mark as unread do not rewind paging, or while the
- * row shows it, because a parent reads Done below whatever its own last Run was (ADR 0063). Only
+ * row shows it, because a parent reads Done below whatever its own last Run was (ADR 0065). Only
  * a row in `resolvedIds` (loaded, or listed by the Host) has a shown state resolved with its
  * lineage; any other was loaded after the states were resolved, so it is kept until it starts a
- * new Run.
+ * new Run. Returns `hydratedTerminalIds` itself when nothing is forgotten.
  */
 export function pruneHydratedTerminalIds(
   hydratedTerminalIds: HydratedTerminalIds,
   rawStatuses: ReadonlyMap<SessionId, SessionStatus>,
   stateBySessionId: ReadonlyMap<string, SidebarRowState>,
   resolvedIds: ReadonlySet<string>,
-) {
-  for (const state of ['completed', 'error'] as const) {
-    for (const id of hydratedTerminalIds[state]) {
-      const raw = rawStatuses.get(SessionId(id))
-      if (!resolvedIds.has(id)) {
-        // Not yet resolved with its lineage, but a Run it started since then ends its state.
-        if (raw !== undefined && STATUSES_AFTER_A_NEW_RUN.has(raw)) {
-          hydratedTerminalIds[state].delete(id)
-        }
-        continue
-      }
-      const shown = stateBySessionId.get(id)
-      if (shown === undefined || shown === state || raw === state) continue
-      hydratedTerminalIds[state].delete(id)
-    }
+): HydratedTerminalIds {
+  const holds = (id: string, state: SidebarTerminalState) => {
+    const raw = rawStatuses.get(SessionId(id))
+    // Not yet resolved with its lineage, but a Run it started since then ends its state.
+    if (!resolvedIds.has(id)) return raw === undefined || !STATUSES_AFTER_A_NEW_RUN.has(raw)
+    const shown = stateBySessionId.get(id)
+    return shown === undefined || shown === state || raw === state
   }
+  const completed = [...hydratedTerminalIds.completed].filter((id) => holds(id, 'completed'))
+  const error = [...hydratedTerminalIds.error].filter((id) => holds(id, 'error'))
+  if (
+    completed.length === hydratedTerminalIds.completed.size &&
+    error.length === hydratedTerminalIds.error.size
+  ) {
+    return hydratedTerminalIds
+  }
+  return { completed: new Set(completed), error: new Set(error) }
 }

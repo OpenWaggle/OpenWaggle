@@ -27,7 +27,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 vi.mock('@/features/terminal', () => ({
   runSessionTerminalCommand: mocks.runSessionTerminalCommand,
   terminalOwnerContext: (session: { readonly id: string }) => ({
-    ownerKey: String(session.id),
+    ownerKey: session.id,
     defaultCwd: '/projects/gosafe',
     defaultProvenance: 'opened-checkout',
   }),

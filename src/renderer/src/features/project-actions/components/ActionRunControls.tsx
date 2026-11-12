@@ -21,6 +21,8 @@ export function ActionRunControls(props: {
   readonly output: string
 }) {
   const { run, scope, output } = props
+  const { previewUrl } = run
+  const { sessionId } = scope
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function perform(operation: () => unknown) {
@@ -37,8 +39,9 @@ export function ActionRunControls(props: {
   async function operate(operation: 'stop' | 'restart') {
     const result =
       operation === 'restart' ? await restartActionRun(scope, run) : await stopActionRun(scope, run)
-    if (result.type === 'run' && scope.sessionId)
-      openWorkspaceAction(scope.sessionId, scope.projectPath, result.run.id)
+    if (result.type === 'run' && sessionId) {
+      openWorkspaceAction(sessionId, scope.projectPath, result.run.id)
+    }
   }
   function repairDraft() {
     const workingDirectory = formatDisplayPath(run.invocation.cwd, [
@@ -73,16 +76,11 @@ export function ActionRunControls(props: {
           <RotateCw className="size-3.5" />
           Restart
         </Button>
-        {run.previewUrl && scope.sessionId ? (
+        {previewUrl && sessionId ? (
           <Button
             className="min-h-10"
             disabled={busy || !run.ready}
-            onClick={() => {
-              if (run.previewUrl && scope.sessionId)
-                void perform(() =>
-                  openWorkspacePreview(scope.sessionId ?? '', run.previewUrl ?? ''),
-                )
-            }}
+            onClick={() => void perform(() => openWorkspacePreview(sessionId, previewUrl))}
           >
             <ExternalLink className="size-3.5" />
             Open preview

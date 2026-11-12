@@ -65,7 +65,9 @@ describe('composer Session image submission ownership', () => {
     const onSend = vi.fn(() => false as const)
     const { result } = renderSubmission({ onSend })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
 
     expect(onSend).toHaveBeenCalledOnce()
     expect(useComposerStore.getState().input).toBe('Describe this')
@@ -76,7 +78,9 @@ describe('composer Session image submission ownership', () => {
     const onSend = vi.fn(async () => undefined)
     const { result } = renderSubmission({ onSend, clearOnSubmit: false })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     expect(onSend).toHaveBeenCalledOnce()
     expect(useComposerStore.getState().attachments).toEqual([image])
     expect(discardPreparedAttachment).not.toHaveBeenCalled()
@@ -99,7 +103,9 @@ describe('composer Session image submission ownership', () => {
       onSendFailure: () => ({ kind: 'discard' }),
     })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     await act(async () => rejectSend(new Error('Summary failed')))
 
     expect(useComposerStore.getState().attachments).toEqual([image])
@@ -118,7 +124,9 @@ describe('composer Session image submission ownership', () => {
     )
     const { result } = renderSubmission({ onSend, onSendFailure: () => ({ kind: 'restore' }) })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     expect(useComposerStore.getState().attachments).toEqual([])
 
     await act(async () => {
@@ -140,8 +148,12 @@ describe('composer Session image submission ownership', () => {
     )
     const { result } = renderSubmission({ onSend, onSendFailure: () => ({ kind: 'restore' }) })
 
-    act(() => result.current.handleSubmit())
-    act(() => useComposerStore.getState().switchScopedDraftContext('session:two'))
+    act(() => {
+      void result.current.handleSubmit()
+    })
+    act(() => {
+      useComposerStore.getState().switchScopedDraftContext('session:two')
+    })
     await act(async () => {
       rejectSend(new Error('Branch source is unavailable'))
       await Promise.resolve()
@@ -168,7 +180,9 @@ describe('composer Session image submission ownership', () => {
       onSendFailure: () => ({ kind: 'restore', contextKey: 'session:created:pending' }),
     })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     act(() => {
       useComposerStore.getState().switchScopedDraftContext('session:created:pending')
       useComposerStore.getState().setInput('New thought')
@@ -194,7 +208,9 @@ describe('composer Session image submission ownership', () => {
       onToast,
     })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     act(() =>
       useComposerStore
         .getState()
@@ -224,7 +240,9 @@ describe('composer Session image submission ownership', () => {
       onToast,
     })
 
-    act(() => result.current.handleSubmit())
+    act(() => {
+      void result.current.handleSubmit()
+    })
     act(() =>
       useComposerStore.getState().addAttachments([
         { ...image, id: 'second', sizeBytes: 8 * 1024 * 1024 },

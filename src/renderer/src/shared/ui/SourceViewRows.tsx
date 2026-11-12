@@ -29,7 +29,7 @@ export function SourceViewRows({
   readonly range: { readonly start: number; readonly end: number }
   readonly highlighted: SyntaxHighlightResult | null
   readonly loading: boolean
-  readonly targetLine?: number | null
+  readonly targetLine?: number | null | undefined
   readonly lineHeight: number
   readonly showLineNumbers: boolean
 }) {

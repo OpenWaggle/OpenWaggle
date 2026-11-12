@@ -225,12 +225,10 @@ export function useCombinedVcsStatus(
       setRemote(null)
       setRemoteState(workingPath ? 'loading' : 'unavailable')
     }
-    if (!workingPath || typeof api.getLocalVcsStatus !== 'function') {
+    if (!workingPath) {
       loadedPath.current = null
       return
     }
-    // Capability checks do not depend on any response, so they are settled before the first await.
-    const canReadRemote = typeof api.getRemoteVcsStatus === 'function'
     const previousRef = loadedRef.current
     const localOutcome = await loadLocalStatusWithRetry({
       revalidating,
@@ -252,10 +250,6 @@ export function useCombinedVcsStatus(
     setLocalState(localStateFor(localOutcome))
     if (localOutcome !== 'loaded') {
       setRemoteState(localOutcome === 'settled-failure' ? 'unavailable' : 'error')
-      return
-    }
-    if (!canReadRemote) {
-      setRemoteState('unavailable')
       return
     }
     await loadRemoteStatus({

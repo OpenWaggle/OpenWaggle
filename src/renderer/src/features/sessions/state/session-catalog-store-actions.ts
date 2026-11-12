@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { loadInBatches } from '@shared/utils/batches'
 import { coalescedRead } from '@/shared/lib/coalesced-read'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -128,12 +129,9 @@ async function refreshCatalogSessions(
     targetedSessionOperationIds.set(String(sessionId), operationId)
   }
   try {
-    const refreshed: SessionSummary[] = []
-    for (let offset = 0; offset < requestedIds.length; offset += PAGE_SIZE) {
-      refreshed.push(
-        ...(await api.listSessionsByIds(requestedIds.slice(offset, offset + PAGE_SIZE))),
-      )
-    }
+    const refreshed = await loadInBatches(requestedIds, PAGE_SIZE, (ids) =>
+      api.listSessionsByIds(ids),
+    )
     const requested = new Set(
       requestedIds
         .filter((sessionId) => targetedSessionOperationIds.get(String(sessionId)) === operationId)

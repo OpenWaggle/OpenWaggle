@@ -5,9 +5,6 @@ const DELAY_MS = 3500
 /** Long enough to reach a toast's button, such as Run now after saving an action. */
 const ACTION_TOAST_DELAY_MS = 8_000
 const FEEDBACK_COOLDOWN_MS = 60_000
-
-export const DIFF_PANEL_MIN = 360
-export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
 export const EXTENSION_SIDE_PANEL_ROUTE_PANEL = 'extension-side-panel'
 
@@ -15,8 +12,8 @@ export interface ExtensionRightSidebarPanel {
   readonly kind: 'extension-side-panel'
   readonly extensionId: string
   readonly sidePanelId: string
-  readonly packagePath?: string
-  readonly contentHash?: string
+  readonly packagePath?: string | undefined
+  readonly contentHash?: string | undefined
 }
 
 export type RightSidebarPanel =
@@ -38,11 +35,11 @@ export interface ChatCommandRequest {
 export interface ToastData {
   message: string
   /** Visual variant — defaults to 'neutral'. */
-  variant?: 'neutral' | 'success' | 'error'
+  variant?: 'neutral' | 'success' | 'error' | undefined
   /** When set, the toast persists until manually dismissed. */
-  persistent?: boolean
+  persistent?: boolean | undefined
   /** Optional action shown as a clickable label. Supports a URL or an onClick callback. */
-  action?: { label: string; url?: string; onClick?: () => void }
+  action?: { label: string; url?: string; onClick?: () => void } | undefined
 }
 
 export const SETTINGS_TABS = [
@@ -84,10 +81,10 @@ interface UIState {
   resourceViewer: {
     readonly sessionId: string
     readonly resourceId: string
-    readonly galleryResourceIds?: readonly string[]
+    readonly galleryResourceIds?: readonly string[] | undefined
     /** Position is needed when one message uses the same deduplicated image more than once. */
-    readonly galleryIndex?: number
-    readonly galleryTitles?: readonly string[]
+    readonly galleryIndex?: number | undefined
+    readonly galleryTitles?: readonly string[] | undefined
   } | null
   workspaceTreeOpen: boolean
 

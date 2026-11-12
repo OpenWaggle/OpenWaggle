@@ -36,7 +36,7 @@ function previewUrl(args: JsonObject) {
 function previewKey(args: JsonObject) {
   const key = stringArg(args, 'key')
   if (!key) return null
-  const modifiers = args.modifiers
+  const modifiers = args['modifiers']
   const held = Array.isArray(modifiers)
     ? modifiers.filter((modifier): modifier is string => typeof modifier === 'string')
     : []

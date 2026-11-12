@@ -37,9 +37,9 @@ function readAssociations(
     const parsed: unknown = JSON.parse(storage.getItem(storageKey(projectIdentity)) ?? '{}')
     if (!isRecord(parsed)) return EMPTY_ASSOCIATIONS
     return {
-      exact: stringRecord(parsed.exact),
-      extensions: stringRecord(parsed.extensions),
-      fileNames: stringRecord(parsed.fileNames),
+      exact: stringRecord(parsed['exact']),
+      extensions: stringRecord(parsed['extensions']),
+      fileNames: stringRecord(parsed['fileNames']),
     }
   } catch {
     return EMPTY_ASSOCIATIONS

@@ -3,7 +3,6 @@ import type { GitStatusSummary, SourceControlProviderId, VcsStatus } from '@shar
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import type { SessionDetail } from '@shared/types/session'
 import type { QueryClient } from '@tanstack/react-query'
-import { screen } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { type Mock, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -147,8 +146,4 @@ export function setupChangeRequestComposerMocks() {
       id: 'change-request-resource',
     }),
   )
-}
-
-export async function waitForNativeCreationReady(provider = 'GitHub') {
-  await screen.findByText(`${provider} CLI ready as octocat.`)
 }

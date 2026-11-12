@@ -217,7 +217,6 @@ interface ViewerRenderResult extends RenderResult {
 
 export function renderViewer(
   activeSessionId: string | null,
-  activeMessageIds: ReadonlySet<string> = new Set(),
   activeBranchId: string | null = null,
   activePathNodeIds: readonly string[] = [],
 ): ViewerRenderResult {
@@ -229,7 +228,6 @@ export function renderViewer(
       <SessionResourceViewer
         activeSessionId={activeSessionId}
         activeBranchId={activeBranchId}
-        activeMessageIds={activeMessageIds}
         activePathNodeIds={activePathNodeIds}
       />
     </QueryClientProvider>,
@@ -243,7 +241,6 @@ export function renderViewer(
           <SessionResourceViewer
             activeSessionId={sessionId}
             activeBranchId={activeBranchId}
-            activeMessageIds={activeMessageIds}
             activePathNodeIds={activePathNodeIds}
           />
         </QueryClientProvider>,
@@ -254,7 +251,6 @@ export function renderViewer(
           <SessionResourceViewer
             activeSessionId={activeSessionId}
             activeBranchId={branchId}
-            activeMessageIds={activeMessageIds}
             activePathNodeIds={activePathNodeIds}
           />
         </QueryClientProvider>,
@@ -265,7 +261,6 @@ export function renderViewer(
           <SessionResourceViewer
             activeSessionId={activeSessionId}
             activeBranchId={activeBranchId}
-            activeMessageIds={new Set(pathNodeIds)}
             activePathNodeIds={pathNodeIds}
           />
         </QueryClientProvider>,

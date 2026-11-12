@@ -8,7 +8,7 @@ import { fakeViewport, rowIndex, rows } from './transcript-viewport.fixtures'
 const TOP = NEW_TURN_TOP_OFFSET_PX
 
 function sentTurn(reply: number | null, options: { readonly work?: boolean } = {}) {
-  const turn: Array<[string, number]> = [['sent', 60]]
+  const turn: [string, number][] = [['sent', 60]]
   if (reply !== null) turn.push(['reply', reply])
   const viewport = fakeViewport([...rows(10), ...turn])
   const controller = new TranscriptViewportController(viewport.geometry)

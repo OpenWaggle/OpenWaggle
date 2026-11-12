@@ -61,7 +61,7 @@ export function withReferenceDefinitions(markdown: string, definitions: string) 
   if (!definitions) return markdown
   const mentioned = normalizedLabel(markdown)
   const used = definitions.split('\n').filter((line) => {
-    const label = PLAIN_DEFINITION_PATTERN.exec(line)?.groups?.label
+    const label = PLAIN_DEFINITION_PATTERN.exec(line)?.groups?.['label']
     return label !== undefined && mentioned.includes(normalizedLabel(label))
   })
   return used.length > 0 ? `${used.join('\n')}\n\n${markdown}` : markdown

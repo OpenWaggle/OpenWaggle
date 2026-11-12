@@ -53,8 +53,8 @@ describe('useDiffReviewActions', () => {
 
     const submit = result.current.onSubmitReview
     act(() => {
-      submit()
-      submit()
+      void submit()
+      void submit()
     })
 
     expect(onSendMessage).toHaveBeenCalledTimes(1)

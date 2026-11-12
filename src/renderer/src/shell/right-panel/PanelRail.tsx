@@ -36,7 +36,7 @@ interface PanelRailActions {
 function surfaceTooltip(surface: RightPanelSurfaceEntry) {
   const parts = [surface.title]
   if (surface.extension !== null) parts.push(surface.extension.extensionName)
-  // The Hive's running dot means Workers below the open Session still run (ADR 0063).
+  // The Hive's running dot means Workers below the open Session still run (ADR 0065).
   if (surface.running) parts.push(surface.id === 'hive' ? 'Workers running' : 'running')
   // The attention dot is aria-hidden, so the name carries it for screen readers.
   // The Hive's dot means only Needs you: something the person must unblock (ADR 0059).
@@ -154,7 +154,7 @@ function RailButton({
 
 /**
  * The rail's state dot: something needing the user (a Hive Worker's Needs you, ADR 0059) or
- * something running (a Project Action, or Workers below the open Session, ADR 0063). Needs you
+ * something running (a Project Action, or Workers below the open Session, ADR 0065). Needs you
  * wins: running asks nothing of the person.
  */
 function RailStateDot({ surface }: { readonly surface: RightPanelSurfaceEntry }) {

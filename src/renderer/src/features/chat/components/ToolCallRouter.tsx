@@ -34,8 +34,8 @@ interface ToolCallRouterProps {
     {
       content: unknown
       state: string
-      error?: string
-      nestedCalls?: NestedToolCalls
+      error?: string | undefined
+      nestedCalls?: NestedToolCalls | undefined
     }
   >
   sessionId: SessionId | null

@@ -24,8 +24,9 @@ function isSameIncorporatedMessage(
   userMessage: AgentTransportUserMessage,
 ) {
   if (message.role !== 'user') return false
-  if (message.metadata?.sessionNodeCreatedOrder !== userMessage.sessionNodeCreatedOrder)
+  if (message.metadata?.sessionNodeCreatedOrder !== userMessage.sessionNodeCreatedOrder) {
     return false
+  }
   const digest = userMessage.durableTextSha256
   return (
     (digest !== undefined && message.metadata?.durableTextSha256 === digest) ||

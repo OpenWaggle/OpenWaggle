@@ -37,7 +37,7 @@ function pathToRootIds(
   let currentId: SessionNodeId | null = nodeId
 
   while (currentId) {
-    const currentKey: string = String(currentId)
+    const currentKey: string = currentId
     if (pathIds.has(currentKey)) {
       break
     }
@@ -164,7 +164,7 @@ export function shouldPromptForBranchSummary(
   const visited = new Set<string>()
 
   while (currentId) {
-    const currentKey: string = String(currentId)
+    const currentKey: string = currentId
     if (targetPathIds.has(currentKey) || visited.has(currentKey)) {
       return false
     }

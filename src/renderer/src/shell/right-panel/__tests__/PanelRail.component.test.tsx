@@ -156,7 +156,9 @@ describe('PanelRail', () => {
     actionsButton.setPointerCapture = vi.fn()
 
     fireEvent.pointerDown(actionsButton, { button: 0, clientY: 90, pointerId: 1 })
-    act(() => vi.advanceTimersByTime(400))
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
     fireEvent.pointerMove(actionsButton, { clientY: 45, pointerId: 1 })
     fireEvent.pointerUp(actionsButton, { clientY: 45, pointerId: 1 })
     fireEvent.click(actionsButton)
@@ -172,7 +174,9 @@ describe('PanelRail', () => {
     const actions = renderRail()
     const button = screen.getByRole('button', { name: 'Changes (⌘D)' })
     fireEvent.pointerDown(button, { button: 0, clientY: 50, pointerId: 1 })
-    act(() => vi.advanceTimersByTime(100))
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
     fireEvent.pointerUp(button, { clientY: 50, pointerId: 1 })
     fireEvent.click(button)
     expect(actions.move).not.toHaveBeenCalled()
@@ -255,7 +259,9 @@ describe('PanelRail', () => {
     button.setPointerCapture = vi.fn()
 
     fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 1 })
-    act(() => vi.advanceTimersByTime(400))
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.pointerUp(button, { clientY: 45, pointerId: 1 })
     // The press that Escape cancelled still ends in a click, which must not open the icon.
@@ -264,7 +270,9 @@ describe('PanelRail', () => {
     expect(actions.toggleSurface).not.toHaveBeenCalled()
 
     fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 2 })
-    act(() => vi.advanceTimersByTime(400))
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
     fireEvent.pointerCancel(button, { pointerId: 2 })
     fireEvent.click(button)
     expect(actions.toggleSurface).toHaveBeenCalledWith('project-actions')

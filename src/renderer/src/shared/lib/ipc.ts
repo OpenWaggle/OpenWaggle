@@ -1,6 +1,9 @@
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
+import { createRendererLogger } from './logger'
 import { createSessionControlQueryReader } from './session-control-query-reader'
 import { createSessionDetailReader } from './session-detail-reader'
+
+const logger = createRendererLogger('ipc')
 
 /**
  * Type-safe access to the preload API.
@@ -80,8 +83,8 @@ export function rejectedApiMethodOf(error: unknown): string | undefined {
 
 function createMissingApiMethod(prop: string) {
   return (..._args: unknown[]) => {
-    const message = `[ipc] window.api unavailable; attempted to call "${prop}". Ensure Electron main/preload have been restarted.`
-    console.error(message)
+    const message = `window.api unavailable; attempted to call "${prop}". Ensure Electron main/preload have been restarted.`
+    logger.error(message)
     if (prop.startsWith('on')) {
       return () => {}
     }
@@ -102,10 +105,12 @@ function createApiProxy(base?: OpenWaggleApi) {
       return base !== undefined && Reflect.has(base, prop)
     },
     get(_target, prop) {
-      if (prop === 'getSessionDetail' && readSessionDetail)
+      if (prop === 'getSessionDetail' && readSessionDetail) {
         return reportingApiMethodValue('getSessionDetail', readSessionDetail)
-      if (prop === 'querySessionControl' && querySessionControl)
+      }
+      if (prop === 'querySessionControl' && querySessionControl) {
         return reportingApiMethodValue('querySessionControl', querySessionControl)
+      }
       if (base) {
         const value = Reflect.get(base, prop)
         if (value !== undefined) {

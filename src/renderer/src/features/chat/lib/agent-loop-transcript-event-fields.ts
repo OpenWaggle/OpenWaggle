@@ -2,7 +2,7 @@ import { safeDecodeUnknown } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { JsonValue } from '@shared/types/json'
 
-export type UnknownObject = { readonly [key: string]: unknown }
+export type UnknownObject = Readonly<Record<string, unknown>>
 
 export interface AgentLoopBaseEventFields {
   readonly timestamp: number
@@ -49,7 +49,7 @@ export function baseEventFields(event: UnknownObject): AgentLoopBaseEventFields 
   }
 
   const model = stringField(event, 'model')
-  const rawEvent = optionalJsonValue(event.rawEvent)
+  const rawEvent = optionalJsonValue(event['rawEvent'])
   return {
     timestamp,
     ...(model !== null ? { model } : {}),

@@ -129,7 +129,7 @@ describe('useWaggleChat', () => {
     })
     requireRunCompletedHandler()({ sessionId: SESSION_ID })
 
-    expect(useWaggleStore.getState().liveMessageMetadata.m1?.agentLabel).toBe('Reviewer')
+    expect(useWaggleStore.getState().liveMessageMetadata['m1']?.agentLabel).toBe('Reviewer')
     expect(useWaggleStore.getState().status).toBe('completed')
   })
 })

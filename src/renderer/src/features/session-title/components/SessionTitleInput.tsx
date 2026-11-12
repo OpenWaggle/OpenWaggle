@@ -5,7 +5,7 @@ import type { SessionTitleRenameController } from '../hooks/useSessionTitleRenam
 
 /** The inline field that replaces a Session title while it is being renamed. */
 export function SessionTitleInput({
-  rename,
+  rename: { inputRef, ...rename },
   className,
 }: {
   readonly rename: SessionTitleRenameController
@@ -13,7 +13,7 @@ export function SessionTitleInput({
 }) {
   return (
     <TextInput
-      ref={rename.inputRef}
+      ref={inputRef}
       aria-label="Session title"
       value={rename.draft}
       maxLength={SESSION_TITLE_MAX_LENGTH}

@@ -24,7 +24,7 @@ interface TerminalPanelProps {
   readonly defaultProvenance?: TerminalContextProvenance
   readonly onClose: () => void
   readonly closePanelLabel?: string
-  readonly onDockActiveTab?: (tabId: string) => void
+  readonly onDockActiveTab?: ((tabId: string) => void) | undefined
 }
 
 /** The Session terminal panel: tab strip, split panes, search, port previews. */
@@ -147,7 +147,7 @@ function focusTerminalSurface(panel: HTMLElement | null, paneId: string | null) 
     paneId === null
       ? panel?.querySelector<HTMLElement>('[data-action-output-view]')
       : [...(panel?.querySelectorAll<HTMLElement>('[data-terminal-pane]') ?? [])].find(
-          (candidate) => candidate.dataset.terminalPane === paneId,
+          (candidate) => candidate.dataset['terminalPane'] === paneId,
         )
   surface?.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea')?.focus()
 }

@@ -9,7 +9,7 @@ import { RunTargetTrigger } from './RunTargetTrigger'
 
 interface RunTargetPickerProps {
   readonly strip: SessionContextRowState | null
-  readonly onToast?: (message: string) => void
+  readonly onToast?: ((message: string) => void) | undefined
 }
 
 /**

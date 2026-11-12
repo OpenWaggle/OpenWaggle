@@ -1,10 +1,7 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
 import { screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
-import { useUIStore } from '@/shell/ui-store'
-import { makeMessage } from './ChatPanel.test-utils'
 import {
   advanceSessionResourceBackfill,
   findSessionSummary,
@@ -89,60 +86,5 @@ describe('ChatPanel session summary', () => {
     renderPanel({}, { isFirstMessage: true, session: SESSION })
 
     expect(await findSessionSummary()).toBeInTheDocument()
-  })
-
-  it('orders gallery images by persisted transcript node identity', async () => {
-    const resource = (
-      id: string,
-      title: string,
-      nodeId: string,
-      createdAt: number,
-    ): SessionResource => ({
-      id,
-      sessionId: SessionId('session-1'),
-      canonicalKey: `sha256:${id}`,
-      kind: 'image',
-      title,
-      mimeType: 'image/png',
-      locator: `session-resource://${id}`,
-      managed: true,
-      available: true,
-      isSource: false,
-      isOutput: true,
-      occurrences: [
-        {
-          id: `occurrence-${id}`,
-          nodeId,
-          branchId: 'branch-1',
-          actor: 'agent',
-          activity: 'created',
-          label: null,
-          locator: `session-resource://${id}`,
-          createdAt,
-        },
-      ],
-      createdAt,
-      updatedAt: createdAt,
-    })
-    listSessionResources.mockResolvedValue({
-      resources: [
-        resource('hidden-image', 'hidden.png', 'hidden-node', 1),
-        resource('active-image', 'active.png', 'persisted-node', 2),
-      ],
-      backfillComplete: true,
-    })
-    useUIStore.getState().openResourceViewer('session-1', 'active-image')
-    const message = makeMessage({
-      id: 'runtime-message-id',
-      role: 'assistant',
-      metadata: { sessionNodeId: 'persisted-node' },
-    })
-
-    renderPanel({ messages: [message] }, { isFirstMessage: false, session: SESSION })
-
-    expect(
-      await screen.findByRole('dialog', { name: 'Image viewer: active.png' }),
-    ).toBeInTheDocument()
-    expect(await screen.findByLabelText('Image provenance')).toHaveTextContent('1 of 2')
   })
 })

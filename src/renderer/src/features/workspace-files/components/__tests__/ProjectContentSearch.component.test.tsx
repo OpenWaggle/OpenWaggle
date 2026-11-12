@@ -1,6 +1,7 @@
+import type { OpenWaggleWorkspaceFilesApi } from '@shared/types/openwaggle-workspace-files-api'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { act, fireEvent, screen } from '@testing-library/react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings/state'
 import { setWorkspaceLanguageAssociation } from '@/features/workspace-files/lib/workspace-language-associations'
 import { installModalDialogStub } from '@/test-utils/modal-dialog'
@@ -8,9 +9,9 @@ import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const mocks = vi.hoisted(() => {
   const state: {
-    cancelWorkspaceContentSearch: ReturnType<typeof vi.fn>
-    openWorkspaceFile: ReturnType<typeof vi.fn>
-    searchWorkspaceContent: ReturnType<typeof vi.fn>
+    cancelWorkspaceContentSearch: Mock<OpenWaggleWorkspaceFilesApi['cancelWorkspaceContentSearch']>
+    openWorkspaceFile: Mock
+    searchWorkspaceContent: Mock<OpenWaggleWorkspaceFilesApi['searchWorkspaceContent']>
     workingPath: string | null
   } = {
     cancelWorkspaceContentSearch: vi.fn(),

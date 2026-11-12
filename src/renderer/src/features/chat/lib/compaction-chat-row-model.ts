@@ -31,9 +31,11 @@ export function createCompactionStatusRows(
 export function createCompactionRowAppender(target: ChatRow[], rows: CompactionStatusRow[]) {
   let nextRow = 0
   return (messageCount: number) => {
-    while (nextRow < rows.length && rows[nextRow].anchorMessageCount <= messageCount) {
-      target.push(rows[nextRow])
+    let row = rows[nextRow]
+    while (row !== undefined && row.anchorMessageCount <= messageCount) {
+      target.push(row)
       nextRow += 1
+      row = rows[nextRow]
     }
   }
 }

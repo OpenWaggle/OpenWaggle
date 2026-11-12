@@ -6,8 +6,8 @@ import { useSessionStatusStore } from '@/features/sessions/state/session-status-
 interface SessionNavItem {
   readonly id: SessionId
   readonly projectPath: string | null
-  readonly environmentMode?: 'local' | 'worktree'
-  readonly worktreePath?: string | null
+  readonly environmentMode?: 'local' | 'worktree' | undefined
+  readonly worktreePath?: string | null | undefined
 }
 
 interface SessionNavDeps {
@@ -44,7 +44,10 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
   } = deps
 
   function refreshGit(
-    session: { environmentMode?: 'local' | 'worktree'; worktreePath?: string | null } | null,
+    session: {
+      environmentMode?: 'local' | 'worktree' | undefined
+      worktreePath?: string | null | undefined
+    } | null,
     path: string | null,
   ) {
     // Status targets the selected session's working tree via the sole WorkingPath

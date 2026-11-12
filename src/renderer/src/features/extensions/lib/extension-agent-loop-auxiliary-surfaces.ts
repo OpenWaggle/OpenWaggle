@@ -9,10 +9,7 @@ import {
   type ResolvedExtensionAgentLoopContribution,
   resolveExtensionAgentLoopContributionEntries,
 } from './extension-agent-loop-resolution'
-import type {
-  ExtensionAgentLoopSurfaceInput,
-  ExtensionInteractionView,
-} from './extension-agent-loop-surface-model'
+import type { ExtensionAgentLoopSurfaceInput } from './extension-agent-loop-surface-model'
 import { surfacePayload, surfaceTarget } from './extension-agent-loop-surface-model'
 
 export type ExtensionAgentLoopAuxiliaryPlacement = 'dialog' | 'side-panel' | 'status-widget'
@@ -86,13 +83,4 @@ export function resolveExtensionAgentLoopAuxiliaryContributions({
     contribution,
     surfacePayload: agentLoopAuxiliarySurfacePayload(input, placement),
   }))
-}
-
-export function interactionSurfaceInput(
-  interaction: ExtensionInteractionView,
-): Extract<ExtensionAgentLoopSurfaceInput, { readonly surface: 'interaction' }> {
-  return {
-    surface: 'interaction',
-    interaction,
-  }
 }

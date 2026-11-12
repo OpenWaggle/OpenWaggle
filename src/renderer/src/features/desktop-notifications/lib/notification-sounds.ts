@@ -54,10 +54,6 @@ const SOUND_TONES: Readonly<Record<BundledNotificationSoundId, readonly Tone[]>>
   ],
 }
 
-export function notificationSoundTones(sound: BundledNotificationSoundId) {
-  return SOUND_TONES[sound]
-}
-
 /** Seconds: a short lead so the first tone is scheduled, the attack, and the tail after release. */
 const START_LEAD_SECONDS = 0.01
 const ATTACK_SECONDS = 0.01

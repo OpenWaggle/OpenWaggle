@@ -7,18 +7,7 @@ export { useCombinedVcsStatus } from './hooks/useCombinedVcsStatus'
 export { useDraftPreparationProfile } from './hooks/useDraftPreparationProfile'
 export { type SessionContextRowState, useSessionContextRow } from './hooks/useSessionContextRow'
 export { useStackedGitActions } from './hooks/useStackedGitActions'
-export { type GitQuickAction, resolveQuickAction } from './lib/git-quick-action'
 export { invalidateVcsStatus } from './lib/vcs-status-invalidation'
-export {
-  resolveDefaultWorktreeBaseRef,
-  resolveWorktreeSendPlan,
-  WORKTREE_BASE_REF_REQUIRED,
-  WORKTREE_MISSING_REASON,
-  type WorktreeSendPlan,
-} from './lib/worktree-send-plan'
+export { WORKTREE_MISSING_REASON } from './lib/worktree-send-plan'
 export { selectWorkingTreeStatus, useGitStore } from './state'
-export {
-  consumeDraftWorktreePlan,
-  snapshotDraftWorktreePlan,
-  stashDraftWorktreePlan,
-} from './state/worktree-plan-draft'
+export { snapshotDraftWorktreePlan, stashDraftWorktreePlan } from './state/worktree-plan-draft'

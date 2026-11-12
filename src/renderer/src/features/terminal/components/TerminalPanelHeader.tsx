@@ -39,7 +39,7 @@ interface TerminalPanelHeaderProps {
     readonly setFocusedPaneId: (terminalId: string | null) => void
     readonly onClosePanel: () => void
     readonly onCloseTab: (tab: TerminalTabState) => void
-    readonly onDockActiveTab?: (tabId: string) => void
+    readonly onDockActiveTab?: ((tabId: string) => void) | undefined
   }
 }
 
@@ -174,7 +174,7 @@ interface HeaderActionsProps {
     readonly newTerminal: () => void
     readonly splitSideBySide: () => void
     readonly splitVertical: () => void
-    readonly dockActiveTab?: () => void
+    readonly dockActiveTab?: (() => void) | undefined
     readonly closePanel: () => void
   }
   readonly closePanelLabel: string

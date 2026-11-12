@@ -16,8 +16,9 @@ export function formatUsd(amount: number): string {
 }
 
 export function formatTokenCount(count: number): string {
-  if (count >= MICRO_UNITS * TOKEN_SCALE_STEP)
+  if (count >= MICRO_UNITS * TOKEN_SCALE_STEP) {
     return `${(count / (MICRO_UNITS * TOKEN_SCALE_STEP)).toFixed(1)}B`
+  }
   if (count >= MICRO_UNITS) return `${(count / MICRO_UNITS).toFixed(1)}M`
   if (count >= TOKEN_SCALE_STEP) return `${(count / TOKEN_SCALE_STEP).toFixed(1)}k`
   return String(count)

@@ -233,7 +233,7 @@ export function resolveVisibleSessionStatus(input: {
   readonly status: SessionStatus
   readonly completedAt: number | undefined
   readonly lastVisitedAt: number | undefined
-  /** A parent's Workers, from its Host summary (ADR 0063); absent for a Session without any. */
+  /** A parent's Workers, from its Host summary (ADR 0065); absent for a Session without any. */
   readonly lineage?: SessionLineageSummary | undefined
 }): SessionStatus {
   const seen =
@@ -246,7 +246,7 @@ export function resolveVisibleSessionStatus(input: {
 }
 
 /**
- * A parent's row follows its Workers (ADR 0063). Its own attention or in-flight status wins,
+ * A parent's row follows its Workers (ADR 0065). Its own attention or in-flight status wins,
  * because it describes the Session the person would open. Otherwise it reads Working while any
  * Worker below it runs, and Done below once the last Run there ended after the person last
  * visited it. A failed last Worker Run still reads Done: that Worker reaches the person through

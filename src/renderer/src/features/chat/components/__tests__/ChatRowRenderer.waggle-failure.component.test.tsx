@@ -52,7 +52,7 @@ function refreshedMessages(): readonly UIMessage[] {
 
 function rowKey(row: ChatRow) {
   if (row.type === 'message') return row.message.id
-  return 'id' in row ? String(row.id) : row.type
+  return 'id' in row ? row.id : row.type
 }
 
 function renderTranscript(

@@ -105,7 +105,9 @@ describe('InlineVisualization health checks', () => {
     )
     await act(async () => undefined)
     currentVisualizationFrame('Unresponsive map')
-    act(() => vi.advanceTimersByTime(FRAME_HEALTH_TIMEOUT_MS))
+    act(() => {
+      vi.advanceTimersByTime(FRAME_HEALTH_TIMEOUT_MS)
+    })
 
     expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
     expect(screen.queryByTitle('Unresponsive map')).toBeNull()

@@ -33,7 +33,10 @@ const NEEDS_A_HIVE = 'Only for Sessions in a Hive'
 
 /** The active Session's lineage, read from the chat store's summary list. */
 function activeSessionLineage(
-  sessions: readonly { readonly id: unknown; readonly lineage?: SessionLineageSummary | null }[],
+  sessions: readonly {
+    readonly id: unknown
+    readonly lineage?: SessionLineageSummary | null | undefined
+  }[],
   activeSessionId: unknown,
 ) {
   return sessions.find((session) => String(session.id) === String(activeSessionId))?.lineage
@@ -158,7 +161,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const activeLineage = activeSessionLineage(chatSessions, chatActiveSessionId)
   const sessionInHive = lineageInHive(activeLineage)
   const hiveAttention = useHiveAttention(sessionId, sessionInHive)
-  // Workers below the open Session still run (ADR 0063); the header line says the same.
+  // Workers below the open Session still run (ADR 0065); the header line says the same.
   const runningWorkers = useActiveSessionRunningWorkerCount()
   const hiveRunning = sessionInHive && runningWorkers > 0
   const scheduledAttention = useProjectScheduledTasksNeedAttention(sessionProjectPath)

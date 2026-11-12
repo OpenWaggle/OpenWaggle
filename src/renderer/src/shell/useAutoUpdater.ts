@@ -67,8 +67,6 @@ export function useAutoUpdater(): void {
   const shownToastRef = useRef<UpdaterToast | null>(null)
 
   useEffect(() => {
-    if (typeof api.onUpdateStatus !== 'function') return
-
     const clearShownToast = () => {
       const shown = shownToastRef.current
       if (!shown) return

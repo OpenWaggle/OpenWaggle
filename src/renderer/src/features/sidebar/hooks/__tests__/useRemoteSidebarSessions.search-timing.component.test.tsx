@@ -9,7 +9,9 @@ const apiMocks = vi.hoisted(() => ({
   querySessionControl: vi.fn(),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMocks),
+}))
 
 describe('remote sidebar Session search timing', () => {
   beforeEach(() => {

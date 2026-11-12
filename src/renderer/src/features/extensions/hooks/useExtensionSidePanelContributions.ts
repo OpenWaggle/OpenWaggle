@@ -6,14 +6,14 @@ import { extensionContributionsQueryOptions } from '@/queries/extensions'
 interface UseExtensionSidePanelContributionsInput {
   readonly enabled: boolean
   readonly projectPath: string | null
-  readonly sessionId?: string | null
+  readonly sessionId?: string | null | undefined
 }
 
 interface ExtensionSidePanelContributionsResult {
   readonly error: Error | null
   readonly loading: boolean
   readonly projectPaths: readonly string[]
-  readonly refetch: UseQueryResult<ExtensionContributionRegistryView, Error>['refetch']
+  readonly refetch: UseQueryResult<ExtensionContributionRegistryView>['refetch']
   readonly registry: ExtensionContributionRegistryView | null
 }
 

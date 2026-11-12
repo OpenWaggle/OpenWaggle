@@ -290,7 +290,7 @@ describe('ToolCallBlock', () => {
   })
 
   it('uses viewport rendering for very large file previews to keep expansion responsive', () => {
-    const largeContent = `${'line\n'.repeat(1_201)}`
+    const largeContent = 'line\n'.repeat(1_201)
     const { container } = render(
       <ToolCallBlock
         name="read"

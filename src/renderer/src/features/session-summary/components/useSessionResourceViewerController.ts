@@ -4,7 +4,6 @@ import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { useUIStore } from '@/shell/ui-store'
 import { useSessionResourceBranchNames } from '../hooks/useSessionResourceBranchNames'
 import { useSessionImageLocation, useSessionResourceCatalog } from '../hooks/useSessionResources'
-import { orderedSessionImages } from '../model/session-resource-gallery'
 import { isViewableSessionImage } from '../model/session-resource-viewability'
 import type { ImageViewerZoom as Zoom } from './SessionResourceViewerCanvas'
 import { useCenteredImageZoom } from './useCenteredImageZoom'
@@ -126,18 +125,12 @@ function galleryAdjacency(
 
 function resolveGalleryState(
   resources: readonly SessionResource[],
-  firstPageRevision: string | undefined,
-  activeMessageIds: ReadonlySet<string>,
   resourceId: string | null,
   location: SessionResourceImageLocation | null,
   galleryResourceIds: readonly string[] | undefined,
   galleryIndex: number | undefined,
 ) {
-  const serverImages = resources.filter(isViewableSessionImage)
-  const images =
-    firstPageRevision === 'legacy'
-      ? orderedSessionImages(serverImages, activeMessageIds)
-      : serverImages
+  const images = resources.filter(isViewableSessionImage)
   const loadedSelection = selectedImage(resourceId, images)
   const locatedImage = location?.resource ?? null
   const resource =
@@ -186,7 +179,6 @@ function usePrefetchNextGalleryPage(
 export function useSessionResourceViewerController(
   activeSessionId: string | null,
   activeBranchId: string | null,
-  activeMessageIds: ReadonlySet<string>,
   activePathNodeIds: readonly string[],
 ) {
   const viewer = useUIStore((state) => state.resourceViewer)
@@ -215,8 +207,6 @@ export function useSessionResourceViewerController(
   )
   const gallery = resolveGalleryState(
     catalog.resources,
-    catalog.data?.pages[0]?.orderRevision,
-    activeMessageIds,
     identity.resourceId,
     imageLocation.data ?? null,
     viewer?.galleryResourceIds,

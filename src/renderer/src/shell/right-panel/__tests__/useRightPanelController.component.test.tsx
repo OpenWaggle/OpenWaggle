@@ -151,7 +151,9 @@ describe('useRightPanelController', () => {
     remember('changes')
     renderHook(() => useRightPanelController(model(), '/repo'))
     expect(mocks.route.open).not.toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(0))
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
     expect(routeOpenPanels()).toEqual(['diff'])
   })
 
@@ -167,11 +169,15 @@ describe('useRightPanelController', () => {
     const { rerender } = renderHook(({ input }) => useRightPanelController(input, '/repo'), {
       initialProps: { input: loading },
     })
-    act(() => vi.advanceTimersByTime(100))
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
     expect(mocks.route.open).not.toHaveBeenCalled()
 
     rerender({ input: model() })
-    act(() => vi.advanceTimersByTime(0))
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
     expect(routeOpenPanels()).toEqual(['session-tree'])
   })
 
@@ -181,7 +187,9 @@ describe('useRightPanelController', () => {
       surfaces: model().surfaces.filter((surface) => surface.id !== 'session-tree'),
     })
     renderHook(() => useRightPanelController(unavailable, '/repo'))
-    act(() => vi.advanceTimersByTime(3000))
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
     expect(mocks.route.open).not.toHaveBeenCalled()
     // Gave up, but the Session still remembers its open panel for next time.
     expect(useRightPanelRailStore.getState().sessions[SESSION]).toMatchObject({
@@ -199,7 +207,9 @@ describe('useRightPanelController', () => {
         '/repo',
       ),
     )
-    act(() => vi.advanceTimersByTime(10_000))
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
     expect(useRightPanelRailStore.getState().sessions[SESSION]).toMatchObject({
       open: true,
       surface: notes,
@@ -214,7 +224,9 @@ describe('useRightPanelController', () => {
         '/repo',
       ),
     )
-    act(() => vi.advanceTimersByTime(0))
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
     expect(routeOpenPanels()).toEqual(['diff'])
   })
 
@@ -259,7 +271,9 @@ describe('useRightPanelController', () => {
         '/repo',
       ),
     )
-    act(() => vi.advanceTimersByTime(0))
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
     expect(useRightPanelRailStore.getState().sessions[SESSION]).toMatchObject({
       open: false,
       surface: 'changes',
@@ -272,7 +286,9 @@ describe('useRightPanelController', () => {
     const lookup = deferred<{ path: string }[]>()
     mocks.searchWorkspaceFiles.mockReturnValue(lookup.promise)
     const { result } = renderHook(() => useRightPanelController(model(), '/repo'))
-    act(() => vi.advanceTimersByTime(0))
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
 
     act(() => result.current.showSurface('files'))
     act(() => result.current.showSurface('changes'))

@@ -128,7 +128,8 @@ export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | 
 export function toggleWorkspaceRightPanel(ownerKey: string) {
   const store = useWorkspacePanelStore.getState()
   const group = store.groups[ownerKey]
-  if (ownerKey.length === 0 || group === undefined || group.activeSurface === null) return false
+  if (ownerKey.length === 0 || group === undefined) return false
+  if (group.activeSurface === null) return false
   if (group.panelOpen) {
     store.hidePanel(ownerKey)
     return true
@@ -160,8 +161,11 @@ export function toggleWorkspacePreview(ownerKey: string) {
   const group = store.groups[ownerKey]
   const previewId = activeBrowserTabId(ownerKey)
   if (previewId === null) return newWorkspaceBrowser(ownerKey)
-  if (group.panelOpen && group.activeSurface?.kind === 'browser') store.hidePanel(ownerKey)
-  else store.showBrowser(ownerKey, previewId)
+  if (group?.panelOpen === true && group.activeSurface?.kind === 'browser') {
+    store.hidePanel(ownerKey)
+  } else {
+    store.showBrowser(ownerKey, previewId)
+  }
   return true
 }
 

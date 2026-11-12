@@ -37,10 +37,10 @@ interface MountExtensionFrameInput {
   readonly getCurrentFrameWindow: () => Window | null | undefined
   readonly moduleUrl: string | null
   readonly mountKey: string
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly reportHeight?: (height: number) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly reportHeight?: ((height: number) => void) | undefined
   readonly reportStatus: (status: ReportedMountStatus) => void
-  readonly surfacePayloadJson?: string
+  readonly surfacePayloadJson?: string | undefined
 }
 
 export function missingEntryPathStatus(): MountStatus {
