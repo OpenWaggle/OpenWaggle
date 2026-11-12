@@ -27,7 +27,7 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # Makes `pnpm check:installer` fail when NSIS is absent instead of skipping, so the
+  # Makes `bun run check:installer` fail when NSIS is absent instead of skipping, so the
   # installer compile check cannot silently stop running in CI.
   REQUIRE_NSIS: '1'
 
@@ -67,18 +67,18 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - uses: ./.github/actions/pnpm-install
+      - uses: ./.github/actions/bun-install
 
-      - run: pnpm exec tsx scripts/release-ci-policy.ts
+      - run: bun scripts/release-ci-policy.ts
 
       - name: Validate Conventional Commits
         env:
@@ -94,7 +94,7 @@ jobs:
             git merge-base --is-ancestor "$COMMIT_POLICY_FROM" "$COMMIT_POLICY_TO"
             git merge-base --is-ancestor "$COMMIT_POLICY_FROM" refs/remotes/origin/main
           fi
-          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
+          bun scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
 
   check:
     name: Typecheck & Lint
@@ -112,18 +112,19 @@ jobs:
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - uses: ./.github/actions/pnpm-install
+      - uses: ./.github/actions/bun-install
         with:
           electron-binary: 'true'
 
@@ -136,7 +137,11 @@ jobs:
           done
           makensis -VERSION
 
-      - run: pnpm check
+      - run: bun scripts/check/output-budget.ts check
+
+      - name: Publish check step times
+        if: always()
+        run: bun scripts/check/job-summary.ts
 
   test-unit:
     name: Unit Tests
@@ -160,20 +165,23 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - uses: ./.github/actions/pnpm-install
+      - uses: ./.github/actions/bun-install
         with:
           electron-binary: 'true'
 
-      - run: pnpm test:unit
+      - run: bun run test:unit
+
+      - name: Unit tests of shipped Node.js code on Node.js
+        run: bun run test:node-runtime:raw
 
   test-integration-component:
     name: Integration & Component Tests
@@ -195,16 +203,16 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - uses: ./.github/actions/pnpm-install
+      - uses: ./.github/actions/bun-install
         with:
           electron-binary: 'true'
 
@@ -223,7 +231,7 @@ jobs:
           done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
           /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'
 
-      - run: pnpm test:integration && pnpm test:component
+      - run: bun run test:integration && bun run test:component
 
   test-mcp-conformance:
     name: MCP Conformance
@@ -245,18 +253,18 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - uses: ./.github/actions/pnpm-install
+      - uses: ./.github/actions/bun-install
 
-      - run: pnpm prepare:native:node && pnpm test:mcp:conformance
+      - run: bun run prepare:native:node && bun run test:mcp:conformance
 
   changes:
     name: Detect Changed Surfaces
@@ -288,7 +296,7 @@ jobs:
           echo "Changed files relative to $merge_base:"
           printf '%s\n' "$changed"
 
-          package_pattern='^(packages/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/package-|release-please-config\.json$|\.release-please-manifest\.json$|tests/fixtures/package-smoke/)'
+          package_pattern='^(packages/|bun\.lock$|bunfig\.toml$|scripts/package-|release-please-config\.json$|\.release-please-manifest\.json$|tests/fixtures/package-smoke/)'
           website_docs_pattern='^(website/|docs/|packages/|scripts/package-documentation\.ts$|scripts/generate-installed-docs\.ts$)'
 
           if printf '%s\n' "$changed" | grep -qE "$package_pattern"; then
@@ -326,6 +334,7 @@ jobs:
           sparse-checkout: scripts/package-consumer-tools.ts
           sparse-checkout-cone-mode: false
 
+      # pnpm only for the pnpm consumer of the packed packages; the repository installs with Bun.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
         with:
           version: 11.15.1
@@ -333,13 +342,13 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22.19.0
-          cache: pnpm
+          package-manager-cache: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
-      - uses: ./.github/actions/pnpm-install
+      - uses: ./.github/actions/bun-install
 
       - name: Install pinned package manager consumers
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
@@ -351,17 +360,17 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
-          key: ms-playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
       - name: Install Chromium for package browser smoke
-        run: pnpm exec playwright install chromium
+        run: bunx playwright install chromium
 
       - name: Rehearse npm, pnpm, Yarn, Bun, and browser consumers
         env:
           OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
           OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
-        run: pnpm package:smoke
+        run: bun run package:smoke
 
   package-release-rehearsal-website:
     name: Website & Docs Rehearsal (Node 24.14.0)
@@ -378,22 +387,22 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - uses: ./.github/actions/pnpm-install
+      - uses: ./.github/actions/bun-install
 
       - name: Rehearse website and documentation gates
         run: |
-          pnpm website:build
-          pnpm website:test
-          pnpm docs:generate
+          bun run website:build
+          bun run website:test
+          bun run docs:generate
 
   classify-package-release:
     name: Classify Package Release Candidate
@@ -443,6 +452,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}
 
+      # pnpm only for the pnpm consumer of the packed packages; the repository installs with Bun.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
         with:
           version: 11.15.1
@@ -458,13 +468,16 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
-      - uses: ./.github/actions/pnpm-install
+      # This job attests the tarballs it builds, so it installs without the package cache.
+      - uses: ./.github/actions/bun-install
+        with:
+          package-cache: 'false'
 
       - name: Install pinned package manager consumers
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
@@ -476,32 +489,32 @@ jobs:
         env:
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
         run: |
-          pnpm check:fast
-          pnpm package-release:validate
-          pnpm api:snapshot:check
-          pnpm package-docs:check
-          pnpm --filter @openwaggle/website build
-          pnpm website:test
-          pnpm docs:generate
+          bun run check:fast
+          bun run package-release:validate
+          bun run api:snapshot:check
+          bun run package-docs:check
+          bun run --filter @openwaggle/website build
+          bun run website:test
+          bun run docs:generate
 
-      - run: pnpm build:packages
+      - run: bun run build:packages
 
       - name: Resolve exact Release Please package plan
         id: plan
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'origin/main' }}" "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}" "$RUNNER_TEMP/package-release-plan.json"
 
       - name: Build and verify exact package tarballs
-        run: pnpm exec tsx scripts/package-release-artifacts.ts prepare "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"
+        run: bun scripts/package-release-artifacts.ts prepare "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"
 
       - name: Install Chromium for canonical package browser smoke
-        run: pnpm exec playwright install chromium
+        run: bunx playwright install chromium
 
       - name: Smoke exact canonical npm, pnpm, Yarn, Bun, and browser consumers
         env:
           OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
           OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
-        run: pnpm package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"
+        run: bun run package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"
 
       - name: Attest package tarballs and release manifest
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3

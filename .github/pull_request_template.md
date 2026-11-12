@@ -16,7 +16,7 @@ Squash this PR when one Conventional Commit accurately describes its complete in
 
 ## Validation
 
-- [ ] `pnpm verify` (pre-push baseline; the hook runs it automatically)
-- [ ] `pnpm check`
+- [ ] `bun run verify` (pre-push baseline; the hook runs it automatically)
+- [ ] `bun run check`
 - [ ] Relevant tests
 - [ ] Package checks when a publishable package changed
