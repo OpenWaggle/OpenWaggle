@@ -1,15 +1,17 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { selectedDelegationRowIds } from './sqlite-delegation-page'
-import type { DelegationHistoryDescriptor, HistoryRow } from './sqlite-delegation-query-model'
-import type {
-  DependencyRow,
-  EvidenceRow,
-  ReviewRow,
-  SpecificationRow,
-  SubmissionRow,
-  TransitionRow,
+import type { DelegationHistoryDescriptor } from './sqlite-delegation-query-model'
+import {
+  dependencyRowSchema,
+  evidenceRowSchema,
+  historyRowSchema,
+  reviewRowSchema,
+  specificationRowSchema,
+  submissionRowSchema,
+  transitionRowSchema,
 } from './sqlite-delegation-query-rows'
+import { decodeSqlRows } from './sqlite-row-schema'
 
 function readSubmissionHistory(
   sql: SqlClient.SqlClient,
@@ -19,22 +21,26 @@ function readSubmissionHistory(
   const submissionIds = selectedDelegationRowIds(selected, 'submission')
   return Effect.gen(function* () {
     const submissions = submissionIds.length
-      ? yield* sql<HistoryRow<SubmissionRow>>`
+      ? yield* sql`
           SELECT rowid AS cursor_id, revision, specification_revision, summary, submitted_by,
             source_run_id, provenance, created_at
           FROM delegation_submissions WHERE rowid IN ${sql.in(submissionIds)}
           ORDER BY created_at, rowid
-        `
+        `.pipe(
+          Effect.flatMap(
+            decodeSqlRows(historyRowSchema(submissionRowSchema), 'delegation_submissions'),
+          ),
+        )
       : []
     const submissionRevisions = submissions.map((row) => row.revision)
     const evidence = submissionRevisions.length
-      ? yield* sql<EvidenceRow>`
+      ? yield* sql`
           SELECT submission_revision, kind, summary, reference, provenance_json
           FROM delegation_evidence
           WHERE delegation_id = ${delegationId}
             AND submission_revision IN ${sql.in(submissionRevisions)}
           ORDER BY submission_revision, ordinal
-        `
+        `.pipe(Effect.flatMap(decodeSqlRows(evidenceRowSchema, 'delegation_evidence')))
       : []
     return { submissions, evidence }
   })
@@ -50,36 +56,46 @@ export function readDelegationPrimaryHistory(
   const transitionIds = selectedDelegationRowIds(selected, 'transition')
   return Effect.gen(function* () {
     const specifications = specificationIds.length
-      ? yield* sql<HistoryRow<SpecificationRow>>`
+      ? yield* sql`
           SELECT rowid AS cursor_id, revision, specification_json, authored_by, reason, created_at
           FROM delegation_specifications WHERE rowid IN ${sql.in(specificationIds)}
           ORDER BY created_at, rowid
-        `
+        `.pipe(
+          Effect.flatMap(
+            decodeSqlRows(historyRowSchema(specificationRowSchema), 'delegation_specifications'),
+          ),
+        )
       : []
     const { submissions, evidence } = yield* readSubmissionHistory(sql, delegationId, selected)
     const reviews = reviewIds.length
-      ? yield* sql<HistoryRow<ReviewRow>>`
+      ? yield* sql`
           SELECT rowid AS cursor_id, submission_revision, decision, feedback, reviewer_session_id,
             reviewed_by, specification_revision, created_at
           FROM delegation_reviews WHERE rowid IN ${sql.in(reviewIds)}
           ORDER BY created_at, rowid
-        `
+        `.pipe(
+          Effect.flatMap(decodeSqlRows(historyRowSchema(reviewRowSchema), 'delegation_reviews')),
+        )
       : []
-    const dependencies = yield* sql<DependencyRow>`
+    const dependencies = yield* sql`
       SELECT dependencies.dependency_delegation_id AS delegation_id,
         dependencies.required_state, required.state AS current_state
       FROM delegation_dependencies AS dependencies
       JOIN delegation_contracts AS required ON required.id = dependencies.dependency_delegation_id
       WHERE dependencies.delegation_id = ${delegationId}
       ORDER BY dependencies.dependency_delegation_id
-    `
+    `.pipe(Effect.flatMap(decodeSqlRows(dependencyRowSchema, 'delegation_dependencies')))
     const transitions = transitionIds.length
-      ? yield* sql<HistoryRow<TransitionRow>>`
+      ? yield* sql`
           SELECT rowid AS cursor_id, from_state, to_state, reason, actor_session_id,
             authored_by, created_at
           FROM delegation_state_transitions WHERE rowid IN ${sql.in(transitionIds)}
           ORDER BY created_at, rowid
-        `
+        `.pipe(
+          Effect.flatMap(
+            decodeSqlRows(historyRowSchema(transitionRowSchema), 'delegation_state_transitions'),
+          ),
+        )
       : []
     return { specifications, submissions, evidence, reviews, dependencies, transitions }
   })
