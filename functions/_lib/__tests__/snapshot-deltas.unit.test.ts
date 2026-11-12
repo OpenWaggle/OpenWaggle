@@ -37,7 +37,7 @@ describe('snapshot deltas', () => {
   it('forwards everything on the first snapshot and marks downloads as a baseline', () => {
     const first = events(null, snapshot())
 
-    expect(first.events.map((event) => [event.event, event.properties['count']])).toEqual([
+    expect(first.events.map((event) => [event.event, event.properties.count])).toEqual([
       ['github.download', 5],
       ['github.download', 40],
       ['github.traffic', 30],
@@ -205,7 +205,7 @@ describe('snapshot deltas', () => {
     expect(
       caughtUp.events
         .filter((event) => event.event === 'npm.downloads')
-        .map((event) => [event.timestamp, event.properties['count']]),
+        .map((event) => [event.timestamp, event.properties.count]),
     ).toEqual([
       ['2026-09-30T12:00:00Z', 1],
       ['2026-10-01T12:00:00Z', 6],
