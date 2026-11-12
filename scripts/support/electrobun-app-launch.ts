@@ -39,6 +39,7 @@ const SCRATCH_HOME_DIRECTORY = 'home'
 const LOCALHOST = '127.0.0.1'
 const EPHEMERAL_PORT = 0
 const CDP_POLL_MS = 200
+const CDP_ATTACH_ATTEMPT_MS = 10_000
 const DEFAULT_LAUNCH_TIMEOUT_MS = 120_000
 const STOP_GRACE_MS = 5_000
 const STOP_POLL_MS = 100
@@ -271,23 +272,36 @@ export interface ConnectedElectrobunApp extends LaunchedElectrobunApp {
   readonly close: () => Promise<void>
 }
 
+/**
+ * Connects Playwright over CDP and finds the renderer page. CEF on macOS first commits the window
+ * at about:blank; a connection made then can keep that page's old URL after the app's document
+ * loads, so a connection that sees no renderer page for a while is dropped and made again.
+ */
+async function attachRendererPage(cdpPort: number, deadline: number) {
+  while (true) {
+    const browser = await chromium.connectOverCDP(`http://${LOCALHOST}:${String(cdpPort)}`)
+    const attempt = Math.min(deadline, Date.now() + CDP_ATTACH_ATTEMPT_MS)
+    let page = rendererPage(browser)
+    while (page === undefined && Date.now() < attempt) {
+      await new Promise((resolve) => setTimeout(resolve, CDP_POLL_MS))
+      page = rendererPage(browser)
+    }
+    if (page !== undefined) return { browser, page }
+    await browser.close().catch(() => undefined)
+    if (Date.now() >= deadline) {
+      throw new Error('Playwright saw no renderer page on the app DevTools endpoint.')
+    }
+  }
+}
+
 /** Connects Playwright to a started app's renderer page. */
 export async function connectElectrobunApp(
   app: LaunchedElectrobunApp,
   timeoutMs: number = DEFAULT_LAUNCH_TIMEOUT_MS,
 ): Promise<ConnectedElectrobunApp> {
   await waitForRendererTarget(app, timeoutMs)
-  const browser = await chromium.connectOverCDP(`http://${LOCALHOST}:${String(app.cdpPort)}`)
   const deadline = Date.now() + timeoutMs
-  let page = rendererPage(browser)
-  while (page === undefined && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, CDP_POLL_MS))
-    page = rendererPage(browser)
-  }
-  if (page === undefined) {
-    await browser.close().catch(() => undefined)
-    throw new Error('Playwright saw no renderer page on the app DevTools endpoint.')
-  }
+  const { browser, page } = await attachRendererPage(app.cdpPort, deadline)
   const close = async () => {
     await browser.close().catch(() => undefined)
     await stopElectrobunApp(app)
