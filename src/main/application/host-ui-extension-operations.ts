@@ -1,9 +1,10 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { safeDecodeUnknown } from '@shared/schema'
 import {
   extensionInvocationBindingSchema,
   extensionInvokeInputSchema,
 } from '@shared/schemas/extension-broker'
+import { extensionRuntimeModuleAccessInputSchema } from '@shared/schemas/extensions'
 import type { ExtensionInvokeFailure } from '@shared/types/extension-broker'
 import type { ExtensionListContributionsInput } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
@@ -64,24 +65,14 @@ export function listHostUiExtensionContributions(input?: unknown) {
   )
 }
 
-const runtimeModuleAccessSchema = Schema.Struct({
-  packagePath: Schema.String.pipe(Schema.minLength(1)),
-  contentHash: Schema.String.pipe(Schema.minLength(1)),
-  projectPaths: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
-  sessionId: Schema.optional(Schema.String.pipe(Schema.minLength(1))),
-})
-
 export function authorizeHostUiExtensionRuntimeModule(input: unknown) {
-  const decoded = safeDecodeUnknown(runtimeModuleAccessSchema, input)
+  const decoded = safeDecodeUnknown(extensionRuntimeModuleAccessInputSchema, input)
   if (!decoded.success) {
     return Effect.fail(
       new Error(`Invalid runtime module authorization: ${decoded.issues.join('; ')}`),
     )
   }
-  const { sessionId, ...access } = decoded.data
-  return isExtensionRuntimeModuleAccessAllowed(
-    sessionId === undefined ? access : { ...access, sessionId },
-  )
+  return isExtensionRuntimeModuleAccessAllowed(decoded.data)
 }
 
 export function proposeHostUiExtensionPackageWrite(input: unknown) {

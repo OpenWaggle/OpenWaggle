@@ -5,7 +5,7 @@ import {
   openWaggleExtensionManifestSchema as publicOpenWaggleExtensionManifestSchema,
 } from '@openwaggle/extension-sdk'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { Schema } from '@shared/schema'
+import { optionalExact, Schema } from '@shared/schema'
 import { extensionRelativePathSchema } from './extension-contributions'
 import { isNonEmptyTrimmed } from './extension-schema-primitives'
 
@@ -25,6 +25,13 @@ export {
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
 
+/*
+ * The extension lifecycle and package-workflow requests the window and agents send (ADR 0040).
+ * Each schema is the one source of its type in `@shared/types/extension-package-scope`,
+ * `extension-package-workflow`, `extensions` and `extension-contribution-registry`; the Host
+ * decodes the request with it before normalizing its project paths.
+ */
+
 const extensionProposalHashSchema = Schema.String.pipe(
   Schema.length(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH),
 )
@@ -39,26 +46,34 @@ export const extensionLifecycleScopeSchema = Schema.Union(
   }),
 )
 
-const extensionViewProjectPathsSchema = Schema.mutable(Schema.Array(nonEmptyStringSchema))
+const extensionViewProjectPathsSchema = Schema.Array(nonEmptyStringSchema)
 
 export const extensionListPackagesInputSchema = Schema.Struct({
-  projectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  projectPaths: optionalExact(extensionViewProjectPathsSchema),
 })
 
 export const extensionListContributionsInputSchema = Schema.Struct({
-  projectPaths: Schema.optional(extensionViewProjectPathsSchema),
-  sessionId: Schema.optional(nonEmptyStringSchema),
+  projectPaths: optionalExact(extensionViewProjectPathsSchema),
+  sessionId: optionalExact(nonEmptyStringSchema),
+})
+
+/** What a runtime module request must prove before the Host serves an extension's module. */
+export const extensionRuntimeModuleAccessInputSchema = Schema.Struct({
+  packagePath: Schema.String.pipe(Schema.minLength(1)),
+  contentHash: Schema.String.pipe(Schema.minLength(1)),
+  projectPaths: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  sessionId: optionalExact(Schema.String.pipe(Schema.minLength(1))),
 })
 
 export const extensionPackageWorkflowActorSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal('agent'),
     agentId: nonEmptyStringSchema,
-    sessionId: Schema.optional(nonEmptyStringSchema),
+    sessionId: optionalExact(nonEmptyStringSchema),
   }),
   Schema.Struct({
     kind: Schema.Literal('user'),
-    userId: Schema.optional(nonEmptyStringSchema),
+    userId: optionalExact(nonEmptyStringSchema),
   }),
   Schema.Struct({
     kind: Schema.Literal('extension'),
@@ -85,83 +100,66 @@ export const extensionPackageWorkflowGlobalConfirmationSchema = Schema.Struct({
   risk: Schema.Literal(OPENWAGGLE_EXTENSION.PACKAGE_WORKFLOW.GLOBAL_CONFIRMATION_RISK),
 })
 
-export const extensionProposePackageWriteInputSchema = Schema.Struct({
+/** The package a lifecycle request acts on, and the projects the caller's view shows. */
+const lifecycleTargetFields = {
   extensionId: extensionIdSchema,
   scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  viewProjectPaths: optionalExact(extensionViewProjectPathsSchema),
+}
+
+export const extensionLifecycleMutationTargetSchema = Schema.Struct(lifecycleTargetFields)
+
+const packageWriteFields = {
+  ...lifecycleTargetFields,
   mode: extensionPackageWriteModeSchema,
-  files: Schema.mutable(Schema.Array(extensionPackageFileWriteSchema)),
+  files: Schema.Array(extensionPackageFileWriteSchema),
   actor: extensionPackageWorkflowActorSchema,
-})
+}
+
+const approvalFields = {
+  userApproval: extensionPackageWorkflowUserApprovalSchema,
+  globalConfirmation: optionalExact(extensionPackageWorkflowGlobalConfirmationSchema),
+}
+
+export const extensionProposePackageWriteInputSchema = Schema.Struct(packageWriteFields)
 
 export const extensionApplyPackageWriteInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
-  mode: extensionPackageWriteModeSchema,
-  files: Schema.mutable(Schema.Array(extensionPackageFileWriteSchema)),
-  actor: extensionPackageWorkflowActorSchema,
-  userApproval: extensionPackageWorkflowUserApprovalSchema,
-  globalConfirmation: Schema.optional(extensionPackageWorkflowGlobalConfirmationSchema),
+  ...packageWriteFields,
+  ...approvalFields,
 })
 
 export const extensionProposePackageRemoveInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  ...lifecycleTargetFields,
   actor: extensionPackageWorkflowActorSchema,
 })
 
 export const extensionApplyPackageRemoveInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  ...lifecycleTargetFields,
   actor: extensionPackageWorkflowActorSchema,
-  userApproval: extensionPackageWorkflowUserApprovalSchema,
-  globalConfirmation: Schema.optional(extensionPackageWorkflowGlobalConfirmationSchema),
+  ...approvalFields,
 })
 
 export const openWaggleExtensionManifestSchema = publicOpenWaggleExtensionManifestSchema
 
 export const extensionSetTrustedInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  ...lifecycleTargetFields,
   trusted: Schema.Boolean,
 })
 
 export const extensionSetEnabledInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  ...lifecycleTargetFields,
   enabled: Schema.Boolean,
 })
 
 export const extensionSetProjectDisabledInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  ...lifecycleTargetFields,
   projectPath: nonEmptyStringSchema,
   disabled: Schema.Boolean,
 })
 
-export const extensionAcceptUpdateInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
-})
-
-export const extensionApproveBuildInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
-})
-
-export const extensionReloadInputSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  scope: extensionLifecycleScopeSchema,
-  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
-})
+export const extensionAcceptUpdateInputSchema = extensionLifecycleMutationTargetSchema
+export const extensionApproveBuildInputSchema = extensionLifecycleMutationTargetSchema
+export const extensionReloadInputSchema = extensionLifecycleMutationTargetSchema
 
 export type OpenWaggleExtensionManifest = PublicOpenWaggleExtensionManifest
 export type ExtensionDocsTopicDeclaration = PublicExtensionDocsTopicDeclaration

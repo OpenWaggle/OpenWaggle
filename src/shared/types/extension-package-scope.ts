@@ -1,4 +1,9 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { SchemaType } from '@shared/schema'
+import type {
+  extensionLifecycleMutationTargetSchema,
+  extensionLifecycleScopeSchema,
+} from '@shared/schemas/extensions'
 
 export type ExtensionPackageScopeKind =
   | typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -10,17 +15,7 @@ export interface ExtensionPackageScopeView {
   readonly projectPath?: string
 }
 
-export type ExtensionPackageLifecycleScope =
-  | {
-      readonly kind: typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-    }
-  | {
-      readonly kind: typeof OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
-      readonly projectPath: string
-    }
-
-export interface ExtensionLifecycleMutationTarget {
-  readonly extensionId: string
-  readonly scope: ExtensionPackageLifecycleScope
-  readonly viewProjectPaths?: readonly string[]
-}
+export type ExtensionPackageLifecycleScope = SchemaType<typeof extensionLifecycleScopeSchema>
+export type ExtensionLifecycleMutationTarget = SchemaType<
+  typeof extensionLifecycleMutationTargetSchema
+>
