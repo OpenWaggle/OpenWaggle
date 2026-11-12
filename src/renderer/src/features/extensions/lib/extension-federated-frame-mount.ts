@@ -150,7 +150,7 @@ function registerProtocolFrame(input: {
     .registerExtensionFrame({
       frameId: input.frameId,
       bootstrapUrl: absoluteRendererUrl(extensionFrameBootstrapUrl),
-      networkOrigins: input.entry.networkOrigins,
+      ...(input.entry.networkOrigins && { networkOrigins: input.entry.networkOrigins }),
     })
     .then((result) => {
       if (!input.isActive()) {

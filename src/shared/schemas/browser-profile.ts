@@ -27,6 +27,7 @@ export const browserProfileNameSchema = Schema.String.pipe(
   ),
 )
 
+/** The one source of `BrowserProfile` in `@shared/types/browser-profile`. */
 export const browserProfileSchema = Schema.Struct({
   id: browserProfileIdSchema,
   name: browserProfileNameSchema,
