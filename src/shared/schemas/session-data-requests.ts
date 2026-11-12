@@ -10,18 +10,27 @@ export const SESSION_TREE_SEARCH_MAX_QUERY_LENGTH = 1_024
 const nodeIdSchema = sessionInputIdSchema.pipe(Schema.fromBrand(SessionNodeId))
 const revisionSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
 
-export const sessionWorkspaceRequestSchema = Schema.Struct({
-  window: Schema.optionalWith(
-    Schema.Struct({
-      minEntries: Schema.Number.pipe(
-        Schema.int(),
-        Schema.positive(),
-        Schema.lessThanOrEqualTo(SESSION_WORKSPACE_MAX_ENTRIES),
-      ),
-      includeNodeId: Schema.optionalWith(Schema.NullOr(nodeIdSchema), { exact: true }),
-    }),
-    { exact: true },
+/**
+ * Which part of the selected path a workspace read returns (ADR 0036 bounds the transferred
+ * rows as well as the mounted ones). The window is always a suffix of the path: it ends at the
+ * selected node and holds at least `minEntries` entries, and also `includeNodeId` when that node
+ * is on the path, so a restored reading position deep in history is in it.
+ */
+export const sessionTranscriptWindowRequestSchema = Schema.Struct({
+  minEntries: Schema.Number.pipe(
+    Schema.int(),
+    Schema.positive(),
+    Schema.lessThanOrEqualTo(SESSION_WORKSPACE_MAX_ENTRIES),
   ),
+  includeNodeId: Schema.optionalWith(Schema.NullOr(nodeIdSchema), { exact: true }),
+})
+
+export const sessionWorkspaceRequestSchema = Schema.Struct({
+  window: Schema.optionalWith(sessionTranscriptWindowRequestSchema, { exact: true }),
+  /**
+   * Nodes the caller already holds, read at `nodeMutationRevision`. While the Session's nodes
+   * were only appended since, their entries come back without content (`contentOmitted`).
+   */
   cached: Schema.optionalWith(
     Schema.Struct({
       nodeMutationRevision: revisionSchema,
