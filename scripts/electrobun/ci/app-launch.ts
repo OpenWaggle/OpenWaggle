@@ -66,8 +66,12 @@ export async function startApp(context: LaunchContext) {
 }
 
 /** Stops the Host, the window and anything else the install started. */
+/**
+ * Quits the window first, as a user does, then stops the Session Host it leaves running and anything
+ * else the install started. Stopping the Host under a running window fails the window's shutdown.
+ */
 export async function stopApp(context: LaunchContext, app: ConnectedElectrobunApp) {
-  await appCli(context, app.cdpPort)(['host', 'stop']).catch(() => undefined)
   await app.close()
+  await appCli(context, app.cdpPort)(['host', 'stop']).catch(() => undefined)
   stopProcessesUnder(context.app.installRoot)
 }

@@ -44,7 +44,7 @@ import {
   startCiFakeProvider,
   waitUntil,
 } from './app-proof'
-import { install, installedApp } from './installed-app'
+import { install, installedApp, processesUnder } from './installed-app'
 import { proveUpdate } from './update-proof'
 
 const FIRST_CLI_ARGUMENT = 2
@@ -87,10 +87,22 @@ async function prove(context: LaunchContext, app: ConnectedElectrobunApp) {
   return { sessionHost, run, terminal, preview, screenshots: [sessionShot, terminalShot] }
 }
 
-async function openedSession(app: ConnectedElectrobunApp, sessionId: string, timeoutMs: number) {
-  await waitUntil('the window to open the Session link', timeoutMs, () =>
-    app.page.evaluate((id) => window.location.href.includes(id), sessionId),
-  )
+async function openedSession(
+  context: LaunchContext,
+  app: ConnectedElectrobunApp,
+  sessionId: string,
+) {
+  try {
+    await waitUntil('the window to open the Session link', context.timeoutMs, () =>
+      app.page.evaluate((id) => window.location.href.includes(id), sessionId),
+    )
+  } catch (error) {
+    // Whether the launcher handed the link to the main process (vendor/electrobun patch 0006).
+    const commands = processesUnder(context.app.installRoot).map((row) => row.command)
+    throw new Error(`${String(error)}\nProcesses of the install:\n${commands.join('\n')}`, {
+      cause: error,
+    })
+  }
   return { sessionId, url: app.page.url() }
 }
 
@@ -118,9 +130,7 @@ async function launch(
     if (version !== options.expect) throw new Error(`The app is ${version}, not ${options.expect}.`)
     const startup = await screenshot(app.page, context.screenshots, 'startup-ready.png')
     const sessionLink =
-      options.openSession === null
-        ? null
-        : await openedSession(app, options.openSession, context.timeoutMs)
+      options.openSession === null ? null : await openedSession(context, app, options.openSession)
     await new Promise((resolve) => setTimeout(resolve, IDLE_MS))
     const idleRssBytes = app.child.pid === undefined ? 0 : appRss(app.child.pid)
     const proof = options.prove ? await prove(context, app) : null
