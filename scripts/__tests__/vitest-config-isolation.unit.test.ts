@@ -52,12 +52,15 @@ describe('Vitest config isolation', () => {
     ['integration', () => testOptions('vitest.integration.config.ts')],
     ['default', () => testOptions('vitest.config.ts')],
     ['coverage node project', () => coverageProject('node')],
-  ])('isolates the home first and stubs the MCP migration in the %s config', async (_name, load) => {
-    const files = setupFilesOf(await load())
+  ])(
+    'isolates the home first and stubs the MCP migration in the %s config',
+    async (_name, load) => {
+      const files = setupFilesOf(await load())
 
-    expect(files[0]).toBe(HOME_ISOLATION)
-    expect(files).toContain(MCP_ISOLATION)
-  })
+      expect(files[0]).toBe(HOME_ISOLATION)
+      expect(files).toContain(MCP_ISOLATION)
+    },
+  )
 
   it.each([
     ['component', () => testOptions('vitest.component.config.ts')],

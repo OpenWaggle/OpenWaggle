@@ -29,9 +29,7 @@ describe('nightly packaged canary workflow', () => {
   it('installs, exercises, and uninstalls the Windows artifact before release day', () => {
     expect(WORKFLOW).toContain('- name: Verify Windows installer')
     expect(WORKFLOW).toContain("if: matrix.label == 'Windows'")
-    expect(WORKFLOW).toContain(
-      'pnpm exec tsx scripts/verify-windows-installer.ts "$installerPath"',
-    )
+    expect(WORKFLOW).toContain('pnpm exec tsx scripts/verify-windows-installer.ts "$installerPath"')
   })
 
   it('checks the native platform floor after packaging, on the release build hosts', () => {

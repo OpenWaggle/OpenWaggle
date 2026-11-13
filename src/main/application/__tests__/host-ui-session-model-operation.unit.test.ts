@@ -26,11 +26,10 @@ function services(change: SessionThinkingLevelChange = CHANGED) {
   const setModel = vi.fn(() => Effect.succeed(change))
   const setThinkingLevel = vi.fn(() => Effect.succeed(change))
   let defaultLevel: ThinkingLevel = 'medium'
-  const setDefault = vi.fn(
-    (level: ThinkingLevel): Effect.Effect<void, Error> =>
-      Effect.sync(() => {
-        defaultLevel = level
-      }),
+  const setDefault = vi.fn((level: ThinkingLevel): Effect.Effect<void, Error> =>
+    Effect.sync(() => {
+      defaultLevel = level
+    }),
   )
   const getDefault = vi.fn(() => Effect.sync(() => defaultLevel))
   return {

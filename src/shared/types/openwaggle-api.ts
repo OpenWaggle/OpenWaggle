@@ -89,7 +89,8 @@ export interface PreparedSelectedAttachment {
 }
 
 export interface OpenWaggleApi
-  extends OpenWaggleAuthorizationGrantApi,
+  extends
+    OpenWaggleAuthorizationGrantApi,
     OpenWaggleDesktopApi,
     OpenWaggleStartupApi,
     OpenWaggleBrowserPreviewApi,

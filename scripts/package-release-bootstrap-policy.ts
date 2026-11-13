@@ -89,7 +89,8 @@ function hasDeployedLegacyStatusChecks(value: JsonObject) {
   const statusRule = findRule(value.rules, 'required_status_checks')
   if (!isJsonObject(statusRule) || !isJsonObject(statusRule.parameters)) return false
   const checks = statusRule.parameters.required_status_checks
-  if (!isUnknownArray(checks) || checks.length !== DEPLOYED_LEGACY_CHECK_CONTEXTS.length) return false
+  if (!isUnknownArray(checks) || checks.length !== DEPLOYED_LEGACY_CHECK_CONTEXTS.length)
+    return false
   const contexts = checks.flatMap((check) =>
     isJsonObject(check) &&
     typeof check.context === 'string' &&

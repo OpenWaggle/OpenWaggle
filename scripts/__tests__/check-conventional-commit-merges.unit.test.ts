@@ -201,10 +201,7 @@ describe('Conventional Commit merge attribution', () => {
       )
       await git(cwd, ['checkout', '-b', 'package-move'])
       await fs.mkdir(path.join(cwd, 'src'), { recursive: true })
-      await fs.rename(
-        path.join(cwd, 'packages/extension-sdk/api.ts'),
-        path.join(cwd, 'src/api.ts'),
-      )
+      await fs.rename(path.join(cwd, 'packages/extension-sdk/api.ts'), path.join(cwd, 'src/api.ts'))
       await git(cwd, ['add', '--all'])
       await git(cwd, [...GIT_IDENTITY, 'commit', '-m', 'refactor: move package api'])
       await git(cwd, ['checkout', 'main'])
@@ -217,10 +214,7 @@ describe('Conventional Commit merge attribution', () => {
       const result = await validateConventionalCommits({ baseline, cwd, to: packageMerge })
       const mergeCommit = result.commits.find((item) => item.hash === packageMerge)
 
-      expect(mergeCommit?.changedPaths).toEqual([
-        'packages/extension-sdk/api.ts',
-        'src/api.ts',
-      ])
+      expect(mergeCommit?.changedPaths).toEqual(['packages/extension-sdk/api.ts', 'src/api.ts'])
       expect(result.violations).toContain(
         `${packageMerge}: "Merge pull request #124 from OpenWaggle/package-move" affects a publishable package and must carry explicit Conventional Commit release intent.`,
       )

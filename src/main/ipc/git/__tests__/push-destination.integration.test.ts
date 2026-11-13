@@ -93,176 +93,216 @@ async function repositoryWithUpstreamOnly() {
 }
 
 describe('where a push lands', () => {
-  it('reports the configured current-branch destination, not the fetch upstream', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    /*
-     * `feature` fetches from origin/main but push.default=current writes origin/feature. The Summary must
-     * describe the latter because that is the mutation it will perform.
-     */
-    const { work } = await repositoryTrackingMain()
+  it(
+    'reports the configured current-branch destination, not the fetch upstream',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      /*
+       * `feature` fetches from origin/main but push.default=current writes origin/feature. The Summary must
+       * describe the latter because that is the mutation it will perform.
+       */
+      const { work } = await repositoryTrackingMain()
 
-    const result = await getLocalVcsStatus(work)
+      const result = await getLocalVcsStatus(work)
 
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.status.refName).toBe('feature')
-    expect(result.status.pushTargetRef).toBe('feature')
-    expect(result.status.isDefaultRef).toBe(false)
-    expect(result.status.pushTargetIsDefaultRef).toBe(false)
-  })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.status.refName).toBe('feature')
+      expect(result.status.pushTargetRef).toBe('feature')
+      expect(result.status.isDefaultRef).toBe(false)
+      expect(result.status.pushTargetIsDefaultRef).toBe(false)
+    },
+  )
 
-  it('pins the destination resolved from push.default=current', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    /*
-     * The destination is resolved using Git's own push ref atoms and then named explicitly, so a config
-     * race cannot move it between confirmation and mutation.
-     */
-    const { remote, work } = await repositoryTrackingMain()
+  it(
+    'pins the destination resolved from push.default=current',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      /*
+       * The destination is resolved using Git's own push ref atoms and then named explicitly, so a config
+       * race cannot move it between confirmation and mutation.
+       */
+      const { remote, work } = await repositoryTrackingMain()
 
-    const result = await pushCurrentBranch(work)
+      const result = await pushCurrentBranch(work)
 
-    expect(result.ok).toBe(true)
-    expect(result.message).toContain('origin/feature')
-    expect(result.destination).toMatchObject({ remote: 'origin', branch: 'feature' })
-    expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
-      'feature work',
-    )
-    expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe('base')
-  })
+      expect(result.ok).toBe(true)
+      expect(result.message).toContain('origin/feature')
+      expect(result.destination).toMatchObject({ remote: 'origin', branch: 'feature' })
+      expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
+        'feature work',
+      )
+      expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe('base')
+    },
+  )
 
-  it('reports and writes the upstream branch when push.default=upstream', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { remote, work } = await repositoryTrackingMain('upstream')
+  it(
+    'reports and writes the upstream branch when push.default=upstream',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { remote, work } = await repositoryTrackingMain('upstream')
 
-    const status = await getLocalVcsStatus(work)
-    expect(status).toMatchObject({
-      ok: true,
-      status: { pushTargetRef: 'main', pushTargetIsDefaultRef: true },
-    })
+      const status = await getLocalVcsStatus(work)
+      expect(status).toMatchObject({
+        ok: true,
+        status: { pushTargetRef: 'main', pushTargetIsDefaultRef: true },
+      })
 
-    const result = await pushCurrentBranch(work)
-    expect(result).toMatchObject({
-      ok: true,
-      destination: { remote: 'origin', branch: 'main' },
-    })
-    expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe('feature work')
-  })
+      const result = await pushCurrentBranch(work)
+      expect(result).toMatchObject({
+        ok: true,
+        destination: { remote: 'origin', branch: 'main' },
+      })
+      expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe(
+        'feature work',
+      )
+    },
+  )
 
-  it("honors branch pushRemote and checks that remote's default ref", {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { work } = await repositoryTrackingMain()
-    const fork = path.join(workspace ?? '', 'fork.git')
-    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', fork])
-    await git(work, ['remote', 'add', 'fork', fork])
-    await git(work, ['push', '--quiet', 'fork', 'main'])
-    await git(work, ['remote', 'set-head', 'fork', 'main'])
-    await git(work, ['config', 'branch.feature.pushRemote', 'fork'])
+  it(
+    "honors branch pushRemote and checks that remote's default ref",
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { work } = await repositoryTrackingMain()
+      const fork = path.join(workspace ?? '', 'fork.git')
+      await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', fork])
+      await git(work, ['remote', 'add', 'fork', fork])
+      await git(work, ['push', '--quiet', 'fork', 'main'])
+      await git(work, ['remote', 'set-head', 'fork', 'main'])
+      await git(work, ['config', 'branch.feature.pushRemote', 'fork'])
 
-    const status = await getLocalVcsStatus(work)
-    expect(status).toMatchObject({
-      ok: true,
-      status: { pushTargetRef: 'feature', pushTargetIsDefaultRef: false },
-    })
+      const status = await getLocalVcsStatus(work)
+      expect(status).toMatchObject({
+        ok: true,
+        status: { pushTargetRef: 'feature', pushTargetIsDefaultRef: false },
+      })
 
-    const result = await pushCurrentBranch(work)
-    expect(result).toMatchObject({
-      ok: true,
-      destination: { remote: 'fork', branch: 'feature' },
-    })
-    expect(await git(fork, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe('feature work')
-  })
+      const result = await pushCurrentBranch(work)
+      expect(result).toMatchObject({
+        ok: true,
+        destination: { remote: 'fork', branch: 'feature' },
+      })
+      expect(await git(fork, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
+        'feature work',
+      )
+    },
+  )
 
-  it('fails closed when pushurl points at a repository with unknown default metadata', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { work } = await repositoryTrackingMain()
-    await git(work, ['branch', '-m', 'develop'])
-    const pushRepository = path.join(workspace ?? '', 'push-repository.git')
-    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'develop', pushRepository])
-    await git(work, ['remote', 'set-url', '--push', 'origin', pushRepository])
+  it(
+    'fails closed when pushurl points at a repository with unknown default metadata',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { work } = await repositoryTrackingMain()
+      await git(work, ['branch', '-m', 'develop'])
+      const pushRepository = path.join(workspace ?? '', 'push-repository.git')
+      await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'develop', pushRepository])
+      await git(work, ['remote', 'set-url', '--push', 'origin', pushRepository])
 
-    const status = await getLocalVcsStatus(work)
+      const status = await getLocalVcsStatus(work)
 
-    expect(status).toMatchObject({
-      ok: true,
-      status: {
-        refName: 'develop',
-        pushTargetRef: 'develop',
-        pushTargetIsDefaultRef: true,
-      },
-    })
-  })
+      expect(status).toMatchObject({
+        ok: true,
+        status: {
+          refName: 'develop',
+          pushTargetRef: 'develop',
+          pushTargetIsDefaultRef: true,
+        },
+      })
+    },
+  )
 
-  it('refuses a push configured to update the local repository', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { work } = await repositoryTrackingMain()
-    await git(work, ['config', 'branch.feature.pushRemote', '.'])
+  it(
+    'refuses a push configured to update the local repository',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { work } = await repositoryTrackingMain()
+      await git(work, ['config', 'branch.feature.pushRemote', '.'])
 
-    await expect(pushCurrentBranch(work)).resolves.toEqual({
-      ok: false,
-      code: 'push-failed',
-      message: 'OpenWaggle cannot safely run a push configured for the local repository.',
-    })
-  })
+      await expect(pushCurrentBranch(work)).resolves.toEqual({
+        ok: false,
+        code: 'push-failed',
+        message: 'OpenWaggle cannot safely run a push configured for the local repository.',
+      })
+    },
+  )
 
-  it('uses the selected non-origin remote for a branch first push', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { remote, work } = await repositoryWithUpstreamOnly()
+  it(
+    'uses the selected non-origin remote for a branch first push',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { remote, work } = await repositoryWithUpstreamOnly()
 
-    const result = await pushCurrentBranch(work)
+      const result = await pushCurrentBranch(work)
 
-    expect(result.ok).toBe(true)
-    expect(result.message).toContain('upstream/feature')
-    expect(result.destination).toMatchObject({ remote: 'upstream', branch: 'feature' })
-    expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
-      'feature work',
-    )
-  })
+      expect(result.ok).toBe(true)
+      expect(result.message).toContain('upstream/feature')
+      expect(result.destination).toMatchObject({ remote: 'upstream', branch: 'feature' })
+      expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
+        'feature work',
+      )
+    },
+  )
 
-  it('reports the configured push URL instead of the remote fetch URL', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { remote: fetchRemote, work } = await repositoryWithUpstreamOnly()
-    const pushRemote = path.join(workspace ?? '', 'fork.git')
-    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', pushRemote])
-    await git(work, ['remote', 'set-url', '--push', 'upstream', pushRemote])
+  it(
+    'reports the configured push URL instead of the remote fetch URL',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { remote: fetchRemote, work } = await repositoryWithUpstreamOnly()
+      const pushRemote = path.join(workspace ?? '', 'fork.git')
+      await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', pushRemote])
+      await git(work, ['remote', 'set-url', '--push', 'upstream', pushRemote])
 
-    const result = await pushCurrentBranch(work)
+      const result = await pushCurrentBranch(work)
 
-    expect(result.ok).toBe(true)
-    expect(result.destination).toMatchObject({
-      remote: 'upstream',
-      remoteUrl: pushRemote,
-      multiplePushUrls: false,
-    })
-    expect(result.destination?.remoteUrl).not.toBe(fetchRemote)
-    expect(await git(pushRemote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
-      'feature work',
-    )
-  })
+      expect(result.ok).toBe(true)
+      expect(result.destination).toMatchObject({
+        remote: 'upstream',
+        remoteUrl: pushRemote,
+        multiplePushUrls: false,
+      })
+      expect(result.destination?.remoteUrl).not.toBe(fetchRemote)
+      expect(await git(pushRemote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
+        'feature work',
+      )
+    },
+  )
 
-  it('marks multiple configured push URLs as ambiguous for change-request targeting', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { work } = await repositoryWithUpstreamOnly()
-    const firstPushRemote = path.join(workspace ?? '', 'fork-one.git')
-    const secondPushRemote = path.join(workspace ?? '', 'fork-two.git')
-    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', firstPushRemote])
-    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', secondPushRemote])
-    await git(work, ['remote', 'set-url', '--push', 'upstream', firstPushRemote])
-    await git(work, ['remote', 'set-url', '--add', '--push', 'upstream', secondPushRemote])
+  it(
+    'marks multiple configured push URLs as ambiguous for change-request targeting',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { work } = await repositoryWithUpstreamOnly()
+      const firstPushRemote = path.join(workspace ?? '', 'fork-one.git')
+      const secondPushRemote = path.join(workspace ?? '', 'fork-two.git')
+      await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', firstPushRemote])
+      await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', secondPushRemote])
+      await git(work, ['remote', 'set-url', '--push', 'upstream', firstPushRemote])
+      await git(work, ['remote', 'set-url', '--add', '--push', 'upstream', secondPushRemote])
 
-    const result = await pushCurrentBranch(work)
+      const result = await pushCurrentBranch(work)
 
-    expect(result.ok).toBe(true)
-    expect(result.destination).toMatchObject({ remoteUrl: null, multiplePushUrls: true })
-  })
+      expect(result.ok).toBe(true)
+      expect(result.destination).toMatchObject({ remoteUrl: null, multiplePushUrls: true })
+    },
+  )
 
   it.skipIf(process.platform === 'win32')(
     'keeps a confirmed push pinned when an insteadOf rewrite appears after revalidation',

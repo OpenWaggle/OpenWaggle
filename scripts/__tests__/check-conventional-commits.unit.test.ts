@@ -12,7 +12,12 @@ import {
 const execFile = promisify(execFileCallback)
 const ALL_ZERO_SHA = '0000000000000000000000000000000000000000'
 const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
-const TEMP_REPOSITORY_REMOVE_OPTIONS = { force: true, maxRetries: 10, recursive: true, retryDelay: 100 } as const
+const TEMP_REPOSITORY_REMOVE_OPTIONS = {
+  force: true,
+  maxRetries: 10,
+  recursive: true,
+  retryDelay: 100,
+} as const
 
 async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFile('git', args, { cwd })
@@ -268,7 +273,10 @@ describe('Conventional Commit policy', () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-commit-policy-'))
     try {
       await git(cwd, ['init'])
-      const historicalCommit = await commit(cwd, 'historical commit without a Conventional Commit subject')
+      const historicalCommit = await commit(
+        cwd,
+        'historical commit without a Conventional Commit subject',
+      )
       const abandonedMarker = await writeAndCommit(
         cwd,
         POLICY_SCRIPT_PATH,
@@ -326,5 +334,4 @@ describe('Conventional Commit policy', () => {
       await fs.rm(cwd, TEMP_REPOSITORY_REMOVE_OPTIONS)
     }
   })
-
 })

@@ -63,11 +63,18 @@ function git(args: readonly string[]) {
   return execFileSync('git', args, { encoding: 'utf8' })
 }
 
-function verifyPromotion(targetVersion: string, candidateRef: string, releasesPath: string | undefined) {
+function verifyPromotion(
+  targetVersion: string,
+  candidateRef: string,
+  releasesPath: string | undefined,
+) {
   const base = promotionBase({
     targetVersion,
-    gitHubReleaseLines: releasesPath === undefined ? undefined : fs.readFileSync(releasesPath, 'utf8'),
-    localTags: git(['tag', '--list', `v${targetVersion}-rc.*`]).split('\n').filter(Boolean),
+    gitHubReleaseLines:
+      releasesPath === undefined ? undefined : fs.readFileSync(releasesPath, 'utf8'),
+    localTags: git(['tag', '--list', `v${targetVersion}-rc.*`])
+      .split('\n')
+      .filter(Boolean),
   })
   if (base.kind === 'skip') {
     process.stdout.write(`${base.reason}\n`)
@@ -75,10 +82,18 @@ function verifyPromotion(targetVersion: string, candidateRef: string, releasesPa
   }
   const releaseCandidateTag = base.tag
   if (base.ignoredTags.length > 0) {
-    process.stdout.write(`Ignoring release candidate tags without a published release: ${base.ignoredTags.join(', ')}.\n`)
+    process.stdout.write(
+      `Ignoring release candidate tags without a published release: ${base.ignoredTags.join(', ')}.\n`,
+    )
   }
   // --no-renames lists both sides of a move, so moving app code into an ignored path still counts.
-  const changedPaths = git(['diff', '--name-only', '--no-renames', releaseCandidateTag, candidateRef])
+  const changedPaths = git([
+    'diff',
+    '--name-only',
+    '--no-renames',
+    releaseCandidateTag,
+    candidateRef,
+  ])
     .split('\n')
     .filter(Boolean)
   const violations = promotionGuardViolations({
@@ -92,7 +107,9 @@ function verifyPromotion(targetVersion: string, candidateRef: string, releasesPa
         `Revert these changes or release them as the next release candidate:\n${violations.join('\n')}`,
     )
   }
-  process.stdout.write(`Stable ${targetVersion} matches ${releaseCandidateTag}, the last published release candidate.\n`)
+  process.stdout.write(
+    `Stable ${targetVersion} matches ${releaseCandidateTag}, the last published release candidate.\n`,
+  )
 }
 
 export function releaseSubjectVersion(subject: string) {

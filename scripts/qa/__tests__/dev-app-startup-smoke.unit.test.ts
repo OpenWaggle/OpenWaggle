@@ -16,7 +16,10 @@ describe('development app startup smoke', () => {
   ] satisfies [NodeJS.Platform, string[]][])(
     'runs `pnpm dev` directly on %s with the mock credential store',
     (platform, switches) => {
-      expect(devAppLaunchCommand(platform)).toEqual({ command: 'pnpm', args: ['dev', '--', ...switches] })
+      expect(devAppLaunchCommand(platform)).toEqual({
+        command: 'pnpm',
+        args: ['dev', '--', ...switches],
+      })
     },
   )
 

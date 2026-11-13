@@ -93,4 +93,3 @@ function findStaleDuplicateExemptions(
   }
   return violations
 }
-

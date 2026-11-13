@@ -7,9 +7,8 @@ const mocks = vi.hoisted(() => ({ broadcast: vi.fn() }))
 
 vi.mock('../utils/broadcast', () => ({ broadcastToWindows: mocks.broadcast }))
 
-const { claimAppInstance, requestOpenProject, takeOpenProjectRequest } = await import(
-  '../open-project-requests'
-)
+const { claimAppInstance, requestOpenProject, takeOpenProjectRequest } =
+  await import('../open-project-requests')
 const { takeOpenSessionLinkRequest } = await import('../session-link-requests')
 type AppInstanceHost = Parameters<typeof claimAppInstance>[0]['host']
 type SecondInstanceListener = Parameters<AppInstanceHost['on']>[1]

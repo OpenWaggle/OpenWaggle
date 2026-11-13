@@ -75,7 +75,9 @@ function resolveRelativeImport(importPath: string, importerPath: string) {
     return null
   }
 
-  return stripExtension(path.posix.normalize(path.posix.join(path.posix.dirname(importerPath), importPath)))
+  return stripExtension(
+    path.posix.normalize(path.posix.join(path.posix.dirname(importerPath), importPath)),
+  )
 }
 
 function isDomainFile(projectPath: string) {
@@ -128,12 +130,19 @@ function waggleCoreBoundaryReason(importPath: string, resolvedImport: string | n
     : null
 }
 
-function piPackageBoundaryReason(importPath: string, projectPath: string, resolvedImport: string | null) {
+function piPackageBoundaryReason(
+  importPath: string,
+  projectPath: string,
+  resolvedImport: string | null,
+) {
   if (projectPath.startsWith(PACKAGE_WAGGLE_CORE_PREFIX)) {
     return waggleCoreBoundaryReason(importPath, resolvedImport)
   }
 
-  if (projectPath.startsWith(PACKAGE_PI_WAGGLE_PREFIX) && isOpenWaggleAppImport(importPath, resolvedImport)) {
+  if (
+    projectPath.startsWith(PACKAGE_PI_WAGGLE_PREFIX) &&
+    isOpenWaggleAppImport(importPath, resolvedImport)
+  ) {
     return 'packages/pi-waggle must stay reusable and must not import OpenWaggle app modules.'
   }
 
@@ -218,7 +227,8 @@ function usageStatisticsBoundaryReason(projectPath: string, resolvedImport: stri
     return 'Application, IPC, store and domain code must record Usage statistics through the UsageStatisticsRecorder port, not src/main/usage-statistics/.'
   }
   return projectPath.startsWith(MAIN_USAGE_STATISTICS_PREFIX) &&
-    (resolvedImport.startsWith(MAIN_IPC_PREFIX) || resolvedImport.startsWith(MAIN_APPLICATION_PREFIX))
+    (resolvedImport.startsWith(MAIN_IPC_PREFIX) ||
+      resolvedImport.startsWith(MAIN_APPLICATION_PREFIX))
     ? 'src/main/usage-statistics/ is infrastructure and must not depend on IPC handlers or application services.'
     : null
 }

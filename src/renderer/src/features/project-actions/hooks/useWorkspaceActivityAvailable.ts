@@ -8,8 +8,8 @@ export function useWorkspaceActivityAvailable(scope: ActionManagementScope | nul
   const preparation = useWorkspacePreparation(scope)
   return Boolean(
     runs.data?.length ||
-      preparation.data ||
-      catalog.data?.preparation.length ||
-      (catalog.data?.profiles.length ?? 0) > 1,
+    preparation.data ||
+    catalog.data?.preparation.length ||
+    (catalog.data?.profiles.length ?? 0) > 1,
   )
 }

@@ -49,7 +49,9 @@ export async function assertQaPortAvailable(port = QA_CDP_PORT) {
     })
   }).catch((error: unknown) => {
     if (errorCode(error) === 'EADDRINUSE') {
-      throw new Error(`Reserved Electron QA port ${port} is already occupied; Electron was not launched.`)
+      throw new Error(
+        `Reserved Electron QA port ${port} is already occupied; Electron was not launched.`,
+      )
     }
     throw error
   })
@@ -120,7 +122,10 @@ export function electronEnvironment(
       : {}),
     // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
     ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
-      ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
+      ? {
+          OPENWAGGLE_AUTOMATION_PI_EXTENSIONS:
+            callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS,
+        }
       : {}),
   })
 }

@@ -81,11 +81,7 @@ describe('package smoke tarball assertions', () => {
   it('resolves named catalog versions for external package consumers', () => {
     const workspace = `catalogs:\n  pi-runtime:\n    "@earendil-works/pi-tui": 0.87.1\n`
     expect(
-      resolvePackageSmokeCatalogVersion(
-        'catalog:pi-runtime',
-        '@earendil-works/pi-tui',
-        workspace,
-      ),
+      resolvePackageSmokeCatalogVersion('catalog:pi-runtime', '@earendil-works/pi-tui', workspace),
     ).toBe('0.87.1')
   })
 

@@ -32,14 +32,18 @@ function resolveUserDataDir() {
     return path.join(os.homedir(), 'Library', 'Application Support', 'openwaggle')
   }
   if (process.platform === 'win32') {
-    return path.join(process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'), 'openwaggle')
+    return path.join(
+      process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'),
+      'openwaggle',
+    )
   }
   return path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'openwaggle')
 }
 
 const USER_DATA_DIR = resolveUserDataDir()
 /** Where the fixture repositories are created. Never a guess at someone's own project folder. */
-const PROJECT_ROOT = process.env.OPENWAGGLE_QA_FIXTURE_ROOT ?? path.join(os.tmpdir(), 'openwaggle-qa-fixtures')
+const PROJECT_ROOT =
+  process.env.OPENWAGGLE_QA_FIXTURE_ROOT ?? path.join(os.tmpdir(), 'openwaggle-qa-fixtures')
 
 const args = process.argv.slice(CLI_ARG_OFFSET)
 
@@ -204,7 +208,9 @@ function removeSeededSessions() {
    */
   const placeholders = CONVERSATIONS.map(() => '?').join(', ')
   const empty = db
-    .prepare<unknown[], Record<string, unknown>>(`SELECT id FROM sessions WHERE title IN (${placeholders})`)
+    .prepare<unknown[], Record<string, unknown>>(
+      `SELECT id FROM sessions WHERE title IN (${placeholders})`,
+    )
     .all(...CONVERSATIONS.map((conversation) => conversation.title))
   for (const row of empty) {
     const id = String(row.id)

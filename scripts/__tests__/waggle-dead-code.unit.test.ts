@@ -29,10 +29,13 @@ describe('Waggle dead-code scope', () => {
   })
 
   it('covers any app file that imports a Waggle package, whatever its name', () => {
-    const importsProtocol = "import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'\n"
+    const importsProtocol =
+      "import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'\n"
     const importsCore = 'const core = await import("@openwaggle/waggle-core")\n'
 
-    expect(isWaggleScopeFile('src/main/store/sessions/node-hydration.ts', importsProtocol)).toBe(true)
+    expect(isWaggleScopeFile('src/main/store/sessions/node-hydration.ts', importsProtocol)).toBe(
+      true,
+    )
     expect(isWaggleScopeFile('src/main/adapters/pi/entry-projections.ts', importsCore)).toBe(true)
   })
 
@@ -49,7 +52,10 @@ describe('Waggle dead-code scope', () => {
       expect(isWaggleScopeFile(filePath, NO_IMPORTS), filePath).toBe(false)
     }
     expect(
-      isWaggleScopeFile('src/main/utils/stream-bridge.ts', "import type { X } from '@shared/types/waggle'\n"),
+      isWaggleScopeFile(
+        'src/main/utils/stream-bridge.ts',
+        "import type { X } from '@shared/types/waggle'\n",
+      ),
     ).toBe(false)
   })
 })
@@ -80,13 +86,18 @@ describe('waggleDeadCodeFindings', () => {
   it('keeps dead files, exports, members and dependencies in scope and drops the rest', () => {
     const findings = waggleDeadCodeFindings(
       report({
-        unused_files: [{ path: 'src/main/agent/consensus-detector.ts' }, { path: 'src/main/other.ts' }],
+        unused_files: [
+          { path: 'src/main/agent/consensus-detector.ts' },
+          { path: 'src/main/other.ts' },
+        ],
         unused_exports: [
           { path: 'packages/pi-waggle/src/loop.ts', export_name: 'unusedHelper' },
           { path: 'scripts/release.ts', export_name: 'notWaggle' },
         ],
         unused_class_members: [{ path: 'packages/waggle-core/src/state.ts', member_name: 'reset' }],
-        test_only_dependencies: [{ path: 'packages/pi-waggle/package.json', package_name: 'left-pad' }],
+        test_only_dependencies: [
+          { path: 'packages/pi-waggle/package.json', package_name: 'left-pad' },
+        ],
         circular_dependencies: [{ files: ['packages/pi-waggle/src/loop.ts'] }],
       }),
       scope,
@@ -107,7 +118,10 @@ describe('waggleDeadCodeFindings', () => {
           { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'activeWaggleRuns' },
           { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'openWaggleHome' },
           { path: 'src/main/ipc/active-agent-runs.ts', export_name: 'OpenWaggleApi' },
-          { path: 'src/main/store/session-details/constants.ts', export_name: 'WAGGLE_FUTURE_MODE' },
+          {
+            path: 'src/main/store/session-details/constants.ts',
+            export_name: 'WAGGLE_FUTURE_MODE',
+          },
           { path: 'src/main/env.ts', export_name: 'OPENWAGGLE_HOME' },
           { path: 'scripts/release.ts', export_name: 'waggleRelease' },
         ],
@@ -116,7 +130,11 @@ describe('waggleDeadCodeFindings', () => {
     )
 
     expect(findings).toEqual([
-      { kind: 'unused_exports', path: 'src/main/ipc/active-agent-runs.ts', name: 'activeWaggleRuns' },
+      {
+        kind: 'unused_exports',
+        path: 'src/main/ipc/active-agent-runs.ts',
+        name: 'activeWaggleRuns',
+      },
       {
         kind: 'unused_exports',
         path: 'src/main/store/session-details/constants.ts',
@@ -126,7 +144,9 @@ describe('waggleDeadCodeFindings', () => {
   })
 
   it('fails instead of passing when fallow changes its report', () => {
-    expect(() => waggleDeadCodeFindings([], scope)).toThrow('fallow did not return a JSON report object.')
+    expect(() => waggleDeadCodeFindings([], scope)).toThrow(
+      'fallow did not return a JSON report object.',
+    )
     expect(() => waggleDeadCodeFindings(report({ schema_version: 11 }), scope)).toThrow(
       'fallow report schema 11 is not 10',
     )

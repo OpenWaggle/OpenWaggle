@@ -48,9 +48,8 @@ const fixture = setUpPiDiscoveryFixture(state)
 
 /** The durable deletion the sidebar's Delete runs once its Session Host checks pass. */
 async function deleteSession(sessionId: SessionId) {
-  const { SessionProjectionRepository } = await import(
-    '../../../ports/session-projection-repository'
-  )
+  const { SessionProjectionRepository } =
+    await import('../../../ports/session-projection-repository')
   await run(
     Effect.flatMap(SessionProjectionRepository, (repository) => repository.delete(sessionId)),
   )
@@ -92,9 +91,8 @@ describe('Discovered Pi session ownership', () => {
   it('still deletes the Pi file of a Session OpenWaggle created', async () => {
     await registerProjects([fixture.project])
     const own = createPiCliSession(fixture.project, 'Created in OpenWaggle')
-    const { SessionProjectionRepository } = await import(
-      '../../../ports/session-projection-repository'
-    )
+    const { SessionProjectionRepository } =
+      await import('../../../ports/session-projection-repository')
     const created = await run(
       Effect.flatMap(SessionProjectionRepository, (repository) =>
         repository.create({
@@ -158,9 +156,8 @@ describe('Discovered Pi session ownership', () => {
     await registerProjects([fixture.project])
     const own = createPiCliSession(fixture.project, 'Shared start')
     const { SessionRepository } = await import('../../../ports/session-repository')
-    const { SessionProjectionRepository } = await import(
-      '../../../ports/session-projection-repository'
-    )
+    const { SessionProjectionRepository } =
+      await import('../../../ports/session-projection-repository')
     const created = await run(
       Effect.flatMap(SessionProjectionRepository, (repository) =>
         repository.create({
@@ -250,9 +247,8 @@ describe('Discovered Pi session ownership', () => {
     await registerProjects([fixture.project])
     const cli = createPiCliSession(fixture.project, 'Deletion abandoned')
     const sessionId = await discoverOne()
-    const { abandonSessionDeletion, prepareSessionDeletion } = await import(
-      '../../../store/session-details'
-    )
+    const { abandonSessionDeletion, prepareSessionDeletion } =
+      await import('../../../store/session-details')
     await prepareSessionDeletion(sessionId)
     await abandonSessionDeletion(sessionId)
 

@@ -61,13 +61,19 @@ describe('Windows installer verification', () => {
       4,
       join('D:\\temp\\openwaggle-install', 'Uninstall OpenWaggle.exe'),
     )
-    expect(resolveCommand).toHaveBeenCalledWith('openwaggle', expect.objectContaining({
-      PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
-      PATHEXT: expect.stringContaining('.CMD'),
-    }))
-    expect(verifyCli).toHaveBeenCalledWith('openwaggle', expect.objectContaining({
-      PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
-    }))
+    expect(resolveCommand).toHaveBeenCalledWith(
+      'openwaggle',
+      expect.objectContaining({
+        PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
+        PATHEXT: expect.stringContaining('.CMD'),
+      }),
+    )
+    expect(verifyCli).toHaveBeenCalledWith(
+      'openwaggle',
+      expect.objectContaining({
+        PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
+      }),
+    )
     expect(runUninstaller).toHaveBeenCalledWith(
       join('D:\\temp\\openwaggle-install', 'Uninstall OpenWaggle.exe'),
       ['/S'],

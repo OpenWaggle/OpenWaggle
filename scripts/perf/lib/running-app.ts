@@ -2,7 +2,12 @@ import type { Browser, Page } from '@playwright/test'
 import { freePort, type LaunchedApp, launchApp, type PerfApp, stopProcessGroup } from './perf-app'
 import { type BootConditions, connectRenderer, waitForMilestones } from './perf-page'
 import { type CdpClient, connectInspector } from './main-inspector'
-import { createPerfProfile, disposePerfProfile, type PerfProfile, profileEnvironment } from './perf-profile'
+import {
+  createPerfProfile,
+  disposePerfProfile,
+  type PerfProfile,
+  profileEnvironment,
+} from './perf-profile'
 
 export type LaunchMode = 'cold' | 'warm'
 
@@ -40,13 +45,23 @@ export function delay(milliseconds: number) {
 }
 
 /** `openwaggle host start` returns once the profile's Host listens, then leaves it running. */
-export async function startHost(app: PerfApp, profile: PerfProfile, environment: Readonly<Record<string, string>> = {}) {
-  const started = launchApp(app, profileEnvironment(profile, environment), ['--use-mock-keychain', 'host', 'start'])
+export async function startHost(
+  app: PerfApp,
+  profile: PerfProfile,
+  environment: Readonly<Record<string, string>> = {},
+) {
+  const started = launchApp(app, profileEnvironment(profile, environment), [
+    '--use-mock-keychain',
+    'host',
+    'start',
+  ])
   const exit = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
   const code = await Promise.race([exit, delay(HOST_START_TIMEOUT_MS).then(() => -1)])
   if (code !== 0) {
     await stopProcessGroup(started.child)
-    throw new Error(`host start exited with ${String(code)}: ${started.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
+    throw new Error(
+      `host start exited with ${String(code)}: ${started.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`,
+    )
   }
 }
 
@@ -89,13 +104,23 @@ export async function withRunningApp<Result>(
     }
     const gui = await launchGui(app, profile, options)
     launched = gui.launched
-    const conditions: BootConditions = { sessionListText: options.sessionListText, loadingText: LOADING_CHAT_TEXT }
+    const conditions: BootConditions = {
+      sessionListText: options.sessionListText,
+      loadingText: LOADING_CHAT_TEXT,
+    }
     const connected = await connectRenderer(gui.port, options.timeoutMs, conditions)
     browser = connected.browser
     const wanted = ['shell', 'chatReady', ...(options.sessionListText ? ['sessionList'] : [])]
     await waitForMilestones(connected.page, wanted, options.timeoutMs)
     if (gui.inspectorPort) inspector = await connectInspector(gui.inspectorPort, options.timeoutMs)
-    return await use({ profile, launched, browser, page: connected.page, instrumentedFromStart: connected.instrumentedFromStart, inspector })
+    return await use({
+      profile,
+      launched,
+      browser,
+      page: connected.page,
+      instrumentedFromStart: connected.instrumentedFromStart,
+      inspector,
+    })
   } finally {
     inspector?.close()
     await browser?.close().catch(() => undefined)

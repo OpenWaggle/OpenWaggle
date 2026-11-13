@@ -44,7 +44,10 @@ function isByteVerified(name: string) {
   return name === CHECKSUMS_FILE || name.endsWith(UPDATE_METADATA_SUFFIX)
 }
 
-export function compareReleaseAssets(local: readonly LocalReleaseAsset[], remote: readonly RemoteReleaseAsset[]) {
+export function compareReleaseAssets(
+  local: readonly LocalReleaseAsset[],
+  remote: readonly RemoteReleaseAsset[],
+) {
   const problems: string[] = []
   const remoteByName = new Map(remote.map((asset) => [asset.name, asset]))
   for (const asset of local) {
@@ -58,12 +61,15 @@ export function compareReleaseAssets(local: readonly LocalReleaseAsset[], remote
       continue
     }
     if (uploaded.size !== asset.size) {
-      problems.push(`${asset.name} is ${uploaded.size} bytes on the release, ${asset.size} bytes locally`)
+      problems.push(
+        `${asset.name} is ${uploaded.size} bytes on the release, ${asset.size} bytes locally`,
+      )
     }
   }
   const localNames = new Set(local.map((asset) => asset.name))
   for (const asset of remote) {
-    if (!localNames.has(asset.name)) problems.push(`${asset.name} is on the release but was not built`)
+    if (!localNames.has(asset.name))
+      problems.push(`${asset.name} is on the release but was not built`)
   }
   return problems
 }
@@ -78,7 +84,9 @@ export async function verifyRelease(input: {
   if (release === null) return ['the release does not exist']
   const problems: string[] = []
   if (release.draft !== input.expectDraft) {
-    problems.push(`the release is ${release.draft ? 'a draft' : 'published'}, expected ${input.expectDraft ? 'a draft' : 'published'}`)
+    problems.push(
+      `the release is ${release.draft ? 'a draft' : 'published'}, expected ${input.expectDraft ? 'a draft' : 'published'}`,
+    )
   }
   problems.push(...compareReleaseAssets(input.local, release.assets))
   for (const asset of input.local.filter((candidate) => isByteVerified(candidate.name))) {
@@ -108,10 +116,15 @@ async function readLocalAssets(directory: string) {
 
 function gh(args: readonly string[]) {
   return new Promise<Buffer>((resolve, reject) => {
-    execFile('gh', [...args], { encoding: 'buffer', maxBuffer: GH_MAX_BUFFER_BYTES }, (error, stdout) => {
-      if (error) reject(error)
-      else resolve(stdout)
-    })
+    execFile(
+      'gh',
+      [...args],
+      { encoding: 'buffer', maxBuffer: GH_MAX_BUFFER_BYTES },
+      (error, stdout) => {
+        if (error) reject(error)
+        else resolve(stdout)
+      },
+    )
   })
 }
 
@@ -135,7 +148,9 @@ function parseAsset(value: unknown): RemoteReleaseAsset {
 /** Lists every release, drafts included, because the tag lookup endpoint does not return drafts. */
 async function findRelease(repository: string, tag: string): Promise<RemoteRelease | null> {
   const pages: unknown = JSON.parse(
-    (await gh(['api', '--paginate', '--slurp', `repos/${repository}/releases?per_page=100`])).toString('utf8'),
+    (
+      await gh(['api', '--paginate', '--slurp', `repos/${repository}/releases?per_page=100`])
+    ).toString('utf8'),
   )
   if (!Array.isArray(pages)) throw new Error('GitHub returned releases in an unexpected shape.')
   const releases: readonly unknown[] = pages.flat()
@@ -152,7 +167,9 @@ async function findRelease(repository: string, tag: string): Promise<RemoteRelea
 function argumentValue(args: readonly string[], flag: string) {
   const value = args[args.indexOf(flag) + ARGUMENT_VALUE_OFFSET]
   if (!args.includes(flag) || value === undefined || value.startsWith('--')) {
-    throw new Error('Usage: verify-release-assets.ts --repo <owner/repo> --tag <tag> --dir <directory> [--published]')
+    throw new Error(
+      'Usage: verify-release-assets.ts --repo <owner/repo> --tag <tag> --dir <directory> [--published]',
+    )
   }
   return value
 }
@@ -168,12 +185,23 @@ async function main() {
     release: await findRelease(repository, tag),
     expectDraft,
     downloadSha256: async (asset) =>
-      sha256(await gh(['api', '-H', 'Accept: application/octet-stream', `repos/${repository}/releases/assets/${asset.id}`])),
+      sha256(
+        await gh([
+          'api',
+          '-H',
+          'Accept: application/octet-stream',
+          `repos/${repository}/releases/assets/${asset.id}`,
+        ]),
+      ),
   })
   if (problems.length > 0) {
-    throw new Error(`Release ${tag} does not match the built assets:\n${problems.map((problem) => `- ${problem}`).join('\n')}`)
+    throw new Error(
+      `Release ${tag} does not match the built assets:\n${problems.map((problem) => `- ${problem}`).join('\n')}`,
+    )
   }
-  console.log(`Release ${tag} (${expectDraft ? 'draft' : 'published'}) holds exactly the ${local.length} built assets.`)
+  console.log(
+    `Release ${tag} (${expectDraft ? 'draft' : 'published'}) holds exactly the ${local.length} built assets.`,
+  )
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

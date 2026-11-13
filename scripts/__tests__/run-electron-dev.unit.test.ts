@@ -16,7 +16,9 @@ function packageScripts(): [string, string][] {
   if (typeof manifest !== 'object' || manifest === null || !('scripts' in manifest)) return []
   const { scripts } = manifest
   if (typeof scripts !== 'object' || scripts === null) return []
-  return Object.entries(scripts).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  return Object.entries(scripts).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string',
+  )
 }
 
 describe('run-electron-dev', () => {

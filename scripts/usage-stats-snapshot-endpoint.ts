@@ -135,7 +135,12 @@ function flushAnswer(body: unknown): FlushAnswer {
  * The last line of a flush loop that ended on its own. Entries still to send after a call that
  * made no progress are a warning, so a stalled flush shows on a green run.
  */
-function logFlushEnd(options: SnapshotJobOptions, answer: FlushAnswer, flushed: number, calls: number) {
+function logFlushEnd(
+  options: SnapshotJobOptions,
+  answer: FlushAnswer,
+  flushed: number,
+  calls: number,
+) {
   const summary = `Flushed ${String(flushed)} buffered entries in ${String(calls)} calls`
   if (answer.remaining > 0) {
     options.log(

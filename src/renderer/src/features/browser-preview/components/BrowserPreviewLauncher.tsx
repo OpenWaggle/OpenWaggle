@@ -8,8 +8,10 @@ import type { BrowserPreviewPanelCallbacks, BrowserPreviewTab } from '../browser
 import { normalizeBrowserPreviewUrl } from '../lib/browser-preview-url'
 import { BrowserPreviewLauncherDestinations } from './BrowserPreviewLauncherDestinations'
 
-interface BrowserPreviewLauncherProps
-  extends Pick<BrowserPreviewPanelCallbacks, 'onError' | 'onMaterialize'> {
+interface BrowserPreviewLauncherProps extends Pick<
+  BrowserPreviewPanelCallbacks,
+  'onError' | 'onMaterialize'
+> {
   readonly tab: BrowserPreviewTab
 }
 

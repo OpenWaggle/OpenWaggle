@@ -32,7 +32,8 @@ const TEST_ARTIFACT_SEGMENTS = [
   'tests',
   'unit',
 ]
-const TEST_ARTIFACT_NAME = /(?:^|[._-])(?:component|e2e|integration|spec|test|tests|unit)(?:[._-]|$)/
+const TEST_ARTIFACT_NAME =
+  /(?:^|[._-])(?:component|e2e|integration|spec|test|tests|unit)(?:[._-]|$)/
 const SENSITIVE_ARTIFACT_NAME =
   /(?:^|[._-])(?:api[-_]?key|credential(?:s)?|private[-_]?key|secret(?:s)?|token)(?:[._-]|$)/
 
@@ -80,9 +81,7 @@ export function uniqueSorted(values: readonly string[]) {
 }
 
 function esmModuleArtifactPath(filePath: string) {
-  return (
-    filePath.startsWith('dist/') && (filePath.endsWith('.js') || filePath.endsWith('.d.ts'))
-  )
+  return filePath.startsWith('dist/') && (filePath.endsWith('.js') || filePath.endsWith('.d.ts'))
 }
 
 function commonJsModuleArtifactPath(filePath: string) {
@@ -103,7 +102,10 @@ function testArtifactPath(filePath: string) {
 
 function allowedTarballFile(packageName: string, filePath: string) {
   if (filePath === 'dist-cjs/package.json') return true
-  if ((esmModuleArtifactPath(filePath) || commonJsModuleArtifactPath(filePath)) && !testArtifactPath(filePath)) {
+  if (
+    (esmModuleArtifactPath(filePath) || commonJsModuleArtifactPath(filePath)) &&
+    !testArtifactPath(filePath)
+  ) {
     return true
   }
 
@@ -139,10 +141,13 @@ export function assertPackedPackageFiles(input: {
   readonly files: readonly string[]
 }) {
   const packageFiles = new Set(input.files)
-  const missing = [...REQUIRED_PACKAGE_FILES, ...collectManifestPackagePaths(input.manifest)].filter(
-    (path) => !packageFiles.has(path),
+  const missing = [
+    ...REQUIRED_PACKAGE_FILES,
+    ...collectManifestPackagePaths(input.manifest),
+  ].filter((path) => !packageFiles.has(path))
+  const disallowed = input.files.filter(
+    (filePath) => !allowedTarballFile(input.packageName, filePath),
   )
-  const disallowed = input.files.filter((filePath) => !allowedTarballFile(input.packageName, filePath))
   const issues = [
     ...uniqueSorted(missing).map((path) => `missing ${path}`),
     ...uniqueSorted(disallowed).map((path) => `contains disallowed file ${path}`),
@@ -181,7 +186,6 @@ export function assertPackedPackageMetadata(manifest: unknown, packageDirectory:
   ) {
     throw new Error(`${packageDirectory} packed manifest has incorrect repository metadata.`)
   }
-
 }
 
 function stringProperty(value: unknown, key: string) {
@@ -230,7 +234,9 @@ export function assertPackedWorkspaceDependencyRanges(
     (packedPackage) => packedPackage.name === dependencyName,
   )
   if (!packedDependency) {
-    throw new Error(`${packageName} packed manifest is missing packed dependency ${dependencyName}.`)
+    throw new Error(
+      `${packageName} packed manifest is missing packed dependency ${dependencyName}.`,
+    )
   }
 
   if (manifest.dependencies[dependencyName] !== `^${packedDependency.version}`) {

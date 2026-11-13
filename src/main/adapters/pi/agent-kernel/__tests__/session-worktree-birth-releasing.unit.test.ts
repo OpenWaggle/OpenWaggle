@@ -6,9 +6,11 @@ import { session } from './session-worktree-birth-test-helpers'
 const mocks = vi.hoisted(() => ({
   adoptSessionWorktreeForSetup: vi.fn(async () => null),
   resetSessionWorktreeSetup: vi.fn(),
-  createGitWorktree: vi.fn(
-    async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
-  ),
+  createGitWorktree: vi.fn(async (): Promise<GitWorktreeMutationResult> => ({
+    ok: true,
+    message: 'ok',
+    path: '/wt',
+  })),
   getBoundWorkspaceResource: vi.fn<() => Promise<BoundWorkspaceResource | null>>(),
 }))
 

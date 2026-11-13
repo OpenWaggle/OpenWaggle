@@ -155,9 +155,8 @@ describe('usePiSessionContinuationGate', () => {
     const { send, result } = renderGate(session())
 
     await screen.findByRole('button', { name: 'Continue in OpenWaggle' })
-    const { usePiSessionContinuationStore } = await import(
-      '../../state/pi-session-continuation-store'
-    )
+    const { usePiSessionContinuationStore } =
+      await import('../../state/pi-session-continuation-store')
     act(() => usePiSessionContinuationStore.getState().answer(null))
 
     await expect(result).rejects.toMatchObject({ outcome: 'dismissed' })

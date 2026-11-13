@@ -29,7 +29,9 @@ export function inlineScriptHashFailures(input: {
 }) {
   const hashes = inlineScriptHashes(input.html)
   if (hashes.length !== 1) {
-    return [`${input.page} has ${String(hashes.length)} inline scripts; the CSP allows exactly one.`]
+    return [
+      `${input.page} has ${String(hashes.length)} inline scripts; the CSP allows exactly one.`,
+    ]
   }
   if (hashes[0] !== input.allowedHash) {
     return [

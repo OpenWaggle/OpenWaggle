@@ -24,9 +24,11 @@ const {
     stdout: 'main\n',
     stderr: '',
   })),
-  createGitWorktreeMock: vi.fn(
-    async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
-  ),
+  createGitWorktreeMock: vi.fn(async (): Promise<GitWorktreeMutationResult> => ({
+    ok: true,
+    message: 'ok',
+    path: '/wt',
+  })),
   applyWorkspaceHandoffSeedMock: vi.fn(async () => {}),
   releaseWorkspaceHandoffSeedMock: vi.fn(async () => {}),
   getBoundWorkspaceResourceMock: vi.fn<() => Promise<BoundWorkspaceResource | null>>(async () =>

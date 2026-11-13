@@ -21,14 +21,20 @@ interface AstNode {
 }
 
 function isAstNode(value: unknown): value is AstNode {
-  return typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+  return (
+    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+  )
 }
 
 function requiredSpecifier(node: AstNode) {
   if (node.type !== 'CallExpression') return null
   const callee: unknown = Reflect.get(node, 'callee')
   const args: unknown = Reflect.get(node, 'arguments')
-  if (!isAstNode(callee) || callee.type !== 'Identifier' || Reflect.get(callee, 'name') !== 'require') {
+  if (
+    !isAstNode(callee) ||
+    callee.type !== 'Identifier' ||
+    Reflect.get(callee, 'name') !== 'require'
+  ) {
     return null
   }
   const first: unknown = Array.isArray(args) ? args[0] : undefined

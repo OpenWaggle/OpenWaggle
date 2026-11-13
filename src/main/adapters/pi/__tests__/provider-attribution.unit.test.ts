@@ -15,9 +15,8 @@ vi.mock('../../../usage-statistics/usage-statistics-enablement', () => ({
   isUsageStatisticsEnabled: () => statistics.enabled,
 }))
 
-const { installOpenWaggleProviderAttribution, openWaggleClientIdentity } = await import(
-  '../provider-attribution'
-)
+const { installOpenWaggleProviderAttribution, openWaggleClientIdentity } =
+  await import('../provider-attribution')
 const { piRequestIdentity } = await import('./pi-client-identity.test-utils')
 
 /** Pi's install telemetry setting, as the user may have stored it for standalone Pi. */

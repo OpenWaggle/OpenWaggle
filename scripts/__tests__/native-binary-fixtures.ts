@@ -75,7 +75,9 @@ export function elfImage(options: {
   const sections = [
     Buffer.alloc(ELF_SECTION_HEADER_SIZE),
     sectionHeader(SHT_STRTAB, stringsOffset, strings.bytes.length, 0, 0),
-    ...(needs.length > 0 ? [sectionHeader(SHT_GNU_VERNEED, verneedOffset, verneed.length, 1, needs.length)] : []),
+    ...(needs.length > 0
+      ? [sectionHeader(SHT_GNU_VERNEED, verneedOffset, verneed.length, 1, needs.length)]
+      : []),
   ]
   const header = Buffer.alloc(ELF_HEADER_SIZE)
   header.write('\x7fELF', 0, 'latin1')

@@ -36,9 +36,8 @@ vi.mock('electron', () => ({
 const fixture = setUpPiDiscoveryFixture(state)
 
 async function resourceOperation(channel: HostUiSessionResourceChannel, args: readonly unknown[]) {
-  const { dispatchHostUiSessionResourceOperation } = await import(
-    '../../../application/host-ui-session-resource-operation-dispatcher'
-  )
+  const { dispatchHostUiSessionResourceOperation } =
+    await import('../../../application/host-ui-session-resource-operation-dispatcher')
   const operation: Effect.Effect<unknown, unknown, AppServices> =
     dispatchHostUiSessionResourceOperation(channel, args)
   return run(operation)

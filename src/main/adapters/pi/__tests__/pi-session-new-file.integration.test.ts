@@ -141,9 +141,8 @@ describe("A new Session's first Run", () => {
     const detail = await sessionDetail(sessionId)
     await fs.rm(String(detail?.worktreePath), { recursive: true, force: true })
     await fs.rm(String(detail?.piSessionFile))
-    const { dispatchHostBackedSessionGuiOperation } = await import(
-      '../../../application/host-ui-session-operation-dispatcher'
-    )
+    const { dispatchHostBackedSessionGuiOperation } =
+      await import('../../../application/host-ui-session-operation-dispatcher')
 
     const opened = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]),
@@ -152,9 +151,8 @@ describe("A new Session's first Run", () => {
     expect(opened?.id).toBe(sessionId)
     expect(opened?.piSessionFileDeleted).toMatch(/the next message starts a new transcript/)
     // Forking it is refused for a reason the user can fix, said as it is.
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
-    )
+    const { forkSession } =
+      await import('../../../application/host-ui-session-lifecycle-operations')
     const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
     const fork = await run(
       forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'before').pipe(Effect.either),

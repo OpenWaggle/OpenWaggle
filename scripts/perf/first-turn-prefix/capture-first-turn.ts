@@ -66,7 +66,8 @@ export function prefixContentOf(pi: PiAi, context: TranscriptContext): PrefixCon
   const collapsed = pi.collapseSystemMessages(context)
   const leading = pi.getInitialSystemMessage(collapsed.messages)
   if (!leading) throw new Error('The provider request has no leading system message.')
-  const base = typeof leading.content === 'string' ? leading.content : pi.contentText(leading.content)
+  const base =
+    typeof leading.content === 'string' ? leading.content : pi.contentText(leading.content)
   const sections = Object.entries(leading.sections ?? {}).flatMap(([name, text]) =>
     text === null ? [] : [{ name, text }],
   )

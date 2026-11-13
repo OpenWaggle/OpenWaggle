@@ -4,7 +4,10 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { managedCliShimContent } from '../../src/main/services/cli-shim-content'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
-import { type LiveQaLifecycleState, runLiveQaProfileLifecycle } from './live-session-orchestration-lifecycle'
+import {
+  type LiveQaLifecycleState,
+  runLiveQaProfileLifecycle,
+} from './live-session-orchestration-lifecycle'
 import { electronExecutablePath, withoutRunAsNode } from '../run-electron-dev'
 import type { RunProcessOptions } from './bounded-child-process'
 import { launchGui, runJsonCli, waitForHost } from './live-session-orchestration-support'
@@ -79,7 +82,9 @@ async function developmentCli(userDataRoot: string, platform: NodeJS.Platform) {
       executablePath: executable,
       appPath: PROJECT_ROOT,
     })
-    await fs.writeFile(path.join(userDataRoot, DEV_CLI_SHIM), content, { mode: EXECUTABLE_FILE_MODE })
+    await fs.writeFile(path.join(userDataRoot, DEV_CLI_SHIM), content, {
+      mode: EXECUTABLE_FILE_MODE,
+    })
   }
   const leading = [...(viaShim ? [] : [PROJECT_ROOT]), ...electronSwitches(platform)]
   const runCli: typeof runJsonCli = (command, env, args, options?: RunProcessOptions) =>
@@ -122,7 +127,10 @@ export async function verifyDevAppStartup(userDataRoot: string) {
       const launch = devAppLaunchCommand(platform)
       state.gui = await launchGui(launch.command, environment, launch.args)
       state.guiLogs.push(state.gui.logs)
-      await waitForGuiStartedHost(resolveLocalSessionHostPaths({ userDataRoot }).databasePath, state.gui)
+      await waitForGuiStartedHost(
+        resolveLocalSessionHostPaths({ userDataRoot }).databasePath,
+        state.gui,
+      )
       const cli = await developmentCli(userDataRoot, platform)
       await waitForHost(cli.executable, environment, {
         runCli: cli.runCli,

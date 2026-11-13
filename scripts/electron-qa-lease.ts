@@ -10,8 +10,7 @@ const DEFAULT_QA_CDP_PORT = 9223
 /** Overridable so parallel worktrees on one machine can run their own hidden QA app
  * while another worktree holds the default port (lease directory keys off this value). */
 export const QA_CDP_PORT =
-  process.env.OPENWAGGLE_QA_CDP_PORT !== undefined &&
-  Number(process.env.OPENWAGGLE_QA_CDP_PORT) > 0
+  process.env.OPENWAGGLE_QA_CDP_PORT !== undefined && Number(process.env.OPENWAGGLE_QA_CDP_PORT) > 0
     ? Number(process.env.OPENWAGGLE_QA_CDP_PORT)
     : DEFAULT_QA_CDP_PORT
 const QA_PROFILE_PREFIX = 'openwaggle-qa-profile-'
@@ -177,7 +176,9 @@ export function recoverStaleQaLease(leaseDirectory = QA_LEASE_DIRECTORY) {
 export function acquireQaLease(projectPath: string): Promise<QaLease> {
   return withLeaseMutationLock(QA_LEASE_DIRECTORY, async () => {
     await recoverStaleLeaseUnderLock(QA_LEASE_DIRECTORY)
-    const profilePath = await fs.mkdtemp(path.join(QA_SHARED_TEMPORARY_DIRECTORY, QA_PROFILE_PREFIX))
+    const profilePath = await fs.mkdtemp(
+      path.join(QA_SHARED_TEMPORARY_DIRECTORY, QA_PROFILE_PREFIX),
+    )
     const artifactsPath = await fs.mkdtemp(
       path.join(QA_SHARED_TEMPORARY_DIRECTORY, QA_ARTIFACT_PREFIX),
     )

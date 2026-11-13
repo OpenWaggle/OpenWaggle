@@ -51,7 +51,9 @@ export const PI_WORKER_BUNDLES: readonly PiWorkerBundle[] = [
  * Each is bundled into one self-contained file after every main build. QuickJS's wasm is read
  * from the `quickjs-wasi` dependency and Photon's from `@silvia-odwyer/photon-node`.
  */
-export function piWorkerBundlesPlugin(bundles: readonly PiWorkerBundle[] = PI_WORKER_BUNDLES): Plugin {
+export function piWorkerBundlesPlugin(
+  bundles: readonly PiWorkerBundle[] = PI_WORKER_BUNDLES,
+): Plugin {
   let outDir = ''
   return {
     name: 'openwaggle:pi-worker-bundles',

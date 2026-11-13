@@ -70,8 +70,7 @@ export class BrowserPreviewAutomationDocumentChangedError extends Error {
   }
 }
 
-export interface BrowserPreviewAutomationControlRunOptions
-  extends BrowserPreviewAutomationRunOptions {
+export interface BrowserPreviewAutomationControlRunOptions extends BrowserPreviewAutomationRunOptions {
   readonly allowDocumentChanges?: boolean
 }
 

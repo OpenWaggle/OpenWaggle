@@ -74,11 +74,7 @@ export function createBootstrapInterruptionCoordinator(
   }
 
   function startRecoveryFallback() {
-    if (
-      handlingSignal === undefined ||
-      cancelFallback !== undefined ||
-      signalForwarded
-    ) {
+    if (handlingSignal === undefined || cancelFallback !== undefined || signalForwarded) {
       return
     }
     const signal = handlingSignal

@@ -5,12 +5,11 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url)
 const REPOSITORY_ROOT = path.resolve(path.dirname(SCRIPT_PATH), '..')
-const FIXTURE_EXTENSION_IDS = [
-  'openwaggle-reload-qa',
-  'openwaggle-github-issues-overview',
-] as const
+const FIXTURE_EXTENSION_IDS = ['openwaggle-reload-qa', 'openwaggle-github-issues-overview'] as const
 type FixtureExtensionId = (typeof FIXTURE_EXTENSION_IDS)[number]
-const DEFAULT_FIXTURE_EXTENSION_IDS = ['openwaggle-github-issues-overview'] as const satisfies readonly FixtureExtensionId[]
+const DEFAULT_FIXTURE_EXTENSION_IDS = [
+  'openwaggle-github-issues-overview',
+] as const satisfies readonly FixtureExtensionId[]
 
 const FIXTURE_ROOT = path.join(REPOSITORY_ROOT, 'fixtures', 'extensions')
 const PROJECT_EXTENSION_ROOT = path.join(
@@ -37,7 +36,9 @@ function fixtureIdsFromArgs(args: readonly string[]): readonly FixtureExtensionI
 }
 
 function unsupportedFixtureIds(args: readonly string[]) {
-  return args.filter((fixtureId) => fixtureId !== ALL_FIXTURES_ARG && !isFixtureExtensionId(fixtureId))
+  return args.filter(
+    (fixtureId) => fixtureId !== ALL_FIXTURES_ARG && !isFixtureExtensionId(fixtureId),
+  )
 }
 
 async function installFixture(fixtureId: FixtureExtensionId) {

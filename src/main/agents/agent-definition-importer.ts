@@ -65,16 +65,14 @@ export function detectAgentDefinitionImportSource(
 }
 
 function canonicalFields(document: AgentDefinitionDocument) {
-  return Object.entries(document).map(
-    ([key, value]): AgentDefinitionImportFieldPlan => ({
-      sourceField: key === 'instructions' ? '$body' : key,
-      targetField: key,
-      disposition: 'mapped',
-      detail: 'OpenWaggle field preserved.',
-      sourceValue: value,
-      mappedValue: value,
-    }),
-  )
+  return Object.entries(document).map(([key, value]): AgentDefinitionImportFieldPlan => ({
+    sourceField: key === 'instructions' ? '$body' : key,
+    targetField: key,
+    disposition: 'mapped',
+    detail: 'OpenWaggle field preserved.',
+    sourceValue: value,
+    mappedValue: value,
+  }))
 }
 
 async function mappedSource(input: {

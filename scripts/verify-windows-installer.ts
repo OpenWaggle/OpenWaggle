@@ -21,7 +21,10 @@ type VerifyWindowsInstallerInput = {
 
 type VerifyWindowsInstallerDependencies = {
   readonly runInstaller?: (installerPath: string, args: readonly string[]) => Promise<number | null>
-  readonly runUninstaller?: (uninstallerPath: string, args: readonly string[]) => Promise<number | null>
+  readonly runUninstaller?: (
+    uninstallerPath: string,
+    args: readonly string[],
+  ) => Promise<number | null>
   readonly verifyCli?: (
     command: string,
     environmentOverrides: Readonly<Record<string, string>>,
@@ -46,11 +49,19 @@ function runInstaller(installerPath: string, args: readonly string[]) {
 
 function runCaptured(command: string, args: readonly string[], env?: NodeJS.ProcessEnv) {
   return new Promise<string>((resolve, reject) => {
-    const child = spawn(command, [...args], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    const child = spawn(command, [...args], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
     let stdout = ''
     let stderr = ''
-    child.stdout.on('data', (chunk) => { stdout += String(chunk) })
-    child.stderr.on('data', (chunk) => { stderr += String(chunk) })
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk)
+    })
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk)
+    })
     child.once('error', reject)
     child.once('exit', (code) => {
       if (code === 0) resolve(stdout)
@@ -72,7 +83,10 @@ async function readUserPath() {
 }
 
 function normalizedWindowsPath(value: string) {
-  return value.replaceAll('/', '\\').replace(/[\\]+$/u, '').toLowerCase()
+  return value
+    .replaceAll('/', '\\')
+    .replace(/[\\]+$/u, '')
+    .toLowerCase()
 }
 
 export function windowsPathContains(pathValue: string, directory: string) {
@@ -82,7 +96,12 @@ export function windowsPathContains(pathValue: string, directory: string) {
 
 async function resolveCommand(command: string, environment: Readonly<Record<string, string>>) {
   const output = await runCaptured('where.exe', [command], { ...process.env, ...environment })
-  return output.split(/\r?\n/u).find((entry) => entry.trim().length > 0)?.trim() ?? ''
+  return (
+    output
+      .split(/\r?\n/u)
+      .find((entry) => entry.trim().length > 0)
+      ?.trim() ?? ''
+  )
 }
 
 async function verifyInstalledState(input: {

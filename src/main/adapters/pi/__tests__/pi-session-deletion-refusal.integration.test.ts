@@ -41,9 +41,8 @@ describe('Checking whether a discovered Session can be deleted', () => {
     createPiCliSession(fixture.project, 'Written meanwhile')
     const [checked, written] = await discover()
     if (!checked || !written) throw new Error('Discovery listed fewer Sessions than expected.')
-    const { piSessionDeletionRefusal, piSessionDeletionRefusalWithSql } = await import(
-      '../../../store/session-details/pi-session-discovery-store'
-    )
+    const { piSessionDeletionRefusal, piSessionDeletionRefusalWithSql } =
+      await import('../../../store/session-details/pi-session-discovery-store')
 
     // Checks and writes take turns on the one connection, as the Host's fibers do; yielding after
     // every step lets a write land between any two statements of a check.

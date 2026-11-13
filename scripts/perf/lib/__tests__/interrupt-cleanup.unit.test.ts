@@ -79,6 +79,8 @@ describe('interrupt cleanup', () => {
     first()
     expect(emitter.listenerCount('SIGINT')).toBe(1)
     second()
-    expect(['SIGINT', 'SIGTERM', 'SIGHUP'].map((signal) => emitter.listenerCount(signal))).toEqual([0, 0, 0])
+    expect(['SIGINT', 'SIGTERM', 'SIGHUP'].map((signal) => emitter.listenerCount(signal))).toEqual([
+      0, 0, 0,
+    ])
   })
 })

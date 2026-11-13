@@ -18,7 +18,10 @@ describe('DMG signing and notarization', () => {
   it('notarizes and staples a DMG it signed before the blockmap and update metadata read it', () => {
     const source = fs.readFileSync(dmgBuilderRequire().resolve('dmg-builder/out/dmg'), 'utf8')
     const signed = source.indexOf('if (await this.signDmg(artifactPath)) {')
-    const notarized = source.indexOf('await this.packager.helper.notarizeIfProvided(artifactPath);', signed)
+    const notarized = source.indexOf(
+      'await this.packager.helper.notarizeIfProvided(artifactPath);',
+      signed,
+    )
     const blockmap = source.indexOf('createBlockmap)(artifactPath', notarized)
     expect(signed).toBeGreaterThan(0)
     expect(notarized).toBeGreaterThan(signed)
@@ -28,7 +31,10 @@ describe('DMG signing and notarization', () => {
   it('reports an unsigned DMG, so an unsigned build is never sent for notarization', async () => {
     const dmg: unknown = dmgBuilderRequire()('dmg-builder/out/dmg')
     const target: unknown = Reflect.get(Object(dmg), 'DmgTarget')
-    const signDmg: unknown = Reflect.get(Object(Reflect.get(Object(target), 'prototype')), 'signDmg')
+    const signDmg: unknown = Reflect.get(
+      Object(Reflect.get(Object(target), 'prototype')),
+      'signDmg',
+    )
     expect(typeof signDmg).toBe('function')
     const unsignedTarget = { packager: { platformSpecificBuildOptions: { identity: null } } }
     if (typeof signDmg !== 'function') return

@@ -39,9 +39,8 @@ async function defaultSources(): Promise<AgentDefinitionProjectSources> {
     import('./runtime'),
   ])
   installPiRuntimeIntegration()
-  const { findManagedWorktreeProjectPath } = await import(
-    './store/session-details/workspace-root-authorization'
-  )
+  const { findManagedWorktreeProjectPath } =
+    await import('./store/session-details/workspace-root-authorization')
   return {
     readSettings: () => runAppEffect(Effect.flatMap(SettingsService, (service) => service.get())),
     managedWorktreeProject: findManagedWorktreeProjectPath,

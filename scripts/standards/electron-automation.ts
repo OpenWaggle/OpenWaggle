@@ -99,14 +99,14 @@ function childProcessSpawnAliases(contents: string) {
 }
 
 function importedDesktopUiViolations(file: string, code: string) {
-  const violations: { readonly file: string; readonly message: string; readonly detail: string }[] = []
+  const violations: { readonly file: string; readonly message: string; readonly detail: string }[] =
+    []
   const importsElectronNamespace = namespaceElectronAliases(code).length > 0
   const importsElectronDefault =
     /\bimport\s+(?!type\b)[A-Za-z_$][\w$]*(?:\s*,\s*(?:\{[^}]*\}|\*\s+as\s+[A-Za-z_$][\w$]*))?\s+from\s*['"]electron['"]/u.test(
       code,
     )
-  const loadsElectronDynamically =
-    /\b(?:require|import)\s*\(\s*['"]electron['"]\s*\)/u.test(code)
+  const loadsElectronDynamically = /\b(?:require|import)\s*\(\s*['"]electron['"]\s*\)/u.test(code)
   if (importsElectronNamespace || importsElectronDefault || loadsElectronDynamically) {
     violations.push({
       file,

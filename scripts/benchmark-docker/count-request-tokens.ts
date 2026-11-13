@@ -19,18 +19,25 @@ async function firstRequest(file: string) {
 }
 
 async function main() {
-  const results = path.resolve(process.argv[RESULTS_ARGUMENT] ?? path.join(import.meta.dirname, 'results'))
+  const results = path.resolve(
+    process.argv[RESULTS_ARGUMENT] ?? path.join(import.meta.dirname, 'results'),
+  )
   const slices = (await readdir(results)).filter((name) => name.endsWith(PROXY_SLICE_SUFFIX))
   const counts: Record<string, ReturnType<typeof requestTokens>> = {}
   for (const slice of slices) {
     const request = await firstRequest(path.join(results, slice))
     if (request) counts[slice.slice(0, -PROXY_SLICE_SUFFIX.length)] = requestTokens(request)
   }
-  await writeFile(path.join(results, 'request-tokens.json'), `${JSON.stringify(counts, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(results, 'request-tokens.json'),
+    `${JSON.stringify(counts, null, JSON_INDENT)}\n`,
+  )
   process.stdout.write(`${JSON.stringify(counts, null, JSON_INDENT)}\n`)
 }
 
 main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+  process.stderr.write(
+    `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+  )
   process.exitCode = 1
 })

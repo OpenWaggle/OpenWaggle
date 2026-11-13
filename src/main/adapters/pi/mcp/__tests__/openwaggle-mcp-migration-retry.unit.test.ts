@@ -78,9 +78,8 @@ const {
   migrateOpenWaggleMcpSignInsAfterHostStart,
   migrateOpenWaggleMcpSignInsOnce,
 } = await import('../openwaggle-mcp-migration')
-const { SIGN_IN_NOT_READ_YET, SIGN_IN_OF_ANOTHER_BUILD } = await import(
-  '../../../mcp/migration/oauth-state-migration'
-)
+const { SIGN_IN_NOT_READ_YET, SIGN_IN_OF_ANOTHER_BUILD } =
+  await import('../../../mcp/migration/oauth-state-migration')
 
 const OK = { files: [], oauth: [], droppedSessionStates: 0 }
 

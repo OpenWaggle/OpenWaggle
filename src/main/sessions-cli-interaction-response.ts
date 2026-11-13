@@ -175,26 +175,20 @@ export function interactionResponseFromAnswerAlone(
   answer: InteractionAnswer,
 ): AgentLoopInteractionResponse | undefined {
   return matchBy(answer, 'kind')
-    .with(
-      'choice',
-      (choice): AgentLoopInteractionResponse => ({
-        kind: 'select',
-        selected: choice.choice,
-      }),
-    )
+    .with('choice', (choice): AgentLoopInteractionResponse => ({
+      kind: 'select',
+      selected: choice.choice,
+    }))
     .with('confirm', (): AgentLoopInteractionResponse => ({ kind: 'confirm', accepted: true }))
     .with('decline', (): AgentLoopInteractionResponse => ({ kind: 'confirm', accepted: false }))
-    .with(
-      'acknowledge',
-      (): AgentLoopInteractionResponse => ({
-        kind: 'notify',
-        acknowledged: true,
-      }),
-    )
-    .with(
-      'value',
-      (value): AgentLoopInteractionResponse => ({ kind: 'custom', value: value.value }),
-    )
+    .with('acknowledge', (): AgentLoopInteractionResponse => ({
+      kind: 'notify',
+      acknowledged: true,
+    }))
+    .with('value', (value): AgentLoopInteractionResponse => ({
+      kind: 'custom',
+      value: value.value,
+    }))
     .with('text', 'dismiss', () => undefined)
     .exhaustive()
 }

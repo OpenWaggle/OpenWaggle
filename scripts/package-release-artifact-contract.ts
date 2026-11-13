@@ -56,11 +56,7 @@ export function releaseAssetRepairPlan(
 }
 
 function decodeDependency(value: unknown) {
-  if (
-    !isJsonObject(value) ||
-    typeof value.name !== 'string' ||
-    typeof value.version !== 'string'
-  ) {
+  if (!isJsonObject(value) || typeof value.name !== 'string' || typeof value.version !== 'string') {
     throw new Error('Package release artifact manifest contains an invalid dependency.')
   }
   return { name: value.name, version: value.version }
@@ -80,8 +76,7 @@ function decodeArtifact(value: unknown): PackageReleaseArtifact {
   ) {
     throw new Error('Package release artifact manifest contains an invalid package.')
   }
-  const dependency =
-    value.dependency === undefined ? undefined : decodeDependency(value.dependency)
+  const dependency = value.dependency === undefined ? undefined : decodeDependency(value.dependency)
   return {
     ...(dependency === undefined ? {} : { dependency }),
     file: value.file,
@@ -146,10 +141,7 @@ function isAllowedTarballEntry(entry: string) {
   )
 }
 
-function validatePackedManifest(
-  value: unknown,
-  artifact: PackageReleaseArtifact,
-) {
+function validatePackedManifest(value: unknown, artifact: PackageReleaseArtifact) {
   const validPublicManifest =
     isJsonObject(value) &&
     value.name === artifact.name &&
@@ -171,10 +163,7 @@ function validatePackedManifest(
   }
 }
 
-async function validateTarballContract(
-  artifactRoot: string,
-  artifact: PackageReleaseArtifact,
-) {
+async function validateTarballContract(artifactRoot: string, artifact: PackageReleaseArtifact) {
   if (path.basename(artifact.file) !== artifact.file || !artifact.file.endsWith('.tgz')) {
     throw new Error(`${artifact.name} artifact filename is invalid.`)
   }
@@ -186,9 +175,7 @@ async function validateTarballContract(
   if (createHash('sha256').update(contents).digest('hex') !== artifact.sha256) {
     throw new Error(`${artifact.name} artifact SHA-256 is invalid.`)
   }
-  if (
-    `sha512-${createHash('sha512').update(contents).digest('base64')}` !== artifact.integrity
-  ) {
+  if (`sha512-${createHash('sha512').update(contents).digest('base64')}` !== artifact.integrity) {
     throw new Error(`${artifact.name} artifact npm integrity is invalid.`)
   }
   const entries = (await runTar(['-tf', tarballPath])).split('\n').filter(Boolean)
@@ -216,10 +203,7 @@ function matchesPlanPackage(
   )
 }
 
-export async function verifyReleaseArtifactBundle(
-  plan: PackageReleasePlan,
-  artifactRoot: string,
-) {
+export async function verifyReleaseArtifactBundle(plan: PackageReleasePlan, artifactRoot: string) {
   const rawManifest: unknown = JSON.parse(
     await readFile(path.join(artifactRoot, 'release-artifacts.json'), 'utf8'),
   )
@@ -228,11 +212,12 @@ export async function verifyReleaseArtifactBundle(
     manifest.sourceTree !== plan.sourceTree ||
     manifest.packages.length !== plan.packages.length ||
     plan.packages.some(
-      (plannedPackage, index) =>
-        !matchesPlanPackage(manifest.packages[index], plannedPackage),
+      (plannedPackage, index) => !matchesPlanPackage(manifest.packages[index], plannedPackage),
     )
   ) {
-    throw new Error('Package release artifact manifest does not match the source identity and plan.')
+    throw new Error(
+      'Package release artifact manifest does not match the source identity and plan.',
+    )
   }
   const expectedFiles = new Set([
     'release-artifacts.json',

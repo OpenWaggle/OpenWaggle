@@ -59,6 +59,8 @@ export function asarImage(files: Record<string, string>, unpacked: readonly stri
 export function packageJson(name: string, optionalDependencies: readonly string[] = []) {
   return JSON.stringify({
     name,
-    optionalDependencies: Object.fromEntries(optionalDependencies.map((dependency) => [dependency, '1.0.0'])),
+    optionalDependencies: Object.fromEntries(
+      optionalDependencies.map((dependency) => [dependency, '1.0.0']),
+    ),
   })
 }

@@ -33,9 +33,8 @@ vi.mock('electron', () => ({
 const fixture = setUpPiDiscoveryFixture(state)
 
 async function readItems(sessionId: string) {
-  const { dispatchSessionQuery } = await import(
-    '../../../application/local-session-query-dispatcher'
-  )
+  const { dispatchSessionQuery } =
+    await import('../../../application/local-session-query-dispatcher')
   const result = await run(
     dispatchSessionQuery(
       { callerId: 'gui:local-user', workingDirectory: fixture.project },
