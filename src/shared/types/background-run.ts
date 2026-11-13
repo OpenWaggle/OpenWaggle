@@ -5,6 +5,8 @@ import type {
   activeCompactionInfoSchema,
   activeRunInfoSchema,
   backgroundRunActivityEventSchema,
+  backgroundRunAssistantMessageSchema,
+  backgroundRunSnapshotSchema,
   runModeSchema,
   worktreeLaunchEnvironmentSchema,
   worktreeLaunchEventPayloadSchema,
@@ -13,7 +15,6 @@ import type {
   worktreeLaunchStepSchema,
   worktreeSetupActionTerminalSchema,
 } from '@shared/schemas/background-run'
-import type { MessagePart } from './agent'
 
 export const WORKTREE_CREATED_CUSTOM_EVENT = 'openwaggle.worktree-created'
 
@@ -42,38 +43,7 @@ export type BackgroundRunUserMessage = SchemaType<typeof backgroundRunUserMessag
  * An assistant message the active Run finished streaming, retained so a reconnect (a renderer
  * reload) still shows it: a Run's messages reach the persisted transcript only when it ends.
  */
-export interface BackgroundRunAssistantMessage {
-  readonly messageId: string
-  /** When the message started streaming (Host time). */
-  readonly timestamp: number
-  /** Its text, reasoning, tool calls and tool results, as `parts` holds the streaming one's. */
-  readonly parts: readonly MessagePart[]
-}
+export type BackgroundRunAssistantMessage = SchemaType<typeof backgroundRunAssistantMessageSchema>
 
 /** Full snapshot including accumulated message parts for reconnection. */
-export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
-  /** The Run the snapshot belongs to; absent from older Hosts. */
-  readonly runId?: string
-  readonly messageId?: string
-  /** When the message `parts` streams started (Host time); absent from older Hosts. */
-  readonly messageStartedAt?: number
-  readonly parts: readonly MessagePart[]
-  readonly userMessages?: readonly BackgroundRunUserMessage[]
-  /**
-   * The Run's earlier assistant messages, complete, in order, before the one `parts` streams. One
-   * the byte caps cannot hold, or one cut short by them, is left out. Absent from older Hosts.
-   */
-  readonly assistantMessages?: readonly BackgroundRunAssistantMessage[]
-  readonly degraded?: {
-    readonly reason: 'content-limit'
-    /**
-     * All the caps omitted over the Run. On the GUI side it also counts streaming parts the client
-     * could not decode, which mark the message cut short like the caps do.
-     */
-    readonly omittedBytes: number
-    readonly toolCallIds?: readonly string[]
-    /** Whether the caps cut the message `parts` streams; the omissions may be an earlier one's. */
-    readonly messageCutShort: boolean
-  }
-  readonly worktreeLaunch?: WorktreeLaunchSnapshot
-}
+export type BackgroundRunSnapshot = SchemaType<typeof backgroundRunSnapshotSchema>
