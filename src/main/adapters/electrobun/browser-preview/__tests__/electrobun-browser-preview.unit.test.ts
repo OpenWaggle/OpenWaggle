@@ -196,4 +196,42 @@ describe('Electrobun Browser preview', () => {
       ],
     )
   })
+  it('keeps each partition loaded while the app runs where closing its last view unloads it', async () => {
+    const harness = setup({ unloadsPartitionWithLastView: true })
+    openPreview(harness, 'p-1')
+    openPreview(harness, 'p-2')
+    await settle()
+    const keepers = harness.cef.views().filter((view) => view.options.url === 'about:blank')
+    expect(keepers).toHaveLength(1)
+    expect(keepers[0]?.options.partition).toBe('persist:openwaggle-browser-preview')
+    expect(keepers[0]?.options.windowId).not.toBe(harness.page.window.id)
+
+    await harness.views.close(harness.page.surface, 'p-1')
+    await harness.views.close(harness.page.surface, 'p-2')
+    const set = harness.views.profileCookieJar('default').cookies.set({
+      url: 'https://example.com/',
+      name: 'sid',
+      value: 'v',
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'lax',
+    })
+    await settle()
+    await set
+    expect(keepers[0]?.removed).toBe(false)
+    expect(harness.cef.views().filter((view) => view.options.url === 'about:blank')).toHaveLength(1)
+
+    const closed = harness.views.closeAll()
+    await settle()
+    await closed
+    expect(keepers[0]?.removed).toBe(true)
+  })
+
+  it('opens no partition keeper where partitions outlive their views', async () => {
+    const harness = setup()
+    openPreview(harness)
+    await settle()
+    expect(harness.cef.views().map((view) => view.options.url)).not.toContain('about:blank')
+  })
 })

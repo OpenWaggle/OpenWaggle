@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import { ElectrobunBrowserPreviewManager } from './electrobun-preview-manager'
 import { ElectrobunPreviewAnnotations } from './electrobun-preview-annotations'
+import { keepingPartitionsLoaded } from './electrobun-preview-profile-keepers'
 import { ElectrobunPreviewProfiles } from './electrobun-preview-profiles'
 import { electrobunAutomationShell } from './electrobun-preview-automation-shell'
 import type { ElectrobunPreviewHost } from './electrobun-preview-record-factory'
@@ -16,8 +17,9 @@ import type { BrowserPreviewViewsShape } from '../../../ports/desktop-shell/brow
  * the same previews as the agent's automation sees them.
  */
 export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost) {
-  const manager = new ElectrobunBrowserPreviewManager(host)
-  const profiles = new ElectrobunPreviewProfiles(host)
+  const partitions = keepingPartitionsLoaded(host)
+  const manager = new ElectrobunBrowserPreviewManager(partitions.host)
+  const profiles = new ElectrobunPreviewProfiles(partitions.host)
   const { controls } = manager
   const preview = manager.requirePreview.bind(manager)
   const annotations = new ElectrobunPreviewAnnotations(host, controls)
@@ -104,6 +106,7 @@ export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost) {
     beginShutdown: () => manager.beginShutdown(),
     closeAll: async () => {
       await Promise.all([manager.closeAll(), profiles.closeAll()])
+      partitions.release()
     },
     clearProfileData: (profileId) => profiles.clearProfileData(profileId),
     profileCookieJar: (profileId) => profiles.cookieJar(profileId),

@@ -52,6 +52,11 @@ export interface ElectrobunPreviewHost {
   readonly prepareAnnotation?: PrepareBrowserPreviewAnnotation
   readonly writeClipboardImage: (png: Uint8Array) => Promise<void>
   readonly isMac: boolean
+  /**
+   * Whether the engine drops a partition's in-memory data when its last view closes: WebView2's
+   * profiles do (Windows), CEF's request contexts do not (`keepingPartitionsLoaded`).
+   */
+  readonly unloadsPartitionWithLastView: boolean
 }
 
 function initialState(input: BrowserPreviewOpenInput, canonicalUrl: string) {

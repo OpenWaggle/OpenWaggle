@@ -99,6 +99,8 @@ export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell) {
       }
     },
     isMac: process.platform === 'darwin',
+    // Windows ships no CEF: its previews are WebView2 profiles (scripts/electrobun/app-config.ts).
+    unloadsPartitionWithLastView: process.platform === 'win32',
   } satisfies ElectrobunPreviewHost
 }
 

@@ -24,6 +24,8 @@ export function setup(
     readonly storage?: BrowserPreviewArtifactStorage
     /** Commit annotations through the Session Host, as the app does, instead of a fake. */
     readonly sessionHostAttachments?: boolean
+    /** WebView2's profiles: a partition unloads with its last view. */
+    readonly unloadsPartitionWithLastView?: boolean
   } = {},
 ) {
   const electrobun = fakeElectrobun()
@@ -72,6 +74,7 @@ export function setup(
     writeClipboardImage,
     ...(options.sessionHostAttachments === true ? {} : { prepareAnnotation }),
     isMac: true,
+    unloadsPartitionWithLastView: options.unloadsPartitionWithLastView === true,
   }
   const { views, automation } = makeElectrobunBrowserPreview(host)
   const page = electrobun.browserPreview.openOwnerPage()
