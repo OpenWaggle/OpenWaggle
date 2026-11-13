@@ -20,8 +20,11 @@ import { osShell } from './desktop-shell/os-shell'
 import { systemIntegration } from './desktop-shell/system-integration'
 import { systemNotifications } from './desktop-shell/system-notifications'
 import { launchDetachedProcess } from './detached-process'
-import { getSafeChildEnv } from './env'
-import { launchWindowsHeadlessProcess } from './windows-headless-process'
+import { getSafeChildEnv, readEnvironmentVariables } from './env'
+import {
+  launchWindowsHeadlessProcess,
+  WINDOWS_CHILD_REQUIRED_VARIABLES,
+} from './windows-headless-process'
 
 /**
  * The audited desktop UI boundary of the main process. Everything OS-visible goes through here,
@@ -82,7 +85,12 @@ export function launchHeadlessBackgroundProcess(input: {
   readonly args: readonly string[]
   readonly environment: Readonly<Record<string, string | undefined>>
 }) {
-  if (process.platform === 'win32') return launchWindowsHeadlessProcess(input)
+  if (process.platform === 'win32') {
+    return launchWindowsHeadlessProcess({
+      ...input,
+      inherited: readEnvironmentVariables(WINDOWS_CHILD_REQUIRED_VARIABLES),
+    })
+  }
   return launchDetachedProcess(input)
 }
 

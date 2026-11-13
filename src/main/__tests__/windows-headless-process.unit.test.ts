@@ -1,125 +1,143 @@
-import type * as ChildProcessModule from 'node:child_process'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { pipedChildProcess } from '../test-support/piped-child-process'
-
-const mocks = vi.hoisted(() => ({ spawn: vi.fn() }))
-vi.mock('node:child_process', async (importOriginal) => ({
-  ...(await importOriginal<typeof ChildProcessModule>()),
-  spawn: mocks.spawn,
-}))
-vi.mock('../env', () => ({ env: {}, getSafeChildEnv: () => ({}) }))
-
-import { launchHeadlessBackgroundProcess } from '../desktop-ui'
-import { windowsHeadlessCommandLine } from '../windows-headless-process'
-import { WINDOWS_HEADLESS_PROCESS_SCRIPT } from '../windows-headless-process-source'
-import { windowsPowerShellHelperInput } from '../windows-powershell-helper'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  createWindowsHeadlessProcess,
+  launchWindowsHeadlessProcess,
+  WINDOWS_HEADLESS_CREATION_FLAGS,
+  windowsEnvironmentBlock,
+  windowsHeadlessCommandLine,
+  type WindowsProcessKernel,
+} from '../windows-headless-process'
 
 // Electrobun's bundled Bun runs the app directory's entry.
 const launch = {
   command: 'C:\\Program Files\\OpenWaggle\\bin\\bun.exe',
   args: ['C:\\Program Files\\OpenWaggle\\Resources\\app', 'session-host-internal'],
   environment: { PATH: 'C:\\Windows', PROVIDER_API_KEY: 'private-provider-fixture' },
+  inherited: { SystemRoot: 'C:\\Windows' },
 }
 
-function childProcess() {
-  const child = pipedChildProcess()
-  vi.spyOn(child, 'kill').mockImplementation(() => true)
-  vi.spyOn(child, 'unref').mockImplementation(() => undefined)
-  mocks.spawn.mockImplementation(() => {
-    queueMicrotask(() => child.emit('spawn'))
-    return child
-  })
-  const input: Buffer[] = []
-  child.stdin.on('data', (chunk: Buffer) => input.push(chunk))
-  return { child, inputText: () => Buffer.concat(input).toString('utf8') }
+const PROCESS_HANDLE = 0x1234n
+const THREAD_HANDLE = 0x5678n
+
+type CreateProcessCall = Parameters<WindowsProcessKernel['createProcess']>[0]
+
+function fakeKernel(options: { created?: boolean; closes?: boolean; lastError?: number } = {}) {
+  const calls: CreateProcessCall[] = []
+  const closed: bigint[] = []
+  const kernel: WindowsProcessKernel = {
+    createProcess: (call) => {
+      calls.push(call)
+      if (options.created === false) return false
+      const information = Buffer.from(call.processInformation.buffer)
+      information.writeBigUInt64LE(PROCESS_HANDLE, 0)
+      information.writeBigUInt64LE(THREAD_HANDLE, 8)
+      return true
+    },
+    lastError: () => options.lastError ?? 0,
+    closeHandle: (handle) => {
+      closed.push(handle)
+      return options.closes !== false
+    },
+  }
+  return { kernel, calls, closed }
 }
 
-describe('Windows headless process launch boundary', () => {
-  beforeEach(() => {
-    vi.resetAllMocks()
-    vi.stubGlobal('process', { ...process, platform: 'win32' })
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
+function wide(bytes: Uint8Array) {
+  return Buffer.from(bytes).toString('utf16le')
+}
+
+describe('Windows headless process launch', () => {
+  it('starts the process detached, hidden, without inherited handles, and closes its handles', () => {
+    const { kernel, calls, closed } = fakeKernel()
+    createWindowsHeadlessProcess(kernel, launch)
+
+    const [call] = calls
+    if (call === undefined) throw new Error('CreateProcessW was not called')
+    expect(call.inheritHandles).toBe(0)
+    // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT
+    expect(call.creationFlags).toBe(0x608)
+    expect(WINDOWS_HEADLESS_CREATION_FLAGS).toBe(0x608)
+    expect(wide(call.application)).toBe(`${launch.command}\0`)
+    expect(wide(call.commandLine)).toBe(
+      '"C:\\Program Files\\OpenWaggle\\bin\\bun.exe" "C:\\Program Files\\OpenWaggle\\Resources\\app" "session-host-internal"\0',
+    )
+    const startup = Buffer.from(call.startupInfo)
+    expect(startup.byteLength).toBe(104)
+    expect(startup.readUInt32LE(0)).toBe(104)
+    // STARTF_USESHOWWINDOW with SW_HIDE; no STARTF_USESTDHANDLES, so no standard handle passes.
+    expect(startup.readUInt32LE(60)).toBe(1)
+    expect(startup.readUInt16LE(64)).toBe(0)
+    expect(startup.subarray(80, 104).every((byte) => byte === 0)).toBe(true)
+    expect(call.processInformation.byteLength).toBe(24)
+    expect(new Set(closed)).toEqual(new Set([PROCESS_HANDLE, THREAD_HANDLE]))
   })
 
-  it('rejects embedded NUL arguments before any process is started', async () => {
-    childProcess()
-    await expect(
-      launchHeadlessBackgroundProcess({ ...launch, args: ['session-host-internal\0ignored'] }),
-    ).rejects.toThrow('NUL')
-    expect(mocks.spawn).not.toHaveBeenCalled()
+  it('passes exactly the given environment as a sorted Unicode block', () => {
+    const block = wide(
+      windowsEnvironmentBlock(
+        { zeta: '1', Alpha: '蜂', SKIPPED: undefined, '=C:': 'C:\\work', beta: '' },
+        {},
+      ),
+    )
+    expect(block).toBe('=C:=C:\\work\0Alpha=蜂\0beta=\0zeta=1\0\0')
+  })
+
+  it("adds the variables libuv gives every child from the parent, unless they're set", () => {
+    const block = wide(
+      windowsEnvironmentBlock(
+        { Path: 'C:\\own', PROVIDER_API_KEY: 'private-provider-fixture' },
+        { SystemRoot: 'C:\\Windows', PATH: 'C:\\parent', UNRELATED: 'parent-only', TEMP: 'C:\\t' },
+      ),
+    )
+    expect(block.split('\0').filter(Boolean)).toEqual([
+      'Path=C:\\own',
+      'PROVIDER_API_KEY=private-provider-fixture',
+      'SystemRoot=C:\\Windows',
+      'TEMP=C:\\t',
+    ])
   })
 
   it.each([
-    { PROVIDER_API_KEY: 'private-provider-fixture\0invalid' },
-    { 'PROVIDER\0API_KEY': 'private-provider-fixture' },
-  ])('rejects malformed environment without exposing its values', async (environment) => {
-    childProcess()
-    const pending = launchHeadlessBackgroundProcess({ ...launch, environment })
-    await expect(pending).rejects.toThrow('environment must not contain NUL')
-    expect(mocks.spawn).not.toHaveBeenCalled()
+    [{ PROVIDER_API_KEY: 'private-provider-fixture\0invalid' }, 'must not contain NUL'],
+    [{ 'PROVIDER\0API_KEY': 'private-provider-fixture' }, 'must not contain NUL'],
+    [{ 'A=B': 'value' }, 'invalid variable name'],
+    [{ '': 'value' }, 'invalid variable name'],
+  ])('rejects a malformed environment without exposing it: %j', async (environment, message) => {
+    const loadKernel = vi.fn(async () => fakeKernel().kernel)
+    const pending = launchWindowsHeadlessProcess({ ...launch, environment }, loadKernel)
+    await expect(pending).rejects.toThrow(message)
+    await expect(pending).rejects.not.toThrow('private-provider-fixture')
+    expect(loadKernel).not.toHaveBeenCalled()
   })
 
-  it('isolates the native launch while preserving authorized environment without exposing it in argv or input', async () => {
-    const { child, inputText } = childProcess()
-    const pending = launchHeadlessBackgroundProcess(launch)
-
-    expect(mocks.spawn).toHaveBeenCalledExactlyOnceWith(
-      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'],
-      {
-        windowsHide: true,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: launch.environment,
-      },
-    )
-    expect(WINDOWS_HEADLESS_PROCESS_SCRIPT).not.toContain('ExecutionPolicy')
-    expect(inputText()).toBe(
-      windowsPowerShellHelperInput(WINDOWS_HEADLESS_PROCESS_SCRIPT, {
-        command: launch.command,
-        commandLine:
-          '"C:\\Program Files\\OpenWaggle\\bin\\bun.exe" "C:\\Program Files\\OpenWaggle\\Resources\\app" "session-host-internal"',
-      }),
-    )
-    expect(inputText()).not.toContain(launch.environment.PROVIDER_API_KEY)
-    child.stdout.write('\u001b[?1h\u001b[?1lOW_HEADLESS_LAUNCHED')
-    child.emit('close', 0)
-
-    await expect(pending).resolves.toBeUndefined()
-    expect(child.kill).not.toHaveBeenCalled()
-  })
-
-  it('does not accept helper spawn or acknowledgement before successful helper exit', async () => {
-    const { child } = childProcess()
-    let settled = false
-    const pending = launchHeadlessBackgroundProcess(launch).then(() => {
-      settled = true
-    })
-    child.stdout.write('OW_HEADLESS_LAUNCHED')
-    await Promise.resolve()
-    expect(settled).toBe(false)
-    child.emit('close', 0)
-    await pending
-    expect(settled).toBe(true)
+  it('rejects embedded NUL arguments before the kernel loads', async () => {
+    const loadKernel = vi.fn(async () => fakeKernel().kernel)
+    await expect(
+      launchWindowsHeadlessProcess(
+        { ...launch, args: ['session-host-internal\0ignored'] },
+        loadKernel,
+      ),
+    ).rejects.toThrow('NUL')
+    expect(loadKernel).not.toHaveBeenCalled()
   })
 
   it.each(['', 'bun.exe', 'C:relative.exe', 'C:\\tools\\launch.cmd'])(
-    'rejects invalid executable %j before spawning',
+    'rejects invalid executable %j before the kernel loads',
     async (command) => {
-      await expect(launchHeadlessBackgroundProcess({ ...launch, command })).rejects.toThrow(
-        'absolute .exe',
-      )
-      expect(mocks.spawn).not.toHaveBeenCalled()
+      const loadKernel = vi.fn(async () => fakeKernel().kernel)
+      await expect(
+        launchWindowsHeadlessProcess({ ...launch, command }, loadKernel),
+      ).rejects.toThrow('absolute .exe')
+      expect(loadKernel).not.toHaveBeenCalled()
     },
   )
 
-  it('rejects an oversized quoted command line before spawning', async () => {
+  it('rejects an oversized quoted command line before the kernel loads', async () => {
+    const loadKernel = vi.fn(async () => fakeKernel().kernel)
     await expect(
-      launchHeadlessBackgroundProcess({ ...launch, args: ['x'.repeat(32_766)] }),
+      launchWindowsHeadlessProcess({ ...launch, args: ['x'.repeat(32_766)] }, loadKernel),
     ).rejects.toThrow('command-line limit')
-    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(loadKernel).not.toHaveBeenCalled()
   })
 
   it('quotes spaces, empty arguments, Unicode, quotes, and backslashes according to Windows CRT parsing', () => {
@@ -137,85 +155,18 @@ describe('Windows headless process launch boundary', () => {
     )
   })
 
-  it('reports only controlled Win32 diagnostics, never unrestricted helper stderr', async () => {
-    const { child } = childProcess()
-    const pending = launchHeadlessBackgroundProcess(launch)
-    child.stderr.write(`unexpected private-provider-fixture\nOW_HEADLESS_ERROR:create-process:2\n`)
-    child.emit('close', 1)
-    await expect(pending).rejects.toThrow(
+  it('reports only the Win32 code when the process cannot start', async () => {
+    const { kernel, closed } = fakeKernel({ created: false, lastError: 2 })
+    await expect(launchWindowsHeadlessProcess(launch, async () => kernel)).rejects.toThrow(
       'Windows headless process launch failed at create-process (Win32 code 2).',
     )
+    expect(closed).toEqual([])
   })
 
-  it.each([
-    [0, ''],
-    [0, 'unexpected'],
-    [1, 'OW_HEADLESS_LAUNCHED'],
-    [null, 'OW_HEADLESS_LAUNCHED'],
-  ])('rejects unconfirmed helper completion %j/%j', async (code, output) => {
-    const { child } = childProcess()
-    const pending = launchHeadlessBackgroundProcess(launch)
-    child.stdout.write(output)
-    child.emit('close', code)
-    await expect(pending).rejects.toThrow('did not confirm')
-  })
-
-  it('propagates a spawn error without an insecure direct-launch fallback', async () => {
-    const { child } = childProcess()
-    const pending = launchHeadlessBackgroundProcess(launch)
-    child.emit('error', new Error('ENOENT'))
-    await expect(pending).rejects.toThrow('helper could not start')
-    expect(mocks.spawn).toHaveBeenCalledOnce()
-    expect(child.kill).toHaveBeenCalledOnce()
-  })
-
-  it('fails and stops only its helper if the input pipe errors', async () => {
-    const { child } = childProcess()
-    const pending = launchHeadlessBackgroundProcess(launch)
-    child.stdin.emit('error', new Error('EPIPE'))
-    await expect(pending).rejects.toThrow('input could not be delivered')
-    expect(child.kill).toHaveBeenCalledOnce()
-  })
-
-  it('cleans up its helper when delivering input throws synchronously', async () => {
-    const { child } = childProcess()
-    vi.spyOn(child.stdin, 'end').mockImplementation(() => {
-      throw new Error('EPIPE')
-    })
-    await expect(launchHeadlessBackgroundProcess(launch)).rejects.toThrow(
-      'input could not be delivered',
+  it('fails when a handle of the started process cannot be closed', () => {
+    const { kernel } = fakeKernel({ closes: false, lastError: 6 })
+    expect(() => createWindowsHeadlessProcess(kernel, launch)).toThrow(
+      'failed at close-handle (Win32 code 6)',
     )
-    expect(child.kill).toHaveBeenCalledOnce()
-  })
-
-  it.each(['stdout', 'stderr'] as const)(
-    'handles %s pipe errors without an uncaught stream error',
-    async (stream) => {
-      const { child } = childProcess()
-      const pending = launchHeadlessBackgroundProcess(launch)
-      child[stream].emit('error', new Error('EIO'))
-      await expect(pending).rejects.toThrow('output could not be read')
-      expect(child.kill).toHaveBeenCalledOnce()
-    },
-  )
-
-  it('bounds helper output and ignores subsequent completion after failure', async () => {
-    const { child } = childProcess()
-    const pending = launchHeadlessBackgroundProcess(launch)
-    child.stderr.write(Buffer.alloc(64 * 1024 + 1))
-    child.emit('close', 0)
-    await expect(pending).rejects.toThrow('output limit')
-    expect(child.kill).toHaveBeenCalledOnce()
-  })
-
-  it('bounds a stuck helper and never kills an authority using a remembered PID', async () => {
-    vi.useFakeTimers()
-    const { child } = childProcess()
-    const pending = launchHeadlessBackgroundProcess(launch)
-    const rejection = expect(pending).rejects.toThrow('Timed out')
-    await vi.advanceTimersByTimeAsync(20_000)
-    await rejection
-    expect(child.kill).toHaveBeenCalledOnce()
-    expect(mocks.spawn).toHaveBeenCalledOnce()
   })
 })
