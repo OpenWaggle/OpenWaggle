@@ -13,7 +13,11 @@ const piContentPartSchema = Schema.Struct({
   text: lenientOptional(Schema.String),
 })
 
+type PiContentPart = SchemaType<typeof piContentPartSchema>
+
 const piUsageCostSchema = Schema.Struct({ total: lenientOptional(Schema.Finite) })
+
+type PiUsageCost = SchemaType<typeof piUsageCostSchema>
 
 export const piSessionUsageSchema = Schema.Struct({
   input: lenientOptional(Schema.Finite),
@@ -63,23 +67,27 @@ export type PiSessionEntry = SchemaType<typeof piSessionEntrySchema>
  */
 const exact = <A, I>(schema: Schema.Schema<A, I>) => Schema.optionalWith(schema, { exact: true })
 
+const piContentPartStrictSchema = Schema.Struct({
+  type: exact(Schema.String),
+  text: exact(Schema.String),
+} satisfies Record<keyof PiContentPart, unknown>)
+
+const piUsageCostStrictSchema = Schema.Struct({
+  total: exact(Schema.Finite),
+} satisfies Record<keyof PiUsageCost, unknown>)
+
 const piSessionUsageStrictSchema = Schema.Struct({
   input: exact(Schema.Finite),
   output: exact(Schema.Finite),
   cacheRead: exact(Schema.Finite),
   cacheWrite: exact(Schema.Finite),
   totalTokens: exact(Schema.Number),
-  cost: exact(Schema.Struct({ total: exact(Schema.Finite) })),
+  cost: exact(piUsageCostStrictSchema),
 } satisfies Record<keyof PiSessionUsage, unknown>)
 
 const piSessionMessageStrictSchema = Schema.Struct({
   role: exact(Schema.String),
-  content: exact(
-    Schema.Union(
-      Schema.String,
-      Schema.Array(Schema.Struct({ type: exact(Schema.String), text: exact(Schema.String) })),
-    ),
-  ),
+  content: exact(Schema.Union(Schema.String, Schema.Array(piContentPartStrictSchema))),
   timestamp: exact(Schema.Finite),
   provider: exact(Schema.String),
   model: exact(Schema.String),
