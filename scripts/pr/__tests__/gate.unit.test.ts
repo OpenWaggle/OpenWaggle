@@ -76,6 +76,16 @@ describe('the steps of the test script the ready gate runs one by one', () => {
     ])
   })
 
+  it('gives no config to a step that runs more than Vitest, so a rerun cannot skip its later parts', () => {
+    expect(
+      testSteps({
+        test: 'bun run test:local',
+        'test:local':
+          'bun --bun vitest run -c vitest.unit.config.ts && bun --bun vitest run -c vitest.component.config.ts',
+      }),
+    ).toEqual([{ name: 'test:local', config: undefined }])
+  })
+
   it.each([
     ['a step that is not `bun run <script>`', { test: 'bun run a && vitest run', a: 'echo' }],
     ['a step naming a missing script', { test: 'bun run missing' }],

@@ -11,7 +11,8 @@ const MS_PER_SECOND = 1000
 const GATE_TEST_WORKERS = '4'
 const GATE_LOG = /^gate-.*\.log$/
 const BUN_RUN_STEP = /^bun run (?<name>[\w:-]+)$/
-const VITEST_CONFIG = /\bvitest run -c (?<config>vitest\.[\w-]+\.config\.ts)\b/
+/** A step gets a rerun only when its whole command is one Vitest run, so nothing after it can be skipped. */
+const VITEST_CONFIG = /^(?:\w+=\S+ )*bun --bun vitest run -c (?<config>vitest\.[\w-]+\.config\.ts)$/
 const FAIL_LINE = /^(?<location>\S*) FAIL (?<name>.*)$/
 const LINE_AND_COLUMN = /:\d+:\d+$/
 const TEST_FILE = /^[\w./@-]+\.test\.tsx?$/
@@ -88,14 +89,24 @@ function reportFailure(label: string, run: ReturnType<typeof runLogged>) {
  * runs once more, alone. Anything `rerunCandidates` cannot attribute, or a file that fails again,
  * still fails. Files that pass only alone are printed, so a real cross-file leak stays visible.
  */
-function rerunFailedTestFiles(logPath: string, config: string, env: NodeJS.ProcessEnv) {
+function rerunFailedTestFiles(
+  stepLogName: string,
+  logPath: string,
+  config: string,
+  env: NodeJS.ProcessEnv,
+) {
   const files = rerunCandidates(readFileSync(logPath, 'utf8'))
-  if (files === undefined) return false
+  if (files === undefined) {
+    console.error(
+      'gate: nothing rerun: a failure names no test file, or there is an unhandled error',
+    )
+    return false
+  }
   const rerunEnv = { ...env, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' }
   const reruns = files.map((file, index) => ({
     file,
     run: runLogged(
-      `rerun-${String(index)}`,
+      `${stepLogName}-rerun-${String(index)}`,
       ['--bun', 'vitest', 'run', '-c', config, file],
       rerunEnv,
     ),
@@ -121,13 +132,14 @@ function runTestSteps() {
 }
 
 function runTestStep(step: ReturnType<typeof testSteps>[number], env: NodeJS.ProcessEnv) {
-  const run = runLogged(`test-${step.name.replaceAll(':', '-')}`, ['run', step.name], env)
+  const logName = `test-${step.name.replaceAll(':', '-')}`
+  const run = runLogged(logName, ['run', step.name], env)
   const label = `bun run ${step.name}`
   if (run.passed) {
     console.log(`gate: ${label} ok (${String(run.seconds)}s)`)
     return true
   }
-  if (step.config !== undefined && rerunFailedTestFiles(run.logPath, step.config, env)) {
+  if (step.config !== undefined && rerunFailedTestFiles(logName, run.logPath, step.config, env)) {
     console.log(`gate: ${label} ok after rerunning its failed files alone`)
     return true
   }
