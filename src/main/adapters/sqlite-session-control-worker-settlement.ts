@@ -20,6 +20,8 @@ interface WorkerDelegationRow {
   readonly explicit_needs_attention: number
   /** Who stopped the settling Run, when a Session Control mutation did. */
   readonly interrupted_by_caller_id: string | null
+  /** 1 when the parent sent the Worker back to work after the settling Run started. */
+  readonly revision_requested_after_run: number
 }
 
 const SETTLING_STATES = ['working', 'waiting', 'revision_requested']
@@ -34,6 +36,10 @@ function settlesWithReply(
   contract: WorkerDelegationRow,
   settlement: { readonly sessionId: string; readonly runId: string },
 ) {
+  // The Run never saw the parent's feedback, so its reply is not the revision. The revision
+  // request queued for the Worker (#454) starts the Run that is; the parent's change commits
+  // before it is queued, so a Run settling in between is held back here too.
+  if (contract.revision_requested_after_run === 1) return Effect.succeed(false)
   if ([...SETTLING_STATES, 'needs_attention'].includes(contract.state)) return Effect.succeed(true)
   if (contract.state !== 'ready_for_review') return Effect.succeed(false)
   return wakeMayReplaceResult(sql, {
@@ -72,7 +78,22 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, ru
             )
       )) AS explicit_needs_attention,
       (SELECT runs.interrupted_by_caller_id FROM session_runs AS runs WHERE runs.id = ${runId})
-        AS interrupted_by_caller_id
+        AS interrupted_by_caller_id,
+      (contracts.state = ${'revision_requested'}
+        AND MAX(
+          COALESCE((
+            SELECT MAX(reviews.created_at) FROM delegation_reviews AS reviews
+            WHERE reviews.delegation_id = contracts.id
+              AND reviews.decision = ${'revision_requested'}
+          ), 0),
+          COALESCE((
+            SELECT MAX(transitions.created_at) FROM delegation_state_transitions AS transitions
+            WHERE transitions.delegation_id = contracts.id
+              AND transitions.to_state = ${'revision_requested'}
+          ), 0)
+        ) > COALESCE(
+          (SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}), 0
+        )) AS revision_requested_after_run
     FROM delegation_contracts AS contracts
     LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
     WHERE contracts.child_session_id = ${sessionId}

@@ -1,7 +1,8 @@
 /**
  * What the Hive tool tells agents about revision requests (#454): a reviewer's
  * `delegation_request_revision` or `delegation_reopen`, or a `delegation_amend` or
- * `delegation_dependency` on a `ready_for_review` result, reaches the Worker as the reviewer's
+ * `delegation_dependency` on a submitted result whose Worker waits for its parent
+ * (`ready_for_review`, `needs_attention`, `waiting`), reaches the Worker as the reviewer's
  * Follow-up (`delegation-revision-follow-up.ts`), which starts the Worker's next Run.
  */
 

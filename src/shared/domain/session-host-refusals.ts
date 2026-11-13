@@ -61,8 +61,9 @@ export const SESSION_HOST_REFUSAL_KINDS = {
   // Only the Delegation's parent, or only its Worker, may do this.
   parent_required: 'authorization',
   worker_required: 'authorization',
-  // A revision request or reopen sends the Worker its feedback as the reviewer's Follow-up, so a
-  // reviewer that may not message that Worker cannot send it back to work (#454).
+  // A revision request, a reopen, or a task change that sends a submitted Worker back to work
+  // sends it the feedback as the reviewer's Follow-up, so a reviewer that may not message that
+  // Worker cannot send it back to work (#454).
   worker_message_denied: 'authorization',
   follow_up_adopt_requires_desktop_user: 'authorization',
   follow_up_edit_requires_desktop_user: 'authorization',

@@ -160,7 +160,8 @@ export type DelegationVerificationOutcome = 'passed' | 'failed' | 'inconclusive'
 
 /**
  * A task change (`delegation-amend`, `delegation-dependency`) that moved a Delegation from
- * `ready_for_review` to `revision_requested`: the parent and the submission it set aside, which
+ * `ready_for_review`, `needs_attention` or `waiting` (a submitted result whose Worker waits for
+ * its parent) to `revision_requested`: the parent and the submission it set aside, which
  * the Worker's revision request names (#454).
  */
 export interface DelegationRevisionRequest {

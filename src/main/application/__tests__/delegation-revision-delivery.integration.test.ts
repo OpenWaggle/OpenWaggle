@@ -1,6 +1,9 @@
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionCallerIdentity,
+  LocalSessionProfileScope,
+} from '@shared/types/local-session-profile'
 import type { SessionCapability } from '@shared/types/session-capability'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
@@ -39,6 +42,7 @@ const REQUEST_REVISION = {
 /** An MCP server's transient caller: its grants live only on the connection, never in a row. */
 function transientMcpCaller(
   capabilities: readonly SessionCapability[],
+  scope: LocalSessionProfileScope = { all: true },
 ): LocalSessionCallerIdentity {
   return {
     callerId: 'transient-mcp:digest',
@@ -46,7 +50,7 @@ function transientMcpCaller(
       profileId: 'transient-mcp:digest',
       profileName: 'transient-mcp:digest',
       capabilities,
-      scope: { all: true },
+      scope,
       authorizationCeiling: 'yolo',
     },
   }
@@ -94,6 +98,31 @@ describe('a revision request reaches its Worker or is refused', () => {
     expect(recorder.runs).toHaveLength(0)
   })
 
+  it('refuses a live caller whose scope does not reach the Worker', async () => {
+    const recorder = recordingExecutor()
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* seedHiveWorker(sql, { state: 'ready_for_review' })
+        yield* seedQueenAuthority(sql, host.temporaryRoot)
+        const review = yield* reviewAs(
+          transientMcpCaller(['delegations:review', 'sessions:message'], {
+            projectPaths: [path.join(host.temporaryRoot, 'elsewhere')],
+          }),
+        )
+        return { review: review.outcome, work: yield* workerWork(sql) }
+      }).pipe(
+        Effect.provide(
+          commandHostLayer(path.join(host.temporaryRoot, 'mcp-scope.sqlite'), recorder.executor),
+        ),
+      ),
+    )
+
+    expect(result.review).toMatchObject({ effect: 'rejected', code: 'worker_message_denied' })
+    expect(result.work).toEqual({ activeRunId: null, queuedTexts: [] })
+    expect(recorder.runs).toHaveLength(0)
+  })
+
   it('sends the revision request for a live caller that may message the Worker', async () => {
     const recorder = recordingExecutor()
     await Effect.runPromise(
@@ -121,9 +150,14 @@ describe('a revision request reaches its Worker or is refused', () => {
     })
   })
 
-  it('refuses a revision request whose idle Worker would pass the Workers per parent limit', async () => {
+  /** A busy sibling Worker holds the only slot of the limit that `setting` sets to 1. */
+  function reviewAtFullLimit(
+    file: string,
+    setting: 'sessionHostParentConcurrencyLimit' | 'sessionHostRunCeiling',
+    callerId: string,
+  ) {
     const recorder = recordingExecutor()
-    const result = await Effect.runPromise(
+    return Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHiveWorker(sql, { state: 'ready_for_review' })
@@ -131,35 +165,57 @@ describe('a revision request reaches its Worker or is refused', () => {
         yield* seedQueenAuthority(sql, host.temporaryRoot)
         yield* sql`
           INSERT INTO settings_store (key, value_json, updated_at)
-          VALUES (${'sessionHostParentConcurrencyLimit'}, ${'1'}, ${1000})
+          VALUES (${setting}, ${'1'}, ${1000})
         `
-        // The sibling's Run takes the parent's only Worker slot.
         yield* sql`UPDATE session_runs SET status = ${'active'} WHERE id = ${'run-sibling'}`
         yield* sql`
           UPDATE session_control_states SET active_run_id = ${'run-sibling'}
           WHERE session_id = ${'sibling'}
         `
-        const review = yield* controlCommandAs(QUEEN_CALLER_ID, 'queen-review', REQUEST_REVISION)
+        const review = yield* controlCommandAs(callerId, 'review-at-limit', REQUEST_REVISION)
+        const workAfterReview = yield* workerWork(sql)
+        if (review.outcome.effect !== 'rejected') {
+          yield* waitFor(() => recorder.runs.length === 1)
+          yield* waitForSessionIdle('worker')
+        }
         return {
           review: review.outcome,
+          workAfterReview,
           delegation: yield* workerDelegation(sql),
-          work: yield* workerWork(sql),
+          runs: recorder.runs,
         }
       }).pipe(
-        Effect.provide(
-          commandHostLayer(path.join(host.temporaryRoot, 'limit.sqlite'), recorder.executor),
-        ),
+        Effect.provide(commandHostLayer(path.join(host.temporaryRoot, file), recorder.executor)),
       ),
     )
+  }
 
-    // Retryable, as a follow_up at the limit is, and nothing changed meanwhile.
-    expect(result.review).toMatchObject({
-      effect: 'rejected',
-      code: 'parent_concurrency_limit_reached',
-    })
-    expect(result.delegation.state).toBe('ready_for_review')
-    expect(result.work).toEqual({ activeRunId: null, queuedTexts: [] })
-    expect(recorder.runs).toHaveLength(0)
+  it.each([
+    ['Workers per parent', 'sessionHostParentConcurrencyLimit', 'parent_concurrency_limit_reached'],
+    ['Active Workers', 'sessionHostRunCeiling', 'host_run_ceiling_reached'],
+  ] as const)(
+    "refuses an agent's revision request whose idle Worker would pass the %s limit",
+    async (_label, setting, code) => {
+      const result = await reviewAtFullLimit(`${setting}.sqlite`, setting, QUEEN_CALLER_ID)
+
+      // Retryable, as a follow_up at the limit is, and nothing changed meanwhile.
+      expect(result.review).toMatchObject({ effect: 'rejected', code })
+      expect(result.delegation.state).toBe('ready_for_review')
+      expect(result.workAfterReview).toEqual({ activeRunId: null, queuedTexts: [] })
+      expect(result.runs).toHaveLength(0)
+    },
+  )
+
+  it("never holds back the person's own revision request at a full limit", async () => {
+    const result = await reviewAtFullLimit(
+      'person.sqlite',
+      'sessionHostParentConcurrencyLimit',
+      'local-user',
+    )
+
+    expect(result.review).toMatchObject({ delegationState: 'revision_requested' })
+    expect(result.workAfterReview.activeRunId).not.toBeNull()
+    expect(result.runs[0]?.sessionId).toBe('worker')
   })
 
   it('restores a cleanup-archived Worker its parent reopens, then starts its Run', async () => {
