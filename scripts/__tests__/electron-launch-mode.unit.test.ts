@@ -71,6 +71,13 @@ describe('Playwright Electron launch mode', () => {
     })
   })
 
+  it('forwards the desktop session bus, as a launch from the desktop inherits it', () => {
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus')
+    expect(buildSafeElectronEnvironment({})).toMatchObject({
+      DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus',
+    })
+  })
+
   it('forwards the caller Pi agent directory so a scratch one reaches the app', () => {
     vi.stubEnv('PI_CODING_AGENT_DIR', '/tmp/qa-scratch/pi-agent')
     expect(buildSafeElectronEnvironment({})).toMatchObject({
