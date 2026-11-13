@@ -29,7 +29,7 @@ export type SessionEmbeddingModelAvailability =
   | ({ readonly state: 'offline' } & SessionEmbeddingModelFailure)
   | ({ readonly state: 'failed' } & SessionEmbeddingModelFailure)
 
-interface SessionEmbeddingModelFailure {
+export interface SessionEmbeddingModelFailure {
   readonly reason: string
   /** Epoch ms after which the next use tries the download again. */
   readonly retryAt: number
@@ -98,7 +98,7 @@ export function describeAvailability(availability: SessionEmbeddingModelAvailabi
     .exhaustive()
 }
 
-function errorCode(error: unknown): string | undefined {
+function errorCode(error: unknown) {
   let current: unknown = error
   while (typeof current === 'object' && current !== null) {
     const code: unknown = Reflect.get(current, 'code')
@@ -168,7 +168,7 @@ export class SessionEmbeddingModelFiles {
    * The `localModelPath` that holds verified files, checking the disk without downloading: the
    * bundled copy, else a finished download. `null` when neither is there.
    */
-  async present(): Promise<string | null> {
+  async present() {
     if (this.#resolved !== null) return this.#resolved
     for (const root of this.#roots()) {
       if (await this.#complete(root)) {
@@ -181,7 +181,7 @@ export class SessionEmbeddingModelFiles {
   }
 
   /** The `localModelPath` with verified files, downloading them once if they are not there. */
-  async ensure(): Promise<string> {
+  async ensure() {
     const present = await this.present()
     if (present !== null) return present
     const current = this.#availability
