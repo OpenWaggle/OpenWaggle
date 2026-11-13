@@ -104,6 +104,17 @@ browser preview.
   the archive's `com.apple.quarantine` onto extracted files; the installer strips it from both.
   A `renderer: 'cef'` view created before the component is ready falls back to WKWebView, so view
   creation asserts readiness and every open path awaits `ensure()` first.
+- Patch 0015: CEF starts from the first of `ELECTROBUN_CEF_DIR`, the bundle's Frameworks, or the
+  component directory (resolved from `$HOME`, as Bun's `os.homedir()` is); the helper loads the
+  framework from beside the helper apps. A packaged build without CEF
+  (`OPENWAGGLE_MACOS_BUNDLE_CEF=0`) plus a local feed is the true fresh-install QA;
+  `.tmp/bench/qa-picker.ts` takes `QA_CEF_COMPONENT=<identifier>:<dir>` to skip the download.
+- Patch 0016: on a macOS runner a first WKWebView's `WebProcess::platformInitializeWebProcess`
+  took 0.3-0.8 s after main had loaded, the bulk of main-window-created to first frame. The native
+  layer prewarms one at launch (`_warmInitialProcess` on one shared pool; a pool released early
+  shuts its prewarmed process down, and one per configuration is never taken). WebKit's `log
+  stream` (subsystem `com.apple.WebKit`, categories Loading and Process) shows the WebContent
+  side too, as `WebContent[pid]` lines in the app's own process.
 - A fresh worktree has no `.hutch/devkit`, and `bun run build` then fails on the missing
   `electrobun/main` sources: run `bunx electrobun prepare` first, with
   `HUTCH_ELECTROBUN_DEVKIT_ROOT` set to a patched devkit to get the vendor patches.
