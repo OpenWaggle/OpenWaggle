@@ -1,20 +1,10 @@
-import type {
-  SemanticDiscoveryModelAvailability,
-  SemanticDiscoveryReadiness,
-} from '@shared/types/session-query-discovery'
+import type { SemanticDiscoveryReadiness } from '@shared/types/session-query-discovery'
 import * as Effect from 'effect/Effect'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import {
   describeAvailability,
-  type SessionEmbeddingModelAvailability,
   SessionEmbeddingModelUnavailableError,
 } from './session-embedding-model-files'
-
-function modelField(
-  availability: Exclude<SessionEmbeddingModelAvailability, { readonly state: 'ready' }>,
-): SemanticDiscoveryModelAvailability {
-  return availability
-}
 
 /**
  * Adds the embedding model's availability to a readiness: while the model is not on disk (it is
@@ -28,13 +18,14 @@ export function withModelAvailability(
   const availability = model.availability
   if (availability === undefined) return Effect.succeed(readiness)
   return Effect.promise(availability).pipe(
-    Effect.map((current): SemanticDiscoveryReadiness => {
+    Effect.map((current) => {
       if (current.state === 'ready') return readiness
-      return {
+      const unavailable: SemanticDiscoveryReadiness = {
         ...readiness,
-        model: modelField(current),
+        model: current,
         reason: describeAvailability(current),
       }
+      return unavailable
     }),
   )
 }

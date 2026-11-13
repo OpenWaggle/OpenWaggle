@@ -116,10 +116,11 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
     this.#files = files
   }
 
-  readonly availability = async (): Promise<SessionEmbeddingModelAvailability> => {
+  readonly availability = async () => {
     const files = this.#files
     if (files === null || this.#runtimeOptions.localModelPath !== undefined) {
-      return { state: 'ready' }
+      const ready: SessionEmbeddingModelAvailability = { state: 'ready' }
+      return ready
     }
     await files.present()
     return files.availability()
