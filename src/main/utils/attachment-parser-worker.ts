@@ -32,14 +32,26 @@ type ParserWorkerFactory = (input: {
 const PARSER_MAX_OLD_GENERATION_MB = 128
 const PARSER_MAX_YOUNG_GENERATION_MB = 32
 const PARSER_STACK_MB = 4
-const resolveParserDependency = createRequire(import.meta.filename).resolve
-const PARSER_MODULE_URLS = {
-  mammoth: pathToFileURL(resolveParserDependency('mammoth')).href,
-  jszip: pathToFileURL(resolveParserDependency('jszip')).href,
-  sharp: pathToFileURL(resolveParserDependency('sharp')).href,
-  tesseract: pathToFileURL(resolveParserDependency('tesseract.js')).href,
-  unpdf: pathToFileURL(resolveParserDependency('unpdf')).href,
-} as const
+/**
+ * The parsers' module URLs, resolved on the first parse rather than when this module loads, so a
+ * bundle that reaches attachment code without shipping the parsers (the Electrobun adapter probe)
+ * still starts.
+ */
+let parserModuleUrls: Readonly<Record<string, string>> | null = null
+
+function resolveParserModuleUrls() {
+  if (parserModuleUrls !== null) return parserModuleUrls
+  const resolveParserDependency = createRequire(import.meta.filename).resolve
+  const url = (name: string) => pathToFileURL(resolveParserDependency(name)).href
+  parserModuleUrls = {
+    mammoth: url('mammoth'),
+    jszip: url('jszip'),
+    sharp: url('sharp'),
+    tesseract: url('tesseract.js'),
+    unpdf: url('unpdf'),
+  }
+  return parserModuleUrls
+}
 
 const ATTACHMENT_PARSER_WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads')
@@ -162,7 +174,7 @@ const createParserWorker: ParserWorkerFactory = (input) =>
     eval: true,
     workerData: {
       ...input,
-      moduleUrls: PARSER_MODULE_URLS,
+      moduleUrls: resolveParserModuleUrls(),
       maxExtractedTextChars: ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS,
       maxImagePixels: ATTACHMENT.MAX_IMAGE_PIXELS,
       maxOcrImagePixels: ATTACHMENT.MAX_OCR_IMAGE_PIXELS,
