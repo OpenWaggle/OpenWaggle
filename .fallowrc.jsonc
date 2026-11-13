@@ -22,6 +22,8 @@
     "scripts/generate-macos-icons.ts",
     // Run through `conformance client --command "bun scripts/node-script-bundle.ts --run ..."` in test:mcp:conformance.
     "scripts/mcp-conformance-client.mts",
+    // scripts/packaged-app-smoke.ts runs it by path with the packaged app's Bun.
+    "scripts/pi-package-assets-probe.ts",
     // scripts/pi-main-bundle-smoke.ts builds it by path with the main build.
     "scripts/support/pi-main-bundle-smoke-entry.ts",
     // Vitest globalSetup, referenced by path through TEST_TEMPORARY_ROOT_SETUP.

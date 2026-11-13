@@ -1,16 +1,19 @@
 /**
  * Smokes the packaged Electrobun app (scripts/electrobun/package.ts) the way it ships, before the
  * release uploads it: the files under the app directory (`Contents/Resources/app` on macOS,
- * `Resources/app` elsewhere, scripts/electrobun/app-config.ts `copy`), then a native load probe run
- * by the app's own bundled Bun against the app's own `node_modules`.
+ * `Resources/app` elsewhere, scripts/electrobun/app-config.ts `copy`), then two probes run by the
+ * app's own bundled Bun: the native load probe against the app's own `node_modules`, and Pi's
+ * HTML export and theme loading against the app's copy of Pi's package directory
+ * (scripts/pi-package-assets-probe.ts).
  *
  * - The app directory holds exactly Hutch's entry (`bun/`), `out/` (main, preload, renderer, no
  *   source maps), the production `node_modules`, `resources/` and `package.json`; no workspace
  *   sources or tsconfigs, no legacy MCP adapter.
- * - Pi's README, docs and examples ship: Pi names them to the model.
+ * - Pi's README, docs and examples ship: Pi names them to the model. So do its HTML export
+ *   templates, built-in themes and interactive assets, which it reads from its package directory.
  * - The runtime trim of scripts/electrobun/stage-node-modules.ts held, and did not remove a file
  *   the runtime loads.
- * - The installed docs, the third-party notices and the session embedding model ship.
+ * - The installed docs and the third-party notices ship; the Session embedding model does not.
  *
  * On macOS it reads the signed unwrapped app package.ts keeps; on Windows and Linux it unpacks the
  * payload of Hutch's self-extracting wrapper, the bytes the first launch installs. Apps for another
@@ -37,6 +40,7 @@ const PREVIEW_LIMIT = 20
 const PROBE_TIMEOUT_MS = 60_000
 const EXEC_MAX_BUFFER_BYTES = 10_000_000
 const NATIVE_LOAD_PROBE = path.resolve(import.meta.dirname, 'native-load-probe.ts')
+const PI_PACKAGE_ASSETS_PROBE = path.resolve(import.meta.dirname, 'pi-package-assets-probe.ts')
 
 const APP_DIRECTORY: Readonly<Record<SmokePlatform, string>> = {
   darwin: 'Contents/Resources/app',
@@ -62,11 +66,15 @@ const REQUIRED_FILES = [
   // Pi resolves its README, docs and examples from its package directory and names them to the model.
   'node_modules/@earendil-works/pi-coding-agent/README.md',
   'node_modules/@earendil-works/pi-coding-agent/docs/codemode.md',
+  'node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.html',
+  'node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json',
+  'node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json',
   // Files the runtime loads from the trimmed packages, so the trim cannot remove too much.
   'node_modules/onnxruntime-node/package.json',
   'node_modules/better-sqlite3/lib/index.js',
-  'node_modules/tesseract.js-core/tesseract-core.js',
-  'node_modules/tesseract.js-core/tesseract-core.wasm',
+  // The LSTM cores the attachment parser's engine loads, without SIMD and with relaxed SIMD.
+  'node_modules/tesseract.js-core/tesseract-core-lstm.js',
+  'node_modules/tesseract.js-core/tesseract-core-lstm.wasm',
   'node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.js',
   'node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm',
   // Bundled into main, and also resolved from node_modules when the attachment parser loads: a
@@ -153,6 +161,14 @@ export function nativeProbeInvocation(appRoot: string, platform: SmokePlatform) 
   }
 }
 
+/** The bundled Bun running Pi's HTML export and theme loading on the app's copy of Pi. */
+export function piPackageAssetsProbeInvocation(appRoot: string, platform: SmokePlatform) {
+  return {
+    command: path.join(appRoot, BUNDLED_BUN[platform]),
+    args: [PI_PACKAGE_ASSETS_PROBE, path.join(appRoot, APP_DIRECTORY[platform])],
+  }
+}
+
 async function smokeAppRoot(appRoot: string, platform: SmokePlatform, probe: boolean) {
   const appDirectory = path.join(appRoot, APP_DIRECTORY[platform])
   const files = await listFiles(appDirectory).catch(() => null)
@@ -167,11 +183,15 @@ async function smokeAppRoot(appRoot: string, platform: SmokePlatform, probe: boo
     console.log(`packaged app files passed (no native probe for another architecture): ${appRoot}`)
     return false
   }
-  const invocation = nativeProbeInvocation(appRoot, platform)
-  await execFile(invocation.command, invocation.args, {
-    maxBuffer: EXEC_MAX_BUFFER_BYTES,
-    timeout: PROBE_TIMEOUT_MS,
-  })
+  for (const invocation of [
+    nativeProbeInvocation(appRoot, platform),
+    piPackageAssetsProbeInvocation(appRoot, platform),
+  ]) {
+    await execFile(invocation.command, invocation.args, {
+      maxBuffer: EXEC_MAX_BUFFER_BYTES,
+      timeout: PROBE_TIMEOUT_MS,
+    })
+  }
   console.log(`packaged app smoke passed: ${appRoot}`)
   return true
 }
