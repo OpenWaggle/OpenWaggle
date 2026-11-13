@@ -58,9 +58,13 @@ jobs:
         with:
           electron-binary: 'true'
 
+      # The helpers ship on Electron's Node.js, so their tests run on Node, not under
+      # `bun --bun vitest`: Bun reports the Electron CLI's 0xFFFFFFFF exit code as 255.
       - name: Unit tests for the helper boundaries
+        env:
+          VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
         run: >-
-          bun --bun vitest run --config vitest.unit.config.ts
+          node node_modules/vitest/vitest.mjs run --config vitest.unit.config.ts
           src/main/__tests__/windows-powershell-helper.unit.test.ts
           src/main/__tests__/windows-headless-process.unit.test.ts
           src/main/session-host/__tests__/windows-user-only-security.unit.test.ts
@@ -78,7 +82,9 @@ jobs:
           if ((Get-ExecutionPolicy) -ne 'Restricted') { throw 'The effective policy is not Restricted.' }
 
       - name: User-only security and headless launch on Windows PowerShell 5.1
+        env:
+          VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
         run: >-
-          bun --bun vitest run --config vitest.integration.config.ts
+          node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts
           src/main/session-host/__tests__/local-session-windows-security.integration.test.ts
           scripts/qa/__tests__/session-host-shutdown.integration.test.ts
