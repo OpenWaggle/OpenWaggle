@@ -13,7 +13,7 @@ on:
       electron-ref:
         description: The Electron-shell commit to package and measure.
         type: string
-        default: adab9878a6ba1c1cb40bcac0d34d33e1df70c1b6
+        default: adab9878a3f678ce5cd0bf36565a3f4d39047f91
       targets:
         description: The bench matrix, as JSON (default every target).
         type: string
