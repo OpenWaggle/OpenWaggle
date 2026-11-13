@@ -217,6 +217,10 @@ export async function buildMain(options: MainBuildOptions = {}) {
     ...shared,
     entrypoints: [path.join(ROOT, BOOT_ENTRY)],
     naming: 'boot.js',
+    // Every process parses it from source first, so it is minified as `index.js` is, with its
+    // hidden map beside it.
+    minify: { whitespace: true, syntax: true, identifiers: true, keepNames: true },
+    sourcemap: 'external',
     // The boot shim imports `./index.js` at run time; it must not bundle it.
     plugins: [...shared.plugins, relativeExternal(MAIN_BUNDLE_SPECIFIER)],
   })
