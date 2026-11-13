@@ -103,7 +103,7 @@ async function runFixtures(setupFiles: readonly string[]) {
   const pidLog = path.join(directory, 'pids')
   const result = await run(process.execPath, ['--bun', VITEST, 'run', '--root', directory], {
     cwd: directory,
-    env: { ...process.env, PID_LOG: pidLog, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
+    env: { ...fixtureEnv(), PID_LOG: pidLog, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
     timeout: RUN_TIMEOUT_MS,
   }).then(
     (output) => ({ passed: true, output: output.stdout + output.stderr }),
@@ -111,6 +111,12 @@ async function runFixtures(setupFiles: readonly string[]) {
   )
   const pids = new Set((await readFile(pidLog, 'utf8')).split('\n').filter(Boolean))
   return { ...result, workers: pids.size }
+}
+
+/** The parent's env without VITEST_MAX_WORKERS, which overrides the fixture config's one worker. */
+function fixtureEnv() {
+  const { VITEST_MAX_WORKERS: _ignored, ...env } = process.env
+  return env
 }
 
 function failedOutput(error: unknown) {
