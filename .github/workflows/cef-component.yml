@@ -1,0 +1,142 @@
+# Publishes the macOS CEF component (vendor/electrobun/README.md, "CEF component"): the Chromium
+# Embedded Framework and Electrobun's CEF helpers, built from this commit's native layer, signed with
+# the release's Developer ID, notarized, and uploaded to their own release, which is never Latest.
+# The app verifies the asset against the sha256 the repository commits, so publishing comes first:
+# run this when the CEF pin or the helper changes, then pin what it prints with
+#   bun scripts/electrobun/cef-component.ts pin --arch <arch> --url <url> --archive <file>
+# (or write the printed url, sha256 and size into src/main/adapters/electrobun/cef-component/
+# manifest.json) and commit it. release.yml refuses to package macOS until the pin verifies.
+name: CEF component
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Release revision for this CEF version (cef-component-<cef>-r<revision>); bump it when the helper changes.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cef-component
+  cancel-in-progress: false
+
+env:
+  ELECTROBUN_TELEMETRY: "0"
+  HUTCH_VERSION: "0.29.0"
+
+jobs:
+  native:
+    uses: ./.github/workflows/electrobun-native.yml
+    with:
+      probes: false
+
+  build:
+    name: Build darwin-${{ matrix.arch }}
+    needs: native
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-15, arch: arm64 }
+          - { target: darwin-x64, runner: macos-15-intel, arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: electrobun-native-${{ matrix.target }}
+          path: out
+
+      - name: Unpack the native layer
+        run: |
+          mkdir -p out/electrobun-native
+          tar -xzf "out/electrobun-native-${{ matrix.target }}.tgz" -C out/electrobun-native
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      # The helpers and the framework carry the app's Team ID, so they need the release identity.
+      - name: Require the release signing and notarization secrets
+        env:
+          MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          if [ "$MACOS_SIGNING_CONFIGURED" != "true" ] || [ "$MACOS_NOTARIZATION_CONFIGURED" != "true" ]; then
+            echo "::error::The CEF component is signed and notarized with the release identity; configure the macOS signing secrets." >&2
+            exit 1
+          fi
+
+      - name: Import the macOS Developer ID
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: bash scripts/electrobun/ci/macos-import-identity.sh
+
+      - name: Build, sign and notarize the component
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bun scripts/electrobun/cef-component.ts build \
+            --devkit "out/electrobun-native/${{ matrix.target }}/devkit" --arch ${{ matrix.arch }} \
+            --out out/cef-component --identity "$OPENWAGGLE_MACOS_SIGN_IDENTITY" \
+            --keychain "$OPENWAGGLE_MACOS_SIGN_KEYCHAIN" | tee out/cef-component/result.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cef-component-${{ matrix.arch }}
+          path: |
+            out/cef-component/*.tar.xz
+            out/cef-component/*.tar.xz.json
+          if-no-files-found: error
+
+  publish:
+    name: Publish the component release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: cef-component-*
+          path: assets
+          merge-multiple: true
+
+      - name: Create the release and print the pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+          case "$REVISION" in ''|*[!0-9]*) echo "::error::revision must be a number" >&2; exit 1 ;; esac
+          cef=$(jq -r '.cefVersion' assets/*arm64.tar.xz.json | sed 's/+chromium-.*//; s/+/-/g')
+          tag="cef-component-$cef-r$REVISION"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "CEF component $cef (r$REVISION)" --prerelease --latest=false \
+            --notes "The macOS CEF component OpenWaggle installs on its first Browser preview. Not an app release." \
+            assets/*.tar.xz
+          {
+            echo "Pin in src/main/adapters/electrobun/cef-component/manifest.json:"
+            echo '```json'
+            for file in assets/*.tar.xz.json; do
+              jq --arg base "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag" \
+                '{ ("darwin-" + .arch): { url: ($base + "/" + (.archive | split("/") | last)), sha256, size } }' "$file"
+            done
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

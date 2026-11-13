@@ -140,6 +140,25 @@ jobs:
         if: matrix.platform == 'darwin'
         run: bash scripts/electrobun/ci/macos-throwaway-identity.sh
 
+      # Release macOS builds install CEF as a component on the first Browser preview
+      # (vendor/electrobun/README.md, "CEF component"). This one is signed with the throwaway
+      # identity and served from the feed, the manifest the app builds with pins it there, so the
+      # cold launch proves a fresh install downloads it and opens a preview, and the update proves
+      # the updated app keeps it.
+      - name: CEF component
+        if: matrix.platform == 'darwin'
+        run: |
+          set -euo pipefail
+          bun scripts/electrobun/cef-component.ts build --devkit "$DEVKIT" --arch ${{ matrix.arch }} \
+            --out "$RUNNER_TEMP/cef-component" --identity "$OPENWAGGLE_MACOS_SIGN_IDENTITY" \
+            --keychain "$OPENWAGGLE_MACOS_SIGN_KEYCHAIN" --no-timestamp | tee "$RESULTS/cef-component.json"
+          archive=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).archive" "$RESULTS/cef-component.json")
+          mkdir -p "$RUNNER_TEMP/feed/cef"
+          cp "$archive" "$RUNNER_TEMP/feed/cef/"
+          bun scripts/electrobun/cef-component.ts pin --arch ${{ matrix.arch }} \
+            --url "http://127.0.0.1:$FEED_PORT/cef/$(basename "$archive")" --archive "$archive"
+          nohup bun scripts/electrobun/ci/smoke.ts serve "$RUNNER_TEMP/feed" "$FEED_PORT" > "$RUNNER_TEMP/feed.log" 2>&1 &
+
       - name: Throwaway Windows signing certificate
         if: matrix.platform == 'win32'
         shell: pwsh
@@ -323,8 +342,11 @@ jobs:
       - name: Package the next version against the current one
         run: |
           set -euo pipefail
-          nohup bun scripts/electrobun/ci/smoke.ts serve "$RUNNER_TEMP/feed" "$FEED_PORT" > "$RUNNER_TEMP/feed.log" 2>&1 &
-          sleep 2
+          # macOS serves the feed since its CEF component step; curl fails only when nothing listens.
+          if ! curl -s -o /dev/null "http://127.0.0.1:$FEED_PORT/"; then
+            nohup bun scripts/electrobun/ci/smoke.ts serve "$RUNNER_TEMP/feed" "$FEED_PORT" > "$RUNNER_TEMP/feed.log" 2>&1 &
+            sleep 2
+          fi
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.NEXT_VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
           # The main and renderer builds carry the version, so the next release builds them again.
           bun run build

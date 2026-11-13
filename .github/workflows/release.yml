@@ -653,6 +653,15 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      # The app installs CEF from the asset the committed manifest pins (vendor/electrobun/README.md,
+      # "CEF component", published by cef-component.yml). A release whose pin is missing, altered,
+      # for another CEF or not signed by the release team would ship a Browser preview that cannot
+      # start, so it stops here.
+      - name: Verify the pinned CEF component
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bun scripts/electrobun/cef-component.ts verify --devkit "$HUTCH_ELECTROBUN_DEVKIT_ROOT" --arch ${{ matrix.arch }}
+
       - name: Stamp release Build channel
         shell: bash
         run: |
