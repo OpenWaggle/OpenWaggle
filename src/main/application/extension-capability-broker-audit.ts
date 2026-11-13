@@ -71,3 +71,13 @@ export function auditedSuccess(input: {
 
   return logAudit(audit).pipe(Effect.as(result))
 }
+
+/** The refusal of an invocation whose payload contains itself, which no payload schema accepts. */
+export function cyclicPayloadFailure(invocation: ExtensionInvokeInput, timestamp: number) {
+  return auditedFailure({
+    invocation,
+    code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
+    message: 'The payload contains itself; a capability payload must be a tree of values.',
+    timestamp,
+  })
+}
