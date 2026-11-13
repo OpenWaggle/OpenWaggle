@@ -75,6 +75,18 @@ describe('electrobunAppConfig', () => {
       'cef',
     ])
     expect([mac.bundleCEF, win.bundleCEF, linux.bundleCEF]).toEqual([true, true, true])
+  })
+
+  it('gives CEF a per-launch DevTools port and drops the defaults that weaken it', () => {
+    const { mac, linux } = configFor('stable').build
+    for (const flags of [mac.chromiumFlags, linux.chromiumFlags]) {
+      expect(flags).toEqual({
+        'remote-debugging-port': 'launch',
+        'remote-allow-origins': false,
+        'allow-insecure-localhost': false,
+        'disable-web-security': false,
+      })
+    }
     expect(mac).toMatchObject({ codesign: false, notarize: false, createDmg: false })
   })
 

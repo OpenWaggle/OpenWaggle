@@ -108,6 +108,24 @@ function channelIconPng(identity: ResolvedBuildIdentity) {
   return resolveIconBasePath(identity.channel, 'build')
 }
 
+/**
+ * CEF's command line in every build that bundles it. `remote-debugging-port: 'launch'` asks the
+ * launcher for a free loopback DevTools port per launch (vendor/electrobun patch 0007), which the
+ * browser preview's CDP client needs; without it a release build serves no endpoint and only QA,
+ * which sets the port itself, could drive previews. `false` drops a default Electrobun sets:
+ * `remote-allow-origins=*` would let any web page open the DevTools WebSocket and drive every CEF
+ * page (cef-devtools-endpoint.ts), `allow-insecure-localhost` accepts bad certificates on
+ * localhost, and `disable-web-security` (Linux, where CEF also renders the app) turns the
+ * same-origin policy off. On Linux the endpoint also lists the app's own window, so any process of
+ * the user can drive it; macOS and Windows keep the app window out of it.
+ */
+export const CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
+  'remote-debugging-port': 'launch',
+  'remote-allow-origins': false,
+  'allow-insecure-localhost': false,
+  'disable-web-security': false,
+}
+
 export function electrobunAppConfig(input: ElectrobunConfigInput) {
   const { identity, environment } = input
   const patchBaseUrl = environment[PATCH_BASE_URL_ENV]?.trim() ?? ''
@@ -146,11 +164,10 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
         // The DMG holds the signed, unwrapped app (scripts/electrobun/macos-dmg.ts), not Hutch's
         // self-extracting wrapper, so it is the same bundle the transition zip ships.
         createDmg: false,
-        // CEF is bundled for the browser preview. A release build opens no DevTools endpoint:
-        // Electrobun 2.0.6 enables remote debugging only in `dev` builds or for an explicit port
-        // (`chromiumFlags['remote-debugging-port']`, 1-65535, never scanned for a free one), and
-        // rejects port 0 as invalid configuration.
+        // CEF is bundled for the browser preview, and serves DevTools on a per-launch loopback
+        // port only (CEF_CHROMIUM_FLAGS).
         bundleCEF: true,
+        chromiumFlags: CEF_CHROMIUM_FLAGS,
         defaultRenderer: 'native',
         icons: `${stage}/icon.iconset`,
       },
@@ -161,6 +178,7 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
       },
       linux: {
         bundleCEF: true,
+        chromiumFlags: CEF_CHROMIUM_FLAGS,
         defaultRenderer: 'cef',
         icon: channelIconPng(identity),
       },

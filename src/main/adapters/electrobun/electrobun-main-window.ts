@@ -79,7 +79,8 @@ function logicalUrl(url: string) {
  * Hidden QA screenshots the window over CDP, which only CEF serves: the system webviews of macOS and
  * Windows have no endpoint, and their hidden windows cannot be captured. Under automation alone,
  * `OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef` renders the main window with the bundled CEF, as Linux
- * always does. Users never get it: a release build serves CEF's endpoint to no one.
+ * always does. Users never get it: outside automation the macOS and Windows app window stays in the
+ * system webview, off CEF's endpoint.
  */
 function qaRenderer(): { readonly renderer?: 'cef' } {
   return isAutomationMode() && env.OPENWAGGLE_QA_MAIN_WINDOW_RENDERER === 'cef'

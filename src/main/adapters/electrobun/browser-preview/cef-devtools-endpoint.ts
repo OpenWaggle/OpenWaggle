@@ -16,7 +16,8 @@ import { liveProcessEnvironment } from '../../../env'
  * The endpoint is a local TCP port. Any process of the same machine can connect to it and drive
  * every CEF page, including reading the preview profiles' cookies. Web pages cannot: Chromium
  * checks the `Host` header against DNS rebinding and refuses WebSocket upgrades that carry an
- * `Origin` unless `remote-allow-origins` allows it, so the app never sets that flag. The app takes
+ * `Origin` unless `remote-allow-origins` allows it, so the build drops Electrobun's
+ * `remote-allow-origins=*` default (scripts/electrobun/app-config.ts, `CEF_CHROMIUM_FLAGS`). The app takes
  * the variable out of its environment (`takeCefRemoteDebuggingPortVariable`), so no child process
  * (a terminal, an agent tool) inherits the port. This module talks only to `127.0.0.1` on that
  * port, only accepts a page target whose WebSocket URL is on the same host and port, and finds a
