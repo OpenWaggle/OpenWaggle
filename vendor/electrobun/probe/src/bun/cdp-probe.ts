@@ -221,7 +221,13 @@ async function driveOverCdp(target: CdpTarget) {
     const loaded = cdp.waitFor('Page.loadEventFired')
     await cdp.send('Page.navigate', { url: `${fixtureOrigin}/b` })
     await loaded
-    checks.navigatedTitle = await cdp.evaluate('document.title')
+    // WebView2 can fire the first page's load event after Page.enable; wait for page B's title.
+    const titleDeadline = Date.now() + STEP_TIMEOUT_MS
+    do {
+      checks.navigatedTitle = await cdp.evaluate('document.title')
+      if (checks.navigatedTitle === 'probe-b') break
+      await delay(POLL_MS)
+    } while (Date.now() < titleDeadline)
 
     const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })
     const data = typeof shot.data === 'string' ? shot.data : ''
