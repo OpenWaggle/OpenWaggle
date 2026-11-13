@@ -105,7 +105,7 @@ If a worker's result needs fixing, you can also tell the Queen what to change, a
 
 ## Review and accept results
 
-When a worker finishes, it submits its result to the agent that created it. That parent agent reviews the result and either asks for a revision or accepts it. OpenWaggle shows where each review stands, but you do not have to approve every result yourself.
+When a worker finishes, it submits its result to the agent that created it. That parent agent reviews the result and either asks for a revision or accepts it. A revision request reaches the worker as a follow-up. An idle worker starts on it at once, and a busy one starts after its current run. The [Hive reference](/docs/reference/hive#when-the-parent-asks-for-a-revision) lists what the follow-up carries. OpenWaggle shows where each review stands, but you do not have to approve every result yourself.
 
 The parent does not have to stay busy while its workers run. If it has finished its turn when a result or a request for help arrives, OpenWaggle starts a new run on it, and it picks up from there. A Queen that told you it would report back when its workers are done gets that run and can report back. A run you stopped stays stopped until you send something. The [Hive reference](/docs/reference/hive#when-a-worker-reports-to-an-idle-parent) lists the exact rules.
 

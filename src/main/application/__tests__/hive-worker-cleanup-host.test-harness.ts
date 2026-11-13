@@ -18,7 +18,10 @@ import { AgentRunInterruptionService } from '../../ports/agent-run-interruption-
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
-import { SessionControlRunExecutor } from '../../ports/session-control-run-executor'
+import {
+  SessionControlRunExecutor,
+  type SessionControlRunExecutorShape,
+} from '../../ports/session-control-run-executor'
 import { SessionDescendantRunRepository } from '../../ports/session-descendant-run-repository'
 import { SessionExportArtifactWriter } from '../../ports/session-export-artifact-writer'
 import { SessionExportLiveAuthority } from '../../ports/session-export-live-authority'
@@ -62,13 +65,15 @@ export function hiveHostLayer(databasePath: string) {
 }
 
 /** Adds the collaborators the full Session Control command path needs but these flows never use. */
-export function commandHostLayer(databasePath: string) {
+export function commandHostLayer(
+  databasePath: string,
+  executor: SessionControlRunExecutorShape = {
+    execute: () => Effect.succeed({ terminalStatus: 'completed' as const, finalResponse: 'Done.' }),
+  },
+) {
   return Layer.mergeAll(
     hiveHostLayer(databasePath),
-    Layer.succeed(SessionControlRunExecutor, {
-      execute: () =>
-        Effect.succeed({ terminalStatus: 'completed' as const, finalResponse: 'Done.' }),
-    }),
+    Layer.succeed(SessionControlRunExecutor, executor),
     Layer.succeed(AgentRunInterruptionService, fromPartial({})),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),
     Layer.succeed(SessionControlAttachmentService, fromPartial({})),

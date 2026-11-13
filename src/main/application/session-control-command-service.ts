@@ -19,6 +19,7 @@ import {
   reserveActiveSessionRun,
   reservePendingClassicSessionRun,
 } from './active-session-runs'
+import { sendDelegationRevisionToWorker } from './delegation-revision-delivery'
 import {
   requestCleanupAfterDeferredWorkerSettlement,
   settleDeferredWorkerDelegationAfterQueueChange,
@@ -254,6 +255,13 @@ export function executeSessionControlMutation(input: {
     )
     // Outside the serialization: an inline cleanup pass takes the Worker's serialization itself.
     if (workerCleanupDue) yield* requestCleanupAfterDeferredWorkerSettlement(sessionId)
+    const { hiveWake: _hiveWake, request: review, ...reviewer } = input
+    yield* sendDelegationRevisionToWorker({
+      callerId: input.callerId,
+      review,
+      response,
+      execute: (request) => executeSessionControlMutation({ ...reviewer, request }),
+    })
     return response
   })
 }

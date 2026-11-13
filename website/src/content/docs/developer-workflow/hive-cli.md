@@ -99,10 +99,10 @@ A retry with the same `--idempotency-key` is safe. When the request is no longer
 | `delegation-claim` | `hive delegation-claim <worker> <delegation-id> <reason> [<claims>]` | A worker records the files or areas it plans to change. Claims lock nothing. |
 | `delegation-propose-amendment` | `hive delegation-propose-amendment <worker> <delegation-id> <base-revision> <reason> <changes>` | A worker proposes a change to its task. |
 | `delegation-amend` | `hive delegation-amend <parent> <delegation-id> <expected-revision> <reason> (<changes> \| --proposal <proposal-id>)` | Changes the task, or accepts a proposed change. |
-| `delegation-request-revision` | `hive delegation-request-revision <parent> <delegation-id> <revision> <feedback>` | Asks for a new revision. |
+| `delegation-request-revision` | `hive delegation-request-revision <parent> <delegation-id> <revision> <feedback>` | Asks for a new revision. The worker gets the feedback as a follow-up. |
 | `delegation-accept` | `hive delegation-accept <parent> <delegation-id> <revision> [note]` | Accepts one submitted revision. |
 | `delegation-verify` | `hive delegation-verify <parent> <delegation-id> <revision> passed\|failed\|inconclusive <summary> [<evidence>]` | Records a check of a submitted revision. |
-| `delegation-reopen` | `hive delegation-reopen <parent> <delegation-id> <reason>` | Reopens an accepted delegation. |
+| `delegation-reopen` | `hive delegation-reopen <parent> <delegation-id> <reason>` | Reopens an accepted delegation. The worker gets the reason as a follow-up. |
 | `delegation-cancel` | `hive delegation-cancel <parent> <delegation-id> <reason>` | Cancels an open delegation. |
 | `delegation-dependency` | `hive delegation-dependency <parent> <delegation-id> add\|remove <dependency-id> ready_for_review\|accepted <reason>` | Makes a delegation wait for another to reach a state, or stops it waiting. |
 | `delegation-conflict-acknowledge` | `hive delegation-conflict-acknowledge <parent> <delegation-id> <conflict-id> <reason>` | Marks a conflict between claims as seen. |

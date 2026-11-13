@@ -7,6 +7,7 @@ import * as Layer from 'effect/Layer'
 import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import { SessionControlRepositoryError } from '../errors'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
+import { messageCallerBlockReason } from './session-follow-up-authorization'
 import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { updateDelegationCoordination } from './sqlite-session-delegation-coordination'
@@ -260,6 +261,12 @@ export const SqliteSessionDelegationRepositoryLive = Layer.effect(
         `.pipe(
           Effect.map((rows) => rows[0]?.state ?? null),
           Effect.mapError((cause) => delegationRepositoryError('delegation-state-of', cause)),
+        ),
+      messageBlockReason: ({ sessionId, callerId }) =>
+        messageCallerBlockReason(sql, sessionId, callerId).pipe(
+          Effect.mapError((cause) =>
+            delegationRepositoryError('delegation-message-block-reason', cause),
+          ),
         ),
     })
   }),

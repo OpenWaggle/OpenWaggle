@@ -154,16 +154,20 @@ function interactionGuideline(permits: Permits) {
 const IDLE_PARENT_WAKE =
   'A Worker result or help request that arrives while you are idle starts a Run for you.'
 
+/** A revision request or reopen is queued on the Worker as the reviewer's Follow-up (#454). */
+const REVISION_REACHES_WORKER =
+  "A revision request or reopen reaches the Worker as your Follow-up and starts its next Run; don't follow_up as well."
+
 function delegationGuideline(permits: Permits) {
   const submits = permits('delegation_submit')
   const reviews = permits('delegation_accept') || permits('delegation_request_revision')
   if (submits && reviews) {
-    return `Workers submit immutable Delegation results; parents request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+    return `Workers submit immutable Delegation results; parents request revision or accept an exact submission revision. ${REVISION_REACHES_WORKER} ${IDLE_PARENT_WAKE}`
   }
   if (submits)
     return 'Submit immutable Delegation results; your parent requests revision or accepts an exact submission revision.'
   if (reviews)
-    return `Workers submit immutable Delegation results; request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+    return `Workers submit immutable Delegation results; request revision or accept an exact submission revision. ${REVISION_REACHES_WORKER} ${IDLE_PARENT_WAKE}`
   return undefined
 }
 

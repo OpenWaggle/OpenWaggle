@@ -132,10 +132,10 @@ Each spawn creates one delegation: the task, and the worker's results for it. Th
 | `delegation_claim` | `delegations:contribute` | Worker | Records the files or areas it plans to change. Claims are advisory and lock nothing. |
 | `delegation_propose_amendment` | `delegations:contribute` | Worker | Proposes a change to the task. |
 | `delegation_amend` | `delegations:review` | Parent | Changes the task, or accepts a proposed change. |
-| `delegation_request_revision` | `delegations:review` | Parent | Asks for a new revision of a submitted result, with feedback. |
+| `delegation_request_revision` | `delegations:review` | Parent | Asks for a new revision of a submitted result, with feedback, and sends it to the worker. |
 | `delegation_accept` | `delegations:review` | Parent | Accepts one submitted revision. |
 | `delegation_verify` | `delegations:review` | Parent | Records a check of a submitted revision: `passed`, `failed` or `inconclusive`. |
-| `delegation_reopen` | `delegations:review` | Parent | Reopens an accepted delegation. |
+| `delegation_reopen` | `delegations:review` | Parent | Reopens an accepted delegation and sends the reason to the worker. |
 | `delegation_cancel` | `delegations:review` | Parent | Cancels an open delegation. |
 | `delegation_dependency` | `delegations:review` | Parent | Makes a delegation wait for another to reach a state. |
 | `delegation_conflict_acknowledge` | `delegations:review` | Parent | Marks a reported conflict between claims as seen. |
@@ -184,6 +184,23 @@ stateDiagram-v2
 A worker whose run ends normally with a reply, without submitting, gets that reply captured as a submission, so its result is not lost. A worker that set `needs_attention` itself keeps that state when its run ends, even if it replied. The reply explains what it needs and is not a result. Once the parent answers, OpenWaggle captures the next run that ends with a reply as usual.
 
 A `needs_attention` that OpenWaggle set for a failed run goes back to `working` (or `revision_requested`) when a new run starts on the worker. One the worker set itself goes back to `working` when its parent's agent sends it anything. The history keeps both changes, by `session-host` and by the parent.
+
+### When the parent asks for a revision
+
+`delegation_request_revision` and `delegation_reopen` send the worker back to work. OpenWaggle queues a follow-up on the worker from whoever reviewed. The follow-up starts with `OpenWaggle Host-authored Delegation revision request` and carries these values:
+
+| Value | What it is |
+| --- | --- |
+| `delegationId` | The delegation. |
+| `parentSessionId` | The parent session. |
+| `submissionRevision` | The submission the parent reviewed or reopened. |
+| `specificationRevision` | Only when the request revised the task. The new task arrives as its own specification update. |
+| `feedback` | The feedback, or the reason for a reopen. |
+
+- An idle worker starts a run on it straight away.
+- A busy worker gets it after its current run. The reply of that current run does not count as the new revision. The reply of the run that reads the feedback does.
+- It is a follow-up from the reviewer, so the queue rules and run limits are the ones for that reviewer's other follow-ups.
+- A reviewer that may not message the worker, such as a CLI client profile without `sessions:message` on it, still records the request. The worker then gets no follow-up and stays `revision_requested` until someone sends it a message.
 
 ### When a worker reports to an idle parent
 
