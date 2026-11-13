@@ -23,6 +23,7 @@ import {
 } from './electrobun-preview-screenshots'
 import type { ElectrobunPreviewGuest } from './electrobun-preview-guest'
 import type { ElectrobunPreviewRecord } from './electrobun-preview-records'
+import type { CdpCommandParams } from '../../browser-preview/automation/browser-preview-cdp-input-params'
 
 /**
  * A CEF preview as the agent's automation drives it (ADR 0064): the page's own CDP connection
@@ -64,7 +65,7 @@ class CefAutomationDebugger implements BrowserPreviewAutomationDebugger {
     return this.attached
   }
 
-  sendCommand(method: string, params: Readonly<Record<string, unknown>> = {}) {
+  sendCommand(method: string, params: CdpCommandParams = {}) {
     return this.guest.send(method, params)
   }
 

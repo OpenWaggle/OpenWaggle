@@ -1,4 +1,6 @@
 import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
 import type { CdpSocket, CdpSocketFactory } from '../cdp-connection'
 import { CefDevToolsEndpoint } from '../cef-devtools-endpoint'
 import type { ElectrobunPreviewView } from '../electrobun-preview-guest'
@@ -12,12 +14,21 @@ export const FAKE_PNG = Uint8Array.from([
 const CommandSchema = Schema.Struct({
   id: Schema.Number,
   method: Schema.String,
-  params: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  params: Schema.Object,
 })
 
-type CommandParams = Readonly<Record<string, unknown>>
+/** The command parameters the fake and its tests read; the rest ride along unread. */
+export interface CdpCommandFields {
+  readonly url: string
+  readonly entryId: number
+  readonly expression: string
+  readonly contextId: number
+  readonly clip: object
+}
 
-function stringParam(params: CommandParams, name: string) {
+type CommandParams = UncheckedFields<CdpCommandFields>
+
+function stringParam(params: CommandParams, name: keyof CdpCommandFields) {
   const value = params[name]
   if (typeof value !== 'string') throw new Error(`Expected a string ${name}`)
   return value
@@ -178,7 +189,9 @@ export function fakeCefBrowser(port = 9555) {
     const page = pages.get(targetId)
     if (page === undefined) throw new Error(`No page ${targetId}`)
     const socket = new FakeCdpSocket((data) => {
-      const { id, method, params } = decodeUnknownOrThrow(CommandSchema, parseJsonUnknown(data))
+      const command = decodeUnknownOrThrow(CommandSchema, parseJsonUnknown(data))
+      const { id, method } = command
+      const params = uncheckedFields<CdpCommandFields>(command.params)
       commands.push({ targetId, method, params })
       queueMicrotask(() => {
         if (failing.has(method)) {

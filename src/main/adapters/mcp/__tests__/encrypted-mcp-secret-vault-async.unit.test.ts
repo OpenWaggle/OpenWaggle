@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEncryptedMcpSecretVault } from '../encrypted-mcp-secret-vault-service'
 
 /**
- * Electron's safeStorage, where every synchronous call is the main-thread keychain read that can
- * stall for minutes: reading the vault must only use the asynchronous API. Electron 43's
- * `decryptStringAsync` opens values `encryptString` sealed (same `v10` format).
+ * A SecureStorage whose every synchronous call is the main-thread keychain read that can stall for
+ * minutes: reading the vault must only use the asynchronous API. The port's `decryptStringAsync`
+ * opens values `encryptString` sealed (the same format).
  */
 const keychainOffMainThread = vi.hoisted(() => ({
   isEncryptionAvailable: () => {
@@ -24,12 +24,13 @@ const keychainOffMainThread = vi.hoisted(() => ({
   decryptStringAsync: async (value: Buffer) => {
     const text = value.toString()
     if (!text.startsWith('sealed:')) throw new Error('Error while decrypting the ciphertext.')
-    return { result: text.slice('sealed:'.length), shouldReEncrypt: false }
+    return { result: text.slice('sealed:'.length) }
   },
+  warm: async () => undefined,
 }))
 
-// The production default reaches Electron's safeStorage through the SecureStorage port.
-vi.mock('electron', () => ({ safeStorage: keychainOffMainThread }))
+// The production default is the desktop shell's SecureStorage binding.
+vi.mock('../../../desktop-shell/secure-storage', () => ({ secureStorage: keychainOffMainThread }))
 
 let root: string
 

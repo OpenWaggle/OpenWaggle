@@ -32,6 +32,7 @@ import {
 } from './build-main-plugins'
 import { MAIN_CHUNK_MANIFEST_PATH } from './main-bundle-graph'
 import { type BunBuildConfig, bunBuild } from './support/bun-build'
+import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const OUT_DIRECTORY = path.join(ROOT, 'out/main')
@@ -131,14 +132,10 @@ export const PI_WORKERS: readonly {
   },
 ]
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /** Every package the bundle leaves to `node_modules`. */
 export function mainExternalPackages(manifest: unknown) {
-  const dependencies =
-    isRecord(manifest) && isRecord(manifest.dependencies) ? Object.keys(manifest.dependencies) : []
+  const declared = uncheckedFields<{ dependencies: object }>(manifest).dependencies
+  const dependencies = isObjectValue(declared) ? Object.keys(declared) : []
   return new Set([
     ...ALWAYS_EXTERNAL,
     ...dependencies.filter((name) => !BUNDLED_DEPENDENCIES.includes(name)),

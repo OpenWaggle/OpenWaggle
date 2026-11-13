@@ -33,6 +33,7 @@ import {
   readLocalStorageExport,
   removeLocalStorageExport,
 } from './local-storage-export'
+import { isObjectValue } from '@shared/utils/object-shape'
 
 export const ELECTRON_SESSION_DATA_DIRECTORY = 'session-data'
 export const ELECTRON_RENDERER_ORIGIN = 'openwaggle://app'
@@ -273,10 +274,6 @@ export function acknowledgeLocalStorageImport(
   })
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /**
  * The user will enter a step's data again ("Skip, I'll enter them again"): the step becomes final
  * if it was not, and its detail records the choice, so nothing asks about it again.
@@ -291,7 +288,7 @@ export function skipMigrationStep(
     const current = state.steps[step]
     const skipped = {
       status: isStepFinal(current) ? current.status : ('not-needed' as const),
-      detail: { ...(isRecord(current.detail) ? current.detail : {}), skippedByUser: true },
+      detail: { ...(isObjectValue(current.detail) ? current.detail : {}), skippedByUser: true },
     }
     const next = withStep(state, step, skipped, options.now?.() ?? new Date(), false)
     await writeMigrationState(options.userData, next)

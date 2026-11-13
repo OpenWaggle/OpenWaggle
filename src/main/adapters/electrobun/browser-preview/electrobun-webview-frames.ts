@@ -24,7 +24,7 @@ export interface NativeWebviewFrames {
 }
 
 interface FfiLibrary {
-  readonly symbols: Readonly<Record<string, unknown>>
+  readonly symbols: object
 }
 
 interface BunFfi {

@@ -173,7 +173,7 @@ export function startProcess(
     } finally {
       kernel32.CloseHandle(thread)
     }
-    return { pid, process }
+    return { pid, process } satisfies Started
   } finally {
     kernel32.DeleteProcThreadAttributeList(ffi.ptr(list))
   }

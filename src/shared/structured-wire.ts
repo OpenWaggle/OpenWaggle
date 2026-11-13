@@ -9,7 +9,8 @@
  * instances arrive as plain objects. Unlike it, a cycle is refused instead of preserved; no IPC
  * payload has one.
  */
-import { uncheckedFields } from './utils/object-shape'
+import type { UncheckedFields } from './types/unchecked-fields'
+import { isObjectValue, uncheckedFields } from './utils/object-shape'
 
 const TAG = '$ow'
 
@@ -160,11 +161,23 @@ export function encodeStructured(value: unknown) {
   return encodeWith(value, new Set())
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/** The fields a sent value's tagged record carries, by kind; each is read and checked on its own. */
+interface TaggedFields {
+  readonly kind: string
+  readonly base64: string
+  readonly message: string
+  readonly name: string
+  readonly stack: string
+  readonly value: unknown
+  readonly values: unknown
+  readonly entries: unknown
+  readonly source: string
+  readonly flags: string
 }
 
-function stringField(record: Readonly<Record<string, unknown>>, key: string) {
+type TaggedRecord = UncheckedFields<TaggedFields>
+
+function stringField(record: TaggedRecord, key: keyof TaggedFields) {
   const field = record[key]
   if (typeof field !== 'string') throw new TypeError(`A sent value has no "${key}" text.`)
   return field
@@ -178,7 +191,7 @@ function decodeNumber(text: string) {
   throw new TypeError(`"${text}" is not a sent number.`)
 }
 
-function decodeBytes(record: Readonly<Record<string, unknown>>) {
+function decodeBytes(record: TaggedRecord) {
   const kind = stringField(record, 'kind')
   const buffer = base64ToBuffer(stringField(record, 'base64'))
   if (kind === 'ArrayBuffer') return buffer
@@ -187,10 +200,10 @@ function decodeBytes(record: Readonly<Record<string, unknown>>) {
   return codec.create(buffer)
 }
 
-function decodeError(record: Readonly<Record<string, unknown>>) {
+function decodeError(record: TaggedRecord) {
   const error = new Error(stringField(record, 'message'))
   error.name = stringField(record, 'name')
-  const { stack } = uncheckedFields<{ stack: string }>(record)
+  const { stack } = record
   if (typeof stack === 'string') error.stack = stack
   return error
 }
@@ -212,16 +225,16 @@ function decodeEntries(entries: unknown) {
   )
 }
 
-type TaggedDecoder = (record: Readonly<Record<string, unknown>>) => unknown
+type TaggedDecoder = (record: TaggedRecord) => unknown
 
-function decodeDate(record: Readonly<Record<string, unknown>>) {
-  const time = uncheckedFields<{ value: number }>(record).value
+function decodeDate(record: TaggedRecord) {
+  const time = record.value
   if (typeof time !== 'number' && time !== null) throw new TypeError('A sent date has no time.')
   return new Date(time ?? Number.NaN)
 }
 
-function decodeSet(record: Readonly<Record<string, unknown>>) {
-  const { values } = uncheckedFields<{ values: unknown }>(record)
+function decodeSet(record: TaggedRecord) {
+  const { values } = record
   if (!Array.isArray(values)) throw new TypeError('A sent set has no values.')
   return new Set(values.map((entry: unknown) => decodeStructured(entry)))
 }
@@ -234,20 +247,20 @@ const TAGGED_DECODERS: Readonly<Record<string, TaggedDecoder>> = {
   date: decodeDate,
   regexp: (record) => new RegExp(stringField(record, 'source'), stringField(record, 'flags')),
   bytes: decodeBytes,
-  map: (record) => decodeEntries(uncheckedFields<{ entries: unknown }>(record).entries),
+  map: (record) => decodeEntries(record.entries),
   set: decodeSet,
   error: decodeError,
-  object: (record) => decodePlainObject(uncheckedFields<{ entries: unknown }>(record).entries),
+  object: (record) => decodePlainObject(record.entries),
 }
 
-function decodeTagged(record: Readonly<Record<string, unknown>>, tag: string) {
+function decodeTagged(record: TaggedRecord, tag: string) {
   const decoder = Object.hasOwn(TAGGED_DECODERS, tag) ? TAGGED_DECODERS[tag] : undefined
   if (!decoder) throw new TypeError(`"${tag}" is not a sent value kind.`)
   return decoder(record)
 }
 
 function decodePlainObject(value: unknown) {
-  if (!isRecord(value)) throw new TypeError('A sent object has no entries.')
+  if (!isObjectValue(value)) throw new TypeError('A sent object has no entries.')
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [key, decodeStructured(entry)]),
   )
@@ -256,9 +269,9 @@ function decodePlainObject(value: unknown) {
 /** The value `encodeStructured` encoded. Throws a `TypeError` for anything it did not write. */
 export function decodeStructured(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((entry: unknown) => decodeStructured(entry))
-  if (!isRecord(value)) return value
-  const tag = value[TAG]
-  if (typeof tag === 'string') return decodeTagged(value, tag)
+  if (!isObjectValue(value)) return value
+  const tag = TAG in value ? value[TAG] : undefined
+  if (typeof tag === 'string') return decodeTagged(uncheckedFields<TaggedFields>(value), tag)
   return decodePlainObject(value)
 }
 
@@ -273,12 +286,14 @@ export interface PacketTransport {
 const PACKET_VALUE_FIELDS = ['params', 'payload'] as const
 
 function mapPacketValues(packet: unknown, map: (value: unknown) => unknown) {
-  if (!isRecord(packet)) return packet
-  const mapped: Record<string, unknown> = { ...packet }
-  for (const field of PACKET_VALUE_FIELDS) {
-    if (Object.hasOwn(packet, field)) mapped[field] = map(packet[field])
-  }
-  return mapped
+  if (!isObjectValue(packet)) return packet
+  const isValueField = (key: string) => PACKET_VALUE_FIELDS.some((field) => field === key)
+  return Object.fromEntries(
+    Object.entries(packet).map(([key, value]: [string, unknown]) => [
+      key,
+      isValueField(key) ? map(value) : value,
+    ]),
+  )
 }
 
 /**

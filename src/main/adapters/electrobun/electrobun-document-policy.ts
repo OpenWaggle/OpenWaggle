@@ -50,11 +50,12 @@ export function withoutScriptDirectives(policy: string) {
 /** `html` with `policy` as the head's first child, and the header it is served with. */
 export function placeContentSecurityPolicy(html: string, policy: string) {
   const head = HEAD_TAG.exec(html)
-  if (!head) return { html, header: policy }
+  if (!head) return { html, header: policy } satisfies PlacedContentSecurityPolicy
   const end = head.index + head[0].length
   const meta = `<meta http-equiv="content-security-policy" content="${attributeValue(policy)}">`
-  return {
+  const placed: PlacedContentSecurityPolicy = {
     html: `${html.slice(0, end)}${meta}${html.slice(end)}`,
     header: withoutScriptDirectives(policy),
   }
+  return placed
 }

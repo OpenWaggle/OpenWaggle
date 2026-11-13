@@ -59,7 +59,7 @@ export interface BunBuildConfig {
 
 export interface BunBuildMetafileOutput {
   readonly bytes: number
-  readonly inputs: Readonly<Record<string, unknown>>
+  readonly inputs: Readonly<Record<string, { readonly bytesInOutput: number }>>
   readonly imports: readonly { readonly path: string; readonly kind: string }[]
   readonly entryPoint?: string
 }
