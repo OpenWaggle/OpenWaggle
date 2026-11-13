@@ -20,10 +20,11 @@ export function stylesheetsFirst(html: string) {
   return `${withoutStylesheets.slice(0, insertAt)}${block}\n    ${withoutStylesheets.slice(insertAt)}`
 }
 
-export function stylesheetsFirstPlugin(): Plugin {
-  return {
+export function stylesheetsFirstPlugin() {
+  const plugin: Plugin = {
     name: 'openwaggle:stylesheets-first',
     enforce: 'post',
     transformIndexHtml: { order: 'post', handler: stylesheetsFirst },
   }
+  return plugin
 }
