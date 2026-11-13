@@ -5,7 +5,15 @@ import type {
 } from '@shared/types/session-control'
 
 /** Prefix of the Follow-up a Delegation revision request queues on the Worker. */
-const DELEGATION_REVISION_KEY_PREFIX = 'delegation-revision:'
+export const DELEGATION_REVISION_KEY_PREFIX = 'delegation-revision:'
+
+/** The commands that may send a Worker back to work with a revision request. */
+export const DELEGATION_REVISION_OPERATIONS = [
+  'delegation-request-revision',
+  'delegation-reopen',
+  'delegation-amend',
+  'delegation-dependency',
+] as const
 
 /**
  * The idempotency key of the Follow-up a command queues on its Worker. It names the operation,
@@ -13,6 +21,7 @@ const DELEGATION_REVISION_KEY_PREFIX = 'delegation-revision:'
  * Follow-ups' keys share the operation `follow-up`.
  */
 export function delegationRevisionKey(operation: string, key: string) {
+  // Worker settlement builds the same key in SQL (`sqlite-delegation-revision-owed.ts`).
   return `${DELEGATION_REVISION_KEY_PREFIX}${operation}:${key}`
 }
 
