@@ -1,23 +1,39 @@
 import { createHash } from 'node:crypto'
 import { rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   installPackageConsumerTools,
+  resolveToolRoot,
   verifyDownloadedPackageIntegrity,
   verifyPackageConsumerTools,
 } from '../package-consumer-tools'
 
+const REPOSITORY_ROOT = process.cwd()
+
+/** pnpm refuses to run under a package.json that pins another package manager. */
+function refuseInsideRepository(cwd: string) {
+  const fromRepository = relative(REPOSITORY_ROOT, cwd)
+  if (!fromRepository.startsWith('..')) {
+    throw new Error('[ERROR] This project is configured to use bun')
+  }
+}
+
 describe('package consumer tools', () => {
   it('pins the official registry, package integrities, and isolated install prefix', async () => {
-    const commands: { readonly command: string; readonly args: readonly string[] }[] = []
+    const commands: {
+      readonly command: string
+      readonly args: readonly string[]
+      readonly cwd: string
+    }[] = []
     const pathWrites: { readonly filePath: string; readonly contents: string }[] = []
     const verifiedPackages: { readonly filePath: string; readonly integrity: string }[] = []
     await installPackageConsumerTools(
       { toolRoot: '/tmp/tools', githubPath: '/tmp/github-path' },
       {
-        runCommand: async (command, args) => {
-          commands.push({ command, args })
+        runCommand: async (command, args, cwd) => {
+          refuseInsideRepository(cwd)
+          commands.push({ command, args, cwd })
           if (args[0] !== 'pack') return ''
           const filename =
             args[1] === 'npm@11.18.0' ? 'npm-11.18.0.tgz' : 'yarnpkg-cli-dist-4.17.1.tgz'
@@ -65,6 +81,7 @@ describe('package consumer tools', () => {
         '/tmp/tools/downloads/yarnpkg-cli-dist-4.17.1.tgz',
       ]),
     )
+    expect(commands.map(({ cwd }) => cwd)).toEqual(['/tmp/tools', '/tmp/tools', '/tmp/tools'])
     expect(verifiedPackages).toHaveLength(2)
     expect(pathWrites).toEqual([{ filePath: '/tmp/github-path', contents: '/tmp/tools/bin\n' }])
   })
@@ -108,10 +125,27 @@ describe('package consumer tools', () => {
       ['pnpm', '11.15.1'],
       ['bun', '1.4.4'],
     ])
+    const workingDirectories: string[] = []
     await verifyPackageConsumerTools('/tmp/tools', {
       resolveExecutable: async (name) =>
         name === 'npm' || name === 'yarn' ? join('/tmp/tools', 'bin', name) : `/usr/bin/${name}`,
-      runCommand: async (command) => versions.get(command.split('/').at(-1) ?? '') ?? '',
+      runCommand: async (command, _args, cwd) => {
+        refuseInsideRepository(cwd)
+        workingDirectories.push(cwd)
+        return versions.get(command.split('/').at(-1) ?? '') ?? ''
+      },
     })
+    expect(workingDirectories).toEqual(['/tmp/tools', '/tmp/tools', '/tmp/tools', '/tmp/tools'])
+  })
+
+  it('resolves the tool root outside the repository and rejects one inside it', () => {
+    expect(resolveToolRoot('/tmp/tools', '/work/repo')).toBe('/tmp/tools')
+    expect(resolveToolRoot('../tools', '/work/repo')).toBe('/work/tools')
+    expect(resolveToolRoot('/work/repo-tools', '/work/repo')).toBe('/work/repo-tools')
+    for (const insideRoot of ['/work/repo', '/work/repo/.tmp/tools', 'tools', '..tools']) {
+      expect(() => resolveToolRoot(insideRoot, '/work/repo')).toThrow(
+        '--tool-root must be outside the repository',
+      )
+    }
   })
 })

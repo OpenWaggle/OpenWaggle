@@ -17,10 +17,7 @@ import {
 } from './package-smoke-runtime-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
 import { readPackageSmokeEnvironment, type PackageManagerName } from './package-smoke-env'
-import {
-  assertRequiredPackageManagers,
-  availablePackageManagers,
-} from './package-smoke-package-managers'
+import { consumerPackageManagers, type PackageManager } from './package-smoke-package-managers'
 import {
   createYarnTrustPolicy,
   parseMinimumReleaseAgeExclusions,
@@ -226,15 +223,14 @@ async function runPackedPackageSmoke(root: string, packages: readonly PackedPack
   }
 
   const environment = readPackageSmokeEnvironment()
-  const packageManagers = await availablePackageManagers()
-  assertRequiredPackageManagers(packageManagers, environment.requiredPackageManagers)
-  if (packageManagers.length === 0) {
-    throw new Error('Package consumer smoke requires npm, pnpm, Yarn, or Bun.')
-  }
-
   const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-smoke-'))
 
   try {
+    const packageManagers = await consumerPackageManagers(
+      smokeRoot,
+      root,
+      environment.requiredPackageManagers,
+    )
     // One consumer project per package manager, in parallel (own directory, ephemeral browser
     // port): run in turn, mostly waiting on the registry, they were the longest check step.
     const results = await Promise.allSettled(
@@ -261,7 +257,7 @@ async function smokeWithPackageManager(
   root: string,
   smokeRoot: string,
   packages: readonly PackedPackage[],
-  packageManager: Awaited<ReturnType<typeof availablePackageManagers>>[number],
+  packageManager: PackageManager,
   environment: ReturnType<typeof readPackageSmokeEnvironment>,
 ) {
   const managerRoot = path.join(smokeRoot, packageManager.name)

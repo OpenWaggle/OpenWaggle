@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { basename, delimiter, join } from 'node:path'
+import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const OFFICIAL_NPM_REGISTRY = 'https://registry.npmjs.org/'
@@ -33,7 +33,12 @@ const EXISTING_TOOLS = [
   { name: 'bun', version: '1.4.4' },
 ] as const
 
-type CommandRunner = (command: string, args: readonly string[]) => Promise<string>
+/**
+ * Runs a consumer tool in `cwd`. Every call passes the tool root, never the repository:
+ * pnpm reads the nearest package.json's `packageManager` field and refuses to run in a
+ * project that pins another package manager, and the repository pins Bun.
+ */
+type CommandRunner = (command: string, args: readonly string[], cwd: string) => Promise<string>
 
 interface InstallInput {
   readonly toolRoot: string
@@ -53,9 +58,10 @@ interface VerifyDependencies {
   readonly resolveExecutable?: (name: string) => Promise<string | undefined>
 }
 
-function runCommand(command: string, args: readonly string[]) {
+function runCommand(command: string, args: readonly string[], cwd: string) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, {
+      cwd,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -144,29 +150,37 @@ export async function installPackageConsumerTools(
 
   const tarballPaths: string[] = []
   for (const tool of PACKAGE_TOOLS) {
-    const packOutput = await execute('npm', [
-      'pack',
-      tool.spec,
-      '--json',
-      '--ignore-scripts',
-      `--pack-destination=${downloadDirectory}`,
-      `--registry=${OFFICIAL_NPM_REGISTRY}`,
-      `--userconfig=${userConfigPath}`,
-    ])
+    const packOutput = await execute(
+      'npm',
+      [
+        'pack',
+        tool.spec,
+        '--json',
+        '--ignore-scripts',
+        `--pack-destination=${downloadDirectory}`,
+        `--registry=${OFFICIAL_NPM_REGISTRY}`,
+        `--userconfig=${userConfigPath}`,
+      ],
+      input.toolRoot,
+    )
     const tarballPath = packedTarballPath(packOutput, downloadDirectory)
     await verifyDownloadedPackage(tarballPath, tool.integrity)
     tarballPaths.push(tarballPath)
   }
 
-  await execute('npm', [
-    'install',
-    '--global',
-    '--ignore-scripts',
-    `--prefix=${input.toolRoot}`,
-    `--registry=${OFFICIAL_NPM_REGISTRY}`,
-    `--userconfig=${userConfigPath}`,
-    ...tarballPaths,
-  ])
+  await execute(
+    'npm',
+    [
+      'install',
+      '--global',
+      '--ignore-scripts',
+      `--prefix=${input.toolRoot}`,
+      `--registry=${OFFICIAL_NPM_REGISTRY}`,
+      `--userconfig=${userConfigPath}`,
+      ...tarballPaths,
+    ],
+    input.toolRoot,
+  )
   await appendSearchPath(input.githubPath, `${join(input.toolRoot, 'bin')}\n`)
 }
 
@@ -185,7 +199,7 @@ export async function verifyPackageConsumerTools(
         throw new Error(`${tool.name} resolved from ${executable}, expected ${expectedExecutable}.`)
       }
     }
-    const actualVersion = await execute(executable, ['--version'])
+    const actualVersion = await execute(executable, ['--version'], toolRoot)
     if (actualVersion !== tool.version) {
       throw new Error(`${tool.name} version mismatch: ${actualVersion} != ${tool.version}`)
     }
@@ -199,10 +213,25 @@ function readFlag(args: readonly string[], flag: string) {
   return value
 }
 
+/**
+ * Resolves the tool root, which is also where every tool runs, and rejects one inside the
+ * repository: a tool started there would read the repository's `packageManager: bun` pin.
+ */
+export function resolveToolRoot(toolRoot: string, repositoryRoot: string) {
+  const resolvedToolRoot = resolve(repositoryRoot, toolRoot)
+  const fromRepository = relative(repositoryRoot, resolvedToolRoot)
+  const outside =
+    fromRepository === '..' || fromRepository.startsWith(`..${sep}`) || isAbsolute(fromRepository)
+  if (!outside) {
+    throw new Error(`${TOOL_ROOT_FLAG} must be outside the repository: ${resolvedToolRoot}.`)
+  }
+  return resolvedToolRoot
+}
+
 async function main() {
   const mode = process.argv[MODE_ARGUMENT_INDEX]
   const args = process.argv.slice(FLAG_ARGUMENT_START_INDEX)
-  const toolRoot = readFlag(args, TOOL_ROOT_FLAG)
+  const toolRoot = resolveToolRoot(readFlag(args, TOOL_ROOT_FLAG), process.cwd())
   if (mode === INSTALL_MODE) {
     await installPackageConsumerTools({
       toolRoot,
