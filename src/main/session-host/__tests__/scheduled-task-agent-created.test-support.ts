@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { ScheduledTaskInput } from '@shared/types/scheduled-task'
+import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import {
   type PiDiscoveryFixture,
@@ -133,10 +134,17 @@ export function agentTaskFixture(fixture: PiDiscoveryFixture) {
   /** A desktop Session with a Run the local user started, whose agent then schedules work. */
   async function agentSession(
     ceiling: 'yolo' | 'ask-for-approval',
-    options: { readonly projectLimited?: boolean } = {},
+    options: {
+      readonly projectLimited?: boolean
+      /** The capability list its execution profile persisted, as an older Session's did. */
+      readonly persistedCapabilities?: readonly SessionCapability[]
+      /** Runs after the profile is written and before the agent's caller is resolved. */
+      readonly beforeRun?: (sessionId: string) => Promise<unknown>
+    } = {},
   ) {
     const sessionId = await createIdleSession(fixture.project)
-    await setSessionModel(sessionId)
+    await setSessionModel(sessionId, options.persistedCapabilities)
+    await options.beforeRun?.(sessionId)
     await setCeiling(sessionId, ceiling)
     if (options.projectLimited) await limitToProject(sessionId)
     await runSql((sql) =>
