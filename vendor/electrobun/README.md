@@ -9,7 +9,7 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 | --- | --- | --- | --- |
 | macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011, 0014 to 0016 and 0020, Zig tools and Dawn rebuilt for 13.4 |
 | Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007, 0009 to 0011 and 0020, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007, 0009 to 0013 and 0020, plus the WebView2 Evergreen bootstrapper |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007, 0009 to 0013, 0020 and 0021, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -142,6 +142,12 @@ release targets (docs/release-and-versioning.md), so they are not built.
    call. The webview's secret key then arrived short and the app quit at startup ("Webview secret
    key must contain exactly 32 bytes"). Each Buffer now stays referenced until the next macrotask.
    Patches 0020 on are packaging and Linux fixes (0012 and 0013 are Windows, 0014 on macOS).
+21. **windows: open the main WebView2 environment's DevTools when automation names a port.**
+   Automation drove the app's own views over Chrome DevTools Protocol by moving them into the
+   Chromium environment (`OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef`), which keeps its own GPU and
+   network service processes (patch 0013), so a bench measured a process tree no user runs.
+   `ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT=<port>` adds `--remote-debugging-port` to the
+   main environment's arguments; the launcher never sets it, and without it nothing changes.
 
 ## CEF component (macOS)
 

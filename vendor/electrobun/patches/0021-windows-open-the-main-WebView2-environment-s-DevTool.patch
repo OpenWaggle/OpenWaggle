@@ -1,0 +1,129 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Fri, 13 Nov 2026 19:27:52 +0100
+Subject: [PATCH] windows: open the main WebView2 environment's DevTools when
+ automation names a port
+
+Automation that drives the app's own views over Chrome DevTools Protocol
+had to move them into the Chromium environment, which keeps its own GPU and
+network service processes, so it measured a process tree no user runs.
+ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT adds --remote-debugging-port
+to the main environment's arguments; without it nothing changes.
+---
+ .../shared/webview2_chromium_environment.h    | 19 ++++++++++++++
+ .../webview2_chromium_environment_test.cpp    |  7 +++++-
+ package/src/native/win/nativeWrapper.cpp      | 25 ++++++++++++++++---
+ 3 files changed, 46 insertions(+), 5 deletions(-)
+
+diff --git a/package/src/native/shared/webview2_chromium_environment.h b/package/src/native/shared/webview2_chromium_environment.h
+index 18db0dc..a5815d3 100644
+--- a/package/src/native/shared/webview2_chromium_environment.h
++++ b/package/src/native/shared/webview2_chromium_environment.h
+@@ -44,6 +44,25 @@ inline constexpr std::wstring_view kWebView2MainBrowserArguments =
+     L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+     L" --in-process-gpu --enable-features=NetworkServiceInProcess2";
+ 
++/**
++ * The environment variable that opens the main environment's DevTools on a
++ * port, for automation that drives the app's own views the way it drives CEF
++ * (ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT). Without it the main environment
++ * serves none; the launcher never sets it.
++ */
++inline constexpr const char* kWebView2MainRemoteDebuggingPortEnvironment =
++    "ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT";
++
++/** The browser arguments of the main environment; port 0 serves no DevTools. */
++inline std::wstring buildWebView2MainBrowserArguments(int remoteDebuggingPort) {
++    std::wstring arguments(kWebView2MainBrowserArguments);
++    if (remoteDebuggingPort > 0 && remoteDebuggingPort <= 65535) {
++        arguments += L" --remote-debugging-port=";
++        arguments += std::to_wstring(remoteDebuggingPort);
++    }
++    return arguments;
++}
++
+ /** The browser arguments of the Chromium environment; port 0 serves no DevTools. */
+ inline std::wstring buildWebView2ChromiumBrowserArguments(int remoteDebuggingPort) {
+     std::wstring arguments(kWebView2BrowserArguments);
+diff --git a/package/src/native/shared/webview2_chromium_environment_test.cpp b/package/src/native/shared/webview2_chromium_environment_test.cpp
+index 4a25973..57d5def 100644
+--- a/package/src/native/shared/webview2_chromium_environment_test.cpp
++++ b/package/src/native/shared/webview2_chromium_environment_test.cpp
+@@ -19,13 +19,18 @@ int main() {
+     assert(buildWebView2ChromiumBrowserArguments(49152).find(L"web-security") == std::wstring::npos);
+ 
+     // The main environment folds its GPU and network helpers into the browser
+-    // process and serves no DevTools; the Chromium environment keeps both.
++    // process and serves no DevTools by default; the Chromium environment keeps both.
+     const std::wstring main(electrobun::kWebView2MainBrowserArguments);
+     assert(main.rfind(electrobun::kWebView2BrowserArguments, 0) == 0);
+     assert(main.find(L" --in-process-gpu") != std::wstring::npos);
+     assert(main.find(L" --enable-features=NetworkServiceInProcess2") != std::wstring::npos);
+     assert(main.find(L"remote-debugging") == std::wstring::npos);
+     assert(main.find(L"web-security") == std::wstring::npos);
++    // Automation opens the main environment's DevTools on the port it names.
++    assert(electrobun::buildWebView2MainBrowserArguments(0) == main);
++    assert(electrobun::buildWebView2MainBrowserArguments(9333) ==
++           main + L" --remote-debugging-port=9333");
++    assert(electrobun::buildWebView2MainBrowserArguments(70000) == main);
+     assert(buildWebView2ChromiumBrowserArguments(49152).find(L"in-process") == std::wstring::npos);
+ 
+     // persist:* is an on-disk profile; other names are InPrivate profiles.
+diff --git a/package/src/native/win/nativeWrapper.cpp b/package/src/native/win/nativeWrapper.cpp
+index c2b7363..4975329 100644
+--- a/package/src/native/win/nativeWrapper.cpp
++++ b/package/src/native/win/nativeWrapper.cpp
+@@ -7445,6 +7445,21 @@ static int webView2ChromiumRemoteDebuggingPort() {
+     return port;
+ }
+ 
++// The remote debugging port of WebView2's main environment: the port in
++// ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT when it names a valid one,
++// else 0, which serves none.
++static int webView2MainRemoteDebuggingPort() {
++    static const int port = []() {
++        const char* value = getenv(electrobun::kWebView2MainRemoteDebuggingPortEnvironment);
++        int parsed = 0;
++        if (value == nullptr || !electrobun::parseRemoteDebuggingPort(value, &parsed)) return 0;
++        std::cout << "[WebView2] Main environment remote debugging on 127.0.0.1:" << parsed
++                  << std::endl;
++        return parsed;
++    }();
++    return port;
++}
++
+ // Internal factory method for creating WebView2 instances
+ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+                                                  HWND hwnd,
+@@ -8320,11 +8335,12 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+             // The same-origin policy stays on: --disable-web-security would let
+             // every page read any origin, including the app's own loopback
+             // servers, and --allow-insecure-localhost would accept any
+-            // certificate for localhost. Only the Chromium environment serves
+-            // DevTools, on the app's remote debugging port.
++            // certificate for localhost. The Chromium environment serves
++            // DevTools on the app's remote debugging port; the main
++            // environment only when automation names a port for it.
+             const std::wstring browserArguments = chromiumEnvironment
+                 ? electrobun::buildWebView2ChromiumBrowserArguments(webView2ChromiumRemoteDebuggingPort())
+-                : std::wstring(electrobun::kWebView2MainBrowserArguments);
++                : electrobun::buildWebView2MainBrowserArguments(webView2MainRemoteDebuggingPort());
+             options->put_AdditionalBrowserArguments(browserArguments.c_str());
+ 
+             // Get the interface that supports custom scheme registration
+@@ -9194,10 +9210,11 @@ ELECTROBUN_EXPORT AbstractView* initWebview(uint32_t webviewId,
+     } else {
+         // Without a bundled CEF, a CEF webview is still a Chromium page on
+         // a DevTools port: WebView2's Chromium environment serves it. The
+-        // port is read with the first webview, before the app can change
++        // ports are read with the first webview, before the app can change
+         // the environment it was launched with.
+         const bool chromiumEnvironment = renderer && strcmp(renderer, "cef") == 0;
+         webView2ChromiumRemoteDebuggingPort();
++        webView2MainRemoteDebuggingPort();
+         auto webview2View = createWebView2View(webviewId, hwnd, url, x, y, width, height, autoResize,
+                                               partitionIdentifier, navigationCallback, webviewEventHandler,
+                                               eventBridgeHandler, bunBridgeHandler, internalBridgeHandler,
+-- 
+2.54.0 (Apple Git-157)
+
