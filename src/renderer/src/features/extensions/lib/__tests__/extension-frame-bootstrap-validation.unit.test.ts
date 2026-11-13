@@ -85,7 +85,7 @@ describe('extension frame bootstrap validation', () => {
     ).toBeNull()
   })
 
-  it('accepts complete syntax results and rejects malformed tokens', () => {
+  it('accepts complete syntax results and marks malformed tokens invalid', () => {
     const valid = {
       channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
       frameId: 'frame-1',
@@ -109,12 +109,17 @@ describe('extension frame bootstrap validation', () => {
         },
         'frame-1',
       ),
-    ).toBeNull()
+    ).toEqual({
+      type: 'invalid-result',
+      resultType: 'syntax-highlight-result',
+      requestId: 'syntax-1',
+      issuePaths: ['lines.0.0.content: Type'],
+    })
   })
 
   // The parent message is decoded with the broker's invoke result schema; the earlier guard took
   // any string as an audit outcome and any object as a success value.
-  it('accepts a broker invoke result and refuses one the broker schema does not declare', () => {
+  it('accepts a broker invoke result and marks one the broker schema does not declare invalid', () => {
     const audit = {
       extensionId: 'sample-extension',
       contributionId: 'sample.settings',
@@ -150,6 +155,6 @@ describe('extension frame bootstrap validation', () => {
         { ...message, result: { ...message.result, audit: { ...audit, outcome: 'maybe' } } },
         'frame-1',
       ),
-    ).toBeNull()
+    ).toMatchObject({ type: 'invalid-result', resultType: 'invoke-result', requestId: 'invoke-1' })
   })
 })
