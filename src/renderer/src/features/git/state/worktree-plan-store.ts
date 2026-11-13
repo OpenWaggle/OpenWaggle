@@ -6,13 +6,14 @@ export interface WorktreePlanOverride {
   readonly envMode?: SessionEnvironmentMode
   readonly baseRef?: string | null
   readonly startFromOrigin?: boolean
-  // explicit undefined: setOverride merges a patch, and undefined clears the chosen profile
-  readonly preparationProfileId?: string | undefined
+  readonly preparationProfileId?: string
 }
 
 interface WorktreePlanState {
   readonly bySessionId: Record<string, WorktreePlanOverride>
   readonly setOverride: (sessionId: string, patch: WorktreePlanOverride) => void
+  /** Removes the chosen Preparation profile, so the plan falls back to none. */
+  readonly clearPreparationProfile: (sessionId: string) => void
   readonly takeOverride: (key: string) => WorktreePlanOverride | undefined
 }
 
@@ -68,6 +69,13 @@ export const useWorktreePlanStore = create<WorktreePlanState>()((set, get) => ({
         [sessionId]: { ...state.bySessionId[sessionId], ...patch },
       },
     })),
+  clearPreparationProfile: (sessionId) =>
+    set((state) => {
+      const current = state.bySessionId[sessionId]
+      if (current === undefined) return state
+      const { preparationProfileId: _cleared, ...rest } = current
+      return { bySessionId: { ...state.bySessionId, [sessionId]: rest } }
+    }),
   takeOverride: (key) => {
     const override = get().bySessionId[key]
     if (override) {
