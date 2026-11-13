@@ -1,3 +1,4 @@
-# Refuse force pushes, then run the fast verify, or the full gate for a push to main
+# Refuse force pushes, except a lease push that replays an agent's own ow/* PR branch (see the
+# git-guardrails skill), then run the fast verify, or the full gate for a push to main
 # (scripts/git-hooks/pre-push.ts). git's ref updates arrive on stdin; exec keeps them there.
 exec bun scripts/git-hooks/pre-push.ts
