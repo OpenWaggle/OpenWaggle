@@ -36,7 +36,7 @@ export async function waitUntil<T>(
   timeoutMs: number,
   read: () => Promise<T | null | undefined | false>,
   pollMs = POLL_MS,
-): Promise<T> {
+) {
   const deadline = Date.now() + timeoutMs
   let lastError = ''
   while (Date.now() < deadline) {
@@ -61,7 +61,7 @@ function isDevToolsTarget(value: unknown): value is DevToolsTarget {
   return typeof value === 'object' && value !== null
 }
 
-export async function devToolsTargets(port: number): Promise<DevToolsTarget[]> {
+export async function devToolsTargets(port: number) {
   const response = await fetch(`http://${LOOPBACK}:${String(port)}/json/list`)
   const targets: unknown = await response.json()
   return Array.isArray(targets) ? targets.filter(isDevToolsTarget) : []

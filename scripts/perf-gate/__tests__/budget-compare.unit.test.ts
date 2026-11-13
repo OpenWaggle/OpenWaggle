@@ -22,13 +22,14 @@ const METRICS: readonly PerfBudgetMetric[] = [
   },
 ]
 
-function file(metrics: Record<string, [number, number]>): PerfBudgetFile {
-  return {
+function file(metrics: Record<string, [number, number]>) {
+  const result: PerfBudgetFile = {
     about: '',
     metrics: Object.fromEntries(
       Object.entries(metrics).map(([id, [value, quantum]]) => [id, { value, quantum }]),
     ),
   }
+  return result
 }
 
 const main = file({ 'ipc.calls': [22, 1], 'bundle.bytes': [10_240, 1024] })

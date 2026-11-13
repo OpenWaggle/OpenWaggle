@@ -60,7 +60,7 @@ export interface TimingVerdict {
 const PAIR = 2
 const KINDS: readonly MetricKind[] = ['timing', 'memory', 'count', 'calls']
 
-export function median(values: readonly number[]): number | null {
+export function median(values: readonly number[]) {
   const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b)
   if (sorted.length === 0) return null
   const lower = sorted[Math.floor((sorted.length - 1) / PAIR)] ?? 0
@@ -87,7 +87,7 @@ function memoryReaders(samples: readonly AbSample[], phase: 'idle' | 'afterTurn'
 }
 
 /** Every metric of an A/B run, as an id, its kind and how to read it from a sample. */
-export function abMetrics(samples: readonly AbSample[]): [string, MetricKind, Reader][] {
+export function abMetrics(samples: readonly AbSample[]) {
   const launches: [string, MetricKind, Reader][] = (['cold', 'warm'] as const).flatMap((launch) => [
     [`${launch}.window-ready`, 'timing', (sample: AbSample) => sample[launch].windowReadyMs],
     [`${launch}.backend-ready`, 'timing', (sample: AbSample) => sample[launch].backendReadyMs],
@@ -108,13 +108,7 @@ function numbers(values: readonly (number | null | undefined)[]) {
   return values.filter((value): value is number => typeof value === 'number')
 }
 
-function row(
-  id: string,
-  kind: MetricKind,
-  read: Reader,
-  results: AbResults,
-  limit: Limit,
-): TimingRow {
+function row(id: string, kind: MetricKind, read: Reader, results: AbResults, limit: Limit) {
   const base = results.samples.filter((sample) => sample.build === 'base')
   const head = results.samples.filter((sample) => sample.build === 'head')
   const differences = numbers(
@@ -129,7 +123,7 @@ function row(
   const headMedian = median(numbers(head.map(read)))
   const delta = median(differences)
   if (baseMedian === null || headMedian === null || delta === null) {
-    return {
+    const unavailable: TimingRow = {
       id,
       kind,
       base: baseMedian,
@@ -139,16 +133,27 @@ function row(
       limit: null,
       status: 'unavailable',
     }
+    return unavailable
   }
   const allowed = Math.max(limit.relative * baseMedian, limit.absolute)
   const relative = baseMedian === 0 ? null : delta / baseMedian
   const status: TimingStatus =
     delta > allowed ? 'regressed' : delta < -allowed ? 'improved' : 'same'
-  return { id, kind, base: baseMedian, head: headMedian, delta, relative, limit: allowed, status }
+  const measured: TimingRow = {
+    id,
+    kind,
+    base: baseMedian,
+    head: headMedian,
+    delta,
+    relative,
+    limit: allowed,
+    status,
+  }
+  return measured
 }
 
 /** Limits the head's thresholds file loosens against main's: a higher limit or fewer pairs. */
-export function loosenedThresholds(base: Thresholds, head: Thresholds): ThresholdChange[] {
+export function loosenedThresholds(base: Thresholds, head: Thresholds) {
   const changes: ThresholdChange[] = []
   for (const kind of KINDS) {
     for (const part of ['relative', 'absolute'] as const) {
@@ -166,7 +171,7 @@ export function timingVerdict(input: {
   readonly thresholds: Thresholds
   readonly headThresholds: Thresholds
   readonly labels: readonly string[]
-}): TimingVerdict {
+}) {
   const rows = abMetrics(input.results.samples).map(([id, kind, read]) =>
     row(id, kind, read, input.results, input.thresholds[kind]),
   )
@@ -174,5 +179,12 @@ export function timingVerdict(input: {
   const loosened = loosenedThresholds(input.thresholds, input.headThresholds)
   const failing = regressions.length > 0 || loosened.length > 0
   const accepted = failing && input.labels.includes(REGRESSION_ACCEPTED_LABEL)
-  return { rows, regressions, loosened, accepted, passed: !failing || accepted }
+  const verdict: TimingVerdict = {
+    rows,
+    regressions,
+    loosened,
+    accepted,
+    passed: !failing || accepted,
+  }
+  return verdict
 }

@@ -1,4 +1,6 @@
 /** Reading the A/B run's files, and the evidence lines the verdict prints when it fails. */
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 import type { AbResults } from './ab-run'
 import type { AbSample } from './ab-sample'
 import {
@@ -14,17 +16,32 @@ const PERCENT = 100
 const MEBIBYTE = 1_048_576
 const DECIMALS = 1
 
-function fields(value: unknown, what: string): Readonly<Record<string, unknown>> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`${what} is not an object.`)
-  }
-  return Object.fromEntries(Object.entries(value))
+const limitFields = Schema.Struct({ relative: unknownField, absolute: unknownField })
+const thresholdFields = Schema.Struct({
+  pairs: unknownField,
+  idleMs: unknownField,
+  timing: unknownField,
+  memory: unknownField,
+  count: unknownField,
+  calls: unknownField,
+})
+const resultFields = Schema.Struct({
+  samples: unknownField,
+  builds: unknownField,
+  platform: unknownField,
+  arch: unknownField,
+  pairs: unknownField,
+  idleMs: unknownField,
+})
+
+function fields<A, I>(schema: Schema.Schema<A, I>, value: unknown, what: string) {
+  const parsed = objectFields(schema, value)
+  if (parsed === undefined) throw new Error(`${what} is not an object.`)
+  return parsed
 }
 
-function limit(value: unknown, what: string): Limit {
-  const parsed = fields(value, what)
-  const relative = parsed['relative']
-  const absolute = parsed['absolute']
+function limit(value: unknown, what: string) {
+  const { relative, absolute } = fields(limitFields, value, what)
   if (
     typeof relative !== 'number' ||
     typeof absolute !== 'number' ||
@@ -33,25 +50,26 @@ function limit(value: unknown, what: string): Limit {
   ) {
     throw new Error(`${what} needs non-negative relative and absolute numbers.`)
   }
-  return { relative, absolute }
+  const result: Limit = { relative, absolute }
+  return result
 }
 
-export function parseThresholds(value: unknown): Thresholds {
-  const parsed = fields(value, 'The thresholds file')
-  const pairs = parsed['pairs']
-  const idleMs = parsed['idleMs']
+export function parseThresholds(value: unknown) {
+  const parsed = fields(thresholdFields, value, 'The thresholds file')
+  const { pairs, idleMs } = parsed
   if (typeof pairs !== 'number' || !Number.isSafeInteger(pairs) || pairs < 1) {
     throw new Error('The thresholds file needs a positive integer pairs.')
   }
   if (typeof idleMs !== 'number' || idleMs < 0) throw new Error('The thresholds file needs idleMs.')
-  return {
+  const thresholds: Thresholds = {
     pairs,
     idleMs,
-    timing: limit(parsed['timing'], 'timing'),
-    memory: limit(parsed['memory'], 'memory'),
-    count: limit(parsed['count'], 'count'),
-    calls: limit(parsed['calls'], 'calls'),
+    timing: limit(parsed.timing, 'timing'),
+    memory: limit(parsed.memory, 'memory'),
+    count: limit(parsed.count, 'count'),
+    calls: limit(parsed.calls, 'calls'),
   }
+  return thresholds
 }
 
 function isSample(value: unknown): value is AbSample {
@@ -60,10 +78,9 @@ function isSample(value: unknown): value is AbSample {
 }
 
 /** The A/B run's own output; trusted, since this job wrote it. */
-export function parseAbResults(value: unknown): AbResults {
-  const parsed = fields(value, 'The A/B results')
-  const samples = parsed['samples']
-  const builds = parsed['builds']
+export function parseAbResults(value: unknown) {
+  const parsed = fields(resultFields, value, 'The A/B results')
+  const { samples, builds } = parsed
   if (
     !Array.isArray(samples) ||
     !samples.every(isSample) ||
@@ -72,14 +89,15 @@ export function parseAbResults(value: unknown): AbResults {
   ) {
     throw new Error('The A/B results have no samples.')
   }
-  return {
-    platform: String(parsed['platform']),
-    arch: String(parsed['arch']),
-    pairs: Number(parsed['pairs']),
-    idleMs: Number(parsed['idleMs']),
+  const results: AbResults = {
+    platform: String(parsed.platform),
+    arch: String(parsed.arch),
+    pairs: Number(parsed.pairs),
+    idleMs: Number(parsed.idleMs),
     builds: { base: { label: 'base' }, head: { label: 'head' } },
     samples,
   }
+  return results
 }
 
 function value(row: TimingRow, amount: number | null) {

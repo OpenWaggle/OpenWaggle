@@ -73,7 +73,7 @@ const SENTENCES = [
   'Nothing in this answer depends on the clock or the machine it runs on.',
 ]
 
-function pick<T>(values: readonly T[], index: number): T {
+function pick<T>(values: readonly T[], index: number) {
   const value = values[index % values.length]
   if (value === undefined) throw new Error('Cannot pick from an empty list.')
   return value
@@ -92,7 +92,7 @@ function node(
   kind: ProjectedSessionNodeInput['kind'],
   role: ProjectedSessionNodeInput['role'],
   content: object,
-): ProjectedSessionNodeInput {
+) {
   return {
     id: `perf-long-node-${String(order)}`,
     parentId: order === 0 ? null : `perf-long-node-${String(order - 1)}`,
@@ -108,7 +108,7 @@ function node(
 }
 
 /** One turn: the request, the call, its result and the answer. */
-function turnNodes(turn: number): ProjectedSessionNodeInput[] {
+function turnNodes(turn: number) {
   const first = turn * MESSAGES_PER_TURN
   const tool = pick(TOOLS, turn)
   const args = { path: `src/feature-${String(turn % 37)}/module-${String(turn % 11)}.ts` }
@@ -152,7 +152,7 @@ interface ProjectSessionRow {
   readonly at: number
 }
 
-function projectSessionRows(): ProjectSessionRow[] {
+function projectSessionRows() {
   return Array.from({ length: PROJECT_SESSION_COUNT }, (_, index) => {
     const id = projectSessionId(index)
     const title = `${pick(VERBS, index)} ${pick(SUBJECTS, index)} (${String(index + 1)})`
