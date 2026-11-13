@@ -9,7 +9,6 @@ import { incorporatedUserRow } from '@/features/chat/lib/chat-stream-user-messag
 import { createStartedRuns } from '@/features/chat/lib/run-ids'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { takeRestoredRunId } from '@/features/chat/state/background-run-activity-restore'
-import { UNNAMED_RUN_SEED } from '@/features/chat/state/background-run-render-state'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import {
@@ -207,17 +206,12 @@ function noteStreamingRun(
   // over, as at a start.
   useFirstSendPendingStore.getState().clear(sessionId)
   useRunFinishingStore.getState().clear(sessionId)
-  // Its answers go in a snapshot of their own, as at an unnamed start; its end or start names it.
-  const snapshot = store.getRunRenderSnapshot(sessionId)
-  if (!snapshot || snapshot.settledRunId !== undefined) {
-    store.applyRunRenderEvent(sessionId, {
-      type: 'agent_start',
-      runId: UNNAMED_RUN_SEED,
-      timestamp: event.timestamp,
-    })
-  }
   const runModel = event.model?.trim()
-  store.noteUnannouncedRun(sessionId, runModel ? SupportedModelId(runModel) : undefined)
+  store.noteUnannouncedRun(
+    sessionId,
+    event.timestamp,
+    runModel ? SupportedModelId(runModel) : undefined,
+  )
   return true
 }
 

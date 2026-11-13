@@ -194,7 +194,9 @@ export function withRunCompactionStatus(
   const existing = state.renderSnapshotsBySessionId.get(id)
   if (!existing) return state
   const next = new Map(state.renderSnapshotsBySessionId)
-  if (status === null && !active) {
+  // A Run's own snapshot stays until the Run settles: after its end Pi may continue it, its start
+  // lost, and mid-Run only that snapshot holds the answers the buffer's history budget dropped.
+  if (status === null && !active && !holdsUnsettledNamedRun(existing)) {
     next.delete(id)
     return { renderSnapshotsBySessionId: next }
   }
@@ -204,6 +206,11 @@ export function withRunCompactionStatus(
     updatedAt: Date.now(),
   })
   return { renderSnapshotsBySessionId: next }
+}
+
+function holdsUnsettledNamedRun(snapshot: RunRenderSnapshot) {
+  const seed = snapshot.seededByRunId
+  return seed !== undefined && !isUnnamedRunSeed(seed) && snapshot.settledRunId === undefined
 }
 
 /** What a snapshot holding a settled Run is marked with: that Run's id, or a mark naming none. */
@@ -272,4 +279,30 @@ export function withoutRunRenderSnapshot(state: RenderSnapshotState, id: Session
   const next = new Map(state.renderSnapshotsBySessionId)
   next.delete(id)
   return { renderSnapshotsBySessionId: next }
+}
+
+/**
+ * A Run whose start was lost streams (`noteUnannouncedRun`). With no snapshot, or one holding the
+ * settled Run before, its answers get a snapshot of their own, as at an unnamed start: mid-Run
+ * only that snapshot keeps the answers the buffer's history budget drops. A snapshot whose Run
+ * ended unsettled takes them after that Run's, whose rows hydration then leaves to the persisted
+ * transcript when it holds them: another Run's are saved, a Run continuing has them unsaved still.
+ */
+export function withUnannouncedRunRenderSnapshot(
+  state: RenderSnapshotState,
+  id: SessionId,
+  startedAt: number,
+) {
+  const existing = state.renderSnapshotsBySessionId.get(id)
+  const snapshot =
+    existing === undefined || existing.settledRunId !== undefined
+      ? seededSnapshotForRunStart(existing, UNNAMED_RUN_SEED, startedAt)
+      : {
+          ...existing,
+          settledMessageIds: new Set([
+            ...(existing.settledMessageIds ?? []),
+            ...existing.messages.map((message) => message.id),
+          ]),
+        }
+  return { renderSnapshotsBySessionId: new Map(state.renderSnapshotsBySessionId).set(id, snapshot) }
 }

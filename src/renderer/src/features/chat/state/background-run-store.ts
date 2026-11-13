@@ -38,6 +38,7 @@ import {
   withRunRenderEvent,
   withRunRenderMessages,
   withSettledRunRenderSnapshot,
+  withUnannouncedRunRenderSnapshot,
 } from './background-run-render-state'
 
 export interface FirstSendRecovery {
@@ -58,7 +59,7 @@ interface BackgroundRunState {
   /** Per Session, the Runs learned of from what they streamed, their start lost. */
   unannouncedRunNotices: Map<SessionId, number>
   addActiveRun: (id: SessionId, model?: SupportedModelId) => void
-  noteUnannouncedRun: (id: SessionId, model?: SupportedModelId) => void
+  noteUnannouncedRun: (id: SessionId, startedAt: number, model?: SupportedModelId) => void
   removeActiveRun: (id: SessionId) => void
   hasActiveRun: (id: SessionId) => boolean
   getRunRenderSnapshot: (id: SessionId) => RunRenderSnapshot | null
@@ -212,9 +213,11 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
     set((state) => addActiveRunToState(state, id, model))
   },
 
-  noteUnannouncedRun(id: SessionId, model?: SupportedModelId) {
-    noteActivityLifecycleChange(id)
-    set((state) => withUnannouncedRun(state, id, model))
+  noteUnannouncedRun(id: SessionId, startedAt: number, model?: SupportedModelId) {
+    set((state) => ({
+      ...withUnannouncedRun(state, id, model),
+      ...withUnannouncedRunRenderSnapshot(state, id, startedAt),
+    }))
   },
 
   removeActiveRun(id: SessionId) {

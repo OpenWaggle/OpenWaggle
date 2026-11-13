@@ -261,4 +261,53 @@ describe('transcript order when the Run start is lost', () => {
       (h) => h.endRun(),
     ])
   })
+
+  // The Run before ended but its settlement is late: opened then, its answer shows once.
+  it('shows the Run before once when a Run whose start never arrived is opened before it settles', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.view('other'),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('two'),
+      (h) => h.view('session'),
+      (h) => h.settleRun(),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
+
+  // Opened after the Run's end, its continuation's start lost, before it streams again: the
+  // Run's snapshot still holds the answers its history dropped.
+  it('keeps the answers of a Run continuing with its start lost, opened before it streams again', async () => {
+    const h = createScenarioHarness()
+    await h.mount('other')
+    await h.startRun('run-1', 'host prompt run-1')
+    await h.settle()
+    for (const text of ['one', 'two']) {
+      await h.answer(text)
+      await h.settle()
+    }
+    h.dropHistory()
+    await h.answer('three')
+    await h.settle()
+    h.loseNextStart()
+    await h.continueRun()
+    await h.settle()
+    await h.view('session')
+    await h.settle()
+    await h.answer('four')
+    await h.settle()
+
+    expect(h.shownKeys()).toEqual([
+      'user:host prompt run-1',
+      'assistant:one',
+      'assistant:two',
+      'assistant:three',
+      'assistant:four',
+    ])
+  })
 })

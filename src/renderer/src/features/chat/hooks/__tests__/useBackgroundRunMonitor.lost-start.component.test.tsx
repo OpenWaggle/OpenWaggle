@@ -1,6 +1,6 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useFirstSendPendingStore } from '../../state/first-send-pending-store'
@@ -118,6 +118,68 @@ describe('useBackgroundRunMonitor without the Run start', () => {
     })
 
     expect(useRunFinishingStore.getState().ids.has(SESSION_ID)).toBe(false)
+    unmount()
+  })
+
+  // A reloaded renderer: the Run streams before the restore of the activity in progress lands.
+  it('restores the compaction status of a Run that streamed before the restore', async () => {
+    const run = {
+      activity: 'agent-run' as const,
+      sessionId: SESSION_ID,
+      model: RUN_MODEL,
+      mode: 'classic' as const,
+      startedAt: 1,
+      activityEvents: [
+        { type: 'compaction_start' as const, reason: 'threshold' as const, timestamp: 2 },
+        {
+          type: 'compaction_end' as const,
+          reason: 'threshold' as const,
+          result: { entryId: 'summary-1' },
+          aborted: false,
+          willRetry: false,
+          timestamp: 3,
+        },
+      ],
+    }
+    let restore = () => {}
+    apiMock.listActiveRuns.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          restore = () => resolve([run])
+        }),
+    )
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+    emitAgentEvent({
+      type: 'message_start',
+      messageId: 'answer-1',
+      role: 'assistant',
+      timestamp: 10,
+    })
+
+    await act(async () => restore())
+
+    const state = useBackgroundRunStore.getState()
+    expect(state.hasActiveRun(SESSION_ID)).toBe(true)
+    expect(state.getRunRenderSnapshot(SESSION_ID)?.compactionStatus).not.toBeNull()
+    unmount()
+  })
+
+  it('does not take a Waggle request for a Run streaming', () => {
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+
+    emitAgentEvent({
+      type: 'message_start',
+      messageId: 'custom-2',
+      role: 'user',
+      userMessage: {
+        parts: [],
+        sessionNodeCreatedOrder: 5,
+        waggleInvocation: { presetId: 'review', presetName: 'Review', source: 'agent' },
+      },
+      timestamp: 1,
+    })
+
+    expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
     unmount()
   })
 

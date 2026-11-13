@@ -84,22 +84,37 @@ export function restoreCompactionSnapshots(
     })
   }
   for (const run of runs) {
-    const activityEvents = run.activityEvents ?? []
-    if (snapshots.has(run.sessionId) || activityEvents.length === 0) continue
-    const messages: readonly UIMessage[] = []
-    const compactionStatus = activityEvents.reduce<AgentCompactionStatus | null>(
-      (status, event) => applyCompactionSnapshotEvent(status, event, messages),
-      null,
-    )
-    if (compactionStatus === null) continue
-    snapshots.set(run.sessionId, {
-      messages,
-      compactionStatus,
-      updatedAt: activityEvents.at(-1)?.timestamp ?? run.startedAt,
-      seededByRunId: UNNAMED_RUN_SEED,
-    })
+    const restored = restoredRunSnapshot(run, snapshots.get(run.sessionId))
+    if (restored) snapshots.set(run.sessionId, restored)
   }
   return snapshots
+}
+
+/**
+ * A restored Run's compaction status, in a snapshot of its own or in the one it seeded streaming
+ * before the restore landed (its start unseen); `null` when the Run has none or a snapshot exists.
+ */
+function restoredRunSnapshot(
+  run: ActiveAgentRunInfo,
+  existing: RunRenderSnapshot | undefined,
+): RunRenderSnapshot | null {
+  const activityEvents = run.activityEvents ?? []
+  const unannounced = existing?.seededByRunId === UNNAMED_RUN_SEED && !existing.compactionStatus
+  if ((existing && !unannounced) || activityEvents.length === 0) return null
+  // The compaction came before what the snapshot streamed: its status stands before it.
+  const messages: readonly UIMessage[] = []
+  const compactionStatus = activityEvents.reduce<AgentCompactionStatus | null>(
+    (status, event) => applyCompactionSnapshotEvent(status, event, messages),
+    null,
+  )
+  if (compactionStatus === null) return null
+  return {
+    ...existing,
+    messages: existing?.messages ?? messages,
+    compactionStatus,
+    updatedAt: activityEvents.at(-1)?.timestamp ?? run.startedAt,
+    seededByRunId: UNNAMED_RUN_SEED,
+  }
 }
 
 /** The Run each Session had in progress when this renderer last restored activity, by its id. */
