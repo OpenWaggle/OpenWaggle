@@ -155,6 +155,13 @@ const CHECK_JOB_SUMMARY_STEP = `      - name: Publish check step times
 const NODE_RUNTIME_UNIT_STEP = `      - name: Unit tests of shipped Node.js code on Node.js
         run: bun run test:node-runtime:raw`
 
+/*
+ * The same for the main process's integration tests, where child_process, SQLite, node-pty,
+ * worker_threads and fs do the real work; test:integration already built the natives for Node.
+ */
+const NODE_RUNTIME_INTEGRATION_STEP = `      - name: Integration tests of the main process on Node.js
+        run: bun run test:node-runtime:integration:raw`
+
 export const EXPECTED_STEPS = new Map<string, readonly string[]>([
   [
     'Commit Policy',
@@ -204,6 +211,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
       TERMINAL_SHELLS_INSTALL_STEP,
       '      - run: bun run test:integration && bun run test:component',
+      NODE_RUNTIME_INTEGRATION_STEP,
     ],
   ],
   [

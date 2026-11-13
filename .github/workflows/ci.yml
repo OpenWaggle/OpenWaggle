@@ -233,6 +233,9 @@ jobs:
 
       - run: bun run test:integration && bun run test:component
 
+      - name: Integration tests of the main process on Node.js
+        run: bun run test:node-runtime:integration:raw
+
   test-mcp-conformance:
     name: MCP Conformance
     # Skipped on the Release Please version-bump PR (see test-unit).
