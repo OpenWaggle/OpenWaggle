@@ -191,9 +191,9 @@ These actions send the worker back to work and set the delegation to `revision_r
 
 - `delegation_request_revision`
 - `delegation_reopen`
-- `delegation_amend` or `delegation_dependency` while the worker's result is `ready_for_review`
+- `delegation_amend` or `delegation_dependency` after the worker submitted, while it waits for its parent: `ready_for_review`, `needs_attention` or `waiting`
 
-OpenWaggle then queues a follow-up on the worker from whoever made the change. The follow-up starts with `OpenWaggle Host-authored Delegation revision request` and carries these values:
+OpenWaggle then queues a follow-up on the worker from whoever made the change. The follow-up starts with `OpenWaggle Delegation revision request` and carries these values:
 
 | Value | What it is |
 | --- | --- |
@@ -206,8 +206,14 @@ OpenWaggle then queues a follow-up on the worker from whoever made the change. T
 - An idle worker starts a run on it straight away.
 - A busy worker gets it after its current run. The reply of that current run does not count as the new revision. The reply of the run that reads the feedback does.
 - `delegation_amend` or `delegation_dependency` on a worker that is still on the task, such as one that is `working` or already revising, queues nothing. The new task reaches its current run, or its next one.
-- It is a follow-up from the reviewer, so the queue rules and run limits are the ones for that reviewer's other follow-ups.
-- The reviewer must be allowed to message the worker. A reviewer that may not, such as a CLI client profile without `sessions:message` on it, gets `worker_message_denied` (kind `authorization`, CLI exit 4) for any of these actions that would send the worker back to work, and the delegation does not change. Ask someone who may message the worker, such as the person, to send the revision.
+- It is a follow-up from the reviewer, so the queue rules are the ones for that reviewer's other follow-ups.
+
+Any of these actions that would send the worker back to work is refused, and the delegation does not change, when the follow-up could not reach the worker:
+
+- The reviewer must be allowed to message the worker. A reviewer that may not gets `worker_message_denied` (kind `authorization`, CLI exit 4). That includes a CLI client profile or an MCP server without `sessions:message` on the worker, and one whose scope does not reach it. Ask someone who may message the worker, such as the person, to send the revision.
+- On an idle worker the follow-up would start a run, so it has to fit the [run limits](#run-limits). At either limit, an agent's or a client profile's action gets `parent_concurrency_limit_reached` or `host_run_ceiling_reached`, which it can retry once a worker run ends. Yours is never held back.
+
+A follow-up that still fails to reach the worker after the change, for example because OpenWaggle stopped in between, is only logged. Send the worker a follow-up yourself in that case.
 
 ### When a worker reports to an idle parent
 

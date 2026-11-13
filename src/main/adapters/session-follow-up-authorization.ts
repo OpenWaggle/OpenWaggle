@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
 import type {
   SessionControlFollowUp,
@@ -90,6 +91,32 @@ export function messageCallerBlockReason(
       return yield* sessionAgentBlockReason(sql, callerId, target)
     }
     return undefined
+  })
+}
+
+/**
+ * `messageCallerBlockReason`, and for a live caller also its own effective authority: what an
+ * MCP server's narrowed or transient grants allow, which nothing stores, and its Session scope.
+ * The check a command that queues a Follow-up for the caller on another Session makes (#454).
+ */
+export function liveCallerMessageBlockReason(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly sessionId: string
+    readonly callerId: string
+    readonly caller?: LocalSessionCallerIdentity
+  },
+) {
+  return Effect.gen(function* () {
+    const stored = yield* messageCallerBlockReason(sql, input.sessionId, input.callerId)
+    if (stored) return stored
+    if (!input.caller?.profileAuthority) return undefined
+    const target = yield* loadTarget(sql, input.sessionId)
+    if (!target) return 'authority_changed' as const
+    const authorization = authorizeSessionTargetForCaller(input.caller, targetDescriptor(target), [
+      'sessions:message',
+    ])
+    return authorization.authorized ? undefined : ('authority_changed' as const)
   })
 }
 

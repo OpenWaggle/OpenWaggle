@@ -76,7 +76,7 @@ export function expectRevisionPrompt(
   text: string | undefined,
   expected: { readonly submissionRevision: number; readonly feedback: string },
 ) {
-  expect(text).toContain('OpenWaggle Host-authored Delegation revision request')
+  expect(text).toContain('OpenWaggle Delegation revision request')
   expect(text).toContain('"delegationId":"delegation-worker"')
   expect(text).toContain(`"submissionRevision":${String(expected.submissionRevision)}`)
   expect(text).toContain(JSON.stringify(expected.feedback))

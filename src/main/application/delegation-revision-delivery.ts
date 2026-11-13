@@ -1,3 +1,4 @@
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
   SessionControlFollowUpMutationRequest,
   SessionControlMutationRequest,
@@ -13,17 +14,19 @@ import { publishControlResponse } from './session-control-event-projection'
 const logger = createLogger('delegation-revision')
 
 /**
- * After a revision request or reopen sent the Worker back to work (`revision_requested`, next
- * actor the Worker), queue its Host-authored revision request as the reviewer's Follow-up
- * (`delegationRevisionFollowUp`), which starts a Run on an idle Worker and waits behind a busy
- * Worker's current Run. Sent only when the reviewer may message the Worker, checked as Follow-up
- * delivery checks a queued Follow-up's caller, because a Follow-up that starts a Run at once is
- * not checked again. `execute` is Session Control's own command path: this runs after the review
- * committed, outside the parent's serialization, as a separate command on the Worker. A refusal or
- * failure is logged and never fails the review. Does nothing for any other command.
+ * After a command sent the Worker back to work (`revision_requested`, next actor the Worker),
+ * queue its revision request as the reviewer's Follow-up (`delegationRevisionFollowUp`), which
+ * starts a Run on an idle Worker and waits behind a busy Worker's current Run. The command's own
+ * transaction already refused it unless that Follow-up could reach the Worker
+ * (`revisionDeliveryRefusal`); the reviewer's authority is checked again here, live caller
+ * included, because a Follow-up that starts a Run at once is not checked again. `execute` is
+ * Session Control's own command path: this runs after the command committed, outside the parent's
+ * serialization, as a separate command on the Worker. A refusal or failure here is logged and
+ * never fails the command. Does nothing for any other command.
  */
 export function sendDelegationRevisionToWorker<R>(input: {
   readonly callerId: string
+  readonly caller?: LocalSessionCallerIdentity
   readonly review: SessionControlMutationRequest
   readonly response: SessionControlMutationResponse
   readonly execute: (
@@ -46,6 +49,7 @@ export function sendDelegationRevisionToWorker<R>(input: {
       ? yield* repository.messageBlockReason({
           sessionId: workerSessionId,
           callerId: input.callerId,
+          ...(input.caller ? { caller: input.caller } : {}),
         })
       : 'message-authority-unavailable'
     if (blocked) return yield* unsent({ code: blocked })

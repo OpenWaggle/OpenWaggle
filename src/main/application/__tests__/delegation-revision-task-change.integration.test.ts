@@ -73,14 +73,16 @@ describe('a task change sends a Worker whose result awaits review back to work',
   const host = useHiveHostTestContext('openwaggle-delegation-task-change-')
 
   it.each([
-    ['an amendment', AMEND],
-    ['a dependency change', ADD_DEPENDENCY],
-  ] as const)('starts a Run on an idle Worker for %s', async (_label, command) => {
+    ['an amendment', 'ready_for_review', AMEND],
+    ['a dependency change', 'ready_for_review', ADD_DEPENDENCY],
+    // A Worker that asked for help after submitting waits for its parent too.
+    ['an amendment', 'needs_attention', AMEND],
+  ] as const)('starts a Run on an idle Worker for %s while %s', async (_label, state, command) => {
     const recorder = recordingExecutor()
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* seedSubmittedWorker(sql, host.temporaryRoot, 'ready_for_review')
+        yield* seedSubmittedWorker(sql, host.temporaryRoot, state)
         const change = yield* controlCommandAs(QUEEN_CALLER_ID, 'queen-change', command)
         const workAfterChange = yield* workerWork(sql)
         yield* waitFor(() => recorder.runs.length === 1)

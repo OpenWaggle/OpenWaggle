@@ -53,19 +53,21 @@ function payloadOf(text: string | undefined) {
 }
 
 describe('delegationRevisionFollowUp', () => {
-  it('sends feedback-only revision feedback to the Worker as a Host-authored Follow-up', () => {
+  it("sends feedback-only revision feedback to the Worker as the reviewer's Follow-up", () => {
     const followUp = delegationRevisionFollowUp(
       request(revisionCommand),
       updated('delegation-request-revision'),
     )
 
     expect(followUp).toMatchObject({
-      requestId: 'delegation-revision:review-request',
-      idempotencyKey: 'delegation-revision:review-key',
+      requestId: 'delegation-revision:delegation-request-revision:review-request',
+      idempotencyKey: 'delegation-revision:delegation-request-revision:review-key',
       command: { operation: 'follow-up', sessionId: 'worker', input: { attachmentIds: [] } },
     })
     const text = followUp?.command.input.text
-    expect(text?.startsWith('OpenWaggle Host-authored Delegation revision request.')).toBe(true)
+    expect(
+      text?.startsWith("OpenWaggle Delegation revision request, sent as your parent's Follow-up."),
+    ).toBe(true)
     expect(payloadOf(text)).toEqual({
       delegationId: 'delegation-worker',
       parentSessionId: 'queen',

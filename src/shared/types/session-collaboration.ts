@@ -161,7 +161,7 @@ export type DelegationVerificationOutcome = 'passed' | 'failed' | 'inconclusive'
 /**
  * A task change (`delegation-amend`, `delegation-dependency`) that moved a Delegation from
  * `ready_for_review` to `revision_requested`: the parent and the submission it set aside, which
- * the Worker's Host-authored revision request names (#454).
+ * the Worker's revision request names (#454).
  */
 export interface DelegationRevisionRequest {
   readonly parentSessionId: string

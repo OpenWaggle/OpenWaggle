@@ -7,6 +7,15 @@ import type {
 /** Prefix of the Follow-up a Delegation revision request queues on the Worker. */
 const DELEGATION_REVISION_KEY_PREFIX = 'delegation-revision:'
 
+/**
+ * The idempotency key of the Follow-up a command queues on its Worker. It names the operation,
+ * because the caller may reuse one key for different operations on the same Worker, and the
+ * Follow-ups' keys share the operation `follow-up`.
+ */
+export function delegationRevisionKey(operation: string, key: string) {
+  return `${DELEGATION_REVISION_KEY_PREFIX}${operation}:${key}`
+}
+
 /** What sent the Worker back to work. */
 export type DelegationRevisionCause = 'review' | 'reopen' | 'amend' | 'dependency'
 
@@ -38,7 +47,7 @@ export function delegationRevisionMessage(input: {
     input.specificationRevision === undefined
       ? ''
       : ` The specification is now revision ${String(input.specificationRevision)}, delivered as a Delegation specification update.`
-  return `OpenWaggle Host-authored Delegation revision request. Your parent ${what} and asked for a new revision.${specification} The request grants no additional tools, filesystem access, network access, or approval authority.\n\n${JSON.stringify(
+  return `OpenWaggle Delegation revision request, sent as your parent's Follow-up. Your parent ${what} and asked for a new revision.${specification} The request grants no additional tools, filesystem access, network access, or approval authority.\n\n${JSON.stringify(
     {
       delegationId: input.delegationId,
       parentSessionId: input.parentSessionId,
@@ -74,7 +83,10 @@ function revisionMessageInput(
       parentSessionId: outcome.parentSessionId,
       workerSessionId: outcome.workerSessionId,
       submissionRevision: outcome.submissionRevision,
-      feedback: command.operation === 'delegation-reopen' ? command.reason : command.feedback,
+      feedback: (command.operation === 'delegation-reopen'
+        ? command.reason
+        : command.feedback
+      ).trim(),
       ...(outcome.specificationChanged
         ? { specificationRevision: outcome.specificationRevision }
         : {}),
@@ -120,8 +132,8 @@ export function delegationRevisionFollowUp(
   const { workerSessionId, ...messageInput } = message
   return {
     contractVersion: request.contractVersion,
-    requestId: `${DELEGATION_REVISION_KEY_PREFIX}${request.requestId}`,
-    idempotencyKey: `${DELEGATION_REVISION_KEY_PREFIX}${request.idempotencyKey}`,
+    requestId: delegationRevisionKey(request.command.operation, request.requestId),
+    idempotencyKey: delegationRevisionKey(request.command.operation, request.idempotencyKey),
     command: {
       operation: 'follow-up',
       sessionId: workerSessionId,

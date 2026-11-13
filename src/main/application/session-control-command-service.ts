@@ -258,6 +258,7 @@ export function executeSessionControlMutation(input: {
     const { hiveWake: _hiveWake, request: review, ...reviewer } = input
     yield* sendDelegationRevisionToWorker({
       callerId: input.callerId,
+      ...(input.caller ? { caller: input.caller } : {}),
       review,
       response,
       execute: (request) => executeSessionControlMutation({ ...reviewer, request }),

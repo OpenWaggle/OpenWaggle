@@ -184,24 +184,29 @@ describe('Hive tool revision guidance (#454)', () => {
 
     const topic = JSON.parse(await hiveHelpText(tool, 'delegation_request_revision'))
     const rules: string = topic.rules.join('\n')
-    expect(rules).toMatch(/OpenWaggle Host-authored Delegation revision request/)
+    expect(rules).toMatch(/OpenWaggle Delegation revision request/)
     expect(rules).toMatch(/delegationId, parentSessionId, submissionRevision, feedback/)
     expect(rules).toMatch(/busy Worker runs it after its current Run/)
     expect(rules).toMatch(/refused with worker_message_denied and the Delegation does not change/)
+    expect(rules).toMatch(
+      /refused with parent_concurrency_limit_reached or host_run_ceiling_reached/,
+    )
 
     const amendRules: string = JSON.parse(await hiveHelpText(tool, 'delegation_amend')).rules.join(
       '\n',
     )
     expect(amendRules).toMatch(
-      /delegation_amend or delegation_dependency on a ready_for_review result/,
+      /delegation_amend or delegation_dependency on a submitted result the Worker waits on you for \(ready_for_review, needs_attention or waiting\)/,
     )
-    expect(amendRules).toMatch(/on a Worker still on the task sends no Follow-up/)
+    expect(amendRules).toMatch(
+      /on a Worker still on the task \(working or revision_requested\) sends no Follow-up/,
+    )
   })
 
   it('tells a Worker what a revision request from its parent looks like', async () => {
     const tool = await queenTool()
     expect(await hiveHelpText(tool)).toMatch(
-      /revision request from your parent arrives as a Host-authored Follow-up naming delegationId, submissionRevision and feedback/,
+      /revision request from your parent arrives as its Follow-up starting "OpenWaggle Delegation revision request", naming delegationId, submissionRevision and feedback/,
     )
   })
 })
