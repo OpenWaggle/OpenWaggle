@@ -176,13 +176,15 @@ async function prepareSessionHostStore(preparedPaths: LocalSessionHostPaths) {
   return paths
 }
 
-/** What the Host starts with, imported once this process owns the profile. */
+/** What the Host starts with, loaded once it owns the profile, while the store cuts over. */
 function importSessionHostStartup() {
-  return Promise.all([
+  const modules = Promise.all([
     import('./runtime'),
     import('./store/settings'),
     import('./session-host/session-host-bootstrap'),
   ])
+  modules.catch(() => undefined)
+  return modules
 }
 
 export function startSessionHostCliIfRequested(argv: readonly string[]) {
@@ -218,6 +220,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         appLifecycle.exit(0)
         return
       }
+      const startupModules = importSessionHostStartup()
       // The Host opens the saved secrets; their key is read now, not on the first one's demand.
       void secureStorage.warm()
       // Started once this Host owns the profile, so a Host that exits at once leaves no probe.
@@ -225,7 +228,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       try {
         const paths = await prepareSessionHostStore(preparedPaths)
         startupMark('host-cutover-settled')
-        const [runtime, settings, { startAppSessionHost }] = await importSessionHostStartup()
+        const [runtime, settings, { startAppSessionHost }] = await startupModules
         let releaseQuitHold: () => void = () => undefined
         try {
           await runtime.initializeAppRuntime()
