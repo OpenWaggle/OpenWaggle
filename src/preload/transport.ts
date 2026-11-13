@@ -2,6 +2,7 @@ import {
   type DesktopShellCall,
   type DesktopShellRpc,
   SHELL_EVENT_MESSAGE,
+  SHELL_FIRST_FRAME_MESSAGE,
   SHELL_FOCUS_MESSAGE,
   SHELL_HEARTBEAT_REQUEST,
   SHELL_INVOKE_REQUEST,
@@ -109,6 +110,11 @@ export function send<C extends IpcSendChannel>(channel: C) {
 
 export function on<C extends IpcEventChannel>(channel: C) {
   return (callback: (payload: IpcEventPayload<C>) => void) => listenChannel(channel, callback)
+}
+
+/** Tells the main process the page can be shown (`first-frame.ts`). */
+export function sendFirstFrame() {
+  void rpc.send(SHELL_FIRST_FRAME_MESSAGE)
 }
 
 // F12 asks the main process to toggle this page's DevTools; only unpackaged builds act on it.

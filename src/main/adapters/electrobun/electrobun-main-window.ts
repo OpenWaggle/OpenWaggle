@@ -25,8 +25,10 @@ import { windowShortcutsInstalled } from './electrobun-window-shortcuts'
  * The app's main window on Electrobun (ADR 0064): the renderer page from its loopback origin (or
  * the Vite dev server), the Electrobun preload injected before the page's scripts, and the
  * renderer's Content Security Policy on every document of its origin. It is created hidden and
- * shown once its page's DOM is ready, the nearest Electrobun has to Electron's `ready-to-show`;
- * never under automation.
+ * shown once its page reports its startup frame styled (`shell:first-frame`,
+ * src/preload/first-frame.ts), the nearest the system webviews have to Electron's `ready-to-show`;
+ * never under automation. Electrobun's `dom-ready` is the page's `load`, after the renderer's whole
+ * module graph, and only marks `renderer-dom-ready`.
  *
  * The main frame may only load the renderer's own documents (`navigationRules`, last match wins);
  * any other navigation, and any link the page opens in a new window, goes to `openLink`.
@@ -117,12 +119,14 @@ export function createMainWindow(request: MainWindowRequest) {
       logicalUrl,
     },
   )
-  let ready = false
+  let loaded = false
   window.window.webview.on('dom-ready', () => {
-    // Every load reports it; only the first one reveals the window.
-    if (ready) return
-    ready = true
+    // Every load reports it; only the first one is a startup milestone.
+    if (loaded) return
+    loaded = true
     request.startupMark('renderer-dom-ready')
+  })
+  window.webContents.once('first-frame', () => {
     request.startupMark('window-ready-to-show')
     if (isAutomationMode() || window.isDestroyed()) return
     revealWindow(window.window)

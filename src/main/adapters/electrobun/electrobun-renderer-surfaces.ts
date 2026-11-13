@@ -4,6 +4,7 @@ import { structuredTransport } from '@shared/structured-wire'
 import {
   type DesktopShellRpc,
   SHELL_EVENT_MESSAGE,
+  SHELL_FIRST_FRAME_MESSAGE,
   SHELL_FOCUS_MESSAGE,
   SHELL_HEARTBEAT_REQUEST,
   SHELL_INVOKE_REQUEST,
@@ -52,6 +53,8 @@ interface SurfaceEvents {
   'did-navigate': []
   'render-process-gone': []
   'did-start-navigation': [RendererSurfaceNavigationStart]
+  /** The page can be shown: its document is parsed and styled (`src/preload/first-frame.ts`). */
+  'first-frame': []
 }
 
 type ShellRpc = ReturnType<typeof createShellRpc>
@@ -194,6 +197,7 @@ function createShellRpc(sender: () => ElectrobunRendererSurface | null) {
           if (surface) deliverSend(surface, channel, args)
         },
         [SHELL_TOGGLE_DEVTOOLS_MESSAGE]: () => sender()?.toggleDevTools(),
+        [SHELL_FIRST_FRAME_MESSAGE]: () => sender()?.emit('first-frame'),
       },
     },
   })

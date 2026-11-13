@@ -1,7 +1,8 @@
 import { api } from './api'
 import { applyPendingElectronLocalStorageImport } from './electron-local-storage-import'
-import { exposeInMainWorld, rendererArguments, send } from './transport'
+import { exposeInMainWorld, rendererArguments, send, sendFirstFrame } from './transport'
 import { exposeErrorReportingBridge } from './error-reporting-bridge'
+import { reportFirstFrame } from './first-frame'
 import { installIdleCallbackPolyfill } from './idle-callback-polyfill'
 
 // Before the renderer's modules run: libraries call requestIdleCallback unguarded.
@@ -19,3 +20,6 @@ applyPendingElectronLocalStorageImport(
  */
 exposeInMainWorld('api', api)
 exposeErrorReportingBridge(rendererArguments())
+
+// The window is shown once its startup frame can be.
+reportFirstFrame(document, sendFirstFrame)

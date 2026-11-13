@@ -8,6 +8,8 @@
  * - `shell:invoke` (page to main, request): `window.api` invoking a channel; answers its result.
  * - `shell:send` (page to main): a fire-and-forget `send` channel.
  * - `shell:toggle-devtools` (page to main): the DevTools shortcut of an unpackaged build (F12).
+ * - `shell:first-frame` (page to main): the page's document is parsed and its stylesheets applied,
+ *   so its startup frame can be shown; the system webviews' nearest to Electron's `ready-to-show`.
  * - `shell:event` (main to page): one event for `window.api.on(channel)`.
  * - `shell:focus` (main to page): move keyboard focus back into the page, as Electron's
  *   `webContents.focus()` does (the browser preview hands focus back to its owner).
@@ -21,6 +23,7 @@
 export const SHELL_INVOKE_REQUEST = 'shell:invoke'
 export const SHELL_SEND_MESSAGE = 'shell:send'
 export const SHELL_TOGGLE_DEVTOOLS_MESSAGE = 'shell:toggle-devtools'
+export const SHELL_FIRST_FRAME_MESSAGE = 'shell:first-frame'
 export const SHELL_EVENT_MESSAGE = 'shell:event'
 export const SHELL_FOCUS_MESSAGE = 'shell:focus'
 export const SHELL_HEARTBEAT_REQUEST = 'shell:heartbeat'
@@ -42,6 +45,7 @@ export interface DesktopShellRpc {
     readonly messages: {
       readonly [SHELL_SEND_MESSAGE]: DesktopShellCall
       readonly [SHELL_TOGGLE_DEVTOOLS_MESSAGE]: undefined
+      readonly [SHELL_FIRST_FRAME_MESSAGE]: undefined
     }
   }
   readonly webview: {

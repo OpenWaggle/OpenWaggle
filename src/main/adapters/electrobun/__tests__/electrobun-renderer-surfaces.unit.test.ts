@@ -57,6 +57,17 @@ describe('Electrobun renderer surfaces', () => {
     expect(starts).toEqual([])
   })
 
+  it('reports the page ready to show when its preload says so, not on its load', async () => {
+    const { surface, view } = await openPage()
+    const shown = vi.fn()
+    surface.on('first-frame', shown)
+    view.emitEvent('dom-ready', LOOPBACK_PAGE)
+    expect(shown).not.toHaveBeenCalled()
+    // What the preload sends once the startup frame is styled (src/preload/first-frame.ts).
+    view.page.rpc.send('shell:first-frame')
+    await vi.waitFor(() => expect(shown).toHaveBeenCalledTimes(1))
+  })
+
   it('reloads a page that stopped answering its heartbeat', async () => {
     vi.useFakeTimers()
     const { surfaces, surface, view } = await openPage()
