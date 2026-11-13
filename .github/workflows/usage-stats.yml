@@ -56,6 +56,9 @@ jobs:
           package-manager-cache: false
 
       - uses: ./.github/actions/bun-install
+        with:
+          # The job holds the snapshot tokens, so it installs without a restored package cache.
+          package-cache: 'false'
 
       - name: Send snapshot
         env:
