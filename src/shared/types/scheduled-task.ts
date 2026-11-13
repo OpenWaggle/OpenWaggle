@@ -1,4 +1,6 @@
 import type { SchemaType } from '@shared/schema'
+import type { localScheduledTasksCommandResultSchema } from '@shared/schemas/local-session-command-response'
+import type { localScheduledTasksCommandPayloadSchema } from '@shared/schemas/local-session-protocol'
 import type {
   scheduledTaskInputSchema,
   scheduledTaskPatchSchema,
@@ -123,15 +125,12 @@ export {
 
 export type ScheduledTasksResponse = SchemaType<typeof scheduledTasksResponseSchema>
 
-export interface LocalScheduledTasksCommandPayload {
-  readonly contract: 'scheduled-tasks-v1'
-  readonly request: ScheduledTasksRequest
-}
-
-export interface LocalScheduledTasksCommandResult {
-  readonly contract: 'scheduled-tasks-v1'
-  readonly response: ScheduledTasksResponse
-}
+export type LocalScheduledTasksCommandPayload = SchemaType<
+  typeof localScheduledTasksCommandPayloadSchema
+>
+export type LocalScheduledTasksCommandResult = SchemaType<
+  typeof localScheduledTasksCommandResultSchema
+>
 
 /** The enabled tasks `openwaggle host status` reports, so a windowless Host is never invisible. */
 export interface ScheduledTaskStatusSummary {

@@ -130,6 +130,12 @@ function commandResult<const Contract extends string, Response extends Schema.Sc
   return Schema.Struct({ contract: Schema.Literal(contract), response })
 }
 
+/** The Host's answer to a Scheduled tasks command. */
+export const localScheduledTasksCommandResultSchema = commandResult(
+  'scheduled-tasks-v1',
+  scheduledTasksResponseSchema,
+)
+
 /** Every contract's result: which contract answered, and its decoded response. */
 export const localSessionCommandResultSchema = Schema.Union(
   commandResult('desktop-service-v1', desktopServiceResponseSchema),
@@ -146,5 +152,5 @@ export const localSessionCommandResultSchema = Schema.Union(
   commandResult('local-compaction-cancel-v1', localCompactionCancellationResponseSchema),
   commandResult('session-waggle-v1', sessionWaggleResponseSchema),
   commandResult('session-waggle-cancel-v1', sessionWaggleCancellationResponseSchema),
-  commandResult('scheduled-tasks-v1', scheduledTasksResponseSchema),
+  localScheduledTasksCommandResultSchema,
 )

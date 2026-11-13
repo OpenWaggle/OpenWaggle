@@ -81,6 +81,12 @@ export const localSessionClientFrameSchema = Schema.Union(
   }),
 )
 
+/** A Scheduled tasks command, as the window, the CLI and the Hive tool send it to the Host. */
+export const localScheduledTasksCommandPayloadSchema = Schema.Struct({
+  contract: Schema.Literal('scheduled-tasks-v1'),
+  request: scheduledTasksRequestSchema,
+})
+
 export const localSessionCommandPayloadSchema = Schema.Union(
   Schema.Struct({
     contract: Schema.Literal('desktop-service-v1'),
@@ -193,10 +199,7 @@ export const localSessionCommandPayloadSchema = Schema.Union(
       sessionId: sessionInputIdSchema,
     }),
   }),
-  Schema.Struct({
-    contract: Schema.Literal('scheduled-tasks-v1'),
-    request: scheduledTasksRequestSchema,
-  }),
+  localScheduledTasksCommandPayloadSchema,
 )
 
 export function decodeLocalSessionClientHello(value: unknown) {
