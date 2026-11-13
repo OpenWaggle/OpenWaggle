@@ -95,3 +95,15 @@ browser preview.
   message pump, and loads the framework with `cef_load_library`, so no CEF process or mapping
   exists before a preview opens. Measured idle drop on arm64: CEF's GPU and two utility processes
   (about 110 to 125 MB) and about 70 MB of the main process.
+- The macOS CEF component (BrowserEngine port, `src/main/adapters/electrobun/cef-component/`)
+  installs into `<appData>/<identifier>/cef/<cefVersion>-<arch>`; `identifier` comes from
+  `Updater.getLocalInfo()` (the bundle's `Resources/version.json`), and appData follows `$HOME`, as
+  the native lookup does. It is a no-op when `<execPath>/../Frameworks` has the framework, which
+  every `dev:debug` build does (its main window is CEF), so QA of the download states needs a
+  local, uncommitted change to that check plus a manifest pointing at a local server. bsdtar copies
+  the archive's `com.apple.quarantine` onto extracted files; the installer strips it from both.
+  A `renderer: 'cef'` view created before the component is ready falls back to WKWebView, so view
+  creation asserts readiness and every open path awaits `ensure()` first.
+- A fresh worktree has no `.hutch/devkit`, and `bun run build` then fails on the missing
+  `electrobun/main` sources: run `bunx electrobun prepare` first, with
+  `HUTCH_ELECTROBUN_DEVKIT_ROOT` set to a patched devkit to get the vendor patches.
