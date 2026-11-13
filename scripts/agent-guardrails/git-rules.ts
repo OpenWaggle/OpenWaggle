@@ -2,10 +2,14 @@
  * The git rules, read from one command's argv and environment: skipping a hook (`--no-verify`,
  * `git commit -n`, `HUSKY=0`, pointing `core.hooksPath` elsewhere by any route) and force pushes.
  * Both are blocked without a prompt. An alias is read as the command it stands for, so `git -c
- * alias.p='push --force' p` is a force push.
+ * alias.p='push --force' p` is a force push. One forced push is allowed: a lease naming the
+ * expected sha of an agent's own `ow/*` PR branch, which replays that branch onto a moved `main`
+ * (`git push --force-with-lease=ow/x:<sha> origin HEAD:ow/x`). It must be a `git push` written
+ * out, not an alias, and set no git config, since config can change what a push does.
  */
 import { type OptionSpec, isAbbreviation, isHelp, parseArgs, parseGitInvocation } from './args'
 import type { GuardrailHit } from './hits'
+import { forcePushHits } from './push-rules'
 import { type ShellCommand, commandName, shellCommands } from './shell'
 
 const HOOKS_PATH_KEY = 'core.hookspath'
@@ -82,11 +86,9 @@ const CONFIG_WRITE_FLAGS = new Set([
 ])
 const ENV_CONFIG_KEY = /^GIT_CONFIG_KEY_\d+=(.*)$/
 const ENV_CONFIG_PARAMETERS_PREFIX = 'GIT_CONFIG_PARAMETERS='
+const ENV_CONFIG_PREFIX = 'GIT_CONFIG'
 // `--no-ve` is the shortest prefix of `--no-verify` git could take; shorter ones are ambiguous.
 const NO_VERIFY_SHORTEST = '--no-ve'.length
-const FORCE_WITH_LEASE_SHORTEST = '--force-w'.length
-const MIRROR_SHORTEST = '--mi'.length
-const DRY_RUN_SHORTEST = '--d'.length
 // An alias that stands for another alias is read this many levels deep at most.
 const MAX_ALIAS_DEPTH = 3
 
@@ -98,10 +100,13 @@ const HOOKS_PATH: GuardrailHit = {
 
 /** Every git rule one command breaks. */
 export function gitRuleHits(command: ShellCommand, aliasDepth = 0) {
+  const leaseAllowed =
+    aliasDepth === 0 &&
+    !command.assignments.some((assignment) => assignment.startsWith(ENV_CONFIG_PREFIX))
   const hit: GuardrailHit[] = [
     ...environmentHits(command.assignments),
     ...(commandName(command.argv[0] ?? '') === 'git'
-      ? gitHits(command.argv.slice(1), aliasDepth)
+      ? gitHits(command.argv.slice(1), aliasDepth, leaseAllowed)
       : []),
   ]
   return hit
@@ -130,7 +135,7 @@ function environmentHits(assignments: readonly string[]) {
   return hits
 }
 
-function gitHits(args: readonly string[], aliasDepth: number) {
+function gitHits(args: readonly string[], aliasDepth: number, leaseAllowed: boolean) {
   const invocation = parseGitInvocation(args)
   const configHits = invocation.configs.flatMap((setting) => {
     const [key = '', ...valueParts] = setting.split('=')
@@ -138,17 +143,26 @@ function gitHits(args: readonly string[], aliasDepth: number) {
   })
   const hit: GuardrailHit[] = [
     ...configHits,
-    ...subcommandHits(invocation.subcommand, invocation.args, aliasDepth),
+    ...subcommandHits(invocation.subcommand, invocation.args, {
+      aliasDepth,
+      leaseAllowed: leaseAllowed && invocation.configs.length === 0,
+    }),
   ]
   return hit
 }
 
-function subcommandHits(subcommand: string, args: readonly string[], aliasDepth: number) {
+interface PushRoute {
+  readonly aliasDepth: number
+  /** Whether the command is a written-out `git push` with no git config set on the way. */
+  readonly leaseAllowed: boolean
+}
+
+function subcommandHits(subcommand: string, args: readonly string[], route: PushRoute) {
   if (subcommand === 'commit') {
     return commitHits(args) satisfies GuardrailHit[]
   }
   if (subcommand === 'config') {
-    return configHits(args, aliasDepth)
+    return configHits(args, route.aliasDepth)
   }
   if (!NO_VERIFY_SUBCOMMANDS.has(subcommand)) {
     return [] satisfies GuardrailHit[]
@@ -161,9 +175,7 @@ function subcommandHits(subcommand: string, args: readonly string[], aliasDepth:
     ? [{ rule: 'git-no-verify', title: `git ${subcommand} --no-verify skips the git hooks.` }]
     : []
   return (
-    subcommand === 'push'
-      ? [...noVerify, ...forcePushHits(parsed.short, parsed.long, parsed.positionals)]
-      : noVerify
+    subcommand === 'push' ? [...noVerify, ...forcePushHits(parsed, route.leaseAllowed)] : noVerify
   ) satisfies GuardrailHit[]
 }
 
@@ -175,37 +187,6 @@ function commitHits(args: readonly string[]) {
   return [
     { rule: 'git-no-verify', title: 'git commit --no-verify (or -n) skips the commit hooks.' },
   ] satisfies GuardrailHit[]
-}
-
-function forcePushHits(
-  short: ReadonlySet<string>,
-  long: readonly string[],
-  positionals: readonly string[],
-) {
-  // A dry run pushes nothing, so it rewrites nothing.
-  if (short.has('n') || long.some((flag) => isAbbreviation(flag, '--dry-run', DRY_RUN_SHORTEST))) {
-    const hit: GuardrailHit[] = []
-    return hit
-  }
-  const refspecs = positionals.slice(1)
-  const forced =
-    short.has('f') ||
-    long.includes('--force') ||
-    long.some(
-      (flag) =>
-        isAbbreviation(flag, '--force-with-lease', FORCE_WITH_LEASE_SHORTEST) ||
-        isAbbreviation(flag, '--mirror', MIRROR_SHORTEST),
-    ) ||
-    refspecs.some((spec) => spec.startsWith('+'))
-  const hit: GuardrailHit[] = forced
-    ? [
-        {
-          rule: 'force-push',
-          title: 'A force push (--force, --force-with-lease, --mirror or a +refspec).',
-        },
-      ]
-    : []
-  return hit
 }
 
 interface ConfigCall {

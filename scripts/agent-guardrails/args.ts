@@ -13,10 +13,18 @@ export interface OptionSpec {
   readonly valueLong: readonly string[]
 }
 
+export interface LongOption {
+  readonly name: string
+  /** The attached `=value`, absent when the option was written without one. */
+  readonly value?: string
+}
+
 export interface ParsedArgs {
   readonly short: ReadonlySet<string>
   /** Long options as written, without their `=value`. */
   readonly long: readonly string[]
+  /** The same long options, each with its attached `=value` when it has one. */
+  readonly longOptions: readonly LongOption[]
   readonly positionals: readonly string[]
 }
 
@@ -65,6 +73,7 @@ export function parseGitInvocation(args: readonly string[]) {
 export function parseArgs(args: readonly string[], spec: OptionSpec) {
   const short = new Set<string>()
   const long: string[] = []
+  const longOptions: LongOption[] = []
   const positionals: string[] = []
   let index = 0
   while (index < args.length) {
@@ -81,12 +90,13 @@ export function parseArgs(args: readonly string[], spec: OptionSpec) {
     if (arg.startsWith('--')) {
       const [name, attached] = splitLong(arg)
       long.push(name)
+      longOptions.push(attached === undefined ? { name } : { name, value: attached })
       index += Number(attached === undefined && spec.valueLong.includes(name))
       continue
     }
     index += Number(readShortCluster(arg, spec, short))
   }
-  return { short, long, positionals }
+  return { short, long, longOptions, positionals } satisfies ParsedArgs
 }
 
 /** Reads `-abc` into `short`; true when its last flag takes the next word as its value. */
