@@ -7,7 +7,7 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011, 0014 and 0020, Zig tools and Dawn rebuilt for 13.4 |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011, 0014, 0015 and 0020, Zig tools and Dawn rebuilt for 13.4 |
 | Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007, 0009 to 0011 and 0020, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
 | Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007, 0009 to 0013 and 0020, plus the WebView2 Evergreen bootstrapper |
 
@@ -124,6 +124,51 @@ release targets (docs/release-and-versioning.md), so they are not built.
    start falls back to WKWebView. The wrapper no longer links the framework: it loads it with
    `cef_load_library` when CEF starts, through `libcef_dll_wrapper`'s dylib stubs, as CEF's
    helpers do. Patches 0012 and 0013 are Windows'.
+15. **macos: load CEF from a component directory when the app does not bundle it.** CEF now
+   starts from the first directory holding `Chromium Embedded Framework.framework`:
+   `ELECTROBUN_CEF_DIR` from the launch environment, the bundle's `Contents/Frameworks`, or the CEF
+   component directory (below). `framework_dir_path` and `browser_subprocess_path` point there; the
+   NSApplication is always `ElectrobunNSApplication`, since CEF may arrive after launch. The helper
+   no longer links the framework at `@executable_path/../../../../Frameworks`, which only an app
+   bundle has; `CefScopedLibraryLoader::LoadInHelper` loads it from beside the helper apps.
+
+## CEF component (macOS)
+
+Release macOS builds do not bundle CEF (`macosBundlesCef` in `scripts/electrobun/app-config.ts`;
+Dev builds still do, and `OPENWAGGLE_MACOS_BUNDLE_CEF=1|0` overrides). The app installs CEF as a
+component before its first Browser preview. The contract, for the native layer, the app and the
+release:
+
+- **Install directory:** `$HOME/Library/Application Support/<identifier>/cef/<CEF_VERSION>-<arch>/`.
+  `<identifier>` is the app's Electrobun identifier (`Resources/version.json`), `<CEF_VERSION>` the
+  native layer's `CEF_VERSION` (`156.0.7+g47dbc1d+chromium-156.0.8078.17`), `<arch>` `arm64` or
+  `x64`. The native layer resolves it when CEF starts, so a component installed after launch is
+  used.
+- **Layout:** `Chromium Embedded Framework.framework/` and the helper apps `bun Helper.app`,
+  `bun Helper (GPU).app`, `bun Helper (Renderer).app`, `bun Helper (Plugin).app` and
+  `bun Helper (Alerts).app`, side by side, the same as an app's `Contents/Frameworks`. The helpers
+  are the devkit's `process_helper`. The installer adds `component.json` (`schemaVersion`,
+  `cefVersion`, `arch`, `sha256` of the archive).
+- **Archive:** `cef-component-<cef>-darwin-<arch>.tar.xz` (no `+` in asset names), those entries at
+  its top level, built and signed by `bun scripts/electrobun/cef-component.ts build --devkit <devkit>
+  --arch <arch> [--identity …]`. The framework and helpers are signed with the app's identity,
+  hardened runtime and `build/entitlements.electrobun.mac.plist`, so a helper and the framework it
+  loads have the same Team ID; the app's `disable-library-validation` lets `bun` load it. About
+  100 MB compressed, 345 MB installed (arm64).
+- **Manifest:** `src/main/adapters/electrobun/cef-component/manifest.json` pins `cefVersion` and,
+  per `darwin-<arch>`, the asset's `url`, `sha256` and `size`;
+  `cef-component.ts pin --arch <arch> --url <url> --archive <file>` writes an entry. There is no
+  runtime override: a test build points it elsewhere by rewriting the file before `bun run build`.
+- **Verification:** the app streams the download into the `cef/` directory, checks its size and
+  sha256 against the manifest before extracting anything, clears `com.apple.quarantine` (the pinned
+  hash is the trust root; quarantined helpers would meet Gatekeeper), extracts with `/usr/bin/tar
+  -xJf` into a staging directory and renames it into place.
+- **Retention:** a component is current while its `component.json` matches the manifest. App updates
+  keep it; a manifest that pins another CEF version or asset installs the new one and prunes every
+  other entry of `cef/`. A change to `cef_process_helper_mac.cc` needs a new asset even at the same
+  CEF version.
+- **Publishing:** the asset lives on its own release (`cef-component-<cef>-r<n>`), not on each app
+  release, because its sha256 is committed before the app that verifies it is built.
 
 ## Building
 

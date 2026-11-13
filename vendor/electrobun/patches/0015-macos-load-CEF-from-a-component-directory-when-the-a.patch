@@ -1,0 +1,273 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Fri, 13 Nov 2026 09:39:49 +0100
+Subject: [PATCH] macos: load CEF from a component directory when the app does
+ not bundle it
+
+CEF started only from the app bundle's Contents/Frameworks, so an app
+had to ship its 300 MB in every download to use a CEF webview at all.
+
+CEF now starts from the first directory that holds
+"Chromium Embedded Framework.framework": ELECTROBUN_CEF_DIR from the
+launch environment, the bundle's Contents/Frameworks, or the CEF
+component <Application Support>/<identifier>/cef/<CEF_VERSION>-<arch>
+(Application Support under HOME when it is set, as Bun's os.homedir()
+resolves it). The helper apps sit beside the framework in each, and
+framework_dir_path and browser_subprocess_path point there. The app
+installs the component; until it does, a CEF webview falls back to
+WKWebView and a later one may still start CEF. The NSApplication is
+always ElectrobunNSApplication, since CEF may arrive after launch.
+
+The helper no longer links the framework at
+@executable_path/../../../../Frameworks, which only an app bundle has:
+CefScopedLibraryLoader::LoadInHelper already loads it from beside the
+helper apps, and the helper reaches it through libcef_dll_wrapper's
+dylib stubs, as the native wrapper does.
+---
+ package/build.ts                          |  10 +-
+ package/src/native/macos/nativeWrapper.mm | 133 ++++++++++++++++------
+ 2 files changed, 104 insertions(+), 39 deletions(-)
+
+diff --git a/package/build.ts b/package/build.ts
+index d87fbd7..57a3697 100644
+--- a/package/build.ts
++++ b/package/build.ts
+@@ -1893,11 +1893,11 @@ async function vendorCEF() {
+ 
+ 			// build helper
+ 			await $`xcrun --sdk macosx clang++ ${macosClangTargetFlags} -std=c++20 -ObjC++ -fobjc-arc -I./vendors/cef -c src/native/macos/cef_process_helper_mac.cc -o src/native/build/process_helper_mac.o`;
+-			// link
+-			await $`xcrun --sdk macosx clang++ ${macosClangTargetFlags} -std=c++20 src/native/build/process_helper_mac.o -o src/native/build/process_helper -framework Cocoa -framework WebKit -framework QuartzCore -F./vendors/cef/Release -framework "Chromium Embedded Framework" -L./vendors/cef/build/libcef_dll_wrapper -lcef_dll_wrapper -stdlib=libc++`;
+-			// fix internal path
+-			// Note: Can use `otool -L src/native/build/process_helper` to check the value
+-			await $`install_name_tool -change "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework" "@executable_path/../../../../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework" src/native/build/process_helper`;
++			// link: not against the framework. CefScopedLibraryLoader::LoadInHelper
++			// loads it from beside the helper apps (../../.. from the executable),
++			// through libcef_dll_wrapper's dylib stubs, so the same helper runs in
++			// an app bundle's Contents/Frameworks and in a CEF component directory.
++			await $`xcrun --sdk macosx clang++ ${macosClangTargetFlags} -std=c++20 src/native/build/process_helper_mac.o -o src/native/build/process_helper -framework Cocoa -framework WebKit -framework QuartzCore -L./vendors/cef/build/libcef_dll_wrapper -lcef_dll_wrapper -stdlib=libc++`;
+ 		}
+ 	} else if (OS === "win") {
+ 		if (!existsSync(join(process.cwd(), "vendors", "cef"))) {
+diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
+index ab67ac5..bd1cc2e 100644
+--- a/package/src/native/macos/nativeWrapper.mm
++++ b/package/src/native/macos/nativeWrapper.mm
+@@ -43,6 +43,7 @@ static bool wgpuDebugEnabled() {
+ #include "include/base/cef_ref_counted.h"
+ #include "include/cef_app.h"
+ #include "include/cef_application_mac.h"
++#include "include/cef_version.h"
+ #include "include/wrapper/cef_library_loader.h"
+ #include "include/cef_base.h"
+ #include "include/cef_browser.h"
+@@ -56,7 +57,6 @@ static bool wgpuDebugEnabled() {
+ #include "include/cef_resource_handler.h"
+ #include "include/cef_scheme.h"
+ #include "include/wrapper/cef_helpers.h"
+-#include "include/wrapper/cef_library_loader.h"
+ #include <atomic>
+ #include <chrono>
+ #include <cmath>
+@@ -106,7 +106,6 @@ static bool wgpuDebugEnabled() {
+ static std::once_flag g_asarArchiveInitFlag;
+ 
+ CGFloat OFFSCREEN_OFFSET = -20000;
+-BOOL useCEF = false;
+ // CEF starts with the first CEF webview, not at launch: an app whose CEF
+ // webviews open later (or never) runs no CEF processes until then.
+ static bool g_cefStarted = false;
+@@ -679,22 +678,80 @@ static void applyWindowButtonPosition(NSWindow *window, double x, double y) {
+  * =============================================================================
+  */
+ 
+-// The CEF framework the app bundles. The native wrapper does not link it: CEF
+-// is loaded with cef_load_library when the first CEF webview starts it, so an
+-// app that opens no CEF webview never maps the framework.
+-static NSString *cefFrameworkDirectory() {
+-  return [[NSBundle mainBundle].privateFrameworksPath
+-      stringByAppendingPathComponent:@"Chromium Embedded Framework.framework"];
++// Where CEF lives. The native wrapper does not link it: CEF is loaded with
++// cef_load_library when the first CEF webview starts it, from the first of
++//   1. ELECTROBUN_CEF_DIR, from the app's launch environment;
++//   2. the app bundle's Contents/Frameworks, when the app bundles CEF;
++//   3. the CEF component, <Application Support>/<identifier>/cef/<CEF_VERSION>-<arch>,
++//      which an app that does not bundle CEF installs before its first CEF webview.
++// Each holds "Chromium Embedded Framework.framework" and the "<executable> Helper"
++// apps side by side, so the helpers' CefScopedLibraryLoader::LoadInHelper finds
++// the framework at its usual relative path.
++static NSString *const kCefFrameworkName = @"Chromium Embedded Framework.framework";
++static NSString *const kCefFrameworkBinaryName = @"Chromium Embedded Framework";
++
++static NSString *cefComponentArchName() {
++#if defined(__aarch64__) || defined(__arm64__)
++  return @"arm64";
++#else
++  return @"x64";
++#endif
++}
++
++static NSString *cefFrameworkBinaryIn(NSString *directory) {
++  return [[directory stringByAppendingPathComponent:kCefFrameworkName]
++      stringByAppendingPathComponent:kCefFrameworkBinaryName];
++}
++
++static bool hasCefFramework(NSString *directory) {
++  return directory.length > 0 && [[NSFileManager defaultManager]
++                                     fileExistsAtPath:cefFrameworkBinaryIn(directory)];
++}
++
++// ~/Library/Application Support from HOME when it is set, as Bun's
++// os.homedir() resolves it, so the app installs the component where this
++// looks for it.
++static NSString *applicationSupportDirectory() {
++  const char *home = getenv("HOME");
++  if (home && home[0] == '/') {
++    return [[[NSString stringWithUTF8String:home]
++        stringByAppendingPathComponent:@"Library"]
++        stringByAppendingPathComponent:@"Application Support"];
++  }
++  return [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
++                                              NSUserDomainMask, YES)
++      firstObject];
++}
++
++static NSString *cefComponentDirectory() {
++  NSString *appSupportPath = applicationSupportDirectory();
++  NSString *identifier =
++      g_electrobunIdentifier.empty()
++          ? [[NSBundle mainBundle] bundleIdentifier]
++          : [NSString stringWithUTF8String:g_electrobunIdentifier.c_str()];
++  if (appSupportPath.length == 0 || identifier.length == 0)
++    return nil;
++  NSString *name = [NSString
++      stringWithFormat:@"%s-%@", CEF_VERSION, cefComponentArchName()];
++  return [[[appSupportPath stringByAppendingPathComponent:identifier]
++      stringByAppendingPathComponent:@"cef"] stringByAppendingPathComponent:name];
+ }
+ 
+-static NSString *cefFrameworkBinary() {
+-  return [cefFrameworkDirectory()
+-      stringByAppendingPathComponent:@"Chromium Embedded Framework"];
++// The directory holding the framework and the helpers, or nil without CEF.
++static NSString *cefDirectory() {
++  const char *configured = getenv("ELECTROBUN_CEF_DIR");
++  if (configured && configured[0]) {
++    NSString *directory = [NSString stringWithUTF8String:configured];
++    return hasCefFramework(directory) ? directory : nil;
++  }
++  NSString *bundled = [NSBundle mainBundle].privateFrameworksPath;
++  if (hasCefFramework(bundled))
++    return bundled;
++  NSString *component = cefComponentDirectory();
++  return hasCefFramework(component) ? component : nil;
+ }
+ 
+-bool isCEFAvailable() {
+-  return [[NSFileManager defaultManager] fileExistsAtPath:cefFrameworkBinary()];
+-}
++bool isCEFAvailable() { return cefDirectory() != nil; }
+ 
+ extern "C" uint32_t getWindowStyle(bool Borderless, bool Titled, bool Closable,
+                                    bool Miniaturizable, bool Resizable,
+@@ -7591,11 +7648,20 @@ bool initializeCEF() {
+     failed = true;
+     return false;
+   }
+-  if (!cef_load_library([cefFrameworkBinary() fileSystemRepresentation])) {
+-    NSLog(@"[CEF] Could not load %@", cefFrameworkBinary());
++  NSString *cefDir = cefDirectory();
++  if (cefDir == nil) {
++    // Not final: an app that installs CEF may still do so.
++    NSLog(@"[CEF] No CEF framework: not bundled, not at ELECTROBUN_CEF_DIR, "
++          @"not at %@",
++          cefComponentDirectory());
++    return false;
++  }
++  if (!cef_load_library([cefFrameworkBinaryIn(cefDir) fileSystemRepresentation])) {
++    NSLog(@"[CEF] Could not load %@", cefFrameworkBinaryIn(cefDir));
+     failed = true;
+     return false;
+   }
++  NSLog(@"[CEF] Loading CEF from %@", cefDir);
+ 
+   NSProcessInfo *processInfo = [NSProcessInfo processInfo];
+   NSArray *arguments = [processInfo arguments];
+@@ -7655,7 +7721,8 @@ bool initializeCEF() {
+     CefString(&settings.main_bundle_path) = [bundlePath UTF8String];
+   }
+ 
+-  CefString(&settings.framework_dir_path) = [cefFrameworkDirectory() UTF8String];
++  CefString(&settings.framework_dir_path) =
++      [[cefDir stringByAppendingPathComponent:kCefFrameworkName] UTF8String];
+ 
+   // Match the helper name to the actual host executable. Native modes launch
+   // a different host binary than Cottontail.
+@@ -7664,12 +7731,13 @@ bool initializeCEF() {
+   NSString *executableName =
+       [[executablePath lastPathComponent] stringByDeletingPathExtension];
+   NSString *helperPath = nil;
+-  if (bundlePath && executableName.length > 0) {
+-    NSString *helperRelativePath = [NSString
+-        stringWithFormat:
+-            @"Contents/Frameworks/%@ Helper.app/Contents/MacOS/%@ Helper",
+-            executableName, executableName];
+-    helperPath = [bundlePath stringByAppendingPathComponent:helperRelativePath];
++  if (executableName.length > 0) {
++    // Chromium finds the (GPU), (Renderer), (Plugin) and (Alerts) variants
++    // next to this one.
++    NSString *helperRelativePath =
++        [NSString stringWithFormat:@"%@ Helper.app/Contents/MacOS/%@ Helper",
++                                   executableName, executableName];
++    helperPath = [cefDir stringByAppendingPathComponent:helperRelativePath];
+   }
+   if (helperPath &&
+       [[NSFileManager defaultManager] isExecutableFileAtPath:helperPath]) {
+@@ -8868,7 +8936,6 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+     g_electrobunChannel = std::string(channel);
+   }
+ 
+-  useCEF = isCEFAvailable();
+ 
+   // Initialize the global AbstractView tracking map
+   if (!globalAbstractViews) {
+@@ -8881,12 +8948,10 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+     webviewHTMLLock = [[NSLock alloc] init];
+   }
+ 
+-  // Set up dispatch sources for SIGINT and SIGTERM so they work regardless of
+-  // which event loop is running (CefRunMessageLoop or [NSApp run]).
+-  // bun's process.on("SIGINT") depends on bun's event loop to forward signals
+-  // to the Worker, which doesn't work when the main thread is in [NSApp run].
+-  // Dispatch sources deliver signal events on the main queue, which both
+-  // [NSApp run] and CefRunMessageLoop process.
++  // Set up dispatch sources for SIGINT and SIGTERM. bun's process.on("SIGINT")
++  // depends on bun's event loop to forward signals to the Worker, which doesn't
++  // work when the main thread is in [NSApp run]. Dispatch sources deliver
++  // signal events on the main queue, which [NSApp run] processes.
+   signal(SIGINT, SIG_IGN);
+   signal(SIGTERM, SIG_IGN);
+ 
+@@ -8921,10 +8986,10 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+   dispatch_resume(sigtermSource);
+ 
+   // CEF needs an NSApplication that implements CefAppProtocol, created before
+-  // anything else asks for NSApp; CEF itself starts with the first CEF webview
++  // anything else asks for NSApp. It is always this one, because CEF may be
++  // installed after launch; CEF itself starts with the first CEF webview
+   // (initWebview), on this run loop.
+-  NSApplication *app = useCEF ? [ElectrobunNSApplication sharedApplication]
+-                              : [NSApplication sharedApplication];
++  NSApplication *app = [ElectrobunNSApplication sharedApplication];
+   AppDelegate *delegate = [[AppDelegate alloc] init];
+   [app setDelegate:delegate];
+   retainObjCObject(delegate);
+@@ -9070,7 +9135,7 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+   impl = (__bridge AbstractView *)runOnMainThreadSyncPtr(^{
+     // The first CEF webview starts CEF; if it cannot start, the webview falls
+     // back to WKWebView as it does when the app bundles no CEF.
+-    Class ImplClass = (strcmp(renderer, "cef") == 0 && useCEF && initializeCEF())
++    Class ImplClass = (strcmp(renderer, "cef") == 0 && initializeCEF())
+                           ? [CEFWebViewImpl class]
+                           : [WKWebViewImpl class];
+ 
