@@ -42,6 +42,8 @@ export const extensionFrameMountContextSchema: Schema.Schema<ExtensionFrameMount
     }),
     packagePath: Schema.String,
     projectPaths: Schema.Array(Schema.String),
+    // A Struct drops undeclared keys, so a surface resolved for a Session keeps its id only here.
+    sessionId: Schema.optionalWith(Schema.String, { exact: true }),
     theme: extensionThemeSchema,
   })
 
