@@ -94,4 +94,56 @@ describe('transcript order when the Run start is lost', () => {
       (h) => h.endRun(),
     ])
   })
+
+  // The Run before was restored at the renderer's start, its own start never seen.
+  it('keeps a Run whose start never arrived when a Run restored at a reload settles late', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.reloadRenderer('session'),
+      (h) => h.answer('one more'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('two'),
+      (h) => h.settleRun(),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
+
+  it('keeps a background Run whose start never arrived when a restored Run settles late', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('other'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.reloadRenderer('other'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('two'),
+      (h) => h.settleRun(),
+      (h) => h.view('session'),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
+
+  // The Host put the promoted steer the Run before never took back in the queue.
+  it('drops the preview of a steer the Run before never took when the next start is lost', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.promote('promoted later'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('two'),
+      (h) => h.settleRun(),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
 })

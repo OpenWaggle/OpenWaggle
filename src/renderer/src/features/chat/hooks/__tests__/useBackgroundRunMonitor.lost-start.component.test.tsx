@@ -4,6 +4,7 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useFirstSendPendingStore } from '../../state/first-send-pending-store'
+import { useRunFinishingStore } from '../../state/run-finishing-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
@@ -99,6 +100,47 @@ describe('useBackgroundRunMonitor without the Run start', () => {
     })
 
     expect(useFirstSendPendingStore.getState().ids.has(SESSION_ID)).toBe(false)
+    unmount()
+  })
+
+  // The Run before ended into a queued Follow-up whose start was lost: the new Run is not finishing.
+  it('ends the Run before’s finishing when the next Run streams without a start', () => {
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+    emitAgentEvent({ type: 'agent_start', runId: 'run-1', timestamp: 1 })
+    emitAgentEvent({ type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 2 })
+    expect(useRunFinishingStore.getState().ids.has(SESSION_ID)).toBe(true)
+
+    emitAgentEvent({
+      type: 'message_start',
+      messageId: 'answer-2',
+      role: 'assistant',
+      timestamp: 3,
+    })
+
+    expect(useRunFinishingStore.getState().ids.has(SESSION_ID)).toBe(false)
+    unmount()
+  })
+
+  it('does not take a Hive wake or a tool update for a Run streaming', () => {
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+
+    emitAgentEvent({
+      type: 'message_start',
+      messageId: 'custom-1',
+      role: 'user',
+      userMessage: { parts: [], sessionNodeCreatedOrder: 4, hiveWake: true },
+      timestamp: 1,
+    })
+    emitAgentEvent({
+      type: 'tool_execution_update',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      args: {},
+      partialResult: { content: [] },
+      timestamp: 2,
+    })
+
+    expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
     unmount()
   })
 

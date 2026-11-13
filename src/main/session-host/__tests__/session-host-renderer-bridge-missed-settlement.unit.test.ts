@@ -241,6 +241,19 @@ describe('Session Host renderer bridge missed settlements', () => {
     expect(lifecycle()).toEqual([])
   })
 
+  it.each(['complete', 'failed'] as const)(
+    'announces a Run whose start the resync lost once its launch is %s',
+    (status) => {
+      relayLaunchProgress()
+
+      reconcileRemoteRunSnapshots([
+        { ...snapshot('run-1'), worktreeLaunch: { ...runningLaunch(), status } },
+      ])
+
+      expect(lifecycle()).toEqual([{ started: 'run-1' }])
+    },
+  )
+
   it('does not announce a launch an older Host names no Run for', () => {
     relayLaunchProgress()
 

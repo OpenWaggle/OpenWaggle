@@ -101,6 +101,22 @@ describe('createStartedRuns', () => {
     expect(runs.settle(SESSION, 'run-2')).toBe(false)
   })
 
+  it('lists a Run whose start was lost after the Run restored at a reload', () => {
+    const runs = createStartedRuns()
+    expect(runs.noteUnannounced(SESSION, 'run-1')).toBe(true)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    runs.end(SESSION, 'run-2')
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
+  it('takes a Run whose start was lost for another Run only after one listed', () => {
+    const runs = createStartedRuns()
+    expect(runs.noteUnannounced(SESSION)).toBe(false)
+    expect(runs.noteUnannounced(SESSION)).toBe(false)
+    runs.end(SESSION, 'run-1')
+    expect(runs.noteUnannounced(SESSION)).toBe(true)
+  })
+
   it('names the classic Run a requested Waggle settles as', () => {
     expect(settlingRunId('waggle-of-run-1')).toBe('run-1')
     expect(settlingRunId('waggle-3')).toBe('waggle-3')

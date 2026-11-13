@@ -9,16 +9,17 @@ export function isTerminalTransportEvent(event: AgentTransportEvent): boolean {
 }
 
 /**
- * Whether the event is a Run streaming on: a message it starts or streams, or a tool it runs. Only
- * an active Run sends these, so they tell the renderer a Run is active even when its `agent_start`
- * never reached it. What a Run sends as it ends (`message_end`, `context_usage`, a tool's end)
- * does not: it can arrive after the Run's last `agent_end`.
+ * Whether the event is a Run streaming on: a prompt or answer it starts, an answer it streams, or
+ * a tool it starts. Only an active Run sends these, so they tell the renderer a Run is active even
+ * when its `agent_start` never reached it. What a Run sends as it ends (`message_end`,
+ * `context_usage`, a tool's end) does not: it can arrive after the Run's last `agent_end`. Nor
+ * does a custom message shown as a user row (a Waggle request, a Hive wake), which Pi can flush
+ * after it, or a tool's update, which Pi relays even after the tool returned.
  */
 export function isRunStreamingEvent(event: AgentTransportEvent): boolean {
-  return (
-    event.type === 'message_start' ||
-    event.type === 'message_update' ||
-    event.type === 'tool_execution_start' ||
-    event.type === 'tool_execution_update'
-  )
+  if (event.type === 'message_start') {
+    const custom = event.userMessage?.hiveWake ?? event.userMessage?.waggleInvocation
+    return event.role === 'assistant' || (event.role === 'user' && custom === undefined)
+  }
+  return event.type === 'message_update' || event.type === 'tool_execution_start'
 }

@@ -172,9 +172,14 @@ function noteStreamingRun(
   const store = useBackgroundRunStore.getState()
   if (store.hasActiveRun(sessionId) && !compactionOnlySessionIds.has(sessionId)) return
   compactionOnlySessionIds.delete(sessionId)
-  startedRuns.noteUnannounced(sessionId)
-  // The Session started: a first send's "Starting session" is over.
+  // The Host put a promoted steer the Run before never took back in the queue, as at a start.
+  if (startedRuns.noteUnannounced(sessionId, takeRestoredRunId(sessionId))) {
+    useOptimisticSteerStore.getState().clearSession(sessionId)
+  }
+  // The Session started: a first send's "Starting session" and the Run before's finishing are
+  // over, as at a start.
   useFirstSendPendingStore.getState().clear(sessionId)
+  useRunFinishingStore.getState().clear(sessionId)
   const runModel = event.model?.trim()
   store.noteUnannouncedRun(sessionId, runModel ? SupportedModelId(runModel) : undefined)
 }

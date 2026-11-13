@@ -85,12 +85,16 @@ export function createStartedRuns() {
     /**
      * A Run streams in a Session the renderer holds as idle: its start was lost. It follows the
      * Runs listed, so a late settlement of the one before it does not settle the Session; its end
-     * names it, as a start would have.
+     * names it, as a start would have. `restoredRunId`: as for `start`. `true`, as for `start`,
+     * when a Run is listed before it: the Host settled that one, as at another Run's start.
      */
-    noteUnannounced(sessionId: SessionId) {
-      const started = bySession.get(sessionId) ?? []
-      if (isUnannouncedRun(started.at(-1))) return
+    noteUnannounced(sessionId: SessionId, restoredRunId?: string) {
+      const restored = restoredRunId === undefined ? [] : [settlingRunId(restoredRunId)]
+      const started = bySession.get(sessionId) ?? restored
+      const last = started.at(-1)
+      if (isUnannouncedRun(last)) return false
       bySession.set(sessionId, [...started, UNANNOUNCED_RUN])
+      return last !== undefined && !isUnnamedRunStart(last)
     },
     /**
      * A Run settled (`undefined`: a settlement naming none, which settles the Session): whether it
