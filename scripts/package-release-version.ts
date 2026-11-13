@@ -1,5 +1,8 @@
 import { DefaultChangelogNotes } from 'release-please/build/src/changelog-notes/default.js'
-import { type ConventionalCommit, parseConventionalCommits } from 'release-please/build/src/commit.js'
+import {
+  type ConventionalCommit,
+  parseConventionalCommits,
+} from 'release-please/build/src/commit.js'
 import type { Logger } from 'release-please/build/src/util/logger.js'
 import { Version } from 'release-please/build/src/version.js'
 import { DefaultVersioningStrategy } from 'release-please/build/src/versioning-strategies/default.js'
@@ -20,7 +23,13 @@ const PENDING_DOCS_ROOT = 'website/src/content/package-docs-next'
 const RELEASE_AS_NOTE = 'RELEASE AS'
 const FEATURE_TYPES = new Set(['feat', 'feature'])
 const discardLog: Logger['warn'] = () => undefined
-const QUIET_LOGGER: Logger = { debug: discardLog, error: discardLog, info: discardLog, trace: discardLog, warn: discardLog }
+const QUIET_LOGGER: Logger = {
+  debug: discardLog,
+  error: discardLog,
+  info: discardLog,
+  trace: discardLog,
+  warn: discardLog,
+}
 
 export interface ReleaseCommit {
   readonly hash: string
@@ -57,7 +66,11 @@ function releaseAsNote(commit: ConventionalCommit) {
   return commit.notes.find((note) => note.title === RELEASE_AS_NOTE)?.text
 }
 
-function buildNewVersion(parsed: readonly ConventionalCommit[], releasedVersion: string | undefined, rules: PackageReleaseRules) {
+function buildNewVersion(
+  parsed: readonly ConventionalCommit[],
+  releasedVersion: string | undefined,
+  rules: PackageReleaseRules,
+) {
   if (rules.releaseAs !== undefined) return Version.parse(rules.releaseAs)
   const releaseAs = parsed.map(releaseAsNote).find((text) => text !== undefined)
   if (releaseAs !== undefined) return Version.parse(releaseAs)
@@ -91,9 +104,13 @@ export async function nextReleaseVersion(input: {
     repository: 'OpenWaggle',
     version,
     currentTag: `${input.component}-v${version}`,
-    ...(input.releasedVersion === undefined ? {} : { previousTag: `${input.component}-v${input.releasedVersion}` }),
+    ...(input.releasedVersion === undefined
+      ? {}
+      : { previousTag: `${input.component}-v${input.releasedVersion}` }),
     targetBranch: 'main',
-    ...(input.rules.changelogSections === undefined ? {} : { changelogSections: [...input.rules.changelogSections] }),
+    ...(input.rules.changelogSections === undefined
+      ? {}
+      : { changelogSections: [...input.rules.changelogSections] }),
   })
   // The strategy's `changelogEmpty`: notes that are only the version header have nothing to release.
   return notes.split('\n').length <= 1 ? undefined : version
@@ -111,11 +128,21 @@ function describeCommit(commit: ReleaseCommit) {
 }
 
 function reasonFor(state: PackageReleaseLineState) {
-  const openingHashes = new Set(parseReleaseCommits(state.commits).filter(opensLine).map((commit) => commit.sha))
+  const openingHashes = new Set(
+    parseReleaseCommits(state.commits)
+      .filter(opensLine)
+      .map((commit) => commit.sha),
+  )
   const opening = state.commits.filter((commit) => openingHashes.has(commit.hash))
-  if (opening.length === 0) return state.rules.releaseAs === undefined ? '' : ` because release-as is ${state.rules.releaseAs}`
+  if (opening.length === 0)
+    return state.rules.releaseAs === undefined
+      ? ''
+      : ` because release-as is ${state.rules.releaseAs}`
   const listed = opening.slice(0, MAX_LISTED_COMMITS).map(describeCommit).join(', ')
-  const more = opening.length > MAX_LISTED_COMMITS ? ` and ${String(opening.length - MAX_LISTED_COMMITS)} more` : ''
+  const more =
+    opening.length > MAX_LISTED_COMMITS
+      ? ` and ${String(opening.length - MAX_LISTED_COMMITS)} more`
+      : ''
   return ` because of ${listed}${more}`
 }
 
@@ -132,7 +159,9 @@ export async function packageReleaseLineViolations(packages: readonly PackageRel
       [
         `The next ${state.component} release is ${nextVersion}${reasonFor(state)}.`,
         `That opens documentation line ${nextLine}, and Release Please fails after merge unless pending docs exist in ${PENDING_DOCS_ROOT}/${state.slug}/${
-          startFrom === undefined ? '' : ` (start from ${PUBLISHED_DOCS_ROOT}/${state.slug}/${startFrom}/)`
+          startFrom === undefined
+            ? ''
+            : ` (start from ${PUBLISHED_DOCS_ROOT}/${state.slug}/${startFrom}/)`
         }.`,
         'Add them in this pull request, or retitle or rebase it so the commit that opens the line does not land.',
         'Update your branch from main if main already has these docs.',

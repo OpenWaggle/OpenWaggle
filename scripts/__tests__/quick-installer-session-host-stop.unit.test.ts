@@ -24,7 +24,9 @@ afterEach(async () => {
 async function fakeCli(input: { readonly help: 'update' | 'plain'; readonly state: string }) {
   const executable = path.join(directory, 'OpenWaggle')
   const help =
-    input.help === 'update' ? 'openwaggle host stop --update [--json]' : 'openwaggle host stop [--wait]'
+    input.help === 'update'
+      ? 'openwaggle host stop --update [--json]'
+      : 'openwaggle host stop [--wait]'
   await fs.writeFile(
     executable,
     `#!/bin/sh

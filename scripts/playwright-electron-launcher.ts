@@ -73,9 +73,7 @@ export function playwrightElectronArguments(
     ...(platform === 'linux' ? ['--password-store=basic'] : []),
   ]
   const appPath =
-    input.appPath === undefined && input.executablePath !== undefined
-      ? []
-      : [input.appPath ?? '.']
+    input.appPath === undefined && input.executablePath !== undefined ? [] : [input.appPath ?? '.']
   return [...appPath, ...credentialStoreSwitches]
 }
 
@@ -86,9 +84,7 @@ export async function launchOpenWaggleElectron(
   await fs.mkdir(playwrightElectronHome(input).piAgentDir, { recursive: true })
   return electron.launch({
     args: playwrightElectronArguments(input),
-    ...(input.executablePath === undefined
-      ? {}
-      : { executablePath: input.executablePath }),
+    ...(input.executablePath === undefined ? {} : { executablePath: input.executablePath }),
     ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
     env: buildPlaywrightElectronEnvironment(input),
   })

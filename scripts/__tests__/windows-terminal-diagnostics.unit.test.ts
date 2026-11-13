@@ -11,7 +11,9 @@ describe('manual Windows terminal diagnostics', () => {
     expect(workflow.getIn(['on', 'pull_request'])).toBeUndefined()
     expect(workflow.getIn(['on', 'push'])).toBeUndefined()
     expect(workflow.getIn(['on', 'workflow_dispatch', 'inputs', 'head_sha', 'required'])).toBe(true)
-    expect(workflow.getIn(['on', 'workflow_dispatch', 'inputs', 'profile', 'default'])).toBe('all-backends')
+    expect(workflow.getIn(['on', 'workflow_dispatch', 'inputs', 'profile', 'default'])).toBe(
+      'all-backends',
+    )
     expect(workflow.getIn(['permissions', 'contents'])).toBe('read')
     expect(workflow.getIn(['jobs', 'native-pty', 'runs-on'])).toBe('windows-latest')
   })

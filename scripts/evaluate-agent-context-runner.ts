@@ -7,7 +7,12 @@ import type { PerfApp } from './perf/lib/perf-app'
 import { launchApp, stopProcessGroup } from './perf/lib/perf-app'
 import { type PerfProfile, profileEnvironment } from './perf/lib/perf-profile'
 import { delay, withRunningApp } from './perf/lib/running-app'
-import { addUsage, emptyUsage, readRunTranscripts, type SessionTranscriptSummary } from './evaluate-agent-context-transcript'
+import {
+  addUsage,
+  emptyUsage,
+  readRunTranscripts,
+  type SessionTranscriptSummary,
+} from './evaluate-agent-context-transcript'
 import type { EvalOutcome, EvalTask } from './evaluate-agent-context-types'
 
 const DEFAULT_TASK_TIMEOUT_MS = 480_000
@@ -20,7 +25,13 @@ const JSON_INDENT = 2
 const KEPT_OUTPUT_CHARS = 2_000
 const KEPT_CLI_LINES = 40
 const KEPT_ANSWER_CHARS = 1_000
-const FIXTURE_SERVER = path.join(import.meta.dirname, 'perf', 'fixtures', 'mcp-fixture-server', 'server.ts')
+const FIXTURE_SERVER = path.join(
+  import.meta.dirname,
+  'perf',
+  'fixtures',
+  'mcp-fixture-server',
+  'server.ts',
+)
 
 export interface EvalRunInput {
   readonly app: PerfApp
@@ -40,7 +51,10 @@ async function servePage(html: string | undefined) {
   await new Promise<void>((resolve) => server.listen(EPHEMERAL_PORT, LOCALHOST, () => resolve()))
   const address = server.address()
   const port = typeof address === 'object' && address ? address.port : EPHEMERAL_PORT
-  return { url: `http://${LOCALHOST}:${String(port)}/`, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
+  return {
+    url: `http://${LOCALHOST}:${String(port)}/`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
 }
 
 /**
@@ -51,17 +65,29 @@ async function servePage(html: string | undefined) {
 export async function prepareTaskProfile(task: EvalTask, profile: PerfProfile) {
   await task.setup?.(profile.projectPath)
   execFileSync('git', ['add', '-A'], { cwd: profile.projectPath })
-  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'fixture'], { cwd: profile.projectPath })
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'fixture'], {
+    cwd: profile.projectPath,
+  })
   await task.afterCommit?.(profile.projectPath)
   if (!task.mcpInventory) return
-  const config = { mcpServers: { inventory: { command: 'node', args: [FIXTURE_SERVER, 'inventory'], exposure: 'direct' } } }
+  const config = {
+    mcpServers: {
+      inventory: { command: 'node', args: [FIXTURE_SERVER, 'inventory'], exposure: 'direct' },
+    },
+  }
   await mkdir(profile.agentDir, { recursive: true })
-  await writeFile(path.join(profile.agentDir, 'mcp.json'), `${JSON.stringify(config, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(profile.agentDir, 'mcp.json'),
+    `${JSON.stringify(config, null, JSON_INDENT)}\n`,
+  )
 }
 
 async function readInspected(projectPath: string, files: readonly string[] = []) {
   const entries = await Promise.all(
-    files.map(async (file) => [file, await readFile(path.join(projectPath, file), 'utf8').catch(() => null)] as const),
+    files.map(
+      async (file) =>
+        [file, await readFile(path.join(projectPath, file), 'utf8').catch(() => null)] as const,
+    ),
   )
   return Object.fromEntries(entries)
 }
@@ -69,8 +95,18 @@ async function readInspected(projectPath: string, files: readonly string[] = [])
 function runVerifications(projectPath: string, commands: readonly string[] = []) {
   return Object.fromEntries(
     commands.map((command) => {
-      const result = spawnSync('/bin/sh', ['-c', command], { cwd: projectPath, encoding: 'utf8', timeout: VERIFY_TIMEOUT_MS })
-      return [command, { exitCode: result.status ?? -1, output: `${result.stdout}${result.stderr}`.slice(-KEPT_OUTPUT_CHARS) }]
+      const result = spawnSync('/bin/sh', ['-c', command], {
+        cwd: projectPath,
+        encoding: 'utf8',
+        timeout: VERIFY_TIMEOUT_MS,
+      })
+      return [
+        command,
+        {
+          exitCode: result.status ?? -1,
+          output: `${result.stdout}${result.stderr}`.slice(-KEPT_OUTPUT_CHARS),
+        },
+      ]
     }),
   )
 }
@@ -82,7 +118,8 @@ function rootTranscript(transcripts: readonly SessionTranscriptSummary[]) {
 export async function outcomeOf(task: EvalTask, profile: PerfProfile) {
   const transcripts = await readRunTranscripts(profile.agentDir)
   const usage = emptyUsage()
-  for (const transcript of transcripts) addUsage(usage, { ...transcript.usage, cost: { total: transcript.usage.costUsd } })
+  for (const transcript of transcripts)
+    addUsage(usage, { ...transcript.usage, cost: { total: transcript.usage.costUsd } })
   const outcome: EvalOutcome = {
     answer: rootTranscript(transcripts)?.finalText ?? '',
     files: await readInspected(profile.projectPath, task.inspectFiles),
@@ -96,18 +133,37 @@ export async function outcomeOf(task: EvalTask, profile: PerfProfile) {
 }
 
 /** Sessions that exist before the task's Run, created with `openwaggle hive create`. */
-async function precreateSessions(app: PerfApp, profile: PerfProfile, task: EvalTask, environment: Readonly<Record<string, string>>) {
+async function precreateSessions(
+  app: PerfApp,
+  profile: PerfProfile,
+  task: EvalTask,
+  environment: Readonly<Record<string, string>>,
+) {
   for (const title of task.otherSessions ?? []) {
-    const created = launchApp(app, profileEnvironment(profile, environment), ['--use-mock-keychain', 'hive', 'create', profile.projectPath, '--title', title])
-    await Promise.race([new Promise((resolve) => created.child.once('exit', resolve)), delay(APP_TIMEOUT_MS)])
+    const created = launchApp(app, profileEnvironment(profile, environment), [
+      '--use-mock-keychain',
+      'hive',
+      'create',
+      profile.projectPath,
+      '--title',
+      title,
+    ])
+    await Promise.race([
+      new Promise((resolve) => created.child.once('exit', resolve)),
+      delay(APP_TIMEOUT_MS),
+    ])
     await stopProcessGroup(created.child)
   }
 }
 
-async function applySettings(page: Parameters<Parameters<typeof withRunningApp>[2]>[0]['page'], settings: Readonly<Record<string, unknown>>) {
+async function applySettings(
+  page: Parameters<Parameters<typeof withRunningApp>[2]>[0]['page'],
+  settings: Readonly<Record<string, unknown>>,
+) {
   await page.evaluate(async (values) => {
     const api: unknown = Reflect.get(globalThis, 'api')
-    const update: unknown = typeof api === 'object' && api !== null ? Reflect.get(api, 'updateSettings') : null
+    const update: unknown =
+      typeof api === 'object' && api !== null ? Reflect.get(api, 'updateSettings') : null
     if (typeof update === 'function') await Promise.resolve(Reflect.apply(update, api, [values]))
   }, settings)
 }
@@ -140,8 +196,12 @@ export async function runEvalTask(input: EvalRunInput) {
           title,
         })
         // The browser preview belongs to the Session the window shows, so open it there.
-        if (task.previewPage) await window.getByText(title, { exact: true }).first().click({ timeout: APP_TIMEOUT_MS })
-        const exit = await Promise.race([run.exited, delay(task.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS).then(() => 'timeout' as const)])
+        if (task.previewPage)
+          await window.getByText(title, { exact: true }).first().click({ timeout: APP_TIMEOUT_MS })
+        const exit = await Promise.race([
+          run.exited,
+          delay(task.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS).then(() => 'timeout' as const),
+        ])
         if (exit === 'timeout') await stopProcessGroup(run.launched.child)
         const { outcome, usage, modelCalls } = await outcomeOf(task, profile)
         const result = task.grade(outcome)
@@ -165,7 +225,9 @@ export async function runEvalTask(input: EvalRunInput) {
           toolNames: outcome.toolNames,
           answer: outcome.answer.slice(0, KEPT_ANSWER_CHARS),
           // A failed `openwaggle run` keeps the end of its output, so the failure can be read later.
-          ...(exit === 0 ? {} : { cliOutput: run.launched.logLines.slice(-KEPT_CLI_LINES).join('\n') }),
+          ...(exit === 0
+            ? {}
+            : { cliOutput: run.launched.logLines.slice(-KEPT_CLI_LINES).join('\n') }),
         }
       },
     )

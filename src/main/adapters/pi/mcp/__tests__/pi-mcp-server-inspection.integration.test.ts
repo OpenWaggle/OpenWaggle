@@ -11,9 +11,8 @@ const { forgetKnownMcpServerStates } = await import('../mcp-server-status-regist
 const { openWaggleMcpConnectionHooks } = await import('../mcp-session-context')
 const { McpSessionConnectionPool } = await import('../../../mcp/pool/mcp-session-connection-pool')
 const { mcpServerIdentity } = await import('../../../mcp/pool/mcp-server-identity')
-const { FakeUpstream, flush, initializeRequest } = await import(
-  '../../../mcp/pool/__tests__/fake-upstream'
-)
+const { FakeUpstream, flush, initializeRequest } =
+  await import('../../../mcp/pool/__tests__/fake-upstream')
 
 const SERVER = `
 const readline = require('node:readline')

@@ -199,11 +199,11 @@ export function providerChoices(
 function isRecognised(host: string, inputs: DecisionInputs) {
   return Boolean(
     publicSourceControlProvider(host) !== undefined ||
-      inputs.preferences.userChoices[host] ||
-      inputs.preferences.detectedHosts[host] ||
-      inputs.declared[host] ||
-      inputs.cliHosts.github.some((entry) => entry.host === host) ||
-      inputs.cliHosts.gitlab.some((entry) => entry.host === host),
+    inputs.preferences.userChoices[host] ||
+    inputs.preferences.detectedHosts[host] ||
+    inputs.declared[host] ||
+    inputs.cliHosts.github.some((entry) => entry.host === host) ||
+    inputs.cliHosts.gitlab.some((entry) => entry.host === host),
   )
 }
 

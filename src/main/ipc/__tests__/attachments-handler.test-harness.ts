@@ -201,12 +201,10 @@ export function resetAttachmentHandlerMocks() {
         },
         unknown
       >(rawInput)
-      const { prepareAttachmentFiles, toPublicPreparedAttachment } = await import(
-        '../../utils/attachment-preparation'
-      )
-      const { decodeLocalSessionCommandResponse } = await import(
-        '../../session-host/local-session-client-response'
-      )
+      const { prepareAttachmentFiles, toPublicPreparedAttachment } =
+        await import('../../utils/attachment-preparation')
+      const { decodeLocalSessionCommandResponse } =
+        await import('../../session-host/local-session-client-response')
       const attachments = await prepareAttachmentFiles({
         baseDirectory: input.caller.workingDirectory,
         entries: input.payload.request.entries,

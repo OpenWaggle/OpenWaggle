@@ -3,12 +3,7 @@ import babelParser from '@babel/eslint-parser'
 import { describe, expect, it } from 'vitest'
 import { openwagglePlugin } from '../openwaggle-plugin'
 
-function lint(
-  code: string,
-  ruleName: string,
-  filename: string,
-  options: readonly unknown[] = [],
-) {
+function lint(code: string, ruleName: string, filename: string, options: readonly unknown[] = []) {
   const linter = new Linter({ configType: 'flat' })
   return linter.verify(
     code,
@@ -189,7 +184,9 @@ describe('OpenWaggle ESLint plugin', () => {
     )
 
     expect(messages).toHaveLength(1)
-    expect(messages.at(0)?.message).toContain('Source tests must live under a local __tests__ directory')
+    expect(messages.at(0)?.message).toContain(
+      'Source tests must live under a local __tests__ directory',
+    )
   })
 
   it('allows source tests under __tests__ directories', () => {

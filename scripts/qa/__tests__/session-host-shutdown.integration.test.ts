@@ -127,9 +127,15 @@ describe('QA Session Host profile removal', () => {
     const ownership = await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
     try {
       await fs.writeFile(databasePath, 'private transcript fixture')
-      await fs.writeFile(path.join(stateRoot, 'local-user.credential'), 'private credential fixture')
+      await fs.writeFile(
+        path.join(stateRoot, 'local-user.credential'),
+        'private credential fixture',
+      )
       await fs.mkdir(path.join(userDataRoot, 'renderer-cache'))
-      await fs.writeFile(path.join(userDataRoot, 'renderer-cache', 'cached-history'), 'private history')
+      await fs.writeFile(
+        path.join(userDataRoot, 'renderer-cache', 'cached-history'),
+        'private history',
+      )
 
       const finalize = await prepareQaProfileRemoval(userDataRoot, ownership)
       await ownership.release()

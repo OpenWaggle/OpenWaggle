@@ -25,7 +25,10 @@ describe('the test user-home guard', () => {
   it.each([
     ['HOME is the real home', { home: REAL_HOME }],
     ['Pi agent dir is the real one', { piAgentDir: `${REAL_HOME}/.pi/agent` }],
-    ['user data is in the real home', { userDataDir: `${REAL_HOME}/Library/Application Support/openwaggle` }],
+    [
+      'user data is in the real home',
+      { userDataDir: `${REAL_HOME}/Library/Application Support/openwaggle` },
+    ],
     ['HOME contains the real home', { home: '/Users' }],
     ['Pi session dir is in the real home', { piSessionDir: `${REAL_HOME}/pi-sessions` }],
   ])('trips when %s', (_case, overrides) => {
@@ -48,7 +51,10 @@ describe('the test user-home guard', () => {
   it('is installed: this test runs with a temporary HOME, Pi agent dir, and user data', () => {
     const realHome = os.userInfo().homedir
     expect(os.homedir()).not.toBe(realHome)
-    expect(path.relative(realHome, os.homedir()).startsWith('..') || os.homedir().startsWith(os.tmpdir())).toBe(true)
+    expect(
+      path.relative(realHome, os.homedir()).startsWith('..') ||
+        os.homedir().startsWith(os.tmpdir()),
+    ).toBe(true)
   })
 
   it("clears a developer's Pi session dir and Host temp dir, so tests use their own", () => {

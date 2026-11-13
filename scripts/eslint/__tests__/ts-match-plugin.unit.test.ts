@@ -5,24 +5,28 @@ import { tsMatchPlugin } from '../ts-match-plugin'
 
 function lint(code: string, ruleName: string) {
   const linter = new Linter({ configType: 'flat' })
-  return linter.verify(code, {
-    files: ['**/*.{ts,tsx}'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      parser: babelParser,
-      parserOptions: {
-        babelOptions: { parserOpts: { plugins: ['typescript', 'jsx'] } },
-        requireConfigFile: false,
+  return linter.verify(
+    code,
+    {
+      files: ['**/*.{ts,tsx}'],
+      languageOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        parser: babelParser,
+        parserOptions: {
+          babelOptions: { parserOpts: { plugins: ['typescript', 'jsx'] } },
+          requireConfigFile: false,
+        },
+      },
+      plugins: {
+        'ts-match': tsMatchPlugin,
+      },
+      rules: {
+        [ruleName]: 'error',
       },
     },
-    plugins: {
-      'ts-match': tsMatchPlugin,
-    },
-    rules: {
-      [ruleName]: 'error',
-    },
-  }, { filename: 'src/example.ts' })
+    { filename: 'src/example.ts' },
+  )
 }
 
 describe('ts-match ESLint plugin', () => {

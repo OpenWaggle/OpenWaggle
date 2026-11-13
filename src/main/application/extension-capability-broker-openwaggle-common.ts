@@ -40,12 +40,10 @@ export function validateBrokerProjectPath(
   projectPath: string,
 ): Effect.Effect<ProjectPathValidationResult> {
   return validateRequiredProjectPath(projectPath).pipe(
-    Effect.map(
-      (validatedProjectPath): ProjectPathValidationResult => ({
-        _tag: 'valid',
-        projectPath: validatedProjectPath,
-      }),
-    ),
+    Effect.map((validatedProjectPath): ProjectPathValidationResult => ({
+      _tag: 'valid',
+      projectPath: validatedProjectPath,
+    })),
     Effect.catchAll((error) =>
       Effect.succeed<ProjectPathValidationResult>({
         _tag: 'invalid',

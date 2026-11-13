@@ -1,11 +1,6 @@
 import type { Rule } from 'eslint'
 
-const FORBIDDEN_IGNORE_MARKERS = [
-  'eslint-disable',
-  'biome-ignore',
-  'fallow-ignore',
-  'SAFETY:',
-]
+const FORBIDDEN_IGNORE_MARKERS = ['eslint-disable', 'biome-ignore', 'fallow-ignore', 'SAFETY:']
 
 export const noArchitectureIgnoreCommentsRule: Rule.RuleModule = {
   meta: {

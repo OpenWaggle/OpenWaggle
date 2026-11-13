@@ -14,9 +14,8 @@ import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-p
 import type { SettingsServiceShape } from '../../services/settings-service'
 
 const { browserPreviewManager } = await import('../../browser-preview')
-const { makeBrowserPreviewAutomationService } = await import(
-  '../electron-browser-preview-automation-service'
-)
+const { makeBrowserPreviewAutomationService } =
+  await import('../electron-browser-preview-automation-service')
 
 const scope = { sessionId: SessionId('session-automation'), workingPath: '/project' }
 

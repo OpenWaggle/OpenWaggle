@@ -35,10 +35,7 @@ const BUILD_DEFINE = {
 const UNPDF_DIST_PATH = 'unpdf/dist/index.mjs'
 const UNPDF_IMPORT_META_RESOLVE_LINE = 'import.meta.resolve("pdfjs-dist/package.json")'
 const UNPDF_CJS_RESOLVE_LINE = 'require.resolve("pdfjs-dist/package.json")'
-const MCP_CONFIG_WATCH_IGNORES = [
-  '**/.mcp.json',
-  '**/.openwaggle/mcp.json',
-]
+const MCP_CONFIG_WATCH_IGNORES = ['**/.mcp.json', '**/.openwaggle/mcp.json']
 
 /**
  * `unpdf` is bundled into the Electron main CJS output. Its Node defaults use
@@ -136,16 +133,16 @@ export default defineConfig({
         '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
         '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
         '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
-      }
-    }
+      },
+    },
   },
   preload: {
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
-        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts')
-      }
-    }
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
+      },
+    },
   },
   renderer: {
     define: BUILD_DEFINE,
@@ -179,10 +176,7 @@ export default defineConfig({
       // starting. Without this warmup, opening the first syntax-eligible file
       // causes Vite to discover Shiki on demand and reload the renderer.
       warmup: {
-        clientFiles: [
-          './src/main.tsx',
-          './src/shared/lib/syntax/syntax.worker.ts',
-        ],
+        clientFiles: ['./src/main.tsx', './src/shared/lib/syntax/syntax.worker.ts'],
       },
     },
     optimizeDeps: {
@@ -213,6 +207,6 @@ export default defineConfig({
       babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
       disablePluginTimingWarningsPlugin(),
-    ]
-  }
+    ],
+  },
 })

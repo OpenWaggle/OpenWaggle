@@ -124,9 +124,8 @@ describe('inline visualization replay', () => {
     const { runAppEffect, resetAppRuntimeForTests } = await import('../../runtime')
     await resetAppRuntimeForTests()
     const reloaded = await getSessionDetail(replaySessionId)
-    const { readInlineVisualizationSource } = await import(
-      '../../application/inline-visualization-source-service'
-    )
+    const { readInlineVisualizationSource } =
+      await import('../../application/inline-visualization-source-service')
     const liveSource = await runAppEffect(
       readInlineVisualizationSource({ sessionId: sourceSessionId, sourcePath }),
     )
@@ -208,9 +207,8 @@ describe('inline visualization replay', () => {
     const { runAppEffect, resetAppRuntimeForTests } = await import('../../runtime')
     await resetAppRuntimeForTests()
     const reloaded = await getSessionDetail(replaySessionId)
-    const { readInlineVisualizationSource } = await import(
-      '../../application/inline-visualization-source-service'
-    )
+    const { readInlineVisualizationSource } =
+      await import('../../application/inline-visualization-source-service')
     const liveSource = await runAppEffect(
       readInlineVisualizationSource({ sessionId: sourceSessionId, sourcePath }),
     )

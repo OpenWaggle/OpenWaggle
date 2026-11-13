@@ -99,7 +99,9 @@ export async function collectNativeArtifactSignatures(
       }
       const artifactStat = await stat(artifactPath)
       if (!artifactStat.isFile()) {
-        throw new Error(`${packageName} ${requirement.label} is not a regular file: ${artifactPath}.`)
+        throw new Error(
+          `${packageName} ${requirement.label} is not a regular file: ${artifactPath}.`,
+        )
       }
       if (
         requirement.executable &&

@@ -110,9 +110,7 @@ export async function verifyPublishedPlaceholder(
     `npm view ${packageName} dist-tags`,
   )
   if (!hasCompatibleTags(tags)) {
-    throw new Error(
-      `${packageName} bootstrap version has unsupported dist-tags.`,
-    )
+    throw new Error(`${packageName} bootstrap version has unsupported dist-tags.`)
   }
   const access = await runRequired(dependencies, {
     args: ['access', 'get', 'status', packageName, '--json'],

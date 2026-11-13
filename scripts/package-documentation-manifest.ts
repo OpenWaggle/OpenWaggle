@@ -10,7 +10,11 @@ export interface PackageManifest {
   readonly homepage?: string
   readonly keywords?: readonly string[]
   readonly name?: string
-  readonly repository?: { readonly directory?: string; readonly type?: string; readonly url?: string }
+  readonly repository?: {
+    readonly directory?: string
+    readonly type?: string
+    readonly url?: string
+  }
   readonly version?: string
 }
 
@@ -43,8 +47,7 @@ export function packageManifest(value: unknown): PackageManifest {
     name: typeof value.name === 'string' ? value.name : undefined,
     repository: repository
       ? {
-          directory:
-            typeof repository.directory === 'string' ? repository.directory : undefined,
+          directory: typeof repository.directory === 'string' ? repository.directory : undefined,
           type: typeof repository.type === 'string' ? repository.type : undefined,
           url: typeof repository.url === 'string' ? repository.url : undefined,
         }
@@ -61,8 +64,8 @@ export function packageManifestDocumentationViolations(
   const violations: string[] = []
   if (manifest.name !== definition.packageName) violations.push('name')
   if (
-    manifest.version?.split('.').slice(0, SEMVER_DOCS_PART_COUNT).join('.')
-    !== definition.currentVersion
+    manifest.version?.split('.').slice(0, SEMVER_DOCS_PART_COUNT).join('.') !==
+    definition.currentVersion
   ) {
     violations.push('docs version')
   }
@@ -72,9 +75,9 @@ export function packageManifestDocumentationViolations(
     violations.push('bugs')
   }
   if (
-    manifest.repository?.type !== 'git'
-    || manifest.repository.url !== 'https://github.com/OpenWaggle/OpenWaggle.git'
-    || manifest.repository.directory !== `packages/${definition.slug}`
+    manifest.repository?.type !== 'git' ||
+    manifest.repository.url !== 'https://github.com/OpenWaggle/OpenWaggle.git' ||
+    manifest.repository.directory !== `packages/${definition.slug}`
   ) {
     violations.push('repository')
   }

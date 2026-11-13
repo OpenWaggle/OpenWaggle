@@ -115,12 +115,8 @@ describe('native rebuild artifacts', () => {
           expect.stringContaining('@img+sharp-darwin-arm64@0.34.5'),
         ]),
       )
-      expect(artifacts.map((artifact) => artifact.path).join('\n')).not.toContain(
-        'sharp@0.32.6',
-      )
-      expect(artifacts.map((artifact) => artifact.path).join('\n')).not.toContain(
-        'unrelated.node',
-      )
+      expect(artifacts.map((artifact) => artifact.path).join('\n')).not.toContain('sharp@0.32.6')
+      expect(artifacts.map((artifact) => artifact.path).join('\n')).not.toContain('unrelated.node')
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }
@@ -145,11 +141,11 @@ describe('native rebuild artifacts', () => {
       )
 
       await expect(
-        collectNativeArtifactSignatures(
-          { projectRoot, pnpmPackageDirectory },
-          ['node-pty'],
-          { platform: 'darwin', arch: 'arm64', libc: 'glibc' },
-        ),
+        collectNativeArtifactSignatures({ projectRoot, pnpmPackageDirectory }, ['node-pty'], {
+          platform: 'darwin',
+          arch: 'arm64',
+          libc: 'glibc',
+        }),
       ).rejects.toThrow('Missing node-pty macOS spawn helper')
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })

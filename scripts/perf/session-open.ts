@@ -32,7 +32,14 @@ const SETTLE_AFTER_OPEN_MS = 3_000
 const DECIMAL = 10
 const ORDERS = 2
 const USAGE_EXIT_CODE = 2
-const OPEN_METRICS = ['openMs', 'invokeBytes', 'invokeCount', 'pushedBytes', 'domNodes', 'jsHeapBytes']
+const OPEN_METRICS = [
+  'openMs',
+  'invokeBytes',
+  'invokeCount',
+  'pushedBytes',
+  'domNodes',
+  'jsHeapBytes',
+]
 const CROSS_PROJECT_METRICS = ['crossProjectOpenMs', ...OPEN_METRICS]
 const DEFAULT_SWITCH_DELAY_MS = 5_000
 // Generated transcripts number their turns from 0; the large Sessions have 3,600 messages.
@@ -58,10 +65,16 @@ interface ProfileManifest {
 
 async function readManifest(template: string): Promise<ProfileManifest> {
   const parsed: unknown = JSON.parse(await readFile(path.join(template, 'profile.json'), 'utf8'))
-  const large: unknown = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'largeSessions') : null
-  const listText: unknown = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'sessionListText') : null
-  if (!Array.isArray(large) || typeof listText !== 'string') throw new Error('Not a generated profile.')
-  return { largeSessions: large.filter((title): title is string => typeof title === 'string'), sessionListText: listText }
+  const large: unknown =
+    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'largeSessions') : null
+  const listText: unknown =
+    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'sessionListText') : null
+  if (!Array.isArray(large) || typeof listText !== 'string')
+    throw new Error('Not a generated profile.')
+  return {
+    largeSessions: large.filter((title): title is string => typeof title === 'string'),
+    sessionListText: listText,
+  }
 }
 
 /**
@@ -82,13 +95,18 @@ async function openAndWait(page: Page, title: string, lastText: string) {
     const startedAt = performance.now()
     Reflect.set(globalThis, '__owOpen', null)
     const check = () => {
-      if (textNodes().some((node) => !shown.has(node))) Reflect.set(globalThis, '__owOpen', performance.now() - startedAt)
+      if (textNodes().some((node) => !shown.has(node)))
+        Reflect.set(globalThis, '__owOpen', performance.now() - startedAt)
       else requestAnimationFrame(check)
     }
     requestAnimationFrame(check)
   }, lastText)
   await page.getByText(title, { exact: true }).first().click({ timeout: TIMEOUT_MS })
-  await page.waitForFunction(() => typeof Reflect.get(globalThis, '__owOpen') === 'number', undefined, { timeout: TIMEOUT_MS })
+  await page.waitForFunction(
+    () => typeof Reflect.get(globalThis, '__owOpen') === 'number',
+    undefined,
+    { timeout: TIMEOUT_MS },
+  )
   const openMs: unknown = await page.evaluate(() => {
     const value: unknown = Reflect.get(globalThis, '__owOpen')
     return value
@@ -141,13 +159,17 @@ async function measureOpen(
       const ipc: unknown = JSON.parse(String(await inspector.evaluate(IPC_LOG_READ)))
       const dom = await page.evaluate(() => ({
         domNodes: document.getElementsByTagName('*').length,
-        jsHeapBytes: Number(Reflect.get(Reflect.get(performance, 'memory') ?? {}, 'usedJSHeapSize') ?? 0),
+        jsHeapBytes: Number(
+          Reflect.get(Reflect.get(performance, 'memory') ?? {}, 'usedJSHeapSize') ?? 0,
+        ),
       }))
       return {
         app: app.label,
         session: title,
         openMs,
-        ...(options.mode === 'cross-project' ? { crossProjectSession: otherProjectTitle, crossProjectOpenMs } : {}),
+        ...(options.mode === 'cross-project'
+          ? { crossProjectSession: otherProjectTitle, crossProjectOpenMs }
+          : {}),
         ...summarizeIpc(ipc),
         ...dom,
       }
@@ -161,14 +183,19 @@ function openOptions(): OpenOptions {
     process.stderr.write('--mode is first (default) or cross-project\n')
     process.exit(USAGE_EXIT_CODE)
   }
-  const switchDelayMs = Number.parseInt(values['switch-delay'] ?? String(DEFAULT_SWITCH_DELAY_MS), DECIMAL)
+  const switchDelayMs = Number.parseInt(
+    values['switch-delay'] ?? String(DEFAULT_SWITCH_DELAY_MS),
+    DECIMAL,
+  )
   return { mode, switchDelayMs }
 }
 
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0 || !values.template) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) --template <generated profile> (macOS only)\n')
+    process.stderr.write(
+      'Use --app <OpenWaggle.app> (repeatable) --template <generated profile> (macOS only)\n',
+    )
     process.exit(USAGE_EXIT_CODE)
   }
   const template = path.resolve(values.template)
@@ -176,23 +203,43 @@ async function main() {
   const runs = Number.parseInt(values.runs ?? String(DEFAULT_RUNS), DECIMAL)
   const { mode, switchDelayMs } = openOptions()
   const metrics = mode === 'cross-project' ? CROSS_PROJECT_METRICS : OPEN_METRICS
-  const indexed = apps.map((appPath, index) => ({ appPath, label: values.label?.[index] ?? path.basename(appPath) }))
-  const results: Record<string, object[]> = Object.fromEntries(indexed.map((entry) => [entry.label, []]))
+  const indexed = apps.map((appPath, index) => ({
+    appPath,
+    label: values.label?.[index] ?? path.basename(appPath),
+  }))
+  const results: Record<string, object[]> = Object.fromEntries(
+    indexed.map((entry) => [entry.label, []]),
+  )
   for (let run = 0; run < runs; run += 1) {
     const order = run % ORDERS === 0 ? indexed : [...indexed].reverse()
     for (const entry of order) {
       try {
-        const result = await measureOpen(entry.appPath, entry.label, template, manifest, { mode, switchDelayMs })
+        const result = await measureOpen(entry.appPath, entry.label, template, manifest, {
+          mode,
+          switchDelayMs,
+        })
         results[entry.label]?.push(result)
-        log(`${entry.label} open ${String(run + 1)}: ${JSON.stringify({ ...result, channels: undefined })}`)
+        log(
+          `${entry.label} open ${String(run + 1)}: ${JSON.stringify({ ...result, channels: undefined })}`,
+        )
       } catch (error) {
         results[entry.label]?.push({ error: String(error) })
         log(`${entry.label} open ${String(run + 1)} failed: ${String(error)}`)
       }
     }
   }
-  const summary = Object.fromEntries(Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, metrics)]))
-  const report = { kind: 'session-open', mode, switchDelayMs, environment: measurementEnvironment(), runs, summary, results }
+  const summary = Object.fromEntries(
+    Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, metrics)]),
+  )
+  const report = {
+    kind: 'session-open',
+    mode,
+    switchDelayMs,
+    environment: measurementEnvironment(),
+    runs,
+    summary,
+    results,
+  }
   if (values.out) log(`Wrote ${await writeJsonResult(values.out, 'session-open.json', report)}`)
   process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
 }
@@ -200,7 +247,9 @@ async function main() {
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

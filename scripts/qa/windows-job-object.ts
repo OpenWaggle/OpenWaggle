@@ -48,7 +48,9 @@ function parsePositiveInteger(value: string) {
 
 function parseWindowsExitCode(value: string) {
   const parsed = Number(value)
-  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= MAX_WINDOWS_EXIT_CODE ? parsed : null
+  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= MAX_WINDOWS_EXIT_CODE
+    ? parsed
+    : null
 }
 
 function parseWindowsJobStates(contents: string) {
@@ -270,6 +272,14 @@ export async function launchInWindowsJobObject(
       { cause: error },
     )
   }
-  if (assigned.status !== 'assigned') throw new Error('Windows Job Object assignment was not proven.')
-  return jobController({ child, controlRoot, logs: () => logs, rootPid: assigned.rootPid, statusPath, stopPath })
+  if (assigned.status !== 'assigned')
+    throw new Error('Windows Job Object assignment was not proven.')
+  return jobController({
+    child,
+    controlRoot,
+    logs: () => logs,
+    rootPid: assigned.rootPid,
+    statusPath,
+    stopPath,
+  })
 }

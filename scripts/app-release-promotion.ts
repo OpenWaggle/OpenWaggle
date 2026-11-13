@@ -106,7 +106,9 @@ export type PromotionBase =
   | { readonly kind: 'compare'; readonly tag: string; readonly ignoredTags: readonly string[] }
 
 function releaseCandidateTagsFor(tags: readonly string[], targetVersion: string) {
-  return tags.filter((tag) => RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups?.core === targetVersion)
+  return tags.filter(
+    (tag) => RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups?.core === targetVersion,
+  )
 }
 
 /**
@@ -122,9 +124,13 @@ export function promotionBase(input: {
   readonly localTags: readonly string[]
 }): PromotionBase {
   const { targetVersion } = input
-  if (!APP_VERSION_PATTERN.test(targetVersion)) throw new Error(`Invalid desktop app version: ${targetVersion}.`)
+  if (!APP_VERSION_PATTERN.test(targetVersion))
+    throw new Error(`Invalid desktop app version: ${targetVersion}.`)
   if (!STABLE_VERSION_PATTERN.test(targetVersion)) {
-    return { kind: 'skip', reason: `${targetVersion} is a prerelease; the promotion guard applies to Stable only.` }
+    return {
+      kind: 'skip',
+      reason: `${targetVersion} is a prerelease; the promotion guard applies to Stable only.`,
+    }
   }
   if (input.gitHubReleaseLines === undefined) {
     throw new Error(`Stable ${targetVersion} needs --releases with the GitHub release list.`)
@@ -132,12 +138,16 @@ export function promotionBase(input: {
   const publishedTags = publishedReleaseTags(input.gitHubReleaseLines)
   const tag = latestReleaseCandidateTag(publishedTags, targetVersion)
   const localReleaseCandidateTags = releaseCandidateTagsFor(input.localTags, targetVersion)
-  const ignoredTags = localReleaseCandidateTags.filter((localTag) => !publishedTags.includes(localTag))
+  const ignoredTags = localReleaseCandidateTags.filter(
+    (localTag) => !publishedTags.includes(localTag),
+  )
   if (!tag) {
     // A new major version always ships through a release candidate; later minors and patches may
     // release straight to Stable (docs/release-and-versioning.md, "After 1.0.0").
     if (requiresReleaseCandidate(targetVersion)) {
-      throw new Error(`Stable ${targetVersion} needs a published ${targetVersion}-rc.N release first.`)
+      throw new Error(
+        `Stable ${targetVersion} needs a published ${targetVersion}-rc.N release first.`,
+      )
     }
     // A minor or patch that started an RC train whose builds never shipped must not quietly drop
     // its freeze: publish a release candidate or delete the stray tags.
@@ -147,7 +157,10 @@ export function promotionBase(input: {
           `Publish ${targetVersion}-rc.N first, or delete these tags to release without one: ${ignoredTags.join(', ')}.`,
       )
     }
-    return { kind: 'skip', reason: `No published release candidate precedes ${targetVersion}; promotion guard skipped.` }
+    return {
+      kind: 'skip',
+      reason: `No published release candidate precedes ${targetVersion}; promotion guard skipped.`,
+    }
   }
   if (!localReleaseCandidateTags.includes(tag)) {
     throw new Error(`Published release candidate ${tag} has no tag in this checkout.`)

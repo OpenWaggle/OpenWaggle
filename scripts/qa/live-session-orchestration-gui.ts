@@ -91,11 +91,7 @@ export async function verifyLiveHiveGui(input: {
 }) {
   const browser = await connectToElectron(input.debugPort, input.timeoutMs)
   try {
-    const page = await waitForRendererPage(
-      browser,
-      input.timeoutMs,
-      input.automationIdentity,
-    )
+    const page = await waitForRendererPage(browser, input.timeoutMs, input.automationIdentity)
     const consoleErrors: string[] = []
     page.on('pageerror', (error) => consoleErrors.push(error.message))
     page.on('console', (message) => {

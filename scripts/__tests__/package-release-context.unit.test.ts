@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  readPackageReleaseParent,
-  resolvePackageReleaseContext,
-} from '../package-release-context'
+import { readPackageReleaseParent, resolvePackageReleaseContext } from '../package-release-context'
 
 const RELEASE_SHA = 'a'.repeat(40)
 const PARENT_SHA = 'b'.repeat(40)
@@ -20,14 +17,7 @@ describe('package release context', () => {
 
     expect(beforeSha).toBe(PARENT_SHA)
     expect(calls).toEqual([
-      [
-        'rev-list',
-        '--first-parent',
-        '--max-count=1',
-        RELEASE_SHA,
-        '--',
-        'packages/*/package.json',
-      ],
+      ['rev-list', '--first-parent', '--max-count=1', RELEASE_SHA, '--', 'packages/*/package.json'],
       ['rev-parse', `${VERSION_COMMIT_SHA}^1`],
     ])
   })

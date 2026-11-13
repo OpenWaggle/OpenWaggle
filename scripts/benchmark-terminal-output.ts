@@ -9,10 +9,7 @@ import type { TerminalEventPayload } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import { makeNodePtyTerminalService } from '../src/main/adapters/node-pty-terminal-service'
 import type { TerminalEventSinkShape } from '../src/main/ports/terminal-event-sink'
-import {
-  runCloseUnderFloodGate,
-  runRestartUnderFloodGate,
-} from './benchmark-terminal-lifecycle'
+import { runCloseUnderFloodGate, runRestartUnderFloodGate } from './benchmark-terminal-lifecycle'
 
 /**
  * Terminal throughput benchmark (ADR 0030): drives the real node-pty service
@@ -39,7 +36,10 @@ process.once('beforeExit', () => {
   process.exitCode = 1
 })
 
-function makeSink(): { readonly shape: TerminalEventSinkShape; readonly events: TerminalEventPayload[] } {
+function makeSink(): {
+  readonly shape: TerminalEventSinkShape
+  readonly events: TerminalEventPayload[]
+} {
   const events: TerminalEventPayload[] = []
   const shape: TerminalEventSinkShape = {
     emit: (payload) =>
@@ -167,7 +167,10 @@ async function main(): Promise<void> {
     const writeResult = await Effect.runPromise(
       service.write(OWNER, TERMINAL_ID, throughputCommand()),
     )
-    assertGate(writeResult.status !== 'rejected', `throughput command rejected (${writeResult.status})`)
+    assertGate(
+      writeResult.status !== 'rejected',
+      `throughput command rejected (${writeResult.status})`,
+    )
     await waitUntil('the terminal throughput completion marker', () =>
       outputForTerminal(events, TERMINAL_ID).includes(OUTPUT_DONE_MARKER),
     )
@@ -222,7 +225,6 @@ async function main(): Promise<void> {
     }
     await runCloseUnderFloodGate(lifecycleContext)
     await runRestartUnderFloodGate(lifecycleContext)
-
   } finally {
     try {
       await Effect.runPromise(service.closeAll())
@@ -235,6 +237,8 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  process.stderr.write(`benchmark failed: ${error instanceof Error ? error.message : String(error)}\n`)
+  process.stderr.write(
+    `benchmark failed: ${error instanceof Error ? error.message : String(error)}\n`,
+  )
   process.exit(1)
 })

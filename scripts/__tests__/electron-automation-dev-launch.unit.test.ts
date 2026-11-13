@@ -22,11 +22,17 @@ describe('development app launches in the electron-automation standard', () => {
     ["const commands = ['pnpm install', 'pnpm dev']", 0],
   ] as const)('counts %s as %i development app launch', (source, launches) => {
     expect(collectScriptedElectronLaunchViolations('scripts/x.ts', source)).toHaveLength(launches)
-    expect(collectScriptedElectronLaunchViolations('packages/x/y.ts', source)).toHaveLength(launches)
-    expect(collectScriptedElectronLaunchViolations('scripts/start-electron-qa.ts', source)).toEqual([])
+    expect(collectScriptedElectronLaunchViolations('packages/x/y.ts', source)).toHaveLength(
+      launches,
+    )
+    expect(collectScriptedElectronLaunchViolations('scripts/start-electron-qa.ts', source)).toEqual(
+      [],
+    )
   })
 
   it("leaves the app's own code, which runs a project's pnpm dev for the user, to other rules", () => {
-    expect(collectScriptedElectronLaunchViolations('src/main/x.ts', "spawn('pnpm', ['dev'])")).toEqual([])
+    expect(
+      collectScriptedElectronLaunchViolations('src/main/x.ts', "spawn('pnpm', ['dev'])"),
+    ).toEqual([])
   })
 })

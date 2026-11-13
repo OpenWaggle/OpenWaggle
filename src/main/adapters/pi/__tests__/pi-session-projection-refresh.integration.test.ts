@@ -106,9 +106,8 @@ describe('Pi session projection refresh', () => {
     await openSession(sessionId)
     continuePiCliSession(cli.file, 'Second question')
     events.length = 0
-    const { dispatchHostBackedSessionGuiOperation } = await import(
-      '../../../application/host-ui-session-operation-dispatcher'
-    )
+    const { dispatchHostBackedSessionGuiOperation } =
+      await import('../../../application/host-ui-session-operation-dispatcher')
 
     const opened = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]),
@@ -163,9 +162,8 @@ describe('Pi session projection refresh', () => {
     await registerProjects([fixture.project])
     createPiCliSession(fixture.project, 'Open me from the sidebar')
     const sessionId = await discoverOne()
-    const { dispatchHostBackedSessionGuiOperation } = await import(
-      '../../../application/host-ui-session-operation-dispatcher'
-    )
+    const { dispatchHostBackedSessionGuiOperation } =
+      await import('../../../application/host-ui-session-operation-dispatcher')
 
     const workspace = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-workspace', [sessionId]),

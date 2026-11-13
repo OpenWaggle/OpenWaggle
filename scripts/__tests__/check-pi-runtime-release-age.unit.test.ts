@@ -38,10 +38,16 @@ describe('Pi release-age exclusions', () => {
     )
     // The last 1.2.0 package was published at 23:03:25Z, so the exclusions stay until 23:04Z.
     expect(
-      collectPiRuntimeAlignmentProblems({ ...alignedInput(), now: new Date('2026-10-19T23:03:59Z') }),
+      collectPiRuntimeAlignmentProblems({
+        ...alignedInput(),
+        now: new Date('2026-10-19T23:03:59Z'),
+      }),
     ).not.toContainEqual(removeEntries)
     expect(
-      collectPiRuntimeAlignmentProblems({ ...alignedInput(), now: new Date('2026-10-19T23:04:00Z') }),
+      collectPiRuntimeAlignmentProblems({
+        ...alignedInput(),
+        now: new Date('2026-10-19T23:04:00Z'),
+      }),
     ).toContainEqual(removeEntries)
   })
 
@@ -53,10 +59,18 @@ describe('Pi release-age exclusions', () => {
     )
 
     expect(
-      collectPiRuntimeAlignmentProblems({ ...input, workspace, now: new Date('2026-10-19T23:59:59Z') }),
+      collectPiRuntimeAlignmentProblems({
+        ...input,
+        workspace,
+        now: new Date('2026-10-19T23:59:59Z'),
+      }),
     ).not.toContainEqual(removeEntries)
     expect(
-      collectPiRuntimeAlignmentProblems({ ...input, workspace, now: new Date('2026-10-20T00:00:00Z') }),
+      collectPiRuntimeAlignmentProblems({
+        ...input,
+        workspace,
+        now: new Date('2026-10-20T00:00:00Z'),
+      }),
     ).toContainEqual(removeEntries)
   })
 
@@ -107,7 +121,10 @@ describe('Pi release-age exclusions', () => {
   it('reads an exclusion that carries a trailing YAML comment', () => {
     const input = alignedInput()
     const entry = `  - "@earendil-works/pi-ai@${version}"`
-    const workspace = input.workspace.replace(entry, `  - "@earendil-works/pi-ai@${version}" # Pi 1.0`)
+    const workspace = input.workspace.replace(
+      entry,
+      `  - "@earendil-works/pi-ai@${version}" # Pi 1.0`,
+    )
 
     expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([])
   })
@@ -127,7 +144,10 @@ describe('Pi release-age exclusions', () => {
   it('reads a version union as one exclusion per version', () => {
     const input = alignedInput()
     const entry = `  - "@earendil-works/pi-ai@${version}"`
-    const workspace = input.workspace.replace(entry, `  - "@earendil-works/pi-ai@${version} || 1.2.1"`)
+    const workspace = input.workspace.replace(
+      entry,
+      `  - "@earendil-works/pi-ai@${version} || 1.2.1"`,
+    )
 
     expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([
       expect.stringContaining('unneeded @earendil-works/pi-ai@1.2.1'),
@@ -137,7 +157,10 @@ describe('Pi release-age exclusions', () => {
   it('reports a version union with a part that is not one exact version', () => {
     const input = alignedInput()
     const entry = `  - "@earendil-works/pi-ai@${version}"`
-    const workspace = input.workspace.replace(entry, `  - "@earendil-works/pi-ai@${version} || ^1.2.1"`)
+    const workspace = input.workspace.replace(
+      entry,
+      `  - "@earendil-works/pi-ai@${version} || ^1.2.1"`,
+    )
 
     expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toContainEqual(
       expect.stringContaining('exact version: @earendil-works/pi-ai@1.2.0 || ^1.2.1'),
@@ -174,5 +197,4 @@ describe('Pi release-age exclusions', () => {
       expect.stringContaining('pi-runtime-release-age-exclusions-expire'),
     )
   })
-
 })

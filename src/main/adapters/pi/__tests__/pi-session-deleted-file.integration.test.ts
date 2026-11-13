@@ -58,9 +58,8 @@ setUpFakePiProvider(fixture)
 // The deletion path takes the Host's removal fence, which a running Session Host provides.
 let releaseEventRuntime: (() => void) | undefined
 beforeEach(async () => {
-  const { installSessionHostEventRuntime } = await import(
-    '../../../session-host/session-host-events'
-  )
+  const { installSessionHostEventRuntime } =
+    await import('../../../session-host/session-host-events')
   const { SessionHostEventHub } = await import('../../../application/session-host-event-hub')
   const { SessionHostLiveness } = await import('../../../application/session-host-liveness')
   releaseEventRuntime = installSessionHostEventRuntime({
@@ -159,9 +158,8 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
     )
     const forked = await discoveredSession(fixture)
     const lastNode = (await sessionDetail(forked.sessionId))?.messages.at(-1)?.id
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
-    )
+    const { forkSession } =
+      await import('../../../application/host-ui-session-lifecycle-operations')
     await run(forkSession([forked.sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
     const plain = await discoveredSession(fixture, { cwd: path.join(fixture.project, 'other') })
     const forkedContent = await fs.readFile(forked.cli.file)
@@ -190,9 +188,8 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
     // The result is JSON, so the fork's title is between escaped quotes.
     expect(failure).toMatch(/fork \\"[^\\]+\\" still depends on it/)
     // Opened, it says so before any send.
-    const { dispatchHostBackedSessionGuiOperation } = await import(
-      '../../../application/host-ui-session-operation-dispatcher'
-    )
+    const { dispatchHostBackedSessionGuiOperation } =
+      await import('../../../application/host-ui-session-operation-dispatcher')
     const opened = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-detail', [forked.sessionId]),
     )
@@ -210,9 +207,8 @@ describe('A discovered Session whose Pi file was deleted outside OpenWaggle', ()
 
   it('is opened without a notice while its file is there', async () => {
     const { sessionId } = await discoveredSession(fixture)
-    const { dispatchHostBackedSessionGuiOperation } = await import(
-      '../../../application/host-ui-session-operation-dispatcher'
-    )
+    const { dispatchHostBackedSessionGuiOperation } =
+      await import('../../../application/host-ui-session-operation-dispatcher')
 
     const opened = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]),

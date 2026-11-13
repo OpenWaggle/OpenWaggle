@@ -20,7 +20,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { LAUNCH_METRICS, type LaunchMode, measureLaunch } from './lib/launch-measurement'
-import { type CompileCacheMode, compileCacheSeedFor, primeCompileCache, seedCompileCache } from './lib/compile-cache'
+import {
+  type CompileCacheMode,
+  compileCacheSeedFor,
+  primeCompileCache,
+  seedCompileCache,
+} from './lib/compile-cache'
 import { writeSlowLoginShellHome } from './lib/login-shell-home'
 import { type PerfApp, resolvePerfApp } from './lib/perf-app'
 import { createPerfProfile, disposePerfProfile, profileEnvironment } from './lib/perf-profile'
@@ -82,7 +87,11 @@ async function measureVersion(app: PerfApp, seed: string | null) {
       encoding: 'utf8',
       env: profileEnvironment(profile),
     })
-    return { app: app.label, versionMs: Math.round(performance.now() - startedAt), output: result.stdout.trim() }
+    return {
+      app: app.label,
+      versionMs: Math.round(performance.now() - startedAt),
+      output: result.stdout.trim(),
+    }
   } finally {
     await disposePerfProfile(profile)
   }
@@ -101,7 +110,10 @@ async function measureOnce(
   return measureLaunch(app, {
     mode: launchMode,
     ...(template
-      ? { templateUserData: path.join(template, 'user-data'), templateHome: path.join(template, 'home') }
+      ? {
+          templateUserData: path.join(template, 'user-data'),
+          templateHome: path.join(template, 'home'),
+        }
       : {}),
     sessionListText: values['session-list-text'] ?? null,
     timeoutMs: numberOption(values['timeout-ms'], DEFAULT_TIMEOUT_MS),
@@ -159,7 +171,9 @@ async function main() {
       try {
         const result = await measureOnce(app, mode, templates, seeds)
         results[app.label]?.push(result)
-        log(`${app.label} ${mode} run ${String(run + 1)}: ${JSON.stringify(result).slice(0, LOGGED_RESULT_CHARS)}`)
+        log(
+          `${app.label} ${mode} run ${String(run + 1)}: ${JSON.stringify(result).slice(0, LOGGED_RESULT_CHARS)}`,
+        )
       } catch (error) {
         results[app.label]?.push({ error: error instanceof Error ? error.message : String(error) })
         log(`${app.label} ${mode} run ${String(run + 1)} failed: ${String(error)}`)
@@ -171,15 +185,28 @@ async function main() {
     Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, metrics)]),
   )
   const loginShell = values['login-shell']
-  const report = { kind: `startup-${mode}`, compileCache, loginShell, environment: measurementEnvironment(), runs, summary, results }
-  if (values.out) log(`Wrote ${await writeJsonResult(values.out, `startup-${mode}-${compileCache}-cache${loginShell === 'slow' ? '-slow-login-shell' : ''}.json`, report)}`)
+  const report = {
+    kind: `startup-${mode}`,
+    compileCache,
+    loginShell,
+    environment: measurementEnvironment(),
+    runs,
+    summary,
+    results,
+  }
+  if (values.out)
+    log(
+      `Wrote ${await writeJsonResult(values.out, `startup-${mode}-${compileCache}-cache${loginShell === 'slow' ? '-slow-login-shell' : ''}.json`, report)}`,
+    )
   process.stdout.write(`${JSON.stringify(summary, null, JSON_INDENT)}\n`)
 }
 
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

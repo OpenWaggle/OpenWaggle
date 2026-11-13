@@ -77,16 +77,10 @@ async function inspectExistingEnvironment(
     'GitHub npm environment secrets',
   )
   if (!isCompatibleEnvironment(environment) || !hasNoSecrets(secrets)) return 'conflict'
-  if (
-    hasMainOnlyBranchPolicy(branchPolicies) &&
-    hasExpectedBranchProtectionRules(environment, 1)
-  ) {
+  if (hasMainOnlyBranchPolicy(branchPolicies) && hasExpectedBranchProtectionRules(environment, 1)) {
     return 'compatible'
   }
-  if (
-    hasNoBranchPolicies(branchPolicies) &&
-    hasExpectedBranchProtectionRules(environment, 0)
-  ) {
+  if (hasNoBranchPolicies(branchPolicies) && hasExpectedBranchProtectionRules(environment, 0)) {
     return 'pending'
   }
   return 'conflict'
@@ -119,14 +113,16 @@ async function readManagedRuleset(
   projectRoot: string,
   dependencies: BootstrapDependencies,
 ): Promise<ManagedRuleset> {
-  const rulesets = flattenRulesetPages(parseJson(
-    await runRequired(dependencies, {
-      args: [...GH_API_ARGS, RULESETS_LIST_ENDPOINT, '--paginate', '--slurp'],
-      command: 'gh',
-      cwd: projectRoot,
-    }),
-    'GitHub repository rulesets',
-  ))
+  const rulesets = flattenRulesetPages(
+    parseJson(
+      await runRequired(dependencies, {
+        args: [...GH_API_ARGS, RULESETS_LIST_ENDPOINT, '--paginate', '--slurp'],
+        command: 'gh',
+        cwd: projectRoot,
+      }),
+      'GitHub repository rulesets',
+    ),
+  )
   const managed = rulesets.filter(
     (ruleset) => isJsonObject(ruleset) && ruleset.name === MANAGED_RULESET_NAME,
   )

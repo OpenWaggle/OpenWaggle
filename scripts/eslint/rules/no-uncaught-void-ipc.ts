@@ -53,7 +53,10 @@ function memberPropertyName(call: Rule.Node): string | null {
   const nameProperty: unknown = property(callee, 'property')
   if (!isLintNode(nameProperty)) return null
   if (hasNodeType(nameProperty, 'Identifier') || hasNodeType(nameProperty, 'StringLiteral')) {
-    const name: unknown = property(nameProperty, hasNodeType(nameProperty, 'Identifier') ? 'name' : 'value')
+    const name: unknown = property(
+      nameProperty,
+      hasNodeType(nameProperty, 'Identifier') ? 'name' : 'value',
+    )
     return typeof name === 'string' ? name : null
   }
   return null
@@ -71,7 +74,9 @@ function chainHandlesRejection(operand: Rule.Node) {
     if (name === REJECTION_HANDLER_PROPERTY) return true
     if (name === THEN_PROPERTY) {
       const arguments_: unknown = property(current, 'arguments')
-      return isUnknownArray(arguments_) && arguments_.length >= THEN_REJECTION_HANDLER_ARGUMENT_COUNT
+      return (
+        isUnknownArray(arguments_) && arguments_.length >= THEN_REJECTION_HANDLER_ARGUMENT_COUNT
+      )
     }
     if (name === null) return false
     const callee: unknown = property(current, 'callee')

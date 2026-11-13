@@ -74,8 +74,7 @@ import type {
 // Each entry defines: [channel name, args tuple, return type]
 
 export interface IpcCoreInvokeChannelMap
-  extends IpcSessionInvokeChannelMap,
-    SessionResourceIpcInvokeChannels {
+  extends IpcSessionInvokeChannelMap, SessionResourceIpcInvokeChannels {
   'agent-definitions:select-source': {
     args: []
     return: string | null

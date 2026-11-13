@@ -93,10 +93,14 @@ describe('macOS build failure classification', () => {
 
   it('fails fast on disk-image errors that a rebuild would not fix', () => {
     expect(
-      transientMacosBuildFailure(dmgbuildFailureLog('hdiutil: create failed - No space left on device')),
+      transientMacosBuildFailure(
+        dmgbuildFailureLog('hdiutil: create failed - No space left on device'),
+      ),
     ).toBeNull()
     expect(
-      transientMacosBuildFailure(dmgbuildFailureLog('hdiutil: create failed - Operation not permitted')),
+      transientMacosBuildFailure(
+        dmgbuildFailureLog('hdiutil: create failed - Operation not permitted'),
+      ),
     ).toBeNull()
   })
 

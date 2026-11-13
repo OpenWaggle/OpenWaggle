@@ -9,9 +9,8 @@ vi.mock('../desktop-ui', () => ({
   launchExternalApplication: mocks.launch,
 }))
 
-const { desktopAppLaunchArguments, forwardSessionLinksFromBackgroundProcess } = await import(
-  '../session-link-forwarding'
-)
+const { desktopAppLaunchArguments, forwardSessionLinksFromBackgroundProcess } =
+  await import('../session-link-forwarding')
 
 beforeEach(() => mocks.launch.mockClear())
 

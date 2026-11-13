@@ -56,12 +56,10 @@ async function readOptionalHashFiles(
     (left, right) => left.localeCompare(right),
   )
   return Promise.all(
-    uniquePaths.map(
-      async (relativePath): Promise<OptionalHashFile> => ({
-        relativePath,
-        ...(await readOptionalHashFile(packagePath, relativePath)),
-      }),
-    ),
+    uniquePaths.map(async (relativePath): Promise<OptionalHashFile> => ({
+      relativePath,
+      ...(await readOptionalHashFile(packagePath, relativePath)),
+    })),
   )
 }
 

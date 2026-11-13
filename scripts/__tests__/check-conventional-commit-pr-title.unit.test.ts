@@ -20,12 +20,7 @@ async function git(cwd: string, args: readonly string[]) {
   return stdout.trim()
 }
 
-async function writeAndCommit(
-  cwd: string,
-  filePath: string,
-  contents: string,
-  message: string,
-) {
+async function writeAndCommit(cwd: string, filePath: string, contents: string, message: string) {
   const absolutePath = path.join(cwd, filePath)
   await fs.mkdir(path.dirname(absolutePath), { recursive: true })
   await fs.writeFile(absolutePath, contents, 'utf8')
@@ -88,7 +83,7 @@ describe('Conventional Commit PR title release intent', () => {
     }
   })
 
-  it('still demands release intent in the PR title for the branch\'s own package change', async () => {
+  it("still demands release intent in the PR title for the branch's own package change", async () => {
     const { baseline, cwd } = await createRepository()
     try {
       const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
@@ -152,7 +147,9 @@ describe('Conventional Commit PR title release intent', () => {
         prTitle: 'docs(app): describe the feature',
       })
 
-      expect(result.violations.join(' ')).toContain('would not create a Release Please version bump')
+      expect(result.violations.join(' ')).toContain(
+        'would not create a Release Please version bump',
+      )
     } finally {
       await fs.rm(cwd, { force: true, recursive: true })
     }
@@ -261,7 +258,9 @@ describe('Conventional Commit PR title release intent', () => {
         prTitle: 'docs(app): describe the feature',
       })
 
-      expect(result.violations.join(' ')).toContain('would not create a Release Please version bump')
+      expect(result.violations.join(' ')).toContain(
+        'would not create a Release Please version bump',
+      )
     } finally {
       await fs.rm(cwd, { force: true, recursive: true })
     }

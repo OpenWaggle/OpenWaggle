@@ -12,9 +12,8 @@ vi.mock('../../session-host/session-host-events', () => ({
   publishSessionHostEvent: publishSessionHostEventMock,
 }))
 
-const { changesOnlySessionCatalogEntry, executeLocalUiSessionCommand } = await import(
-  '../local-ui-session-service'
-)
+const { changesOnlySessionCatalogEntry, executeLocalUiSessionCommand } =
+  await import('../local-ui-session-service')
 
 const SESSION = 'session-1'
 

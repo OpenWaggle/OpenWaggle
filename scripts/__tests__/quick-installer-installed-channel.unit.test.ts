@@ -31,7 +31,11 @@ afterEach(async () => {
  */
 async function fakeCli(
   output: string,
-  options: { readonly exitCode?: number; readonly errorOutput?: string; readonly delaySeconds?: number } = {},
+  options: {
+    readonly exitCode?: number
+    readonly errorOutput?: string
+    readonly delaySeconds?: number
+  } = {},
 ) {
   const executable = path.join(directory, 'OpenWaggle')
   await fs.writeFile(path.join(directory, 'output'), output)
@@ -186,14 +190,17 @@ describe('quick installer installed update channel', () => {
     await expect(exited).resolves.toBe(130)
     const cliPid = Number((await fs.readFile(path.join(directory, 'pid'), 'utf8')).trim())
     expect(isRunning(cliPid)).toBe(false)
-    const leftovers = (await fs.readdir(directory)).filter((name) => name.startsWith('openwaggle-channel.'))
+    const leftovers = (await fs.readdir(directory)).filter((name) =>
+      name.startsWith('openwaggle-channel.'),
+    )
     expect(leftovers).toEqual([])
   })
 
   it('reports nothing when the Session Host cannot read the channel', async () => {
     const failing = await fakeCli('', {
       exitCode: 1,
-      errorOutput: '{"schemaVersion":1,"type":"error","error":{"kind":"internal","message":"offline"}}\n',
+      errorOutput:
+        '{"schemaVersion":1,"type":"error","error":{"kind":"internal","message":"offline"}}\n',
     })
     await expect(installedChannel('mac', failing, CHANNEL_CHECK_VERSION)).resolves.toBe('')
 

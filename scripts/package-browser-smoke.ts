@@ -21,7 +21,8 @@ function contentType(filePath: string) {
 
 function staticFilePath(projectRoot: string, requestUrl: string | undefined) {
   const pathname = new URL(requestUrl ?? '/', `http://${LOOPBACK_HOST}`).pathname
-  const relativePath = pathname === '/' ? 'browser-smoke.html' : decodeURIComponent(pathname.slice(1))
+  const relativePath =
+    pathname === '/' ? 'browser-smoke.html' : decodeURIComponent(pathname.slice(1))
   const filePath = path.resolve(projectRoot, relativePath)
   const rootPrefix = `${path.resolve(projectRoot)}${path.sep}`
 
@@ -119,8 +120,7 @@ export async function runPackageBrowserSmoke(projectRoot: string, executablePath
       }
 
       await assertStableBrowserRuntime({
-        readStatus: () =>
-          page.locator('html').getAttribute('data-openwaggle-package-smoke'),
+        readStatus: () => page.locator('html').getAttribute('data-openwaggle-package-smoke'),
         consoleErrors,
         pageErrors,
         stabilize: waitForBrowserStability,

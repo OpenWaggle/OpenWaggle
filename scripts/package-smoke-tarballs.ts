@@ -88,9 +88,7 @@ export async function validatePackedPackage(
   assertPiHostPackagesArePeers(spec.name, manifest)
   if (spec.name === '@openwaggle/extension-react') {
     assertReactPeerDependencies(manifest)
-    assertCanonicalExtensionReactStylesheet(
-      await readPackedTextFile(tarballPath, 'styles.css'),
-    )
+    assertCanonicalExtensionReactStylesheet(await readPackedTextFile(tarballPath, 'styles.css'))
   }
 
   console.log(`validated ${spec.name} tarball: ${path.basename(tarballPath)}`)

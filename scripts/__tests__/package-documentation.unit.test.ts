@@ -63,26 +63,18 @@ describe('package documentation rendering', () => {
         lifecycleFs.mkdir(historicalRoot, { recursive: true }),
         lifecycleFs.mkdir(pendingRoot, { recursive: true }),
       ])
-      await Promise.all(
-        [
-          ...Object.entries(historicalFiles).map(([fileName, contents]) =>
-            lifecycleFs.writeFile(lifecyclePath.join(historicalRoot, fileName), contents),
-          ),
-          ...Object.entries(pendingFiles).map(([fileName, contents]) =>
-            lifecycleFs.writeFile(lifecyclePath.join(pendingRoot, fileName), contents),
-          ),
-        ],
-      )
+      await Promise.all([
+        ...Object.entries(historicalFiles).map(([fileName, contents]) =>
+          lifecycleFs.writeFile(lifecyclePath.join(historicalRoot, fileName), contents),
+        ),
+        ...Object.entries(pendingFiles).map(([fileName, contents]) =>
+          lifecycleFs.writeFile(lifecyclePath.join(pendingRoot, fileName), contents),
+        ),
+      ])
 
-      await expect(
-        hasPendingPackageDocumentation(projectRoot, definition),
-      ).resolves.toBe(true)
+      await expect(hasPendingPackageDocumentation(projectRoot, definition)).resolves.toBe(true)
 
-      const result = await preparePackageDocumentationLine(
-        projectRoot,
-        definition,
-        '0.2.0',
-      )
+      const result = await preparePackageDocumentationLine(projectRoot, definition, '0.2.0')
 
       expect(result).toEqual({
         createdFiles: [
@@ -94,7 +86,10 @@ describe('package documentation rendering', () => {
       })
       await expect(
         lifecycleFs.readFile(
-          lifecyclePath.join(projectRoot, 'website/src/content/docs/packages/extension-react/0.2/index.md'),
+          lifecyclePath.join(
+            projectRoot,
+            'website/src/content/docs/packages/extension-react/0.2/index.md',
+          ),
           'utf8',
         ),
       ).resolves.toBe(pendingFiles['index.md'])
@@ -235,9 +230,13 @@ describe('package documentation rendering', () => {
       packageName: '@openwaggle/example',
     })
 
-    expect(readme).toContain('<!-- Generated from the canonical OpenWaggle package documentation. -->')
+    expect(readme).toContain(
+      '<!-- Generated from the canonical OpenWaggle package documentation. -->',
+    )
     expect(readme).toContain('# @openwaggle/example')
-    expect(readme).toContain('[Full documentation](https://openwaggle.ai/docs/packages/example/0.1/)')
+    expect(readme).toContain(
+      '[Full documentation](https://openwaggle.ai/docs/packages/example/0.1/)',
+    )
     expect(readme).toContain('npm install @openwaggle/example')
     expect(readme).toContain(
       '[API](https://openwaggle.ai/docs/packages/example/0.1/api-reference/)',

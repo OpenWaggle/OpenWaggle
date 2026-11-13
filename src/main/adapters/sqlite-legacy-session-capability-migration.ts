@@ -54,15 +54,13 @@ function loadStoredGrants(sql: SqlClient.SqlClient) {
     FROM session_execution_profiles
   `.pipe(
     Effect.map((rows) =>
-      rows.map(
-        (row): StoredSessionGrant => ({
-          sessionId: row.session_id,
-          createdAt: row.created_at,
-          localUserOrigin: isLocalUserCallerId(row.authority_origin_caller_id),
-          capabilities: stringList(row.capabilities_json),
-          definitionChoseCapabilities: row.definition_chose === 1,
-        }),
-      ),
+      rows.map((row): StoredSessionGrant => ({
+        sessionId: row.session_id,
+        createdAt: row.created_at,
+        localUserOrigin: isLocalUserCallerId(row.authority_origin_caller_id),
+        capabilities: stringList(row.capabilities_json),
+        definitionChoseCapabilities: row.definition_chose === 1,
+      })),
     ),
   )
 }

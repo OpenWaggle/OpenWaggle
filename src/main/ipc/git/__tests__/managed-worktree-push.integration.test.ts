@@ -20,9 +20,8 @@ vi.mock('../../../desktop-ui', () => ({
   showMessageBox,
 }))
 
-const { confirmDefaultBranchAction, revalidateGitTarget } = await import(
-  '../stacked-action-default-branch-gate'
-)
+const { confirmDefaultBranchAction, revalidateGitTarget } =
+  await import('../stacked-action-default-branch-gate')
 const { createGitWorktree } = await import('../../../adapters/git/worktree')
 const { pushCurrentBranch } = await import('../push-service')
 const { getLocalVcsStatus } = await import('../vcs-status-service')
@@ -100,25 +99,29 @@ async function commitIn(worktree: string) {
 }
 
 describe('pushing a managed worktree branch', () => {
-  it('creates the Session branch without tracking its base ref', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    /*
-     * `git worktree add -b <branch> <path> origin/main` tracks origin/main through
-     * branch.autoSetupMerge. The branch then fails push.default=simple (names differ) and
-     * targets main under push.default=upstream. Its upstream is set by its first push instead.
-     */
-    const { work, worktree } = await repository('unset')
+  it(
+    'creates the Session branch without tracking its base ref',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      /*
+       * `git worktree add -b <branch> <path> origin/main` tracks origin/main through
+       * branch.autoSetupMerge. The branch then fails push.default=simple (names differ) and
+       * targets main under push.default=upstream. Its upstream is set by its first push instead.
+       */
+      const { work, worktree } = await repository('unset')
 
-    const created = await createGitWorktree(work, {
-      path: worktree,
-      branch: BRANCH,
-      baseRef: 'origin/main',
-    })
+      const created = await createGitWorktree(work, {
+        path: worktree,
+        branch: BRANCH,
+        baseRef: 'origin/main',
+      })
 
-    expect(created.ok).toBe(true)
-    expect(await upstreamOf(work, BRANCH)).toBe('')
-  })
+      expect(created.ok).toBe(true)
+      expect(await upstreamOf(work, BRANCH)).toBe('')
+    },
+  )
 
   it.each(PUSH_DEFAULTS)(
     'reports and pushes to its own remote branch with push.default=%s',
@@ -210,61 +213,73 @@ describe('a branch created by an older build that tracks origin/main', () => {
     },
   )
 
-  it('pushes to its own name with push.default=current and leaves the configured upstream', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { remote, worktree } = await legacyWorktree('current')
+  it(
+    'pushes to its own name with push.default=current and leaves the configured upstream',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { remote, worktree } = await legacyWorktree('current')
 
-    await expect(getLocalVcsStatus(worktree)).resolves.toMatchObject({
-      ok: true,
-      status: { pushTargetRef: BRANCH, pushTargetIsDefaultRef: false },
-    })
-    await expect(pushCurrentBranch(worktree)).resolves.toMatchObject({
-      ok: true,
-      destination: { remote: 'origin', branch: BRANCH },
-    })
-    expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe('base')
-    expect(await upstreamOf(worktree, BRANCH)).toBe('origin refs/heads/main')
-  })
+      await expect(getLocalVcsStatus(worktree)).resolves.toMatchObject({
+        ok: true,
+        status: { pushTargetRef: BRANCH, pushTargetIsDefaultRef: false },
+      })
+      await expect(pushCurrentBranch(worktree)).resolves.toMatchObject({
+        ok: true,
+        destination: { remote: 'origin', branch: BRANCH },
+      })
+      expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe('base')
+      expect(await upstreamOf(worktree, BRANCH)).toBe('origin refs/heads/main')
+    },
+  )
 
-  it('reports main as the push target with push.default=upstream, so the default-branch gate asks', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    /*
-     * The user configured "push to the upstream", and the upstream is main. OpenWaggle keeps that
-     * meaning but names main as the destination, so Push and Commit & push confirm first
-     * (`targetsDefaultRef`) instead of writing main by accident.
-     */
-    const { worktree } = await legacyWorktree('upstream')
+  it(
+    'reports main as the push target with push.default=upstream, so the default-branch gate asks',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      /*
+       * The user configured "push to the upstream", and the upstream is main. OpenWaggle keeps that
+       * meaning but names main as the destination, so Push and Commit & push confirm first
+       * (`targetsDefaultRef`) instead of writing main by accident.
+       */
+      const { worktree } = await legacyWorktree('upstream')
 
-    await expect(getLocalVcsStatus(worktree)).resolves.toMatchObject({
-      ok: true,
-      status: { refName: BRANCH, pushTargetRef: 'main', pushTargetIsDefaultRef: true },
-    })
-  })
+      await expect(getLocalVcsStatus(worktree)).resolves.toMatchObject({
+        ok: true,
+        status: { refName: BRANCH, pushTargetRef: 'main', pushTargetIsDefaultRef: true },
+      })
+    },
+  )
 })
 
 describe('a push target Git cannot reduce to one branch', () => {
-  it('keeps the local status and reports the push target as unknown', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { work, worktree } = await repository('unset')
-    await createGitWorktree(work, { path: worktree, branch: BRANCH, baseRef: 'origin/main' })
-    await git(worktree, ['config', 'push.default', 'matching'])
+  it(
+    'keeps the local status and reports the push target as unknown',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { work, worktree } = await repository('unset')
+      await createGitWorktree(work, { path: worktree, branch: BRANCH, baseRef: 'origin/main' })
+      await git(worktree, ['config', 'push.default', 'matching'])
 
-    const status = await getLocalVcsStatus(worktree)
+      const status = await getLocalVcsStatus(worktree)
 
-    // Unknown counts as the default branch, so the confirmation still fails closed.
-    expect(status).toMatchObject({
-      ok: true,
-      status: { refName: BRANCH, pushTargetRef: null, pushTargetIsDefaultRef: true },
-    })
-    await expect(pushCurrentBranch(worktree)).resolves.toMatchObject({
-      ok: false,
-      code: 'push-failed',
-      message: 'OpenWaggle cannot safely run push.default=matching as a single-branch action.',
-    })
-  })
+      // Unknown counts as the default branch, so the confirmation still fails closed.
+      expect(status).toMatchObject({
+        ok: true,
+        status: { refName: BRANCH, pushTargetRef: null, pushTargetIsDefaultRef: true },
+      })
+      await expect(pushCurrentBranch(worktree)).resolves.toMatchObject({
+        ok: false,
+        code: 'push-failed',
+        message: 'OpenWaggle cannot safely run push.default=matching as a single-branch action.',
+      })
+    },
+  )
 })
 
 describe('the Session Summary Push gate', () => {
@@ -307,16 +322,20 @@ describe('the Session Summary Push gate', () => {
     },
   )
 
-  it('asks before a push that push.default=upstream sends to main, and cancelling stops it', {
-    timeout: REAL_GIT_TEST_TIMEOUT_MS,
-  }, async () => {
-    const { worktree } = await legacyWorktree('upstream')
+  it(
+    'asks before a push that push.default=upstream sends to main, and cancelling stops it',
+    {
+      timeout: REAL_GIT_TEST_TIMEOUT_MS,
+    },
+    async () => {
+      const { worktree } = await legacyWorktree('upstream')
 
-    const gate = await Effect.runPromise(
-      confirmDefaultBranchAction(event, worktree, { action: 'push' }),
-    )
+      const gate = await Effect.runPromise(
+        confirmDefaultBranchAction(event, worktree, { action: 'push' }),
+      )
 
-    expect(showMessageBox).toHaveBeenCalledTimes(1)
-    expect(gate.confirmed).toBe(false)
-  })
+      expect(showMessageBox).toHaveBeenCalledTimes(1)
+      expect(gate.confirmed).toBe(false)
+    },
+  )
 })

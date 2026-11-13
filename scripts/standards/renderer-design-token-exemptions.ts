@@ -47,7 +47,8 @@ export function collectRendererDesignTokenExemptionViolations(
     ) {
       violations.push({
         file: EXEMPTIONS_FILE,
-        message: 'Renderer design-token exemptions must be repository-relative renderer TS/TSX paths.',
+        message:
+          'Renderer design-token exemptions must be repository-relative renderer TS/TSX paths.',
         detail: exemption,
       })
       continue

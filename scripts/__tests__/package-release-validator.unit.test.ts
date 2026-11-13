@@ -23,12 +23,7 @@ describe('package release validation', () => {
   it('accepts an empty manifest with source packages at the 0.0.0 baseline', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
-        '0.0.0',
-        'bootstrap',
-      )
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow, '0.0.0', 'bootstrap')
 
       const result = await validatePackageReleaseFiles(projectRoot)
 
@@ -41,10 +36,7 @@ describe('package release validation', () => {
   it('rejects pre-1 breaking changes that would bump the major version', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
-      )
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
       const configPath = path.join(projectRoot, 'release-please-config.json')
       const config: unknown = JSON.parse(await fs.readFile(configPath, 'utf8'))
       if (!isJsonObject(config)) {
@@ -110,10 +102,7 @@ describe('package release validation', () => {
   it('rejects a root check script that skips package smoke validation', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
-      )
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
       await writeJson(path.join(projectRoot, 'package.json'), {
         devDependencies: {
           'release-please': '17.6.1',
@@ -218,11 +207,7 @@ describe('package release validation', () => {
   it('accepts Release Please-bumped package versions', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
-        '0.2.0',
-      )
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow, '0.2.0')
 
       const result = await validatePackageReleaseFiles(projectRoot)
 

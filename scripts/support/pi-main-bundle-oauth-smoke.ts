@@ -7,7 +7,8 @@
  */
 import { createPiModelRuntime } from '../../src/main/adapters/pi/pi-model-runtime'
 
-const UNRESOLVED_MODULE = /Cannot find module|ERR_MODULE_NOT_FOUND|Failed to load|Unknown file extension/u
+const UNRESOLVED_MODULE =
+  /Cannot find module|ERR_MODULE_NOT_FOUND|Failed to load|Unknown file extension/u
 const SMOKE_CREDENTIAL = {
   type: 'oauth' as const,
   access: 'smoke-access-token',

@@ -178,7 +178,10 @@ export function macosIconSvg(markSvg: string) {
 }
 
 async function renderIcon(markSvg: string, channel: BuildChannel) {
-  const base = sharp(Buffer.from(macosIconSvg(markSvg)), { density: SVG_DENSITY }).resize(CANVAS, CANVAS)
+  const base = sharp(Buffer.from(macosIconSvg(markSvg)), { density: SVG_DENSITY }).resize(
+    CANVAS,
+    CANVAS,
+  )
   if (channel === 'stable') return base.png().toBuffer()
   const badge = CHANNEL_BADGES[channel]
   const pill = channelPillSvg({

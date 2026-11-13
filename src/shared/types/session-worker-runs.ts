@@ -14,6 +14,4 @@ export interface WorkerRunLineageFacts {
 
 /** The lineage facts a Session summary carries besides its role and parent (ADR 0059, 0063). */
 export interface SessionLineageFacts
-  extends HiveNextActorLineageFacts,
-    AgentDefinitionLineageFacts,
-    WorkerRunLineageFacts {}
+  extends HiveNextActorLineageFacts, AgentDefinitionLineageFacts, WorkerRunLineageFacts {}

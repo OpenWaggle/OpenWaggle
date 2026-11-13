@@ -35,8 +35,6 @@ const TSC_OUTPUT_MAX_BUFFER_BYTES = 32 * 1024 * 1024
 
 const ERROR_LINE = /^(?<file>[^(]+)\((?<line>\d+),\d+\): error TS\d+:/u
 
-
-
 interface TypecheckRun {
   readonly output: string
   readonly failed: boolean
@@ -169,9 +167,7 @@ async function readExemptions() {
 
 async function main() {
   const effectiveOptions = await readEffectiveCompilerOptions()
-  const disabled = OPTIONS_THAT_MUST_BE_OFF.filter(
-    (option) => effectiveOptions[option] === true,
-  )
+  const disabled = OPTIONS_THAT_MUST_BE_OFF.filter((option) => effectiveOptions[option] === true)
   if (disabled.length > 0) {
     console.error(
       `${PROJECT} enables ${disabled.join(', ')}, so tsc reports no type errors at all and this ` +

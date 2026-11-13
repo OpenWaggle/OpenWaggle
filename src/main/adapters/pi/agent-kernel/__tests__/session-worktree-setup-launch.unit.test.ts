@@ -32,9 +32,11 @@ const {
     stdout: 'main\n',
     stderr: '',
   })),
-  createGitWorktreeMock: vi.fn(
-    async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
-  ),
+  createGitWorktreeMock: vi.fn(async (): Promise<GitWorktreeMutationResult> => ({
+    ok: true,
+    message: 'ok',
+    path: '/wt',
+  })),
   setSessionWorktreeMock: vi.fn(async () => undefined),
 }))
 

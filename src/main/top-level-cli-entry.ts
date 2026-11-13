@@ -83,17 +83,14 @@ export function startTopLevelCli(
   const handled = { kind: 'handled' } as const
   return matchBy(route, 'kind')
     .with('gui', (): TopLevelCliLaunch => ({ kind: 'gui' }))
-    .with(
-      'open-project',
-      (route): TopLevelCliLaunch => ({
-        kind: 'gui',
-        openProjectPath: route.projectPath,
-      }),
-    )
-    .with(
-      'open-session-link',
-      (route): TopLevelCliLaunch => ({ kind: 'gui', openSessionLink: route.link }),
-    )
+    .with('open-project', (route): TopLevelCliLaunch => ({
+      kind: 'gui',
+      openProjectPath: route.projectPath,
+    }))
+    .with('open-session-link', (route): TopLevelCliLaunch => ({
+      kind: 'gui',
+      openSessionLink: route.link,
+    }))
     .with('help', 'version', 'usage-error', (route) => {
       const answer = topLevelCliAnswer(route, app.getVersion())
       if (answer) {

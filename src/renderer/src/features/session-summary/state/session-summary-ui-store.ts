@@ -72,9 +72,9 @@ export function isSessionSummaryPanelVisible(
 ) {
   return Boolean(
     panel &&
-      currentContext?.available &&
-      !currentContext.rightSidebarOpen &&
-      (currentContext.autoHidden ? panel.forcedOpen : panel.expanded),
+    currentContext?.available &&
+    !currentContext.rightSidebarOpen &&
+    (currentContext.autoHidden ? panel.forcedOpen : panel.expanded),
   )
 }
 

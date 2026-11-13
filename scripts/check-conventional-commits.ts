@@ -40,9 +40,7 @@ export function hasPackageReleaseIntent(title: string) {
 const PUBLISHABLE_PATH_PREFIX = 'packages/'
 
 function affectsPublishablePackage(commit: CommitSubject) {
-  return commit.changedPaths.some((changedPath) =>
-    changedPath.startsWith(PUBLISHABLE_PATH_PREFIX),
-  )
+  return commit.changedPaths.some((changedPath) => changedPath.startsWith(PUBLISHABLE_PATH_PREFIX))
 }
 
 function isGeneratedNonPackageMerge(commit: CommitSubject) {
@@ -128,7 +126,9 @@ async function resolveBaseline(input: {
 }
 
 function resolveFrom(options: ConventionalCommitValidationOptions, baseline: string) {
-  return options.from === undefined || options.from.length === 0 || ALL_ZERO_SHA_PATTERN.test(options.from)
+  return options.from === undefined ||
+    options.from.length === 0 ||
+    ALL_ZERO_SHA_PATTERN.test(options.from)
     ? baseline
     : options.from
 }
@@ -160,7 +160,9 @@ async function resolveEffectiveFrom(input: {
  * Merges in the range whose incoming parents are all already contained in the base ref.
  * See {@link isUpstreamUpdateMerge} for why those are exempt from the package rule.
  */
-export async function validateConventionalCommits(options: ConventionalCommitValidationOptions = {}) {
+export async function validateConventionalCommits(
+  options: ConventionalCommitValidationOptions = {},
+) {
   const cwd = options.cwd ?? process.cwd()
   const to = options.to ?? 'HEAD'
   const baseline = await resolveBaseline({ cwd, options, to })
@@ -183,9 +185,7 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
       ? []
       : CONVENTIONAL_COMMIT_SUBJECT_PATTERN.test(options.prTitle)
         ? []
-        : [
-            `Pull request title "${options.prTitle}" is not an allowed Conventional Commit subject.`,
-          ]
+        : [`Pull request title "${options.prTitle}" is not an allowed Conventional Commit subject.`]
 
   /*
    * The same exemption as the commit-level rule: a sync merge of an already-released base branch

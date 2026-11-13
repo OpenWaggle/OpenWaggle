@@ -1,14 +1,14 @@
-import {
-  prepareQaProfileRemoval,
-  shutdownSessionHostForQa,
-} from './qa/session-host-shutdown'
+import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './qa/session-host-shutdown'
 
 interface QaEvidencePage {
   isClosed(): boolean
   screenshot(options: { readonly path: string }): Promise<unknown>
 }
 
-export async function captureRequiredQaEvidence(page: QaEvidencePage | null, screenshotPath: string) {
+export async function captureRequiredQaEvidence(
+  page: QaEvidencePage | null,
+  screenshotPath: string,
+) {
   if (page === null || page.isClosed()) {
     throw new Error('Electron QA ended before its required final screenshot could be captured.')
   }

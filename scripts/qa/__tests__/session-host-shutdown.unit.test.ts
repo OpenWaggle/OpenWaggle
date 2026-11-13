@@ -11,7 +11,9 @@ function paths(platform: NodeJS.Platform): LocalSessionHostPaths {
     databasePath: 'qa-profile/session-host/session-host.sqlite',
     recoveryDatabasePath: 'qa-profile/session-host/pre-cutover-openwaggle.sqlite',
     credentialPath: 'qa-profile/session-host/local-user.credential',
-    endpoint: windows ? '\\\\.\\pipe\\openwaggle-test-session-host' : 'qa-profile/session-host/host.sock',
+    endpoint: windows
+      ? '\\\\.\\pipe\\openwaggle-test-session-host'
+      : 'qa-profile/session-host/host.sock',
     endpointDirectory: windows ? null : 'qa-profile/session-host',
     endpointCapabilityPath: windows ? 'qa-profile/session-host/endpoint.capability' : null,
   }
@@ -95,22 +97,17 @@ describe('shutdownSessionHostForQa', () => {
     let now = 0
 
     await expect(
-      shutdownSessionHostForQa(
-        'qa-profile',
-        vi.fn(),
-        100,
-        {
-          resolvePaths: () => hostPaths,
-          refreshPaths: async () => hostPaths,
-          requestDrain: vi.fn(),
-          canConnect: async () => false,
-          tryAcquireOwnership: async () => null,
-          now: () => now,
-          wait: async (milliseconds) => {
-            now += milliseconds
-          },
+      shutdownSessionHostForQa('qa-profile', vi.fn(), 100, {
+        resolvePaths: () => hostPaths,
+        refreshPaths: async () => hostPaths,
+        requestDrain: vi.fn(),
+        canConnect: async () => false,
+        tryAcquireOwnership: async () => null,
+        now: () => now,
+        wait: async (milliseconds) => {
+          now += milliseconds
         },
-      ),
+      }),
     ).rejects.toThrow('waiting for the QA Session Host to release')
   })
 
@@ -156,23 +153,18 @@ describe('shutdownSessionHostForQa', () => {
     const releaseFailure = new Error('ownership release failed')
 
     await expect(
-      shutdownSessionHostForQa(
-        'qa-profile',
-        async () => Promise.reject(profileFailure),
-        1_000,
-        {
-          resolvePaths: () => hostPaths,
-          refreshPaths: async () => hostPaths,
-          requestDrain: vi.fn(),
-          canConnect: async () => false,
-          tryAcquireOwnership: async () => ({
-            targetPath: hostPaths.databasePath,
-            release: async () => Promise.reject(releaseFailure),
-          }),
-          now: () => 0,
-          wait: vi.fn(),
-        },
-      ),
+      shutdownSessionHostForQa('qa-profile', async () => Promise.reject(profileFailure), 1_000, {
+        resolvePaths: () => hostPaths,
+        refreshPaths: async () => hostPaths,
+        requestDrain: vi.fn(),
+        canConnect: async () => false,
+        tryAcquireOwnership: async () => ({
+          targetPath: hostPaths.databasePath,
+          release: async () => Promise.reject(releaseFailure),
+        }),
+        now: () => 0,
+        wait: vi.fn(),
+      }),
     ).rejects.toMatchObject({
       errors: [profileFailure, releaseFailure],
     })

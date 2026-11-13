@@ -294,13 +294,11 @@ export function listWorktreeInventory(
           repository.opened ||
           entries.some((entry) => entry.projectPath === repository.projectPath),
       )
-      .map(
-        (repository): WorktreeInventoryProject => ({
-          projectPath: repository.projectPath,
-          name: projectName(settings, repository.projectPath),
-          opened: repository.opened,
-        }),
-      )
+      .map((repository): WorktreeInventoryProject => ({
+        projectPath: repository.projectPath,
+        name: projectName(settings, repository.projectPath),
+        opened: repository.opened,
+      }))
     return { projects, entries, problems } satisfies WorktreeInventory
   })
 }

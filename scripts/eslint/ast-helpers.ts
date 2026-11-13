@@ -97,7 +97,9 @@ export function moduleSpecifierOf(node: Rule.Node) {
     const callee = property(node, 'callee')
     const args = property(node, 'arguments')
     const isRequire = hasNodeType(callee, 'Identifier') && property(callee, 'name') === 'require'
-    return isRequire && isUnknownArray(args) && args.length === 1 ? stringLiteralValue(args[0]) : null
+    return isRequire && isUnknownArray(args) && args.length === 1
+      ? stringLiteralValue(args[0])
+      : null
   }
   // Declarations always name a string literal; a dynamic import() may name a template literal.
   return stringLiteralValue(property(node, 'source'))

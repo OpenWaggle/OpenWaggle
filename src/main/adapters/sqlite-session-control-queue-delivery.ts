@@ -168,15 +168,14 @@ export function deliverAfterQueueDecision(
   // Nothing of agents' starts, but the person's Follow-up never waits on their capacity.
   const undelivered = (state: SessionControlSessionState, retriesAfter?: number) =>
     deliverAuthorizedPersonFollowUpPastCapacity(sql, state, nextRunId, retriesAfter).pipe(
-      Effect.map(
-        (personal): SessionControlMutationDecision =>
-          personal.delivered
-            ? started({ state: personal.state, delivered: personal.delivered })
-            : {
-                ...decision,
-                state: personal.state,
-                outcome: queueUpdated(operation, personal.state, withdrawn),
-              },
+      Effect.map((personal): SessionControlMutationDecision =>
+        personal.delivered
+          ? started({ state: personal.state, delivered: personal.delivered })
+          : {
+              ...decision,
+              state: personal.state,
+              outcome: queueUpdated(operation, personal.state, withdrawn),
+            },
       ),
     )
   return Effect.gen(function* () {

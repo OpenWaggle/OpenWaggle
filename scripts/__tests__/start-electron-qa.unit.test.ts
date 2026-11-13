@@ -6,10 +6,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { qaSharedTemporaryDirectory } from '../electron-qa-lease'
 import { spawn } from 'node:child_process'
-import {
-  observeElectronQaChildExit,
-  windowsTaskkillArguments,
-} from '../electron-qa-process'
+import { observeElectronQaChildExit, windowsTaskkillArguments } from '../electron-qa-process'
 import {
   captureRequiredQaEvidence,
   completeElectronQaShutdown,
@@ -42,13 +39,15 @@ const lease = {
 
 describe('managed Electron QA launcher', () => {
   it('keeps first-party Pi extension tools only when the caller asks for them', () => {
-
     expect(electronEnvironment(lease, {})).not.toHaveProperty(
       'OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS',
     )
     expect(
       electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }),
-    ).toMatchObject({ OPENWAGGLE_AUTOMATION: '1', OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' })
+    ).toMatchObject({
+      OPENWAGGLE_AUTOMATION: '1',
+      OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1',
+    })
     expect(electronEnvironment(lease, {})).not.toHaveProperty('OPENWAGGLE_AUTOMATION_PI_EXTENSIONS')
     expect(
       electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: '/tmp/qa/router.js' }),
@@ -89,9 +88,9 @@ describe('managed Electron QA launcher', () => {
 
   it('connects project MCP servers only when the caller asks for them', () => {
     expect(electronEnvironment(lease, {})).not.toHaveProperty('OPENWAGGLE_AUTOMATION_PROJECT_MCP')
-    expect(
-      electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' }),
-    ).toMatchObject({ OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' })
+    expect(electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' })).toMatchObject({
+      OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1',
+    })
   })
 
   it.each([
@@ -232,11 +231,17 @@ describe('managed Electron QA launcher', () => {
   })
 
   it('drains the QA profile Session Host and clears the profile while it holds ownership', async () => {
-    const ownership = { targetPath: '/tmp/profile/session-host/session-host.sqlite', release: vi.fn() }
+    const ownership = {
+      targetPath: '/tmp/profile/session-host/session-host.sqlite',
+      release: vi.fn(),
+    }
     const finalize = vi.fn(() => Promise.resolve())
     const prepareProfileRemoval = vi.fn(() => Promise.resolve(finalize))
     const shutdownHost = vi.fn(
-      async (_profile: string, whileOwnershipHeld: (held: typeof ownership) => Promise<unknown>) => {
+      async (
+        _profile: string,
+        whileOwnershipHeld: (held: typeof ownership) => Promise<unknown>,
+      ) => {
         await whileOwnershipHeld(ownership)
       },
     )

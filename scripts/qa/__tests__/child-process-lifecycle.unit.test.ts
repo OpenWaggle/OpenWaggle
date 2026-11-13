@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  type StoppableChild,
-  stopChild,
-} from '../child-process-lifecycle'
+import { type StoppableChild, stopChild } from '../child-process-lifecycle'
 import type { WindowsProcessIdentity } from '../windows-process-tree'
 
 function processIdentity(processId: number, creationDate = `created-${String(processId)}`) {
