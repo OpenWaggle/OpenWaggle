@@ -259,7 +259,13 @@ export function withSettledRunRenderSnapshot(
   }
   const settledMessageIds = new Set(existing.settledMessageIds)
   for (const message of existing.messages) settledMessageIds.add(message.id)
-  const { seededByRunId: _settledSeed, startedRun: _started, ...unseeded } = existing
+  // A notice left by a Run ending before the Host named it is settled with every row.
+  const {
+    seededByRunId: _settledSeed,
+    startedRun: _started,
+    noticedMessageIds: _noticed,
+    ...unseeded
+  } = existing
   const next = new Map(state.renderSnapshotsBySessionId)
   next.set(id, {
     ...unseeded,

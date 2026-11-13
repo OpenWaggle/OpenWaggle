@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, it } from 'vitest'
+import { transcriptOrderChatStoreMock as chatStoreMock } from './transcript-order.ipc-mock'
 import { expectCompleteTranscript } from './transcript-order.scenario'
 import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-order.test-harness'
 
@@ -8,6 +9,21 @@ import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-
  * renderer cannot tell it from another Run: the answers it already streamed stay its own, unsaved,
  * and neither the notice nor a late settlement of the Run before may take them for that Run's.
  */
+/** Holds the next Session refresh, the one after a settlement, until the returned release. */
+function holdNextRefresh() {
+  let release = () => {}
+  chatStoreMock.refreshSession.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve
+      }),
+  )
+  return async () => {
+    release()
+    await Promise.resolve()
+  }
+}
+
 describe('transcript order when a continuing Run loses its start', () => {
   beforeEach(resetTranscriptOrderState)
   afterEach(cleanupTranscriptOrder)
@@ -95,6 +111,30 @@ describe('transcript order when a continuing Run loses its start', () => {
       (h) => h.answer('three'),
       (h) => h.dropHistory(),
       (h) => h.settleRun(),
+      (h) => h.endRun(),
+    ])
+  })
+
+  // A requested Waggle streams and ends with its start lost, before the Host names it: its
+  // notice must not outlive its settlement, or the next Run's start keeps that settlement's mark
+  // and the settlement's refetch, still in flight, drops the next Run's snapshot.
+  it('keeps the next Run when it starts during the refetch after a lost-start Run settled', async () => {
+    let releaseRefresh = async () => {}
+    await expectCompleteTranscript([
+      (h) => h.mount('other'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('a1'),
+      (h) => {
+        releaseRefresh = holdNextRefresh()
+        h.loseNextStart()
+      },
+      (h) => h.endRunWithRequestedWaggle('w1'),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('b1'),
+      (h) => h.dropHistory(),
+      () => releaseRefresh(),
+      (h) => h.answer('b2'),
+      (h) => h.view('session'),
       (h) => h.endRun(),
     ])
   })
