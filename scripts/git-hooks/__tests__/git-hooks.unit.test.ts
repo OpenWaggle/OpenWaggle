@@ -101,6 +101,26 @@ describe('pre-push', () => {
     })
   })
 
+  it.each([
+    ['an ow/ PR branch replayed onto main', [update('refs/heads/ow/pr', OLD, NEW)], 'run'],
+    ['a rewrite of main', [update('refs/heads/main', OLD, NEW)], 'reject'],
+    [
+      'an ow/ rewrite pushed with a non-ow/ rewrite',
+      [update('refs/heads/ow/pr', OLD, NEW), update('refs/heads/feature', OLD, NEW)],
+      'reject',
+    ],
+    // The lease names the expected sha, so an ow/ rewrite still needs the remote sha fetched.
+    [
+      'an ow/ push over an unfetched remote sha',
+      [update('refs/heads/ow/pr', NEW, UNKNOWN)],
+      'reject',
+    ],
+  ])('rewrites: %s gives %s', (_name, updates, kind) => {
+    expect(planPrePush(updates, GIT)).toMatchObject(
+      kind === 'run' ? { kind, script: 'verify' } : { kind },
+    )
+  })
+
   it('refuses the whole push when any ref is rewritten', () => {
     const updates = [update('refs/heads/ok', NEW, OLD), update('refs/heads/rewritten', OLD, NEW)]
     expect(planPrePush(updates, GIT)).toMatchObject({ kind: 'reject' })

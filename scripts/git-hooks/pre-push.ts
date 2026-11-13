@@ -1,10 +1,13 @@
 /**
  * The pre-push hook (`.husky/pre-push`). git passes one line per ref it is about to update on
  * stdin: `<local ref> <local sha> <remote ref> <remote sha>`. A push that would drop commits
- * from the remote ref rewrites published history, so it is refused, with no prompt and no
- * override: the remote commit is not an ancestor of the pushed one, or the remote has a commit
- * this clone has never fetched (git refuses that push unless it is forced). Otherwise the hook
- * runs the fast verify, or the full gate for a push to `main`. Deleting a ref runs nothing.
+ * from the remote ref rewrites published history: the remote commit is not an ancestor of the
+ * pushed one. That is refused, with no prompt and no override, except on an agent's own PR
+ * branch under `refs/heads/ow/`, which may be replayed onto a moved `main` (the guardrail only
+ * lets that through as a lease push naming the expected remote sha). A push over a remote
+ * commit this clone has never fetched is always refused, since the lease needs that sha.
+ * Otherwise the hook runs the fast verify, or the full gate for a push to `main`. Deleting a ref
+ * runs nothing.
  */
 import { spawnSync } from 'node:child_process'
 
@@ -29,6 +32,8 @@ export type PrePushPlan =
 
 const ZERO_SHA = /^0+$/
 const MAIN_REF = 'refs/heads/main'
+/** The prefix of the PR branches OpenWaggle's agents push, the only refs a push may rewrite. */
+const REWRITABLE_REF_PREFIX = 'refs/heads/ow/'
 const REF_UPDATE_FIELDS = 4
 const GIT_ENVIRONMENT = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']
 
@@ -55,10 +60,13 @@ export function planPrePush(updates: readonly RefUpdate[], git: PushGit) {
       git.commitExists(update.remoteSha) &&
       !git.isAncestor(update.remoteSha, update.localSha),
   )
-  if (rewrites.length > 0) {
+  const refusedRewrites = rewrites.filter(
+    (update) => !update.remoteRef.startsWith(REWRITABLE_REF_PREFIX),
+  )
+  if (refusedRewrites.length > 0) {
     return {
       kind: 'reject',
-      message: `pre-push: refusing a force push to ${refList(rewrites)}: it drops commits from the remote. Push new commits on top instead (merge the base branch, or revert).`,
+      message: `pre-push: refusing a force push to ${refList(refusedRewrites)}: it drops commits from the remote. Push new commits on top instead (merge the base branch, or revert). Only an ow/* PR branch may be replayed onto main.`,
     } satisfies PrePushPlan
   }
   if (unknown.length > 0) {
