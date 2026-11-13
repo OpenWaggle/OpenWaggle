@@ -1,5 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { settlingRunId } from '@/features/chat/lib/run-ids'
 import {
   isUnnamedRunSeed,
   type RenderSnapshotState,
@@ -114,6 +115,11 @@ export function seededSnapshotForRunStart(
   runId: string,
   startedAt: number,
 ): RunRenderSnapshot {
+  // The late start of a Run whose start was lost tells whether it is the Run the snapshot held.
+  if (existing?.noticedMessageIds && !isUnnamedRunSeed(runId)) {
+    const held = existing.seededByRunId ?? existing.startedRun?.runId ?? ''
+    return withNoticeResolved(existing, runId, settlingRunId(held) !== settlingRunId(runId), true)
+  }
   if (existing === undefined) return seedRunRenderSnapshot(runId, undefined, startedAt)
   // The snapshot holds a settled Run, persisted before this one started.
   if (existing.settledRunId !== undefined) {
@@ -164,6 +170,12 @@ export function withUnannouncedRunNamed(
 ) {
   const existing = state.renderSnapshotsBySessionId.get(id)
   if (!existing) return state
+  if (existing.noticedMessageIds) {
+    const resolved = withNoticeResolved(existing, runId, anotherRun, true)
+    return {
+      renderSnapshotsBySessionId: new Map(state.renderSnapshotsBySessionId).set(id, resolved),
+    }
+  }
   // The snapshot's unnamed seed or start is named too, or the Run's continuation took the late
   // settlement of the Run before for its own and settled its answers.
   const named = withEndedRunNamed(existing, runId)
@@ -183,4 +195,32 @@ function withoutEarlierRunRows(state: RenderSnapshotState, id: SessionId) {
   const next = new Map(state.renderSnapshotsBySessionId)
   next.set(id, { ...existing, messages })
   return { renderSnapshotsBySessionId: next }
+}
+
+/**
+ * Whether the Run noticed over a named Run's rows (`noticedMessageIds`) is another Run is known.
+ * The same Run continuing keeps them its own. Another Run sets them apart as the Run before's: a
+ * seed becomes the noticed Run's, without them when `dropSeeded` (the Run before was saved when it
+ * ended), and a route's snapshot records the noticed Run's start with them as earlier rows.
+ */
+export function withNoticeResolved(
+  existing: RunRenderSnapshot,
+  runId: string,
+  anotherRun: boolean,
+  dropSeeded: boolean,
+): RunRenderSnapshot {
+  const noticed = existing.noticedMessageIds
+  if (!noticed) return existing
+  const { noticedMessageIds: _noticed, ...rest } = existing
+  if (!anotherRun) return rest
+  const settledMessageIds = new Set([...(existing.settledMessageIds ?? []), ...noticed])
+  if (existing.seededByRunId !== undefined) {
+    const { seededAt: _seededAt, ...unseeded } = rest
+    const messages = dropSeeded
+      ? existing.messages.filter((message) => !noticed.has(message.id))
+      : existing.messages
+    return { ...unseeded, seededByRunId: runId, settledMessageIds, messages }
+  }
+  const earlierMessageIds = new Set([...(existing.startedRun?.earlierMessageIds ?? []), ...noticed])
+  return { ...rest, settledMessageIds, startedRun: { runId, earlierMessageIds } }
 }

@@ -36,14 +36,22 @@ export function addActiveRunToState(
  * the Run settled. It is no activity change: a restore in flight still restores the Run's
  * compaction status into its snapshot.
  */
+/** Bumps the Session's lost-start notice: the chat showing it hydrates it again. */
+export function withUnannouncedRunNotice(
+  state: { readonly unannouncedRunNotices: Map<SessionId, number> },
+  id: SessionId,
+) {
+  const notices = new Map(state.unannouncedRunNotices)
+  notices.set(id, (notices.get(id) ?? 0) + 1)
+  return { unannouncedRunNotices: notices }
+}
+
 export function withUnannouncedRun(
   state: ActiveRunState & { readonly unannouncedRunNotices: Map<SessionId, number> },
   id: SessionId,
   model?: SupportedModelId,
 ) {
-  const notices = new Map(state.unannouncedRunNotices)
-  notices.set(id, (notices.get(id) ?? 0) + 1)
-  return { ...addActiveRunToState(state, id, model), unannouncedRunNotices: notices }
+  return { ...addActiveRunToState(state, id, model), ...withUnannouncedRunNotice(state, id) }
 }
 
 export function removeActiveRunFromState(state: ActiveRunState, id: SessionId) {

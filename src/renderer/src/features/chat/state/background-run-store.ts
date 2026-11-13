@@ -38,8 +38,8 @@ import {
   withRunRenderEvent,
   withRunRenderMessages,
   withSettledRunRenderSnapshot,
-  withUnannouncedRunRenderSnapshot,
 } from './background-run-render-state'
+import { withUnannouncedRunRenderSnapshot } from './background-run-unannounced-run'
 
 export interface FirstSendRecovery {
   readonly payload: AgentSendPayload
