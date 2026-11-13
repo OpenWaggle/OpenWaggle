@@ -34,9 +34,19 @@ describe('lenient schemas', () => {
     expect(decodeUnknownOrThrow(lenientRecord(Schema.Number), ['x'])).toEqual({})
   })
 
-  it('accepts any object but an array, and only a string with something in it', () => {
+  // Regression: an empty Struct took a string, a number or a boolean for an object.
+  it.each([
+    { value: [], kind: 'an array' },
+    { value: 'text', kind: 'a string' },
+    { value: 42, kind: 'a number' },
+    { value: true, kind: 'a boolean' },
+    { value: null, kind: 'null' },
+  ])('refuses $kind as an object', ({ value }) => {
+    expect(Schema.is(anyObjectSchema)(value)).toBe(false)
+  })
+
+  it('accepts an object, and only a string with something in it', () => {
     expect(Schema.is(anyObjectSchema)({ any: 'field' })).toBe(true)
-    expect(Schema.is(anyObjectSchema)([])).toBe(false)
     expect(Schema.is(nonBlankStringSchema)(' x ')).toBe(true)
     expect(Schema.is(nonBlankStringSchema)('  ')).toBe(false)
   })

@@ -1,5 +1,6 @@
 import { Option } from 'effect'
 import { Schema } from '@shared/schema'
+import { isObjectValue } from '@shared/utils/object-shape'
 
 /**
  * Fields for best-effort readers of files and payloads OpenWaggle does not own (Pi session
@@ -52,12 +53,13 @@ export const lenientStringRecordSchema = Schema.transform(
   },
 )
 
-/** Any object but an array, with no declared properties: what `isRecord` checked. */
-export const anyObjectSchema = Schema.Struct({}).pipe(
-  Schema.filter((value) => !Array.isArray(value), {
-    message: () => 'Expected an object, not an array',
-  }),
-)
+/**
+ * Any object but an array, as `isRecord` checked. A declaration, not an empty Struct: `Struct({})`
+ * accepts strings, numbers and booleans, and its decode drops every key.
+ */
+export const anyObjectSchema = Schema.declare(isObjectValue, {
+  description: 'an object that is not an array',
+})
 
 /** A map that keeps the entries whose value decodes and drops the rest; anything but an object is empty. */
 export function lenientRecord<A, I>(value: Schema.Schema<A, I>) {
