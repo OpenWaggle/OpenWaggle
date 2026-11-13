@@ -118,6 +118,10 @@ jobs:
           if [ "${{ matrix.platform }}" = linux ]; then args+=(--linux-container); fi
           bun "${args[@]}"
 
+      # The floor check reads package manifests with the repository's schema module.
+      - name: Install the repository's dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
       - name: Check the devkit against the platform floor
         run: bun scripts/check-native-platform-floor.ts --platform ${{ matrix.platform }} --devkit "$OUT/devkit"
 
