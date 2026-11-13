@@ -22,19 +22,61 @@ export interface CefDownloadProgress {
 /** Progress is reported this many times over a download, plus once at its end. */
 const PROGRESS_REPORTS = 200
 const HEX = 'hex'
+/** A download that receives nothing for this long has lost its connection. */
+const CEF_DOWNLOAD_STALL_MS = 60_000
+
+export type CefComponentFetch = (
+  url: string,
+  init: { readonly signal: AbortSignal },
+) => Promise<Response>
 
 export interface CefArchiveDownload {
-  readonly fetch: (url: string) => Promise<Response>
+  readonly fetch: CefComponentFetch
   readonly asset: CefComponentAsset
   readonly destination: string
   readonly onProgress: (progress: CefDownloadProgress) => void
+  readonly stallMs?: number
 }
 
-async function request(fetch: CefArchiveDownload['fetch'], url: string) {
+/** Aborts the request once no byte arrived for `stallMs`; every chunk restarts the clock. */
+class StallWatchdog {
+  private readonly controller = new AbortController()
+  private timer: ReturnType<typeof setTimeout> | undefined
+  readonly stalled: Promise<never>
+
+  private readonly stallMs: number
+
+  constructor(stallMs: number) {
+    this.stallMs = stallMs
+    this.stalled = new Promise<never>((_resolve, reject) => {
+      this.controller.signal.addEventListener('abort', () =>
+        reject(new CefComponentError('offline', 'The download stalled.')),
+      )
+    })
+    this.stalled.catch(() => undefined)
+    this.touch()
+  }
+
+  get signal() {
+    return this.controller.signal
+  }
+
+  touch() {
+    clearTimeout(this.timer)
+    this.timer = setTimeout(() => this.controller.abort(), this.stallMs)
+  }
+
+  stop() {
+    clearTimeout(this.timer)
+  }
+}
+
+async function request(fetch: CefComponentFetch, url: string, watchdog: StallWatchdog) {
   let response: Response
   try {
-    response = await fetch(url)
+    response = await Promise.race([fetch(url, { signal: watchdog.signal }), watchdog.stalled])
   } catch (error) {
+    if (error instanceof CefComponentError) throw error
     throw new CefComponentError('offline', 'The download server could not be reached.', {
       cause: error,
     })
@@ -55,11 +97,14 @@ function tooLarge(asset: CefComponentAsset) {
   )
 }
 
-async function nextChunk(reader: ReadableStreamDefaultReader<Uint8Array>) {
+async function nextChunk(reader: ReadableStreamDefaultReader<Uint8Array>, watchdog: StallWatchdog) {
   try {
-    return await reader.read()
+    return await Promise.race([reader.read(), watchdog.stalled])
   } catch (error) {
+    if (error instanceof CefComponentError) throw error
     throw new CefComponentError('offline', 'The download was interrupted.', { cause: error })
+  } finally {
+    watchdog.touch()
   }
 }
 
@@ -78,8 +123,17 @@ async function append(file: fs.FileHandle, chunk: Uint8Array) {
  * that is longer, shorter or hashes differently than the manifest pins is rejected.
  */
 export async function downloadCefArchive(download: CefArchiveDownload): Promise<void> {
+  const watchdog = new StallWatchdog(download.stallMs ?? CEF_DOWNLOAD_STALL_MS)
+  try {
+    await receive(download, watchdog)
+  } finally {
+    watchdog.stop()
+  }
+}
+
+async function receive(download: CefArchiveDownload, watchdog: StallWatchdog) {
   const { asset } = download
-  const reader = await request(download.fetch, asset.url)
+  const reader = await request(download.fetch, asset.url, watchdog)
   const hash = createHash('sha256')
   const step = Math.max(1, Math.floor(asset.size / PROGRESS_REPORTS))
   const file = await fs.open(download.destination, 'wx')
@@ -88,7 +142,7 @@ export async function downloadCefArchive(download: CefArchiveDownload): Promise<
   download.onProgress({ receivedBytes, totalBytes: asset.size })
   try {
     while (true) {
-      const { done, value } = await nextChunk(reader)
+      const { done, value } = await nextChunk(reader, watchdog)
       if (done) break
       receivedBytes += value.byteLength
       if (receivedBytes > asset.size) throw tooLarge(asset)

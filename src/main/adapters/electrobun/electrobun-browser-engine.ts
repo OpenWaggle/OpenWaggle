@@ -49,6 +49,6 @@ export const electrobunBrowserEngine: BrowserEngineShape = createCefComponentEng
     const { identifier } = await electrobun().Updater.getLocalInfo()
     return path.join(appPaths.appData(), identifier, COMPONENTS_DIRECTORY)
   },
-  fetch: (url) => networkFetch.fetch(url),
+  fetch: (url, init) => networkFetch.fetch(url, init),
   extract: extractTarXz,
 })

@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { BrowserEngineStatus } from '@shared/types/browser-engine'
-import { CefComponentError, downloadCefArchive } from './cef-component-download'
+import {
+  CefComponentError,
+  downloadCefArchive,
+  type CefComponentFetch,
+} from './cef-component-download'
 import {
   CEF_COMPONENT_RECORD,
   cefComponentDirectoryName,
@@ -28,7 +32,9 @@ export interface CefComponentInstallerDependencies {
   readonly bundledFramework: string
   /** `<appData>/<identifier>/cef`, which holds the installed component. */
   readonly componentsDirectory: () => Promise<string>
-  readonly fetch: (url: string) => Promise<Response>
+  readonly fetch: CefComponentFetch
+  /** How long the download may receive nothing before it fails as offline. */
+  readonly stallMs?: number
   /** Extracts a `.tar.xz` into an existing directory, keeping code signatures. */
   readonly extract: (archive: string, destination: string) => Promise<void>
   readonly randomId?: () => string
@@ -117,6 +123,7 @@ async function install({ dependencies, target, directory, root, report }: Instal
   try {
     await downloadCefArchive({
       fetch: dependencies.fetch,
+      ...(dependencies.stallMs === undefined ? {} : { stallMs: dependencies.stallMs }),
       asset: target.asset,
       destination: archive,
       onProgress: (progress) => report({ type: 'downloading', ...progress }),

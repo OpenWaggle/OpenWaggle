@@ -174,6 +174,20 @@ describe('CEF component installer', () => {
       },
       'offline',
     ],
+    [
+      'stalled',
+      {
+        stallMs: 20,
+        fetch: async () =>
+          new Response(new ReadableStream({ pull: () => new Promise(() => undefined) })),
+      },
+      'offline',
+    ],
+    [
+      'never answered',
+      { stallMs: 20, fetch: () => new Promise<Response>(() => undefined) },
+      'offline',
+    ],
     ['answered 404', { fetch: async () => new Response('missing', { status: 404 }) }, 'http'],
     ['failed to extract', { extract: () => Promise.reject(new Error('tar: bad')) }, 'install'],
     [
