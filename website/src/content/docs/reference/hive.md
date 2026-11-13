@@ -187,20 +187,27 @@ A `needs_attention` that OpenWaggle set for a failed run goes back to `working` 
 
 ### When the parent asks for a revision
 
-`delegation_request_revision` and `delegation_reopen` send the worker back to work. OpenWaggle queues a follow-up on the worker from whoever reviewed. The follow-up starts with `OpenWaggle Host-authored Delegation revision request` and carries these values:
+These actions send the worker back to work and set the delegation to `revision_requested`:
+
+- `delegation_request_revision`
+- `delegation_reopen`
+- `delegation_amend` or `delegation_dependency` while the worker's result is `ready_for_review`
+
+OpenWaggle then queues a follow-up on the worker from whoever made the change. The follow-up starts with `OpenWaggle Host-authored Delegation revision request` and carries these values:
 
 | Value | What it is |
 | --- | --- |
 | `delegationId` | The delegation. |
 | `parentSessionId` | The parent session. |
-| `submissionRevision` | The submission the parent reviewed or reopened. |
-| `specificationRevision` | Only when the request revised the task. The new task arrives as its own specification update. |
-| `feedback` | The feedback, or the reason for a reopen. |
+| `submissionRevision` | The submission the parent reviewed, reopened or set aside. |
+| `specificationRevision` | Only when the task changed. The new task arrives as its own specification update. |
+| `feedback` | The feedback, or the reason for a reopen or a task change. |
 
 - An idle worker starts a run on it straight away.
 - A busy worker gets it after its current run. The reply of that current run does not count as the new revision. The reply of the run that reads the feedback does.
+- `delegation_amend` or `delegation_dependency` on a worker that is still on the task, such as one that is `working` or already revising, queues nothing. The new task reaches its current run, or its next one.
 - It is a follow-up from the reviewer, so the queue rules and run limits are the ones for that reviewer's other follow-ups.
-- The reviewer must be allowed to message the worker. A reviewer that may not, such as a CLI client profile without `sessions:message` on it, gets `worker_message_denied` (kind `authorization`, CLI exit 4), and the delegation does not change. Ask someone who may message the worker, such as the person, to send the revision.
+- The reviewer must be allowed to message the worker. A reviewer that may not, such as a CLI client profile without `sessions:message` on it, gets `worker_message_denied` (kind `authorization`, CLI exit 4) for any of these actions that would send the worker back to work, and the delegation does not change. Ask someone who may message the worker, such as the person, to send the revision.
 
 ### When a worker reports to an idle parent
 

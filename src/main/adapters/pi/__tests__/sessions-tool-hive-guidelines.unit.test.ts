@@ -179,7 +179,7 @@ describe('Hive tool revision guidance (#454)', () => {
     const tool = await queenTool()
     const overview = await hiveHelpText(tool)
     expect(overview).toMatch(
-      /delegation_request_revision and delegation_reopen also send your feedback to the Worker as your Follow-up, which starts its next Run; do not send follow_up as well/,
+      /delegation_request_revision and delegation_reopen, and delegation_amend or delegation_dependency on a result awaiting review, also send your feedback to the Worker as your Follow-up, which starts its next Run; do not send follow_up as well/,
     )
 
     const topic = JSON.parse(await hiveHelpText(tool, 'delegation_request_revision'))
@@ -188,6 +188,14 @@ describe('Hive tool revision guidance (#454)', () => {
     expect(rules).toMatch(/delegationId, parentSessionId, submissionRevision, feedback/)
     expect(rules).toMatch(/busy Worker runs it after its current Run/)
     expect(rules).toMatch(/refused with worker_message_denied and the Delegation does not change/)
+
+    const amendRules: string = JSON.parse(await hiveHelpText(tool, 'delegation_amend')).rules.join(
+      '\n',
+    )
+    expect(amendRules).toMatch(
+      /delegation_amend or delegation_dependency on a ready_for_review result/,
+    )
+    expect(amendRules).toMatch(/on a Worker still on the task sends no Follow-up/)
   })
 
   it('tells a Worker what a revision request from its parent looks like', async () => {

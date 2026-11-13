@@ -143,4 +143,63 @@ describe('delegationRevisionFollowUp', () => {
       ),
     ).toBeUndefined()
   })
+
+  it('sends a task change that set aside a reviewed result, with its reason as the feedback', () => {
+    const response: SessionControlMutationResponse = {
+      ...updated('delegation-request-revision'),
+      outcome: {
+        operation: 'delegation-amend',
+        effect: 'delegation-specification-amended',
+        sessionId: 'queen',
+        delegationId: 'delegation-worker',
+        delegationState: 'revision_requested',
+        specificationRevision: 2,
+        workerSessionId: 'worker',
+        revisionRequest: { parentSessionId: 'queen', submissionRevision: 3 },
+      },
+    }
+    const amend = request({
+      operation: 'delegation-amend',
+      sessionId: 'queen',
+      delegationId: 'delegation-worker',
+      expectedSpecificationRevision: 1,
+      specification: {
+        objective: 'Review the tests',
+        deliverables: [],
+        acceptanceCriteria: [],
+        resourceReferences: [],
+        dependencies: [],
+      },
+      reason: '  Cover the error path.  ',
+    })
+
+    const followUp = delegationRevisionFollowUp(amend, response)
+    expect(followUp?.command.sessionId).toBe('worker')
+    expect(followUp?.command.input.text).toContain(
+      "changed your Delegation's task after submission 3",
+    )
+    expect(payloadOf(followUp?.command.input.text)).toEqual({
+      delegationId: 'delegation-worker',
+      parentSessionId: 'queen',
+      submissionRevision: 3,
+      specificationRevision: 2,
+      feedback: 'Cover the error path.',
+    })
+
+    // A Worker still on the task gets the new specification in its Run, not a revision request.
+    expect(
+      delegationRevisionFollowUp(amend, {
+        ...response,
+        outcome: {
+          operation: 'delegation-amend',
+          effect: 'delegation-specification-amended',
+          sessionId: 'queen',
+          delegationId: 'delegation-worker',
+          delegationState: 'revision_requested',
+          specificationRevision: 2,
+          workerSessionId: 'worker',
+        },
+      }),
+    ).toBeUndefined()
+  })
 })

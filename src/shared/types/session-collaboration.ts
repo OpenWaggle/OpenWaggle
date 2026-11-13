@@ -158,6 +158,16 @@ export interface SessionControlDelegationAmendCommand {
 
 export type DelegationVerificationOutcome = 'passed' | 'failed' | 'inconclusive'
 
+/**
+ * A task change (`delegation-amend`, `delegation-dependency`) that moved a Delegation from
+ * `ready_for_review` to `revision_requested`: the parent and the submission it set aside, which
+ * the Worker's Host-authored revision request names (#454).
+ */
+export interface DelegationRevisionRequest {
+  readonly parentSessionId: string
+  readonly submissionRevision: number
+}
+
 export interface SessionControlDelegationVerifyCommand {
   readonly operation: 'delegation-verify'
   readonly sessionId: string
@@ -227,6 +237,8 @@ export type SessionControlCollaborationOutcome =
       readonly specificationRevision: number
       readonly dependencyCount: number
       readonly workerSessionId: string
+      /** Present when this change sent a Worker whose result awaited review back to work. */
+      readonly revisionRequest?: DelegationRevisionRequest
     }
   | {
       readonly operation: 'delegation-propose-amendment'
@@ -245,6 +257,8 @@ export type SessionControlCollaborationOutcome =
       readonly specificationRevision: number
       readonly appliedProposalId?: string
       readonly workerSessionId: string
+      /** Present when this change sent a Worker whose result awaited review back to work. */
+      readonly revisionRequest?: DelegationRevisionRequest
     }
   | {
       readonly operation: 'delegation-verify'

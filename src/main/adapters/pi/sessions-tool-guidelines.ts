@@ -243,7 +243,7 @@ function sessionsToolGuidelines(permits: Permits) {
       ? 'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.'
       : undefined,
     delegationGuideline(permits),
-    revisionGuideline(permitted(permits, ['delegation_request_revision', 'delegation_reopen'])),
+    revisionGuideline(permits),
     nextActorGuideline(permits),
     cleanupGuideline(permits),
     permits('archive') ? SELF_ARCHIVE_GUIDELINE : undefined,

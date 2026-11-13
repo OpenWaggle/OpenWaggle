@@ -125,3 +125,32 @@ export function workerMessageRefusal(
     ),
   )
 }
+
+/**
+ * What a task change (`delegation-amend`, `delegation-dependency`) reports when it sends back to
+ * work a Worker whose result awaited review: the Delegation moves to `revision_requested`, so the
+ * Worker gets a Host-authored revision request as the reviewer's Follow-up, as for
+ * `delegation-request-revision`. A Worker still on the task gets the new specification in its
+ * current or next Run instead, so it is not started twice.
+ */
+export function taskChangeRevisionRequest(contract: DelegationContractRow) {
+  return contract.state === 'ready_for_review' && contract.latest_submission_revision > 0
+    ? {
+        revisionRequest: {
+          parentSessionId: contract.parent_session_id,
+          submissionRevision: contract.latest_submission_revision,
+        },
+      }
+    : {}
+}
+
+/** `workerMessageRefusal` for a task change, only when it sends the Worker back to work. */
+export function taskChangeMessageRefusal(
+  sql: SqlClient.SqlClient,
+  input: ExecuteDelegationInput,
+  contract: DelegationContractRow,
+) {
+  return 'revisionRequest' in taskChangeRevisionRequest(contract)
+    ? workerMessageRefusal(sql, input, contract)
+    : Effect.succeed(undefined)
+}
