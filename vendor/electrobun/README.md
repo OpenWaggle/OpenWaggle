@@ -9,7 +9,7 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 | --- | --- | --- | --- |
 | macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0006 to 0011, Zig tools and Dawn rebuilt for 13.4 |
 | Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007 and 0009 to 0011, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007 and 0009 to 0011, plus the WebView2 Evergreen bootstrapper |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007 and 0009 to 0012, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -92,6 +92,10 @@ release targets (docs/release-and-versioning.md), so they are not built.
    failed with `InvalidUpdateIdentity`. The request may now name the baked directory or a sibling
    of it (same parent, one more segment, no separators, dot segments or encoded slashes); the
    identifier, channel and base hash checks are unchanged.
+12. **windows: keep the same-origin policy on in WebView2.** Every WebView2 browser process started
+   with `--disable-web-security --allow-insecure-localhost`, so any page, the app's own windows
+   included, could read every other origin, the app's loopback servers among them. Both switches
+   are gone; macOS and Linux system webviews never turned the policy off.
 
 ## Building
 

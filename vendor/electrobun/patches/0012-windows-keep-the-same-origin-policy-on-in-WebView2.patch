@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Fri, 13 Nov 2026 07:53:54 +0100
+Subject: [PATCH] windows: keep the same-origin policy on in WebView2
+
+Every WebView2 environment started its browser process with
+--disable-web-security and --allow-insecure-localhost. With them, any
+page an app shows, including remote content in a partition, can read
+every other origin's responses: the app's own loopback servers, the
+user's intranet, any site the user is signed in to. macOS and Linux
+system webviews never turned the policy off, so apps that work there
+already send CORS headers where they need them.
+
+Both switches are gone. --allow-insecure-localhost only accepted any
+certificate for https://localhost, which no Electrobun scheme uses.
+---
+ package/src/native/win/nativeWrapper.cpp | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/package/src/native/win/nativeWrapper.cpp b/package/src/native/win/nativeWrapper.cpp
+index 5711826..00051d1 100644
+--- a/package/src/native/win/nativeWrapper.cpp
++++ b/package/src/native/win/nativeWrapper.cpp
+@@ -8087,9 +8087,7 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+                                     nullptr);
+                                 
+                                 // Add file dialog handler for <input type="file">
+-                                // Note: WebView2 generally handles file dialogs automatically,
+-                                // but we can enhance support by enabling the necessary permissions
+-                                // in the AdditionalBrowserArguments (already done above with --disable-web-security)
++                                // WebView2 handles file dialogs for <input type="file"> itself.
+ 
+                                 // Add download handler - requires ICoreWebView2_4
+                                 Microsoft::WRL::ComPtr<ICoreWebView2_4> webview4;
+@@ -8262,7 +8260,11 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+         // Create WebView2 environment with custom scheme support
+         try {
+             auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
+-            options->put_AdditionalBrowserArguments(L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --allow-insecure-localhost --disable-web-security");
++            // The same-origin policy stays on: --disable-web-security would let
++            // every page read any origin, including the app's own loopback
++            // servers, and --allow-insecure-localhost would accept any
++            // certificate for localhost.
++            options->put_AdditionalBrowserArguments(L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
+ 
+             // Get the interface that supports custom scheme registration
+             Microsoft::WRL::ComPtr<ICoreWebView2EnvironmentOptions4> options4;
