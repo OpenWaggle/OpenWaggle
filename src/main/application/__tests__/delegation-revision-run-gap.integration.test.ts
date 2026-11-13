@@ -49,58 +49,67 @@ const REVIEW: SessionControlDelegationMutationRequest = {
 describe('a Worker Run that started after the review but before its revision request', () => {
   const host = useHiveHostTestContext('openwaggle-delegation-revision-gap-')
 
-  it('may not submit while the revision request waits behind it', async () => {
-    const holdFirstRun = Effect.runSync(Deferred.make<void>())
-    const recorder = recordingExecutor({ holdFirstRun })
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        yield* seedHiveWorker(sql, { state: 'ready_for_review' })
-        yield* seedQueenAuthority(sql, host.temporaryRoot)
-        // The review alone: its revision request is not queued yet.
-        const review = yield* executeSessionDelegationMutation({
-          callerId: QUEEN_CALLER_ID,
-          request: REVIEW,
-        })
-        yield* Effect.sleep('5 millis')
-        yield* controlCommandAs(QUEEN_CALLER_ID, 'queen-start', {
-          operation: 'start',
-          sessionId: 'worker',
-          input: { text: 'Tidy up the notes.', attachmentIds: [] },
-        })
-        yield* waitFor(() => recorder.runs.length === 1)
-        const followUp = delegationRevisionFollowUp(REVIEW, review)
-        if (!followUp) throw new Error('The review sent no revision request.')
-        yield* executeSessionControlMutation({ callerId: QUEEN_CALLER_ID, request: followUp })
-        const staleSubmit = yield* controlCommandAs(
-          `session-agent:worker:${recorder.runs[0]?.runId ?? ''}`,
-          'worker-stale-submit',
-          {
-            operation: 'delegation-submit',
+  it.each([
+    ['its agent', (runId: string) => `session-agent:worker:${runId}`],
+    ['a Waggle it requested', (runId: string) => `session-agent:worker:waggle-of-${runId}`],
+  ] as const)(
+    'may not submit, as %s, while the revision request waits behind it',
+    async (label, submitter) => {
+      const holdFirstRun = Effect.runSync(Deferred.make<void>())
+      const recorder = recordingExecutor({ holdFirstRun })
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* seedHiveWorker(sql, { state: 'ready_for_review' })
+          yield* seedQueenAuthority(sql, host.temporaryRoot)
+          // The review alone: its revision request is not queued yet.
+          const review = yield* executeSessionDelegationMutation({
+            callerId: QUEEN_CALLER_ID,
+            request: REVIEW,
+          })
+          yield* Effect.sleep('5 millis')
+          yield* controlCommandAs(QUEEN_CALLER_ID, 'queen-start', {
+            operation: 'start',
             sessionId: 'worker',
-            delegationId: 'delegation-worker',
-            summary: 'Done, without the error path.',
-            evidence: [],
-          },
-        )
-        yield* Deferred.succeed(holdFirstRun, undefined)
-        yield* waitFor(() => recorder.runs.length === 2)
-        yield* waitForSessionIdle('worker')
-        return { staleSubmit: staleSubmit.outcome, delegation: yield* workerDelegation(sql) }
-      }).pipe(
-        Effect.provide(
-          commandHostLayer(path.join(host.temporaryRoot, 'gap.sqlite'), recorder.executor),
+            input: { text: 'Tidy up the notes.', attachmentIds: [] },
+          })
+          yield* waitFor(() => recorder.runs.length === 1)
+          const followUp = delegationRevisionFollowUp(REVIEW, review)
+          if (!followUp) throw new Error('The review sent no revision request.')
+          yield* executeSessionControlMutation({ callerId: QUEEN_CALLER_ID, request: followUp })
+          const staleSubmit = yield* controlCommandAs(
+            submitter(recorder.runs[0]?.runId ?? ''),
+            'worker-stale-submit',
+            {
+              operation: 'delegation-submit',
+              sessionId: 'worker',
+              delegationId: 'delegation-worker',
+              summary: 'Done, without the error path.',
+              evidence: [],
+            },
+          )
+          yield* Deferred.succeed(holdFirstRun, undefined)
+          yield* waitFor(() => recorder.runs.length === 2)
+          yield* waitForSessionIdle('worker')
+          return { staleSubmit: staleSubmit.outcome, delegation: yield* workerDelegation(sql) }
+        }).pipe(
+          Effect.provide(
+            commandHostLayer(
+              path.join(host.temporaryRoot, `${label.length}.sqlite`),
+              recorder.executor,
+            ),
+          ),
         ),
-      ),
-    )
+      )
 
-    expect(result.staleSubmit).toMatchObject({
-      effect: 'rejected',
-      code: 'delegation_revision_pending',
-    })
-    // The Run that read the revision request produced the revision.
-    expect(result.delegation.state).toBe('ready_for_review')
-    expect(result.delegation.submissions.map((row) => row.revision)).toEqual([1, 2])
-    expect(result.delegation.submissions[1]?.source_run_id).toBe(recorder.runs[1]?.runId)
-  })
+      expect(result.staleSubmit).toMatchObject({
+        effect: 'rejected',
+        code: 'delegation_revision_pending',
+      })
+      // The Run that read the revision request produced the revision.
+      expect(result.delegation.state).toBe('ready_for_review')
+      expect(result.delegation.submissions.map((row) => row.revision)).toEqual([1, 2])
+      expect(result.delegation.submissions[1]?.source_run_id).toBe(recorder.runs[1]?.runId)
+    },
+  )
 })

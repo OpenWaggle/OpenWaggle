@@ -4,7 +4,10 @@ import {
   DELEGATION_REVISION_KEY_PREFIX,
   DELEGATION_REVISION_OPERATIONS,
 } from '../domain/session-control/delegation-revision-follow-up'
-import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
+import {
+  durableSessionRunId,
+  parseSessionAgentCallerId,
+} from '../domain/session-control/root-session-project-reach'
 import type { DelegationContractRow } from './sqlite-session-delegation-support'
 
 /**
@@ -93,7 +96,8 @@ function revisionKey(sql: SqlClient.SqlClient) {
  * Whether the Worker's agent submits from a Run that started before its parent sent it back to
  * work, while the revision request waits for the Worker's next Run (#454). That Run never saw the
  * feedback, and taking its result would leave the revising Run unable to submit, so the result
- * waits for the revising Run, as settlement does for a reply (`revisionPendingForRunSql`).
+ * waits for the revising Run, as settlement does for a reply (`revisionPendingForRunSql`). A
+ * requested Waggle's agent (`waggle-of-<runId>`) acts in its classic Run, so that Run is checked.
  */
 export function revisionPendingForSubmittingRun(
   sql: SqlClient.SqlClient,
@@ -105,7 +109,7 @@ export function revisionPendingForSubmittingRun(
     return Effect.succeed(false)
   }
   return sql<{ readonly pending: number }>`
-    SELECT ${revisionPendingForRunSql(sql, agent.runId)} AS pending
+    SELECT ${revisionPendingForRunSql(sql, durableSessionRunId(agent.runId))} AS pending
     FROM delegation_contracts AS contracts WHERE contracts.id = ${contract.id}
   `.pipe(Effect.map((rows) => rows[0]?.pending === 1))
 }
