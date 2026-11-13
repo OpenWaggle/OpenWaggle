@@ -29,8 +29,8 @@ import {
 } from './session-input'
 import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
 
-const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
-const attachmentOriginSchema = Schema.Literal(
+export const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
+export const attachmentOriginSchema = Schema.Literal(
   'user-file',
   'auto-paste-text',
   'browser-preview',
