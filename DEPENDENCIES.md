@@ -50,6 +50,7 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `node-pty@1.1.0`. Held: a native module, patched (`patches/node-pty@1.1.0.patch`). Unblocked by: re-porting the patch.
 - `oxc-parser@0.148.0`. Held: the version `react-doctor` `0.9.22` already installs, so the lint rule tests add no package. Unblocked by: moving `react-doctor`.
 - `quickjs-wasi@3.6.2`. Held: the version Pi depends on; Pi reads its wasm from the installed package, and `check:pi-runtime` fails on drift. Unblocked by: the Pi release that moves it (docs/pi-runtime-upgrades.md).
+- `react-doctor@0.9.22`. Held: `0.9.23` came out on 2026-11-13, and the seven-day `minimumReleaseAge` in `bunfig.toml` refuses it until 2026-11-20. Unblocked by: that date, moving `oxc-parser` to the version the new release installs.
 - `sharp@0.35.4`. Held: a native module; the root `overrides` pin the same version. Unblocked by: the next monthly batch, with the `@img/sharp-*` binaries.
 - `shiki@4.4.3`. Held: the root `overrides` pin `@pierre/diffs>shiki` and `@pierre/theming>shiki` to this version. Unblocked by: the next monthly batch, moving all three together.
 - `typebox@1.3.27`. Held: the `typebox` `pi-coding-agent` depends on, the copy Pi gives extensions; `check:pi-runtime` checks it. Unblocked by: the Pi release that moves it (docs/pi-runtime-upgrades.md).
