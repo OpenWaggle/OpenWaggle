@@ -81,14 +81,15 @@ describe('electrobunAppConfig', () => {
 
   it('gives CEF a per-launch DevTools port and drops the defaults that weaken it', () => {
     const { mac, linux } = configFor('stable').build
-    for (const flags of [mac.chromiumFlags, linux.chromiumFlags]) {
-      expect(flags).toEqual({
-        'remote-debugging-port': 'launch',
-        'remote-allow-origins': false,
-        'allow-insecure-localhost': false,
-        'disable-web-security': false,
-      })
+    const flags = {
+      'remote-debugging-port': 'launch',
+      'remote-allow-origins': false,
+      'allow-insecure-localhost': false,
+      'disable-web-security': false,
     }
+    expect(mac.chromiumFlags).toEqual(flags)
+    // Linux's first page load does not wait on the desktop portal's Secret interface.
+    expect(linux.chromiumFlags).toEqual({ ...flags, 'disable-features': 'DbusSecretPortal' })
     expect(mac).toMatchObject({ codesign: false, notarize: false, createDmg: false })
   })
 

@@ -204,6 +204,21 @@ jobs:
           launcher=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).launcher" "$RESULTS/install.json")
           echo "LAUNCHER=$launcher" >> "$GITHUB_ENV"
 
+      # A user whose desktop portal is activatable but never answers (a session without a working
+      # xdg-desktop-portal) must still get a window: every Linux launch below runs on a session bus
+      # whose org.freedesktop.portal.Desktop starts and never replies, and the cold launch fails if
+      # its window takes more than 10 s (it waited D-Bus's 25 s for the portal's Secret interface).
+      - name: A desktop portal that never answers
+        if: matrix.platform == 'linux'
+        run: |
+          set -euo pipefail
+          services="$HOME/.local/share/dbus-1/services"
+          mkdir -p "$services"
+          printf '[D-BUS Service]\nName=org.freedesktop.portal.Desktop\nExec=/usr/bin/sleep infinity\n' \
+            > "$services/org.freedesktop.portal.Desktop.service"
+          eval "$(dbus-launch --sh-syntax)"
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
+
       # On macOS and Linux the launcher chooses CEF's DevTools port, as in a user's launch, and the
       # app's own preview screenshot goes through it: the preview's CDP works without a QA port.
       - name: Cold launch (Session Host, fake-provider Run, terminal, Browser preview)
@@ -213,6 +228,12 @@ jobs:
           port=(); if [ "$PLATFORM" != win32 ]; then port=(--launcher-cdp-port); fi
           bun scripts/electrobun/ci/smoke.ts launch "$LAUNCHER" --expect "$VERSION" --profile "$PROFILE" --prove \
             "${port[@]}" --out "$RESULTS/launch-cold.json" --screenshots "$RESULTS/screenshots/cold"
+          if [ "$PLATFORM" = linux ]; then
+            node -e '
+              const ms = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).spawnToRendererMs
+              if (!(ms < 10000)) { console.error(`The window took ${ms} ms with an unanswering portal.`); process.exit(1) }' \
+              "$RESULTS/launch-cold.json"
+          fi
 
       - name: Warm launch (open the Session from its openwaggle link)
         run: |

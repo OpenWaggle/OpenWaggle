@@ -128,6 +128,21 @@ export const CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
   'disable-web-security': false,
 }
 
+/**
+ * Linux's CEF command line: CEF_CHROMIUM_FLAGS without Chromium's secret portal key provider
+ * (`DbusSecretPortal`). At startup Chromium asks the desktop portal (`org.freedesktop.portal.Secret`
+ * RetrieveSecret) for its cookie encryption key and holds the first page load until the answer
+ * comes, so a portal that is activatable but never answers (a session without a working
+ * xdg-desktop-portal) kept the window blank for D-Bus's 25 s reply timeout. Chromium then uses its
+ * other Linux key providers (the Secret Service keyring, else its basic key), as it does when the
+ * portal has no Secret interface. The package proof runs on a session bus whose portal never
+ * answers (electrobun-package.yml).
+ */
+export const LINUX_CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
+  ...CEF_CHROMIUM_FLAGS,
+  'disable-features': 'DbusSecretPortal',
+}
+
 export function electrobunAppConfig(input: ElectrobunConfigInput) {
   const { identity, environment } = input
   const patchBaseUrl = environment[PATCH_BASE_URL_ENV]?.trim() ?? ''
@@ -184,7 +199,7 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
       },
       linux: {
         bundleCEF: true,
-        chromiumFlags: CEF_CHROMIUM_FLAGS,
+        chromiumFlags: LINUX_CEF_CHROMIUM_FLAGS,
         defaultRenderer: 'cef',
         icon: channelIconPng(identity),
       },
