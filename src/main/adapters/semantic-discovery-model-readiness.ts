@@ -12,8 +12,9 @@ import {
 
 function modelField(
   availability: Exclude<SessionEmbeddingModelAvailability, { readonly state: 'ready' }>,
-): SemanticDiscoveryModelAvailability {
-  return availability
+) {
+  const field: SemanticDiscoveryModelAvailability = availability
+  return field
 }
 
 /**
@@ -28,13 +29,14 @@ export function withModelAvailability(
   const availability = model.availability
   if (availability === undefined) return Effect.succeed(readiness)
   return Effect.promise(availability).pipe(
-    Effect.map((current): SemanticDiscoveryReadiness => {
+    Effect.map((current) => {
       if (current.state === 'ready') return readiness
-      return {
+      const withModel: SemanticDiscoveryReadiness = {
         ...readiness,
         model: modelField(current),
         reason: describeAvailability(current),
       }
+      return withModel
     }),
   )
 }
