@@ -1,0 +1,77 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Fri, 13 Nov 2026 12:13:03 +0100
+Subject: [PATCH] macos: warm a WebContent process at launch for the first
+ webview
+
+A first WKWebView waited for WebKit to launch and initialize its
+WebContent process, after the app had loaded its code and asked for the
+window. startEventLoop now asks WebKit to prewarm one in a process pool
+every WKWebViewImpl shares, so that work overlaps the app's startup and
+the first page takes the warmed process. ELECTROBUN_WARM_WEBCONTENT=0
+turns it off.
+---
+ package/src/native/macos/nativeWrapper.mm | 29 +++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
+diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
+index bd1cc2e..83c4956 100644
+--- a/package/src/native/macos/nativeWrapper.mm
++++ b/package/src/native/macos/nativeWrapper.mm
+@@ -3094,6 +3094,10 @@ - (void)userContentController:(WKUserContentController *)userContentController
+ 
+ // ----------------------- WKWebViewImpl -----------------------
+ 
++// The process pool every WKWebView shares once warmWebContentProcess made it;
++// nil leaves each configuration its default pool.
++static WKProcessPool *warmedProcessPool = nil;
++
+ @implementation WKWebViewImpl
+ 
+ - (BOOL)shouldSuppressMirrorMode {
+@@ -3136,6 +3140,8 @@ - (instancetype)initWithWebviewId:(uint32_t)webviewId
+ 
+       configuration.websiteDataStore =
+           createDataStoreForPartition(partitionIdentifier);
++      if (warmedProcessPool)
++        configuration.processPool = warmedProcessPool;
+ 
+       [configuration.preferences setValue:@YES
+                                    forKey:@"developerExtrasEnabled"];
+@@ -8924,6 +8930,23 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+ // startEventLoop
+ extern "C" void stopEventLoop();
+ 
++// Starts a WebContent process before the app asks for its first webview:
++// -[WKProcessPool _warmInitialProcess] (WebKit SPI since macOS 10.13) launches
++// and initializes one in the pool every WKWebViewImpl then uses, and the first
++// page takes it. The pool lives as long as the app; a released pool shuts its
++// prewarmed process down. ELECTROBUN_WARM_WEBCONTENT=0 turns this off, and so
++// does a WebKit that no longer answers the selector (the pool is then kept
++// unwarmed, which WebKit treats as any other shared pool).
++static void warmWebContentProcess() {
++  const char *setting = getenv("ELECTROBUN_WARM_WEBCONTENT");
++  if (setting && strcmp(setting, "0") == 0)
++    return;
++  warmedProcessPool = [[WKProcessPool alloc] init];
++  SEL warm = NSSelectorFromString(@"_warmInitialProcess");
++  if ([warmedProcessPool respondsToSelector:warm])
++    ((void (*)(id, SEL))objc_msgSend)(warmedProcessPool, warm);
++}
++
+ extern "C" void startEventLoop(const char *identifier, const char *name,
+                                const char *channel) {
+   (void)name; // Unused on macOS - kept for API consistency with Windows/Linux
+@@ -8993,6 +9016,12 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+   AppDelegate *delegate = [[AppDelegate alloc] init];
+   [app setDelegate:delegate];
+   retainObjCObject(delegate);
++  // A first WKWebView waits for its WebContent process to launch and
++  // initialize (WebProcess::platformInitializeWebProcess alone took 0.3-0.8 s
++  // on a macOS runner). Warm one now, while the app's own code still loads.
++  dispatch_async(dispatch_get_main_queue(), ^{
++    warmWebContentProcess();
++  });
+   [app run];
+   @autoreleasepool {
+     shutdownStartedCEF();

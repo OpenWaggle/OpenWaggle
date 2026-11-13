@@ -7,7 +7,7 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011, 0014, 0015 and 0020, Zig tools and Dawn rebuilt for 13.4 |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011, 0014 to 0016 and 0020, Zig tools and Dawn rebuilt for 13.4 |
 | Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007, 0009 to 0011 and 0020, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
 | Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007, 0009 to 0013 and 0020, plus the WebView2 Evergreen bootstrapper |
 
@@ -131,6 +131,13 @@ release targets (docs/release-and-versioning.md), so they are not built.
    NSApplication is always `ElectrobunNSApplication`, since CEF may arrive after launch. The helper
    no longer links the framework at `@executable_path/../../../../Frameworks`, which only an app
    bundle has; `CefScopedLibraryLoader::LoadInHelper` loads it from beside the helper apps.
+16. **macos: warm a WebContent process at launch for the first webview.** A first WKWebView
+   waited for WebKit to launch and initialize its WebContent process
+   (`WebProcess::platformInitializeWebProcess` took 0.3-0.8 s on a macOS runner) after the app had
+   loaded its code and asked for the window. `startEventLoop` now calls WebKit's
+   `-[WKProcessPool _warmInitialProcess]` SPI on a pool that every `WKWebViewImpl` then uses, so
+   that work overlaps the app's startup and the first page takes the warmed process (WebKit logs
+   `markIsNoLongerInPrewarmedPool`). `ELECTROBUN_WARM_WEBCONTENT=0` turns it off.
 
 ## CEF component (macOS)
 
