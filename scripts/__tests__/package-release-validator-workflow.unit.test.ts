@@ -88,6 +88,13 @@ describe('package release workflow validation', () => {
       'repos/$GITHUB_REPOSITORY/actions/workflows/other.yml/dispatches',
     ],
     ['versioned docs synchronization', 'bun run package-docs:update', 'echo skipped-docs-update'],
+    // Release Please's version bump left the workspace versions in bun.lock stale.
+    ['lockfile synchronization', 'bun install --lockfile-only', 'echo skipped-lockfile-update'],
+    [
+      'lockfile commit',
+      'git add -A -- packages website/src/content bun.lock',
+      'git add -A -- packages website/src/content',
+    ],
     ['successful completion wait', 'gh run watch "$RUN_ID" --exit-status', 'echo skipped-wait'],
     [
       'generated head binding',
