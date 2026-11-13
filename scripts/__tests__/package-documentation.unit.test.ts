@@ -294,6 +294,7 @@ describe('package documentation rendering', () => {
       apiDescription: 'Synthetic public API.',
       exports: { '.': { types: './dist/index.d.ts' } },
       packageName: '@openwaggle/example',
+      packageVersion: '0.2.0',
       snapshot,
       version: '0.2',
     })

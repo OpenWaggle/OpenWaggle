@@ -24,7 +24,10 @@ import {
 } from './package-documentation-manifest'
 import { substituteInstallPlaceholders } from '../website/src/lib/install-command'
 import { parseFrontmatter } from './installed-docs-generator-model'
-import { renderApiReference } from './package-api-reference-renderer'
+import {
+  generatedApiReferencePackageVersion,
+  renderApiReference,
+} from './package-api-reference-renderer'
 import { renderPackageReadme } from './package-documentation-renderer'
 
 const ARGUMENT_START_INDEX = 2
@@ -120,6 +123,9 @@ async function generatedFilesForPackage(
   if (manifest.exports === undefined) {
     throw new Error(`${definition.packageName} must declare package exports.`)
   }
+  if (manifest.version === undefined) {
+    throw new Error(`${definition.packageName} package manifest must declare a version.`)
+  }
   const guideBody = parseFrontmatter(guide).body
   const docsUrl = packageDocumentationUrl(definition.slug, definition.currentVersion)
   const generatedFiles: GeneratedFile[] = [
@@ -141,6 +147,7 @@ async function generatedFilesForPackage(
         apiDescription: definition.apiDescription,
         exports: manifest.exports,
         packageName: definition.packageName,
+        packageVersion: manifest.version,
         snapshot,
         version: definition.currentVersion,
       }),
@@ -157,6 +164,23 @@ async function readIfPresent(filePath: string) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
     throw error
   }
+}
+
+/**
+ * Whether the current line's API page is generated: not while a pending line defers it, and not
+ * once it lists the declarations of `packageVersion`, a released version.
+ */
+async function generatesApiReference(input: {
+  readonly projectRoot: string
+  readonly definition: VersionedPackageDocumentationDefinition
+  readonly packageVersion: string
+  readonly deferred: boolean
+}) {
+  if (input.deferred) return false
+  const page = await readIfPresent(
+    apiReferencePath(input.projectRoot, input.definition.slug, input.definition.currentVersion),
+  )
+  return page === undefined || generatedApiReferencePackageVersion(page) !== input.packageVersion
 }
 
 function relativePath(projectRoot: string, filePath: string) {
@@ -239,11 +263,18 @@ export async function checkPackageDocumentation(
 
     // A pending major/minor guide means Release Please owns the version bump and regenerated API
     // page. The README still belongs to the published line and must remain byte-for-byte derived
-    // from that historical guide while unreleased declarations evolve.
+    // from that historical guide while unreleased declarations evolve. An API page generated for
+    // the package's current version documents a published release, so it stays as it is until a
+    // release changes the version; the API snapshot tracks the unreleased declarations.
     for (const generatedFile of await generatedFilesForPackage(
       projectRoot,
       definition,
-      !deferGeneratedDocumentation,
+      await generatesApiReference({
+        projectRoot,
+        definition,
+        packageVersion: manifest.version,
+        deferred: deferGeneratedDocumentation,
+      }),
     )) {
       const expected = normalizeMarkdown(generatedFile.contents)
       const actual = await readIfPresent(generatedFile.path)
