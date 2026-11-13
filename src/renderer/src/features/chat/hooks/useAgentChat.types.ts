@@ -147,6 +147,8 @@ export interface SessionHydrationInput {
   readonly cachedRenderSeeded: boolean
   /** Ids of cached messages a settled Run left, persisted under other ids once the Session saved it. */
   readonly cachedSettledMessageIds?: ReadonlySet<string>
+  /** Ids of cached rows a Run whose start was lost streamed over, before the Host named it. */
+  readonly cachedNoticedMessageIds?: ReadonlySet<string>
   readonly cachedCompactionStatus: AgentCompactionStatus | null
   /** Counts Host event-stream resyncs: events may have been lost before each. */
   readonly resyncRevision: number

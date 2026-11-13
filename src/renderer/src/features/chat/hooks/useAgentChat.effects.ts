@@ -7,6 +7,7 @@ import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { setLastAgentErrorInfo } from '@/features/chat/lib/agent-error-store'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
+import type { RunRenderSnapshot } from '@/features/chat/state/background-run-render-state'
 import { declareShownSessions, subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 import { hiveWakeRunError } from '../lib/hive-wake-run-error'
@@ -15,7 +16,6 @@ import { sessionToUIMessages } from '../lib/useAgentChat.utils'
 import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
 import { handleAgentStreamPayload } from './useAgentChat.stream-events'
 import type {
-  AgentCompactionStatus,
   AgentRunActions,
   AgentStreamEventContext,
   MutableValueRef,
@@ -37,12 +37,7 @@ interface UseSessionHydrationEffectsParams {
    * activity changes otherwise do not rehydrate (a manual compaction of an idle Session stays one).
    */
   readonly activityRestoreRevision: number
-  readonly getRunRenderSnapshot: (sessionId: SessionId) => {
-    readonly messages: readonly UIMessage[]
-    readonly compactionStatus: AgentCompactionStatus | null
-    readonly seededByRunId?: string
-    readonly settledMessageIds?: ReadonlySet<string>
-  } | null
+  readonly getRunRenderSnapshot: (sessionId: SessionId) => RunRenderSnapshot | null
   readonly removeMatchedOptimisticUserMessages: (
     sessionId: SessionId,
     persistedMessages: readonly UIMessage[],
@@ -203,6 +198,7 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
         cachedRenderMessages: activeRun ? (cachedRenderSnapshot?.messages ?? null) : null,
         cachedRenderSeeded: activeRun && cachedRenderSnapshot?.seededByRunId !== undefined,
         cachedSettledMessageIds: cachedRenderSnapshot?.settledMessageIds,
+        cachedNoticedMessageIds: cachedRenderSnapshot?.noticedMessageIds,
         cachedCompactionStatus: cachedRenderSnapshot?.compactionStatus ?? null,
         resyncRevision,
         activityRestoreRevision,

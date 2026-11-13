@@ -61,7 +61,10 @@ function placeCachedRunMessages(
   context: SessionHydrationContext,
 ) {
   const persistedMessages = sessionToUIMessages(input.session)
-  const cachedMessages = withoutSavedActiveRunAnswers(shownMessages, persistedMessages)
+  const cachedMessages = withoutSavedActiveRunAnswers(
+    withoutSavedNoticedAnswers(shownMessages, persistedMessages, input.cachedNoticedMessageIds),
+    persistedMessages,
+  )
   const compactionStatus = input.cachedCompactionStatus
   if (input.cachedRenderSeeded) {
     return placeSeededRunMessages({
@@ -91,6 +94,59 @@ function withoutSavedActiveRunAnswers(
     shownIds: new Set(cachedMessages.map((message) => message.id)),
     ...reconnectedRunScope({ snapshot: null, persistedMessages, currentMessages: cachedMessages }),
   })
+}
+
+/**
+ * The cached rows without the noticed rows (`noticedMessageIds`) the persisted transcript already
+ * holds under Pi entry ids. Until the Host names the Run whose start was lost, they are the Run
+ * before's, saved, or its own continuing, unsaved: the saved ones showed twice when no live prompt
+ * started their Run's span (it streamed in a stall). Matched by content within that Run's span,
+ * each once (`noticedRunStartOrder`); the unsaved ones have no saved copy and stay.
+ */
+function withoutSavedNoticedAnswers(
+  cachedMessages: readonly UIMessage[],
+  persistedMessages: readonly UIMessage[],
+  noticedMessageIds: ReadonlySet<string> | undefined,
+) {
+  if (!noticedMessageIds || noticedMessageIds.size === 0) return cachedMessages
+  const noticed = cachedMessages.filter((message) => noticedMessageIds.has(message.id))
+  const fromOrder = noticedRunStartOrder(noticed, persistedMessages)
+  if (fromOrder === undefined) return cachedMessages
+  const shownIds = new Set(cachedMessages.map((message) => message.id))
+  const kept = new Set(
+    withoutSavedRunAnswers(noticed, persistedMessages, { shownIds, fromOrder }).map(
+      (message) => message.id,
+    ),
+  )
+  return cachedMessages.filter(
+    (message) => !noticedMessageIds.has(message.id) || kept.has(message.id),
+  )
+}
+
+/**
+ * Where the noticed rows' Run starts: at its prompt when they hold it; otherwise at the last saved
+ * prompt they do not hold (a steer the Run took after its first answers is one of its own).
+ */
+function noticedRunStartOrder(
+  noticed: readonly UIMessage[],
+  persistedMessages: readonly UIMessage[],
+) {
+  const first = noticed[0]
+  const firstOrder = first?.role === 'user' ? first.metadata?.sessionNodeCreatedOrder : undefined
+  if (firstOrder !== undefined) return firstOrder
+  const noticedOrders = new Set(
+    noticed.flatMap((message) => {
+      const order = message.metadata?.sessionNodeCreatedOrder
+      return message.role === 'user' && order !== undefined ? [order] : []
+    }),
+  )
+  let fromOrder: number | undefined
+  for (const message of persistedMessages) {
+    const order = message.metadata?.sessionNodeCreatedOrder
+    if (message.role !== 'user' || order === undefined || noticedOrders.has(order)) continue
+    fromOrder = Math.max(fromOrder ?? order, order)
+  }
+  return fromOrder
 }
 
 /**
