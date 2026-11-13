@@ -39,7 +39,7 @@ export interface BunBuildConfig {
   readonly outdir: string
   readonly target: 'bun' | 'node'
   readonly format: 'esm' | 'cjs'
-  readonly naming?: string
+  readonly naming?: string | { readonly entry: string; readonly chunk: string }
   readonly minify?:
     | boolean
     | {

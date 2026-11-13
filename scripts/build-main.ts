@@ -1,12 +1,13 @@
 /**
- * The main process build (ADR 0064): `bun build` of `src/main/index.ts` as one ES module for the
- * Bun runtime, plus the boot shim and Pi's worker files beside it, in `out/main/`:
+ * The main process build (ADR 0064): `bun build` of `src/main/index.ts` as ES modules for the Bun
+ * runtime, plus the boot shim and Pi's worker files beside it, in `out/main/`:
  *
  * - `boot.js`: package.json `main` and the Electrobun entry's import. It is bundled on its own
  *   because it must stay small (scripts/check-main-bundle.ts budgets it) and loads `index.js`.
- * - `index.js`: the GUI main process, the Session Host and every CLI command. One file, as with
- *   Vite before (A-F6): modules reached through `import()` stay behind Bun's lazy `__esm`
- *   initializers, so each process evaluates only its own part.
+ * - `index.js` and its `chunk-<hash>.js` files: the GUI main process, the Session Host and every
+ *   CLI command, split at each `import()` so each process reads and parses only its own graph.
+ *   Under Electron it was one file, because V8's compile cache made one file read from `app.asar`
+ *   faster than a hundred chunks (A-F6); Bun caches no compiled ES module and reads flat files.
  * - `codemode-worker.js` and `image-resize-worker.js`: Pi's workers (`PI_WORKER_BUNDLES`).
  * - `.vite/main-chunks.json`: which source modules each output holds, for the startup budgets.
  *
@@ -201,7 +202,11 @@ export async function buildMain(options: MainBuildOptions = {}) {
   const main = await build({
     ...shared,
     entrypoints: [path.join(ROOT, options.entry ?? MAIN_ENTRY)],
-    naming: 'index.js',
+    // Split at every `import()`: each process reads and parses only its own graph. Bun has no
+    // compile cache for ES modules, so the one 15.6 MB file cost every process its full parse.
+    // The chunks sit beside `index.js`, where `import.meta.dirname` finds the app's files.
+    naming: { entry: 'index.js', chunk: 'chunk-[hash].js' },
+    splitting: true,
     // Minified with names kept, as before: logs and libraries read function and class names.
     minify: { whitespace: true, syntax: true, identifiers: true, keepNames: true },
     // Hidden maps (no `sourceMappingURL`): never shipped, kept with each release.

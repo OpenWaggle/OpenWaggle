@@ -22,9 +22,10 @@ export interface MainChunkManifestEntry {
  * - a CLI command's module (top-level-cli-entry.ts and the `*-cli-entry.ts` files).
  * A budget counts the static closure of the entry chunk and the chunks holding these modules.
  *
- * The main bundle is one file (scripts/build-main.ts says why), so today every process loads
- * all of it and the budgets are the bundle's size: 15.8 MB when set. Splitting it into chunks
- * would let each budget fall to its own graph (GUI 2.5 MB, Host 10.2 MB, CLI 0.9-1.7 MB measured).
+ * The main build splits at every `import()` (scripts/build-main.ts), so each budget is its own
+ * graph. Measured when the split landed (November 2026): GUI 465 KB, Host 1.59 MB, `hive` 68 KB,
+ * `run` 65 KB, `mcp` 459 KB, against 15.6 MB for every process as one file. Each budget keeps
+ * about 30% headroom and only goes down: defer new code behind `import()` where it is first used.
  */
 export interface MainProcessBudget {
   readonly label: string
@@ -33,7 +34,10 @@ export interface MainProcessBudget {
 }
 
 const KIBIBYTE = 1024
-const ONE_FILE_BUNDLE_BUDGET_BYTES = 16_896 * KIBIBYTE
+const GUI_STARTUP_BUDGET_BYTES = 592 * KIBIBYTE
+const HOST_STARTUP_BUDGET_BYTES = 2_020 * KIBIBYTE
+const SMALL_CLI_STARTUP_BUDGET_BYTES = 88 * KIBIBYTE
+const MCP_CLI_STARTUP_BUDGET_BYTES = 584 * KIBIBYTE
 
 export const MAIN_ENTRY_CHUNK = 'index.js'
 
@@ -49,7 +53,7 @@ export const MAIN_PROCESS_BUDGETS: readonly MainProcessBudget[] = [
       'src/main/store/settings.ts',
       'src/main/usage-statistics/usage-statistics-gui.ts',
     ],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
+    maximumBytes: GUI_STARTUP_BUDGET_BYTES,
   },
   {
     label: 'Session Host',
@@ -60,22 +64,22 @@ export const MAIN_PROCESS_BUDGETS: readonly MainProcessBudget[] = [
       'src/main/store/settings.ts',
       'src/main/session-host/session-host-bootstrap.ts',
     ],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
+    maximumBytes: HOST_STARTUP_BUDGET_BYTES,
   },
   {
     label: 'openwaggle hive',
     startupModules: ['src/main/sessions-cli.ts'],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
+    maximumBytes: SMALL_CLI_STARTUP_BUDGET_BYTES,
   },
   {
     label: 'openwaggle run',
     startupModules: ['src/main/run-cli.ts'],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
+    maximumBytes: SMALL_CLI_STARTUP_BUDGET_BYTES,
   },
   {
     label: 'openwaggle mcp',
     startupModules: ['src/main/mcp-cli.ts'],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
+    maximumBytes: MCP_CLI_STARTUP_BUDGET_BYTES,
   },
 ]
 
