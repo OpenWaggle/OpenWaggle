@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { failedTestFiles, testSteps } from '../gate'
+import { rerunCandidates, testSteps } from '../gate'
 
-describe('the failed test files the ready gate reruns', () => {
+describe('the test files the ready gate reruns alone', () => {
   it.each([
     [
       'a test that timed out',
@@ -22,10 +22,41 @@ describe('the failed test files the ready gate reruns', () => {
       'scripts/test-support/temporary-directory-guard.ts:97:13 FAIL src/main/x.integration.test.ts (file failed)',
       ['src/main/x.integration.test.ts'],
     ],
-    ['nothing for a failure that names no test file', 'mcp conformance: 1 scenario failed', []],
-    ['nothing for a summary line', 'vitest: 2 failed, 1445 passed (349 files)', []],
+    [
+      'a file that failed at import',
+      'src/x.unit.test.ts:3:1 FAIL src/x.unit.test.ts (file failed)',
+      ['src/x.unit.test.ts'],
+    ],
+    [
+      'no file for an indented line that only looks like a failure',
+      ['src/a.unit.test.ts:1:1 FAIL one', '  src/b.unit.test.ts:2:2 FAIL printed by a test'].join(
+        '\n',
+      ),
+      ['src/a.unit.test.ts'],
+    ],
   ])('finds %s', (_name, log, expected) => {
-    expect(failedTestFiles(log)).toEqual(expected)
+    expect(rerunCandidates(log)).toEqual(expected)
+  })
+
+  it.each([
+    [
+      'a failure whose frame is in a helper, next to a named one',
+      ['src/a.unit.test.ts:1:1 FAIL one', 'src/x/helper.ts:2:100 FAIL async helper fails'].join(
+        '\n',
+      ),
+    ],
+    [
+      'an unhandled error line',
+      ['src/a.unit.test.ts:1:1 FAIL one', ':1:1 FAIL unhandled error'].join('\n'),
+    ],
+    [
+      'an unhandled error in the summary',
+      ['src/a.unit.test.ts:1:1 FAIL one', 'vitest: 1 failed, 1 unhandled error'].join('\n'),
+    ],
+    ['a failure that names no test file', 'mcp conformance: 1 scenario failed'],
+    ['a summary line alone', 'vitest: 2 failed, 1445 passed (349 files)'],
+  ])('reruns nothing for %s', (_name, log) => {
+    expect(rerunCandidates(log)).toBeUndefined()
   })
 })
 
