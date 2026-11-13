@@ -9,7 +9,14 @@ import type { ElectrobunConfig } from 'electrobun'
 // (vendor/electrobun patch 0013).
 const cdpPort = process.env.PROBE_CDP_PORT ?? 'launch'
 const linuxRenderer = process.env.PROBE_LINUX_RENDERER === 'native' ? 'native' : 'cef'
-const chromiumFlags = { 'remote-debugging-port': cdpPort }
+// As OpenWaggle's app (scripts/electrobun/app-config.ts, CEF_CHROMIUM_FLAGS): `false` drops
+// Electrobun's weakening defaults, so the probe proves CDP works without them.
+const chromiumFlags = {
+  'remote-debugging-port': cdpPort,
+  'remote-allow-origins': false,
+  'allow-insecure-localhost': false,
+  'disable-web-security': false,
+}
 
 export default {
   app: {
