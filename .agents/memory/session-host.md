@@ -80,15 +80,28 @@ Session Host pipe names therefore rotate after canonical database ownership is a
 reread the protected endpoint capability while attaching, and the Host applies and verifies a
 protected current-user-SID DACL before opening admission. Keep the Windows CI integration test for
 this boundary. Named pipes require handle-based `SetSecurityInfo`/`GetSecurityInfo`, using
-`CreateFile` with security-metadata rights only. Keep pre-admission rejection active while the
-helper runs. Bounded stage diagnostics distinguish helper startup, input, and native API stalls;
-Unix unit tests cannot prove live Windows handle behavior or DACL readback.
-Use the explicit `System.IO.Pipes.PipeAccessRights.FullControl` mask (`0x001F019F`) in
-both the requested pipe descriptor and its readback check: generic access bits are mapped
-by Windows and are not a stable readback representation. Require one unconditional,
-non-inherited Allow ACE for the current user, a protected DACL, and that exact mask.
-Native regression probes must validate later pipe instances without reapplying protection;
-descriptor fixtures also check that narrower rights, extra principals and extra rights fail.
+`CreateFile` with security-metadata rights only (`READ_CONTROL|WRITE_DAC|WRITE_OWNER`). Keep
+pre-admission rejection active while it runs. `windows-user-only-security.ts` makes these
+advapi32 calls in process through `bun:ffi` (the PowerShell/Add-Type helper it replaced cost
+about 410 ms a call, four calls before a Host listened) and `windows-security-descriptor.ts`
+builds the one-ACE DACL and parses the self-relative readback in plain JS, so every rejection
+case is a unit test on any OS; Unix unit tests still cannot prove live handle behavior, so
+`windows-user-only-security.integration.test.ts` runs on Windows (the Electrobun probe job).
+Use the explicit pipe full-control mask (`0x001F019F`; files and directories `0x001F01FF`,
+directories with `OI|CI`) in both the set and the readback check: generic access bits are mapped
+by Windows and are not a stable readback representation. Require the user as owner, one
+unconditional, non-inherited Allow ACE for the current user, a protected DACL, and that exact mask.
+Regression probes validate later pipe instances with `READ_CONTROL` only and must wait for a free
+instance asynchronously when the server runs in the same process: a blocking `WaitNamedPipeW`
+loop starves the event loop that replenishes instances.
+- Windows Host start (Electrobun): the boot shim launches the Host before the GUI bundle loads
+  (`boot/session-host-prelaunch.ts`), with kernel32 `CreateProcessW` through `bun:ffi`
+  (`windows-headless-process.ts`: `DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP`, no inherited
+  handles, `SW_HIDE`, a sorted environment block with libuv's required variables). A Host is
+  "present" when `WaitNamedPipeW` on the capability's pipe fails with anything but error 2. With a
+  prelaunched Host the GUI leaves path preparation to it and prepares them itself only if that
+  Host exits first. The Host is then the GUI's child, so process-tree RSS counts it; numbers from
+  before that change left it out.
 
 After a Windows Host replacement rotates `endpoint.capability`, GUI commands must reread the
 protected endpoint before their first dispatch, including non-replayable Waggle, compaction,

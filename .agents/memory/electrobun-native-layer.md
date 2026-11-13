@@ -54,10 +54,32 @@ browser preview.
 - CEF `persist:*` partitions live under `Application Support/<identifier>/<channel>/CEF/<name>` on
   macOS with no `@available` gate, so CEF preview profiles persist on macOS 13.4 and 14+ alike;
   patch 0002's in-memory stores apply to system-webview (WKWebView) partitions only.
-- App config the preview needs: `bundleCEF: true` on every OS; `defaultRenderer: 'native'` on macOS
-  and Windows (system-webview shell, CEF previews), `'cef'` on Linux, because one Linux process
-  cannot mix CEF and WebKitGTK views; `chromiumFlags: { 'remote-debugging-port': 'launch' }` and
-  never `remote-allow-origins`. The adapter creates `renderer: 'cef'` views either way.
+- App config the preview needs: `bundleCEF: true` on macOS and Linux, `false` on Windows;
+  `defaultRenderer: 'native'` on macOS and Windows (system-webview shell), `'cef'` on Linux, because
+  one Linux process cannot mix CEF and WebKitGTK views; `chromiumFlags: { 'remote-debugging-port':
+  'launch' }` and never `remote-allow-origins`. The adapter creates `renderer: 'cef'` views either way.
+- Windows ships no CEF (patch 0013): a `renderer: 'cef'` view of a build without CEF opens in
+  WebView2's "Chromium environment", user data folder `<LOCALAPPDATA>\<id>\<channel>\WebView2Chromium`,
+  its own browser process, the only one with `--remote-debugging-port` (same port resolution as CEF:
+  env var, chromiumFlags, dev scan). One browser process serves one port, so partitions are WebView2
+  profiles of that environment (`ICoreWebView2Environment10::CreateCoreWebView2ControllerWithOptions`):
+  `persist:<name>` on disk, others InPrivate (data gone when the last view of the profile closes,
+  unlike Electron/CEF in-memory partitions that live for the process). QA's
+  `OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef` lands the main window there too. WebView2 unloads an
+  InPrivate profile with its last view, so `electrobun-preview-profile-keepers.ts` holds one
+  `about:blank` view per partition until the preview host closes: data lives until quit, as on CEF.
+- Browser switches go in patch 0013's per-environment constants, not `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`:
+  set for the packaged app by a bench, it never reached the WebView2 browser command line.
+  The main environment (app views only) runs `--in-process-gpu --enable-features=NetworkServiceInProcess2`:
+  the GPU (~46 MB) and network service (~40 MB) processes go, the browser process grows ~35 MB, idle
+  RSS falls ~50 MB, and the shell renders the same. The Chromium environment keeps both isolated.
+- Patch 0012 drops `--disable-web-security --allow-insecure-localhost` from every WebView2 environment;
+  the probe checks a cross-origin loopback `fetch` is blocked without CORS and read with it, in the
+  shell (main environment) and the preview (Chromium environment), required on Windows only:
+  Electrobun's Linux CEF defaults keep `disable-web-security`.
+- The gh OAuth token that pushes bench branches has no `workflow` scope: a push whose new commits
+  touch `.github/workflows/` is refused, and `electrobun-package.yml` (workflow_call only on main) cannot
+  be dispatched. Dispatch `electrobun-native.yml` and drive extra bench work from scripts its jobs run.
 - The element picker runs in the page script's isolated world over `Runtime.evaluate`. It waits
   for the user far longer than a CDP command may, so it returns at once and reports through the
   world-only `Runtime.addBinding`, tagged with a token. A result counts only from the main frame
