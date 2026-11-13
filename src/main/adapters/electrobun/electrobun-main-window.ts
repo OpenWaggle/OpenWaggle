@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { homeDirectoryRendererArguments } from '@shared/home-directory-argument'
 import { isAutomationMode } from '../../desktop-automation-policy'
 import { env } from '../../env'
+import { createLogger } from '../../logger'
 import { appPaths } from '../../desktop-shell/app-paths'
 import { electronMigrationRendererArguments } from '../../electron-migration/first-launch'
 import { errorReportingRendererArguments } from '../../error-reporting'
@@ -15,6 +16,7 @@ import {
   rendererUrlWithAutomationIdentity,
 } from '../../renderer-protocol'
 import { trustedOriginBaseRendererArguments } from '../../trusted-origin-base-arguments'
+import { electrobunBrowserEngine } from './electrobun-browser-engine'
 import { electrobun } from './electrobun-sdk'
 import { electrobunTrustedOrigins } from './electrobun-trusted-origins'
 import { rendererContentSecurityPolicy } from './electrobun-web-security'
@@ -91,6 +93,20 @@ function qaRenderer() {
       ? { renderer: 'cef' }
       : {}
   ) satisfies { readonly renderer?: 'cef' }
+}
+
+/**
+ * The QA window's CEF, on macOS a component a release build installs on demand: installed before
+ * the window opens, so a hidden QA launch of a fresh install renders with it.
+ */
+const logger = createLogger('main-window')
+
+export async function prepareMainWindow() {
+  if (qaRenderer().renderer !== 'cef') return
+  const status = await electrobunBrowserEngine.ensure()
+  if (status.type === 'failed') {
+    logger.warn('The QA main window falls back to the system webview', { reason: status.message })
+  }
 }
 
 export function createMainWindow(request: MainWindowRequest) {

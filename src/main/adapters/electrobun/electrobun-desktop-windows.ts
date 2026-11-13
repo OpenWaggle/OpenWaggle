@@ -1,5 +1,5 @@
 import type { DesktopWindow, DesktopWindowsShape } from '../../ports/desktop-shell/desktop-windows'
-import { createMainWindow } from './electrobun-main-window'
+import { createMainWindow, prepareMainWindow } from './electrobun-main-window'
 import {
   allDesktopWindows,
   appWindowOf,
@@ -30,6 +30,7 @@ export const electrobunDesktopWindows: DesktopWindowsShape = {
   installWindowPolicy: () => undefined,
   installWindowShortcuts: installElectrobunWindowShortcuts,
   openMainWindow: (request) => createMainWindow(request),
+  prepareMainWindow,
   all: allDesktopWindows,
   focused: focusedDesktopWindow,
   fromSurface: desktopWindowOfSurface,

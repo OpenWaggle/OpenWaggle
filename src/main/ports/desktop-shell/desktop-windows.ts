@@ -53,6 +53,13 @@ export interface DesktopWindowsShape {
    * (`WebSecurityShape`) applied, and shows it once it is ready (hidden under automation).
    */
   readonly openMainWindow: (request: MainWindowRequest) => DesktopWindow
+  /**
+   * Before the first main window: whatever its renderer needs installed. A hidden QA window that
+   * renders with CEF on macOS waits for the CEF component (`BrowserEngineShape`), which a release
+   * build installs instead of bundling; it never fails, and the window falls back to the system
+   * webview when the engine cannot be installed.
+   */
+  readonly prepareMainWindow: () => Promise<void>
   /** Every open window, the main window first. */
   readonly all: () => readonly DesktopWindow[]
   /** The window that has keyboard focus, or `null` when the app is in the background. */

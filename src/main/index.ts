@@ -168,6 +168,7 @@ async function bootstrapServicesAndWindow() {
   await hostHeadStart
   startupMark('session-host-underway')
   await firstLaunchMigrationBeforeWindow()
+  await desktopWindows.prepareMainWindow()
 
   await openWindowThenRegisterIpc({
     registerProtocols: () =>
