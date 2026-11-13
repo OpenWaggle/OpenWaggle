@@ -10,6 +10,7 @@ import {
   MAX_INLINE_VISUALIZATION_PATH_LENGTH,
   MAX_INLINE_VISUALIZATION_STATE_BYTES,
 } from '@shared/constants/inline-visualization'
+import { jsonValueSchema } from '@openwaggle/extension-sdk'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'
@@ -19,7 +20,6 @@ import {
   BROWSER_PREVIEW_ANNOTATION_STYLE_PROPERTIES,
   BROWSER_PREVIEW_CAPTURE_LIMITS,
 } from '@shared/types/browser-preview-controls'
-import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { storedProjectActionsSchema } from './project-actions'
 import {
   sessionInputIdSchema,
@@ -115,28 +115,11 @@ export const browserPreviewAttachmentSchema = Schema.Struct({
   sourceLine: Schema.optionalWith(browserPreviewSourcePositionSchema, { exact: true }),
 })
 
-const jsonArraySchema: Schema.Schema<JsonArray> = Schema.suspend(() =>
-  Schema.mutable(Schema.Array(jsonValueSchema)),
-)
+/** The one JSON schema: the SDK's, since a recursive type cannot be inferred from its schema. */
+export { jsonValueSchema }
 
-export const jsonObjectSchema: Schema.Schema<JsonObject> = Schema.suspend(() =>
-  Schema.mutable(
-    Schema.Record({
-      key: Schema.String,
-      value: jsonValueSchema,
-    }),
-  ),
-)
-
-export const jsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
-  Schema.Union(
-    Schema.String,
-    Schema.Number,
-    Schema.Boolean,
-    Schema.Null,
-    jsonArraySchema,
-    jsonObjectSchema,
-  ),
+export const jsonObjectSchema = Schema.mutable(
+  Schema.Record({ key: Schema.String, value: jsonValueSchema }),
 )
 
 const jsonLooseRecordSchema = Schema.Record({

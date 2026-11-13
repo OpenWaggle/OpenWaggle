@@ -1,4 +1,5 @@
 import type { Context, Plugin, Rule } from '@oxlint/plugins'
+import type { JsonValue } from '@shared/types/json'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { parseSync, Visitor, type VisitorObject } from 'oxc-parser'
 
@@ -18,14 +19,8 @@ interface LineColumn {
 type ReportDescriptor = Parameters<Context['report']>[0]
 type Comment = ReturnType<Context['sourceCode']['getAllComments']>[number]
 
-/** A rule option as JSON, the form a lint config passes it in. */
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+/** A rule option is JSON, the form a lint config passes it in. */
+export type { JsonValue }
 
 function messageTemplate(rule: Rule, descriptor: ReportDescriptor) {
   if (descriptor.messageId) {
