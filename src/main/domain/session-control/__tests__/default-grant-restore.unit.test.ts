@@ -5,7 +5,7 @@ import { DEFAULT_BEFORE_SCHEDULED_TASKS } from '../session-capability-restrictio
 
 const SINCE = 1_000
 
-function grant(sessionId: string, overrides: Partial<StoredSessionGrant> = {}): StoredSessionGrant {
+function grant(sessionId: string, overrides: Partial<StoredSessionGrant> = {}) {
   return {
     sessionId,
     createdAt: SINCE + 1,
