@@ -1,19 +1,8 @@
-import type { SchemaType } from '@shared/schema'
-import type {
-  AttachmentPart,
-  AttachmentRecord,
-  MessagePart,
-  ReasoningPart,
-  TextPart,
-  ToolCallPart,
-  ToolResultPart,
-} from '@shared/types/agent'
-import type { ToolCallRequest, ToolCallResult } from '@shared/types/tools'
-import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
+import { describe, expect, it, vi } from 'vitest'
 import {
   decodeAssistantMessageSnapshots,
   decodeStreamingParts,
-  type messagePartSchema,
 } from '../local-session-snapshot-parts'
 
 const logged = vi.hoisted(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }))
@@ -71,39 +60,34 @@ describe('snapshot part decode reports', () => {
   })
 })
 
-/*
- * The decode is exact: a field `MessagePart` gains that the snapshot schema does not list makes
- * every part carrying it undecodable. Hold the keys of each member, and of the records inside it.
- */
-type SnapshotPart = SchemaType<typeof messagePartSchema>
-/** The member whose `type` literals include `TType` (text and reasoning share one struct). */
-type Member<TUnion, TType> = TUnion extends { readonly type: infer TTypes }
-  ? TType extends TTypes
-    ? TUnion
-    : never
-  : never
+// Snapshot parts decode with the transcript's own part schema, so an attachment is held to the
+// bounds the window prepared it under; the snapshot's own copy accepted any size.
+describe('snapshot attachment parts', () => {
+  const attachment = {
+    id: 'attachment-1',
+    kind: 'text',
+    name: 'notes.md',
+    path: '/repo/notes.md',
+    mimeType: 'text/markdown',
+    sizeBytes: 12,
+    extractedText: 'notes',
+  }
 
-describe('messagePartSchema', () => {
-  it('lists every field of each MessagePart member', () => {
-    expectTypeOf<keyof Member<SnapshotPart, 'text'>>().toEqualTypeOf<keyof TextPart>()
-    expectTypeOf<keyof Member<SnapshotPart, 'reasoning'>>().toEqualTypeOf<keyof ReasoningPart>()
-    expectTypeOf<keyof Member<SnapshotPart, 'attachment'>['attachment']>().toEqualTypeOf<
-      keyof AttachmentRecord
-    >()
-    expectTypeOf<keyof Member<SnapshotPart, 'tool-call'>['toolCall']>().toEqualTypeOf<
-      keyof ToolCallRequest
-    >()
-    expectTypeOf<keyof Member<SnapshotPart, 'tool-result'>['toolResult']>().toEqualTypeOf<
-      keyof ToolCallResult
-    >()
-    expectTypeOf<keyof Member<SnapshotPart, 'attachment'>>().toEqualTypeOf<keyof AttachmentPart>()
-    expectTypeOf<keyof Member<SnapshotPart, 'tool-call'>>().toEqualTypeOf<keyof ToolCallPart>()
-    expectTypeOf<keyof Member<SnapshotPart, 'tool-result'>>().toEqualTypeOf<keyof ToolResultPart>()
-    expectTypeOf<SnapshotPart['type']>().toEqualTypeOf<MessagePart['type']>()
+  it('keeps an attachment within the prepared bounds', () => {
+    const decoded = decodeStreamingParts({ parts: [{ type: 'attachment', attachment }] }, context)
+    expect(decoded).toMatchObject({ dropped: false, parts: [{ type: 'attachment', attachment }] })
   })
 
-  // Keys miss a widened literal or value type; every part the Host can send must still decode.
-  it('accepts every value a MessagePart can hold', () => {
-    expectTypeOf<MessagePart>().toExtend<SnapshotPart>()
+  it('drops an attachment over the size bound, naming the field', () => {
+    logged.error.mockClear()
+    const oversized = { ...attachment, sizeBytes: ATTACHMENT.MAX_SIZE_BYTES + 1 }
+    const decoded = decodeStreamingParts(
+      { parts: [{ type: 'attachment', attachment: oversized }] },
+      context,
+    )
+    expect(decoded.dropped).toBe(true)
+    expect(logged.error.mock.calls[0]?.[1]?.issues).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^attachment\.sizeBytes: /u)]),
+    )
   })
 })

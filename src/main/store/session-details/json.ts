@@ -2,11 +2,6 @@ import { parseJsonUnknown, safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import { createWaggleModelBinding, type WaggleConfig } from '@shared/types/waggle'
 
-export {
-  jsonObjectSchema as sessionJsonObjectSchema,
-  jsonValueSchema as sessionJsonValueSchema,
-} from '@shared/schemas/validation'
-
 export function parseJsonValue(raw: string | null) {
   if (raw === null) {
     return undefined

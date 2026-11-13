@@ -1,42 +1,19 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
-import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
+import { toolCallRequestSchema, toolCallResultSchema } from '@shared/schemas/message'
 import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
-import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import { buildPiTranscriptPath } from '@shared/utils/session-entry-paths'
 import { isRecord } from '@shared/utils/validation'
 import { createLogger } from '../../logger'
 import { MESSAGE_ENTRY_TYPE, TOOL_RESULT_KIND } from './constants'
 import { describeError } from './errors'
-import {
-  normalizeModelId,
-  parseJsonValue,
-  sessionJsonObjectSchema,
-  sessionJsonValueSchema,
-} from './json'
+import { normalizeModelId, parseJsonValue } from './json'
 import type { SessionNodeRow, SessionRow } from './types'
 
 const logger = createLogger('session-details')
-
-const toolCallRequestSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  args: sessionJsonObjectSchema,
-  state: Schema.optionalWith(Schema.Literal('input-complete'), { exact: true }),
-})
-
-const toolCallResultSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  args: sessionJsonObjectSchema,
-  result: sessionJsonValueSchema,
-  isError: Schema.Boolean,
-  duration: Schema.Number,
-  details: Schema.optionalWith(sessionJsonValueSchema, { exact: true }),
-  nestedCalls: Schema.optionalWith(nestedToolCallsSchema, { exact: true }),
-})
 
 const messagePartSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }),
@@ -91,14 +68,8 @@ function transformPart(part: ParsedPart) {
     .with('reasoning', (value) => ({ type: 'reasoning', text: value.text }))
     .with('thinking', (value) => ({ type: 'reasoning', text: value.text }))
     .with('attachment', (value) => ({ type: 'attachment', attachment: value.attachment }))
-    .with('tool-call', (value) => ({
-      type: 'tool-call',
-      toolCall: { ...value.toolCall, id: ToolCallId(value.toolCall.id) },
-    }))
-    .with('tool-result', (value) => ({
-      type: 'tool-result',
-      toolResult: { ...value.toolResult, id: ToolCallId(value.toolResult.id) },
-    }))
+    .with('tool-call', (value) => ({ type: 'tool-call', toolCall: value.toolCall }))
+    .with('tool-result', (value) => ({ type: 'tool-result', toolResult: value.toolResult }))
     .exhaustive()
 }
 
