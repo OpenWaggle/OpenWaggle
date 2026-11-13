@@ -195,10 +195,15 @@ jobs:
           launcher=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).launcher" "$RESULTS/install.json")
           echo "LAUNCHER=$launcher" >> "$GITHUB_ENV"
 
+      # On macOS and Linux the launcher chooses CEF's DevTools port, as in a user's launch, and the
+      # app's own preview screenshot goes through it: the preview's CDP works without a QA port.
       - name: Cold launch (Session Host, fake-provider Run, terminal, Browser preview)
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
+          port=(); if [ "$PLATFORM" != win32 ]; then port=(--launcher-cdp-port); fi
           bun scripts/electrobun/ci/smoke.ts launch "$LAUNCHER" --expect "$VERSION" --profile "$PROFILE" --prove \
-            --out "$RESULTS/launch-cold.json" --screenshots "$RESULTS/screenshots/cold"
+            "${port[@]}" --out "$RESULTS/launch-cold.json" --screenshots "$RESULTS/screenshots/cold"
 
       - name: Warm launch (open the Session from its openwaggle link)
         run: |

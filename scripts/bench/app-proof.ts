@@ -6,7 +6,8 @@
  */
 import type { Browser, Page } from '@playwright/test'
 import { chromium } from '@playwright/test'
-import { serveFixturePage, waitUntil } from '../electrobun/ci/app-proof'
+import { waitUntil } from '../electrobun/ci/app-proof'
+import { serveFixturePage } from '../electrobun/ci/preview-proof'
 
 const CDP_POLL_MS = 200
 const LOOPBACK = '127.0.0.1'

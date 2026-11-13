@@ -12,13 +12,13 @@ import { electrobunAppHome } from '../support/electrobun-app-launch'
 import { appCli, type LaunchContext, startApp, stopApp } from '../electrobun/ci/app-launch'
 import {
   createProject,
-  proveBrowserPreview,
   proveFakeProviderRun,
   proveTerminal,
   screenshot,
   startCiFakeProvider,
   waitUntil,
 } from '../electrobun/ci/app-proof'
+import { proveBrowserPreview } from '../electrobun/ci/preview-proof'
 import {
   type InstalledApp,
   install,

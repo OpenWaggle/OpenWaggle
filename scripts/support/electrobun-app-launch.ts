@@ -59,13 +59,18 @@ export function electrobunAppHome(input: ScratchProfileInput) {
   return { home, piAgentDir: input.piAgentDir ?? path.join(home, '.pi', 'agent') }
 }
 
-/** The variables that render the hidden main window with CEF and open its DevTools endpoint. */
+/** The CDP port that asks the launcher to choose one, as a release build's launch does. */
+export const LAUNCHER_CHOSEN_CDP_PORT = 0
+
+/**
+ * The variables that render the hidden main window with CEF and open its DevTools endpoint on
+ * `port`. With `LAUNCHER_CHOSEN_CDP_PORT` the launcher reserves the port itself
+ * (vendor/electrobun patch 0007), as for a user, and the caller finds it on the app's processes.
+ */
 export function cefDevToolsEnvironment(port: number) {
-  return {
-    OPENWAGGLE_AUTOMATION: '1',
-    OPENWAGGLE_QA_MAIN_WINDOW_RENDERER: 'cef',
-    ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: String(port),
-  }
+  const renderer = { OPENWAGGLE_AUTOMATION: '1', OPENWAGGLE_QA_MAIN_WINDOW_RENDERER: 'cef' }
+  if (port === LAUNCHER_CHOSEN_CDP_PORT) return renderer
+  return { ...renderer, ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: String(port) }
 }
 
 /**

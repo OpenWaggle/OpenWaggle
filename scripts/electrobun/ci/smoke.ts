@@ -14,6 +14,8 @@
  *     then starts the Session Host, runs one turn against a local fake provider through
  *     `openwaggle run`, opens a terminal and a Browser preview (app-proof.ts). `--open-session`
  *     launches with that Session's `openwaggle://` link and checks the window opened it.
+ *     `--launcher-cdp-port` leaves CEF's DevTools port to the launcher, as a user's launch does,
+ *     and finds it on the app's processes (macOS and Linux).
  *     Records spawn-to-renderer and spawn-to-ready times and, after the app idled, the resident
  *     memory of its process tree.
  *   bun scripts/electrobun/ci/smoke.ts update <launcher> --from <version> --expect <version>
@@ -36,7 +38,6 @@ import { type ConnectedElectrobunApp, electrobunAppHome } from '../../support/el
 import { appCli, type LaunchContext, startApp, stopApp } from './app-launch'
 import {
   createProject,
-  proveBrowserPreview,
   proveFakeProviderRun,
   proveSessionHost,
   proveTerminal,
@@ -44,6 +45,7 @@ import {
   startCiFakeProvider,
   waitUntil,
 } from './app-proof'
+import { proveBrowserPreview } from './preview-proof'
 import { install, installedApp, processesUnder } from './installed-app'
 import { proveUpdate } from './update-proof'
 
@@ -173,6 +175,7 @@ function commandOptions(argv: readonly string[]) {
       screenshots: { type: 'string' },
       prove: { type: 'boolean', default: false },
       'open-session': { type: 'string' },
+      'launcher-cdp-port': { type: 'boolean', default: false },
       timeout: { type: 'string', default: String(DEFAULT_TIMEOUT_S) },
     },
   })
@@ -204,6 +207,7 @@ async function main(argv: readonly string[]) {
     profile: path.resolve(options.profile),
     screenshots: options.screenshots === undefined ? null : path.resolve(options.screenshots),
     timeoutMs: Number(options.timeout) * MS_PER_SECOND,
+    launcherCdpPort: options['launcher-cdp-port'],
   }
   const result =
     command === 'launch'
