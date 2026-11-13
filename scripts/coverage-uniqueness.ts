@@ -163,8 +163,8 @@ async function advise(args: readonly string[]) {
     if (!tokenless) console.log(`${tests.length} new test files not checked: ${errorText(error)}`)
   })
   if (index === undefined) return
-  // Only now, with files to run: the tiers load native modules built for Node (cached).
-  await execFileAsync(process.execPath, ['scripts/rebuild-native-deps.ts', 'node'], { cwd: ROOT })
+  // Only now, with files to run: the tiers load native modules built for Bun (cached).
+  await execFileAsync(process.execPath, ['scripts/rebuild-native-deps.ts'], { cwd: ROOT })
   const source = `the ${index.generatedAt.slice(0, DATE_LENGTH)} index at ${index.commit.slice(0, SHORT_COMMIT)}`
   await measureFiles(ROOT, files, ADVISE_CONCURRENCY, ({ file, units, error }) => {
     if (units === undefined) {
