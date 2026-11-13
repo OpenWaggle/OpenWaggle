@@ -36,6 +36,32 @@ describe('process table parsing', () => {
     ])
     expect(parseWindowsProcesses(JSON.stringify([row, { ...row, ProcessId: 5 }]))).toHaveLength(2)
   })
+
+  it("ties a Windows Host started by a relative command line to its executable's install", () => {
+    const host = {
+      ProcessId: 7,
+      ParentProcessId: 1,
+      WorkingSetSize: 4096,
+      ExecutablePath: 'C:\\App\\OpenWaggle.exe',
+      CommandLine: 'OpenWaggle.exe session-host-internal',
+    }
+    const named = {
+      ...host,
+      ProcessId: 8,
+      CommandLine: '"c:\\app\\OpenWaggle.exe" session-host-internal',
+    }
+    const rows = parseWindowsProcesses(JSON.stringify([host, named]))
+    expect(rows.map((row) => row.command)).toEqual([
+      'C:\\App\\OpenWaggle.exe OpenWaggle.exe session-host-internal',
+      '"c:\\app\\OpenWaggle.exe" session-host-internal',
+    ])
+    expect(
+      selectAppProcesses(rows, { rootPids: [], installPaths: ['C:\\App'] })
+        .map((row) => row.pid)
+        .toSorted((left, right) => left - right),
+    ).toEqual([7, 8])
+    expect(processRole(rows[0]?.command ?? '', ['C:\\App'])).toBe('session-host')
+  })
 })
 
 describe('the app processes', () => {

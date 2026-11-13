@@ -68,6 +68,19 @@ function stringField(row: object, key: string) {
   return typeof value === 'string' ? value : ''
 }
 
+/**
+ * A Windows process's command for matching: its command line, led by its executable's full path
+ * when the command line does not name it (a relative or short-name launch). A Session Host gets its
+ * profile from the environment, so its executable is what ties a reparented Host to the install.
+ */
+function windowsCommand(executable: string, commandLine: string) {
+  if (commandLine === '') return executable
+  if (executable === '' || comparable(commandLine).includes(comparable(executable))) {
+    return commandLine
+  }
+  return `${executable} ${commandLine}`
+}
+
 /** Rows of `ConvertTo-Json` output: one object when there is one process, else an array. */
 export function parseWindowsProcesses(json: string) {
   const parsed: unknown = JSON.parse(json)
@@ -81,7 +94,7 @@ export function parseWindowsProcesses(json: string) {
         pid: numberField(row, 'ProcessId'),
         ppid: numberField(row, 'ParentProcessId'),
         rssBytes: numberField(row, 'WorkingSetSize'),
-        command: commandLine === '' ? executable : commandLine,
+        command: windowsCommand(executable, commandLine),
       },
     ]
   })
