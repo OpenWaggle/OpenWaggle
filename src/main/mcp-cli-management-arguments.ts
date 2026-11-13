@@ -7,6 +7,7 @@ import {
   type McpImportNameConflictPolicy,
   type McpImportSourceId,
 } from '@shared/types/mcp-configuration-operations'
+import type { JsonValue } from '@shared/types/json'
 import { mcpCliExposureOption } from './mcp-cli-management-exposure'
 import { McpCliUsageError } from './mcp-cli-usage-error'
 
@@ -189,8 +190,6 @@ const STDIO_ONLY = ['env', 'env-secret', 'cwd']
 function isGiven(args: McpManagementArguments, option: string) {
   return args.values.has(option) || args.lists.has(option)
 }
-
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
 function httpEntry(args: McpManagementArguments, url: string) {
   const bearer = args.values.get('bearer-token-env-var')
