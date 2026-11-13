@@ -198,7 +198,7 @@ function tokenUser(ffi: typeof BunFfi, { security, system }: Libraries) {
   }
 }
 
-function bindKernel(ffi: typeof BunFfi): WindowsSecurityKernel {
+function bindKernel(ffi: typeof BunFfi) {
   const libraries = openLibraries(ffi)
   const { security, system } = libraries
   const out = () => new BigUint64Array(1)
@@ -277,7 +277,7 @@ function bindKernel(ffi: typeof BunFfi): WindowsSecurityKernel {
     closeHandle: (handle) => {
       system.CloseHandle(handle)
     },
-  }
+  } satisfies WindowsSecurityKernel
 }
 
 let boundKernel: WindowsSecurityKernel | null = null

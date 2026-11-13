@@ -12,9 +12,12 @@ import { PROFILE, prelaunchInput } from './session-host-prelaunch-fixtures'
 describe('startSessionHostPrelaunch on Windows', () => {
   it('starts a Windows Host without its handles, with the libuv variables, and records it', () => {
     const exited = { value: false }
-    const startWindows = vi.fn((_launch: WindowsHeadlessLaunchInput): WindowsHeadlessProcess => ({
-      hasExited: () => exited.value,
-    }))
+    const startWindows = vi.fn(
+      (_launch: WindowsHeadlessLaunchInput) =>
+        ({
+          hasExited: () => exited.value,
+        }) satisfies WindowsHeadlessProcess,
+    )
     const { input, spawn, record } = prelaunchInput({
       platform: 'win32',
       executablePath: 'C:\\OpenWaggle\\bin\\bun.exe',

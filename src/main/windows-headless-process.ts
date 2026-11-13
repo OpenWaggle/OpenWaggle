@@ -184,7 +184,7 @@ function createProcess(kernel: WindowsProcessKernel, input: WindowsHeadlessLaunc
 export function startWindowsHeadlessProcess(
   kernel: WindowsProcessKernel,
   input: WindowsHeadlessLaunchInput,
-): WindowsHeadlessProcess {
+) {
   const handles = createProcess(kernel, input)
   if (!kernel.closeHandle(handles.thread)) {
     const failure = launchFailure(kernel, 'close-handle')
@@ -201,7 +201,7 @@ export function startWindowsHeadlessProcess(
       kernel.closeHandle(handles.process)
       return true
     },
-  }
+  } satisfies WindowsHeadlessProcess
 }
 
 /** Starts the process and closes both of its handles; throws with the Win32 error code. */
@@ -225,7 +225,7 @@ export function windowsPipeExists(kernel: WindowsProcessKernel, pipe: string) {
   return kernel.lastError() !== ERROR_FILE_NOT_FOUND
 }
 
-function kernel32(ffi: typeof BunFfi): WindowsProcessKernel {
+function kernel32(ffi: typeof BunFfi) {
   if (process.arch !== 'x64' && process.arch !== 'arm64') {
     throw new Error(`Windows headless process launch does not support ${process.arch}.`)
   }
@@ -259,7 +259,7 @@ function kernel32(ffi: typeof BunFfi): WindowsProcessKernel {
     closeHandle: (handle) => CloseHandle(handle) !== 0,
     waitForObject: (handle, milliseconds) => WaitForSingleObject(handle, milliseconds),
     waitNamedPipe: (name, milliseconds) => WaitNamedPipeW(ffi.ptr(name), milliseconds) !== 0,
-  }
+  } satisfies WindowsProcessKernel
 }
 
 function isBunFfi(value: unknown): value is typeof BunFfi {
@@ -294,7 +294,7 @@ async function loadKernel32() {
 export async function launchWindowsHeadlessProcess(
   input: WindowsHeadlessLaunchInput,
   loadKernel: () => Promise<WindowsProcessKernel> = loadKernel32,
-): Promise<void> {
+) {
   // Validated before the library loads, so bad input fails the same way everywhere.
   windowsHeadlessCommandLine(input.command, input.args)
   windowsEnvironmentBlock(input.environment, input.inherited)

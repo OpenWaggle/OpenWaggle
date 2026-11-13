@@ -9,7 +9,6 @@ import { SessionHostLiveness } from '../../application/session-host-liveness'
 import { secureLocalSessionEndpoint } from '../local-session-endpoint'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { secureWindowsUserOnly } from '../windows-user-only-security'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
 import { verifyWindowsPipeInstances } from './windows-pipe-instances'
 

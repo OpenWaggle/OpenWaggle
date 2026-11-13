@@ -219,10 +219,7 @@ function startWindowsHost(launch: WindowsHeadlessLaunchInput) {
 
 const WINDOWS_EXIT_POLL_MS = 1_000
 
-function trackWindowsHost(
-  started: WindowsHeadlessProcess,
-  userDataRoot: string,
-): SessionHostPrelaunch {
+function trackWindowsHost(started: WindowsHeadlessProcess, userDataRoot: string) {
   const { promise, resolve } = Promise.withResolvers<void>()
   const hasEnded = () => {
     if (!started.hasExited()) return false
@@ -233,7 +230,7 @@ function trackWindowsHost(
     if (hasEnded()) clearInterval(poll)
   }, WINDOWS_EXIT_POLL_MS)
   poll.unref()
-  return { userDataRoot, ended: promise, hasEnded }
+  return { userDataRoot, ended: promise, hasEnded } satisfies SessionHostPrelaunch
 }
 
 function inheritedWindowsVariables(environment: Readonly<Record<string, string | undefined>>) {
@@ -242,7 +239,7 @@ function inheritedWindowsVariables(environment: Readonly<Record<string, string |
   return inherited
 }
 
-function trackLaunchedHost(child: ChildProcess, userDataRoot: string): SessionHostPrelaunch {
+function trackLaunchedHost(child: ChildProcess, userDataRoot: string) {
   let ended = false
   const { promise, resolve } = Promise.withResolvers<void>()
   const end = () => {
