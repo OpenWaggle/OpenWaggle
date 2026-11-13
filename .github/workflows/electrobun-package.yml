@@ -267,6 +267,17 @@ jobs:
           # The 30 largest files and directories of the installed app, in KiB.
           root=$(bun -e 'import { installedApp } from "./scripts/electrobun/ci/installed-app"; console.log(installedApp(process.argv[1]).installRoot)' "$LAUNCHER" || true)
           [ -n "$root" ] && du -ak "$root" | sort -rn | head -30 | tee "$RESULTS/installed-top.txt" || true
+          # Every file of the installed app: size in bytes, path, and a symbolic link's target.
+          [ -n "$root" ] && bun -e '
+            const fs = require("fs"); const path = require("path"); const root = process.argv[1]
+            const lines = []
+            const walk = (dir) => { for (const name of fs.readdirSync(dir).sort()) {
+              const file = path.join(dir, name); const stat = fs.lstatSync(file); const rel = path.relative(root, file)
+              if (stat.isSymbolicLink()) lines.push(`link ${rel} -> ${fs.readlinkSync(file)}`)
+              else if (stat.isDirectory()) walk(file)
+              else lines.push(`${stat.size} ${rel}`)
+            } }
+            walk(root); fs.writeFileSync(process.argv[2], lines.join("\n") + "\n")' "$root" "$RESULTS/installed-files.txt" || true
 
       - name: Collect logs
         if: ${{ !cancelled() }}
