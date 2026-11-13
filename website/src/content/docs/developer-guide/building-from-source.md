@@ -29,7 +29,7 @@ On Windows, install Build Tools for Visual Studio 2022 from the [Visual Studio o
 
 You also need Python 3. If neither `python --version` nor `py --version` prints a Python 3 version in a new terminal, install it from [python.org](https://www.python.org/downloads/windows/). The build finds Python through either command.
 
-If you install pnpm with `npm install -g pnpm`, check that `pnpm --version` works in a new terminal. If Windows can't find `pnpm`, run `npm prefix -g` and add the folder it prints to your user `Path` environment variable, then open a new terminal.
+Check that `bun --version` works in a new terminal. If you installed Bun with `npm install -g bun` and Windows can't find `bun`, run `npm prefix -g` and add the folder it prints to your user `Path` environment variable, then open a new terminal.
 
 ## Clone and install
 
@@ -41,10 +41,10 @@ cd OpenWaggle
 bun install
 ```
 
-The first install downloads several large packages, and pnpm allows 10 minutes for each. If `pnpm install` still fails with a timeout on a slow connection, run it with fewer downloads at once and a longer timeout:
+The first install downloads several large packages, and Bun retries a download that fails. If `bun install` still fails on a slow connection, run it with fewer downloads at once:
 
 ```bash
-pnpm install --network-concurrency 3 --fetch-timeout 1200000
+bun install --network-concurrency 3
 ```
 
 ## Run the app in development mode
