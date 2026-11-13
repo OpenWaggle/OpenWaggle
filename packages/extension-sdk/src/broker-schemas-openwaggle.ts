@@ -7,7 +7,8 @@ export const extensionModelPrefsSchema = Schema.Struct({
   selectedModel: Schema.String,
   favoriteModels: Schema.Array(Schema.String),
   enabledModels: Schema.Array(Schema.String),
-  thinkingLevel: Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.THINKING_LEVELS),
+  // A string, as the published 0.2 SDK declares it; narrowing it to the Pi levels is breaking.
+  thinkingLevel: Schema.String,
 })
 
 export const extensionProjectViewSchema = Schema.Struct({
@@ -121,13 +122,10 @@ export const extensionSettingsViewSchema = Schema.Struct({
 
 export const extensionModelPreferencesSettingsPatchSchema = Schema.Struct({
   selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
-  favoriteModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
-  enabledModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
+  favoriteModels: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  enabledModels: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
   /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-  thinkingLevel: Schema.optionalWith(
-    Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.THINKING_LEVELS),
-    { exact: true },
-  ),
+  thinkingLevel: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 export const extensionSettingsGetModelPreferencesPayloadSchema = Schema.Struct({
@@ -162,15 +160,12 @@ export const extensionSettingsUpdateSettingPayloadSchema = Schema.Union(
 
 export const extensionSettingsUpdatePayloadSchema = Schema.Struct({
   selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
-  favoriteModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
-  enabledModels: Schema.optionalWith(Schema.mutable(Schema.Array(Schema.String)), { exact: true }),
+  favoriteModels: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  enabledModels: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
   /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-  thinkingLevel: Schema.optionalWith(
-    Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.THINKING_LEVELS),
-    { exact: true },
-  ),
+  thinkingLevel: Schema.optionalWith(Schema.String, { exact: true }),
   projectDisplayNames: Schema.optionalWith(
-    Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.String })),
+    Schema.Record({ key: Schema.String, value: Schema.String }),
     { exact: true },
   ),
 })

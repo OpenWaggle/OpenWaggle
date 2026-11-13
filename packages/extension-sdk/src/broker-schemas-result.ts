@@ -48,7 +48,15 @@ export const extensionInvokeSuccessValueSchema = Schema.Union(
   extensionSessionResourcePublishResultSchema,
 )
 
+/** A broker success whose value is not decoded yet, as the SDK has declared it since 0.1. */
 export const extensionInvokeSuccessSchema = Schema.Struct({
+  ok: Schema.Literal(true),
+  value: Schema.Unknown,
+  audit: extensionCapabilityAuditEntrySchema,
+})
+
+/** A broker success whose value is one of the results the broker declares. */
+export const extensionInvokeDeclaredSuccessSchema = Schema.Struct({
   ok: Schema.Literal(true),
   value: extensionInvokeSuccessValueSchema,
   audit: extensionCapabilityAuditEntrySchema,
@@ -62,5 +70,11 @@ export const extensionInvokeFailureSchema = Schema.Struct({
 
 export const extensionInvokeResultSchema = Schema.Union(
   extensionInvokeSuccessSchema,
+  extensionInvokeFailureSchema,
+)
+
+/** A broker result whose success value is one the broker declares. */
+export const extensionInvokeDeclaredResultSchema = Schema.Union(
+  extensionInvokeDeclaredSuccessSchema,
   extensionInvokeFailureSchema,
 )

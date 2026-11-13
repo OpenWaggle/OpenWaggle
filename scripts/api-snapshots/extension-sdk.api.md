@@ -347,7 +347,7 @@ export declare const extensionModelPrefsSchema: Schema.Struct<{
     selectedModel: typeof Schema.String;
     favoriteModels: Schema.Array$<typeof Schema.String>;
     enabledModels: Schema.Array$<typeof Schema.String>;
-    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    thinkingLevel: typeof Schema.String;
 }>;
 export declare const extensionProjectViewSchema: Schema.Struct<{
     projectPath: Schema.filter<typeof Schema.String>;
@@ -413,7 +413,7 @@ export declare const extensionStateReadResultSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
@@ -561,12 +561,12 @@ export declare const extensionStateModelPreferencesReadResultSchema: Schema.Stru
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>;
 export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
@@ -710,12 +710,12 @@ export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schem
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>;
 export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
@@ -735,7 +735,7 @@ export declare const extensionSettingsViewSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
     projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
 }>;
@@ -743,14 +743,14 @@ export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
 }>;
@@ -773,14 +773,14 @@ export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schem
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -796,14 +796,14 @@ export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -816,17 +816,17 @@ export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    projectDisplayNames: Schema.optionalWith<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>, {
+    projectDisplayNames: Schema.optionalWith<Schema.Record$<typeof Schema.String, typeof Schema.String>, {
         exact: true;
     }>;
 }>;
@@ -840,7 +840,7 @@ export declare const extensionSettingsGetResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -855,7 +855,7 @@ export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -866,7 +866,7 @@ export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
@@ -880,7 +880,7 @@ export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Struct<{
     key: Schema.Literal<["project-display-name"]>;
@@ -898,7 +898,7 @@ export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -917,7 +917,7 @@ export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -1118,7 +1118,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Union<[Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -1261,12 +1261,12 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>, Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -1286,7 +1286,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -1300,7 +1300,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -1315,7 +1315,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -1333,7 +1333,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -1486,7 +1486,39 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         isOutput: typeof Schema.Boolean;
     }>;
 }>]>;
+/** A broker success whose value is not decoded yet, as the SDK has declared it since 0.1. */
 export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+/** A broker success whose value is one of the results the broker declares. */
+export declare const extensionInvokeDeclaredSuccessSchema: Schema.Struct<{
     ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -1609,7 +1641,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -1752,12 +1784,12 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -1777,7 +1809,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -1791,7 +1823,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -1806,7 +1838,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -1824,7 +1856,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -2044,6 +2076,74 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
     ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
+/** A broker result whose success value is one the broker declares. */
+export declare const extensionInvokeDeclaredResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -2165,7 +2265,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -2308,12 +2408,12 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -2333,7 +2433,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -2347,7 +2447,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -2362,7 +2462,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -2380,7 +2480,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -2953,6 +3053,8 @@ import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTra
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
+export { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema, } from './broker-schemas-core.js';
+export { extensionInvokeFailureSchema, extensionInvokeResultSchema, extensionInvokeSuccessSchema, } from './broker-schemas-result.js';
 export declare const toInvokeInput: (identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest) => ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
@@ -3198,8 +3300,6 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
-    /** The thinking levels a model preference names, as the app's settings define them. */
-    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -5314,6 +5414,8 @@ export {};
 ```ts
 import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
 import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
 import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
@@ -5321,6 +5423,16 @@ export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
 export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+/** The result of reading one state selector; each `ExtensionState*ReadResult` narrows it. */
+export interface ExtensionSelectedStateReadResult<TValue> {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
+    readonly scope: ExtensionInvokeScope;
+    readonly selector: ExtensionStateSelector;
+    readonly value: TValue;
+}
 export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
 export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
 export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
@@ -6472,6 +6584,8 @@ import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTra
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
+export { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema, } from './broker-schemas-core.js';
+export { extensionInvokeFailureSchema, extensionInvokeResultSchema, extensionInvokeSuccessSchema, } from './broker-schemas-result.js';
 export declare const toInvokeInput: (identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest) => ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
@@ -6731,8 +6845,6 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
-    /** The thinking levels a model preference names, as the app's settings define them. */
-    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -9091,7 +9203,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Union<[Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -9234,12 +9346,12 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>, Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -9259,7 +9371,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -9273,7 +9385,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -9288,7 +9400,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -9306,7 +9418,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -9459,7 +9571,39 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         isOutput: typeof Schema.Boolean;
     }>;
 }>]>;
+/** A broker success whose value is not decoded yet, as the SDK has declared it since 0.1. */
 export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+/** A broker success whose value is one of the results the broker declares. */
+export declare const extensionInvokeDeclaredSuccessSchema: Schema.Struct<{
     ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -9582,7 +9726,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -9725,12 +9869,12 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -9750,7 +9894,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -9764,7 +9908,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -9779,7 +9923,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -9797,7 +9941,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -10017,6 +10161,74 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
     ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
+/** A broker result whose success value is one the broker declares. */
+export declare const extensionInvokeDeclaredResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -10138,7 +10350,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -10281,12 +10493,12 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -10306,7 +10518,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -10320,7 +10532,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -10335,7 +10547,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -10353,7 +10565,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -10577,6 +10789,8 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
 ```ts
 import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
 import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
 import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
@@ -10584,6 +10798,16 @@ export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
 export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+/** The result of reading one state selector; each `ExtensionState*ReadResult` narrows it. */
+export interface ExtensionSelectedStateReadResult<TValue> {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
+    readonly scope: ExtensionInvokeScope;
+    readonly selector: ExtensionStateSelector;
+    readonly value: TValue;
+}
 export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
 export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
 export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
@@ -10615,7 +10839,7 @@ export declare const extensionModelPrefsSchema: Schema.Struct<{
     selectedModel: typeof Schema.String;
     favoriteModels: Schema.Array$<typeof Schema.String>;
     enabledModels: Schema.Array$<typeof Schema.String>;
-    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    thinkingLevel: typeof Schema.String;
 }>;
 export declare const extensionProjectViewSchema: Schema.Struct<{
     projectPath: Schema.filter<typeof Schema.String>;
@@ -10681,7 +10905,7 @@ export declare const extensionStateReadResultSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
@@ -10829,12 +11053,12 @@ export declare const extensionStateModelPreferencesReadResultSchema: Schema.Stru
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>;
 export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
@@ -10978,12 +11202,12 @@ export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schem
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>;
 export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
@@ -11003,7 +11227,7 @@ export declare const extensionSettingsViewSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
     projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
 }>;
@@ -11011,14 +11235,14 @@ export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
 }>;
@@ -11041,14 +11265,14 @@ export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schem
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -11064,14 +11288,14 @@ export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -11084,17 +11308,17 @@ export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    projectDisplayNames: Schema.optionalWith<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>, {
+    projectDisplayNames: Schema.optionalWith<Schema.Record$<typeof Schema.String, typeof Schema.String>, {
         exact: true;
     }>;
 }>;
@@ -11108,7 +11332,7 @@ export declare const extensionSettingsGetResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -11123,7 +11347,7 @@ export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -11134,7 +11358,7 @@ export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
@@ -11148,7 +11372,7 @@ export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Struct<{
     key: Schema.Literal<["project-display-name"]>;
@@ -11166,7 +11390,7 @@ export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -11185,7 +11409,7 @@ export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -12083,8 +12307,6 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
-    /** The thinking levels a model preference names, as the app's settings define them. */
-    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -12272,6 +12494,8 @@ import type { CreateOpenWaggleSdkOptions, ExtensionBrokerSdk, ExtensionBrokerTra
 import type { ExtensionInvokeInput } from './types.js';
 export type * from './core-types.js';
 export type * from './sdk-types.js';
+export { extensionCapabilityAuditEntrySchema, extensionInvokeErrorSchema, extensionInvokeInputSchema, extensionInvokeScopeSchema, } from './broker-schemas-core.js';
+export { extensionInvokeFailureSchema, extensionInvokeResultSchema, extensionInvokeSuccessSchema, } from './broker-schemas-result.js';
 export declare const toInvokeInput: (identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest) => ExtensionInvokeInput;
 export declare function createExtensionBrokerSdkFromInvoke(invoke: ExtensionSdkInvoke, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
 export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTransport, identity: ExtensionSdkIdentity, options?: CreateOpenWaggleSdkOptions): ExtensionBrokerSdk;
@@ -12531,8 +12755,6 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
-    /** The thinking levels a model preference names, as the app's settings define them. */
-    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -14891,7 +15113,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Union<[Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -15034,12 +15256,12 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>, Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -15059,7 +15281,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -15073,7 +15295,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -15088,7 +15310,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -15106,7 +15328,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -15259,7 +15481,39 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         isOutput: typeof Schema.Boolean;
     }>;
 }>]>;
+/** A broker success whose value is not decoded yet, as the SDK has declared it since 0.1. */
 export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+/** A broker success whose value is one of the results the broker declares. */
+export declare const extensionInvokeDeclaredSuccessSchema: Schema.Struct<{
     ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -15382,7 +15636,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -15525,12 +15779,12 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -15550,7 +15804,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -15564,7 +15818,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -15579,7 +15833,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -15597,7 +15851,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -15817,6 +16071,74 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
     ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
+/** A broker result whose success value is one the broker declares. */
+export declare const extensionInvokeDeclaredResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -15938,7 +16260,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -16081,12 +16403,12 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -16106,7 +16428,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -16120,7 +16442,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -16135,7 +16457,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -16153,7 +16475,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -16377,6 +16699,8 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
 ```ts
 import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
 import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
 import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
@@ -16384,6 +16708,16 @@ export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
 export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+/** The result of reading one state selector; each `ExtensionState*ReadResult` narrows it. */
+export interface ExtensionSelectedStateReadResult<TValue> {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
+    readonly scope: ExtensionInvokeScope;
+    readonly selector: ExtensionStateSelector;
+    readonly value: TValue;
+}
 export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
 export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
 export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
@@ -16415,7 +16749,7 @@ export declare const extensionModelPrefsSchema: Schema.Struct<{
     selectedModel: typeof Schema.String;
     favoriteModels: Schema.Array$<typeof Schema.String>;
     enabledModels: Schema.Array$<typeof Schema.String>;
-    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    thinkingLevel: typeof Schema.String;
 }>;
 export declare const extensionProjectViewSchema: Schema.Struct<{
     projectPath: Schema.filter<typeof Schema.String>;
@@ -16481,7 +16815,7 @@ export declare const extensionStateReadResultSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
@@ -16629,12 +16963,12 @@ export declare const extensionStateModelPreferencesReadResultSchema: Schema.Stru
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>;
 export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
@@ -16778,12 +17112,12 @@ export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schem
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>;
 export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
@@ -16803,7 +17137,7 @@ export declare const extensionSettingsViewSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
     projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
 }>;
@@ -16811,14 +17145,14 @@ export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
 }>;
@@ -16841,14 +17175,14 @@ export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schem
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -16864,14 +17198,14 @@ export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -16884,17 +17218,17 @@ export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    projectDisplayNames: Schema.optionalWith<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>, {
+    projectDisplayNames: Schema.optionalWith<Schema.Record$<typeof Schema.String, typeof Schema.String>, {
         exact: true;
     }>;
 }>;
@@ -16908,7 +17242,7 @@ export declare const extensionSettingsGetResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -16923,7 +17257,7 @@ export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -16934,7 +17268,7 @@ export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
@@ -16948,7 +17282,7 @@ export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Struct<{
     key: Schema.Literal<["project-display-name"]>;
@@ -16966,7 +17300,7 @@ export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -16985,7 +17319,7 @@ export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -19346,8 +19680,6 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
-    /** The thinking levels a model preference names, as the app's settings define them. */
-    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -21533,8 +21865,6 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
-    /** The thinking levels a model preference names, as the app's settings define them. */
-    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -23382,7 +23712,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Union<[Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -23525,12 +23855,12 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>, Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -23550,7 +23880,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -23564,7 +23894,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -23579,7 +23909,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -23597,7 +23927,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -23750,7 +24080,39 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         isOutput: typeof Schema.Boolean;
     }>;
 }>]>;
+/** A broker success whose value is not decoded yet, as the SDK has declared it since 0.1. */
 export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+/** A broker success whose value is one of the results the broker declares. */
+export declare const extensionInvokeDeclaredSuccessSchema: Schema.Struct<{
     ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -23873,7 +24235,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -24016,12 +24378,12 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -24041,7 +24403,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -24055,7 +24417,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -24070,7 +24432,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -24088,7 +24450,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -24308,6 +24670,74 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
     ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
+/** A broker result whose success value is one the broker declares. */
+export declare const extensionInvokeDeclaredResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -24429,7 +24859,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -24572,12 +25002,12 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -24597,7 +25027,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -24611,7 +25041,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -24626,7 +25056,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -24644,7 +25074,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -24868,6 +25298,8 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
 ```ts
 import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
 import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
 import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
@@ -24875,6 +25307,16 @@ export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
 export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+/** The result of reading one state selector; each `ExtensionState*ReadResult` narrows it. */
+export interface ExtensionSelectedStateReadResult<TValue> {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
+    readonly scope: ExtensionInvokeScope;
+    readonly selector: ExtensionStateSelector;
+    readonly value: TValue;
+}
 export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
 export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
 export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
@@ -24906,7 +25348,7 @@ export declare const extensionModelPrefsSchema: Schema.Struct<{
     selectedModel: typeof Schema.String;
     favoriteModels: Schema.Array$<typeof Schema.String>;
     enabledModels: Schema.Array$<typeof Schema.String>;
-    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    thinkingLevel: typeof Schema.String;
 }>;
 export declare const extensionProjectViewSchema: Schema.Struct<{
     projectPath: Schema.filter<typeof Schema.String>;
@@ -24972,7 +25414,7 @@ export declare const extensionStateReadResultSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
@@ -25120,12 +25562,12 @@ export declare const extensionStateModelPreferencesReadResultSchema: Schema.Stru
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>;
 export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
@@ -25269,12 +25711,12 @@ export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schem
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>;
 export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
@@ -25294,7 +25736,7 @@ export declare const extensionSettingsViewSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
     projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
 }>;
@@ -25302,14 +25744,14 @@ export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
 }>;
@@ -25332,14 +25774,14 @@ export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schem
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -25355,14 +25797,14 @@ export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -25375,17 +25817,17 @@ export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    projectDisplayNames: Schema.optionalWith<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>, {
+    projectDisplayNames: Schema.optionalWith<Schema.Record$<typeof Schema.String, typeof Schema.String>, {
         exact: true;
     }>;
 }>;
@@ -25399,7 +25841,7 @@ export declare const extensionSettingsGetResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -25414,7 +25856,7 @@ export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -25425,7 +25867,7 @@ export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
@@ -25439,7 +25881,7 @@ export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Struct<{
     key: Schema.Literal<["project-display-name"]>;
@@ -25457,7 +25899,7 @@ export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -25476,7 +25918,7 @@ export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -26825,8 +27267,6 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
-    /** The thinking levels a model preference names, as the app's settings define them. */
-    readonly THINKING_LEVELS: readonly ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 };
 export declare const OPENWAGGLE_EXTENSION: {
     readonly MANIFEST_FILE: 'openwaggle.extension.json';
@@ -29185,7 +29625,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Union<[Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -29328,12 +29768,12 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>, Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -29353,7 +29793,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -29367,7 +29807,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -29382,7 +29822,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -29400,7 +29840,7 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -29553,7 +29993,39 @@ export declare const extensionInvokeSuccessValueSchema: Schema.Union<[Schema.Str
         isOutput: typeof Schema.Boolean;
     }>;
 }>]>;
+/** A broker success whose value is not decoded yet, as the SDK has declared it since 0.1. */
 export declare const extensionInvokeSuccessSchema: Schema.Struct<{
+    ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>;
+/** A broker success whose value is one of the results the broker declares. */
+export declare const extensionInvokeDeclaredSuccessSchema: Schema.Struct<{
     ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -29676,7 +30148,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -29819,12 +30291,12 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -29844,7 +30316,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -29858,7 +30330,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -29873,7 +30345,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -29891,7 +30363,7 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -30111,6 +30583,74 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
     ok: Schema.Literal<[true]>;
+    value: typeof Schema.Unknown;
+    audit: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>;
+}>, Schema.Struct<{
+    ok: Schema.Literal<[false]>;
+    error: Schema.Struct<{
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
+        message: Schema.filter<typeof Schema.String>;
+        issues: Schema.optionalWith<Schema.Array$<Schema.filter<typeof Schema.String>>, {
+            exact: true;
+        }>;
+    }>;
+    audit: Schema.optionalWith<Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        capability: Schema.filter<Schema.filter<typeof Schema.String>>;
+        method: Schema.filter<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Union<[Schema.Struct<{
+            kind: Schema.Literal<["app"]>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["project"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["session"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+        }>, Schema.Struct<{
+            kind: Schema.Literal<["branch"]>;
+            projectPath: Schema.filter<typeof Schema.String>;
+            sessionId: Schema.filter<typeof Schema.String>;
+            branchId: Schema.filter<typeof Schema.String>;
+        }>]>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
+        timestamp: typeof Schema.Number;
+        failureCode: Schema.optionalWith<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>, {
+            exact: true;
+        }>;
+    }>, {
+        exact: true;
+    }>;
+}>]>;
+/** A broker result whose success value is one the broker declares. */
+export declare const extensionInvokeDeclaredResultSchema: Schema.Union<[Schema.Struct<{
+    ok: Schema.Literal<[true]>;
     value: Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -30232,7 +30772,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Union<[Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -30375,12 +30915,12 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, {
             readonly enabledModels: readonly string[];
             readonly favoriteModels: readonly string[];
             readonly selectedModel: string;
-            readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+            readonly thinkingLevel: string;
         }, never>;
     }>]>, Schema.Struct<{
         extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -30400,7 +30940,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -30414,7 +30954,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
             projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
         }>;
@@ -30429,7 +30969,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -30447,7 +30987,7 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
                 selectedModel: typeof Schema.String;
                 favoriteModels: Schema.Array$<typeof Schema.String>;
                 enabledModels: Schema.Array$<typeof Schema.String>;
-                thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+                thinkingLevel: typeof Schema.String;
             }>;
         }>, Schema.Struct<{
             key: Schema.Literal<["project-display-name"]>;
@@ -30685,6 +31225,8 @@ export declare const jsonValueSchema: Schema.Schema<JsonValue>;
 ```ts
 import type { extensionActionSelectProjectResultSchema, extensionBranchViewSchema, extensionModelPreferencesSettingsPatchSchema, extensionModelPrefsSchema, extensionProjectViewSchema, extensionSessionViewSchema, extensionSettingsGetResultSchema, extensionSettingsGetSettingResultSchema, extensionSettingsSelectedValueSchema, extensionSettingsUpdatePayloadSchema, extensionSettingsUpdateResultSchema, extensionSettingsUpdateSettingResultSchema, extensionSettingsViewSchema, extensionStateCurrentBranchReadResultSchema, extensionStateCurrentProjectReadResultSchema, extensionStateCurrentSessionReadResultSchema, extensionStateModelPreferencesReadResultSchema, extensionStateReadResultSchema, extensionStateRecentProjectsReadResultSchema } from './broker-schemas-openwaggle.js';
 import type { extensionSessionResourceKindSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceRoleSchema, extensionSessionResourcesListPayloadSchema, extensionSessionResourcesListResultSchema, extensionSessionResourceViewSchema } from './broker-schemas-resources.js';
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
 import type { SchemaType } from './schema.js';
 export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>;
@@ -30692,6 +31234,16 @@ export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>;
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>;
 export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>;
+/** The result of reading one state selector; each `ExtensionState*ReadResult` narrows it. */
+export interface ExtensionSelectedStateReadResult<TValue> {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
+    readonly scope: ExtensionInvokeScope;
+    readonly selector: ExtensionStateSelector;
+    readonly value: TValue;
+}
 export type ExtensionStateCurrentProjectReadResult = SchemaType<typeof extensionStateCurrentProjectReadResultSchema>;
 export type ExtensionStateCurrentSessionReadResult = SchemaType<typeof extensionStateCurrentSessionReadResultSchema>;
 export type ExtensionStateCurrentBranchReadResult = SchemaType<typeof extensionStateCurrentBranchReadResultSchema>;
@@ -30723,7 +31275,7 @@ export declare const extensionModelPrefsSchema: Schema.Struct<{
     selectedModel: typeof Schema.String;
     favoriteModels: Schema.Array$<typeof Schema.String>;
     enabledModels: Schema.Array$<typeof Schema.String>;
-    thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+    thinkingLevel: typeof Schema.String;
 }>;
 export declare const extensionProjectViewSchema: Schema.Struct<{
     projectPath: Schema.filter<typeof Schema.String>;
@@ -30789,7 +31341,7 @@ export declare const extensionStateReadResultSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionStateCurrentProjectReadResultSchema: Schema.Struct<{
@@ -30937,12 +31489,12 @@ export declare const extensionStateModelPreferencesReadResultSchema: Schema.Stru
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>;
 export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schema.Struct<{
@@ -31086,12 +31638,12 @@ export declare const extensionStateSelectedReadResultSchema: Schema.Union<[Schem
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, {
         readonly enabledModels: readonly string[];
         readonly favoriteModels: readonly string[];
         readonly selectedModel: string;
-        readonly thinkingLevel: "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+        readonly thinkingLevel: string;
     }, never>;
 }>]>;
 export declare const extensionActionSelectProjectPayloadSchema: Schema.Struct<{
@@ -31111,7 +31663,7 @@ export declare const extensionSettingsViewSchema: Schema.Struct<{
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
     projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
 }>;
@@ -31119,14 +31671,14 @@ export declare const extensionModelPreferencesSettingsPatchSchema: Schema.Struct
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
 }>;
@@ -31149,14 +31701,14 @@ export declare const extensionSettingsUpdateModelPreferencesPayloadSchema: Schem
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -31172,14 +31724,14 @@ export declare const extensionSettingsUpdateSettingPayloadSchema: Schema.Union<[
         selectedModel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
-        favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
-        enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+        enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
             exact: true;
         }>;
         /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-        thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+        thinkingLevel: Schema.optionalWith<typeof Schema.String, {
             exact: true;
         }>;
     }>;
@@ -31192,17 +31744,17 @@ export declare const extensionSettingsUpdatePayloadSchema: Schema.Struct<{
     selectedModel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    favoriteModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    favoriteModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
-    enabledModels: Schema.optionalWith<Schema.mutable<Schema.Array$<typeof Schema.String>>, {
+    enabledModels: Schema.optionalWith<Schema.Array$<typeof Schema.String>, {
         exact: true;
     }>;
     /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
-    thinkingLevel: Schema.optionalWith<Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>, {
+    thinkingLevel: Schema.optionalWith<typeof Schema.String, {
         exact: true;
     }>;
-    projectDisplayNames: Schema.optionalWith<Schema.mutable<Schema.Record$<typeof Schema.String, typeof Schema.String>>, {
+    projectDisplayNames: Schema.optionalWith<Schema.Record$<typeof Schema.String, typeof Schema.String>, {
         exact: true;
     }>;
 }>;
@@ -31216,7 +31768,7 @@ export declare const extensionSettingsGetResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -31231,7 +31783,7 @@ export declare const extensionSettingsUpdateResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
         projectDisplayNames: Schema.Record$<typeof Schema.String, typeof Schema.String>;
     }>;
@@ -31242,7 +31794,7 @@ export declare const extensionSettingsModelPreferencesValueSchema: Schema.Struct
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>;
 export declare const extensionSettingsProjectDisplayNameValueSchema: Schema.Struct<{
@@ -31256,7 +31808,7 @@ export declare const extensionSettingsSelectedValueSchema: Schema.Union<[Schema.
         selectedModel: typeof Schema.String;
         favoriteModels: Schema.Array$<typeof Schema.String>;
         enabledModels: Schema.Array$<typeof Schema.String>;
-        thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+        thinkingLevel: typeof Schema.String;
     }>;
 }>, Schema.Struct<{
     key: Schema.Literal<["project-display-name"]>;
@@ -31274,7 +31826,7 @@ export declare const extensionSettingsGetSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;
@@ -31293,7 +31845,7 @@ export declare const extensionSettingsUpdateSettingResultSchema: Schema.Struct<{
             selectedModel: typeof Schema.String;
             favoriteModels: Schema.Array$<typeof Schema.String>;
             enabledModels: Schema.Array$<typeof Schema.String>;
-            thinkingLevel: Schema.Literal<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
+            thinkingLevel: typeof Schema.String;
         }>;
     }>, Schema.Struct<{
         key: Schema.Literal<["project-display-name"]>;

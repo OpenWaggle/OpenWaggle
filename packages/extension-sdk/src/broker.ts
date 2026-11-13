@@ -14,6 +14,18 @@ import type { ExtensionInvokeInput } from './types.js'
 
 export type * from './core-types.js'
 export type * from './sdk-types.js'
+// The broker entry point has exported these since 0.1; the schemas moved, the exports stay.
+export {
+  extensionCapabilityAuditEntrySchema,
+  extensionInvokeErrorSchema,
+  extensionInvokeInputSchema,
+  extensionInvokeScopeSchema,
+} from './broker-schemas-core.js'
+export {
+  extensionInvokeFailureSchema,
+  extensionInvokeResultSchema,
+  extensionInvokeSuccessSchema,
+} from './broker-schemas-result.js'
 
 // Typed as a value: inferred, the declarations would spell out the schema type that
 // `ExtensionInvokeInput` names.

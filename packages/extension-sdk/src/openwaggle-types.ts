@@ -28,6 +28,8 @@ import type {
   extensionSessionResourcesListResultSchema,
   extensionSessionResourceViewSchema,
 } from './broker-schemas-resources.js'
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js'
 import type { SchemaType } from './schema.js'
 
 export type {
@@ -42,6 +44,16 @@ export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>
 export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>
+/** The result of reading one state selector; each `ExtensionState*ReadResult` narrows it. */
+export interface ExtensionSelectedStateReadResult<TValue> {
+  readonly extensionId: string
+  readonly contributionId: string
+  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE
+  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE
+  readonly scope: ExtensionInvokeScope
+  readonly selector: ExtensionStateSelector
+  readonly value: TValue
+}
 export type ExtensionStateCurrentProjectReadResult = SchemaType<
   typeof extensionStateCurrentProjectReadResultSchema
 >
