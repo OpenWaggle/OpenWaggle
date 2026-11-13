@@ -54,7 +54,63 @@ const piSessionEntrySchema = Schema.Struct({
 
 export type PiSessionEntry = SchemaType<typeof piSessionEntrySchema>
 
-const decodeEntry = Schema.decodeUnknownOption(piSessionEntrySchema)
+/*
+ * The same entry, read strictly: each field holds the declared type or is absent. Almost every
+ * line Pi writes is well formed, and this decode is about four times cheaper than the lenient one,
+ * whose per-field transforms cost more than the line's JSON.parse. A line it refuses is read again
+ * leniently, so the entry is the one the lenient schema gives either way. Each field list
+ * satisfies the lenient type's keys, so a field added to one schema has to be added to the other.
+ */
+const exact = <A, I>(schema: Schema.Schema<A, I>) => Schema.optionalWith(schema, { exact: true })
+
+const piSessionUsageStrictSchema = Schema.Struct({
+  input: exact(Schema.Finite),
+  output: exact(Schema.Finite),
+  cacheRead: exact(Schema.Finite),
+  cacheWrite: exact(Schema.Finite),
+  totalTokens: exact(Schema.Number),
+  cost: exact(Schema.Struct({ total: exact(Schema.Finite) })),
+} satisfies Record<keyof PiSessionUsage, unknown>)
+
+const piSessionMessageStrictSchema = Schema.Struct({
+  role: exact(Schema.String),
+  content: exact(
+    Schema.Union(
+      Schema.String,
+      Schema.Array(Schema.Struct({ type: exact(Schema.String), text: exact(Schema.String) })),
+    ),
+  ),
+  timestamp: exact(Schema.Finite),
+  provider: exact(Schema.String),
+  model: exact(Schema.String),
+  stopReason: exact(Schema.String),
+  usage: exact(piSessionUsageStrictSchema),
+} satisfies Record<keyof PiSessionMessage, unknown>)
+
+const piSessionEntryStrictSchema = Schema.Struct({
+  type: exact(Schema.String),
+  id: exact(Schema.String),
+  cwd: exact(Schema.String),
+  timestamp: exact(Schema.String),
+  name: exact(Schema.String),
+  customType: exact(Schema.String),
+  provider: exact(Schema.String),
+  modelId: exact(Schema.String),
+  model: exact(Schema.String),
+  message: exact(piSessionMessageStrictSchema),
+  usage: exact(piSessionUsageStrictSchema),
+} satisfies Record<keyof PiSessionEntry, unknown>)
+
+const decodeStrictEntry = Schema.decodeUnknownOption(piSessionEntryStrictSchema)
+const decodeLenientEntry = Schema.decodeUnknownOption(piSessionEntrySchema)
+
+function decodeEntry(value: object) {
+  const strict = decodeStrictEntry(value)
+  const entry: PiSessionEntry = Option.isSome(strict)
+    ? strict.value
+    : Option.getOrElse(decodeLenientEntry(value), () => ({}))
+  return entry
+}
 
 const NOT_JSON = Symbol('not JSON')
 
@@ -89,7 +145,7 @@ export function parsePiSessionEntryLine(line: string) {
     const entry: PiSessionEntry | null = {}
     return entry
   }
-  const entry: PiSessionEntry | null = Option.getOrElse(decodeEntry(parsed), () => ({}))
+  const entry: PiSessionEntry | null = decodeEntry(parsed)
   return entry
 }
 
@@ -97,7 +153,7 @@ export function parsePiSessionEntryLine(line: string) {
 export function parsePiSessionObjectLine(line: string) {
   const parsed = parseJsonLine(line)
   if (parsed === NOT_JSON || !isObjectValue(parsed)) return null
-  const entry: PiSessionEntry | null = Option.getOrElse(decodeEntry(parsed), () => ({}))
+  const entry: PiSessionEntry | null = decodeEntry(parsed)
   return entry
 }
 
