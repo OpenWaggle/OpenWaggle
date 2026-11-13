@@ -23,62 +23,70 @@ import type { DelegationContractRow } from './sqlite-session-delegation-support'
  * such as a retry after a failed revision Run, is never held back.
  */
 export function revisionFollowUpOwedSql(sql: SqlClient.SqlClient, runId: string) {
-  return revisionPendingSql(sql, runId, { orQueued: false })
-}
-
-/**
- * `revisionFollowUpOwedSql`, or the revision request is queued on the Worker behind the Run
- * `runId`: what keeps that Run from submitting its result as the revision itself. A request
- * promoted into the Run is no longer queued, so that Run may submit.
- */
-export function revisionPendingForRunSql(sql: SqlClient.SqlClient, runId: string) {
-  return revisionPendingSql(sql, runId, { orQueued: true })
-}
-
-function revisionPendingSql(
-  sql: SqlClient.SqlClient,
-  runId: string,
-  options: { readonly orQueued: boolean },
-) {
-  const revisionKey = sql`${DELEGATION_REVISION_KEY_PREFIX} || sendback.operation || ${':'}
-    || sendback.idempotency_key`
-  const queued = options.orQueued
-    ? sql`OR EXISTS (
-        SELECT 1 FROM session_follow_ups AS queued
-        WHERE queued.session_id = contracts.child_session_id
-          AND json_extract(queued.intent_json, '$.callerId') = sendback.caller_id
-          AND json_extract(queued.intent_json, '$.idempotencyKey') = ${revisionKey}
-      )`
-    : sql``
   return sql`(
     contracts.state = ${'revision_requested'}
     AND EXISTS (
       SELECT 1 FROM session_operations AS sendback
-      WHERE sendback.target_scope =
-          ${'delegation:'} || contracts.id || ${':actor:'} || contracts.parent_session_id
-        AND sendback.operation IN ${sql.in([...DELEGATION_REVISION_OPERATIONS])}
-        AND sendback.status = ${'completed'}
-        AND json_extract(sendback.outcome_json, '$.delegationState') = ${'revision_requested'}
-        AND (
-          sendback.operation IN ${sql.in(['delegation-request-revision', 'delegation-reopen'])}
-          OR json_extract(sendback.outcome_json, '$.revisionRequest') IS NOT NULL
-        )
+      WHERE ${sendBackOfContract(sql)}
         -- A Run with no row (not one the Host started) is never held back.
         AND sendback.created_at > (
           SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}
         )
-        AND (
-          NOT EXISTS (
-            SELECT 1 FROM session_operations AS revision
-            WHERE revision.target_scope = contracts.child_session_id
-              AND revision.operation = ${'follow-up'}
-              AND revision.caller_id = sendback.caller_id
-              AND revision.idempotency_key = ${revisionKey}
-          )
-          ${queued}
+        AND NOT EXISTS (
+          SELECT 1 FROM session_operations AS revision
+          WHERE revision.target_scope = contracts.child_session_id
+            AND revision.operation = ${'follow-up'}
+            AND revision.caller_id = sendback.caller_id
+            AND revision.idempotency_key = ${revisionKey(sql)}
         )
     )
   )`
+}
+
+/**
+ * `revisionFollowUpOwedSql`, or a revision request of the parent is still queued on the Worker,
+ * whenever the Run `runId` started: a queued request has not reached the active Run (a promoted
+ * one leaves the queue), so that Run has not seen the feedback either. What keeps the Run from
+ * submitting its result as the revision itself. The queued request is matched by its author,
+ * which a `queue-adopt` keeps as `authorCallerId`.
+ */
+export function revisionPendingForRunSql(sql: SqlClient.SqlClient, runId: string) {
+  return sql`(
+    ${revisionFollowUpOwedSql(sql, runId)}
+    OR (
+      contracts.state = ${'revision_requested'}
+      AND EXISTS (SELECT 1 FROM session_runs AS runs WHERE runs.id = ${runId})
+      AND EXISTS (
+        SELECT 1 FROM session_operations AS sendback
+        JOIN session_follow_ups AS queued ON queued.session_id = contracts.child_session_id
+        WHERE ${sendBackOfContract(sql)}
+          AND COALESCE(
+            json_extract(queued.intent_json, '$.authorCallerId'),
+            json_extract(queued.intent_json, '$.callerId')
+          ) = sendback.caller_id
+          AND json_extract(queued.intent_json, '$.idempotencyKey') = ${revisionKey(sql)}
+      )
+    )
+  )`
+}
+
+/** `sendback` is a completed command of the parent that sent the Worker back to work. */
+function sendBackOfContract(sql: SqlClient.SqlClient) {
+  return sql`sendback.target_scope =
+      ${'delegation:'} || contracts.id || ${':actor:'} || contracts.parent_session_id
+    AND sendback.operation IN ${sql.in([...DELEGATION_REVISION_OPERATIONS])}
+    AND sendback.status = ${'completed'}
+    AND json_extract(sendback.outcome_json, '$.delegationState') = ${'revision_requested'}
+    AND (
+      sendback.operation IN ${sql.in(['delegation-request-revision', 'delegation-reopen'])}
+      OR json_extract(sendback.outcome_json, '$.revisionRequest') IS NOT NULL
+    )`
+}
+
+/** The idempotency key of `sendback`'s revision Follow-up (`delegationRevisionKey`). */
+function revisionKey(sql: SqlClient.SqlClient) {
+  return sql`${DELEGATION_REVISION_KEY_PREFIX} || sendback.operation || ${':'}
+    || sendback.idempotency_key`
 }
 
 /**
