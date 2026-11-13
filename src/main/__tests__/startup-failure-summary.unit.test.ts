@@ -10,12 +10,15 @@ class LocalSessionClientTimeoutError extends Error {
 
 class WindowsUserOnlySecurityError extends Error {
   override readonly name = 'WindowsUserOnlySecurityError'
-  constructor(
-    readonly stage: string,
-    readonly exitCode: number | null,
-    readonly signalCode: string | null,
-  ) {
+  readonly stage: string
+  readonly exitCode: number | null
+  readonly signalCode: string | null
+
+  constructor(stage: string, exitCode: number | null, signalCode: string | null) {
     super('Windows user-only security verification failed: C:\\Users\\Jürgen\\private stderr')
+    this.stage = stage
+    this.exitCode = exitCode
+    this.signalCode = signalCode
   }
 }
 

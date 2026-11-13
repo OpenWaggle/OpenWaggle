@@ -171,9 +171,7 @@ export function startErrorReporting(processKind: ErrorReportingProcess) {
  * Settings that never loaded, as in a Host whose Settings read failed, the saved Setting applies
  * to that attempt. Never rejects.
  */
-export function startErrorReportingWithoutSettings(
-  processKind: ErrorReportingProcess,
-): Promise<void> {
+export function startErrorReportingWithoutSettings(processKind: ErrorReportingProcess) {
   if (fixedOptOutApplies()) {
     startup ??= beginErrorReporting(processKind)
     return startup
@@ -251,10 +249,7 @@ export async function flushErrorReporting(timeoutMs = ERROR_REPORT_FLUSH_TIMEOUT
  * message (startup-failure-summary.ts). Reporting starts here when it has not, from the Setting
  * the Session Host last saved when Settings never loaded ({@link startErrorReportingWithoutSettings}).
  */
-export function reportStartupFailure(
-  error: unknown,
-  context: StartupFailureContext,
-): Promise<void> {
+export function reportStartupFailure(error: unknown, context: StartupFailureContext) {
   const started = startErrorReportingWithoutSettings(
     context === 'session-host' ? 'session-host' : 'gui',
   )

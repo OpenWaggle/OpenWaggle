@@ -43,7 +43,6 @@ export {
 export {
   isStartupFailureSummaryMessage,
   isStartupFailureSummaryReport,
-  STARTUP_FAILURE_SUMMARY_CONTEXTS,
   STARTUP_FAILURE_SUMMARY_NON_ERROR,
   type StartupFailureSummaryContext,
 } from './error-report-startup-summary'

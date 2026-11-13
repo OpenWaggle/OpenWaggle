@@ -50,15 +50,22 @@ export class WindowsUserOnlySecurityTimeoutError extends Error {
  * software stopped it, or it printed no verified SID. `stage` is the last stage it reported.
  */
 export class WindowsUserOnlySecurityError extends Error {
+  readonly stage: string
+  readonly exitCode: number | null
+  readonly signalCode: NodeJS.Signals | null
+
   constructor(
-    readonly stage: string,
-    readonly exitCode: number | null,
-    readonly signalCode: NodeJS.Signals | null,
+    stage: string,
+    exitCode: number | null,
+    signalCode: NodeJS.Signals | null,
     stderr: string,
   ) {
     super(
       `Windows user-only security verification failed${stderr.trim() ? `: ${stderr.trim()}` : '.'}`,
     )
+    this.stage = stage
+    this.exitCode = exitCode
+    this.signalCode = signalCode
     this.name = 'WindowsUserOnlySecurityError'
   }
 }

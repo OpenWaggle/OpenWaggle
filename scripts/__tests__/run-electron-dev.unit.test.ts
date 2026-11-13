@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { describe, expect, it } from 'vitest'
 import {
   electronDevInvocation,
@@ -10,14 +11,13 @@ import {
 
 const ROOT = path.join('/work', 'OpenWaggle')
 
-function packageScripts(): [string, string][] {
+const packageManifestScripts = Schema.Struct({
+  scripts: Schema.Record({ key: Schema.String, value: Schema.String }),
+})
+
+function packageScripts() {
   const manifest: unknown = JSON.parse(readFileSync('package.json', 'utf8'))
-  if (typeof manifest !== 'object' || manifest === null || !('scripts' in manifest)) return []
-  const { scripts } = manifest
-  if (typeof scripts !== 'object' || scripts === null) return []
-  return Object.entries(scripts).filter(
-    (entry): entry is [string, string] => typeof entry[1] === 'string',
-  )
+  return Object.entries(decodeUnknownOrThrow(packageManifestScripts, manifest).scripts)
 }
 
 describe('run-electron-dev', () => {
