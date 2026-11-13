@@ -77,12 +77,6 @@ const REQUIRED_FILES = [
   'resources/THIRD_PARTY_NOTICES.md',
   'resources/openwaggle-docs/README.md',
   'resources/openwaggle-docs/index.json',
-  'resources/session-embedding-model/Xenova/multilingual-e5-small/config.json',
-  'resources/session-embedding-model/Xenova/multilingual-e5-small/tokenizer_config.json',
-  'resources/session-embedding-model/Xenova/multilingual-e5-small/tokenizer.json',
-  'resources/session-embedding-model/Xenova/multilingual-e5-small/onnx/model_quantized.onnx',
-  'resources/session-embedding-model/Xenova/multilingual-e5-small/openwaggle-model-manifest.json',
-  'resources/session-embedding-model/Xenova/multilingual-e5-small/THIRD_PARTY_NOTICE.md',
 ] as const
 const PI_EXAMPLES = 'node_modules/@earendil-works/pi-coding-agent/examples/'
 
@@ -93,6 +87,8 @@ const FORBIDDEN_FILES: readonly { readonly label: string; readonly matches: RegE
     label: 'workspace package tsconfigs',
     matches: /^node_modules\/@openwaggle\/[^/]+\/tsconfig[^/]*\.json$/,
   },
+  // About 135 MB the Host fetches on first use (src/main/adapters/session-embedding-model-files.ts).
+  { label: 'the Session embedding model', matches: /^resources\/session-embedding-model\// },
   { label: 'the legacy MCP adapter', matches: /(?:^|\/)node_modules\/pi-mcp-adapter\// },
   // transformers.js's Node build runs inference through onnxruntime-node.
   { label: 'onnxruntime-web', matches: /(?:^|\/)node_modules\/onnxruntime-web\// },

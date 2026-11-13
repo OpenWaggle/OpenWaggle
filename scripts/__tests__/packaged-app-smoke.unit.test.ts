@@ -33,12 +33,6 @@ const PACKAGED = [
   'resources/THIRD_PARTY_NOTICES.md',
   'resources/openwaggle-docs/README.md',
   'resources/openwaggle-docs/index.json',
-  `${MODEL}/config.json`,
-  `${MODEL}/tokenizer_config.json`,
-  `${MODEL}/tokenizer.json`,
-  `${MODEL}/onnx/model_quantized.onnx`,
-  `${MODEL}/openwaggle-model-manifest.json`,
-  `${MODEL}/THIRD_PARTY_NOTICE.md`,
 ]
 
 describe('packaged app smoke', () => {
@@ -64,12 +58,6 @@ describe('packaged app smoke', () => {
       'misses resources/THIRD_PARTY_NOTICES.md',
       'misses resources/openwaggle-docs/README.md',
       'misses resources/openwaggle-docs/index.json',
-      `misses ${MODEL}/config.json`,
-      `misses ${MODEL}/tokenizer_config.json`,
-      `misses ${MODEL}/tokenizer.json`,
-      `misses ${MODEL}/onnx/model_quantized.onnx`,
-      `misses ${MODEL}/openwaggle-model-manifest.json`,
-      `misses ${MODEL}/THIRD_PARTY_NOTICE.md`,
     ])
   })
 
@@ -80,6 +68,7 @@ describe('packaged app smoke', () => {
         ...files,
         'node_modules/@openwaggle/pi-waggle/src/index.ts',
         'node_modules/@openwaggle/pi-waggle/tsconfig.json',
+        `${MODEL}/onnx/model_quantized.onnx`,
         'node_modules/pi-mcp-adapter/index.js',
         'node_modules/onnxruntime-web/dist/ort.js',
         'node_modules/better-sqlite3/deps/sqlite3.c',
@@ -91,6 +80,7 @@ describe('packaged app smoke', () => {
       `misses ${PI}/examples/`,
       'ships workspace package sources (node_modules/@openwaggle/pi-waggle/src/index.ts)',
       'ships workspace package tsconfigs (node_modules/@openwaggle/pi-waggle/tsconfig.json)',
+      `ships the Session embedding model (${MODEL}/onnx/model_quantized.onnx)`,
       'ships the legacy MCP adapter (node_modules/pi-mcp-adapter/index.js)',
       'ships onnxruntime-web (node_modules/onnxruntime-web/dist/ort.js)',
       'ships better-sqlite3 sources (node_modules/better-sqlite3/deps/sqlite3.c)',

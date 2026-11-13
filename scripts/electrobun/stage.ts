@@ -48,7 +48,6 @@ export function stagedResources(channelIcon: string) {
   return [
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
-    { from: 'build/session-embedding-model', to: 'session-embedding-model' },
     { from: 'scripts/install.sh', to: 'openwaggle-install.sh' },
     { from: 'THIRD_PARTY_NOTICES.md', to: 'THIRD_PARTY_NOTICES.md' },
   ]
