@@ -166,3 +166,20 @@ export function systemProxyEnvironment(
       : {}),
   }
 }
+
+/**
+ * One read per process: the boot shim and the main bundle each apply the Build identity, and each
+ * is its own bundle, so the mark lives on the process's global object, where both find it. A
+ * second read cost a second helper process on the window's startup path (about 70 ms on macOS).
+ */
+const SYSTEM_PROXY_APPLIED = Symbol.for('openwaggle.system-proxy-applied')
+
+export function applySystemProxyOnce(
+  environment: Record<string, string | undefined>,
+  read: () => SystemProxy = readSystemProxy,
+  marks: object = globalThis,
+) {
+  if (Reflect.get(marks, SYSTEM_PROXY_APPLIED) === true) return
+  Reflect.set(marks, SYSTEM_PROXY_APPLIED, true)
+  Object.assign(environment, systemProxyEnvironment(environment, read()))
+}

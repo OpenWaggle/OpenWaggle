@@ -5,7 +5,7 @@ import { BUILD_CHANNEL, PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { BootShellShape } from '../../ports/desktop-shell/boot-shell'
 import type { ShellCommandLineShape } from '../../ports/desktop-shell/app-lifecycle'
 import { isElectrobunDesktopApp, loadedElectrobun } from './electrobun-sdk'
-import { readSystemProxy, systemProxyEnvironment } from './electrobun-system-proxy'
+import { applySystemProxyOnce } from './electrobun-system-proxy'
 
 /**
  * Electrobun's boot view of the shell (ADR 0064); `electrobunAppPaths`, `electrobunAppLifecycle`
@@ -145,7 +145,7 @@ export const electrobunCommandLine: ShellCommandLineShape = {
  */
 function applySystemProxy() {
   if (!isElectrobunDesktopApp()) return
-  Object.assign(process.env, systemProxyEnvironment(process.env, readSystemProxy()))
+  applySystemProxyOnce(process.env)
 }
 
 export const electrobunBootShell: BootShellShape = {

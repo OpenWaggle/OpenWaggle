@@ -2,13 +2,14 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PortContract } from '../../../ports/desktop-shell/__tests__/contracts/port-contract'
 import { networkFetchContract } from '../../../ports/desktop-shell/__tests__/contracts/network-fetch.contract'
 import { createBunNetworkFetch, electrobunNetworkFetch } from '../electrobun-network-fetch'
 import {
   parseScutilProxy,
   parseWindowsProxy,
+  applySystemProxyOnce,
   readSystemProxy,
   systemProxyEnvironment,
 } from '../electrobun-system-proxy'
@@ -77,6 +78,16 @@ describe('Electrobun network stack', () => {
     })
     expect(parseWindowsProxy(key('http=a:1;https=b:2')).https).toBe('http://b:2')
     expect(parseWindowsProxy('    ProxyEnable    REG_DWORD    0x0')).toEqual({})
+  })
+
+  it('reads the system proxy once per process, however many bundles apply it', () => {
+    const environment: Record<string, string | undefined> = {}
+    const marks = {}
+    const read = vi.fn(() => ({ https: 'http://gw:8080' }))
+    applySystemProxyOnce(environment, read, marks)
+    applySystemProxyOnce(environment, read, marks)
+    expect(read).toHaveBeenCalledTimes(1)
+    expect(environment).toEqual({ HTTPS_PROXY: 'http://gw:8080' })
   })
 
   it('reads a manual GNOME proxy and keeps the user variables first', () => {
