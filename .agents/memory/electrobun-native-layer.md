@@ -118,3 +118,11 @@ browser preview.
 - A fresh worktree has no `.hutch/devkit`, and `bun run build` then fails on the missing
   `electrobun/main` sources: run `bunx electrobun prepare` first, with
   `HUTCH_ELECTROBUN_DEVKIT_ROOT` set to a patched devkit to get the vendor patches.
+- macOS startup benches on CI: hosted macos-15 runners differ by up to 1.7x between jobs (the
+  same build measured 1.35 s and 2.0 to 2.35 s warm), so compare builds, #450's Electron app and
+  the WKWebView floor app interleaved in one job, never across runs. Same-job figures (run
+  43462643410): Electron 1.41 s, floor 1.50 s, OpenWaggle 2.0 s warm window-ready.
+- A CPU profile of the GUI's Bun Worker without a source map: prepend `bun:jsc`'s
+  `startSamplingProfiler()` to a copy of the app's `Resources/app/bun/index.js`, write
+  `JSON.stringify(samplingProfilerStackTraces())` after a few seconds, re-sign the app. Frames
+  carry names, file and line; `--cpu-prof` covers the whole run, idle frames included.
