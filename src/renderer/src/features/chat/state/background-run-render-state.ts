@@ -303,14 +303,19 @@ export function withUnannouncedRunRenderSnapshot(
   const snapshot =
     existing === undefined || existing.settledRunId !== undefined
       ? seededSnapshotForRunStart(existing, UNNAMED_RUN_SEED, startedAt)
-      : {
-          ...existing,
-          // Named by the Run's end or late start, as the bridge's unnamed start is.
-          ...(existing.seededByRunId === undefined ? {} : { seededByRunId: UNNAMED_RUN_SEED }),
-          settledMessageIds: new Set([
-            ...(existing.settledMessageIds ?? []),
-            ...existing.messages.map((message) => message.id),
-          ]),
-        }
+      : withUnannouncedRunAfter(existing)
   return { renderSnapshotsBySessionId: new Map(state.renderSnapshotsBySessionId).set(id, snapshot) }
+}
+
+/**
+ * The Run ended unsettled holds the snapshot: its rows are set apart, and the Run streaming now is
+ * named by its end or late start, as the bridge's unnamed start is: an unnamed seed, or in a
+ * route's snapshot an unnamed start, so a retry's real start names it instead of splitting it off.
+ */
+function withUnannouncedRunAfter(existing: RunRenderSnapshot): RunRenderSnapshot {
+  const earlierMessageIds = new Set(existing.messages.map((message) => message.id))
+  const settledMessageIds = new Set([...(existing.settledMessageIds ?? []), ...earlierMessageIds])
+  return existing.seededByRunId === undefined
+    ? { ...existing, startedRun: { runId: UNNAMED_RUN_SEED, earlierMessageIds }, settledMessageIds }
+    : { ...existing, seededByRunId: UNNAMED_RUN_SEED, settledMessageIds }
 }

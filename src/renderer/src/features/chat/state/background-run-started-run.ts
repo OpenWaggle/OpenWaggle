@@ -149,3 +149,20 @@ export function withEarlierRunSettledBeforeUnannounced(
     startedRun: { runId: seed, earlierMessageIds: new Set(existing.settledMessageIds) },
   }
 }
+
+/**
+ * The Run whose start was lost is named another Run than the one before (`nameUnannouncedRun`):
+ * that one was saved when it ended, so its rows set apart at the notice leave the snapshot, as
+ * another Run's start drops them. Kept, they showed twice whenever no saved prompt vouched for them.
+ */
+export function withoutEarlierRunRows(state: RenderSnapshotState, id: SessionId) {
+  const existing = state.renderSnapshotsBySessionId.get(id)
+  const settled = existing?.settledMessageIds
+  // A route's snapshot holds what the route shows, which places these rows itself.
+  if (!existing || !settled || existing.seededByRunId === undefined) return state
+  const messages = existing.messages.filter((message) => !settled.has(message.id))
+  if (messages.length === existing.messages.length) return state
+  const next = new Map(state.renderSnapshotsBySessionId)
+  next.set(id, { ...existing, messages })
+  return { renderSnapshotsBySessionId: next }
+}

@@ -9,6 +9,7 @@ import { incorporatedUserRow } from '@/features/chat/lib/chat-stream-user-messag
 import { createStartedRuns } from '@/features/chat/lib/run-ids'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { takeRestoredRunId } from '@/features/chat/state/background-run-activity-restore'
+import { withoutEarlierRunRows } from '@/features/chat/state/background-run-started-run'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import {
@@ -233,7 +234,10 @@ async function nameUnannouncedRun(
   if (runId === undefined) return
   const anotherRun = startedRuns.name(sessionId, runId)
   if (anotherRun === undefined) return
-  if (anotherRun) useOptimisticSteerStore.getState().clearSession(sessionId)
+  if (anotherRun) {
+    useOptimisticSteerStore.getState().clearSession(sessionId)
+    useBackgroundRunStore.setState((state) => withoutEarlierRunRows(state, sessionId))
+  }
   useOptimisticSteerStore.getState().noteRunStarted(sessionId, runId)
 }
 

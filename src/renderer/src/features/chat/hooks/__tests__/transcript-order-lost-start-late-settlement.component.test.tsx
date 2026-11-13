@@ -228,4 +228,44 @@ describe('transcript order when the Run before settles late and the next start i
       (h) => h.endRun(),
     ])
   })
+
+  // The Run before started in a stall, its prompt in no snapshot to vouch for its rows: named
+  // another Run, the lost-start Run drops them from its snapshot, as another Run's start does.
+  it('shows the Run before once when a resync announced it and the next start is lost', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('other'),
+      (h) => h.stall(),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.resume(),
+      (h) => h.answer('one'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.view('session'),
+      (h) => h.answer('two'),
+      (h) => h.settleRun(),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
+
+  // Shown, then left: Pi retries the lost-start Run, its real start naming the route's unnamed one.
+  it('keeps the answers its history dropped when a Run whose start was lost retries away', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.dropHistory(),
+      (h) => h.answer('one'),
+      (h) => h.answer('two'),
+      (h) => h.view('other'),
+      (h) => h.retry(),
+      (h) => h.view('session'),
+      (h) => h.settleRun(),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
 })
