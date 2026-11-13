@@ -12,6 +12,7 @@ import {
   addActiveRunToState,
   mergeRestoredRunModels,
   removeActiveRunFromState,
+  withUnannouncedRun,
 } from './background-run-active-state'
 import {
   captureActivityRevisions,
@@ -54,7 +55,10 @@ interface BackgroundRunState {
   firstSendRecoveryBySessionId: Map<SessionId, FirstSendRecovery>
   /** Counts restores of the activity in progress when the renderer started (`initialize`). */
   activityRestoreRevision: number
+  /** Per Session, the Runs learned of from what they streamed, their start lost. */
+  unannouncedRunNotices: Map<SessionId, number>
   addActiveRun: (id: SessionId, model?: SupportedModelId) => void
+  noteUnannouncedRun: (id: SessionId, model?: SupportedModelId) => void
   removeActiveRun: (id: SessionId) => void
   hasActiveRun: (id: SessionId) => boolean
   getRunRenderSnapshot: (id: SessionId) => RunRenderSnapshot | null
@@ -178,6 +182,7 @@ function initialBackgroundRunState() {
     worktreeLaunchBySessionId: new Map<SessionId, WorktreeLaunchSnapshot>(),
     firstSendRecoveryBySessionId: new Map<SessionId, FirstSendRecovery>(),
     activityRestoreRevision: 0,
+    unannouncedRunNotices: new Map<SessionId, number>(),
   }
 }
 
@@ -205,6 +210,11 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   addActiveRun(id: SessionId, model?: SupportedModelId) {
     noteActivityLifecycleChange(id)
     set((state) => addActiveRunToState(state, id, model))
+  },
+
+  noteUnannouncedRun(id: SessionId, model?: SupportedModelId) {
+    noteActivityLifecycleChange(id)
+    set((state) => withUnannouncedRun(state, id, model))
   },
 
   removeActiveRun(id: SessionId) {

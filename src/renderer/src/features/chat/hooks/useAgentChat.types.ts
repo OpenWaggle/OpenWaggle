@@ -152,6 +152,8 @@ export interface SessionHydrationInput {
   readonly resyncRevision: number
   /** Counts restores of the activity in progress when the renderer started. */
   readonly activityRestoreRevision: number
+  /** Counts the Session's Runs the monitor learned of from what they streamed, their start lost. */
+  readonly unannouncedRunNotice: number
 }
 
 export interface SessionHydrationKeys {

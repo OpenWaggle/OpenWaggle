@@ -1,7 +1,10 @@
 import { type SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { useEffect, useLayoutEffect } from 'react'
-import { isTerminalTransportEvent } from '@/features/chat/lib/agent-stream-utils'
+import {
+  isRunStreamingEvent,
+  isTerminalTransportEvent,
+} from '@/features/chat/lib/agent-stream-utils'
 import { incorporatedUserRow } from '@/features/chat/lib/chat-stream-user-messages'
 import { createStartedRuns } from '@/features/chat/lib/run-ids'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
@@ -79,6 +82,7 @@ export function useBackgroundRunMonitor(): void {
         const runModel = payload.event.model?.trim()
         addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }
+      noteStreamingRun(payload.sessionId, payload.event, compactionOnlySessionIds)
       if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
         if (payload.event.reason === 'manual') {
           compactionOnlySessionIds.add(payload.sessionId)
@@ -150,6 +154,24 @@ export function useBackgroundRunMonitor(): void {
     refreshSession,
     removeActiveRun,
   ])
+}
+
+/**
+ * The Run's start never reached this renderer (a resync lost it), yet the Run streams on: it is
+ * active, or the chat would show its Session idle, and empty, until the Run settles. A manual
+ * compaction alone made the Session busy before; a Run streaming there is a Run.
+ */
+function noteStreamingRun(
+  sessionId: SessionId,
+  event: AgentTransportEvent,
+  compactionOnlySessionIds: Set<string>,
+) {
+  if (!isRunStreamingEvent(event)) return
+  const store = useBackgroundRunStore.getState()
+  if (store.hasActiveRun(sessionId) && !compactionOnlySessionIds.has(sessionId)) return
+  compactionOnlySessionIds.delete(sessionId)
+  const runModel = event.model?.trim()
+  store.noteUnannouncedRun(sessionId, runModel ? SupportedModelId(runModel) : undefined)
 }
 
 /**

@@ -29,6 +29,22 @@ export function addActiveRunToState(
   }
 }
 
+/**
+ * A Run streams in a Session this renderer holds no Run for: its `agent_start` never arrived (a
+ * resync lost it). The Session is busy, and the notice makes the chat showing it hydrate it again
+ * as running, from its reconnect buffer; it otherwise showed the Session idle, and empty, until
+ * the Run settled.
+ */
+export function withUnannouncedRun(
+  state: ActiveRunState & { readonly unannouncedRunNotices: Map<SessionId, number> },
+  id: SessionId,
+  model?: SupportedModelId,
+) {
+  const notices = new Map(state.unannouncedRunNotices)
+  notices.set(id, (notices.get(id) ?? 0) + 1)
+  return { ...addActiveRunToState(state, id, model), unannouncedRunNotices: notices }
+}
+
 export function removeActiveRunFromState(state: ActiveRunState, id: SessionId) {
   if (!state.activeRunIds.has(id) && !state.runModelBySessionId.has(id)) return state
   const activeRunIds = new Set(state.activeRunIds)

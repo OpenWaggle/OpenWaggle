@@ -215,4 +215,30 @@ describe('Session Host renderer bridge missed settlements', () => {
 
     expect(lifecycle()).toEqual([{ started: 'run-Y' }])
   })
+
+  /*
+   * A Session launched into a new worktree streams launch progress before its Run starts, and the
+   * bridge keeps a buffer for it that names no Run. When the resync's gap held the Run's start,
+   * the renderer never learned the Run was active: the chat showed nothing until it settled.
+   */
+  it('announces a Run whose start the resync lost after the worktree launch began', () => {
+    relaySessionHostEvent({
+      cursor: { hostInstanceId: 'remote-host', sequence: 1 },
+      timestamp: 1,
+      payload: {
+        kind: 'session-worktree-launch',
+        sessionId: SESSION_ID,
+        model: MODEL,
+        mode: 'classic',
+        event: { type: 'progress', progress: { stage: 'checking-out-files', details: [] } },
+      },
+    })
+    broadcastToWindowsMock.mockClear()
+
+    reconcileRemoteRunSnapshots([snapshot('run-1')])
+    // The same Run found again is not announced twice.
+    reconcileRemoteRunSnapshots([snapshot('run-1')])
+
+    expect(lifecycle()).toEqual([{ started: 'run-1' }])
+  })
 })

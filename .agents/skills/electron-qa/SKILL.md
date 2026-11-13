@@ -39,6 +39,8 @@ To give a QA run a fixture Pi extension, such as a faux provider or a virtual mo
 
 A fake model for such a fixture is `fauxProvider` from `@earendil-works/pi-ai`, registered with `pi.registerProvider(faux.provider)`. Its scripted responses must find the user's prompt by content, not as the last user message: the Host adds its Run identity message after the prompt. Select the model under **Settings > Connections > Available Models** and set **Session titles** to **Off** first, or the background title request consumes a scripted response. A first send on the current checkout runs the launch step that fast-forward pulls the branch from its upstream (`session-branch-freshness.ts`), so QA on a branch that tracks a remote picks up its new commits.
 
+On macOS the launcher's profile lives under `/var/folders/…`, a symlink to `/private/var/…`, so a `new-worktree` Session in a QA project there fails with "Session authority root changed after it was granted"; start the app with `OPENWAGGLE_HOST_TMPDIR=$(realpath "$OPENWAGGLE_HOST_TMPDIR")` and give `hive launch` the resolved project path (`/private/tmp/…`, not `/tmp/…`). A target project needs one Session before `launch` accepts it.
+
 Verify CDP is reachable:
 
 ```bash

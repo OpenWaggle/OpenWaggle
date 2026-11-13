@@ -75,10 +75,21 @@ export function reconcileRemoteRunSnapshots(snapshots: readonly BackgroundRunSna
     })
     const relayed = previous.get(sessionId)
     const anotherRun = namesAnotherRun(relayed, snapshot.runId)
-    if (previous.has(sessionId) && !anotherRun) continue
+    if (previous.has(sessionId) && !anotherRun && !startNeverRelayed(relayed, snapshot)) continue
     relayMissedHandOff(sessionId, anotherRun ? relayed : undefined)
     announceRemoteRun(snapshot)
   }
+}
+
+/**
+ * Whether the bridge's buffer for the Session names no Run while the Host's does: the buffer came
+ * from a worktree launch's progress, which streams before the Run starts, and the Run's start was
+ * in the events the resync lost. The renderer never learned the Run was active, and its chat
+ * showed nothing until the Run settled. An older Host's snapshot names no Run either; that one
+ * was announced when the bridge first found it.
+ */
+function startNeverRelayed(relayed: string | undefined, snapshot: BackgroundRunSnapshot) {
+  return relayed === undefined && snapshot.runId !== undefined
 }
 
 /** The hand-off of the Run the buffer held to the next, unless relayed already. */

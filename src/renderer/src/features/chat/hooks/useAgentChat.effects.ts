@@ -28,6 +28,8 @@ interface UseSessionHydrationEffectsParams {
   readonly isSessionIdle: boolean
   readonly optimisticUserMessages: readonly UIMessage[]
   readonly hasActiveRun: (sessionId: SessionId) => boolean
+  /** Runs the monitor learned of from what they streamed (`noteUnannouncedRun`): rehydrate. */
+  readonly unannouncedRunNotice: number
   /**
    * Counts restores of the activity in progress when the renderer started. A Session the route
    * restored before the monitor learned its Run hydrates again then, or it showed the Run's
@@ -176,6 +178,7 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
     isSessionIdle,
     optimisticUserMessages,
     hasActiveRun,
+    unannouncedRunNotice,
     activityRestoreRevision,
     getRunRenderSnapshot,
     removeMatchedOptimisticUserMessages,
@@ -203,6 +206,7 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
         cachedCompactionStatus: cachedRenderSnapshot?.compactionStatus ?? null,
         resyncRevision,
         activityRestoreRevision,
+        unannouncedRunNotice,
       },
       context,
     )
@@ -210,6 +214,7 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
     sessionId,
     session,
     hasActiveRun,
+    unannouncedRunNotice,
     activityRestoreRevision,
     getRunRenderSnapshot,
     optimisticUserMessages,

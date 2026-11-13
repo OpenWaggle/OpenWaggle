@@ -65,6 +65,7 @@ const {
           setRunRenderMessages: (sessionId: SessionId, messages: readonly unknown[]) => void
           setRunCompactionStatus: (sessionId: SessionId, status: unknown) => void
           setFirstSendRecovery: typeof setFirstSendRecoveryMock
+          unannouncedRunNotices: ReadonlyMap<SessionId, number>
         }) => unknown,
       ) =>
         selector({
@@ -73,6 +74,7 @@ const {
           setRunRenderMessages: setRunRenderMessagesMock,
           setRunCompactionStatus: setRunCompactionStatusMock,
           setFirstSendRecovery: setFirstSendRecoveryMock,
+          unannouncedRunNotices: new Map(),
         }),
     ),
     // No worktree launch owns a send's recovery here.
