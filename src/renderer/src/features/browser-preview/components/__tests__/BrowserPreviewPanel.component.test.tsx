@@ -69,6 +69,8 @@ const mocks = vi.hoisted(() => {
         if (shortcutListener === listener) shortcutListener = null
       }
     }),
+    ensureBrowserEngine: vi.fn(async () => ({ type: 'ready' }) as const),
+    onBrowserEngineStatus: vi.fn(() => () => undefined),
     onBrowserPreviewRecordingRequest: vi.fn(() => () => undefined),
     onBrowserPreviewRecordingCancel: vi.fn(() => () => undefined),
   }
@@ -126,17 +128,9 @@ describe('BrowserPreviewPanel', () => {
     vi.clearAllMocks()
     useBrowserPreviewFloatingStore.setState({ byOwnerKey: {} })
     clearBrowserPreviewExternalFallback(INITIAL_TAB.id)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      x: 320,
-      y: 80,
-      width: 640,
-      height: 480,
-      top: 80,
-      right: 960,
-      bottom: 560,
-      left: 320,
-      toJSON: () => ({}),
-    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(320, 80, 640, 480),
+    )
     mocks.openBrowserPreview.mockResolvedValue(mocks.state())
     mocks.reloadBrowserPreview.mockResolvedValue(mocks.state())
   })

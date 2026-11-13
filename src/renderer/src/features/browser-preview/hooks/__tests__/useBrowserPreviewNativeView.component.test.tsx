@@ -1,3 +1,4 @@
+import type { BrowserEngineStatus } from '@shared/types/browser-engine'
 import type { BrowserPreviewState } from '@shared/types/browser-preview'
 import { DEFAULT_BROWSER_PREVIEW_CONTROL_STATE } from '@shared/types/browser-preview-controls'
 import { act, render, waitFor } from '@testing-library/react'
@@ -6,9 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { drainBrowserPreviewOwnerWork } from '@/shared/lib/browser-preview-owner-work'
 import { beginWorkspaceOwnerHandoff } from '@/shared/lib/workspace-owner-handoff'
 import type { BrowserPreviewMaterializedTab } from '../../browser-preview-model'
+import { useBrowserEngineStore } from '../../state/browser-engine-store'
 import { useBrowserPreviewNativeView } from '../useBrowserPreviewNativeView'
 
 const api = vi.hoisted(() => ({
+  ensureBrowserEngine: vi.fn<() => Promise<BrowserEngineStatus>>(async () => ({ type: 'ready' })),
+  onBrowserEngineStatus: vi.fn<(listener: (status: BrowserEngineStatus) => void) => () => void>(
+    () => () => undefined,
+  ),
   onBrowserPreviewShortcut: vi.fn(() => () => undefined),
   onBrowserPreviewState: vi.fn(() => () => undefined),
   openBrowserPreview: vi.fn<() => Promise<BrowserPreviewState>>(),
@@ -57,6 +63,29 @@ function nativeState() {
 describe('useBrowserPreviewNativeView', () => {
   beforeEach(() => vi.clearAllMocks())
   afterEach(() => vi.restoreAllMocks())
+
+  it('opens the preview only once main reports the browser engine ready', async () => {
+    let report: (status: BrowserEngineStatus) => void = () => undefined
+    const installed = Promise.withResolvers<BrowserEngineStatus>()
+    useBrowserEngineStore.setState({ status: { type: 'idle' } })
+    api.onBrowserEngineStatus.mockImplementationOnce((listener) => {
+      report = listener
+      return () => undefined
+    })
+    api.ensureBrowserEngine.mockReturnValueOnce(installed.promise)
+    api.registerBrowserPreviewOwner.mockResolvedValue()
+    api.openBrowserPreview.mockResolvedValue(nativeState())
+    const rendered = render(<NativeViewHarness />)
+
+    act(() => report({ type: 'downloading', receivedBytes: 1, totalBytes: 2 }))
+    await act(async () => undefined)
+    expect(api.openBrowserPreview).not.toHaveBeenCalled()
+
+    act(() => report({ type: 'ready' }))
+    await waitFor(() => expect(api.openBrowserPreview).toHaveBeenCalledOnce())
+    await act(async () => installed.resolve({ type: 'ready' }))
+    rendered.unmount()
+  })
 
   it('defers native mounting only for handoff owners and resumes after release', async () => {
     const source = 'draft:/mount-gate'

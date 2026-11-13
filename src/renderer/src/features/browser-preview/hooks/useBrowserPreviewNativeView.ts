@@ -20,6 +20,7 @@ import {
   observeBrowserPreviewBounds,
   pageHasOccludingDialog,
 } from '../lib/browser-preview-native-bounds'
+import { useBrowserEngineReady } from './useBrowserEngineReady'
 
 interface NativeViewOptions extends Pick<BrowserPreviewPanelCallbacks, 'onClose' | 'onError'> {
   readonly addressRef: React.RefObject<HTMLInputElement | null>
@@ -77,6 +78,8 @@ export function useBrowserPreviewNativeView(options: NativeViewOptions) {
   const profileId = options.tab.profileId
   const presentationKey = `${ownerKey}\0${previewId}\0${profileId}`
   const [readyKey, setReadyKey] = useState<string | null>(null)
+  // Main refuses a preview before its engine is installed, so the view waits for it.
+  const engineReady = useBrowserEngineReady()
   useEffect(() => {
     latestRef.current = options
   }, [options])
@@ -102,7 +105,7 @@ export function useBrowserPreviewNativeView(options: NativeViewOptions) {
   )
 
   useEffect(() => {
-    if (ownerHandoffPending) return
+    if (ownerHandoffPending || !engineReady) return
     const latest = latestRef.current
     const viewport = latest.viewportRef.current
     if (viewport === null) return
@@ -174,6 +177,6 @@ export function useBrowserPreviewNativeView(options: NativeViewOptions) {
       clearBrowserPreviewExternalFallback(previewId)
       disposeBounds?.()
     }
-  }, [ownerKey, previewId, profileId, presentationKey, ownerHandoffPending])
+  }, [ownerKey, previewId, profileId, presentationKey, ownerHandoffPending, engineReady])
   return readyKey === presentationKey
 }

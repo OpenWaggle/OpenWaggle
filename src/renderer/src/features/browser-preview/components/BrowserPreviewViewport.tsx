@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import type { BrowserPreviewTab } from '../browser-preview-model'
 import { useBrowserPreviewViewportResize } from '../hooks/useBrowserPreviewViewportResize'
+import { BrowserEngineStatusOverlay } from './BrowserEngineStatusOverlay'
 import { BrowserPreviewViewportResizeHandles } from './BrowserPreviewViewportResizeHandles'
 
 interface BrowserPreviewViewportProps {
@@ -118,6 +119,7 @@ export function BrowserPreviewViewport({
           </div>
         </div>
       )}
+      <BrowserEngineStatusOverlay />
     </div>
   )
 }
