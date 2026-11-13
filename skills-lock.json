@@ -70,8 +70,8 @@
           "hash": "sha256-b3b9d6234098c865c2cc6cd8b6ef5a9d31ca6243688f29f38c1a47a21f2eb3e4"
         }
       ],
-      "hash": "sha256-42b395732a4e003428b9a89368a92aaa32f5f0ae2fb7891a452b16173fed3f5a",
-      "localEdits": "Rewritten as a tool-neutral guardrail policy for any agent runtime, with a section on how this repository enforces it; the upstream hook script for one agent is not vendored."
+      "hash": "sha256-1240752b18fd8d79659a86837cf06af3173b9bfa76eb7864af66648f012ee9fd",
+      "localEdits": "Rewritten as a tool-neutral guardrail policy for any agent runtime, with a section on how this repository enforces it, including the lease push that replays an agent's own ow/* PR branch onto main; the upstream hook script for one agent is not vendored."
     },
     "grill-me": {
       "upstream": [

@@ -20,6 +20,10 @@ the ancestry needed to recognize already-released upstream package syncs.
 
 `scripts/check-conventional-commits.ts` rejected a `mockup:` subject in CI after the agent pushed — the check was deterministic, ~1s, and documented nowhere agents read. Now `bun run verify` (commit policy vs the `origin/main` merge base + typecheck + lint + unit tests) runs in the husky pre-push hook for feature branches; `prepush:main` still guards pushes to `main`.
 
+## Agents replay their own PR branch instead of opening a new PR (November 2026)
+
+A large PR replaced by a new one on every main bump lost its number and review history. An agent may now rebase its own `ow/*` PR branch onto main and push it with `--force-with-lease=<ow ref>:<expected sha>` (`scripts/agent-guardrails/push-rules.ts`); the pre-push hook lets a rewrite through only under `refs/heads/ow/` and still runs `verify`. Re-review only `git range-diff origin/main <old-head> HEAD`.
+
 ## Filed under "CI is tiered behind a merge queue (ADR 0029, September 2026 — superseded by ADR 0033; see "Merge queue removed" below. Retained for history.)"
 
 Adding a reusable CI job requires a deliberate update to the stable job-name list,

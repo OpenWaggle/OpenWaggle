@@ -14,7 +14,7 @@ Turn the current branch's work into atomic commits, push it, and open a draft PR
 - Hooks always run. Never pass `--no-verify` or set `HUSKY=0`. When a hook fails, fix the cause and commit or push again. When the cause is outside the branch (a flaky test the diff does not touch, the network, the machine), stop and report it with the failing output.
 - Create the PR only through `bun run pr:create`, never `gh pr create` directly. The wrapper always opens a draft. Its base is `main` unless `--base` names another branch. It requires a body file built from `.github/pull_request_template.md`, refuses a branch that is not pushed, and runs the commit policy on the title.
 - The PR title becomes the squash commit subject, so it must describe the whole change. A PR that touches `packages/` needs a `feat`, `fix` or `revert` title (see `docs/agents/release.md`).
-- Force pushes are refused, with no prompt and no override: the `pre-push` hook rejects a push that drops commits from the remote, and `.pi/extensions/git-guardrails.ts` blocks `--force` and its variants. Fix history with a new commit.
+- Force pushes are refused, with no prompt and no override: the `pre-push` hook rejects a push that drops commits from the remote, and `.pi/extensions/git-guardrails.ts` blocks `--force` and its variants. Fix history with a new commit. The one exception: when main moves, replay your own `ow/*` branch onto it and lease-push the same branch (git-guardrails skill), so the PR keeps its number and reviews.
 
 ## Workflow
 

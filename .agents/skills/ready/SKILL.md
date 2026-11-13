@@ -11,7 +11,7 @@ Move a draft PR to ready for review once an independent reviewer has reviewed it
 
 - The reviewer is a fresh Hive Worker Session created from the `standards-reviewer` Agent definition (`.agents/agents/standards-reviewer.md`), with no memory of writing the code. It reviews against `.agents/standards.md`, reports only, and has no edit or write tools. Never review your own work and call it independent.
 - `bun run pr:ready` is the only way to mark ready. It refuses unless `--reviewed-sha` equals local `HEAD` and the PR head, runs `bun run check`, `test` and `build`, publishes the blast radius, posts the review evidence, then runs `gh pr ready`.
-- Any commit after a review makes it stale. Push, then review the new head.
+- Any commit after a review makes it stale. Push, then review the new head. After replaying the branch onto a moved main (a lease push to the same `ow/*` branch, see the git-guardrails skill), the new round reviews only the replay's difference: `git range-diff origin/main <old-head> HEAD`.
 - Hooks always run; never skip them. When a hook or the gate fails, fix the cause. When the cause is outside the branch, stop and report it.
 - Do not merge. The maintainer merges.
 

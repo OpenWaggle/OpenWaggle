@@ -130,7 +130,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native AB
 ## Git
 
 - Commit subjects are Conventional Commits: `feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `perf`, `ci`, `build` or `revert` (check `commits`, the `commit-msg` hook).
-- Hooks always run, and force pushes are refused: the `pre-push` hook refuses a push that drops commits, and `.pi/extensions/git-guardrails.ts` blocks skipping hooks and force pushing, with no prompt (`.agents/verification.md`).
+- Hooks always run, and force pushes are refused: the `pre-push` hook refuses a push that drops commits, and `.pi/extensions/git-guardrails.ts` blocks skipping hooks and force pushing, with no prompt. The exception is a lease push that replays an agent's own `ow/*` PR branch onto main (`.agents/verification.md`, git-guardrails skill).
 - Commit, push, reset, clean, checkout, restore or delete branches only when the maintainer approved that exact action, and never overwrite work you did not create (`AGENTS.md`).
 
 ## No cheating

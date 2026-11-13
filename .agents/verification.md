@@ -28,9 +28,9 @@ Husky runs three hooks (`.husky/`, logic in `scripts/git-hooks/`):
 
 - `pre-commit` formats the staged files with oxfmt and restages them. A file that also has unstaged changes is left alone and named.
 - `commit-msg` rejects a subject that is not a Conventional Commit (`scripts/check-conventional-commits.ts --message-file`).
-- `pre-push` refuses a push that drops commits from a remote ref, with no prompt or override, then runs `bun run verify` (`prepush:main` for a push to `main`). Opening or readying a PR is not gated.
+- `pre-push` refuses a push that drops commits from a remote ref outside `refs/heads/ow/`, with no prompt or override, then runs `bun run verify` (`prepush:main` for a push to `main`). Opening or readying a PR is not gated.
 
-The project Pi extension `.pi/extensions/git-guardrails.ts` (`scripts/agent-guardrails/`) blocks agents, without a prompt, from skipping the hooks (`--no-verify`, `git commit -n`, `HUSKY=0`, `core.hooksPath` changes by `git config`, `git -c` or `GIT_CONFIG_*`, editing `.git/config` or `.husky/_`, removing or emptying a hook script) and from force pushing. It reads compound commands, wrappers, nested shells and here-documents; a script piped into a shell is blocked because it cannot be read. When a hook fails, fix what it reports; if the cause is outside the task, stop and report it.
+The project Pi extension `.pi/extensions/git-guardrails.ts` (`scripts/agent-guardrails/`) blocks agents, without a prompt, from skipping the hooks (`--no-verify`, `git commit -n`, `HUSKY=0`, `core.hooksPath` changes by `git config`, `git -c` or `GIT_CONFIG_*`, editing `.git/config` or `.husky/_`, removing or emptying a hook script) and from force pushing. The one force push it allows is a lease push naming the expected sha of an agent's own `ow/*` PR branch, replayed onto main (git-guardrails skill). It reads compound commands, wrappers, nested shells and here-documents; a script piped into a shell is blocked because it cannot be read. When a hook fails, fix what it reports; if the cause is outside the task, stop and report it.
 
 ## Fallow And React Doctor
 
