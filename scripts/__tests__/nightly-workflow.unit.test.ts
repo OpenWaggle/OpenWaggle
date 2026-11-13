@@ -73,6 +73,20 @@ describe('nightly packaged canary workflow', () => {
     )
   })
 
+  // Regression: on Bun (JavaScriptCore) the cold 16 KiB p95 exceeded the hosted budget the
+  // V8-based app meets, so the benchmark measured the runtime instead of the highlighter.
+  it('runs the syntax benchmark on Node.js, the engine the app highlights on', () => {
+    const packageJson: unknown = JSON.parse(
+      fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf8'),
+    )
+    expect(packageJson).toMatchObject({
+      scripts: {
+        'benchmark:syntax':
+          'bun scripts/node-script-bundle.ts --run scripts/benchmarks/syntax-highlighting.ts --check',
+      },
+    })
+  })
+
   it('runs the unit tier west of UTC, opposite the zone every config pins', () => {
     const job = WORKFLOW.slice(
       WORKFLOW.indexOf('  unit-west-of-utc:'),

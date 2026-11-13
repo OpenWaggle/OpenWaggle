@@ -122,7 +122,7 @@
     "website:test": "bun run --filter @openwaggle/website test",
     "website:schemas": "bun scripts/generate-published-json-schemas.ts",
     "docs:generate": "bun scripts/generate-installed-docs.ts",
-    "benchmark:syntax": "bun scripts/benchmarks/syntax-highlighting.ts --check"
+    "benchmark:syntax": "bun scripts/node-script-bundle.ts --run scripts/benchmarks/syntax-highlighting.ts --check"
   },
   "packageManager": "bun@1.4.4",
   "repository": {
