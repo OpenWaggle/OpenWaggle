@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "cefVersion": "156.0.7+g47dbc1d+chromium-156.0.8078.17",
+  "assets": {
+    "darwin-arm64": {
+      "url": "https://example.invalid/openwaggle-cef/156.0.7+g47dbc1d+chromium-156.0.8078.17/cef-darwin-arm64.tar.xz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 1
+    },
+    "darwin-x64": {
+      "url": "https://example.invalid/openwaggle-cef/156.0.7+g47dbc1d+chromium-156.0.8078.17/cef-darwin-x64.tar.xz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 1
+    }
+  }
+}

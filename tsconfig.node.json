@@ -30,6 +30,8 @@
   },
   "include": [
     "src/main/**/*",
+    // The pinned CEF component the main bundle imports (cef-component/manifest.json).
+    "src/main/adapters/electrobun/cef-component/manifest.json",
     "src/preload/**/*",
     "src/shared/**/*",
     "packages/**/*.ts",
