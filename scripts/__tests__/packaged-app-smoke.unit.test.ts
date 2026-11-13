@@ -7,6 +7,7 @@ import {
   packagedAppMatchesHostArchitecture,
   packagedPtyProbeInvocation,
 } from '../packaged-app-smoke'
+import { copyPiPackageOutOfAsar } from '../packaged-pi-package-probe'
 
 describe('packaged app smoke', () => {
   it('discovers every macOS and unpacked platform app', async () => {
@@ -65,5 +66,36 @@ describe('packaged app smoke', () => {
       packagedAppMatchesHostArchitecture('/dist/mac-x64/OpenWaggle.app', 'darwin', 'x64'),
     ).toBe(true)
     expect(packagedAppMatchesHostArchitecture('/dist/linux-unpacked', 'linux', 'x64')).toBe(true)
+  })
+
+  it("copies only Pi's package directory out of the asar, at its node_modules path", async () => {
+    const target = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-copy-'))
+    const contents = new Map([
+      ['/node_modules/@earendil-works/pi-coding-agent/package.json', '{"name":"pi"}'],
+      [
+        '/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json',
+        '{}',
+      ],
+      ['/node_modules/@earendil-works/pi-coding-agent-extra/package.json', '{}'],
+      ['/out/main/index.js', ''],
+    ])
+    const archive = {
+      files: new Map([...contents.keys()].map((file) => [file, { size: 0, offset: 0 }])),
+      readFile: async (file: string) => Buffer.from(contents.get(file) ?? ''),
+    }
+    try {
+      expect(await copyPiPackageOutOfAsar(archive, target)).toBe(2)
+      const pi = path.join(target, 'node_modules', '@earendil-works', 'pi-coding-agent')
+      expect(await fs.readFile(path.join(pi, 'package.json'), 'utf8')).toBe('{"name":"pi"}')
+      await expect(
+        fs.stat(path.join(pi, 'dist', 'modes', 'interactive', 'theme', 'dark.json')),
+      ).resolves.toBeDefined()
+      expect(
+        (await fs.readdir(path.join(target, 'node_modules', '@earendil-works'))).sort(),
+      ).toEqual(['pi-coding-agent'])
+      await expect(fs.stat(path.join(target, 'out'))).rejects.toThrow()
+    } finally {
+      await fs.rm(target, { recursive: true, force: true })
+    }
   })
 })

@@ -20,6 +20,8 @@
     "scripts/measure-main-startup.ts",
     // Run through `conformance client --command "bun scripts/node-script-bundle.ts --run ..."` in test:mcp:conformance.
     "scripts/mcp-conformance-client.mts",
+    // scripts/packaged-app-smoke.ts runs it by path with Bun on the packaged copy of Pi.
+    "scripts/pi-package-assets-probe.ts",
     // scripts/pi-main-bundle-smoke.ts builds this config by path; its lib entry is the smoke entry.
     "scripts/support/pi-main-bundle-smoke.electron-vite.config.ts",
     "scripts/support/pi-main-bundle-smoke-entry.ts",
