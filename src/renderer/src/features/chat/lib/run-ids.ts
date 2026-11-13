@@ -13,6 +13,17 @@ const REQUESTED_WAGGLE_RUN_PREFIX = 'waggle-of-'
 /** The prefix of the start the Host bridge synthesizes for a Run it found in progress. */
 const REMOTE_SNAPSHOT_RUN_PREFIX = 'remote-snapshot:'
 
+/**
+ * What the renderer lists for a Run it learned of only from what it streamed: its `agent_start`
+ * was lost (`noteUnannounced`). It is another Run than those listed before it until its end names
+ * it, since Pi only streams after a start.
+ */
+const UNANNOUNCED_RUN = 'unannounced:'
+
+function isUnannouncedRun(runId: string | undefined) {
+  return runId === UNANNOUNCED_RUN
+}
+
 /** The Run a Run id settles as: the classic Run behind an agent-requested Waggle, or itself. */
 export function settlingRunId(runId: string) {
   return runId.startsWith(REQUESTED_WAGGLE_RUN_PREFIX)
@@ -43,6 +54,11 @@ export function createStartedRuns() {
       const started = bySession.get(sessionId) ?? restored
       const settling = settlingRunId(runId)
       const last = started.at(-1)
+      // The start of the Run already streaming, late (the bridge announcing it after a resync).
+      if (isUnannouncedRun(last)) {
+        bySession.set(sessionId, [...started.slice(0, -1), settling])
+        return false
+      }
       if (last === settling) {
         // The restored Run starting again (an auto-retry, Pi continuing it): still remembered.
         if (!bySession.has(sessionId)) bySession.set(sessionId, started)
@@ -59,11 +75,22 @@ export function createStartedRuns() {
      */
     end(sessionId: SessionId, runId: string | undefined) {
       const started = bySession.get(sessionId)
-      if (runId !== undefined && started && isUnnamedRunStart(started.at(-1) ?? '')) {
+      const last = started?.at(-1) ?? ''
+      if (runId !== undefined && started && (isUnnamedRunStart(last) || isUnannouncedRun(last))) {
         const named = settlingRunId(runId)
         const rest = started.slice(0, -1)
         bySession.set(sessionId, rest.at(-1) === named ? rest : [...rest, named])
       }
+    },
+    /**
+     * A Run streams in a Session the renderer holds as idle: its start was lost. It follows the
+     * Runs listed, so a late settlement of the one before it does not settle the Session; its end
+     * names it, as a start would have.
+     */
+    noteUnannounced(sessionId: SessionId) {
+      const started = bySession.get(sessionId) ?? []
+      if (isUnannouncedRun(started.at(-1))) return
+      bySession.set(sessionId, [...started, UNANNOUNCED_RUN])
     },
     /**
      * A Run settled (`undefined`: a settlement naming none, which settles the Session): whether it
@@ -79,7 +106,9 @@ export function createStartedRuns() {
       const named = started.indexOf(settlingRunId(runId))
       // A Run the renderer only saw start unnamed (its start was lost in a stall) settles under
       // its real id; a Run that never started (it failed before Pi did) settles the Session.
-      const index = named >= 0 ? named : unnamedStartBeforeNamed(started)
+      // A Run listed only as unannounced settles under its real id too.
+      const unnamed = named >= 0 ? named : unnamedStartBeforeNamed(started)
+      const index = unnamed < 0 && isUnannouncedRun(started.at(-1)) ? started.length - 1 : unnamed
       if (index < 0) return false
       const later = started.slice(index + 1)
       if (later.length === 0) bySession.delete(sessionId)

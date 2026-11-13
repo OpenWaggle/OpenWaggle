@@ -82,7 +82,7 @@ export function useBackgroundRunMonitor(): void {
         const runModel = payload.event.model?.trim()
         addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }
-      noteStreamingRun(payload.sessionId, payload.event, compactionOnlySessionIds)
+      noteStreamingRun(payload.sessionId, payload.event, compactionOnlySessionIds, startedRuns)
       if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
         if (payload.event.reason === 'manual') {
           compactionOnlySessionIds.add(payload.sessionId)
@@ -159,17 +159,22 @@ export function useBackgroundRunMonitor(): void {
 /**
  * The Run's start never reached this renderer (a resync lost it), yet the Run streams on: it is
  * active, or the chat would show its Session idle, and empty, until the Run settles. A manual
- * compaction alone made the Session busy before; a Run streaming there is a Run.
+ * compaction alone made the Session busy before; a Run streaming there is a Run. Listed after the
+ * Runs started, a late settlement of the one before does not settle it.
  */
 function noteStreamingRun(
   sessionId: SessionId,
   event: AgentTransportEvent,
   compactionOnlySessionIds: Set<string>,
+  startedRuns: ReturnType<typeof createStartedRuns>,
 ) {
   if (!isRunStreamingEvent(event)) return
   const store = useBackgroundRunStore.getState()
   if (store.hasActiveRun(sessionId) && !compactionOnlySessionIds.has(sessionId)) return
   compactionOnlySessionIds.delete(sessionId)
+  startedRuns.noteUnannounced(sessionId)
+  // The Session started: a first send's "Starting session" is over.
+  useFirstSendPendingStore.getState().clear(sessionId)
   const runModel = event.model?.trim()
   store.noteUnannouncedRun(sessionId, runModel ? SupportedModelId(runModel) : undefined)
 }

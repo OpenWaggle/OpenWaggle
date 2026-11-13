@@ -63,8 +63,8 @@ function missedSettlement(runId: string | null, active: string | null) {
 }
 
 /**
- * A Run start lost on its way to the renderer with no resync to announce it again (`loseNextStart`):
- * the bridge relayed a resync's snapshot without it, as when a worktree launch's buffer named no Run.
+ * A Run start lost on its way to the renderer with nothing to announce it again (`loseNextStart`),
+ * as when a resync's gap held it and the bridge did not announce the Run it found.
  */
 export function createStartLoss() {
   let losing = false

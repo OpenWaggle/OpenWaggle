@@ -3,6 +3,7 @@ import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore } from '../../state/background-run-store'
+import { useFirstSendPendingStore } from '../../state/first-send-pending-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
@@ -53,7 +54,8 @@ function emitAgentEvent(event: AgentEventPayload['event']) {
  * `agent_start`. A Session another agent launched streamed its whole Run into a chat that showed
  * nothing, because that start never reached the renderer: the Run was active on the Host, its
  * events kept arriving, and the chat hydrated it as idle from a transcript the Run had not saved
- * yet. Any event a Run streams now tells the renderer the Run is active.
+ * yet. A message or tool execution starting or updating now tells the renderer the Run is active;
+ * the end events that can follow the Run's last `agent_end` do not.
  */
 describe('useBackgroundRunMonitor without the Run start', () => {
   beforeEach(() => {
@@ -82,6 +84,21 @@ describe('useBackgroundRunMonitor without the Run start', () => {
     expect(state.runModelBySessionId.get(SESSION_ID)).toBe(RUN_MODEL)
     // The chat showing the Session hydrates it again, as running.
     expect(state.unannouncedRunNotices.get(SESSION_ID)).toBe(1)
+    unmount()
+  })
+
+  it('ends the first send’s "Starting session" when its Run streams without a start', () => {
+    useFirstSendPendingStore.getState().mark(SESSION_ID)
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+
+    emitAgentEvent({
+      type: 'message_start',
+      messageId: 'answer-1',
+      role: 'assistant',
+      timestamp: 1,
+    })
+
+    expect(useFirstSendPendingStore.getState().ids.has(SESSION_ID)).toBe(false)
     unmount()
   })
 

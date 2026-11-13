@@ -62,6 +62,45 @@ describe('createStartedRuns', () => {
     expect(runs.settle(SESSION, 'run-x')).toBe(false)
   })
 
+  it('takes a late settlement of the Run before one whose start was lost for an earlier one', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    runs.end(SESSION, 'run-2')
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
+  it('settles a Run known only from what it streamed under its real id', () => {
+    const runs = createStartedRuns()
+    runs.noteUnannounced(SESSION)
+    runs.noteUnannounced(SESSION)
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+    expect(runs.start(SESSION, 'run-2')).toBe(false)
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
+  it('names a Run whose start was lost by its end, even when it is the Run before continuing', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    // Pi continues run-1 and its start is lost; its end names it.
+    runs.noteUnannounced(SESSION)
+    runs.end(SESSION, 'run-1')
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+  })
+
+  it('takes a late start of a Run that already streamed for the same Run', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.start(SESSION, 'run-2')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
   it('names the classic Run a requested Waggle settles as', () => {
     expect(settlingRunId('waggle-of-run-1')).toBe('run-1')
     expect(settlingRunId('waggle-3')).toBe('waggle-3')

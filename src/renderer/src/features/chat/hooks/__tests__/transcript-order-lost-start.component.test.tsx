@@ -48,4 +48,50 @@ describe('transcript order when the Run start is lost', () => {
       (h) => h.endRun(),
     ])
   })
+
+  // The settlement of the Run before reaches the renderer after the next Run streamed (a slow
+  // bridge), with the next Run's start lost: it settles the earlier Run, not the Session.
+  it('keeps a Run whose start never arrived when the Run before settles late', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('two'),
+      (h) => h.settleRun(),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
+
+  it('keeps a background Run whose start never arrived when the Run before settles late', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.endRun({ settleLater: true, refetchLater: true }),
+      (h) => h.view('other'),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('two'),
+      (h) => h.settleRun(),
+      (h) => h.view('session'),
+      (h) => h.answer('three'),
+      (h) => h.endRun(),
+    ])
+  })
+
+  it('settles a Run that streamed again after its end lost its start', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.endRun({ continues: 'run-2' }),
+      (h) => h.answer('two'),
+      (h) => h.endRun(),
+    ])
+  })
 })

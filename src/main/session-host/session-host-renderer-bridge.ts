@@ -82,14 +82,20 @@ export function reconcileRemoteRunSnapshots(snapshots: readonly BackgroundRunSna
 }
 
 /**
- * Whether the bridge's buffer for the Session names no Run while the Host's does: the buffer came
- * from a worktree launch's progress, which streams before the Run starts, and the Run's start was
- * in the events the resync lost. The renderer never learned the Run was active, and its chat
- * showed nothing until the Run settled. An older Host's snapshot names no Run either; that one
- * was announced when the bridge first found it.
+ * Whether the bridge's buffer for the Session names no Run while the Host's does, and the Run is
+ * past its worktree launch: the buffer came from the launch's progress, which streams before the
+ * Run starts, and the Run's start was in the events the resync lost. The renderer never learned
+ * the Run was active, and its chat showed nothing until the Run settled. The Host names the Run
+ * from the moment it starts it, so during the launch the start is still to come, and it arrives
+ * live. An older Host's snapshot names no Run either; that one was announced when the bridge
+ * first found it.
  */
 function startNeverRelayed(relayed: string | undefined, snapshot: BackgroundRunSnapshot) {
-  return relayed === undefined && snapshot.runId !== undefined
+  return (
+    relayed === undefined &&
+    snapshot.runId !== undefined &&
+    snapshot.worktreeLaunch?.status !== 'running'
+  )
 }
 
 /** The hand-off of the Run the buffer held to the next, unless relayed already. */
