@@ -71,6 +71,24 @@ describe('Electrobun automation launch isolation', () => {
     expect(environment).not.toHaveProperty('OPENWAGGLE_QA_MAIN_WINDOW_RENDERER')
   })
 
+  it("keeps the window in the user's webview and the profile's instance lock without DevTools", () => {
+    const environment = buildElectrobunAppEnvironment({
+      userDataDir: '/tmp/shots',
+      cdpPort: CDP_PORT,
+      windowDevTools: false,
+      platform: 'darwin',
+    })
+
+    expect(environment).toMatchObject({ OPENWAGGLE_AUTOMATION: '1' })
+    for (const variable of [
+      'OPENWAGGLE_QA_MAIN_WINDOW_RENDERER',
+      'OPENWAGGLE_DISABLE_SINGLE_INSTANCE',
+      'ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT',
+    ]) {
+      expect(environment).not.toHaveProperty(variable)
+    }
+  })
+
   it('keeps a scratch home or Pi agent directory the caller chose', () => {
     expect(
       buildElectrobunAppEnvironment({

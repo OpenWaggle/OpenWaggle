@@ -5,6 +5,9 @@
  * of the same profile. The warm launch carries the turn's Session link, which the launcher hands to
  * the main process (vendor/electrobun patch 0006), and the window opens it. It drives the app with
  * the package proof's launcher and proofs (scripts/electrobun/ci/).
+
+ *
+ * macOS measures its WKWebView window without CDP (electrobun-bench-native-window.ts).
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -19,28 +22,25 @@ import {
   waitUntil,
 } from '../electrobun/ci/app-proof'
 import { proveBrowserPreview } from '../electrobun/ci/preview-proof'
-import {
-  type InstalledApp,
-  install,
-  installedApp,
-  processesNaming,
-} from '../electrobun/ci/installed-app'
+import { install, installedApp } from '../electrobun/ci/installed-app'
 import { directoryBytes } from '../electrobun-probe-host'
 import { configureFakeProvider, FAKE_MODEL_REFERENCE } from '../perf/lib/fake-openai-provider'
 import { STARTUP_TIMINGS_ENVIRONMENT_VARIABLE } from '../../src/main/session-host/session-host-launch-command'
-import { sampleAppMemory } from './app-processes'
 import type { BenchRun } from './bench-stats'
+import {
+  HOST_EXIT_TIMEOUT_MS,
+  hostRunning,
+  IDLE_MS,
+  measureWithoutDevTools,
+  memory,
+  step,
+  WINDOW_DEVTOOLS,
+} from './electrobun-bench-native-window'
 import { startupMarksSince } from './startup-marks'
 
-const IDLE_MS = 10_000
 const LAUNCH_TIMEOUT_MS = 120_000
-const HOST_EXIT_TIMEOUT_MS = 15_000
 /** What a user downloads to install: the DMG, the Windows installer and its zip, the AppImage. */
 const FRESH_INSTALL_ARTIFACT = /\.dmg$|-x64\.exe$|-setup\.zip$|\.AppImage$/u
-
-function step(message: string) {
-  console.log(`bench: ${message}`)
-}
 
 /**
  * The installed app in the shape the Electron install writes (electron-installed-app.ts). With
@@ -60,19 +60,6 @@ export async function installElectrobunApp(release: string, launcher?: string) {
     installedBytes: directoryBytes(app.installRoot),
     downloads,
   }
-}
-
-function memory(app: InstalledApp, pid: number | undefined) {
-  return sampleAppMemory({
-    rootPids: pid === undefined ? [] : [pid],
-    installPaths: [app.installRoot],
-  })
-}
-
-function hostRunning(app: InstalledApp) {
-  return processesNaming([app.installRoot]).some((row) =>
-    row.command.includes('session-host-internal'),
-  )
 }
 
 /** Quits the window, stops the Host, then waits for it to exit, as the Electron run does. */
@@ -116,6 +103,7 @@ export async function measureElectrobunRun(input: {
     provider.baseUrl,
   )
   try {
+    if (!WINDOW_DEVTOOLS) return await measureWithoutDevTools(context, profile)
     const cold = await startApp(context)
     step(
       `run ${String(input.index)} cold: renderer ${String(cold.spawnToRendererMs)} ms, backend ${String(cold.spawnToReadyMs)} ms`,

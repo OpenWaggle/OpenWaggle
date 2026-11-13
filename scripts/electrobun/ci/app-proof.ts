@@ -136,13 +136,11 @@ export async function startCiFakeProvider() {
   })
 }
 
-/** One Run through `openwaggle run`, then its Session opened in the window. */
-export async function proveFakeProviderRun(input: {
+/** One Run through `openwaggle run`: its Session id and how long the CLI took. */
+export async function runFakeProviderTurn(input: {
   readonly cli: Cli
-  readonly page: Page
   readonly project: string
   readonly model: string
-  readonly timeoutMs: number
 }) {
   const run = requireSuccess(
     'openwaggle run',
@@ -161,13 +159,25 @@ export async function proveFakeProviderRun(input: {
   if (!run.output.includes('42')) {
     throw new Error(`The Run did not print the answer:\n${run.output}`)
   }
+  return { sessionId, runMs: run.ms }
+}
+
+/** One Run through `openwaggle run`, then its Session opened in the window. */
+export async function proveFakeProviderRun(input: {
+  readonly cli: Cli
+  readonly page: Page
+  readonly project: string
+  readonly model: string
+  readonly timeoutMs: number
+}) {
+  const { sessionId, runMs } = await runFakeProviderTurn(input)
   await input.page.evaluate((id) => {
     window.location.hash = `#/sessions/${id}`
   }, sessionId)
   await waitUntil('the Session to show the answer', input.timeoutMs, () =>
     input.page.evaluate((answer) => document.body.innerText.includes(answer), FAKE_ANSWER),
   )
-  return { sessionId, runMs: run.ms }
+  return { sessionId, runMs }
 }
 
 function terminalText(page: Page) {

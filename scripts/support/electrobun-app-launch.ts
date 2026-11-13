@@ -15,6 +15,8 @@
  *   port (ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT, patch 0021), and the Browser previews'
  *   environment serves a second port, `previewCdpPort`. Moving the window into the previews'
  *   environment would add the GPU and network processes that environment keeps (patch 0013).
+ *   With `windowDevTools: false` the window renders as a user's does (WKWebView on macOS) with no
+ *   DevTools endpoint, for a bench that reads its startup marks and drives the app by its CLI.
  *
  * The launcher forwards its arguments to the main process; inputs that must reach the app before
  * its first line runs still travel as `OPENWAGGLE_*` variables.
@@ -100,6 +102,12 @@ export function buildElectrobunAppEnvironment(
     readonly cdpPort: number
     /** Windows: the Browser previews' DevTools port, apart from the window's (`cdpPort`). */
     readonly previewCdpPort?: number
+    /**
+     * False: the window in the webview a user's runs in, with no DevTools endpoint, and the
+     * profile's single-instance lock kept, so a second launch with a Session link hands it to this
+     * one as a clicked link does (the lock is per userData, so no other profile is affected).
+     */
+    readonly windowDevTools?: boolean
     readonly environment?: Readonly<Record<string, string>>
     readonly platform?: NodeJS.Platform
   },
@@ -109,9 +117,13 @@ export function buildElectrobunAppEnvironment(
     HOME: home.home,
     USERPROFILE: home.home,
     PI_CODING_AGENT_DIR: home.piAgentDir,
-    OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: input.userDataDir,
-    ...cefDevToolsEnvironment(input.cdpPort, input.previewCdpPort, input.platform),
+    ...(input.windowDevTools === false
+      ? { OPENWAGGLE_AUTOMATION: '1' }
+      : {
+          OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
+          ...cefDevToolsEnvironment(input.cdpPort, input.previewCdpPort, input.platform),
+        }),
   }
   return { ...buildSafeAppEnvironment(appControls), ...input.environment, ...appControls }
 }
@@ -179,6 +191,8 @@ export interface ElectrobunLaunchInput extends ScratchProfileInput {
   readonly appArguments?: readonly string[]
   /** Test-only child environment overrides applied after the safe inherited baseline. */
   readonly environment?: Readonly<Record<string, string>>
+  /** False: no DevTools endpoint on the window (buildElectrobunAppEnvironment). */
+  readonly windowDevTools?: boolean
   /** Each line the app writes to stdout or stderr. */
   readonly onLine?: (line: string) => void
 }
