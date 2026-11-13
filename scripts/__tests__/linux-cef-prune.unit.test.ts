@@ -46,7 +46,7 @@ describe('Linux CEF prune', () => {
     ])
   })
 
-  it('prunes the app under the build directory and keeps the rest of CEF', async () => {
+  it('prunes and strips the app under the build directory and keeps the rest of CEF', async () => {
     const root = buildDirectory([
       'OpenWaggle/bin/libcef.so',
       'OpenWaggle/bin/libvk_swiftshader.so',
@@ -57,11 +57,19 @@ describe('Linux CEF prune', () => {
       'OpenWaggle/bin/locales/de.pak',
       'OpenWaggle/Resources/app/node_modules/x/locales/de.pak',
     ])
-    expect(await pruneLinuxCef(root)).toEqual([
-      path.join('OpenWaggle', 'bin', 'libvk_swiftshader.so'),
-      path.join('OpenWaggle', 'bin', 'vk_swiftshader_icd.json'),
-      path.join('OpenWaggle', 'bin', 'locales', 'de.pak'),
-    ])
+    const stripped: string[] = []
+    const strip = async (file: string) => {
+      stripped.push(file)
+    }
+    expect(await pruneLinuxCef(root, strip)).toEqual({
+      removed: [
+        path.join('OpenWaggle', 'bin', 'libvk_swiftshader.so'),
+        path.join('OpenWaggle', 'bin', 'vk_swiftshader_icd.json'),
+        path.join('OpenWaggle', 'bin', 'locales', 'de.pak'),
+      ],
+      stripped: [path.join('OpenWaggle', 'bin', 'libcef.so')],
+    })
+    expect(stripped).toEqual([path.join(root, 'OpenWaggle', 'bin', 'libcef.so')])
     expect(listed(root)).toEqual(
       [
         'OpenWaggle/Resources/app/node_modules/x/locales/de.pak',

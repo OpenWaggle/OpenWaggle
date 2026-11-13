@@ -12,9 +12,17 @@
  *   back to `en-US.pak` when the system locale has no pack. A pack holds Chromium's own strings
  *   (context menus, dialogs) and its default Accept-Language, so on a system in another language a
  *   Browser preview's page now asks for English first.
+ *
+ * libcef.so also ships unstripped: its static symbol table and strings are about 195 of its 472 MB.
+ * Nothing loads them (the dynamic symbols the launcher and the wrapper link against stay), so it
+ * is stripped as distributions strip shared libraries (`strip --strip-unneeded`, GNU binutils).
  */
+import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { promisify } from 'node:util'
+
+const run = promisify(execFile)
 
 const CEF_LIBRARY = 'libcef.so'
 const SWIFTSHADER_FILES = ['libvk_swiftshader.so', 'vk_swiftshader_icd.json'] as const
@@ -49,9 +57,17 @@ export function unusedCefFiles(input: {
   return [...swiftshader, ...locales]
 }
 
-/** Removes the unused CEF files of every Linux app under `buildDirectory`; returns what it removed. */
-export async function pruneLinuxCef(buildDirectory: string) {
+async function stripSharedLibrary(file: string) {
+  await run('strip', ['--strip-unneeded', file])
+}
+
+/**
+ * Removes the unused CEF files of every Linux app under `buildDirectory` and strips its libcef.so;
+ * returns what it removed and stripped.
+ */
+export async function pruneLinuxCef(buildDirectory: string, strip = stripSharedLibrary) {
   const removed: string[] = []
+  const stripped: string[] = []
   for (const directory of await cefDirectories(buildDirectory)) {
     const files = await fs.readdir(directory)
     const locales = await fs.readdir(path.join(directory, LOCALES_DIRECTORY)).catch(() => [])
@@ -59,6 +75,9 @@ export async function pruneLinuxCef(buildDirectory: string) {
       await fs.rm(file, { force: true })
       removed.push(path.relative(buildDirectory, file))
     }
+    const library = path.join(directory, CEF_LIBRARY)
+    await strip(library)
+    stripped.push(path.relative(buildDirectory, library))
   }
-  return removed
+  return { removed, stripped }
 }

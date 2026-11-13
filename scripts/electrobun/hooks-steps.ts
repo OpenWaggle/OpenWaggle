@@ -108,8 +108,11 @@ export async function electrobunPostBuild(environment: NodeJS.ProcessEnv) {
   }
   if (os === 'win') return signWindows([buildDirectory], environment)
   if (os === 'linux') {
-    const removed = await pruneLinuxCef(buildDirectory)
-    return [`removed ${String(removed.length)} unused CEF files (linux-cef-prune.ts)`]
+    const { removed, stripped } = await pruneLinuxCef(buildDirectory)
+    return [
+      `removed ${String(removed.length)} unused CEF files (linux-cef-prune.ts)`,
+      ...stripped.map((file) => `stripped ${file}`),
+    ]
   }
   return []
 }
