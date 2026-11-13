@@ -8,6 +8,7 @@ import { parseSessionAgentCallerId } from '../domain/session-control/root-sessio
 import { SessionControlRepositoryError } from '../errors'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
 import { liveCallerMessageBlockReason } from './session-follow-up-authorization'
+import { revisionPendingForSubmittingRun } from './sqlite-delegation-revision-owed'
 import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { updateDelegationCoordination } from './sqlite-session-delegation-coordination'
@@ -118,6 +119,9 @@ function submitDelegation(
       ['working', 'waiting', 'needs_attention', 'revision_requested'].includes(contract.state) ||
       (yield* wokenAfterResult(sql, input.callerId, contract))
     if (!contributable) return rejectedDelegationOutcome(input, 'delegation_not_contributable')
+    if (yield* revisionPendingForSubmittingRun(sql, input.callerId, contract)) {
+      return rejectedDelegationOutcome(input, 'delegation_revision_pending')
+    }
     if (command.summary.trim().length === 0) {
       return rejectedDelegationOutcome(input, 'submission_empty')
     }

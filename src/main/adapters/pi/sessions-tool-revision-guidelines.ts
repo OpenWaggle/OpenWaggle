@@ -15,7 +15,7 @@ export const REVISION_STARTS_WORKER_RUN = "(it starts the Worker's Run with the 
 
 /** For a Worker, in `help`. */
 const REVISION_ARRIVES =
-  'A revision request from your parent arrives as its Follow-up starting "OpenWaggle Delegation revision request", naming delegationId, submissionRevision and feedback; address the feedback and submit a new revision.'
+  'A revision request from your parent arrives as its Follow-up starting "OpenWaggle Delegation revision request", naming delegationId, submissionRevision and feedback; address the feedback and submit a new revision. A Run that started before the request may not submit while it waits for your next Run (delegation_revision_pending); end that turn.'
 
 /** The full revision rules for `help`, for the review actions this Session may use. */
 export function revisionGuideline(permits: (action: string) => boolean) {

@@ -52,7 +52,8 @@ export function hiveHostLayer(databasePath: string) {
       nextFollowUpId: Effect.succeed(FollowUpId('follow-up-unused')),
       nextReportId: Effect.succeed(ReportId('report-unused')),
       nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
-      now: Effect.succeed(5000),
+      // The Host's clock, as in production: Delegation commands and Runs are ordered by it.
+      now: Effect.sync(() => Date.now()),
     }),
     Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
       deliverPendingToActiveRun: () => Effect.succeed(false),

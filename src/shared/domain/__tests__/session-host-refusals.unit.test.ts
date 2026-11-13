@@ -96,6 +96,7 @@ const RELEASED_REFUSAL_KINDS: Readonly<Record<SessionHostErrorKind, readonly str
     'delegation_not_contributable',
     'delegation_not_reviewable',
     'delegation_operation_invalid',
+    'delegation_revision_pending',
     'delegation_terminal',
     'delegation_workspace_missing',
     'follow_up_already_exists',

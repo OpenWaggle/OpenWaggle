@@ -204,7 +204,7 @@ OpenWaggle then queues a follow-up on the worker from whoever made the change. T
 | `feedback` | The feedback, or the reason for a reopen or a task change. |
 
 - An idle worker starts a run on it straight away.
-- A busy worker gets it after its current run. The reply of that current run does not count as the new revision. The reply of the run that reads the feedback does.
+- A busy worker gets it after its current run. The reply of that current run does not count as the new revision. The reply of the run that reads the feedback does. A `delegation_submit` from that current run is refused with `delegation_revision_pending` (kind `conflict`) while the request waits, unless the request was promoted into it.
 - `delegation_amend` or `delegation_dependency` on a worker that is still on the task, such as one that is `working` or already revising, queues nothing. The new task reaches its current run, or its next one.
 - It is a follow-up from the reviewer, so the queue rules are the ones for that reviewer's other follow-ups.
 

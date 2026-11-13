@@ -1,8 +1,11 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import * as Effect from 'effect/Effect'
 import {
   DELEGATION_REVISION_KEY_PREFIX,
   DELEGATION_REVISION_OPERATIONS,
 } from '../domain/session-control/delegation-revision-follow-up'
+import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
+import type { DelegationContractRow } from './sqlite-session-delegation-support'
 
 /**
  * SQL (a 0/1 value) for whether the Worker of the `contracts` row is owed a revision request
@@ -20,6 +23,33 @@ import {
  * such as a retry after a failed revision Run, is never held back.
  */
 export function revisionFollowUpOwedSql(sql: SqlClient.SqlClient, runId: string) {
+  return revisionPendingSql(sql, runId, { orQueued: false })
+}
+
+/**
+ * `revisionFollowUpOwedSql`, or the revision request is queued on the Worker behind the Run
+ * `runId`: what keeps that Run from submitting its result as the revision itself. A request
+ * promoted into the Run is no longer queued, so that Run may submit.
+ */
+export function revisionPendingForRunSql(sql: SqlClient.SqlClient, runId: string) {
+  return revisionPendingSql(sql, runId, { orQueued: true })
+}
+
+function revisionPendingSql(
+  sql: SqlClient.SqlClient,
+  runId: string,
+  options: { readonly orQueued: boolean },
+) {
+  const revisionKey = sql`${DELEGATION_REVISION_KEY_PREFIX} || sendback.operation || ${':'}
+    || sendback.idempotency_key`
+  const queued = options.orQueued
+    ? sql`OR EXISTS (
+        SELECT 1 FROM session_follow_ups AS queued
+        WHERE queued.session_id = contracts.child_session_id
+          AND json_extract(queued.intent_json, '$.callerId') = sendback.caller_id
+          AND json_extract(queued.intent_json, '$.idempotencyKey') = ${revisionKey}
+      )`
+    : sql``
   return sql`(
     contracts.state = ${'revision_requested'}
     AND EXISTS (
@@ -33,18 +63,41 @@ export function revisionFollowUpOwedSql(sql: SqlClient.SqlClient, runId: string)
           sendback.operation IN ${sql.in(['delegation-request-revision', 'delegation-reopen'])}
           OR json_extract(sendback.outcome_json, '$.revisionRequest') IS NOT NULL
         )
-        AND sendback.created_at > COALESCE(
-          (SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}), 0
+        -- A Run with no row (not one the Host started) is never held back.
+        AND sendback.created_at > (
+          SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}
         )
-        AND NOT EXISTS (
-          SELECT 1 FROM session_operations AS revision
-          WHERE revision.target_scope = contracts.child_session_id
-            AND revision.operation = ${'follow-up'}
-            AND revision.caller_id = sendback.caller_id
-            AND revision.idempotency_key =
-              ${DELEGATION_REVISION_KEY_PREFIX} || sendback.operation || ${':'}
-                || sendback.idempotency_key
+        AND (
+          NOT EXISTS (
+            SELECT 1 FROM session_operations AS revision
+            WHERE revision.target_scope = contracts.child_session_id
+              AND revision.operation = ${'follow-up'}
+              AND revision.caller_id = sendback.caller_id
+              AND revision.idempotency_key = ${revisionKey}
+          )
+          ${queued}
         )
     )
   )`
+}
+
+/**
+ * Whether the Worker's agent submits from a Run that started before its parent sent it back to
+ * work, while the revision request waits for the Worker's next Run (#454). That Run never saw the
+ * feedback, and taking its result would leave the revising Run unable to submit, so the result
+ * waits for the revising Run, as settlement does for a reply (`revisionPendingForRunSql`).
+ */
+export function revisionPendingForSubmittingRun(
+  sql: SqlClient.SqlClient,
+  callerId: string,
+  contract: DelegationContractRow,
+) {
+  const agent = parseSessionAgentCallerId(callerId)
+  if (contract.state !== 'revision_requested' || agent?.sessionId !== contract.child_session_id) {
+    return Effect.succeed(false)
+  }
+  return sql<{ readonly pending: number }>`
+    SELECT ${revisionPendingForRunSql(sql, agent.runId)} AS pending
+    FROM delegation_contracts AS contracts WHERE contracts.id = ${contract.id}
+  `.pipe(Effect.map((rows) => rows[0]?.pending === 1))
 }

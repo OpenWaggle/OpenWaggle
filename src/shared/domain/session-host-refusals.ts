@@ -171,6 +171,9 @@ export const SESSION_HOST_REFUSAL_KINDS = {
   delegation_not_amendable: 'conflict',
   delegation_not_cancellable: 'conflict',
   delegation_not_contributable: 'conflict',
+  // A Worker Run that started before its parent asked for a revision may not submit while that
+  // request waits for the Worker's next Run (#454).
+  delegation_revision_pending: 'conflict',
   delegation_not_reviewable: 'conflict',
   delegation_operation_invalid: 'conflict',
   delegation_terminal: 'conflict',

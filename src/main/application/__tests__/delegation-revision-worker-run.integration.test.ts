@@ -146,6 +146,18 @@ describe('a Delegation revision request reaches the Worker through the Session H
         })
         const workWhileBusy = yield* workerWork(sql)
         const runsWhileBusy = recorder.runs.length
+        // The current Run's agent, which never saw the feedback, tries to submit anyway.
+        const staleSubmit = yield* controlCommandAs(
+          `session-agent:worker:${recorder.runs[0]?.runId ?? ''}`,
+          'worker-stale-submit',
+          {
+            operation: 'delegation-submit',
+            sessionId: 'worker',
+            delegationId: 'delegation-worker',
+            summary: 'Done, without the error path.',
+            evidence: [],
+          },
+        )
         yield* Deferred.succeed(holdFirstRun, undefined)
         yield* waitFor(() => recorder.runs.length === 2)
         yield* waitForSessionIdle('worker')
@@ -154,6 +166,7 @@ describe('a Delegation revision request reaches the Worker through the Session H
           revision: revision.outcome,
           workWhileBusy,
           runsWhileBusy,
+          staleSubmit: staleSubmit.outcome,
           delegation: yield* workerDelegation(sql),
           workAfter: yield* workerWork(sql),
         }
@@ -173,6 +186,10 @@ describe('a Delegation revision request reaches the Worker through the Session H
     expectRevisionPrompt(result.workWhileBusy.queuedTexts[0], {
       submissionRevision: 1,
       feedback: FEEDBACK,
+    })
+    expect(result.staleSubmit).toMatchObject({
+      effect: 'rejected',
+      code: 'delegation_revision_pending',
     })
     expect(recorder.runs[1]?.sessionId).toBe('worker')
     expectRevisionPrompt(recorder.runs[1]?.intent.text, {
