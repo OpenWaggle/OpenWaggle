@@ -26,20 +26,25 @@ by its webviews and gone when the last one closes, and an empty partition
 an InPrivate profile of its own. Names that are not short lowercase ASCII
 become a hash (webview2_chromium_environment.h, with a test). The
 environment starts with the first such webview, not at launch.
+
+The main environment, which serves only the app's own views, runs its GPU
+and network service in its browser process (--in-process-gpu,
+NetworkServiceInProcess2): each was a helper process of about 40-45 MB.
+The Chromium environment, which loads arbitrary sites, keeps them apart.
 ---
- .../shared/webview2_chromium_environment.h    |  96 +++++++++++++++++
- .../webview2_chromium_environment_test.cpp    |  50 +++++++++
- package/src/native/win/nativeWrapper.cpp      | 101 +++++++++++++++---
- 3 files changed, 235 insertions(+), 12 deletions(-)
+ .../shared/webview2_chromium_environment.h    | 108 ++++++++++++++++++
+ .../webview2_chromium_environment_test.cpp    |  60 ++++++++++
+ package/src/native/win/nativeWrapper.cpp      | 101 ++++++++++++++--
+ 3 files changed, 257 insertions(+), 12 deletions(-)
  create mode 100644 package/src/native/shared/webview2_chromium_environment.h
  create mode 100644 package/src/native/shared/webview2_chromium_environment_test.cpp
 
 diff --git a/package/src/native/shared/webview2_chromium_environment.h b/package/src/native/shared/webview2_chromium_environment.h
 new file mode 100644
-index 0000000..0c29cd2
+index 0000000..18db0dc
 --- /dev/null
 +++ b/package/src/native/shared/webview2_chromium_environment.h
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,108 @@
 +#ifndef ELECTROBUN_WEBVIEW2_CHROMIUM_ENVIRONMENT_H
 +#define ELECTROBUN_WEBVIEW2_CHROMIUM_ENVIRONMENT_H
 +
@@ -73,6 +78,18 @@ index 0000000..0c29cd2
 +/** The base arguments of every WebView2 browser process Electrobun starts. */
 +inline constexpr std::wstring_view kWebView2BrowserArguments =
 +    L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
++
++/**
++ * The browser arguments of the main environment, which serves only the app's
++ * own views. Its GPU and network service run in the browser process, as the
++ * app's own windowless processes run them on the other shells: the views come
++ * from the app, so a crash there was already the app's, and each separate
++ * helper process costs about 40-45 MB. The Chromium environment, which loads
++ * arbitrary sites in the Browser preview, keeps Chromium's process isolation.
++ */
++inline constexpr std::wstring_view kWebView2MainBrowserArguments =
++    L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
++    L" --in-process-gpu --enable-features=NetworkServiceInProcess2";
 +
 +/** The browser arguments of the Chromium environment; port 0 serves no DevTools. */
 +inline std::wstring buildWebView2ChromiumBrowserArguments(int remoteDebuggingPort) {
@@ -138,10 +155,10 @@ index 0000000..0c29cd2
 +#endif
 diff --git a/package/src/native/shared/webview2_chromium_environment_test.cpp b/package/src/native/shared/webview2_chromium_environment_test.cpp
 new file mode 100644
-index 0000000..3fc085a
+index 0000000..4a25973
 --- /dev/null
 +++ b/package/src/native/shared/webview2_chromium_environment_test.cpp
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,60 @@
 +#include <cassert>
 +#include <iostream>
 +#include <string>
@@ -161,6 +178,16 @@ index 0000000..3fc085a
 +    assert(buildWebView2ChromiumBrowserArguments(49152) ==
 +        L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=49152");
 +    assert(buildWebView2ChromiumBrowserArguments(49152).find(L"web-security") == std::wstring::npos);
++
++    // The main environment folds its GPU and network helpers into the browser
++    // process and serves no DevTools; the Chromium environment keeps both.
++    const std::wstring main(electrobun::kWebView2MainBrowserArguments);
++    assert(main.rfind(electrobun::kWebView2BrowserArguments, 0) == 0);
++    assert(main.find(L" --in-process-gpu") != std::wstring::npos);
++    assert(main.find(L" --enable-features=NetworkServiceInProcess2") != std::wstring::npos);
++    assert(main.find(L"remote-debugging") == std::wstring::npos);
++    assert(main.find(L"web-security") == std::wstring::npos);
++    assert(buildWebView2ChromiumBrowserArguments(49152).find(L"in-process") == std::wstring::npos);
 +
 +    // persist:* is an on-disk profile; other names are InPrivate profiles.
 +    const auto persistent = buildWebView2ChromiumProfile(L"persist:openwaggle-browser-preview", 3);
@@ -193,7 +220,7 @@ index 0000000..3fc085a
 +    return 0;
 +}
 diff --git a/package/src/native/win/nativeWrapper.cpp b/package/src/native/win/nativeWrapper.cpp
-index 00051d1..e6088c9 100644
+index 00051d1..c2b7363 100644
 --- a/package/src/native/win/nativeWrapper.cpp
 +++ b/package/src/native/win/nativeWrapper.cpp
 @@ -82,6 +82,7 @@
@@ -328,7 +355,7 @@ index 00051d1..e6088c9 100644
 +            // DevTools, on the app's remote debugging port.
 +            const std::wstring browserArguments = chromiumEnvironment
 +                ? electrobun::buildWebView2ChromiumBrowserArguments(webView2ChromiumRemoteDebuggingPort())
-+                : std::wstring(electrobun::kWebView2BrowserArguments);
++                : std::wstring(electrobun::kWebView2MainBrowserArguments);
 +            options->put_AdditionalBrowserArguments(browserArguments.c_str());
  
              // Get the interface that supports custom scheme registration
