@@ -43,6 +43,26 @@ describe('extension frame bootstrap validation', () => {
     ).toEqual({ type: 'configure', config: CONFIG })
   })
 
+  // Regression: the mount context schema once left out `sessionId`, so the decode stripped it and
+  // every frame-mounted extension saw `context.sessionId === undefined`.
+  it('keeps the Session id and surface payload of a configure message', () => {
+    const config = {
+      ...CONFIG,
+      context: {
+        ...CONFIG.context,
+        surface: { ...CONFIG.context.surface, payload: { draft: 'hello', count: 2 } },
+        sessionId: 'session-1',
+      },
+    } satisfies ExtensionFrameConfig
+
+    const message = decodedParentMessage(
+      { channel: EXTENSION_FRAME_MESSAGE_CHANNEL, frameId: 'frame-1', type: 'configure', config },
+      'frame-1',
+    )
+
+    expect(message).toEqual({ type: 'configure', config })
+  })
+
   it('rejects legacy configure messages that only send a theme scheme', () => {
     const legacyConfig = {
       ...CONFIG,
