@@ -11,7 +11,7 @@ export const requireBrowserEngineEffect = Effect.tryPromise({
 })
 
 /** The browser engine's install (a download on macOS) and its status for every window. */
-export function registerBrowserEngineHandlers(): void {
+export function registerBrowserEngineHandlers() {
   browserEngine.onStatus((status) => broadcastToWindows('browser-engine:status-changed', status))
   typedHandle('browser-engine:ensure', () => Effect.promise(() => browserEngine.ensure()))
   typedHandle('browser-engine:get-status', () => Effect.sync(() => browserEngine.status()))

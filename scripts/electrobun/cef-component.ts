@@ -103,7 +103,7 @@ export async function buildCefComponent(input: {
   return result
 }
 
-function parseArch(value: string | undefined): CefComponentArch {
+function parseArch(value: string | undefined) {
   if (value === 'arm64' || value === 'x64') return value
   throw new Error(`--arch must be arm64 or x64, not ${String(value)}.`)
 }

@@ -197,6 +197,7 @@ describe('Electrobun Browser preview', () => {
       ],
     )
   })
+
   it('keeps each partition loaded while the app runs where closing its last view unloads it', async () => {
     const harness = setup({ unloadsPartitionWithLastView: true })
     openPreview(harness, 'p-1')
@@ -234,6 +235,7 @@ describe('Electrobun Browser preview', () => {
     openPreview(harness)
     await settle()
     expect(harness.cef.views().map((view) => view.options.url)).not.toContain('about:blank')
+  })
 
   it('creates no CEF view while the browser engine is not ready', () => {
     const checking = { type: 'checking' } as const

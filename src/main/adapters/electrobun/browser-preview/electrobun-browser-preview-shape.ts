@@ -20,14 +20,14 @@ import type { BrowserPreviewViewsShape } from '../../../ports/desktop-shell/brow
  * The host with every view creation behind the engine: on macOS a CEF view created without CEF
  * installed silently becomes a system webview, which has no DevTools endpoint.
  */
-function engineGatedHost(host: ElectrobunPreviewHost): ElectrobunPreviewHost {
+function engineGatedHost(host: ElectrobunPreviewHost) {
   return {
     ...host,
     createView: (options) => {
       assertBrowserEngineReady(host.engine)
       return host.createView(options)
     },
-  }
+  } satisfies ElectrobunPreviewHost
 }
 
 /**

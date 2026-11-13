@@ -8,8 +8,8 @@ const engine = vi.hoisted(() => {
   const listeners: ((status: BrowserEngineStatus) => void)[] = []
   return {
     listeners,
-    status: (): BrowserEngineStatus => ({ type: 'checking' }),
-    ensure: async (): Promise<BrowserEngineStatus> => {
+    status: () => ({ type: 'checking' }),
+    ensure: async () => {
       for (const listener of listeners) listener({ type: 'installing' })
       return { type: 'failed', reason: 'integrity', message: 'Checksum mismatch.' }
     },

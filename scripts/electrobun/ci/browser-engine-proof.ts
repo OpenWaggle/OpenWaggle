@@ -1,15 +1,11 @@
 import type { Page } from '@playwright/test'
-import type { BrowserEngineStatus } from '@shared/types/browser-engine'
 
 /**
  * Installs the Browser preview's engine through the app's own IPC, as opening a preview panel
  * does: on a fresh macOS install that downloads the CEF component. Resolves to `ready` or throws
  * the failed status, or a timeout after `timeoutMs`.
  */
-export async function ensureBrowserEngineWithin(
-  page: Page,
-  timeoutMs: number,
-): Promise<BrowserEngineStatus> {
+export async function ensureBrowserEngineWithin(page: Page, timeoutMs: number) {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(

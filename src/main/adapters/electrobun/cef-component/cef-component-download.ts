@@ -122,7 +122,7 @@ async function append(file: fs.FileHandle, chunk: Uint8Array) {
  * Streams the archive to `destination`, hashing it as it arrives, and fails closed: a response
  * that is longer, shorter or hashes differently than the manifest pins is rejected.
  */
-export async function downloadCefArchive(download: CefArchiveDownload): Promise<void> {
+export async function downloadCefArchive(download: CefArchiveDownload) {
   const watchdog = new StallWatchdog(download.stallMs ?? CEF_DOWNLOAD_STALL_MS)
   try {
     await receive(download, watchdog)

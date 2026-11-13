@@ -20,13 +20,13 @@ function sha256(data: Uint8Array) {
   return createHash('sha256').update(data).digest('hex')
 }
 
-function manifestFor(data: Uint8Array, size = data.byteLength): CefComponentManifest {
+function manifestFor(data: Uint8Array, size = data.byteLength) {
   const asset = { url: 'https://downloads.test/cef.tar.xz', sha256: sha256(data), size }
   return {
     schemaVersion: 1,
     cefVersion: CEF_VERSION,
     assets: { 'darwin-arm64': asset, 'darwin-x64': asset },
-  }
+  } satisfies CefComponentManifest
 }
 
 function streamed(data: Uint8Array) {
@@ -69,7 +69,7 @@ async function harness(overrides: Partial<CefComponentInstallerDependencies> = {
   return { home, directory, root: path.join(directory, ROOT_NAME), fetch, engine, statuses }
 }
 
-async function record(root: string): Promise<unknown> {
+async function record(root: string) {
   return JSON.parse(await fs.readFile(path.join(root, 'component.json'), 'utf8'))
 }
 

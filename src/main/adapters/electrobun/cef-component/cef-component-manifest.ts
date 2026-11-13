@@ -49,19 +49,16 @@ export interface CefComponentTarget {
 }
 
 /** Decodes the committed manifest; it throws the issues when a build wrote a malformed one. */
-export function decodeCefComponentManifest(value: unknown): CefComponentManifest {
+export function decodeCefComponentManifest(value: unknown) {
   return decodeUnknownExactOrThrow(CefComponentManifestSchema, value)
 }
 
 /** The macOS architectures the component exists for; `null` for any other. */
-export function cefComponentArch(arch: string): CefComponentArch | null {
+export function cefComponentArch(arch: string) {
   if (arch === 'arm64' || arch === 'x64') return arch
   return null
 }
 
-export function cefComponentTarget(
-  manifest: CefComponentManifest,
-  arch: CefComponentArch,
-): CefComponentTarget {
+export function cefComponentTarget(manifest: CefComponentManifest, arch: CefComponentArch) {
   return { cefVersion: manifest.cefVersion, arch, asset: manifest.assets[`darwin-${arch}`] }
 }

@@ -49,7 +49,7 @@ async function isPresent(file: string, mode: number) {
 }
 
 /** The first file CEF needs that `directory` lacks, or `null` when it has them all. */
-export async function missingCefComponentFile(directory: string): Promise<string | null> {
+export async function missingCefComponentFile(directory: string) {
   if (!(await isPresent(path.join(directory, CEF_FRAMEWORK_BINARY), constants.R_OK))) {
     return CEF_FRAMEWORK_BINARY
   }

@@ -18,7 +18,6 @@ import type { PrepareBrowserPreviewAnnotation } from '../browser-preview/annotat
 import { BrowserPreviewArtifactStorage } from '../browser-preview/browser-preview-artifact-storage'
 import type { AppPathsShape } from '../../ports/desktop-shell/app-paths'
 import type { BrowserEngineShape } from '../../ports/desktop-shell/browser-engine'
-import type { BrowserPreviewViewsShape } from '../../ports/desktop-shell/browser-preview-views'
 import type { ClipboardShape } from '../../ports/desktop-shell/clipboard'
 import type { OsShellShape } from '../../ports/desktop-shell/os-shell'
 

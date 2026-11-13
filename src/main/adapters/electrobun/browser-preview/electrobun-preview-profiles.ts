@@ -133,7 +133,7 @@ export class ElectrobunPreviewProfiles {
     return ready
   }
 
-  private async attach(profileId: string): Promise<ElectrobunPreviewGuest> {
+  private async attach(profileId: string) {
     const marker = newBrowserPreviewMarker()
     const view = this.host.createView({
       windowId: this.host.maintenanceWindowId(),

@@ -53,7 +53,7 @@ async function exists(file: string) {
   }
 }
 
-function resolveTarget(dependencies: CefComponentInstallerDependencies): CefComponentTarget {
+function resolveTarget(dependencies: CefComponentInstallerDependencies) {
   const arch = cefComponentArch(dependencies.arch)
   if (arch === null) {
     throw new CefComponentError(
@@ -150,7 +150,7 @@ async function install({ dependencies, target, directory, root, report }: Instal
 export async function ensureCefComponent(
   dependencies: CefComponentInstallerDependencies,
   report: Report,
-): Promise<void> {
+) {
   if (dependencies.platform !== 'darwin') return
   if (await exists(dependencies.bundledFramework)) return
   const target = resolveTarget(dependencies)

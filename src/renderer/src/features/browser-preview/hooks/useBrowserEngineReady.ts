@@ -10,7 +10,7 @@ import {
  * Whether the Browser preview's engine is installed. Mounting a preview starts the install when it
  * is missing and follows its progress, which the viewport shows until the preview can open.
  */
-export function useBrowserEngineReady(): boolean {
+export function useBrowserEngineReady() {
   const ready = useBrowserEngineStore((state) => state.status.type === 'ready')
   useEffect(() => api.onBrowserEngineStatus(setBrowserEngineStatus), [])
   useEffect(() => {

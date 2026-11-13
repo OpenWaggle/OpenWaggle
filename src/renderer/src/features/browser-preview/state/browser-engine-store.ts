@@ -22,7 +22,7 @@ let pending: Promise<void> | null = null
  * Asks main to install the engine if it is missing (a download on macOS). One request at a time;
  * progress arrives through `browser-engine:status-changed`. After a failure it is the retry.
  */
-export function ensureBrowserEngine(): Promise<void> {
+export function ensureBrowserEngine() {
   if (useBrowserEngineStore.getState().status.type === 'ready') return Promise.resolve()
   pending ??= api
     .ensureBrowserEngine()
