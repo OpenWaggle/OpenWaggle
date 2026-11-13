@@ -87,8 +87,9 @@ export function reconcileRemoteRunSnapshots(snapshots: readonly BackgroundRunSna
  * Run starts, and the Run's start was in the events the resync lost. The renderer never learned
  * the Run was active, and its chat showed nothing until the Run settled. The Host names the Run
  * from the moment it starts it, so during the launch the start is still to come, and it arrives
- * live. An older Host's snapshot names no Run either; that one was announced when the bridge
- * first found it.
+ * live. Between the launch's end and Pi's start it is still to come too; announced then, Pi's own
+ * start follows under the same id and the renderer takes it as the same Run. An older Host's
+ * snapshot names no Run either; that one was announced when the bridge first found it.
  */
 function startNeverRelayed(relayed: string | undefined, snapshot: BackgroundRunSnapshot) {
   return (

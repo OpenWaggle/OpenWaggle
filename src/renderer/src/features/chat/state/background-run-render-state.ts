@@ -299,6 +299,8 @@ export function withUnannouncedRunRenderSnapshot(
       ? seededSnapshotForRunStart(existing, UNNAMED_RUN_SEED, startedAt)
       : {
           ...existing,
+          // Named by the Run's end or late start, as the bridge's unnamed start is.
+          ...(existing.seededByRunId === undefined ? {} : { seededByRunId: UNNAMED_RUN_SEED }),
           settledMessageIds: new Set([
             ...(existing.settledMessageIds ?? []),
             ...existing.messages.map((message) => message.id),

@@ -123,8 +123,11 @@ export function useBackgroundRunMonitor(): void {
       // A settled Run's extension statuses go with it, whatever runs next.
       useExtensionStatusStore.getState().clearRun(payload.sessionId, payload.runId)
       useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)
-      // The snapshot holds the settled Run now; the next Run's start must not keep its answers.
-      noteRunRenderSnapshotRunSettled(payload.sessionId, payload.runId)
+      // The snapshot holds the settled Run now; the next Run's start must not keep its answers. A
+      // next Run whose start was lost streamed into it unmarked: those rows are not the settled's.
+      if (!startedRuns.unannouncedAfter(payload.sessionId, payload.runId)) {
+        noteRunRenderSnapshotRunSettled(payload.sessionId, payload.runId)
+      }
       // An earlier Run settling after the next one started: the Session is still running it, with
       // its promoted steers and its snapshot; the refetch brings in the settled Run.
       if (

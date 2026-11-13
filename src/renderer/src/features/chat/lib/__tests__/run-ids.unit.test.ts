@@ -137,6 +137,20 @@ describe('createStartedRuns', () => {
     expect(runs.settle(SESSION, 'run-3')).toBe(false)
   })
 
+  it('tells a settlement followed by a Run known only from what it streamed', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.unannouncedAfter(SESSION, 'run-1')).toBe(true)
+    expect(runs.name(SESSION, 'run-2')).toBe(true)
+    expect(runs.unannouncedAfter(SESSION, 'run-1')).toBe(true)
+    runs.start(SESSION, 'run-3')
+    expect(runs.unannouncedAfter(SESSION, 'run-2')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    expect(runs.unannouncedAfter(SESSION, 'run-1')).toBe(false)
+  })
+
   it('names the classic Run a requested Waggle settles as', () => {
     expect(settlingRunId('waggle-of-run-1')).toBe('run-1')
     expect(settlingRunId('waggle-3')).toBe('waggle-3')

@@ -44,6 +44,13 @@ export function isUnnamedRunStart(runId: string) {
  */
 export function createStartedRuns() {
   const bySession = new Map<SessionId, string[]>()
+  // Runs known first from what they streamed, by Session: their start was lost.
+  const unannounced = new Map<SessionId, Set<string>>()
+  const named = (sessionId: SessionId, started: readonly string[], settling: string) => {
+    const another = nameUnannounced(bySession, sessionId, started, settling)
+    if (another) unannounced.set(sessionId, new Set(unannounced.get(sessionId)).add(settling))
+    return another
+  }
   return {
     /**
      * A Run started; `true` when it is another Run than the one started last (not a retry).
@@ -55,7 +62,7 @@ export function createStartedRuns() {
       const settling = settlingRunId(runId)
       const last = started.at(-1)
       // The start of the Run already streaming, late (the bridge announcing it after a resync).
-      if (isUnannouncedRun(last)) return nameUnannounced(bySession, sessionId, started, settling)
+      if (isUnannouncedRun(last)) return named(sessionId, started, settling)
       if (last === settling) {
         // The restored Run starting again (an auto-retry, Pi continuing it): still remembered.
         if (!bySession.has(sessionId)) bySession.set(sessionId, started)
@@ -98,7 +105,20 @@ export function createStartedRuns() {
     name(sessionId: SessionId, runId: string) {
       const started = bySession.get(sessionId)
       if (!started || !isUnannouncedRun(started.at(-1))) return undefined
-      return nameUnannounced(bySession, sessionId, started, settlingRunId(runId))
+      return named(sessionId, started, settlingRunId(runId))
+    },
+    /**
+     * Whether the Run after `runId` is one known first from what it streamed: the Session's render
+     * snapshot then holds both Runs' rows with no start between them, so a late settlement of
+     * `runId` must not settle the snapshot whole (the rows before were set apart when it streamed).
+     */
+    unannouncedAfter(sessionId: SessionId, runId: string | undefined) {
+      const started = bySession.get(sessionId) ?? []
+      if (runId === undefined) return false
+      const index = started.indexOf(settlingRunId(runId))
+      const next = index < 0 ? undefined : started[index + 1]
+      if (next === undefined) return false
+      return isUnannouncedRun(next) || unannounced.get(sessionId)?.has(next) === true
     },
     /**
      * A Run settled (`undefined`: a settlement naming none, which settles the Session): whether it
@@ -121,6 +141,10 @@ export function createStartedRuns() {
       const later = started.slice(index + 1)
       if (later.length === 0) bySession.delete(sessionId)
       else bySession.set(sessionId, later)
+      const stillListed = new Set(later)
+      const kept = [...(unannounced.get(sessionId) ?? [])].filter((id) => stillListed.has(id))
+      if (kept.length > 0) unannounced.set(sessionId, new Set(kept))
+      else unannounced.delete(sessionId)
       return later.some((laterRunId) => !isUnnamedRunStart(laterRunId))
     },
   }
