@@ -40,7 +40,7 @@ const RELEASE_FILES = new Set([
 const RELEASE_SCRIPT_PATTERN =
   /^scripts\/(?:app-release|package-release|mac-signing|verify-release)/
 const TOOLING_CONFIG_PATTERN =
-  /^(?:tsconfig[^/]*\.json|vitest[^/]*\.ts|eslint\.config\.ts|oxlint\.config\.mts|biome\.json|\.fallowrc\.jsonc|electron\.vite\.config\.ts|doctor\.config\.ts)$/
+  /^(?:tsconfig[^/]*\.json|vitest[^/]*\.ts|oxlint\.config\.mts|\.oxfmtrc\.json|tools\/bun-lint\/.+|\.fallowrc\.jsonc|electron\.vite\.config\.ts|doctor\.config\.ts)$/
 const AGENT_FILES = new Set(['AGENTS.md', 'CONTEXT.md', 'MEMORY.md'])
 const PROJECT_DOCS = new Set(['CHANGELOG.md', 'CONTRIBUTING.md', 'README.md'])
 
