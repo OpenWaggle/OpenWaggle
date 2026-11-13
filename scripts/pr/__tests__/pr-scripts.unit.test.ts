@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseNameStatus, renderBlastRadius } from '../blast-radius'
+import { classifyArea } from '../blast-radius-rules'
 import { buildGhCreateArgs, missingTemplateHeadings, parseCreateArgs } from '../create-args'
 import { findStickyComment, replaceManagedSection } from '../managed-content'
 import { changedPackageFields, classifyPackageJsonChange } from '../package-json-risk'
@@ -157,6 +158,16 @@ describe('blast radius', () => {
     expect(summary('https://example.test/c')).toMatch(
       /^<!-- openwaggle:blast-radius -->[\s\S]*Full report: https:\/\/example\.test\/c[\s\S]*<!-- \/openwaggle:blast-radius -->$/,
     )
+  })
+
+  // The lint and format configs moved from ESLint and Biome to oxlint, oxfmt and the Bun lint runner.
+  it.each([
+    'oxlint.config.mts',
+    '.oxfmtrc.json',
+    'tools/bun-lint/package.json',
+    'tsconfig.node.json',
+  ])('rates %s as build, lint and test configuration', (filePath) => {
+    expect(classifyArea(filePath).key).toBe('tooling')
   })
 
   it('rates package.json by the fields that changed', () => {
