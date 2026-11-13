@@ -6,7 +6,7 @@ import type {
   extensionInvokeFailureCodeSchema,
   extensionInvokeFailureSchema,
   extensionInvokeInputSchema,
-  extensionInvokeResultSchema,
+  extensionInvokeDeclaredResultSchema,
   extensionInvokeScopeSchema,
   extensionInvokeSuccessValueSchema,
   extensionModelPreferencesSettingsPatchSchema,
@@ -83,5 +83,5 @@ export type ExtensionSettingsSelectedValue = SchemaType<typeof extensionSettings
 export type ExtensionSettingsUpdatePayload = SchemaType<typeof extensionSettingsUpdatePayloadSchema>
 export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>
 export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>
-export type ExtensionInvokeResult = SchemaType<typeof extensionInvokeResultSchema>
+export type ExtensionInvokeResult = SchemaType<typeof extensionInvokeDeclaredResultSchema>
 export type { ExtensionDocsDiscoverPayload } from '@shared/schemas/extension-broker-docs'

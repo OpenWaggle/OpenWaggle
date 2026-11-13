@@ -1,6 +1,8 @@
 import * as Schema from 'effect/Schema'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { openWaggleAgentLoopSurfaceInputSchema } from '../agent-loop'
+import * as brokerEntry from '../broker'
+import { extensionModelPreferencesSettingsPatchSchema } from '../broker-schemas-openwaggle'
 import { extensionInvokeInputSchema } from '../broker-schemas-core'
 import { OPENWAGGLE_EXTENSION_BROKER } from '../constants'
 import { extensionDocsDiscoverPayloadSchema } from '../docs'
@@ -10,6 +12,12 @@ import {
   validateExtensionManifest,
 } from '../manifest'
 import { extensionContributionRegistrationSchema } from '../runtime'
+import type {
+  ExtensionModelPreferencesSettingsPatch,
+  ExtensionModelPrefs,
+  ExtensionSelectedStateReadResult,
+  ExtensionStateModelPreferencesReadResult,
+} from '../types'
 
 const validManifest = {
   manifestVersion: 1,
@@ -143,5 +151,48 @@ describe('extension SDK public schemas', () => {
         status: { label: 'Ready' },
       }),
     ).not.toThrow()
+  })
+
+  // The 0.2 contract, which a minor release keeps: the broker entry point's schemas, an undecoded
+  // success value, a string thinking level in a settings patch and readonly model lists.
+  it('keeps the published 0.2 broker contract', () => {
+    expect(Object.keys(brokerEntry)).toEqual(
+      expect.arrayContaining([
+        'extensionCapabilityAuditEntrySchema',
+        'extensionInvokeErrorSchema',
+        'extensionInvokeFailureSchema',
+        'extensionInvokeInputSchema',
+        'extensionInvokeResultSchema',
+        'extensionInvokeScopeSchema',
+        'extensionInvokeSuccessSchema',
+      ]),
+    )
+    const success = {
+      ok: true,
+      value: { anything: 'an extension decodes itself' },
+      audit: {
+        extensionId: 'schema-smoke',
+        contributionId: 'schema-smoke.settings',
+        capability: 'openwaggle.storage',
+        method: 'get',
+        scope: { kind: 'app' },
+        outcome: 'succeeded',
+        timestamp: 1,
+      },
+    }
+    expect(Schema.decodeUnknownSync(brokerEntry.extensionInvokeResultSchema)(success)).toEqual(
+      success,
+    )
+    expect(
+      Schema.decodeUnknownSync(extensionModelPreferencesSettingsPatchSchema)({
+        thinkingLevel: 'a level a later Pi adds',
+      }),
+    ).toEqual({ thinkingLevel: 'a level a later Pi adds' })
+    expectTypeOf<readonly string[]>().toExtend<
+      NonNullable<ExtensionModelPreferencesSettingsPatch['favoriteModels']>
+    >()
+    expectTypeOf<ExtensionStateModelPreferencesReadResult>().toExtend<
+      ExtensionSelectedStateReadResult<ExtensionModelPrefs>
+    >()
   })
 })

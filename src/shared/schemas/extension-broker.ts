@@ -11,7 +11,7 @@ export {
   extensionInvokeFailureSchema,
   extensionInvokeInputSchema,
   extensionInvokeOutcomeSchema,
-  extensionInvokeResultSchema,
+  extensionInvokeDeclaredResultSchema,
   extensionInvokeSuccessValueSchema,
   extensionRuntimeRegisterContributionPayloadSchema,
   extensionRuntimeUnregisterContributionPayloadSchema,

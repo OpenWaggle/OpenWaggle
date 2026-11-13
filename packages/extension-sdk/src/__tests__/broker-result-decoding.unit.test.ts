@@ -94,37 +94,22 @@ describe('broker result decoding', () => {
     })
   })
 
-  // The SDK decodes with the schemas the host builds its results from, so a thinking level the
-  // app does not define is refused; the SDK's own schema accepted any string.
-  it('refuses a model preference with an unknown thinking level, naming the field', async () => {
-    const sdk = createExtensionBrokerSdk(
-      answering((input) => settingsResult(input, 'turbo')),
-      IDENTITY,
-    )
+  // The 0.2 SDK declares the thinking level as a string, and a minor release keeps that: a level a
+  // later Pi adds still decodes. Narrowing it to the app's levels belongs to the 0.3.0 SDK.
+  it.each(['high', 'a level a later Pi adds'])(
+    'accepts a model preference with the thinking level %s',
+    async (thinkingLevel) => {
+      const sdk = createExtensionBrokerSdk(
+        answering((input) => settingsResult(input, thinkingLevel)),
+        IDENTITY,
+      )
 
-    const result = await sdk.openWaggle.settings.get(APP_SCOPE)
+      const result = await sdk.openWaggle.settings.get(APP_SCOPE)
 
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        issues: expect.arrayContaining([
-          expect.stringMatching(/^settings\.modelPreferences\.thinkingLevel: /u),
-        ]),
-      },
-    })
-  })
-
-  it('accepts a model preference with a thinking level the app defines', async () => {
-    const sdk = createExtensionBrokerSdk(
-      answering((input) => settingsResult(input, 'high')),
-      IDENTITY,
-    )
-
-    const result = await sdk.openWaggle.settings.get(APP_SCOPE)
-
-    expect(result).toMatchObject({
-      ok: true,
-      value: { settings: { modelPreferences: { thinkingLevel: 'high' } } },
-    })
-  })
+      expect(result).toMatchObject({
+        ok: true,
+        value: { settings: { modelPreferences: { thinkingLevel } } },
+      })
+    },
+  )
 })

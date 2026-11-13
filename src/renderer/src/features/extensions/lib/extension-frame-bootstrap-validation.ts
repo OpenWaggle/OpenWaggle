@@ -1,7 +1,7 @@
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import type { OpenWaggleExtensionSyntaxHighlightResult } from '@shared/extension-sdk'
 import { safeDecodeUnknown, Schema } from '@shared/schema'
-import { extensionInvokeResultSchema } from '@shared/schemas/extension-broker'
+import { extensionInvokeDeclaredResultSchema } from '@shared/schemas/extension-broker'
 import { extensionFrameConfigSchema } from '@shared/schemas/extension-frame'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
@@ -69,7 +69,7 @@ const parentMessageSchema = Schema.Union(
     ...parentEnvelope,
     type: Schema.Literal('invoke-result'),
     requestId: Schema.String,
-    result: extensionInvokeResultSchema,
+    result: extensionInvokeDeclaredResultSchema,
   }),
   Schema.Struct({
     ...parentEnvelope,
