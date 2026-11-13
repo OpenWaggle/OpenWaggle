@@ -1,0 +1,269 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Tue, 10 Nov 2026 22:33:07 +0100
+Subject: [PATCH] macos: open CEF browsers in a new persistent partition
+
+CefBrowserHost::CreateBrowserSync returns null until its request
+context's browser context is initialized. An in-memory context is ready
+at once, but a persist:* partition loads its on-disk profile
+asynchronously, so on macOS every CEF webview in a persistent partition
+other than persist:default failed with "CreateBrowserSync returned
+null" and never appeared: no page, and no target on the remote
+debugging port. Linux and Windows use the asynchronous CreateBrowser,
+which waits for the context, and were not affected.
+
+Resolve the partition's context when the webview is created, attach a
+CefRequestContextHandler to contexts this creates, and run the
+synchronous creation from OnRequestContextInitialized when the context
+is not ready yet. persist:default keeps using the global context
+directly. getOrCreateRequestContextForPartition takes the handler as an
+optional argument, so Linux and Windows are unchanged.
+
+The shared partition context test covers the handler and now expects
+the appdata scheme registration persist:default already performs.
+---
+ package/src/native/macos/nativeWrapper.mm     | 86 +++++++++++++++++--
+ package/src/native/shared/partition_context.h | 12 ++-
+ .../native/shared/partition_context_test.cpp  | 34 +++++++-
+ 3 files changed, 119 insertions(+), 13 deletions(-)
+
+diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
+index 26f3ab99..357de933 100644
+--- a/package/src/native/macos/nativeWrapper.mm
++++ b/package/src/native/macos/nativeWrapper.mm
+@@ -7881,13 +7881,76 @@ static void removeBrowserMappingsForWebview(uint32_t webviewId) {
+ }
+ } // namespace electrobun
+ 
++// CefBrowserHost::CreateBrowserSync returns null until the request context's
++// browser context is initialized, and a persist:* partition's on-disk profile
++// initializes asynchronously. Unlike the asynchronous CreateBrowser that Linux
++// and Windows use, CreateBrowserSync does not wait, so every browser in a fresh
++// persistent partition used to fail to open. This handler records when its
++// context is ready and runs the browser creations queued until then.
++class ElectrobunRequestContextReadiness : public CefRequestContextHandler {
++public:
++  void OnRequestContextInitialized(
++      CefRefPtr<CefRequestContext> request_context) override {
++    initialized_ = true;
++    std::vector<dispatch_block_t> pending;
++    pending.swap(pending_);
++    for (dispatch_block_t block : pending) {
++      block();
++    }
++  }
++
++  // Runs `block` on the UI (main) thread once the context can host a browser.
++  void WhenInitialized(dispatch_block_t block) {
++    if (initialized_) {
++      block();
++      return;
++    }
++    pending_.push_back([block copy]);
++  }
++
++private:
++  bool initialized_ = false;
++  std::vector<dispatch_block_t> pending_;
++  IMPLEMENT_REFCOUNTING(ElectrobunRequestContextReadiness);
++};
++
++// Readiness for each persist:* partition, kept for as long as its cached
++// context. Accessed on the main thread only.
++static std::map<std::string, CefRefPtr<ElectrobunRequestContextReadiness>> &
++persistentPartitionReadiness() {
++  static std::map<std::string, CefRefPtr<ElectrobunRequestContextReadiness>>
++      readiness;
++  return readiness;
++}
++
++// Returns the readiness gate for a partition, or null for persist:default,
++// which is CEF's global context and is initialized before any browser exists.
++static CefRefPtr<ElectrobunRequestContextReadiness>
++ReadinessForPartition(const char *partitionIdentifier) {
++  std::string identifier(partitionIdentifier ? partitionIdentifier : "");
++  if (identifier == "persist:default") {
++    return nullptr;
++  }
++  if (identifier.compare(0, 8, "persist:") != 0) {
++    return new ElectrobunRequestContextReadiness();
++  }
++  auto &readiness = persistentPartitionReadiness();
++  auto it = readiness.find(identifier);
++  if (it == readiness.end()) {
++    it = readiness.emplace(identifier, new ElectrobunRequestContextReadiness())
++             .first;
++  }
++  return it->second;
++}
++
+ CefRefPtr<CefRequestContext>
+-CreateRequestContextForPartition(const char *partitionIdentifier,
+-                                 uint32_t webviewId) {
++CreateRequestContextForPartition(
++    const char *partitionIdentifier, uint32_t webviewId,
++    CefRefPtr<CefRequestContextHandler> readiness = nullptr) {
+   static CefRefPtr<ElectrobunSchemeHandlerFactory> schemeFactory =
+       new ElectrobunSchemeHandlerFactory();
+   return electrobun::getOrCreateRequestContextForPartition(
+-      partitionIdentifier, webviewId, schemeFactory);
++      partitionIdentifier, webviewId, schemeFactory, readiness);
+ }
+ 
+ // ----------------------- CEFWebViewImpl -----------------------
+@@ -7930,6 +7993,14 @@ - (instancetype)initWithWebviewId:(uint32_t)webviewId
+       self.fullSize = NO;
+     }
+ 
++    // Resolve the partition's context before the browser is created, so the
++    // creation below can wait until that exact context is initialized.
++    CefRefPtr<ElectrobunRequestContextReadiness> readiness =
++        ReadinessForPartition(partitionIdentifier);
++    CefRefPtr<CefRequestContext> requestContext =
++        CreateRequestContextForPartition(partitionIdentifier, webviewId,
++                                         readiness);
++
+     void (^createCEFBrowser)(void) = ^{
+       if (windowWasVisible) {
+         [window makeKeyAndOrderFront:nil];
+@@ -7970,9 +8041,6 @@ CefRect cefBounds((int)frame.origin.x, (int)adjustedY,
+         window_info.SetAsChild((__bridge void *)contentView, cefBounds);
+       }
+ 
+-      CefRefPtr<CefRequestContext> requestContext =
+-          CreateRequestContextForPartition(partitionIdentifier, webviewId);
+-
+       // Global scheme handler is already registered in
+       // getOrCreateRequestContext()
+ 
+@@ -8098,7 +8166,11 @@ new ElectrobunClient(webviewId, eventBridgeHandler, bunBridgeHandler,
+                       usingBlock:^(NSNotification *note) {
+                         if (!hasCreatedBrowser) {
+                           hasCreatedBrowser = YES;
+-                          createCEFBrowser();
++                          if (readiness && requestContext) {
++                            readiness->WhenInitialized(createCEFBrowser);
++                          } else {
++                            createCEFBrowser();
++                          }
+                         }
+                       }];
+     }
+diff --git a/package/src/native/shared/partition_context.h b/package/src/native/shared/partition_context.h
+index 4fea2af1..09eccbe7 100644
+--- a/package/src/native/shared/partition_context.h
++++ b/package/src/native/shared/partition_context.h
+@@ -59,10 +59,16 @@ inline std::mutex& partitionContextMutex_() {
+ // Returns the CefRequestContext to use for a webview with the given partition
+ // identifier. Registers `schemeFactory` on every returned context so views://
+ // resolves correctly regardless of which context handles the request.
++//
++// `handler`, when given, is attached to a context this call creates (never to
++// the global context or to a cached persist:* context, which were created
++// earlier). CefRequestContextHandler::OnRequestContextInitialized then reports
++// when the context can host a browser; see the macOS CreateBrowserSync caller.
+ inline CefRefPtr<CefRequestContext> getOrCreateRequestContextForPartition(
+     const char* partitionIdentifier,
+     uint32_t webviewId,
+-    CefRefPtr<CefSchemeHandlerFactory> schemeFactory) {
++    CefRefPtr<CefSchemeHandlerFactory> schemeFactory,
++    CefRefPtr<CefRequestContextHandler> handler = nullptr) {
+ 
+     std::string identifier(partitionIdentifier ? partitionIdentifier : "");
+ 
+@@ -93,7 +99,7 @@ inline CefRefPtr<CefRequestContext> getOrCreateRequestContextForPartition(
+         CefRequestContextSettings defaultSettings;
+         defaultSettings.persist_session_cookies = false;
+         CefRefPtr<CefRequestContext> ctx =
+-            CefRequestContext::CreateContext(defaultSettings, nullptr);
++            CefRequestContext::CreateContext(defaultSettings, handler);
+         if (!ctx) {
+             fprintf(stderr, "[partition_context] WARNING: CreateContext returned null for default partition "
+                             "— refusing to merge it into global storage\n");
+@@ -130,7 +136,7 @@ inline CefRefPtr<CefRequestContext> getOrCreateRequestContextForPartition(
+     }
+ 
+     CefRefPtr<CefRequestContext> context =
+-        CefRequestContext::CreateContext(settings, nullptr);
++        CefRequestContext::CreateContext(settings, handler);
+ 
+     if (!context) {
+         fprintf(stderr, "[partition_context] WARNING: CreateContext returned null for partition '%s' "
+diff --git a/package/src/native/shared/partition_context_test.cpp b/package/src/native/shared/partition_context_test.cpp
+index e214cdba..96716e5c 100644
+--- a/package/src/native/shared/partition_context_test.cpp
++++ b/package/src/native/shared/partition_context_test.cpp
+@@ -10,6 +10,7 @@ template <typename T>
+ using CefRefPtr = T*;
+ 
+ struct CefSchemeHandlerFactory {};
++struct CefRequestContextHandler {};
+ 
+ struct CefRequestContextSettings {
+     bool persist_session_cookies = false;
+@@ -35,12 +36,13 @@ public:
+ 
+     static CefRefPtr<CefRequestContext> CreateContext(
+         const CefRequestContextSettings& settings,
+-        void*) {
++        CefRefPtr<CefRequestContextHandler> handler) {
+         if (failNextCreate()) {
+             failNextCreate() = false;
+             return nullptr;
+         }
+         createdContexts().push_back(std::make_unique<CefRequestContext>(false, settings));
++        createdContexts().back()->handler = handler;
+         return createdContexts().back().get();
+     }
+ 
+@@ -78,6 +80,7 @@ public:
+ 
+     bool global;
+     CefRequestContextSettings settings;
++    CefRefPtr<CefRequestContextHandler> handler = nullptr;
+     std::vector<RegisteredScheme> registeredSchemes;
+ };
+ 
+@@ -127,8 +130,8 @@ int main() {
+            "persist:default must not create a custom request context");
+     expect(builtPartitionPaths.empty(),
+            "persist:default must not create a named partition profile");
+-    expect(persistentDefault->registeredSchemes.size() == 1,
+-           "persist:default must register the views scheme on the global context");
++    expect(persistentDefault->registeredSchemes.size() == 2,
++           "persist:default must register the views and appdata schemes on the global context");
+ 
+     resetState();
+     auto* namedPersistentFirst = electrobun::getOrCreateRequestContextForPartition(
+@@ -191,6 +194,31 @@ int main() {
+     expect(!unnamedFirst->global && !unnamedSecond->global,
+            "an omitted partition must not be conflated with persist:default");
+ 
++    resetState();
++    CefRequestContextHandler readiness;
++    auto* handledPersistent = electrobun::getOrCreateRequestContextForPartition(
++        "persist:handled", 10, &schemeFactory, &readiness);
++    expect(handledPersistent->handler == &readiness,
++           "a new persistent context must carry the caller's handler");
++    CefRequestContextHandler otherReadiness;
++    auto* cachedPersistent = electrobun::getOrCreateRequestContextForPartition(
++        "persist:handled", 11, &schemeFactory, &otherReadiness);
++    expect(cachedPersistent == handledPersistent &&
++               cachedPersistent->handler == &readiness,
++           "a cached persistent context must keep the handler it was created with");
++    auto* handledEphemeral = electrobun::getOrCreateRequestContextForPartition(
++        "", 12, &schemeFactory, &readiness);
++    expect(handledEphemeral->handler == &readiness,
++           "a new ephemeral context must carry the caller's handler");
++    auto* globalWithHandler = electrobun::getOrCreateRequestContextForPartition(
++        "persist:default", 13, &schemeFactory, &readiness);
++    expect(globalWithHandler->global && globalWithHandler->handler == nullptr,
++           "the global context must never take a handler");
++    auto* unhandled = electrobun::getOrCreateRequestContextForPartition(
++        "temporary", 14, &schemeFactory);
++    expect(unhandled->handler == nullptr,
++           "omitting the handler must keep creating contexts without one");
++
+     std::cout << "partition_context_test: passed\n";
+     return 0;
+ }

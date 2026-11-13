@@ -33,6 +33,10 @@
     "scripts/test-support/vitest-compact-reporter.ts",
     // Run by path as the check runner's typecheck step (scripts/check/steps.ts).
     "scripts/check/typecheck.ts",
+    // The Electrobun native layer build, run by path from .github/workflows/electrobun-native.yml.
+    "vendor/electrobun/build.ts",
+    // Electrobun build hook, imported by path from the probe's electrobun.config.ts.
+    "vendor/electrobun/hooks/macos-launch-version.ts",
     // Package smoke fixtures compiled or run by path inside the packed-package sandbox
     // (tests/fixtures/package-smoke/tsconfig.json, scripts/package-smoke-scripts.ts).
     "tests/fixtures/package-smoke/cjs-type-smoke.cts",
@@ -43,6 +47,9 @@
     "dist/**",
     "release/**",
     "node_modules/**",
+    // A separate Electrobun app that Hutch packages against the native layer devkit; it imports
+    // the `electrobun` package Hutch provides, not a dependency of this repository.
+    "vendor/electrobun/probe/**",
     // Discovery skips hidden directories; the project Pi extensions are source.
     "!.pi/extensions/**"
   ],

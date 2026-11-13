@@ -12,10 +12,13 @@ type FloorTargetPlatform = 'darwin' | 'linux' | 'win32'
 export interface FloorTarget {
   readonly root: string
   readonly platform: FloorTargetPlatform
+  /** An Electrobun native-layer devkit (vendor/electrobun/build.ts), not a packaged app. */
+  readonly devkit: boolean
 }
 
 const PLATFORMS: readonly FloorTargetPlatform[] = ['darwin', 'linux', 'win32']
 const PLATFORM_FLAG = '--platform'
+const DEVKIT_FLAG = '--devkit'
 const DIST_DIR = 'dist'
 const APPIMAGE_SUFFIX = '.AppImage'
 const APPIMAGE_EXTRACT_TIMEOUT_MS = 300_000
@@ -32,9 +35,14 @@ export function parseFloorArguments(
 ) {
   const paths: string[] = []
   let platform: string | undefined = hostPlatform
+  let devkit = false
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
     if (argument === '--') continue
+    if (argument === DEVKIT_FLAG) {
+      devkit = true
+      continue
+    }
     if (argument === PLATFORM_FLAG) {
       index += 1
       platform = args[index]
@@ -44,10 +52,11 @@ export function parseFloorArguments(
   }
   if (!isFloorPlatform(platform)) {
     throw new Error(
-      `Usage: check-native-platform-floor.ts [${PLATFORM_FLAG} darwin|linux|win32] [app paths...]`,
+      `Usage: check-native-platform-floor.ts [${PLATFORM_FLAG} darwin|linux|win32] [${DEVKIT_FLAG}] [app paths...]`,
     )
   }
-  return { platform, paths }
+  if (devkit && paths.length === 0) throw new Error(`${DEVKIT_FLAG} needs the devkit directory.`)
+  return { platform, paths, devkit }
 }
 
 async function directoryEntries(directory: string) {
@@ -104,14 +113,14 @@ async function extractAppImage(appImagePath: string) {
 }
 
 export async function resolveFloorTargets(args: readonly string[]) {
-  const { platform, paths } = parseFloorArguments(args)
+  const { platform, paths, devkit } = parseFloorArguments(args)
   const appPaths = paths.length > 0 ? paths : await discoverPackagedApps(platform)
   const targets: FloorTarget[] = []
   for (const appPath of appPaths) {
     const root = appPath.endsWith(APPIMAGE_SUFFIX)
       ? await extractAppImage(appPath)
       : path.resolve(appPath)
-    targets.push({ root, platform })
+    targets.push({ root, platform, devkit })
   }
   return targets
 }

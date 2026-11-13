@@ -10,6 +10,7 @@ This file is the entrypoint for OpenWaggle architecture documentation. It is int
 - `docs/hexagonal-architecture.md` defines main-process layering rules.
 - `docs/renderer-architecture.md` defines renderer organization, state, UI, testing, and enforcement rules.
 - `docs/mcp-runtime.md` explains how the MCP runtime of ADR 0051 fits together: Pi's MCP client, the MCP transport layer, configuration files, and ports.
+- `docs/electrobun-transition.md` explains how existing Electron installs update to the Electrobun build of ADR 0066 and keep their data: transition artifacts, first-launch migration, the macOS keychain, and the release changes.
 
 ## Decision Records
 
@@ -92,6 +93,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0063-cli-machine-output-contract.md`
 - `docs/adr/0064-move-the-toolchain-to-bun-and-put-the-desktop-shell-behind-ports.md`
 - `docs/adr/0065-parents-show-their-running-workers.md`
+- `docs/adr/0066-move-the-desktop-shell-to-electrobun.md`
 
 ## Testing
 
