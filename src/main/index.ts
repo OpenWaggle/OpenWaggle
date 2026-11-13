@@ -161,13 +161,19 @@ async function bootstrapServicesAndWindow() {
       appLifecycle.quit()
     },
   })
-  // The Host launch starts now, in parallel with the window (A-F1). Its process is spawned
-  // before this one evaluates the IPC handlers and opens the window, which keep its thread busy;
-  // a Host that takes longer to reach (an update hand-off) does not hold the window back.
-  startup.run()
-  await hostHeadStart
-  startupMark('session-host-underway')
+  // A Host the boot shim launched is under way already, so the window opens first and the
+  // backend's module loading, which keeps this thread busy, follows it. Otherwise the Host launch
+  // starts now, in parallel with the window (A-F1): its process is spawned before this one
+  // evaluates the IPC handlers and opens the window; a Host that takes longer to reach (an update
+  // hand-off) does not hold the window back.
+  const windowFirst = hasSessionHostPrelaunch()
+  if (!windowFirst) {
+    startup.run()
+    await hostHeadStart
+    startupMark('session-host-underway')
+  }
   await firstLaunchMigrationBeforeWindow()
+  startupMark('first-launch-migration-settled')
   await desktopWindows.prepareMainWindow()
 
   await openWindowThenRegisterIpc({
@@ -181,6 +187,7 @@ async function bootstrapServicesAndWindow() {
       mainWindowCreated = true
     },
     registerIpc: async () => {
+      if (windowFirst) startup.run()
       await getRuntimeModule()
       await registerIpcHandlersOnce(startup)
     },
