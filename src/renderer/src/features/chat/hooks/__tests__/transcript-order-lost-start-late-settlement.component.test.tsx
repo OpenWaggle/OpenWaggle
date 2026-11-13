@@ -207,4 +207,25 @@ describe('transcript order when the Run before settles late and the next start i
       (h) => h.endRun(),
     ])
   })
+
+  // The Run before was known only from the bridge's announcement after a stall, its prompt in the
+  // reconnect buffer, not the snapshot: its rows still go to their saved copies once it settles.
+  it('shows the Run before once after a stall when the next start is lost and it settles late', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('other'),
+      (h) => h.stall(),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.answer('one'),
+      (h) => h.resume(),
+      (h) => h.answer('two'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.loseNextStart(),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.answer('three'),
+      (h) => h.settleRun(),
+      (h) => h.answer('four'),
+      (h) => h.view('session'),
+      (h) => h.endRun(),
+    ])
+  })
 })

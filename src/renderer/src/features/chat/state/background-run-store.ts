@@ -67,8 +67,8 @@ interface BackgroundRunState {
   setRunCompactionStatus: (id: SessionId, status: AgentCompactionStatus | null) => void
   applyRunRenderEvent: (id: SessionId, event: AgentTransportEvent) => void
   clearRunRenderSnapshot: (id: SessionId) => void
-  /** A Run settled: the snapshot holds it, so the next Run's start reseeds it. */
-  noteRunRenderSnapshotRunSettled: (id: SessionId, runId: string | undefined) => void
+  /** A Run settled: the snapshot holds it (`rowsOnly`: rows before an unannounced Run's). */
+  noteRunRenderSnapshotRunSettled: (id: SessionId, runId?: string, rowsOnly?: boolean) => void
   /** The settled Run's Session refreshed: drops the snapshot unless a later Run seeded it. */
   clearSettledRunRenderSnapshot: (id: SessionId) => void
   getWorktreeLaunch: (id: SessionId) => WorktreeLaunchSnapshot | null
@@ -249,8 +249,8 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
     set((state) => withoutRunRenderSnapshot(state, id))
   },
 
-  noteRunRenderSnapshotRunSettled(id: SessionId, runId: string | undefined) {
-    set((state) => withSettledRunRenderSnapshot(state, id, runId))
+  noteRunRenderSnapshotRunSettled(id, runId, rowsOnly) {
+    set((state) => withSettledRunRenderSnapshot(state, id, runId, rowsOnly))
   },
 
   clearSettledRunRenderSnapshot(id: SessionId) {

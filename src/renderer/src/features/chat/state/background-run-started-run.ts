@@ -131,3 +131,21 @@ export function seededSnapshotForRunStart(
   // Another Run, so the seeded one was persisted before it started.
   return seedRunRenderSnapshot(runId, existing.settledMessageIds, startedAt)
 }
+
+/**
+ * The Run before a Run whose start was lost settled late: the seed's rows before the lost start
+ * (its settled ids, set apart as the Run streamed) are that settled Run's, the rest the running
+ * Run's. The seed becomes the running Run's start with those as earlier rows, as a route's write
+ * leaves it, so hydration leaves them to their saved copies and the Run's settlement clears it.
+ */
+export function withEarlierRunSettledBeforeUnannounced(
+  existing: RunRenderSnapshot,
+): RunRenderSnapshot {
+  const seed = existing.seededByRunId
+  if (seed === undefined) return existing
+  const { seededByRunId: _seed, seededAt: _seededAt, ...unseeded } = existing
+  return {
+    ...unseeded,
+    startedRun: { runId: seed, earlierMessageIds: new Set(existing.settledMessageIds) },
+  }
+}

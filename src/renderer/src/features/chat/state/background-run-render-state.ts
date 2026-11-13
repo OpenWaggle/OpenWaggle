@@ -12,6 +12,7 @@ import {
   seededSnapshotForRunStart,
   seedRunRenderSnapshot,
   startedRunOf,
+  withEarlierRunSettledBeforeUnannounced,
   withEndedRunNamed,
   withSettledEarlierMessages,
 } from './background-run-started-run'
@@ -233,9 +234,14 @@ export function withSettledRunRenderSnapshot(
   state: RenderSnapshotState,
   id: SessionId,
   settledRunId: string | undefined,
+  beforeUnannounced = false,
 ) {
   const existing = state.renderSnapshotsBySessionId.get(id)
   if (!existing) return state
+  if (beforeUnannounced) {
+    const next = withEarlierRunSettledBeforeUnannounced(existing)
+    return { renderSnapshotsBySessionId: new Map(state.renderSnapshotsBySessionId).set(id, next) }
+  }
   if (settledRunId !== undefined && isSeededByAnotherRun(existing, settledRunId)) return state
   const started = existing.startedRun
   if (settledRunId !== undefined && started && isAnotherNamedRun(started.runId, settledRunId)) {
