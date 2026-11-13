@@ -85,6 +85,21 @@ describe('Electrobun Browser preview automation', () => {
     expect(lastState(harness.sent)).toMatchObject({ controller: { kind: 'human' } })
   })
 
+  it('returns the browser engine install failure as the agent open error', async () => {
+    const failed = { type: 'failed', reason: 'http', message: 'The server answered 404.' } as const
+    const harness = setup({
+      ownerKey: AGENT_OWNER_KEY,
+      engine: { status: () => failed, ensure: async () => failed },
+    })
+
+    await expect(
+      run(automation(harness).open(scope, { url: 'https://example.com/' })),
+    ).rejects.toThrow('The browser engine is not available: The server answered 404.')
+    expect(harness.sent.filter(([channel]) => channel === 'browser-preview:open-request')).toEqual(
+      [],
+    )
+  })
+
   it('navigates and waits for the load event of the new document', async () => {
     const harness = agentHarness()
     const service = automation(harness)

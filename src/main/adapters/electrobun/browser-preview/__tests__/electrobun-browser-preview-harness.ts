@@ -15,6 +15,7 @@ import type { BrowserPreviewArtifactStorage } from '../../../browser-preview/bro
  */
 export const OWNER_KEY = 'session:s-1'
 export const BOUNDS = { x: 10, y: 20, width: 400, height: 300 }
+const READY = { type: 'ready' } as const
 
 export function setup(
   options: {
@@ -26,6 +27,8 @@ export function setup(
     readonly sessionHostAttachments?: boolean
     /** WebView2's profiles: a partition unloads with its last view. */
     readonly unloadsPartitionWithLastView?: boolean
+    /** The browser engine's state; ready unless a test installs it. */
+    readonly engine?: ElectrobunPreviewHost['engine']
   } = {},
 ) {
   const electrobun = fakeElectrobun()
@@ -55,6 +58,7 @@ export function setup(
     browserPreview: entry.browserPreview,
   }))
   const host: ElectrobunPreviewHost = {
+    engine: options.engine ?? { status: () => READY, ensure: async () => READY },
     createView: cef.createView,
     frames,
     endpoint: () => (options.cdp === false ? null : cef.endpoint),

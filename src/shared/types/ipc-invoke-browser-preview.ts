@@ -22,6 +22,7 @@ import type {
   BrowserPreviewScreenshotArtifact,
   BrowserPreviewViewport,
 } from './browser-preview-controls'
+import type { BrowserEngineStatus } from './browser-engine'
 import type { BrowserPreviewOpenRequestAck } from './browser-preview-owner'
 import type { BrowserPreviewRecordingRequestResponse } from './browser-preview-recording-request'
 
@@ -177,5 +178,14 @@ export interface IpcBrowserPreviewInvokeChannelMap {
   'browser-preview:clear-profile-data': {
     args: [profileId: string]
     return: undefined
+  }
+  /** Installs the preview's browser engine if it is missing; resolves to `ready` or `failed`. */
+  'browser-engine:ensure': {
+    args: []
+    return: BrowserEngineStatus
+  }
+  'browser-engine:get-status': {
+    args: []
+    return: BrowserEngineStatus
   }
 }

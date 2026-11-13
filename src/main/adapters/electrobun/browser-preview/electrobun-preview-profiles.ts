@@ -5,6 +5,10 @@ import { browserPreviewMarkerUrl, newBrowserPreviewMarker } from './electrobun-p
 import { ElectrobunPreviewGuest, type ElectrobunPreviewView } from './electrobun-preview-guest'
 import { browserPreviewPartition } from '../../browser-preview/browser-preview-partitions'
 import type { ImportedBrowserCookie } from '../../../browser-import/browser-cookie-model'
+import {
+  type BrowserEngineShape,
+  requireBrowserEngine,
+} from '../../../ports/desktop-shell/browser-engine'
 import type { BrowserProfileCookieJar } from '../../../ports/desktop-shell/browser-preview-views'
 
 const IDLE_CLOSE_MS = 30_000
@@ -15,6 +19,7 @@ const AllCookiesSchema = Schema.Struct({
 })
 
 interface ProfileMaintenanceHost {
+  readonly engine: Pick<BrowserEngineShape, 'ensure'>
   readonly createView: (options: {
     readonly windowId: number
     readonly url: string
@@ -117,6 +122,18 @@ export class ElectrobunPreviewProfiles {
   private page(profileId: string) {
     const existing = this.pages.get(profileId)
     if (existing) return existing
+    // Profile maintenance opens a CEF page too, so it installs the engine first.
+    const ready = requireBrowserEngine(this.host.engine)
+      .then(() => this.attach(profileId))
+      .catch((error: unknown) => {
+        this.pages.delete(profileId)
+        throw error
+      })
+    this.pages.set(profileId, ready)
+    return ready
+  }
+
+  private async attach(profileId: string): Promise<ElectrobunPreviewGuest> {
     const marker = newBrowserPreviewMarker()
     const view = this.host.createView({
       windowId: this.host.maintenanceWindowId(),
@@ -130,16 +147,13 @@ export class ElectrobunPreviewProfiles {
       openSocket: this.host.openSocket,
       onEvent: () => undefined,
     })
-    const ready = guest
-      .attachOnly({ chords: [], muted: true, isMac: false })
-      .then(() => guest)
-      .catch((error: unknown) => {
-        this.pages.delete(profileId)
-        guest.close()
-        throw error
-      })
-    this.pages.set(profileId, ready)
-    return ready
+    try {
+      await guest.attachOnly({ chords: [], muted: true, isMac: false })
+    } catch (error) {
+      guest.close()
+      throw error
+    }
+    return guest
   }
 
   private touch(profileId: string) {

@@ -10,13 +10,32 @@ import {
   type ElectrobunPreviewRecord,
 } from './electrobun-preview-records'
 import type { BrowserPreviewAutomationShell } from '../../browser-preview/automation/browser-preview-automation-service'
+import {
+  assertBrowserEngineReady,
+  requireBrowserEngine,
+} from '../../../ports/desktop-shell/browser-engine'
 import type { BrowserPreviewViewsShape } from '../../../ports/desktop-shell/browser-preview-views'
+
+/**
+ * The host with every view creation behind the engine: on macOS a CEF view created without CEF
+ * installed silently becomes a system webview, which has no DevTools endpoint.
+ */
+function engineGatedHost(host: ElectrobunPreviewHost): ElectrobunPreviewHost {
+  return {
+    ...host,
+    createView: (options) => {
+      assertBrowserEngineReady(host.engine)
+      return host.createView(options)
+    },
+  }
+}
 
 /**
  * The Browser preview as Electrobun CEF `BrowserView`s driven over CEF's DevTools endpoint, and
  * the same previews as the agent's automation sees them.
  */
-export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost) {
+export function makeElectrobunBrowserPreview(shellHost: ElectrobunPreviewHost) {
+  const host = engineGatedHost(shellHost)
   const partitions = keepingPartitionsLoaded(host)
   const manager = new ElectrobunBrowserPreviewManager(partitions.host)
   const profiles = new ElectrobunPreviewProfiles(partitions.host)
@@ -27,7 +46,11 @@ export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost) {
     findTab: (ownerKey, tabId) => manager.findOwnedPreview(ownerKey, tabId),
     selectTab: (record, ownerKey) =>
       manager.setCurrentPreview(record.owner.sender, ownerKey, record.previewId),
-    requestOpen: (request, options) => manager.ownerRegistry.requestOpen(request, options),
+    // The agent's open waits for the engine here, so a failed install is the tool's error.
+    requestOpen: async (request, options) => {
+      await requireBrowserEngine(host.engine)
+      return manager.ownerRegistry.requestOpen(request, options)
+    },
     beginNavigation: (record, url) => manager.beginNavigation(record, url),
     fail: (record, error) => controls.fail(record, error),
     setViewport: (record, viewport) => controls.setViewport(record, viewport),

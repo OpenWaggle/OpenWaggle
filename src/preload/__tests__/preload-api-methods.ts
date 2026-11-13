@@ -6,6 +6,7 @@
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { PRELOAD_AGENT_DEFINITION_METHODS } from './preload-agent-definition-methods'
 import { PRELOAD_ARCHIVED_ITEMS_METHODS } from './preload-archived-items-methods'
+import { PRELOAD_BROWSER_PREVIEW_METHODS } from './preload-browser-preview-methods'
 import { PRELOAD_DESKTOP_NOTIFICATIONS_METHODS } from './preload-desktop-notifications-methods'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
 import { PRELOAD_SESSION_DATA_METHODS } from './preload-session-data-methods'
@@ -187,52 +188,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'migrateTerminalOwner',
   'onTerminalEvent',
   'onTerminalActivitySnapshot',
-  // Browser preview
-  'openBrowserPreview',
-  'setBrowserPreviewBounds',
-  'navigateBrowserPreview',
-  'goBackBrowserPreview',
-  'goForwardBrowserPreview',
-  'reloadBrowserPreview',
-  'stopBrowserPreview',
-  'closeBrowserPreview',
-  'replaceBrowserPreviewForCapacity',
-  'zoomBrowserPreview',
-  'setBrowserPreviewViewport',
-  'hardReloadBrowserPreview',
-  'setBrowserPreviewAppearance',
-  'setBrowserPreviewAudioMuted',
-  'openBrowserPreviewDevTools',
-  'clearBrowserPreviewCookies',
-  'clearBrowserPreviewCache',
-  'captureBrowserPreviewScreenshot',
-  'revealBrowserPreviewArtifact',
-  'copyBrowserPreviewScreenshot',
-  'startBrowserPreviewRecording',
-  'saveBrowserPreviewRecording',
-  'stopBrowserPreviewRecording',
-  'pickBrowserPreviewElement',
-  'cancelBrowserPreviewElementPick',
-  'openBrowserPreviewPictureInPicture',
-  'closeBrowserPreviewPictureInPicture',
-  'registerBrowserPreviewOwner',
-  'unregisterBrowserPreviewOwner',
-  'acknowledgeBrowserPreviewOpenRequest',
-  'setCurrentBrowserPreview',
-  'respondBrowserPreviewRecordingRequest',
-  'setBrowserPreviewShortcutBindings',
-  'listBrowserImportSources',
-  'importBrowserCookies',
-  'guidedImportBrowserCookies',
-  'openBrowserImportFullDiskAccessSettings',
-  'clearBrowserProfileData',
-  'onBrowserPreviewState',
-  'onBrowserPreviewShortcut',
-  'onBrowserPreviewKeyEvent',
-  'onBrowserPreviewOpenRequest',
-  'onBrowserPreviewOpenRequestCancellation',
-  'onBrowserPreviewRecordingRequest',
-  'onBrowserPreviewRecordingCancel',
+  ...PRELOAD_BROWSER_PREVIEW_METHODS,
   // Window
   'onFullscreenChanged',
   // Git

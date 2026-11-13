@@ -1,3 +1,4 @@
+import type { BrowserEngineStatus } from '@shared/types/browser-engine'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FAKE_PNG } from './fake-cef-browser'
 import {
@@ -233,5 +234,42 @@ describe('Electrobun Browser preview', () => {
     openPreview(harness)
     await settle()
     expect(harness.cef.views().map((view) => view.options.url)).not.toContain('about:blank')
+
+  it('creates no CEF view while the browser engine is not ready', () => {
+    const checking = { type: 'checking' } as const
+    const harness = setup({ engine: { status: () => checking, ensure: async () => checking } })
+    expect(() => openPreview(harness)).toThrow('The browser engine is still being installed.')
+    expect(harness.cef.views()).toEqual([])
+  })
+
+  it('installs the browser engine before profile maintenance opens a CEF page', async () => {
+    const installed = Promise.withResolvers<BrowserEngineStatus>()
+    let status: BrowserEngineStatus = { type: 'downloading', receivedBytes: 0, totalBytes: 1 }
+    const harness = setup({
+      engine: {
+        status: () => status,
+        ensure: async () => {
+          status = await installed.promise
+          return status
+        },
+      },
+    })
+    const cleared = harness.views.clearProfileData('default')
+    await settle()
+    expect(harness.cef.views()).toEqual([])
+
+    installed.resolve({ type: 'ready' })
+    await settle()
+    await cleared
+    expect(harness.cef.sent('Network.clearBrowserCookies')).toHaveLength(1)
+  })
+
+  it('fails profile maintenance with the install failure and opens no page', async () => {
+    const failed = { type: 'failed', reason: 'offline', message: 'No connection.' } as const
+    const harness = setup({ engine: { status: () => failed, ensure: async () => failed } })
+    await expect(harness.views.clearProfileData('default')).rejects.toThrow(
+      'The browser engine is not available: No connection.',
+    )
+    expect(harness.cef.views()).toEqual([])
   })
 })

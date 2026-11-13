@@ -17,6 +17,8 @@ import { openBackgroundWindow } from './electrobun-window-policy'
 import type { PrepareBrowserPreviewAnnotation } from '../browser-preview/annotation/browser-preview-annotation'
 import { BrowserPreviewArtifactStorage } from '../browser-preview/browser-preview-artifact-storage'
 import type { AppPathsShape } from '../../ports/desktop-shell/app-paths'
+import type { BrowserEngineShape } from '../../ports/desktop-shell/browser-engine'
+import type { BrowserPreviewViewsShape } from '../../ports/desktop-shell/browser-preview-views'
 import type { ClipboardShape } from '../../ports/desktop-shell/clipboard'
 import type { OsShellShape } from '../../ports/desktop-shell/os-shell'
 
@@ -36,6 +38,7 @@ function cefDevToolsEndpoint(environmentPort: string | undefined) {
 /** The other desktop shell ports the Browser preview reaches. */
 export interface ElectrobunBrowserPreviewShell {
   readonly appPaths: Pick<AppPathsShape, 'userData'>
+  readonly engine: Pick<BrowserEngineShape, 'ensure' | 'status'>
   readonly clipboard: Pick<ClipboardShape, 'writeImage'>
   readonly osShell: Pick<OsShellShape, 'showItemInFolder'>
   /** How an annotation becomes a composer attachment; the Session Host's when absent. */
@@ -50,6 +53,7 @@ export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell) {
   let artifacts: BrowserPreviewArtifactStorage | null = null
   let endpoint: CefDevToolsEndpoint | null | undefined
   return {
+    engine: shell.engine,
     createView: ({ windowId, url, partition }) =>
       new (electrobun().BrowserView)({
         windowId,

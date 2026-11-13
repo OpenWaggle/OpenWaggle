@@ -3,6 +3,7 @@ import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
 import { registerBackgroundStartHandlers } from './background-start-handler'
+import { registerBrowserEngineHandlers } from './browser-engine-handler'
 import { registerBrowserPreviewHandlers } from './browser-preview-handler'
 import { registerComposerHandlers } from './composer-handler'
 import { registerDesktopNotificationsHandlers } from './desktop-notifications-handler'
@@ -45,6 +46,7 @@ export function registerAllIpcHandlers() {
   registerProfileAccessHandlers()
   registerAgentDefinitionsHandlers()
   registerAuthHandlers()
+  registerBrowserEngineHandlers()
   registerBrowserPreviewHandlers()
   registerAgentHandlers()
   registerSessionControlHandlers()

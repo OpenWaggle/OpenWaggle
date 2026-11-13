@@ -46,4 +46,8 @@ export interface OpenWaggleBrowserPreviewApi {
   onBrowserPreviewOpenRequestCancellation: IpcEventMethod<'browser-preview:cancel-open-request'>
   onBrowserPreviewRecordingRequest: IpcEventMethod<'browser-preview:recording-request'>
   onBrowserPreviewRecordingCancel: IpcEventMethod<'browser-preview:recording-cancel'>
+  /** Installs the browser engine previews need (a download on macOS); the final status. */
+  ensureBrowserEngine: IpcInvokeMethod<'browser-engine:ensure'>
+  getBrowserEngineStatus: IpcInvokeMethod<'browser-engine:get-status'>
+  onBrowserEngineStatus: IpcEventMethod<'browser-engine:status-changed'>
 }

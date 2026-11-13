@@ -1,6 +1,7 @@
 import type { OAuthFlowStatus } from './auth'
 import type { WorktreeLaunchEventPayload } from './background-run'
 import type { SessionId } from './brand'
+import type { BrowserEngineStatus } from './browser-engine'
 import type {
   BrowserPreviewKeyEvent,
   BrowserPreviewShortcutEvent,
@@ -75,6 +76,9 @@ export interface IpcSendChannelMap {
  * Event channels — one-way, main → renderer
  */
 export interface IpcEventChannelMap {
+  'browser-engine:status-changed': {
+    payload: BrowserEngineStatus
+  }
   'browser-preview:open-request': {
     payload: BrowserPreviewOpenRequest
   }

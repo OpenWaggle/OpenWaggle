@@ -30,6 +30,7 @@ import { openBrowserImportFullDiskAccessSettings } from '../browser-import/brows
 import { createGuidedBrowserImporter } from '../browser-import/guided-browser-import'
 import { browserPreviewViews } from '../desktop-shell/browser-preview-views'
 import { SettingsService, type SettingsServiceShape } from '../services/settings-service'
+import { requireBrowserEngineEffect } from './browser-engine-handler'
 import { registerBrowserPreviewControlHandlers } from './browser-preview-control-handler'
 import { typedHandle } from './typed-ipc'
 
@@ -69,6 +70,7 @@ function registerBrowserPreviewNavigationHandlers() {
   typedHandle('browser-preview:open', (event, input: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewOpenInputSchema, input)
+      yield* requireBrowserEngineEffect
       const opened = yield* Effect.sync(() => browserPreviewViews.open(event.sender, decoded))
       yield* recordUsageStatisticsObservation({ kind: 'feature', flag: 'browser_preview' })
       return opened

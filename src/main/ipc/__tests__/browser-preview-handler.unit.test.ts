@@ -33,6 +33,9 @@ vi.mock('../../desktop-shell/ipc-transport', () => ({
   },
 }))
 
+const engine = vi.hoisted(() => ({ ensure: vi.fn() }))
+vi.mock('../../desktop-shell/browser-engine', () => ({ browserEngine: engine }))
+
 vi.mock('../../desktop-shell/browser-preview-views', () => ({
   browserPreviewViews: {
     ...manager,
@@ -90,6 +93,7 @@ describe('browser preview IPC handlers', () => {
     manager.reload.mockReturnValue(STATE)
     manager.stop.mockReturnValue(STATE)
     manager.close.mockResolvedValue(undefined)
+    engine.ensure.mockResolvedValue({ type: 'ready' })
     registerBrowserPreviewHandlers()
   })
 
@@ -153,6 +157,24 @@ describe('browser preview IPC handlers', () => {
 
     expect(result).toEqual(STATE)
     expect(manager.open).toHaveBeenCalledWith(sender, input)
+  })
+
+  it('opens no preview the browser engine cannot back', async () => {
+    engine.ensure.mockResolvedValueOnce({ type: 'failed', reason: 'offline', message: 'Offline.' })
+    const invocation = registeredHandler('browser-preview:open')(
+      { sender: { id: 19 } },
+      {
+        previewId: 'preview-1',
+        ownerKey: 'session-1',
+        profileId: 'default',
+        url: 'https://example.com',
+        bounds: { x: 0, y: 0, width: 900, height: 700 },
+        visible: true,
+      },
+    )
+
+    await expect(invocation).rejects.toThrow('The browser engine is not available: Offline.')
+    expect(manager.open).not.toHaveBeenCalled()
   })
 
   it('rejects non-HTTP URLs before they reach the native manager', async () => {

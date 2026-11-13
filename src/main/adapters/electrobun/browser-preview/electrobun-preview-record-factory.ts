@@ -25,6 +25,7 @@ import {
   MAX_TITLE_LENGTH,
 } from '../../browser-preview/browser-preview-page-state'
 import { browserPreviewPartition } from '../../browser-preview/browser-preview-partitions'
+import type { BrowserEngineShape } from '../../../ports/desktop-shell/browser-engine'
 import type { RendererSurface } from '../../../ports/desktop-shell/renderer-surfaces'
 
 /** Navigation a CEF preview may make: the web, plus the blank page it starts on. */
@@ -32,6 +33,8 @@ export const BROWSER_PREVIEW_NAVIGATION_RULES = ['^*', 'http://*', 'https://*', 
 
 /** What the Electrobun Browser preview needs from the shell; tests give it fakes. */
 export interface ElectrobunPreviewHost {
+  /** CEF itself; no view is created before it is ready (on macOS a downloadable component). */
+  readonly engine: Pick<BrowserEngineShape, 'ensure' | 'status'>
   /** A sandboxed CEF `BrowserView` in `windowId`, hidden until it is given bounds. */
   readonly createView: (options: {
     readonly windowId: number

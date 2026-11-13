@@ -12,6 +12,7 @@ import { browserPreviewRecordingRequestResponseSchema } from '@shared/schemas/br
 import * as Effect from 'effect/Effect'
 import type { Schema as EffectSchema } from 'effect/Schema'
 import { browserPreviewViews } from '../desktop-shell/browser-preview-views'
+import { requireBrowserEngineEffect } from './browser-engine-handler'
 import { typedHandle } from './typed-ipc'
 
 function decode<T, I>(schema: EffectSchema<T, I>, value: unknown) {
@@ -80,6 +81,7 @@ function registerBrowserPreviewDisplayControlHandlers() {
           browserPreviewReplacementInputSchema,
           [input, replacedPreviewId],
         )
+        yield* requireBrowserEngineEffect
         return yield* Effect.sync(() =>
           browserPreviewViews.replaceForCapacity(
             event.sender,
