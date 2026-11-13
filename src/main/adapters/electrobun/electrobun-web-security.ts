@@ -1,5 +1,6 @@
 import type { TrustedOriginDomain } from '../../ports/desktop-shell/trusted-origins'
 import type { WebSecurityShape } from '../../ports/desktop-shell/web-security'
+import { electrobunRendererSurfaces } from './electrobun-renderer-surfaces'
 import {
   buildContentSecurityPolicy,
   type RendererPolicySources,
@@ -22,9 +23,10 @@ import {
  * - Embedded frames are confined by that policy's `frame-src`, which names only the trusted
  *   origins, and by each frame host's capability path, so a frame reaches neither the internet
  *   nor another frame's documents. Electrobun's `navigationRules` only see the main frame (macOS
- *   `shouldApplyMainFrameNavigationRules`), so `guardEmbeddedFrames` has nothing to install. What
- *   remains open: `frame-src http://127.0.0.1:*` lets a frame navigate itself to another local
- *   HTTP server, a GET with no credentials of ours.
+ *   `shouldApplyMainFrameNavigationRules`), so `guardEmbeddedFrames` installs nothing; it refuses
+ *   a surface with no live page, so a missing page never counts as guarded. What remains open:
+ *   `frame-src http://127.0.0.1:*` lets a frame navigate itself to another local HTTP server, a
+ *   GET with no credentials of ours.
  * - Origin storage is cleared by the frame host's server: its next document carries
  *   `Clear-Site-Data: "storage"` (`ElectrobunTrustedOrigins.clearStorage`), and a host on a fresh
  *   port clears on its first document, so a reused port never inherits another frame's storage.
@@ -63,7 +65,15 @@ export function createElectrobunWebSecurity(
   // whether or not the page is still open.
   const storage = { clear: (list: readonly string[]) => origins.clearStorage(list) }
   return {
-    guardEmbeddedFrames: () => undefined,
+    guardEmbeddedFrames: (surface) => {
+      // Fail closed: a page this guard cannot find would keep its frames unconfined.
+      const page = electrobunRendererSurfaces.fromId(surface.id)
+      if (!page || page.isDestroyed()) {
+        throw new Error(
+          `Cannot confine the frames of renderer surface ${String(surface.id)}: Electrobun has no page with that id.`,
+        )
+      }
+    },
     originStorageOf: () => storage,
     maintainCaches: () => undefined,
   } satisfies WebSecurityShape
