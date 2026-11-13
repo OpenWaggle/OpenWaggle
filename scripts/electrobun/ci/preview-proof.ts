@@ -8,6 +8,7 @@ import http from 'node:http'
 import path from 'node:path'
 import type { ConnectedElectrobunApp } from '../../support/electrobun-app-launch'
 import { waitUntil } from './app-proof'
+import { ensureBrowserEngineWithin } from './browser-engine-proof'
 
 const PREVIEW_BOUNDS = { x: 480, y: 120, width: 640, height: 480 }
 const PREVIEW_TITLE = 'ow-preview-proof'
@@ -94,6 +95,8 @@ export async function proveBrowserPreview(input: {
   // A renderer opens previews for the owners it registered, as a Session's panel does.
   const ownerKey = `ci-smoke:${input.sessionId}`
   try {
+    // A fresh macOS install downloads the CEF component first, as the preview panel does.
+    const browserEngine = await ensureBrowserEngineWithin(input.app.page, input.timeoutMs)
     await input.app.page.evaluate(
       async (key) => window.api.registerBrowserPreviewOwner(key),
       ownerKey,
@@ -144,6 +147,7 @@ export async function proveBrowserPreview(input: {
       openedTitle: opened.title,
       appScreenshot: { width: captured.width, height: captured.height },
       screenshot: shot,
+      browserEngine,
     }
   } finally {
     fixture.close()
