@@ -12,21 +12,36 @@ import type { BrowserEngineShape } from '../../ports/desktop-shell/browser-engin
 
 /** macOS's bsdtar, which keeps the extended attributes code signatures live in. */
 const SYSTEM_TAR = '/usr/bin/tar'
+const SYSTEM_XATTR = '/usr/bin/xattr'
+const QUARANTINE = 'com.apple.quarantine'
+const NO_SUCH_XATTR = 'No such xattr'
 const COMPONENTS_DIRECTORY = 'cef'
-const TAR_OUTPUT_BYTES = 1_048_576
+const TOOL_OUTPUT_BYTES = 1_048_576
 
-function extractTarXz(archive: string, destination: string) {
+/** Runs a system tool; `tolerated` names a stderr text that still counts as success. */
+function run(command: string, args: readonly string[], tolerated?: string) {
   return new Promise<void>((resolve, reject) => {
     execFile(
-      SYSTEM_TAR,
-      ['-xJf', archive, '-C', destination],
-      { env: getSafeChildEnv(), maxBuffer: TAR_OUTPUT_BYTES },
+      command,
+      [...args],
+      { env: getSafeChildEnv(), maxBuffer: TOOL_OUTPUT_BYTES },
       (error, _stdout, stderr) => {
-        if (error === null) resolve()
+        if (error === null || (tolerated !== undefined && stderr.includes(tolerated))) resolve()
         else reject(new Error(stderr.trim() || error.message, { cause: error }))
       },
     )
   })
+}
+
+/**
+ * Extracts the archive with its code signatures. bsdtar copies the archive's quarantine onto
+ * every extracted file, and quarantined helper apps would meet Gatekeeper, so the quarantine is
+ * removed from both: the pinned sha256 already vouched for the bytes.
+ */
+async function extractTarXz(archive: string, destination: string) {
+  await run(SYSTEM_XATTR, ['-d', QUARANTINE, archive], NO_SUCH_XATTR)
+  await run(SYSTEM_TAR, ['-xJf', archive, '-C', destination])
+  await run(SYSTEM_XATTR, ['-dr', QUARANTINE, destination], NO_SUCH_XATTR)
 }
 
 /**
