@@ -12,6 +12,7 @@
  *   after this hook, so package.ts re-seals, notarizes and repacks the app afterwards
  *   (macos-reseal.ts);
  * - Windows: Authenticode signing of every PE file, when a certificate is configured.
+ * - Linux: the CEF files Chromium never loads go (linux-cef-prune.ts).
  * postWrap sees Hutch's wrapper: the macOS wrapper gets the launch version, the Windows Setup
  * executable is signed.
  *
@@ -29,6 +30,7 @@ import { applyLaunchVersion } from '../electrobun-macos-launch-version'
 import { prepareMacosTransitionBundle } from '../electrobun-transition/macos-transition-bundle'
 import { promisify } from 'node:util'
 import { ELECTROBUN_INNER_APP_DIR } from './app-config'
+import { pruneLinuxCef } from './linux-cef-prune'
 import { ELECTROBUN_ENTITLEMENTS, signMacosApp } from './sign-macos'
 import { signWindowsBinaries } from './sign-windows'
 
@@ -105,6 +107,10 @@ export async function electrobunPostBuild(environment: NodeJS.ProcessEnv) {
     return [...applied.map((bundle) => `launch version: ${bundle}`), ...prepared]
   }
   if (os === 'win') return signWindows([buildDirectory], environment)
+  if (os === 'linux') {
+    const removed = await pruneLinuxCef(buildDirectory)
+    return [`removed ${String(removed.length)} unused CEF files (linux-cef-prune.ts)`]
+  }
   return []
 }
 
