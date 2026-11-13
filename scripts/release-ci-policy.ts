@@ -309,7 +309,7 @@ async function main() {
   process.exitCode = 1
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   void main().catch((error: unknown) => {
     console.error(String(error))
     process.exitCode = 1
