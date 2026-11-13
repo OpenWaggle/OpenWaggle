@@ -87,7 +87,7 @@ describe('normalizeInput', () => {
   it.each(PAYLOADS)(
     'drops explicit-undefined keys from a $kind payload so its schema accepts it',
     ({ decode, payload, expected }) => {
-      const normalized = normalizeInput(invocationWith(payload))
+      const normalized = Either.getOrThrow(normalizeInput(invocationWith(payload)))
 
       expect(decode(payload)._tag).toBe('Left')
       expect(normalized.payload).toStrictEqual(expected)
@@ -98,12 +98,33 @@ describe('normalizeInput', () => {
   it('drops explicit-undefined keys from objects inside arrays and keeps the array items', () => {
     const payload = { items: [{ id: 'a', note: undefined }, null, 'b'] }
 
-    expect(normalizeInput(invocationWith(payload)).payload).toStrictEqual({
+    expect(Either.getOrThrow(normalizeInput(invocationWith(payload))).payload).toStrictEqual({
       items: [{ id: 'a' }, null, 'b'],
     })
   })
 
   it('keeps no payload key when the payload itself is undefined', () => {
-    expect(normalizeInput(invocationWith(undefined))).not.toHaveProperty('payload')
+    expect(Either.getOrThrow(normalizeInput(invocationWith(undefined)))).not.toHaveProperty(
+      'payload',
+    )
+  })
+
+  it('gives the invocation without its payload when an array inside it contains itself', () => {
+    const items: unknown[] = []
+    items.push(items)
+
+    expect(normalizeInput(invocationWith({ items }))).toStrictEqual(
+      Either.left(Either.getOrThrow(normalizeInput(invocationWith(undefined)))),
+    )
+  })
+
+  it('keeps an object the payload holds twice, which is not a cycle', () => {
+    const shared = { id: 'a', note: undefined }
+    const payload = { first: shared, second: [shared] }
+
+    expect(Either.getOrThrow(normalizeInput(invocationWith(payload))).payload).toStrictEqual({
+      first: { id: 'a' },
+      second: [{ id: 'a' }],
+    })
   })
 })

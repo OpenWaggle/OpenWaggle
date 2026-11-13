@@ -13,7 +13,7 @@ import { ExtensionProjectOverridesRepository } from '../ports/extension-project-
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
-import { auditedFailure } from './extension-capability-broker-audit'
+import { auditedFailure, cyclicPayloadFailure } from './extension-capability-broker-audit'
 import {
   contributionEntryDeclaresCapability,
   contributionEntryDeclaresMethod,
@@ -52,9 +52,7 @@ function scopeFailure(message: string) {
 function resolveActiveProjectScope(scope: ExtensionInvokeScope) {
   return Effect.gen(function* () {
     const projectPath = getScopeProjectPath(scope)
-    if (!projectPath) {
-      return scopeOk()
-    }
+    if (!projectPath) return scopeOk()
 
     const settings = yield* SettingsService
     const activeProjectPath = (yield* settings.get()).projectPath
@@ -209,8 +207,10 @@ export function invokeExtensionCapability(
   dependencies: InvokeExtensionCapabilityDependencies = {},
 ) {
   return Effect.gen(function* () {
-    const input = normalizeInput(rawInput)
     const timestamp = dependencies.now?.() ?? Date.now()
+    const normalized = normalizeInput(rawInput)
+    if (normalized._tag === 'Left') return yield* cyclicPayloadFailure(normalized.left, timestamp)
+    const input = normalized.right
     const scopeProjectPath = getScopeProjectPath(input.scope)
     const lookupProjectPath = yield* resolveInvocationLookupProjectPath(input.scope)
     const scopeResolution = yield* resolveScopeContext(input.scope)

@@ -296,4 +296,19 @@ describe('invokeExtensionCapability', () => {
 
     expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD)
   })
+
+  // Regression: dropping explicit-undefined keys recursed through a cyclic payload until the
+  // stack overflowed, a RangeError defect instead of a refused invocation.
+  it('rejects a payload that contains itself as an invalid payload', async () => {
+    const payload: { note: undefined; self?: unknown } = { note: undefined }
+    payload.self = payload
+    const extensionPackage = makeBrokerPackage()
+    const result = await runBroker({
+      invocation: makeProjectInvocation({ payload }),
+      packages: [extensionPackage],
+      lifecycles: [makeLifecycle(extensionPackage)],
+    })
+
+    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD)
+  })
 })

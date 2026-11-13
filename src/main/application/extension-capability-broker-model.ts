@@ -1,4 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import * as Either from 'effect/Either'
+import * as Option from 'effect/Option'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionCapabilityAuditEntry,
@@ -32,16 +34,18 @@ export function normalizeScope(scope: ExtensionInvokeScope) {
 /**
  * The invocation with its scope trimmed and its payload without explicit-undefined keys: an
  * extension that builds `{ cursor: undefined }` over postMessage or IPC means no cursor, and the
- * exact optional payload schemas would refuse the key.
+ * exact optional payload schemas would refuse the key. A payload that contains itself gives
+ * `Left` with the invocation without its payload, which the broker refuses as an invalid payload.
  */
 export function normalizeInput(input: ExtensionInvokeInput) {
-  const { payload: rawPayload, ...invocation } = input
+  const { payload: rawPayload, ...rest } = input
+  const invocation = { ...rest, scope: normalizeScope(input.scope) } satisfies ExtensionInvokeInput
   const payload = withoutUndefinedProperties(rawPayload)
-  return {
+  if (Option.isNone(payload)) return Either.left(invocation)
+  return Either.right({
     ...invocation,
-    scope: normalizeScope(input.scope),
-    ...(payload === undefined ? {} : { payload }),
-  } satisfies ExtensionInvokeInput
+    ...(payload.value === undefined ? {} : { payload: payload.value }),
+  } satisfies ExtensionInvokeInput)
 }
 
 export function getScopeProjectPath(scope: ExtensionInvokeScope) {
