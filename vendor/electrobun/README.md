@@ -7,9 +7,9 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0006 to 0011, Zig tools and Dawn rebuilt for 13.4 |
-| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007 and 0009 to 0011, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007 and 0009 to 0013, plus the WebView2 Evergreen bootstrapper |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011 and 0020, Zig tools and Dawn rebuilt for 13.4 |
+| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007, 0009 to 0011 and 0020, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007, 0009 to 0013 and 0020, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -108,6 +108,12 @@ release targets (docs/release-and-versioning.md), so they are not built.
    webviews, an empty partition an InPrivate profile of its own; names other than short lowercase
    ASCII are hashed (`shared/webview2_chromium_environment.h`, with a test). The environment starts
    with the first such webview, never at launch. OpenWaggle's Windows build ships no CEF.
+20. **ffi: keep each C string's buffer alive until the native call has read it.** `toCString`
+   returned `ptr(Buffer.from(...))` and dropped the Buffer, so a garbage collection between it and
+   the native call could free and reuse the bytes; `createWebview` builds six such strings for one
+   call. The webview's secret key then arrived short and the app quit at startup ("Webview secret
+   key must contain exactly 32 bytes"). Each Buffer now stays referenced until the next macrotask.
+   Patches 0020 on are packaging and Linux fixes (0012 and 0013 are Windows, 0014 on macOS).
 
 ## Building
 

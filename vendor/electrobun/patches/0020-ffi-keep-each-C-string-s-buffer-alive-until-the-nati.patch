@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Fri, 13 Nov 2026 17:38:11 +0100
+Subject: [PATCH] ffi: keep each C string's buffer alive until the native call
+ has read it
+
+toCString returned ptr(Buffer.from(...)) and dropped the Buffer, so nothing
+kept the bytes alive once the pointer, a plain number, left the function.
+createWebview takes six such strings in one call; a garbage collection
+while the later ones are built can free an earlier one and reuse its
+memory before the native layer reads it. The webview's secret key, the
+one string the native layer validates, then arrived short and the app
+failed its startup with "Webview secret key must contain exactly 32
+bytes", once in the nine launches of one CI run of the Linux app. The
+URL, partition and preload strings could arrive corrupted without an error.
+
+Each Buffer now stays referenced until the next macrotask, after every
+synchronous native call that received its pointer.
+---
+ package/src/sdks/main/proc/native.ts | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/package/src/sdks/main/proc/native.ts b/package/src/sdks/main/proc/native.ts
+index 449853c..98e3b8f 100644
+--- a/package/src/sdks/main/proc/native.ts
++++ b/package/src/sdks/main/proc/native.ts
+@@ -3709,6 +3709,21 @@ const contextMenuHandler = new JSCallback(
+ 
+ // Note: When passed over FFI JS will GC the buffer/pointer. Make sure to use strdup() or something
+ // on the c side to duplicate the string so objc/c++ gc can own it
++// A pointer from toCString is only a number: nothing keeps the Buffer it points into alive, so a
++// garbage collection between toCString and the native call that reads it (another toCString
++// argument of the same call allocates) can free and reuse the bytes. Each Buffer stays referenced
++// until the next macrotask, after every synchronous native call that received its pointer.
++const liveCStrings: Buffer[] = [];
++let liveCStringsRelease: ReturnType<typeof setTimeout> | null = null;
++
++function keepAliveUntilNextTask(buffer: Buffer) {
++	liveCStrings.push(buffer);
++	liveCStringsRelease ??= setTimeout(() => {
++		liveCStrings.length = 0;
++		liveCStringsRelease = null;
++	}, 0);
++}
++
+ export function toCString(
+ 	jsString: string,
+ 	addNullTerminator: boolean = true,
+@@ -3719,6 +3734,7 @@ export function toCString(
+ 		appendWith = "\0";
+ 	}
+ 	const buff = Buffer.from(jsString + appendWith, "utf8");
++	keepAliveUntilNextTask(buff);
+ 
+ 	// @ts-ignore - This is valid in Bun
+ 	return ptr(buff);
+-- 
+2.54.0 (Apple Git-157)
+
