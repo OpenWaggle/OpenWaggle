@@ -7,6 +7,7 @@ import { defineConfig, type Plugin } from 'vite'
 import svgr from 'vite-plugin-svgr'
 import { resolveBuildIdentity } from './scripts/build-identity'
 import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
+import { stylesheetsFirstPlugin } from './scripts/vite/stylesheets-first'
 
 /**
  * The renderer build (ADR 0064): `src/renderer` to `out/renderer`, which the main process serves
@@ -134,5 +135,6 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
     disablePluginTimingWarningsPlugin(),
+    stylesheetsFirstPlugin(),
   ],
 })
