@@ -4,6 +4,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { missingPackagedPiAssets } from './electron-builder-pi-assets'
+import { runPiPackageAssetsProbe } from './packaged-pi-package-probe'
 import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
 import { nodeRuntime } from './support/node-runtime'
 import { unusedChromiumFiles } from './electron-builder-after-pack'
@@ -207,7 +208,7 @@ function assertPiPackageAssets(header: AsarNode) {
   const missing = missingPackagedPiAssets(collectAsarEntries(header))
   if (missing.length > 0) {
     throw new Error(
-      `Packaged app asar is missing Pi documentation Pi names to the model: ${missing.join(', ')}.`,
+      `Packaged app asar is missing Pi files Pi reads from its package directory: ${missing.join(', ')}.`,
     )
   }
 }
@@ -315,6 +316,8 @@ async function smokePackagedApp(appPath: string) {
   await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
   await assertUnshipped(resourcesPath, UNSHIPPED_RESOURCES)
   await assertNoUnusedChromiumFiles(appPath)
+  await runPiPackageAssetsProbe(asarPath)
+  console.log(`packaged Pi HTML export and themes passed: ${appPath}`)
 
   if (packagedAppMatchesHostArchitecture(appPath)) {
     await runPackagedPtyProbe(appPath, asarPath)

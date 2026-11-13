@@ -27,11 +27,17 @@ export const PI_PACKAGE_ASSET_FILE_PATTERNS = [
   'node_modules/@earendil-works/pi-coding-agent/examples/**/*',
 ] as const
 
-/** asar entries the packaged app must hold for Pi's documentation paths to resolve. */
+/**
+ * asar entries the packaged app must hold for Pi's documentation paths to resolve, and for its HTML
+ * export and built-in themes (scripts/pi-package-assets-probe.ts runs both on the packaged copy).
+ */
 export const PACKAGED_PI_ASSET_ENTRIES = [
   '/node_modules/@earendil-works/pi-coding-agent/README.md',
   '/node_modules/@earendil-works/pi-coding-agent/docs/codemode.md',
   '/node_modules/@earendil-works/pi-coding-agent/examples',
+  '/node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.html',
+  '/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json',
+  '/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json',
 ] as const
 
 export function missingPackagedPiAssets(asarEntries: readonly string[]) {
