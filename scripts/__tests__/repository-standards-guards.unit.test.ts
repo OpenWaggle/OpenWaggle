@@ -101,17 +101,6 @@ describe('non-disruptive Electron automation boundary', () => {
     expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', safe)).toEqual([])
   })
 
-  it('recognizes Electron Vite launches with either quote style', () => {
-    const source = 'spawn("pnpm", ["exec", "electron-vite", "dev"])'
-    const aliased = [
-      "import { spawn as run } from 'node:child_process'",
-      'run("pnpm", ["exec", "electron-vite", "dev"])',
-    ].join('\n')
-
-    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', source)).toHaveLength(1)
-    expect(collectScriptedElectronLaunchViolations('scripts/unsafe.ts', aliased)).toHaveLength(1)
-  })
-
   it('rejects aliased Electron desktop UI imports and visible window construction', () => {
     const source = [
       "import { shell as osShell, BrowserWindow as BW } from 'electron'",

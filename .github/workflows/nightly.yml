@@ -10,8 +10,11 @@
 # Scope note: this builds + packages + runs the native platform-floor guard
 # (scripts/check-native-platform-floor.ts) and `packaged-app:smoke` (asar shape,
 # packaged docs, and a native node-pty/sqlite load probe via ELECTRON_RUN_AS_NODE).
-# It does NOT launch a window, so it does not cover renderer boot, CSP, visual
-# pixels, or timing budgets - those are local/manual only after E2E removal.
+# It also starts the packaged app hidden and checks that its Session Host starts and
+# answers the CLI (scripts/qa/packaged-session-host-startup-smoke.ts). It shows no
+# window, so it does not cover renderer boot, CSP, visual pixels, or timing budgets -
+# those are local/manual only after E2E removal. The development app (`pnpm dev`) gets the
+# same Session Host check (scripts/qa/dev-app-startup-smoke.ts).
 name: Nightly
 
 on:
@@ -69,15 +72,21 @@ jobs:
             runner: macos-latest
             build_flags: --mac --arm64 --x64 --publish never
             syntax_budget: true
+            packaged_executable: dist/mac-arm64/OpenWaggle.app/Contents/MacOS/OpenWaggle
+            display: ""
           - label: Linux
             # Matches the release build: Ubuntu 22.04 keeps native modules on glibc 2.35.
             runner: ubuntu-22.04
             build_flags: --linux --publish never
             syntax_budget: false
+            packaged_executable: dist/linux-unpacked/openwaggle
+            display: xvfb-run -a
           - label: Windows
             runner: windows-latest
             build_flags: --win --publish never
             syntax_budget: false
+            packaged_executable: dist/win-unpacked/OpenWaggle.exe
+            display: ""
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -117,6 +126,14 @@ jobs:
       - name: Smoke packaged runtime
         run: pnpm packaged-app:smoke
 
+      # Starts the packaged app hidden, waits for its detached Session Host and drives it
+      # through the CLI, on a fresh profile and on a migrated one. This is the path a
+      # security product broke on Windows in issue #446: the hidden Host launch and the
+      # user-only permissions both run Windows PowerShell helpers.
+      - name: Smoke packaged Session Host startup
+        shell: bash
+        run: ${{ matrix.display }} pnpm qa:packaged-session-host-startup "${{ matrix.packaged_executable }}"
+
       - name: Verify Windows installer
         if: matrix.label == 'Windows'
         shell: pwsh
@@ -144,6 +161,15 @@ jobs:
           pnpm benchmark:syntax
         env:
           SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
+
+      # Starts the development app with `pnpm dev`, hidden, as a contributor would (through
+      # cmd.exe on Windows), and checks that its Session Host starts and answers the CLI. It
+      # needs only the installed dependencies, so it still reports when packaging failed, and it
+      # runs after the syntax budget so its build does not load the runner during that timing.
+      - name: Smoke development app startup
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: bash
+        run: ${{ matrix.display }} pnpm qa:dev-app-startup
 
       - name: Upload build artifacts on failure
         if: failure()

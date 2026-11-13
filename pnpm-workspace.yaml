@@ -20,6 +20,11 @@ catalogs:
 # (docs/dependency-updates.md).
 saveExact: true
 
+# Some tarballs, such as onnxruntime-node and onnxruntime-web, are over 100 MB unpacked, and
+# pnpm's one-minute default timed out a contributor's first install on Windows (issue #446). The
+# Building from source page gives `--network-concurrency 3` for connections that still time out.
+fetchTimeout: 600000
+
 # Install the native optional packages (sharp, keyring, clipboard, ...) for both CPU architectures.
 # One macOS run packages the arm64 and the x64 app, so the arm64 release runner must also install
 # the x64 builds; without this the Intel app shipped only arm64 binaries (#349). electron-builder

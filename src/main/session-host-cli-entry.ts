@@ -10,7 +10,7 @@ import {
   installLinuxSessionBusEnvironment,
   takeShellEnvironmentRefreshedSince,
 } from './env'
-import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
+import { flushErrorReporting, reportStartupFailure, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
 import { configureAppStoragePaths } from './session-data'
@@ -288,7 +288,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       logger.error('Session Host stopped on an unrecoverable error', {
         error: describeError(error),
       })
-      reportError(error)
+      void reportStartupFailure(error, 'session-host') // the bounded flush below waits for it
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
       await drainFileLogger().catch(() => undefined)
       await flushCliOutput().catch(() => undefined)

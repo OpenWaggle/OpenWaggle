@@ -48,6 +48,8 @@ vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: async () => null,
 }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: () => undefined }))
+// Error reporting runs for real here; the Host's saved Setting must not touch the disk.
+vi.mock('../usage-statistics/usage-statistics-last-known-setting')
 vi.mock('../usage-statistics/usage-statistics-recorder', () => ({
   configureUsageStatisticsHostRecorder: (input: unknown) => {
     mocks.order.push('configure-usage-statistics')

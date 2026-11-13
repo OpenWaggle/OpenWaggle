@@ -12,6 +12,9 @@ const DETACHED_PROCESS_API = 'detached external application'
 const PLAYWRIGHT_ELECTRON_LAUNCH_OWNER = 'scripts/playwright-electron-launcher.ts'
 const ELECTRON_VITE_LAUNCH_OWNERS = [
   'scripts/measure-main-startup.ts',
+  // `pnpm dev` itself: a person runs it to open the visible development app.
+  'scripts/run-electron-dev.ts',
+  'scripts/qa/dev-app-startup-smoke.ts',
   'scripts/start-electron-qa.ts',
 ]
 const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
@@ -157,25 +160,63 @@ export function collectUnguardedDesktopUiViolations(file: string, contents: stri
   return [...importedDesktopUiViolations(normalized, code), ...callViolations]
 }
 
-export function collectScriptedElectronLaunchViolations(file: string, contents: string) {
-  const normalized = normalizePath(file)
-  if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized) || normalized.includes('__tests__')) return []
-  const code = withoutCommentLines(contents)
-  const launchesWithPlaywright =
+function launchesWithPlaywright(code: string) {
+  return (
     /\belectron\s*\.\s*launch\s*\(/u.test(code) ||
     playwrightElectronAliases(code).some((alias) =>
       new RegExp(`\\b${alias}\\s*\\.\\s*launch\\s*\\(`, 'u').test(code),
-    ) || /\b\w+\s*\.\s*_electron\s*\.\s*launch\s*\(/u.test(code)
-  const launchesElectronVite =
-    (/\bspawn\s*\(/u.test(code) ||
-      childProcessSpawnAliases(code).some((alias) =>
-        new RegExp(`\\b${alias}\\s*\\(`, 'u').test(code),
-      )) &&
-    code.includes('electron-vite') &&
-    /['"]dev['"]/u.test(code)
-  if (launchesWithPlaywright && normalized === PLAYWRIGHT_ELECTRON_LAUNCH_OWNER) return []
-  if (launchesElectronVite && ELECTRON_VITE_LAUNCH_OWNERS.includes(normalized)) return []
-  if (!launchesWithPlaywright && !launchesElectronVite) return []
+    ) ||
+    /\b\w+\s*\.\s*_electron\s*\.\s*launch\s*\(/u.test(code)
+  )
+}
+
+const DEV_SCRIPT = `['"\`](?:run['"\`]\\s*,\\s*['"\`])?dev(?::debug(?::headed)?)?['"\`]`
+/** `pnpm` called with a dev script (`dev`, `run dev`, `dev:debug`, `dev:debug:headed`) in its list. */
+const PNPM_DEV_CALL = new RegExp(`['"\`]pnpm['"\`]\\s*,\\s*\\[[^\\]]*?${DEV_SCRIPT}`, 'u')
+/** `pnpm` (or pnpm's own script, `npm_execpath`) as the argument right before a dev script. */
+const PNPM_DEV_ARGV = new RegExp(
+  `(?:['"\`]pnpm['"\`]|\\bnpm_execpath\\b[^,\\n]{0,40}?)\\s*,\\s*${DEV_SCRIPT}`,
+  'u',
+)
+/** Such a list built first, holding only the script or the script and its switches. */
+const DEV_SCRIPT_LIST = new RegExp(`\\[\\s*${DEV_SCRIPT}\\s*(?:\\]|,\\s*['"\`]--)`, 'u')
+const PNPM_LITERAL = /['"`]pnpm['"`]/u
+/** A `pnpm dev` command string passed to exec or spawn. */
+const PNPM_DEV_COMMAND =
+  /\b(?:exec|execSync|spawn|spawnSync)\s*\(\s*['"`]pnpm\s+(?:run\s+)?dev(?::debug(?::headed)?)?(?=[\s'"`])/u
+
+/**
+ * `electron-vite dev` spawned directly, the development launcher (called, imported or run by its
+ * path; importing only its helpers counts too, which keeps the rule simple), or a pnpm dev script.
+ */
+function launchesDevelopmentApp(code: string, checksPnpm: boolean) {
+  const spawns =
+    /\bspawn\s*\(/u.test(code) ||
+    childProcessSpawnAliases(code).some((alias) => new RegExp(`\\b${alias}\\s*\\(`, 'u').test(code))
+  return (
+    (spawns && code.includes('electron-vite') && /['"]dev['"]/u.test(code)) ||
+    /\belectronDevInvocation\s*\(/u.test(code) ||
+    /\brun-electron-dev\b/u.test(code) ||
+    // The app's own code runs a project's `pnpm dev` for the user (project actions), and shows it.
+    (checksPnpm &&
+      (PNPM_DEV_CALL.test(code) ||
+        PNPM_DEV_ARGV.test(code) ||
+        (PNPM_LITERAL.test(code) && DEV_SCRIPT_LIST.test(code)) ||
+        PNPM_DEV_COMMAND.test(code)))
+  )
+}
+
+export function collectScriptedElectronLaunchViolations(file: string, contents: string) {
+  const normalized = normalizePath(file)
+  if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized) || normalized.includes('__tests__')) return []
+  // The standards spell out the launches they look for.
+  if (normalized.startsWith('scripts/standards/')) return []
+  const code = withoutCommentLines(contents)
+  const playwright = launchesWithPlaywright(code)
+  const devApp = launchesDevelopmentApp(code, !normalized.startsWith('src/'))
+  if (playwright && normalized === PLAYWRIGHT_ELECTRON_LAUNCH_OWNER) return []
+  if (devApp && ELECTRON_VITE_LAUNCH_OWNERS.includes(normalized)) return []
+  if (!playwright && !devApp) return []
   return [
     {
       file: normalized,

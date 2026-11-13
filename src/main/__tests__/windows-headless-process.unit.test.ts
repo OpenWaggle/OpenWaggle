@@ -14,6 +14,7 @@ vi.mock('../env', () => ({ env: {}, getSafeChildEnv: () => ({}) }))
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { windowsHeadlessCommandLine } from '../windows-headless-process'
 import { WINDOWS_HEADLESS_PROCESS_SCRIPT } from '../windows-headless-process-source'
+import { windowsPowerShellHelperInput } from '../windows-powershell-helper'
 
 const launch = {
   command: 'C:\\Program Files\\OpenWaggle\\OpenWaggle.exe',
@@ -69,26 +70,25 @@ describe('Windows headless process launch boundary', () => {
   it('isolates the native launch while preserving authorized environment without exposing it in argv or input', async () => {
     const { child, inputText } = childProcess()
     const pending = launchHeadlessBackgroundProcess(launch)
-    const encodedScript = Buffer.from(WINDOWS_HEADLESS_PROCESS_SCRIPT, 'utf16le').toString('base64')
 
     expect(mocks.spawn).toHaveBeenCalledExactlyOnceWith(
       'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodedScript],
+      ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'],
       {
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: launch.environment,
       },
     )
-    expect(encodedScript).not.toContain(launch.environment.PROVIDER_API_KEY)
     expect(WINDOWS_HEADLESS_PROCESS_SCRIPT).not.toContain('ExecutionPolicy')
     expect(inputText()).toBe(
-      JSON.stringify({
+      windowsPowerShellHelperInput(WINDOWS_HEADLESS_PROCESS_SCRIPT, {
         command: launch.command,
         commandLine: '"C:\\Program Files\\OpenWaggle\\OpenWaggle.exe" "session-host-internal"',
       }),
     )
-    child.stdout.write('OW_HEADLESS_LAUNCHED')
+    expect(inputText()).not.toContain(launch.environment.PROVIDER_API_KEY)
+    child.stdout.write('\u001b[?1h\u001b[?1lOW_HEADLESS_LAUNCHED')
     child.emit('close', 0)
 
     await expect(pending).resolves.toBeUndefined()

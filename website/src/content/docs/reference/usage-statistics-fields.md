@@ -149,7 +149,7 @@ A report keeps only these fields:
 | Method | For an unhandled rejection from one of the app's own API calls, the method's name, such as `getSettings`, taken from OpenWaggle's own bridge |
 | System | Operating system name and version, CPU architecture, and the Electron, Chrome and Node.js versions |
 
-The app drops the message text of every report, because a message can quote your files, commands or model output. The one exception is a handled error that the app reports as an application error, which it does only where the message cannot hold your content. No code does that today.
+The app drops the message text of every report, because a message can quote your files, commands or model output. The one exception is a handled error that the app reports as an application error, which it does only where the message cannot hold your content. Today that is one report: when the app or its Session Host fails to start, or the Session Host stops on an error, the app reports a summary built only from fixed values. It names the process, the type of each error in the chain, any Node.js error code, and, for a built-in Windows helper, the step it reached, its exit code and signal, and a Windows error code, for example `session-host: Error <- WindowsUserOnlySecurityError stage=compile exit=1`. Any other error type becomes `Error`, unless it is built in or one of the app's named startup errors. The summary never includes an error message, path or helper output.
 
 ### What the app replaces
 

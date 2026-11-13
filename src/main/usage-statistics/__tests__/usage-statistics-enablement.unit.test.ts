@@ -30,6 +30,39 @@ describe('Usage statistics enablement', () => {
     expect(state.isEnabled()).toBe(false)
   })
 
+  it('acts on the saved Setting of a process whose Settings could not load, until they load', () => {
+    const state = releasedState()
+    const changes: boolean[] = []
+    state.onChange((enabled) => changes.push(enabled))
+
+    state.publishSettingWithoutSettings(true)
+    expect(state.isEnabled()).toBe(true)
+
+    // Loaded Settings win, also when they say off.
+    state.publishSetting(false)
+    expect(state.current()).toEqual({ enabled: false, reason: 'setting' })
+    expect(changes).toEqual([true, false])
+
+    // The assumed value never comes back once Settings loaded.
+    state.publishSetting(undefined)
+    state.publishSettingWithoutSettings(true)
+    expect(state.current()).toEqual({ enabled: false, reason: 'settings-unavailable' })
+  })
+
+  it('stays off when there is no saved Setting or it is off', () => {
+    const state = releasedState()
+    state.publishSettingWithoutSettings(undefined)
+    expect(state.current()).toEqual({ enabled: false, reason: 'settings-unavailable' })
+    state.publishSettingWithoutSettings(false)
+    expect(state.current()).toEqual({ enabled: false, reason: 'setting' })
+  })
+
+  it('never lets a saved Setting override an environment opt-out', () => {
+    const state = releasedState({ DO_NOT_TRACK: '1' })
+    state.publishSettingWithoutSettings(true)
+    expect(state.current()).toEqual({ enabled: false, reason: 'do-not-track' })
+  })
+
   it.each([
     [{ DO_NOT_TRACK: '1' }, 'do-not-track'],
     [{ PI_TELEMETRY: '0' }, 'pi-telemetry'],

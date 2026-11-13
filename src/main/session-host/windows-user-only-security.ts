@@ -1,5 +1,11 @@
 import { spawn } from 'node:child_process'
 import { getWindowsSecurityChildEnv } from '../env'
+import {
+  WINDOWS_POWERSHELL_HELPER_ARGUMENTS,
+  windowsPowerShellExecutable,
+  windowsPowerShellHelperInput,
+  windowsPowerShellHelperOutput,
+} from '../windows-powershell-helper'
 import { WINDOWS_PIPE_SECURITY_SOURCE } from './windows-pipe-security-source'
 
 const WINDOWS_SECURITY_TIMEOUT_MS = 20_000
@@ -32,7 +38,26 @@ export class WindowsUserOnlySecurityTimeoutError extends Error {
   }
 }
 
+/**
+ * The helper ended without proving the user-only descriptor: it failed, Windows or antivirus
+ * software stopped it, or it printed no verified SID. `stage` is the last stage it reported.
+ */
+export class WindowsUserOnlySecurityError extends Error {
+  constructor(
+    readonly stage: string,
+    readonly exitCode: number | null,
+    readonly signalCode: NodeJS.Signals | null,
+    stderr: string,
+  ) {
+    super(
+      `Windows user-only security verification failed${stderr.trim() ? `: ${stderr.trim()}` : '.'}`,
+    )
+    this.name = 'WindowsUserOnlySecurityError'
+  }
+}
+
 const WINDOWS_SECURITY_SCRIPT = `
+param([string]$RequestJson)
 $ErrorActionPreference = 'Stop'
 
 $source = @'
@@ -48,7 +73,7 @@ $compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandT
 Write-SecurityStage 'compile'
 & $compiler -TypeDefinition $source -Language CSharp
 Write-SecurityStage 'read-input'
-$targets = [Console]::In.ReadToEnd() | ConvertFrom-Json
+$targets = $RequestJson | ConvertFrom-Json
 Write-SecurityStage 'identity'
 $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $owner = $identity.User
@@ -99,10 +124,6 @@ Write-SecurityStage 'complete'
 [Console]::Out.Write($owner.Value)
 `
 
-function encodedPowerShellCommand() {
-  return Buffer.from(WINDOWS_SECURITY_SCRIPT, 'utf16le').toString('base64')
-}
-
 function appendBounded(output: string, chunk: Buffer) {
   if (Buffer.byteLength(output, 'utf8') + chunk.byteLength > MAX_HELPER_OUTPUT_BYTES) {
     throw new Error('The Windows user-only security helper exceeded its output limit.')
@@ -122,22 +143,13 @@ export const secureWindowsUserOnly: WindowsUserOnlySecurity = (targets) =>
       reject(new Error('At least one Windows user-only security target is required.'))
       return
     }
-    const child = spawn(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-EncodedCommand',
-        encodedPowerShellCommand(),
-      ],
-      {
-        env: getWindowsSecurityChildEnv(),
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true,
-      },
-    )
+    const command = windowsUserOnlySecurityCommand()
+    const input = windowsPowerShellHelperInput(WINDOWS_SECURITY_SCRIPT, targets)
+    const child = spawn(command.command, command.arguments, {
+      env: command.env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
     let stdout = ''
     let stderr = ''
     let settled = false
@@ -174,32 +186,31 @@ export const secureWindowsUserOnly: WindowsUserOnlySecurity = (targets) =>
     })
     child.stdin.once('error', (error) => fail(error))
     child.once('error', (error) => fail(error))
-    child.once('close', (code) => {
+    child.once('close', (code, signal) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      const userSid = stdout.trim()
+      const userSid = windowsPowerShellHelperOutput(stdout)
       if (code !== 0 || !WINDOWS_SID_PATTERN.test(userSid)) {
-        reject(
-          new Error(
-            `Windows user-only security verification failed${stderr.trim() ? `: ${stderr.trim()}` : '.'}`,
-          ),
-        )
+        reject(new WindowsUserOnlySecurityError(lastSecurityStage(stderr), code, signal, stderr))
         return
       }
       resolve({ userSid })
     })
-    child.stdin.end(JSON.stringify(targets))
+    child.stdin.end(input)
   })
 
+/** The helper's executable, arguments and environment: nothing on its command line but switches. */
+function windowsUserOnlySecurityCommand() {
+  const env = getWindowsSecurityChildEnv()
+  return {
+    command: windowsPowerShellExecutable(env.SystemRoot),
+    arguments: [...WINDOWS_POWERSHELL_HELPER_ARGUMENTS],
+    env,
+  }
+}
+
 export const windowsUserOnlySecurityCommandForTests = () => ({
-  command: 'powershell.exe',
-  arguments: [
-    '-NoProfile',
-    '-NonInteractive',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-EncodedCommand',
-    encodedPowerShellCommand(),
-  ],
+  ...windowsUserOnlySecurityCommand(),
+  script: WINDOWS_SECURITY_SCRIPT,
 })

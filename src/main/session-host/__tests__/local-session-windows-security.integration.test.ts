@@ -9,6 +9,7 @@ import { SessionHostLiveness } from '../../application/session-host-liveness'
 import { secureLocalSessionEndpoint } from '../local-session-endpoint'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
+import { secureWindowsUserOnly } from '../windows-user-only-security'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
 import {
   verifyWindowsPipeDescriptors,
@@ -142,6 +143,25 @@ describe('Windows Local Session user-only admission', () => {
       accepted: true,
       revision: LOCAL_SESSION_CURRENT_REVISION,
     })
+  })
+
+  itWindows('secures and verifies a directory and file whose path is not ASCII', async () => {
+    // The helper's request is a single-quoted literal with \u escapes, read by PowerShell from a
+    // stdin decoded with the console code page: an apostrophe or a non-ASCII name must survive.
+    const directory = path.join(temporaryRoot, "Jürgen O'Brien 蜂")
+    const file = path.join(directory, 'capability-🐝.json')
+    await fs.mkdir(directory)
+    await fs.writeFile(file, '{}')
+
+    const { userSid } = await withWindowsCompileDiagnostics(() =>
+      secureWindowsUserOnly([
+        { kind: 'directory', path: directory },
+        { kind: 'file', path: file },
+      ]),
+    )
+
+    expect(userSid).toMatch(/^S-1-(?:\d+-)+\d+$/)
+    await expect(fs.readFile(file, 'utf8')).resolves.toBe('{}')
   })
 
   itWindows(

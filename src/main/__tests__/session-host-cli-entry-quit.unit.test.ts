@@ -67,6 +67,8 @@ vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
+// Error reporting runs for real here; the Host's saved Setting must not touch the disk.
+vi.mock('../usage-statistics/usage-statistics-last-known-setting')
 vi.mock('../usage-statistics/usage-statistics-recorder')
 vi.mock('../logger', async (importOriginal) => {
   const original = await importOriginal<typeof import('../logger')>()

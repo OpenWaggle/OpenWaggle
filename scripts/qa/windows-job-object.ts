@@ -5,6 +5,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const JOB_START_TIMEOUT_MS = 15_000
+// The launcher compiles its C# helper with Add-Type before it starts the app, which took longer
+// than 15 seconds on a GitHub Windows runner right after packaging.
+const JOB_ASSIGN_TIMEOUT_MS = 60_000
 const JOB_STOP_TIMEOUT_MS = 5_000
 const JOB_POLL_INTERVAL_MS = 25
 const MAX_LOG_BYTES = 64_000
@@ -254,7 +257,7 @@ export async function launchInWindowsJobObject(
   }
   let assigned: WindowsJobState
   try {
-    assigned = await waitForWindowsJobState('assigned', JOB_START_TIMEOUT_MS, {
+    assigned = await waitForWindowsJobState('assigned', JOB_ASSIGN_TIMEOUT_MS, {
       childExited: () => childExited(child),
       readStatus: () => readStatus(statusPath),
     })

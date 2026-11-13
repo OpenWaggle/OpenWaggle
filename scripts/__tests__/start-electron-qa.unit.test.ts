@@ -102,9 +102,6 @@ describe('managed Electron QA launcher', () => {
     'starts Electron on %s with the mock credential store and the QA CDP port',
     (platform, credentialSwitches) => {
       expect(electronQaLaunchArguments(platform)).toEqual([
-        'exec',
-        'electron-vite',
-        'dev',
         '--',
         ...credentialSwitches,
         `--remote-debugging-port=${QA_CDP_PORT}`,

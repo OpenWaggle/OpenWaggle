@@ -1,0 +1,84 @@
+name: Windows Native Helpers
+
+# The Session Host's Windows PowerShell helpers (user-only security and the headless launcher)
+# run only on Windows, and every per-PR job in ci.yml runs on Ubuntu (ADR 0033), so their real
+# Windows PowerShell 5.1 behaviour was covered only by the nightly packaged canary. This lane runs
+# their Windows-only tests when a pull request changes them (issue #446). It is not a required
+# check, so it never blocks a merge on its own.
+on:
+  pull_request:
+    paths:
+      # The helpers, their inputs, and the tests, probes and fixtures this lane runs.
+      - src/main/windows-*
+      - src/main/__tests__/windows-*
+      - src/main/session-host/windows-*
+      - src/main/session-host/__tests__/windows-*
+      - src/main/session-host/__tests__/local-session-windows-security.integration.test.ts
+      - src/main/session-host/local-session-endpoint.ts
+      - src/main/session-host/local-session-server.ts
+      - src/main/env.ts
+      - src/main/desktop-ui.ts
+      - scripts/qa/__tests__/session-host-shutdown.integration.test.ts
+      - scripts/qa/__tests__/windows-*
+      - scripts/qa/__tests__/fixtures/windows-*
+      - scripts/qa/windows-*
+      - scripts/qa/session-host-shutdown.ts
+      - scripts/safe-electron-environment.ts
+      - src/main/session-host/session-host-ownership.ts
+      - .github/workflows/windows-native-helpers.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-native-helpers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-helpers:
+    name: Windows PowerShell helpers
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - uses: ./.github/actions/pnpm-install
+        with:
+          electron-binary: 'true'
+
+      - name: Unit tests for the helper boundaries
+        run: >-
+          pnpm exec vitest run --config vitest.unit.config.ts
+          src/main/__tests__/windows-powershell-helper.unit.test.ts
+          src/main/__tests__/windows-headless-process.unit.test.ts
+          src/main/session-host/__tests__/windows-user-only-security.unit.test.ts
+
+      - name: Prepare native modules for Node
+        run: pnpm prepare:native:node
+
+      # Windows client editions default to Restricted, and the helpers no longer pass
+      # -ExecutionPolicy Bypass, so test under that policy rather than the runner's.
+      - name: Use the Windows client default execution policy
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Restricted -Force
+          Get-ExecutionPolicy -List
+          if ((Get-ExecutionPolicy) -ne 'Restricted') { throw 'The effective policy is not Restricted.' }
+
+      - name: User-only security and headless launch on Windows PowerShell 5.1
+        run: >-
+          pnpm exec vitest run --config vitest.integration.config.ts
+          src/main/session-host/__tests__/local-session-windows-security.integration.test.ts
+          scripts/qa/__tests__/session-host-shutdown.integration.test.ts
