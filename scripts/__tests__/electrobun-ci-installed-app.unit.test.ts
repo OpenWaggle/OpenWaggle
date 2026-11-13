@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { installedApp, installedVersion } from '../electrobun/ci/installed-app'
+import { installedApp, installedVersion, rowsUnder } from '../electrobun/ci/installed-app'
 
 describe('installedApp', () => {
   it('finds the bundled Bun and app directory of a macOS bundle', () => {
@@ -40,5 +40,31 @@ describe('installedVersion', () => {
     fs.writeFileSync(app.versionFile, JSON.stringify({ version: '1.0.0-beta.900' }))
     expect(installedVersion(app)).toBe('1.0.0-beta.900')
     fs.rmSync(root, { recursive: true, force: true })
+  })
+})
+
+describe('rowsUnder', () => {
+  const root = path.resolve('/apps/openwaggle')
+  const rows = [
+    { pid: 1, parentPid: 0, command: 'init' },
+    { pid: 10, parentPid: 1, command: `bash -c smoke.ts launch ${root}/bin/launcher` },
+    { pid: 11, parentPid: 10, command: `bun smoke.ts launch ${root}/bin/launcher` },
+    { pid: 20, parentPid: 11, command: `${root}/bin/launcher` },
+    { pid: 21, parentPid: 20, command: `${root}/bin/bun ${root}/Resources/main.js` },
+    { pid: 30, parentPid: 1, command: '/usr/bin/other' },
+  ]
+
+  it("finds the app's processes but not the script that asks, nor the shell it runs under", () => {
+    expect(rowsUnder(rows, root, 11).map((row) => row.pid)).toEqual([20, 21])
+  })
+
+  it('ends at a parent missing from the table, or a cycle', () => {
+    const orphan = [{ pid: 5, parentPid: 99, command: `${root}/bin/launcher` }]
+    expect(rowsUnder(orphan, root, 7).map((row) => row.pid)).toEqual([5])
+    const cycle = [
+      { pid: 2, parentPid: 3, command: root },
+      { pid: 3, parentPid: 2, command: root },
+    ]
+    expect(rowsUnder(cycle, root, 2)).toEqual([])
   })
 })

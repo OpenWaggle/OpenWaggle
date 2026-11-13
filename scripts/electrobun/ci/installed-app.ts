@@ -62,9 +62,15 @@ function single(directory: string, pattern: RegExp) {
   return path.join(directory, match)
 }
 
+export interface ProcessCommand {
+  readonly pid: number
+  readonly parentPid: number
+  readonly command: string
+}
+
 function windowsProcessCommands() {
   const script =
-    'Get-CimInstance Win32_Process | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress'
+    'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress'
   const raw = execFileSync('powershell.exe', ['-NoProfile', '-Command', script], {
     encoding: 'utf8',
     maxBuffer: EXEC_BUFFER_BYTES,
@@ -74,19 +80,27 @@ function windowsProcessCommands() {
     if (typeof row !== 'object' || row === null) return []
     const fields = new Map(Object.entries(row))
     const command = `${String(fields.get('ExecutablePath') ?? '')} ${String(fields.get('CommandLine') ?? '')}`
-    return [{ pid: Number(fields.get('ProcessId')), command }]
+    return [
+      {
+        pid: Number(fields.get('ProcessId')),
+        parentPid: Number(fields.get('ParentProcessId')),
+        command,
+      },
+    ]
   })
 }
 
 function posixProcessCommands() {
-  const raw = execFileSync('ps', ['-A', '-o', 'pid=,args='], {
+  const raw = execFileSync('ps', ['-A', '-o', 'pid=,ppid=,args='], {
     encoding: 'utf8',
     maxBuffer: EXEC_BUFFER_BYTES,
   })
   return raw.split('\n').flatMap((line) => {
-    const match = /^\s*(\d+)\s+(.*)$/u.exec(line)
-    const [, pid, command] = match ?? []
-    return pid === undefined ? [] : [{ pid: Number(pid), command: command ?? '' }]
+    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(line)
+    const [, pid, parentPid, command] = match ?? []
+    return pid === undefined
+      ? []
+      : [{ pid: Number(pid), parentPid: Number(parentPid), command: command ?? '' }]
   })
 }
 
@@ -107,11 +121,32 @@ export function processesNaming(needles: readonly string[]) {
   return rows.filter((row) => needles.some((needle) => row.command.includes(needle)))
 }
 
+/** `self` and the processes it runs under, from the process table. */
+function lineageOf(rows: readonly ProcessCommand[], self: number) {
+  const parents = new Map(rows.map((row) => [row.pid, row.parentPid]))
+  const lineage = new Set<number>()
+  for (let pid: number | undefined = self; pid !== undefined && !lineage.has(pid);) {
+    lineage.add(pid)
+    pid = parents.get(pid)
+  }
+  return lineage
+}
+
+/**
+ * The rows whose executable or command line names a path inside `directory`, except `self` and its
+ * ancestors: a shell that runs this script with the launcher's path on its command line is not the
+ * app, and killing its tree would kill this script.
+ */
+export function rowsUnder(rows: readonly ProcessCommand[], directory: string, self: number) {
+  const needle = path.resolve(directory).toLowerCase()
+  const lineage = lineageOf(rows, self)
+  return rows.filter((row) => !lineage.has(row.pid) && row.command.toLowerCase().includes(needle))
+}
+
 /** The processes whose executable or command line names a path inside `directory`. */
 export function processesUnder(directory: string) {
   const rows = process.platform === 'win32' ? windowsProcessCommands() : posixProcessCommands()
-  const needle = path.resolve(directory).toLowerCase()
-  return rows.filter((row) => row.pid !== process.pid && row.command.toLowerCase().includes(needle))
+  return rowsUnder(rows, directory, process.pid)
 }
 
 /** Kills every process started from the install: the app, its CEF helpers and its Host. */
