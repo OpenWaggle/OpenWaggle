@@ -16,6 +16,7 @@ import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
 import type { JsonValue } from '@shared/types/json'
 import type { OpenWaggleExtensionMountContext } from './extension-federated-module'
+import { type PendingFrameCalls, settleFrameResult } from './extension-frame-bootstrap-results'
 import { createFrameExtensionSdk } from './extension-frame-bootstrap-sdk'
 import { decodedParentMessage, isFederatedModule } from './extension-frame-bootstrap-validation'
 
@@ -47,15 +48,9 @@ let invokeSequence = 0
 let resizeAnimationFrame = 0
 let resizeObserver: ResizeObserver | null = null
 
-const pendingInvocations = new Map<string, (result: ExtensionInvokeResult) => void>()
-const pendingSyntaxHighlights = new Map<
-  string,
-  {
-    readonly input: OpenWaggleExtensionSyntaxHighlightInput
-    readonly resolve: (result: OpenWaggleExtensionSyntaxHighlightResult) => void
-    readonly removeAbortListener: () => void
-  }
->()
+const pendingCalls: PendingFrameCalls = { invocations: new Map(), syntaxHighlights: new Map() }
+const pendingInvocations = pendingCalls.invocations
+const pendingSyntaxHighlights = pendingCalls.syntaxHighlights
 const frameId = frameIdFromLocation()
 
 function describeError(error: unknown) {
@@ -246,19 +241,7 @@ function handleParentMessage(root: HTMLElement, event: MessageEvent<unknown>) {
     return
   }
 
-  if (message.type === 'syntax-highlight-result') {
-    const pending = pendingSyntaxHighlights.get(message.requestId)
-    if (!pending) return
-    pendingSyntaxHighlights.delete(message.requestId)
-    pending.removeAbortListener()
-    pending.resolve(message.result)
-    return
-  }
-
-  const resolve = pendingInvocations.get(message.requestId)
-  if (!resolve) return
-  pendingInvocations.delete(message.requestId)
-  resolve(message.result)
+  settleFrameResult(pendingCalls, message)
 }
 
 function rootElement() {
