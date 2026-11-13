@@ -6,7 +6,17 @@ describe('development app launches in the electron-automation standard', () => {
     ['spawn("pnpm", ["exec", "electron-vite", "dev"])', 1],
     ["import { spawn as run } from 'node:child_process'\nrun('x', ['electron-vite', 'dev'])", 1],
     ["electronDevInvocation('vite', [])", 1],
-    ["spawn('tsx', ['scripts/run-electron-dev.ts', 'vite'])", 1],
+    ["spawn('bun', ['scripts/run-electron-dev.ts', 'vite'])", 1],
+    ["spawn(bunExecutable(), ['x', 'electron-vite', 'dev'])", 1],
+    ["spawn('bun', ['run', 'dev'])", 1],
+    ["spawn(bunExecutable(), ['run', 'dev:debug:headed'])", 1],
+    ["spawn(bunExecutable(), ['dev'])", 1],
+    ["execSync('bun run dev')", 1],
+    ["execSync('bun dev')", 1],
+    ["const args = ['run', 'dev', '--', '--']\nreturn { command: bunExecutable(), args }", 1],
+    ["spawn('bun', ['--filter', 'app', 'dev'])", 1],
+    ["spawn('cmd.exe', ['/d', '/s', '/c', 'bun', 'run', 'dev'])", 1],
+    ["spawn(process.execPath, [process.env.npm_execpath ?? 'bun', 'run', 'dev'])", 1],
     ["spawn('pnpm', ['run', 'dev'])", 1],
     ["spawn('pnpm', ['dev:debug:headed'])", 1],
     ["execSync('pnpm dev')", 1],
@@ -20,6 +30,9 @@ describe('development app launches in the electron-automation standard', () => {
     ["spawnSync('pnpm', ['install'])\nif (BUILD_CHANNEL === 'dev') {}", 0],
     ["run('pnpm', ['build'])\nconst CHANNELS = ['dev', 'beta', 'stable']", 0],
     ["const commands = ['pnpm install', 'pnpm dev']", 0],
+    ["spawnSync(bunExecutable(), ['install'])\nif (BUILD_CHANNEL === 'dev') {}", 0],
+    ["run('bun', ['run', 'build'])\nconst CHANNELS = ['dev', 'beta', 'stable']", 0],
+    ["const commands = ['bun install', 'bun run dev']", 0],
   ] as const)('counts %s as %i development app launch', (source, launches) => {
     expect(collectScriptedElectronLaunchViolations('scripts/x.ts', source)).toHaveLength(launches)
     expect(collectScriptedElectronLaunchViolations('packages/x/y.ts', source)).toHaveLength(
@@ -30,9 +43,10 @@ describe('development app launches in the electron-automation standard', () => {
     )
   })
 
-  it("leaves the app's own code, which runs a project's pnpm dev for the user, to other rules", () => {
-    expect(
-      collectScriptedElectronLaunchViolations('src/main/x.ts', "spawn('pnpm', ['dev'])"),
-    ).toEqual([])
-  })
+  it.each(["spawn('bun', ['run', 'dev'])", "spawn('pnpm', ['dev'])"])(
+    "leaves the app's own code, which runs a project's %s for the user, to other rules",
+    (source) => {
+      expect(collectScriptedElectronLaunchViolations('src/main/x.ts', source)).toEqual([])
+    },
+  )
 })
