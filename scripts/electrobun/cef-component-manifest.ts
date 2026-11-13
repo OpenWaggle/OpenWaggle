@@ -6,7 +6,10 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { isRecord } from '../../src/shared/utils/validation'
+import {
+  cefComponentTarget,
+  decodeCefComponentManifest,
+} from '../../src/main/adapters/electrobun/cef-component/cef-component-manifest'
 import {
   cefComponentEntries,
   devkitCefVersion,
@@ -18,49 +21,24 @@ const run = promisify(execFile)
 const MAX_BUFFER_BYTES = 16 * 1024 * 1024
 const JSON_INDENT = 2
 
-/** Records one architecture's asset in the manifest, keeping the others. */
+async function readManifest(file: string) {
+  return decodeCefComponentManifest(JSON.parse(await fs.readFile(file, 'utf8')))
+}
+
+/** Records one architecture's asset in the manifest, keeping the other. */
 export async function pinCefComponent(input: {
   readonly manifest: string
   readonly arch: CefComponentArch
   readonly url: string
   readonly archive: string
 }) {
-  const manifest: unknown = JSON.parse(await fs.readFile(input.manifest, 'utf8'))
-  if (!isRecord(manifest) || !isRecord(manifest['assets'])) {
-    throw new Error(`${input.manifest} is not a CEF component manifest.`)
-  }
+  const manifest = await readManifest(input.manifest)
   const { size } = await fs.stat(input.archive)
   const asset = { url: input.url, sha256: await sha256File(input.archive), size }
-  const assets = { ...manifest['assets'], [`darwin-${input.arch}`]: asset }
-  await fs.writeFile(
-    input.manifest,
-    `${JSON.stringify({ ...manifest, assets }, null, JSON_INDENT)}\n`,
-  )
+  const assets = { ...manifest.assets, [`darwin-${input.arch}`]: asset }
+  const pinned = decodeCefComponentManifest({ ...manifest, assets })
+  await fs.writeFile(input.manifest, `${JSON.stringify(pinned, null, JSON_INDENT)}\n`)
   return asset
-}
-
-interface PinnedAsset {
-  readonly url: string
-  readonly sha256: string
-  readonly size: number
-}
-
-async function pinnedAsset(manifestPath: string, arch: CefComponentArch) {
-  const manifest: unknown = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
-  const assets = isRecord(manifest) && isRecord(manifest['assets']) ? manifest['assets'] : {}
-  const asset = assets[`darwin-${arch}`]
-  const cefVersion = isRecord(manifest) ? manifest['cefVersion'] : null
-  if (
-    typeof cefVersion !== 'string' ||
-    !isRecord(asset) ||
-    typeof asset['url'] !== 'string' ||
-    typeof asset['sha256'] !== 'string' ||
-    typeof asset['size'] !== 'number'
-  ) {
-    throw new Error(`${manifestPath} pins no darwin-${arch} CEF component.`)
-  }
-  const pinned: PinnedAsset = { url: asset['url'], sha256: asset['sha256'], size: asset['size'] }
-  return { cefVersion, asset: pinned }
 }
 
 /**
@@ -75,7 +53,7 @@ export async function verifyPinnedCefComponent(input: {
   readonly work: string
   readonly team?: string
 }) {
-  const { cefVersion, asset } = await pinnedAsset(input.manifest, input.arch)
+  const { cefVersion, asset } = cefComponentTarget(await readManifest(input.manifest), input.arch)
   const devkitVersion = await devkitCefVersion(input.devkit)
   if (cefVersion !== devkitVersion) {
     throw new Error(`The manifest pins CEF ${cefVersion}; the native layer has ${devkitVersion}.`)

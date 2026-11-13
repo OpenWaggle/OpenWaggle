@@ -63,13 +63,21 @@ describe('the CEF component', () => {
     await fs.access(gpu, fs.constants.X_OK)
   })
 
-  it('pins one architecture in the manifest and keeps the others', async () => {
+  it('pins one architecture in the manifest and keeps the other', async () => {
     const root = await scratch()
     const manifest = path.join(root, 'manifest.json')
     const other = { url: 'https://example.test/x64.tar.xz', sha256: 'b'.repeat(64), size: 2 }
+    const cefVersion = '156.0.7+g47dbc1d+chromium-156.0.8078.17'
     await fs.writeFile(
       manifest,
-      JSON.stringify({ schemaVersion: 1, cefVersion: 'v', assets: { 'darwin-x64': other } }),
+      JSON.stringify({
+        schemaVersion: 1,
+        cefVersion,
+        assets: {
+          'darwin-arm64': { ...other, url: 'https://example.test/old' },
+          'darwin-x64': other,
+        },
+      }),
     )
     const archive = path.join(root, 'component.tar.xz')
     await fs.writeFile(archive, 'archive bytes')
@@ -77,10 +85,10 @@ describe('the CEF component', () => {
     await pinCefComponent({ manifest, arch: 'arm64', url, archive })
     expect(JSON.parse(await fs.readFile(manifest, 'utf8'))).toEqual({
       schemaVersion: 1,
-      cefVersion: 'v',
+      cefVersion,
       assets: {
-        'darwin-x64': other,
         'darwin-arm64': { url, sha256: await sha256File(archive), size: 13 },
+        'darwin-x64': other,
       },
     })
   })

@@ -7,6 +7,7 @@ import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { finished } from 'node:stream/promises'
+import type { CefComponentArch } from '../../src/main/adapters/electrobun/cef-component/cef-component-manifest'
 
 export const CEF_COMPONENT_MANIFEST = 'src/main/adapters/electrobun/cef-component/manifest.json'
 export const CEF_FRAMEWORK = 'Chromium Embedded Framework.framework'
@@ -18,7 +19,7 @@ export const CEF_HELPER_APPS = [
   'bun Helper (Plugin)',
   'bun Helper (Alerts)',
 ] as const
-export type CefComponentArch = 'arm64' | 'x64'
+export type { CefComponentArch }
 
 /** The CEF version a devkit's native layer was built with, as the native layer names it. */
 export async function devkitCefVersion(devkit: string) {

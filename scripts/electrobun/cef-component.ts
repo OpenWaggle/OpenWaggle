@@ -41,6 +41,8 @@ const FIRST_CLI_ARGUMENT = 2
 const MAX_BUFFER_BYTES = 16 * 1024 * 1024
 const EXECUTABLE_MODE = 0o755
 const JSON_INDENT = 2
+/** The release's Apple team, whose signature `verify` requires when it is set. */
+const TEAM_ID_ENV = 'APPLE_TEAM_ID'
 
 /** The framework and one helper app per variant, each the devkit's `process_helper`. */
 export async function assembleCefComponent(devkit: string, directory: string) {
@@ -132,7 +134,7 @@ async function main() {
   }
   if (command === 'verify' && values.devkit !== undefined) {
     const work = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cef-component-'))
-    const team = process.env['APPLE_TEAM_ID']?.trim()
+    const team = process.env[TEAM_ID_ENV]?.trim()
     try {
       const devkit = path.resolve(values.devkit)
       const verified = await verifyPinnedCefComponent({
