@@ -247,6 +247,8 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
               profile,
               ...(input.callerCapabilities ? { callerCapabilities: input.callerCapabilities } : {}),
             })
+            // The resolved restriction replaces any the profile inherited; none means the default.
+            const { sessionCapabilities: _inherited, ...unrestrictedProfile } = profile
             return {
               attemptId,
               session: {
@@ -257,7 +259,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
               workspacePlan: plan,
               executionSnapshot: {
                 profile: {
-                  ...profile,
+                  ...unrestrictedProfile,
                   ...(sessionCapabilities ? { sessionCapabilities } : {}),
                 },
                 ...(definition ? { resolvedAgentSnapshot: definition } : {}),

@@ -39,6 +39,10 @@ import { executeScheduleToolAction } from './sessions-tool-schedule-approval'
 import { isSessionsToolScheduleAction } from './sessions-tool-schedule-payload'
 import { scheduledTasksToolResult } from './sessions-tool-schedule-result'
 import { resolveSessionsToolSessionLinks } from './sessions-tool-session-links'
+import {
+  sessionsToolUnavailableNotes,
+  sessionsToolUnavailableTopic,
+} from './sessions-tool-unavailable'
 
 const logger = createLogger('hive-tool')
 
@@ -84,6 +88,8 @@ function helpResult(rawParams: unknown, grant: SessionsToolActionGrant) {
   const help = hiveHelp({
     variants: permittedSessionsToolVariants(grant),
     guidelines: sessionsToolPromptGuidelines(grant.capabilities, grant.modelMultiAgentEnabled),
+    unavailable: sessionsToolUnavailableNotes(grant),
+    explainUnavailable: (action) => sessionsToolUnavailableTopic(action, grant),
     topic: isMatching({ topic: P._ }, rawParams) ? rawParams.topic : undefined,
   })
   return { content: [{ type: 'text' as const, text: help.text }], details: help.details }

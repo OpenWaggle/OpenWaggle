@@ -40,6 +40,8 @@ A Heartbeat must have a way to finish: a stop condition, an end date, a run limi
 
 You can also ask the agent, for example: "check this PR's CI every 30 minutes and tell me when it is green". The agent creates a Heartbeat for its own session with its `hive` tool, with a stop condition such as "CI is green". It creates a task only when you ask for recurring work. If it can finish the work in the current turn, it does that instead.
 
+A worker's agent cannot create tasks. Another agent cannot either when its [agent definition](/docs/extending/agent-definitions) leaves out the schedule capabilities, or when an agent or access profile without them created its session. Its `hive` tool's help tells it why, and you can create the task yourself. An agent running in OpenWaggle cannot use `openwaggle schedules` with your access either. The command refuses it and points it to its `hive` tool.
+
 Agents connected over MCP (`openwaggle mcp serve`) cannot manage scheduled tasks. Their access ends when the MCP server stops, so a later run would have no access left to check against.
 
 ## Choose a schedule

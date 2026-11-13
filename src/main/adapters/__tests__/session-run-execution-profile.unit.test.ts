@@ -1,3 +1,4 @@
+import { DEFAULT_SESSION_AGENT_CAPABILITIES } from '@shared/types/session-capability'
 import { describe, expect, it } from 'vitest'
 import {
   narrowRunAuthorization,
@@ -180,6 +181,54 @@ describe('Session run execution profile', () => {
     expect(resolved.sessionCapabilities).not.toContain('sessions:respond')
     expect(resolved.sessionCapabilities).not.toContain('sessions:approve')
     expect(resolved.sessionCapabilities).not.toContain('sessions:authorization')
+  })
+
+  it('reads a persisted root grant exactly as stored, never widening it', () => {
+    // An agent definition or a narrower creator may leave out only the schedule capabilities.
+    const withoutSchedules = DEFAULT_SESSION_AGENT_CAPABILITIES.filter(
+      (capability) => !capability.startsWith('schedules:'),
+    )
+    for (const persisted of [withoutSchedules, ['sessions:read', 'sessions:report']]) {
+      const resolved = resolveSessionRunExecution(
+        row({
+          profile_json: JSON.stringify({
+            modelId: 'openai/gpt-5.5',
+            thinkingLevel: 'high',
+            sessionCapabilities: persisted,
+          }),
+          resolved_agent_snapshot_json: null,
+          parent_session_id: null,
+          capabilities_json: null,
+        }),
+        'run-1',
+      )
+
+      expect(resolved.sessionCapabilities).toEqual(persisted)
+      expect(identityJson(resolved.identityContext)).toMatchObject({
+        sessionCapabilities: persisted,
+      })
+    }
+  })
+
+  it('never gives a Worker the schedule capabilities, whatever list its profile holds', () => {
+    const grant = DEFAULT_SESSION_AGENT_CAPABILITIES.filter(
+      (capability) => !capability.startsWith('schedules:'),
+    )
+    for (const profileList of [DEFAULT_SESSION_AGENT_CAPABILITIES, undefined]) {
+      const resolved = resolveSessionRunExecution(
+        row({
+          profile_json: JSON.stringify({
+            modelId: 'openai/gpt-5.5',
+            thinkingLevel: 'high',
+            ...(profileList ? { sessionCapabilities: profileList } : {}),
+          }),
+          capabilities_json: JSON.stringify(grant),
+        }),
+        'run-1',
+      )
+
+      expect(resolved.sessionCapabilities).toEqual(grant)
+    }
   })
 
   it('serializes untrusted identity fields without allowing them to forge Host fields', () => {
