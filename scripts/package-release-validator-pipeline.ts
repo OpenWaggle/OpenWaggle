@@ -15,7 +15,7 @@ import { validateCiWorkflow } from './package-release-validator-ci'
 
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
-  '571a9cd7d235df5ae3c01cfc859d6b4fbbd80a54fda2253f990856cabd0dab23'
+  'a6255995765b3ebd2161e87ddc9ee4d06bf067b82c3fa482004aae7e6dbb23c9'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
@@ -121,7 +121,15 @@ function validatePackageReleaseWorkflow(
         `${WORKFLOW_PATH} Release Please must generate the versioned documentation line before validation.`,
       ],
       [
-        'git commit -m "fix(packages): synchronize release documentation"',
+        'bun install --lockfile-only',
+        `${WORKFLOW_PATH} Release Please must update the workspace versions bun.lock records.`,
+      ],
+      [
+        'git add -A -- packages website/src/content bun.lock',
+        `${WORKFLOW_PATH} Release Please must commit the updated bun.lock with the documentation.`,
+      ],
+      [
+        'git commit -m "fix(packages): synchronize release documentation and lockfile"',
         `${WORKFLOW_PATH} Release Please must commit generated documentation to its exact head.`,
       ],
       [

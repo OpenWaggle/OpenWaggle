@@ -85,12 +85,14 @@ jobs:
         run: |
           set -euo pipefail
           bun run package-docs:update
+          # bun.lock records each workspace package's version, which Release Please's bump leaves stale.
+          bun install --lockfile-only
           if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add -A -- packages website/src/content
+            git add -A -- packages website/src/content bun.lock
             git diff --cached --check
-            git commit -m "fix(packages): synchronize release documentation"
+            git commit -m "fix(packages): synchronize release documentation and lockfile"
             git push origin "HEAD:$RELEASE_PR_HEAD"
           fi
           echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
