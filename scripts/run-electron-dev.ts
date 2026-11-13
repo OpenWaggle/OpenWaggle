@@ -21,12 +21,6 @@ const SIGNAL_EXIT_CODE = 1
 
 export type ElectronDevTarget = 'vite' | 'electron'
 
-interface Invocation {
-  readonly command: string
-  readonly args: readonly string[]
-  readonly environment: NodeJS.ProcessEnv
-}
-
 export function isElectronDevTarget(value: string | undefined): value is ElectronDevTarget {
   return value === 'vite' || value === 'electron'
 }
@@ -35,7 +29,7 @@ export function isElectronDevTarget(value: string | undefined): value is Electro
 export function withoutRunAsNode(
   environment: NodeJS.ProcessEnv,
   platform: NodeJS.Platform = process.platform,
-): NodeJS.ProcessEnv {
+) {
   const matches = (key: string) =>
     platform === 'win32' ? key.toUpperCase() === RUN_AS_NODE_VARIABLE : key === RUN_AS_NODE_VARIABLE
   return Object.fromEntries(Object.entries(environment).filter(([key]) => !matches(key)))
@@ -63,7 +57,7 @@ export function electronDevInvocation(
     readonly nodeExecutable?: string
     readonly electronExecutable?: (projectRoot: string) => string
   } = {},
-): Invocation {
+) {
   const projectRoot = options.projectRoot ?? PROJECT_ROOT
   const environment = withoutRunAsNode(options.environment ?? process.env, options.platform)
   if (target === 'vite') {

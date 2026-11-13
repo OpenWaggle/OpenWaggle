@@ -1,6 +1,6 @@
 /**
  * Applies a text scrubber to every string of a JSON-like report, object keys included, in place.
- * Part of the error-report scrubbing (./error-report-scrubbing.ts re-exports it).
+ * Part of the error-report scrubbing (./error-report-scrubbing.ts).
  */
 import { isRecord } from '../utils/validation'
 

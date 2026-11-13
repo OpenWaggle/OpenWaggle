@@ -47,7 +47,7 @@ export function devAppLaunchCommand(
 export function devAppEnvironment(
   userDataRoot: string,
   baseEnvironment: NodeJS.ProcessEnv = process.env,
-): Record<string, string> {
+) {
   const home = path.join(userDataRoot, 'home')
   // Bun needs the caller's environment, but not an OpenWaggle or Pi Session's identity: an agent
   // shell's markers make the CLI refuse to run, and its user data folder is not this profile's.
@@ -123,7 +123,7 @@ export async function verifyDevAppStartup(userDataRoot: string) {
     state,
     run: async () => {
       const environment = devAppEnvironment(userDataRoot)
-      await fs.mkdir(environment.HOME ?? userDataRoot, { recursive: true })
+      await fs.mkdir(environment.HOME, { recursive: true })
       const launch = devAppLaunchCommand(platform)
       state.gui = await launchGui(launch.command, environment, launch.args)
       state.guiLogs.push(state.gui.logs)

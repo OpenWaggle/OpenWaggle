@@ -30,9 +30,7 @@ const mocks = vi.hoisted(() => {
       return {
         liveness: { ownerCount: () => 1, hasAcceptedClient: () => true },
         stop: vi.fn(async () => undefined),
-        waitUntilStopped: vi.fn(async () => {
-          order.push('host-stopped')
-        }),
+        waitUntilStopped: vi.fn(async () => void order.push('host-stopped')),
       }
     }),
   }

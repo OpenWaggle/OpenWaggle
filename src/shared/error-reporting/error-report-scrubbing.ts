@@ -46,8 +46,6 @@ import {
 } from './error-report-rules'
 import { scrubStringsInPlace } from './error-report-string-scrubbing'
 
-export { scrubStringsInPlace }
-
 export interface ErrorReportStackFrame {
   filename?: string
   abs_path?: string
@@ -177,7 +175,9 @@ export function errorReportOrigin(event: ErrorReportEvent) {
     return origin
   }
   // A summary's `code=ECONNREFUSED` or `exit=503` names no provider request.
-  if (tagged === 'application' && isStartupFailureSummaryReport(event)) return 'application' as const
+  if (tagged === 'application' && isStartupFailureSummaryReport(event)) {
+    return 'application' as const
+  }
   if (looksLikeProviderFailure(event)) return 'provider-response' as const
   const origin: ErrorReportTaggedOrigin | undefined = tagged
   return origin
