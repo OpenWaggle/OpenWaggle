@@ -37,7 +37,7 @@ describe('the Node.js test run', () => {
       expect.arrayContaining([
         'package-release-plan',
         'verify-release-assets',
-        'macos-build-failure',
+        'package-release-promote',
       ]),
     )
     const untested = unit.flatMap(({ script, tests }, index) =>
