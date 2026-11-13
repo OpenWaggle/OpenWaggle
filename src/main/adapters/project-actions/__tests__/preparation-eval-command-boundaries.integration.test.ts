@@ -230,10 +230,12 @@ esac'; eval "$wrapper"`,
 ]
 
 describe.skipIf(process.platform === 'win32')('evaluated setup command boundaries', () => {
-  it.for(shells)(
-    'captures exports across case arms and redirections in %s',
-    async (shell, context) => {
-      if (!existsSync(shell)) context.skip()
+  // One test per shell and case, so each spawned shell gets its own timeout budget.
+  describe.for(shells.filter((shell) => existsSync(shell)))('in %s', (shell) => {
+    const shellCases = cases.filter(
+      ({ supportedShells }) => supportedShells === undefined || supportedShells.includes(shell),
+    )
+    it.for(shellCases)('captures $variable across case arms and redirections', async (testCase) => {
       const directory = await mkdtemp(join(tmpdir(), 'ow-prepare-eval-boundaries-'))
       try {
         const execute = createPreparationExecutor(
@@ -241,29 +243,26 @@ describe.skipIf(process.platform === 'win32')('evaluated setup command boundarie
           directory,
           'test',
         )
-        for (const { variable, command, expected, supportedShells } of cases) {
-          if (supportedShells && !supportedShells.includes(shell)) continue
-          const result = await execute({
-            workspace: {
-              workspaceId: 'eval-boundaries',
-              projectPath: directory,
-              workspacePath: directory,
-            },
-            environment: { SHELL: shell },
-            captureEnvironment: true,
-            onOutput: () => {},
-            invocation: { type: 'command', command, directory: '.' },
-          })
-          expect(result).toMatchObject({
-            exitCode: 0,
-            environment: { [variable]: expected ?? 'loaded' },
-          })
-        }
+        const result = await execute({
+          workspace: {
+            workspaceId: 'eval-boundaries',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+          invocation: { type: 'command', command: testCase.command, directory: '.' },
+        })
+        expect(result).toMatchObject({
+          exitCode: 0,
+          environment: { [testCase.variable]: testCase.expected ?? 'loaded' },
+        })
       } finally {
         await rm(directory, { recursive: true, force: true })
       }
-    },
-  )
+    })
+  })
 
   it.skipIf(!existsSync('/bin/bash'))('captures an escaped eval after Bash time -p', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ow-prepare-time-prefix-'))
