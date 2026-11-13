@@ -239,7 +239,11 @@ OpenWaggle works out `nextActor` each time you read, by the same rule the Hive p
 
 ## Scheduled tasks
 
-The `hive` tool's `schedule_list`, `schedule_read` and `schedule_runs` need `schedules:read`. `schedule_create`, `schedule_update`, `schedule_delete`, `schedule_run_now` and `schedule_outcome` need `schedules:manage`. The [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference) lists their commands, options and limits.
+The `hive` tool's `schedule_list`, `schedule_read` and `schedule_runs` need `schedules:read`. `schedule_create`, `schedule_update`, `schedule_delete`, `schedule_run_now` and `schedule_outcome` need `schedules:manage`.
+
+A top-level session's agent has both, unless its agent definition, or the agent or access profile that created the session, did not. A worker never gets either. When a session lacks one, `help` lists it under `Not available to this Session` with the reason, and `help` with a schedule action as `topic` explains why instead of saying the action does not exist.
+
+The [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference) lists their commands, options and limits.
 
 ## Follow-up queue rules
 
@@ -288,7 +292,7 @@ A session's model and thinking level are session settings. A run uses them when 
 
 A refused `message` fails with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`. So a queued follow-up always runs with the session's settings when its turn comes. An `authorization` override never changes the session's saved mode, and stays within the caller's limit. `yolo` needs a caller that already has full access. An `ask-for-approval` override, from `launch`, `spawn`, `message` or `start`, also applies to the runs OpenWaggle starts for worker updates after the run it applied to, as [When a worker reports to an idle parent](#when-a-worker-reports-to-an-idle-parent) describes.
 
-A worker gets its parent's access by default. A spawn or an [agent definition](/docs/extending/agent-definitions) can keep or narrow approvals, tools, MCP servers and session capabilities. It cannot widen them.
+A worker gets its parent's access by default, except the `schedules:*` capabilities, which a worker never gets. A spawn or an [agent definition](/docs/extending/agent-definitions) can keep or narrow approvals, tools, MCP servers and session capabilities. It cannot widen them.
 
 ## Run limits
 

@@ -8,3 +8,10 @@ export const SCHEDULED_TASK_GUIDELINES = [
   'A Heartbeat Run reads runCount, consecutiveIdleRuns, stopWhen, remainingRuns and any wakeCheck output in its Run identity. If stopWhen is met or nothing is left to do, call schedule_update enabled:false and state why; end with schedule_outcome done, idle or acted. Idle runs in a row (3 by default, idlePauseAfter) pause it automatically.',
   'A Heartbeat may use its own cheaper model and thinking for its Runs (model, thinking). When a check does not need this Session’s context, a Launch schedule into a fresh Session is often cheaper.',
 ]
+
+/**
+ * Why a Session can lack the schedule capabilities, and what the user can do instead. It names no
+ * other hive action, so a Worker is not pointed at actions it would be refused.
+ */
+export const SCHEDULES_WITHHELD_REASON =
+  'A Worker never gets them. A top-level Session lacks them when its agent definition, or the agent or access profile that made it, did not have them. The user can still set the task up in the Scheduled panel or with openwaggle schedules, or ask a Session that has them.'

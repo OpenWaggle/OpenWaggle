@@ -5,6 +5,7 @@ import {
   type ScheduledTaskInput,
   type ScheduledTasksCommand,
 } from '@shared/types/scheduled-task'
+import type { SessionCapability } from '@shared/types/session-capability'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import { run, runSql } from '../../adapters/pi/__tests__/pi-session-discovery.test-support'
@@ -90,10 +91,18 @@ export function setTaskDue(taskId: string, at: number) {
 }
 
 /** Gives a Session the durable model a Run needs, which a test install has no provider for. */
-export function setSessionModel(sessionId: string) {
+export function setSessionModel(
+  sessionId: string,
+  sessionCapabilities?: readonly SessionCapability[],
+) {
+  const profile = {
+    modelId: 'test/test-model',
+    thinkingLevel: 'medium',
+    ...(sessionCapabilities ? { sessionCapabilities } : {}),
+  }
   return runSql((sql) =>
     sql`UPDATE session_execution_profiles
-      SET profile_json = ${JSON.stringify({ modelId: 'test/test-model', thinkingLevel: 'medium' })}
+      SET profile_json = ${JSON.stringify(profile)}
       WHERE session_id = ${sessionId}`.pipe(Effect.asVoid),
   )
 }

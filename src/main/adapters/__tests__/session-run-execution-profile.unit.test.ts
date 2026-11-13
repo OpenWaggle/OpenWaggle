@@ -182,6 +182,72 @@ describe('Session run execution profile', () => {
     expect(resolved.sessionCapabilities).not.toContain('sessions:authorization')
   })
 
+  it('gives a desktop root Session made before Scheduled tasks existed the schedule capabilities', () => {
+    // What every top-level Session persisted before 1.0.0-beta.23: the default grant of the time.
+    const legacyDefault = [
+      'sessions:discover',
+      'sessions:read',
+      'sessions:create',
+      'sessions:start',
+      'sessions:spawn',
+      'sessions:message',
+      'sessions:steer',
+      'sessions:interrupt',
+      'sessions:queue',
+      'sessions:report',
+      'sessions:organize',
+      'sessions:export',
+      'delegations:read',
+      'delegations:contribute',
+      'delegations:review',
+      'access:profiles',
+    ]
+    const resolved = resolveSessionRunExecution(
+      row({
+        session_id: 'queen-1',
+        profile_json: JSON.stringify({
+          modelId: 'openai/gpt-5.5',
+          thinkingLevel: 'high',
+          sessionCapabilities: legacyDefault,
+        }),
+        resolved_agent_snapshot_json: null,
+        authorization_ceiling: 'yolo',
+        parent_session_id: null,
+        parent_title: null,
+        hive_root_session_id: null,
+        depth: null,
+        capabilities_json: null,
+        delegation_id: null,
+        delegation_state: null,
+      }),
+      'run-queen',
+    )
+
+    expect(resolved.sessionCapabilities).toEqual(
+      expect.arrayContaining(['schedules:read', 'schedules:manage']),
+    )
+    expect(identityJson(resolved.identityContext)).toMatchObject({
+      sessionCapabilities: expect.arrayContaining(['schedules:read', 'schedules:manage']),
+    })
+  })
+
+  it('keeps a narrower persisted grant narrow, schedules included', () => {
+    const resolved = resolveSessionRunExecution(
+      row({
+        profile_json: JSON.stringify({
+          modelId: 'openai/gpt-5.5',
+          thinkingLevel: 'high',
+          sessionCapabilities: ['sessions:read', 'sessions:report'],
+        }),
+        parent_session_id: null,
+        capabilities_json: null,
+      }),
+      'run-1',
+    )
+
+    expect(resolved.sessionCapabilities).toEqual(['sessions:read', 'sessions:report'])
+  })
+
   it('serializes untrusted identity fields without allowing them to forge Host fields', () => {
     const resolved = resolveSessionRunExecution(
       row({

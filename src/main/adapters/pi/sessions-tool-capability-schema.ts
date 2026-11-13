@@ -6,6 +6,10 @@ import {
   variantActionName,
 } from './sessions-tool-flat-schema'
 import { HIVE_HELP_ACTION, hiveToolSchema } from './sessions-tool-hot-schema'
+import { SCHEDULES_WITHHELD_REASON } from './sessions-tool-schedule-guidelines'
+
+/** Scheduled task actions share this prefix; a denial says why a Session lacks them. */
+export const SCHEDULE_ACTION_PREFIX = 'schedule_'
 
 const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['create', ['sessions:create']],
@@ -115,7 +119,8 @@ export function permitsSessionsToolAction(action: string, grant: SessionsToolAct
   return sessionsToolActionPermission(action, grant).permitted
 }
 
-function joinCapabilities(capabilities: readonly string[], conjunction: 'and' | 'or') {
+/** "a", "a and b", "a, b and c" (or with "or"). */
+export function joinCapabilities(capabilities: readonly string[], conjunction: 'and' | 'or') {
   if (capabilities.length <= 1) return capabilities.join('')
   return `${capabilities.slice(0, -1).join(', ')} ${conjunction} ${capabilities.at(-1)}`
 }
@@ -139,8 +144,9 @@ export function assertSessionsToolActionPermitted(
       `capability_denied: the hive action ${action} is not available: multi-agent work is turned off for this project or model.`,
     )
   }
+  const denial = `capability_denied: the hive action ${action} requires ${joinCapabilities(permission.required, 'and')}; this Session has no ${joinCapabilities(permission.missing, 'or')}.`
   throw new Error(
-    `capability_denied: the hive action ${action} requires ${joinCapabilities(permission.required, 'and')}; this Session has no ${joinCapabilities(permission.missing, 'or')}.`,
+    action.startsWith(SCHEDULE_ACTION_PREFIX) ? `${denial} ${SCHEDULES_WITHHELD_REASON}` : denial,
   )
 }
 

@@ -8,6 +8,7 @@ import {
 } from '@shared/types/scheduled-task'
 import { SESSION_QUERY_CONTRACT_VERSION, type SessionQuery } from '@shared/types/session-query'
 import { app } from 'electron'
+import { STATUS_CLI_AGENT_REFUSAL } from './cli-agent-refusals'
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions } from './command-cli-option-contract'
 import {
@@ -233,7 +234,9 @@ export async function readStatusReport(
   dependencies: StatusCliDependencies = defaultStatusCliDependencies,
 ): Promise<StatusReport> {
   const version = dependencies.version()
-  const input = await dependencies.prepareClientInput(arguments_)
+  const input = await dependencies.prepareClientInput(arguments_, {
+    agentRefusal: STATUS_CLI_AGENT_REFUSAL,
+  })
   const host = await probeRunningHost(input, dependencies.probe)
   if (host.state === 'not-running') return { version, host }
   if (host.state === 'upgrade-pending') return { version, host }

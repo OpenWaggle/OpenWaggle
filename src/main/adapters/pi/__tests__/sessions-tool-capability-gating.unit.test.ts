@@ -1,7 +1,11 @@
 import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { SessionCapability } from '@shared/types/session-capability'
+import {
+  DEFAULT_SESSION_AGENT_CAPABILITIES,
+  type SessionCapability,
+} from '@shared/types/session-capability'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
+import { resolveSessionRunExecution } from '../../session-run-execution-profile'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 import { hiveHelpText } from './hive-help.test-utils'
 
@@ -43,6 +47,66 @@ function register(capabilities?: readonly SessionCapability[], modelMultiAgentEn
 /** Every rule the grant gets, as help returns it; the system prompt carries the essentials. */
 function guidance(tool: ToolDefinition) {
   return hiveHelpText(tool)
+}
+
+const SCHEDULE_ACTIONS = [
+  'schedule_list',
+  'schedule_read',
+  'schedule_runs',
+  'schedule_create',
+  'schedule_update',
+  'schedule_delete',
+  'schedule_run_now',
+  'schedule_outcome',
+]
+
+/** What a top-level Session made from the desktop before Scheduled tasks existed persisted. */
+const DEFAULT_BEFORE_SCHEDULED_TASKS = DEFAULT_SESSION_AGENT_CAPABILITIES.filter(
+  (capability) => capability !== 'schedules:read' && capability !== 'schedules:manage',
+)
+
+/** The grant the Host gives the agent of a desktop-started root Session. */
+function desktopRootCapabilities(persisted?: readonly SessionCapability[]) {
+  return resolveSessionRunExecution(
+    {
+      session_id: 'queen',
+      title: 'Queen',
+      project_path: '/repo',
+      profile_json: JSON.stringify({
+        modelId: 'openai/gpt-5.5',
+        thinkingLevel: 'high',
+        ...(persisted ? { sessionCapabilities: persisted } : {}),
+      }),
+      resolved_agent_snapshot_json: null,
+      authorization_ceiling: 'yolo',
+      parent_session_id: null,
+      parent_title: null,
+      hive_root_session_id: null,
+      depth: null,
+      direct_worker_count: 0,
+      workspace_id: 'workspace',
+      workspace_kind: 'managed-worktree',
+      working_path: '/repo',
+      capabilities_json: null,
+      delegation_id: null,
+      delegation_state: null,
+    },
+    'run-queen',
+  ).sessionCapabilities
+}
+
+async function helpError(tool: ToolDefinition, topic: string) {
+  const result = await tool.execute(
+    'help-call',
+    { action: 'help', topic },
+    undefined,
+    undefined,
+    fromPartial({}),
+  )
+  return {
+    isError: 'isError' in result ? result.isError : undefined,
+    text: result.content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join(''),
+  }
 }
 
 function prepare(tool: ToolDefinition, args: unknown) {
@@ -133,6 +197,52 @@ describe('Hive tool capability gating', () => {
   it('names an unknown action instead of failing every action constant', () => {
     expect(() => prepare(register(WORKER_CAPABILITIES), { action: 'bogus_action' })).toThrow(
       'Unknown hive action "bogus_action".',
+    )
+  })
+
+  it('lists every schedule action for a desktop-started root Session', async () => {
+    for (const capabilities of [
+      desktopRootCapabilities(),
+      desktopRootCapabilities(DEFAULT_BEFORE_SCHEDULED_TASKS),
+    ]) {
+      const text = await guidance(register(capabilities))
+
+      for (const action of SCHEDULE_ACTIONS)
+        expect(text).toMatch(new RegExp(`^- ${action}\\(`, 'm'))
+      expect(text).not.toMatch(/Not available to this Session/)
+    }
+  })
+
+  it('says why a Worker has no schedule actions instead of leaving them out silently', async () => {
+    const tool = register(WORKER_CAPABILITIES)
+    const text = await guidance(tool)
+
+    expect(text).not.toMatch(/^- schedule_/m)
+    expect(text).toMatch(
+      /Not available to this Session:\n- Scheduled tasks are not available to this Session: it has no schedules:read or schedules:manage.*A Worker never gets them.*Scheduled panel or with openwaggle schedules/s,
+    )
+    expect(await helpError(tool, 'schedule_create')).toEqual({
+      isError: true,
+      text: expect.stringMatching(
+        /^The hive action schedule_create is not available to this Session: it requires schedules:manage, and this Session has no schedules:manage\. A Worker never gets them\./,
+      ),
+    })
+    expect(() => prepare(tool, { action: 'schedule_list' })).toThrow(
+      /capability_denied: the hive action schedule_list requires schedules:read; this Session has no schedules:read\. A Worker never gets them\./,
+    )
+  })
+
+  it('explains a read-only schedule grant and any other action outside the grant', async () => {
+    const readOnly = register([...WORKER_CAPABILITIES, 'schedules:read'])
+
+    expect(await guidance(readOnly)).toMatch(
+      /This Session has schedules:read but no schedules:manage: it can list and read Scheduled tasks/,
+    )
+    expect((await helpError(register(WORKER_CAPABILITIES), 'fork')).text).toBe(
+      'The hive action fork is not available to this Session: it requires sessions:create and sessions:read, and this Session has no sessions:create.',
+    )
+    expect((await helpError(register(WORKER_CAPABILITIES), 'bogus')).text).toMatch(
+      /^No hive action "bogus" for this Session\. Actions: /,
     )
   })
 })

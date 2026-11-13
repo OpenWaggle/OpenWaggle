@@ -12,6 +12,7 @@ import type {
 import * as Effect from 'effect/Effect'
 import { resolveAgentDefinition } from '../agents/agent-definition-catalog'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
+import { sessionCapabilityRestrictionToPersist } from '../domain/session-control/session-capability-restriction'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { PrepareSessionLifecycleInput } from '../ports/session-lifecycle-preparation-service'
 import { decodeSessionExecutionProfile } from './session-run-execution-profile'
@@ -152,11 +153,15 @@ export function resolveLifecycleSessionCapabilities(input: {
   readonly profile: ResolvedSessionExecutionProfile
   readonly callerCapabilities?: readonly SessionCapability[]
 }) {
-  if (input.command.operation === 'spawn') return input.profile.sessionCapabilities
+  if (input.command.operation === 'spawn') {
+    return sessionCapabilityRestrictionToPersist(input.profile.sessionCapabilities)
+  }
   const configured = input.profile.sessionCapabilities ?? DEFAULT_SESSION_AGENT_CAPABILITIES
-  return input.callerCapabilities
-    ? configured.filter((capability) => input.callerCapabilities?.includes(capability))
-    : [...configured]
+  return sessionCapabilityRestrictionToPersist(
+    input.callerCapabilities
+      ? configured.filter((capability) => input.callerCapabilities?.includes(capability))
+      : [...configured],
+  )
 }
 
 export function reduceAuthorizationCeiling(
