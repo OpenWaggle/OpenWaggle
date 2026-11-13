@@ -1,42 +1,35 @@
 import {
   DEFAULT_SESSION_AGENT_CAPABILITIES,
-  type SessionCapability,
+  SESSION_CAPABILITIES,
 } from '@shared/types/session-capability'
 import { describe, expect, it } from 'vitest'
 import {
-  currentSessionCapabilityRestriction,
-  sessionCapabilityRestrictionToPersist,
+  callerSessionCapabilityRestriction,
+  DEFAULT_BEFORE_SCHEDULED_TASKS,
 } from '../session-capability-restriction'
 
-/** The default agent grant a Session persisted before Scheduled tasks existed (#335). */
-const DEFAULT_BEFORE_SCHEDULED_TASKS: readonly SessionCapability[] =
-  DEFAULT_SESSION_AGENT_CAPABILITIES.filter(
-    (capability) => capability !== 'schedules:read' && capability !== 'schedules:manage',
-  )
-
-describe('a persisted Session capability restriction', () => {
-  it('reads the whole default grant of its time as unrestricted, schedules included', () => {
-    expect(currentSessionCapabilityRestriction(DEFAULT_BEFORE_SCHEDULED_TASKS)).toEqual(
-      DEFAULT_SESSION_AGENT_CAPABILITIES,
-    )
+describe('what a Session keeps of the capabilities of the caller that created it', () => {
+  it('keeps no restriction when the caller holds the whole default grant, or is the person', () => {
+    expect(callerSessionCapabilityRestriction(DEFAULT_SESSION_AGENT_CAPABILITIES)).toBeUndefined()
+    expect(callerSessionCapabilityRestriction(SESSION_CAPABILITIES)).toBeUndefined()
+    expect(callerSessionCapabilityRestriction(undefined)).toBeUndefined()
   })
 
-  it('keeps a narrower list exactly as it was granted', () => {
-    const narrow: readonly SessionCapability[] = ['sessions:read', 'sessions:report']
-    const withoutExport = DEFAULT_BEFORE_SCHEDULED_TASKS.filter(
-      (capability) => capability !== 'sessions:export',
+  it('keeps the default grant narrowed to a narrower caller', () => {
+    expect(callerSessionCapabilityRestriction(DEFAULT_BEFORE_SCHEDULED_TASKS)).toEqual(
+      DEFAULT_BEFORE_SCHEDULED_TASKS,
     )
-
-    expect(currentSessionCapabilityRestriction(narrow)).toEqual(narrow)
-    expect(currentSessionCapabilityRestriction([])).toEqual([])
-    expect(currentSessionCapabilityRestriction(withoutExport)).toEqual(withoutExport)
-  })
-
-  it('persists no restriction for a Session holding the whole default grant', () => {
     expect(
-      sessionCapabilityRestrictionToPersist(DEFAULT_SESSION_AGENT_CAPABILITIES),
-    ).toBeUndefined()
-    expect(sessionCapabilityRestrictionToPersist(undefined)).toBeUndefined()
-    expect(sessionCapabilityRestrictionToPersist(['sessions:read'])).toEqual(['sessions:read'])
+      callerSessionCapabilityRestriction(['sessions:report', 'sessions:approve', 'sessions:read']),
+    ).toEqual(['sessions:read', 'sessions:report'])
+    expect(callerSessionCapabilityRestriction([])).toEqual([])
+  })
+
+  it('names the default grant before Scheduled tasks: today’s, without the schedule capabilities', () => {
+    expect(DEFAULT_BEFORE_SCHEDULED_TASKS).toEqual(
+      DEFAULT_SESSION_AGENT_CAPABILITIES.filter(
+        (capability) => capability !== 'schedules:read' && capability !== 'schedules:manage',
+      ),
+    )
   })
 })

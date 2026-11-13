@@ -138,10 +138,13 @@ export function agentTaskFixture(fixture: PiDiscoveryFixture) {
       readonly projectLimited?: boolean
       /** The capability list its execution profile persisted, as an older Session's did. */
       readonly persistedCapabilities?: readonly SessionCapability[]
+      /** Runs after the profile is written and before the agent's caller is resolved. */
+      readonly beforeRun?: (sessionId: string) => Promise<unknown>
     } = {},
   ) {
     const sessionId = await createIdleSession(fixture.project)
     await setSessionModel(sessionId, options.persistedCapabilities)
+    await options.beforeRun?.(sessionId)
     await setCeiling(sessionId, ceiling)
     if (options.projectLimited) await limitToProject(sessionId)
     await runSql((sql) =>

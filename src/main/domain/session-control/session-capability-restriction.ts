@@ -1,6 +1,5 @@
 import {
   DEFAULT_SESSION_AGENT_CAPABILITIES,
-  SESSION_CAPABILITIES,
   type SessionCapability,
 } from '@shared/types/session-capability'
 
@@ -8,9 +7,10 @@ import {
  * The default agent grant before Scheduled tasks (#335, 1.0.0-beta.23) added `schedules:read` and
  * `schedules:manage`. Every top-level Session created earlier persisted exactly this list as its
  * execution profile's `sessionCapabilities`, and every Session an agent of such a Session created
- * inherited it. Read as a restriction, it hid every schedule action from those agents.
+ * inherited it. Read as a restriction, it hid every schedule action from those agents, so the Host
+ * removes it once at start (`sqlite-legacy-session-capability-migration.ts`).
  */
-const DEFAULT_BEFORE_SCHEDULED_TASKS = [
+export const DEFAULT_BEFORE_SCHEDULED_TASKS = [
   'sessions:discover',
   'sessions:read',
   'sessions:create',
@@ -29,38 +29,17 @@ const DEFAULT_BEFORE_SCHEDULED_TASKS = [
   'access:profiles',
 ] as const satisfies readonly SessionCapability[]
 
-const ADDED_WITH_SCHEDULED_TASKS = [
-  'schedules:read',
-  'schedules:manage',
-] as const satisfies readonly SessionCapability[]
-
-function holdsEvery(held: ReadonlySet<SessionCapability>, wanted: readonly SessionCapability[]) {
-  return wanted.every((capability) => held.has(capability))
-}
-
 /**
- * A persisted Session grant as it reads today. A list holding the whole default grant of its time
- * restricted nothing when it was written, so the capabilities added to that default since are
- * added to it. Any narrower list keeps exactly what it names.
+ * What a Session another caller creates keeps of that caller's capabilities: the default agent
+ * grant narrowed to them, or no restriction at all when the caller holds the whole default grant,
+ * so a capability added to that default later reaches the Session as it reaches every new one.
  */
-export function currentSessionCapabilityRestriction(
-  persisted: readonly SessionCapability[],
-): readonly SessionCapability[] {
-  const held = new Set(persisted)
-  if (!holdsEvery(held, DEFAULT_BEFORE_SCHEDULED_TASKS)) return persisted
-  const upgraded = new Set<SessionCapability>([...persisted, ...ADDED_WITH_SCHEDULED_TASKS])
-  return SESSION_CAPABILITIES.filter((capability) => upgraded.has(capability))
-}
-
-/**
- * The restriction to persist for a new Session: none when it holds the whole default agent grant,
- * so a capability added to that default later reaches it as it reaches every new Session.
- */
-export function sessionCapabilityRestrictionToPersist(
-  capabilities: readonly SessionCapability[] | undefined,
+export function callerSessionCapabilityRestriction(
+  callerCapabilities: readonly SessionCapability[] | undefined,
 ): readonly SessionCapability[] | undefined {
-  if (!capabilities) return undefined
-  return holdsEvery(new Set(capabilities), DEFAULT_SESSION_AGENT_CAPABILITIES)
-    ? undefined
-    : capabilities
+  if (!callerCapabilities) return undefined
+  const restriction = DEFAULT_SESSION_AGENT_CAPABILITIES.filter((capability) =>
+    callerCapabilities.includes(capability),
+  )
+  return restriction.length === DEFAULT_SESSION_AGENT_CAPABILITIES.length ? undefined : restriction
 }

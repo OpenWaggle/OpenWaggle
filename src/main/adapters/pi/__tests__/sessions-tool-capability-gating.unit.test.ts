@@ -201,16 +201,19 @@ describe('Hive tool capability gating', () => {
   })
 
   it('lists every schedule action for a desktop-started root Session', async () => {
-    for (const capabilities of [
-      desktopRootCapabilities(),
-      desktopRootCapabilities(DEFAULT_BEFORE_SCHEDULED_TASKS),
-    ]) {
-      const text = await guidance(register(capabilities))
+    const text = await guidance(register(desktopRootCapabilities()))
 
-      for (const action of SCHEDULE_ACTIONS)
-        expect(text).toMatch(new RegExp(`^- ${action}\\(`, 'm'))
-      expect(text).not.toMatch(/Not available to this Session/)
-    }
+    for (const action of SCHEDULE_ACTIONS) expect(text).toMatch(new RegExp(`^- ${action}\\(`, 'm'))
+    expect(text).not.toMatch(/Not available to this Session/)
+  })
+
+  it('says why a root Session whose grant leaves out scheduling has no schedule actions', async () => {
+    const text = await guidance(register(desktopRootCapabilities(DEFAULT_BEFORE_SCHEDULED_TASKS)))
+
+    expect(text).not.toMatch(/^- schedule_/m)
+    expect(text).toMatch(
+      /Not available to this Session:\n- Scheduled tasks are not available to this Session: it has no schedules:read or schedules:manage.*its agent definition, or the agent or access profile that made it/s,
+    )
   })
 
   it('says why a Worker has no schedule actions instead of leaving them out silently', async () => {

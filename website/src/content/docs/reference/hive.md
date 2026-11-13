@@ -241,7 +241,7 @@ OpenWaggle works out `nextActor` each time you read, by the same rule the Hive p
 
 The `hive` tool's `schedule_list`, `schedule_read` and `schedule_runs` need `schedules:read`. `schedule_create`, `schedule_update`, `schedule_delete`, `schedule_run_now` and `schedule_outcome` need `schedules:manage`.
 
-A top-level session's agent has both, unless its agent definition, or the agent or access profile that created the session, did not. A worker never gets either. When a session lacks one, `help` lists it under `Not available to this Session` with the reason, and `help` with a schedule action as `topic` explains why instead of saying the action does not exist.
+A top-level session's agent has both, unless its agent definition, or the agent or access profile that created the session, did not. A session created before scheduled tasks existed, or created from one, gets both the first time the Session Host starts after the update, under the same rule. A worker never gets either. When a session lacks one, `help` lists it under `Not available to this Session` with the reason, and `help` with a schedule action as `topic` explains why instead of saying the action does not exist.
 
 The [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference) lists their commands, options and limits.
 

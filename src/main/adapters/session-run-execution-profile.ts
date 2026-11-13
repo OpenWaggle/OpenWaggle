@@ -11,7 +11,6 @@ import type { ResolvedSessionExecutionProfile } from '@shared/types/session-life
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
 import { heartbeatRunIdentity } from '../domain/scheduled-tasks/heartbeat-run-context'
-import { currentSessionCapabilityRestriction } from '../domain/session-control/session-capability-restriction'
 import {
   scheduledTaskMessageOrigin,
   scheduledTaskRecord,
@@ -119,11 +118,12 @@ export function decodeSessionExecutionProfile(value: string): ResolvedSessionExe
       : {}),
     ...(optionalStringArray(record, 'sessionCapabilities', 'Session execution profile')
       ? {
-          sessionCapabilities: currentSessionCapabilityRestriction(
-            optionalStringArray(record, 'sessionCapabilities', 'Session execution profile')?.filter(
-              (candidate): candidate is SessionCapability =>
-                SESSION_CAPABILITIES.some((capability) => capability === candidate),
-            ) ?? [],
+          sessionCapabilities: optionalStringArray(
+            record,
+            'sessionCapabilities',
+            'Session execution profile',
+          )?.filter((candidate): candidate is SessionCapability =>
+            SESSION_CAPABILITIES.some((capability) => capability === candidate),
           ),
         }
       : {}),

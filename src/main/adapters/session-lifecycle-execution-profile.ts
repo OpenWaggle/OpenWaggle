@@ -12,7 +12,7 @@ import type {
 import * as Effect from 'effect/Effect'
 import { resolveAgentDefinition } from '../agents/agent-definition-catalog'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
-import { sessionCapabilityRestrictionToPersist } from '../domain/session-control/session-capability-restriction'
+import { callerSessionCapabilityRestriction } from '../domain/session-control/session-capability-restriction'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { PrepareSessionLifecycleInput } from '../ports/session-lifecycle-preparation-service'
 import { decodeSessionExecutionProfile } from './session-run-execution-profile'
@@ -148,20 +148,23 @@ export function resolveLifecycleExecutionContext(
   })
 }
 
+/**
+ * The `sessionCapabilities` a new Session persists. A restriction its parent, its source or its
+ * agent definition set is kept as an allowlist, narrowed to the caller's capabilities. Without
+ * one, the Session keeps what the caller had (`callerSessionCapabilityRestriction`), which is no
+ * restriction when the caller holds the whole default grant.
+ */
 export function resolveLifecycleSessionCapabilities(input: {
   readonly command: SessionLifecycleCommand
   readonly profile: ResolvedSessionExecutionProfile
   readonly callerCapabilities?: readonly SessionCapability[]
 }) {
-  if (input.command.operation === 'spawn') {
-    return sessionCapabilityRestrictionToPersist(input.profile.sessionCapabilities)
-  }
-  const configured = input.profile.sessionCapabilities ?? DEFAULT_SESSION_AGENT_CAPABILITIES
-  return sessionCapabilityRestrictionToPersist(
-    input.callerCapabilities
-      ? configured.filter((capability) => input.callerCapabilities?.includes(capability))
-      : [...configured],
-  )
+  const configured = input.profile.sessionCapabilities
+  if (input.command.operation === 'spawn') return configured
+  if (!configured) return callerSessionCapabilityRestriction(input.callerCapabilities)
+  return input.callerCapabilities
+    ? configured.filter((capability) => input.callerCapabilities?.includes(capability))
+    : [...configured]
 }
 
 export function reduceAuthorizationCeiling(

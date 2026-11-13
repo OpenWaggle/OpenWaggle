@@ -1,3 +1,4 @@
+import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -5,6 +6,11 @@ import {
   runSql,
   setUpPiDiscoveryFixture,
 } from '../../adapters/pi/__tests__/pi-session-discovery.test-support'
+import {
+  restoreSessionCapabilityGrants,
+  SESSION_CAPABILITY_GRANTS_RESTORED_KEY,
+} from '../../adapters/sqlite-legacy-session-capability-migration'
+import { DEFAULT_BEFORE_SCHEDULED_TASKS } from '../../domain/session-control/session-capability-restriction'
 import { agentTaskFixture } from './scheduled-task-agent-created.test-support'
 import { createIdleSession, heartbeatInput, scheduledTasks } from './scheduled-tasks.test-support'
 
@@ -31,28 +37,12 @@ vi.mock('../scheduled-task-dispatch', async () =>
 const fixture = setUpPiDiscoveryFixture(state)
 const { agentSession } = agentTaskFixture(fixture)
 
-/**
- * The default grant every top-level Session persisted before Scheduled tasks (1.0.0-beta.23).
- * Sessions made then, and Sessions their agents created, still carry exactly this list.
- */
-const DEFAULT_BEFORE_SCHEDULED_TASKS = [
-  'sessions:discover',
-  'sessions:read',
-  'sessions:create',
-  'sessions:start',
-  'sessions:spawn',
-  'sessions:message',
-  'sessions:steer',
-  'sessions:interrupt',
-  'sessions:queue',
-  'sessions:report',
-  'sessions:organize',
-  'sessions:export',
-  'delegations:read',
-  'delegations:contribute',
-  'delegations:review',
-  'access:profiles',
-] as const
+/** The Host's start-time capability restore, run against the fixture database. */
+function restoreGrants() {
+  return runSql((sql) =>
+    restoreSessionCapabilityGrants().pipe(Effect.provideService(SqlClient.SqlClient, sql)),
+  )
+}
 
 function persistedProfile(sessionId: string) {
   return runSql((sql) =>
@@ -62,12 +52,23 @@ function persistedProfile(sessionId: string) {
 }
 
 describe('the schedule capabilities of a top-level Session agent', () => {
-  it('lets the agent of a Session made before Scheduled tasks create its own Heartbeat', async () => {
+  it('lets the agent of a Session made before Scheduled tasks create its own Heartbeat once the Host restores its grant', async () => {
     await registerProjects([fixture.project])
     const { sessionId, caller } = await agentSession('yolo', {
       persistedCapabilities: DEFAULT_BEFORE_SCHEDULED_TASKS,
+      beforeRun: async (id) => {
+        // Written before Scheduled tasks: earlier than migration 70 ran.
+        await runSql(
+          (sql) =>
+            sql`UPDATE session_execution_profiles SET created_at = 0 WHERE session_id = ${id}`,
+        )
+        expect(await restoreGrants()).toBe(1)
+      },
     })
 
+    expect(JSON.parse((await persistedProfile(sessionId)) ?? '{}')).not.toHaveProperty(
+      'sessionCapabilities',
+    )
     expect(caller.profileAuthority?.capabilities).toEqual(
       expect.arrayContaining(['schedules:read', 'schedules:manage']),
     )
@@ -82,6 +83,29 @@ describe('the schedule capabilities of a top-level Session agent', () => {
     expect(await scheduledTasks({ operation: 'list', sessionId }, caller)).toMatchObject({
       effect: 'listed',
       tasks: [{ target: { kind: 'heartbeat', sessionId } }],
+    })
+  })
+
+  it('keeps a Session that kept the older grant on purpose from scheduling', async () => {
+    await registerProjects([fixture.project])
+    // Written after Scheduled tasks, with no Session it inherited the older grant from.
+    const { sessionId, caller } = await agentSession('yolo', {
+      persistedCapabilities: DEFAULT_BEFORE_SCHEDULED_TASKS,
+      beforeRun: async () => {
+        await runSql(
+          (sql) =>
+            sql`DELETE FROM settings_store WHERE key = ${SESSION_CAPABILITY_GRANTS_RESTORED_KEY}`,
+        )
+        expect(await restoreGrants()).toBe(0)
+      },
+    })
+
+    expect(
+      await scheduledTasks({ operation: 'create', input: heartbeatInput(sessionId) }, caller),
+    ).toMatchObject({
+      effect: 'rejected',
+      code: 'capability_denied',
+      message: 'This caller lacks schedules:manage.',
     })
   })
 
