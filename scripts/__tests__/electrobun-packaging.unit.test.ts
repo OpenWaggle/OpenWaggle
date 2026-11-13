@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { resolveBuildIdentity } from '../build-identity'
 import {
   electrobunAppConfig,
+  MACOS_BUNDLE_CEF_ENV,
   PACKAGED_APP_LAYOUT,
   PATCH_BASE_URL_ENV,
   RELEASE_BASE_URL_ENV,
@@ -67,16 +68,26 @@ describe('electrobunAppConfig', () => {
     expect(PACKAGED_APP_LAYOUT.main).toBe('out/main')
   })
 
-  it('uses the system webview, CEF on macOS and Linux, and no CEF on Windows', () => {
+  it('uses the system webview, CEF on Linux, and no CEF on Windows', () => {
     const { mac, win, linux } = configFor('stable').build
     expect([mac.defaultRenderer, win.defaultRenderer, linux.defaultRenderer]).toEqual([
       'native',
       'native',
       'cef',
     ])
-    expect([mac.bundleCEF, win.bundleCEF, linux.bundleCEF]).toEqual([true, false, true])
+    expect([win.bundleCEF, linux.bundleCEF]).toEqual([false, true])
     // WebView2's Chromium environment serves the preview on a port chosen per launch.
     expect(win.chromiumFlags).toEqual({ 'remote-debugging-port': 'launch' })
+  })
+
+  it('ships release macOS builds without CEF, which they install as a component', () => {
+    expect(
+      ['stable', 'beta', 'alpha'].map((channel) => configFor(channel).build.mac.bundleCEF),
+    ).toEqual([false, false, false])
+    // Dev builds preview offline from the bundle; the variable overrides either way.
+    expect(configFor('dev').build.mac.bundleCEF).toBe(true)
+    expect(configFor('stable', { [MACOS_BUNDLE_CEF_ENV]: '1' }).build.mac.bundleCEF).toBe(true)
+    expect(configFor('dev', { [MACOS_BUNDLE_CEF_ENV]: '0' }).build.mac.bundleCEF).toBe(false)
   })
 
   it('gives CEF a per-launch DevTools port and drops the defaults that weaken it', () => {

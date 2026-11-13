@@ -100,6 +100,19 @@ export const RELEASE_BASE_URL_ENV = 'OPENWAGGLE_ELECTROBUN_RELEASE_BASE_URL'
  */
 export const PATCH_BASE_URL_ENV = 'OPENWAGGLE_ELECTROBUN_PATCH_BASE_URL'
 
+/**
+ * `1` or `0` overrides whether the macOS app bundles CEF. By default only Dev builds do (`bun run
+ * dev` and local packages preview offline); release channels ship without it and install the CEF
+ * component on the first Browser preview (scripts/electrobun/cef-component.ts, vendor patch 0015).
+ */
+export const MACOS_BUNDLE_CEF_ENV = 'OPENWAGGLE_MACOS_BUNDLE_CEF'
+
+export function macosBundlesCef(identity: ResolvedBuildIdentity, environment: NodeJS.ProcessEnv) {
+  const override = environment[MACOS_BUNDLE_CEF_ENV]?.trim()
+  if (override === '1' || override === '0') return override === '1'
+  return identity.channel === 'dev'
+}
+
 export interface ElectrobunConfigInput {
   readonly identity: ResolvedBuildIdentity
   readonly version: string
@@ -198,9 +211,10 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
         // The DMG holds the signed, unwrapped app (scripts/electrobun/macos-dmg.ts), not Hutch's
         // self-extracting wrapper, so it is the same bundle the transition zip ships.
         createDmg: false,
-        // CEF is bundled for the browser preview, and serves DevTools on a per-launch loopback
-        // port only (CEF_CHROMIUM_FLAGS).
-        bundleCEF: true,
+        // CEF runs the browser preview, from the bundle (Dev) or the CEF component the app installs
+        // on the first preview (macosBundlesCef), and serves DevTools on a per-launch loopback port
+        // only (CEF_CHROMIUM_FLAGS).
+        bundleCEF: macosBundlesCef(identity, environment),
         chromiumFlags: CEF_CHROMIUM_FLAGS,
         defaultRenderer: 'native',
         icons: `${stage}/icon.iconset`,
