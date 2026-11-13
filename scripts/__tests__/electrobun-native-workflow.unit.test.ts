@@ -64,11 +64,18 @@ describe('vendor/electrobun pins', () => {
     expect(version.startsWith(`${ELECTROBUN_SOURCE.tag.slice(1)}-openwaggle.`)).toBe(true)
   })
 
-  it('keeps the patches as git am input: numbered, with a subject, and LF only', () => {
+  // Numbers group the patches by area (vendor/electrobun/README.md): 0012 on Windows, 0014 on
+  // macOS, 0020 on packaging and Linux, so a range may end before the next one starts.
+  it('keeps the patches as git am input: numbered in order, with a subject, and LF only', () => {
     const patches = fs.readdirSync(path.join(VENDOR, 'patches')).sort()
     expect(patches.length).toBeGreaterThan(0)
-    patches.forEach((name, index) => {
-      expect(name.startsWith(String(index + 1).padStart(4, '0'))).toBe(true)
+    const numbers = patches.map((name) => Number(/^(\d{4})-/u.exec(name)?.[1]))
+    expect(numbers[0]).toBe(1)
+    numbers.forEach((number, index) => {
+      expect(Number.isInteger(number)).toBe(true)
+      if (index > 0) expect(number).toBeGreaterThan(numbers[index - 1] ?? 0)
+    })
+    patches.forEach((name) => {
       const text = fs.readFileSync(path.join(VENDOR, 'patches', name), 'utf8')
       expect(text).toMatch(/^From 0{40} /u)
       expect(text).toMatch(/^Subject: \[PATCH\] /mu)
