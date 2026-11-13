@@ -15,7 +15,7 @@ turns it off.
  1 file changed, 29 insertions(+)
 
 diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
-index bd1cc2e..83c4956 100644
+index bd1cc2e..cad59ba 100644
 --- a/package/src/native/macos/nativeWrapper.mm
 +++ b/package/src/native/macos/nativeWrapper.mm
 @@ -3094,6 +3094,10 @@ - (void)userContentController:(WKUserContentController *)userContentController
@@ -68,10 +68,10 @@ index bd1cc2e..83c4956 100644
    retainObjCObject(delegate);
 +  // A first WKWebView waits for its WebContent process to launch and
 +  // initialize (WebProcess::platformInitializeWebProcess alone took 0.3-0.8 s
-+  // on a macOS runner). Warm one now, while the app's own code still loads.
-+  dispatch_async(dispatch_get_main_queue(), ^{
-+    warmWebContentProcess();
-+  });
++  // on a macOS runner). Warm one now, while the app's own code still loads,
++  // and before the run loop starts: warmed from the run loop, the pool's setup
++  // ran while the Worker asked for the first window, which waited for it.
++  warmWebContentProcess();
    [app run];
    @autoreleasepool {
      shutdownStartedCEF();

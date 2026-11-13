@@ -131,7 +131,10 @@ release targets (docs/release-and-versioning.md), so they are not built.
    loaded its code and asked for the window. `startEventLoop` now calls WebKit's
    `-[WKProcessPool _warmInitialProcess]` SPI on a pool that every `WKWebViewImpl` then uses, so
    that work overlaps the app's startup and the first page takes the warmed process (WebKit logs
-   `markIsNoLongerInPrewarmedPool`). `ELECTROBUN_WARM_WEBCONTENT=0` turns it off.
+   `markIsNoLongerInPrewarmedPool`). It warms before `[app run]`, not from the run loop: there the
+   pool's setup ran as the Worker asked for the first window, which then waited on the main thread
+   (warm window-ready 1.88 s against 2.13 s, same CI job). `ELECTROBUN_WARM_WEBCONTENT=0` turns it
+   off.
 
 20. **ffi: keep each C string's buffer alive until the native call has read it.** `toCString`
    returned `ptr(Buffer.from(...))` and dropped the Buffer, so a garbage collection between it and
