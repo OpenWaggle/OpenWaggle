@@ -108,12 +108,6 @@ release targets (docs/release-and-versioning.md), so they are not built.
    webviews, an empty partition an InPrivate profile of its own; names other than short lowercase
    ASCII are hashed (`shared/webview2_chromium_environment.h`, with a test). The environment starts
    with the first such webview, never at launch. OpenWaggle's Windows build ships no CEF.
-20. **ffi: keep each C string's buffer alive until the native call has read it.** `toCString`
-   returned `ptr(Buffer.from(...))` and dropped the Buffer, so a garbage collection between it and
-   the native call could free and reuse the bytes; `createWebview` builds six such strings for one
-   call. The webview's secret key then arrived short and the app quit at startup ("Webview secret
-   key must contain exactly 32 bytes"). Each Buffer now stays referenced until the next macrotask.
-   Patches 0020 on are packaging and Linux fixes (0012 and 0013 are Windows, 0014 on macOS).
 14. **macos: start CEF with the first CEF webview, not at launch.** With CEF bundled,
    `startEventLoop` ran `CefInitialize` and `CefRunMessageLoop` at every launch, so an app with no
    CEF webview open still started CEF's GPU and utility processes and waited for CEF before its
@@ -138,6 +132,13 @@ release targets (docs/release-and-versioning.md), so they are not built.
    `-[WKProcessPool _warmInitialProcess]` SPI on a pool that every `WKWebViewImpl` then uses, so
    that work overlaps the app's startup and the first page takes the warmed process (WebKit logs
    `markIsNoLongerInPrewarmedPool`). `ELECTROBUN_WARM_WEBCONTENT=0` turns it off.
+
+20. **ffi: keep each C string's buffer alive until the native call has read it.** `toCString`
+   returned `ptr(Buffer.from(...))` and dropped the Buffer, so a garbage collection between it and
+   the native call could free and reuse the bytes; `createWebview` builds six such strings for one
+   call. The webview's secret key then arrived short and the app quit at startup ("Webview secret
+   key must contain exactly 32 bytes"). Each Buffer now stays referenced until the next macrotask.
+   Patches 0020 on are packaging and Linux fixes (0012 and 0013 are Windows, 0014 on macOS).
 
 ## CEF component (macOS)
 
