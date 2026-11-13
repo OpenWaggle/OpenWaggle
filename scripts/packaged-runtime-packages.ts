@@ -15,7 +15,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
+import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '../src/shared/schema'
 
 /**
  * Bundled packages the attachment parser worker resolves from `node_modules` when it loads
