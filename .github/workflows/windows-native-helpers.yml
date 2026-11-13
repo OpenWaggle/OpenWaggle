@@ -23,7 +23,7 @@ on:
       - scripts/qa/__tests__/fixtures/windows-*
       - scripts/qa/windows-*
       - scripts/qa/session-host-shutdown.ts
-      - scripts/safe-electron-environment.ts
+      - scripts/safe-app-environment.ts
       - src/main/session-host/session-host-ownership.ts
       - .github/workflows/windows-native-helpers.yml
   workflow_dispatch:
@@ -55,8 +55,6 @@ jobs:
           package-manager-cache: false
 
       - uses: ./.github/actions/bun-install
-        with:
-          electron-binary: 'true'
 
       # The helpers ship on Electron's Node.js, so their tests run on Node, not under
       # `bun --bun vitest`: Bun reports the Electron CLI's 0xFFFFFFFF exit code as 255.

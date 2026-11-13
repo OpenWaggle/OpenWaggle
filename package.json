@@ -46,7 +46,6 @@
     "qa:seed-conversations": "bun scripts/qa/seed-dev-conversations.ts",
     "qa:session-orchestration:live": "bun scripts/qa/live-session-orchestration-smoke.ts",
     "qa:packaged-session-host-startup": "bun scripts/qa/packaged-session-host-startup-smoke.ts",
-    "qa:dev-app-startup": "bun scripts/qa/dev-app-startup-smoke.ts",
     "typecheck": "bun scripts/check/run.ts --only typecheck",
     "test": "bun run prepare:native:node && bun run test:unit:raw && bun run test:integration:raw && bun run test:component && bun run test:mcp:conformance",
     "test:all": "bun run test",

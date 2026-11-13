@@ -115,14 +115,8 @@ const PACKAGE_MANAGER_DEV_COMMAND =
   /\b(?:exec|execSync|spawn|spawnSync)\s*\(\s*['"`](?:bun|pnpm)\s+(?:run\s+)?dev(?::debug(?::headed)?)?(?=[\s'"`])/u
 /** The development launcher, run or imported by its path. */
 const DEVELOPMENT_LAUNCHER = /\belectrobun\/dev(?:\.ts)?['"`]/u
-/**
- * `bun run dev` itself, which a person runs to open the visible development app, and the smoke
- * that starts it hidden with OPENWAGGLE_AUTOMATION=1.
- */
-const DEVELOPMENT_LAUNCH_OWNERS: readonly string[] = [
-  'scripts/electrobun/dev.ts',
-  'scripts/qa/dev-app-startup-smoke.ts',
-]
+/** `bun run dev` itself, which a person runs to open the visible development app. */
+const DEVELOPMENT_LAUNCH_OWNERS: readonly string[] = ['scripts/electrobun/dev.ts']
 
 /**
  * The development launcher (run or imported by its path), or a package manager running a dev
