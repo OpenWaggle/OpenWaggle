@@ -91,30 +91,50 @@ describe('createStartedRuns', () => {
     expect(runs.settle(SESSION, 'run-1')).toBe(false)
   })
 
-  it('takes a late start of a Run that already streamed for the same Run', () => {
+  it('takes a late start of a Run that already streamed for that Run, another than the one before', () => {
     const runs = createStartedRuns()
     runs.start(SESSION, 'run-1')
     runs.end(SESSION, 'run-1')
     runs.noteUnannounced(SESSION)
+    expect(runs.start(SESSION, 'run-2')).toBe(true)
     expect(runs.start(SESSION, 'run-2')).toBe(false)
     expect(runs.settle(SESSION, 'run-1')).toBe(true)
     expect(runs.settle(SESSION, 'run-2')).toBe(false)
   })
 
+  // An auto-retry or a requested Waggle's next turn starts again with no end in between.
+  it('lists the Run before once when the Run whose start was lost starts again as it', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.start(SESSION, 'waggle-of-run-1')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+  })
+
   it('lists a Run whose start was lost after the Run restored at a reload', () => {
     const runs = createStartedRuns()
-    expect(runs.noteUnannounced(SESSION, 'run-1')).toBe(true)
+    runs.noteUnannounced(SESSION, 'run-1')
     expect(runs.settle(SESSION, 'run-1')).toBe(true)
     runs.end(SESSION, 'run-2')
     expect(runs.settle(SESSION, 'run-2')).toBe(false)
   })
 
-  it('takes a Run whose start was lost for another Run only after one listed', () => {
+  it('names a Run whose start was lost from the buffer, telling the Run before from another', () => {
     const runs = createStartedRuns()
-    expect(runs.noteUnannounced(SESSION)).toBe(false)
-    expect(runs.noteUnannounced(SESSION)).toBe(false)
+    runs.noteUnannounced(SESSION)
+    expect(runs.name(SESSION, 'run-1')).toBe(false)
+    expect(runs.name(SESSION, 'run-1')).toBeUndefined()
     runs.end(SESSION, 'run-1')
-    expect(runs.noteUnannounced(SESSION)).toBe(true)
+    runs.noteUnannounced(SESSION)
+    expect(runs.name(SESSION, 'run-1')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+    runs.start(SESSION, 'run-2')
+    runs.end(SESSION, 'run-2')
+    runs.noteUnannounced(SESSION)
+    expect(runs.name(SESSION, 'run-3')).toBe(true)
+    expect(runs.settle(SESSION, 'run-2')).toBe(true)
+    expect(runs.settle(SESSION, 'run-3')).toBe(false)
   })
 
   it('names the classic Run a requested Waggle settles as', () => {

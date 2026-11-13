@@ -198,6 +198,28 @@ describe('useBackgroundRunMonitor without the Run start', () => {
     unmount()
   })
 
+  // Pi compacts at a threshold before a Run starts; the Run's start that follows was lost.
+  it('notices a Run that streams after the compaction before its start', () => {
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+
+    emitAgentEvent({ type: 'compaction_start', reason: 'threshold', timestamp: 1 })
+    emitAgentEvent({
+      type: 'message_start',
+      messageId: 'answer-1',
+      role: 'assistant',
+      timestamp: 2,
+    })
+    emitAgentEvent({
+      type: 'message_start',
+      messageId: 'answer-2',
+      role: 'assistant',
+      timestamp: 3,
+    })
+
+    expect(useBackgroundRunStore.getState().unannouncedRunNotices.get(SESSION_ID)).toBe(1)
+    unmount()
+  })
+
   it('does not take what a Run sends as it ends for another Run starting', () => {
     const { unmount } = renderHook(() => useBackgroundRunMonitor())
 

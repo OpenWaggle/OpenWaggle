@@ -9,6 +9,7 @@ import { incorporatedUserRow } from '@/features/chat/lib/chat-stream-user-messag
 import { createStartedRuns } from '@/features/chat/lib/run-ids'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { takeRestoredRunId } from '@/features/chat/state/background-run-activity-restore'
+import { UNNAMED_RUN_SEED } from '@/features/chat/state/background-run-render-state'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import {
@@ -63,6 +64,9 @@ export function useBackgroundRunMonitor(): void {
   // Track stream lifecycle globally
   useLayoutEffect(() => {
     const compactionOnlySessionIds = new Set<string>()
+    // Sessions a compaction made busy without a Run start: a Run streaming there is unannounced.
+    const startlessSessionIds = new Set<string>()
+    const startless = { compactionOnlySessionIds, startlessSessionIds }
     const startedRuns = createStartedRuns()
     const unsubEvent = subscribeAgentEvents((payload) => {
       applyAgentLoopEvent(payload.sessionId, payload.event)
@@ -70,6 +74,7 @@ export function useBackgroundRunMonitor(): void {
       trackExtensionStatus(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
+        startlessSessionIds.delete(payload.sessionId)
         useFirstSendPendingStore.getState().clear(payload.sessionId)
         useQueuedRunStartStore.getState().settle(payload.sessionId, payload.event.runId)
         // Another Run starts: the Host settled the one before (its settlement may reach this
@@ -82,11 +87,12 @@ export function useBackgroundRunMonitor(): void {
         const runModel = payload.event.model?.trim()
         addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }
-      noteStreamingRun(payload.sessionId, payload.event, compactionOnlySessionIds, startedRuns)
+      trackStartedRun(payload.sessionId, payload.event, startless, startedRuns)
       if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
         if (payload.event.reason === 'manual') {
           compactionOnlySessionIds.add(payload.sessionId)
         }
+        startlessSessionIds.add(payload.sessionId)
         addActiveRun(payload.sessionId)
       }
       applyRunRenderEvent(payload.sessionId, payload.event)
@@ -95,13 +101,13 @@ export function useBackgroundRunMonitor(): void {
         payload.event.type === 'compaction_end' &&
         compactionOnlySessionIds.delete(payload.sessionId)
       ) {
+        startlessSessionIds.delete(payload.sessionId)
         removeActiveRun(payload.sessionId)
       }
       if (isTerminalTransportEvent(payload.event) && !isRetryingAttemptEnd(payload.event)) {
         useFirstSendPendingStore.getState().clear(payload.sessionId)
         const endedRunId = payload.event.type === 'agent_end' ? payload.event.runId : undefined
         useQueuedRunStartStore.getState().settle(payload.sessionId, endedRunId)
-        startedRuns.end(payload.sessionId, endedRunId)
         removeActiveRun(payload.sessionId)
       }
       // A stopped retry delay ends the Run without another agent_end; it finishes until it settles.
@@ -114,6 +120,7 @@ export function useBackgroundRunMonitor(): void {
 
     const unsubCompleted = api.onRunCompleted((payload) => {
       releaseLiveStreamMessage(payload.sessionId)
+      startlessSessionIds.delete(payload.sessionId)
       // A settled Run's extension statuses go with it, whatever runs next.
       useExtensionStatusStore.getState().clearRun(payload.sessionId, payload.runId)
       useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)
@@ -157,31 +164,78 @@ export function useBackgroundRunMonitor(): void {
 }
 
 /**
+ * Every end of a Run names it when the renderer holds it unnamed or unannounced, a retrying or a
+ * tool-use end too: a Run whose start was lost can end without a terminal `agent_end`.
+ */
+function trackStartedRun(
+  sessionId: SessionId,
+  event: AgentTransportEvent,
+  startless: {
+    readonly compactionOnlySessionIds: Set<string>
+    readonly startlessSessionIds: Set<string>
+  },
+  startedRuns: ReturnType<typeof createStartedRuns>,
+) {
+  if (event.type === 'agent_end') {
+    startedRuns.end(sessionId, event.runId)
+    return
+  }
+  // The manual compaction's end no longer ends the Session's activity: a Run is running.
+  if (noteStreamingRun(sessionId, event, startless.startlessSessionIds, startedRuns)) {
+    startless.compactionOnlySessionIds.delete(sessionId)
+  }
+}
+
+/**
  * The Run's start never reached this renderer (a resync lost it), yet the Run streams on: it is
- * active, or the chat would show its Session idle, and empty, until the Run settles. A manual
- * compaction alone made the Session busy before; a Run streaming there is a Run. Listed after the
- * Runs started, a late settlement of the one before does not settle it.
+ * active, or the chat would show its Session idle, and empty, until the Run settles. A compaction
+ * alone made the Session busy before (Pi compacts before a Run starts too); a Run streaming there
+ * is a Run. Listed after the Runs started, a late settlement of the one before does not settle it.
  */
 function noteStreamingRun(
   sessionId: SessionId,
   event: AgentTransportEvent,
-  compactionOnlySessionIds: Set<string>,
+  startlessSessionIds: Set<string>,
   startedRuns: ReturnType<typeof createStartedRuns>,
 ) {
-  if (!isRunStreamingEvent(event)) return
+  if (!isRunStreamingEvent(event)) return false
   const store = useBackgroundRunStore.getState()
-  if (store.hasActiveRun(sessionId) && !compactionOnlySessionIds.has(sessionId)) return
-  compactionOnlySessionIds.delete(sessionId)
-  // The Host put a promoted steer the Run before never took back in the queue, as at a start.
-  if (startedRuns.noteUnannounced(sessionId, takeRestoredRunId(sessionId))) {
-    useOptimisticSteerStore.getState().clearSession(sessionId)
-  }
+  if (store.hasActiveRun(sessionId) && !startlessSessionIds.delete(sessionId)) return false
+  startedRuns.noteUnannounced(sessionId, takeRestoredRunId(sessionId))
+  void nameUnannouncedRun(sessionId, startedRuns)
   // The Session started: a first send's "Starting session" and the Run before's finishing are
   // over, as at a start.
   useFirstSendPendingStore.getState().clear(sessionId)
   useRunFinishingStore.getState().clear(sessionId)
+  // Its answers go in a snapshot of their own, as at an unnamed start; its end or start names it.
+  const snapshot = store.getRunRenderSnapshot(sessionId)
+  if (!snapshot || snapshot.settledRunId !== undefined) {
+    store.applyRunRenderEvent(sessionId, {
+      type: 'agent_start',
+      runId: UNNAMED_RUN_SEED,
+      timestamp: event.timestamp,
+    })
+  }
   const runModel = event.model?.trim()
   store.noteUnannouncedRun(sessionId, runModel ? SupportedModelId(runModel) : undefined)
+  return true
+}
+
+/**
+ * The Run whose start was lost, named from the Host's buffer, does what its start would have: when
+ * it is another Run than the one before, the Host put the steers that Run never took back in the
+ * queue, and their previews go; those promoted into this Run (Pi continuing it) stay.
+ */
+async function nameUnannouncedRun(
+  sessionId: SessionId,
+  startedRuns: ReturnType<typeof createStartedRuns>,
+) {
+  const runId = (await api.getBackgroundRun(sessionId).catch(() => null))?.runId
+  if (runId === undefined) return
+  const anotherRun = startedRuns.name(sessionId, runId)
+  if (anotherRun === undefined) return
+  if (anotherRun) useOptimisticSteerStore.getState().clearSession(sessionId)
+  useOptimisticSteerStore.getState().noteRunStarted(sessionId, runId)
 }
 
 /**

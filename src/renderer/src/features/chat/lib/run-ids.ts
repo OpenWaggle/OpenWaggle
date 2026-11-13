@@ -55,10 +55,7 @@ export function createStartedRuns() {
       const settling = settlingRunId(runId)
       const last = started.at(-1)
       // The start of the Run already streaming, late (the bridge announcing it after a resync).
-      if (isUnannouncedRun(last)) {
-        bySession.set(sessionId, [...started.slice(0, -1), settling])
-        return false
-      }
+      if (isUnannouncedRun(last)) return nameUnannounced(bySession, sessionId, started, settling)
       if (last === settling) {
         // The restored Run starting again (an auto-retry, Pi continuing it): still remembered.
         if (!bySession.has(sessionId)) bySession.set(sessionId, started)
@@ -84,17 +81,24 @@ export function createStartedRuns() {
     },
     /**
      * A Run streams in a Session the renderer holds as idle: its start was lost. It follows the
-     * Runs listed, so a late settlement of the one before it does not settle the Session; its end
-     * names it, as a start would have. `restoredRunId`: as for `start`. `true`, as for `start`,
-     * when a Run is listed before it: the Host settled that one, as at another Run's start.
+     * Runs listed, so a late settlement of the one before it does not settle the Session; its end,
+     * a late start or `name` names it. `restoredRunId`: as for `start`.
      */
     noteUnannounced(sessionId: SessionId, restoredRunId?: string) {
       const restored = restoredRunId === undefined ? [] : [settlingRunId(restoredRunId)]
       const started = bySession.get(sessionId) ?? restored
-      const last = started.at(-1)
-      if (isUnannouncedRun(last)) return false
+      if (isUnannouncedRun(started.at(-1))) return
       bySession.set(sessionId, [...started, UNANNOUNCED_RUN])
-      return last !== undefined && !isUnnamedRunStart(last)
+    },
+    /**
+     * The Run the Host's buffer names for a Run listed as unannounced: `true` when it is another
+     * Run than the one listed before it, as `start` tells; `undefined` when the Run listed last is
+     * no longer unannounced (its end or a start named it first).
+     */
+    name(sessionId: SessionId, runId: string) {
+      const started = bySession.get(sessionId)
+      if (!started || !isUnannouncedRun(started.at(-1))) return undefined
+      return nameUnannounced(bySession, sessionId, started, settlingRunId(runId))
     },
     /**
      * A Run settled (`undefined`: a settlement naming none, which settles the Session): whether it
@@ -120,6 +124,23 @@ export function createStartedRuns() {
       return later.some((laterRunId) => !isUnnamedRunStart(laterRunId))
     },
   }
+}
+
+/**
+ * Names the Run listed last as unannounced. When it is the Run listed before it (Pi continuing a
+ * Run, a retry, a requested Waggle), that one is listed once: listed twice, its settlement would
+ * look like an earlier Run's and leave the Session running. `true` when it is another Run.
+ */
+function nameUnannounced(
+  bySession: Map<SessionId, string[]>,
+  sessionId: SessionId,
+  started: readonly string[],
+  settling: string,
+) {
+  const rest = started.slice(0, -1)
+  const before = rest.at(-1)
+  bySession.set(sessionId, before === settling ? rest : [...rest, settling])
+  return before !== undefined && before !== settling && !isUnnamedRunStart(before)
 }
 
 /** The last unnamed start some named start follows: an earlier Run, known by no id. */
