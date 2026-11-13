@@ -2,7 +2,12 @@ import path from 'node:path'
 import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from './support/object-fields'
 
-const GENERATED_API_MARKER = '<!-- Generated from the checked public package declarations. -->'
+/*
+ * The marker names the package version whose declarations the page lists. A published version's
+ * page is frozen: it is generated again only once the package's version changes, at a release.
+ */
+const GENERATED_API_MARKER_PATTERN =
+  /^<!-- Generated from the public declarations of (?<packageName>\S+) (?<packageVersion>\S+)\. -->$/mu
 const MATCH_DECLARATION_GROUP = 2
 const NAMED_EXPORT_SOURCE_GROUP = 2
 const SUBPATH_PREFIX_LENGTH = 2
@@ -16,8 +21,15 @@ interface RenderApiReferenceInput {
   readonly apiDescription: string
   readonly exports: Readonly<Record<string, unknown>>
   readonly packageName: string
+  /** The package.json version, which the generated marker records. */
+  readonly packageVersion: string
   readonly snapshot: string
   readonly version: string
+}
+
+/** The package version a generated API page lists, or `undefined` for a page without the marker. */
+export function generatedApiReferencePackageVersion(contents: string) {
+  return GENERATED_API_MARKER_PATTERN.exec(contents)?.groups?.packageVersion
 }
 
 function normalizeMarkdown(value: string) {
@@ -245,7 +257,7 @@ export function renderApiReference(input: RenderApiReferenceInput) {
       'kind: "reference"',
       '---',
       '',
-      GENERATED_API_MARKER,
+      `<!-- Generated from the public declarations of ${input.packageName} ${input.packageVersion}. -->`,
       '',
       `This reference inventories every public entry point and named export in \`${input.packageName}\` ${input.version}.`,
       '',

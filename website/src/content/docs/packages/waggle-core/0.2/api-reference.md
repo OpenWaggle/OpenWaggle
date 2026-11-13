@@ -6,7 +6,7 @@ section: "Packages"
 kind: "reference"
 ---
 
-<!-- Generated from the checked public package declarations. -->
+<!-- Generated from the public declarations of @openwaggle/waggle-core 0.2.0. -->
 
 This reference inventories every public entry point and named export in `@openwaggle/waggle-core` 0.2.
 
