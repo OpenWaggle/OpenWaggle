@@ -8,6 +8,10 @@ export interface HiveHelpInput {
   readonly variants: readonly SessionsToolRuntimeVariant[]
   /** Every Hive rule for this Session's grant; the system prompt carries only the essentials. */
   readonly guidelines: readonly string[]
+  /** What this Session's grant leaves out and why, where the docs promise it to every agent. */
+  readonly unavailable?: readonly string[]
+  /** Why a real action this Session may not use is unavailable; undefined for any other topic. */
+  readonly explainUnavailable?: (action: string) => string | undefined
   readonly topic?: unknown
 }
 
@@ -31,6 +35,9 @@ function overview(input: HiveHelpInput) {
     '',
     'Hive rules:',
     ...input.guidelines.map((guideline) => `- ${guideline}`),
+    ...(input.unavailable?.length
+      ? ['', 'Not available to this Session:', ...input.unavailable.map((note) => `- ${note}`)]
+      : []),
   ].join('\n')
   return { text, details: { actions: input.variants.map(variantActionName) } }
 }
@@ -45,6 +52,8 @@ export function hiveHelp(input: HiveHelpInput) {
   const topic = isMatching(P.string, input.topic) ? input.topic : String(input.topic)
   const variant = input.variants.find((candidate) => variantActionName(candidate) === topic)
   if (!variant) {
+    const unavailable = input.explainUnavailable?.(topic)
+    if (unavailable) throw new Error(unavailable)
     throw new Error(
       `No hive action "${topic}" for this Session. Actions: ${input.variants.map(variantActionName).join(', ')}.`,
     )

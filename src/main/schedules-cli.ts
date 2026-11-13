@@ -1,5 +1,9 @@
 import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { ScheduledTasksCommand, ScheduledTasksResponse } from '@shared/types/scheduled-task'
+import {
+  SCHEDULES_CLI_AGENT_REFUSAL,
+  WAKE_CHECK_APPROVAL_AGENT_REFUSAL,
+} from './cli-agent-refusals'
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions, validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -225,14 +229,18 @@ export async function runSchedulesCli(args: readonly string[]) {
       return EXIT.SUCCESS
     }
     if (command === 'approve-wake-check') {
-      const client = await createLocalSessionCliClientInput(arguments_)
+      const client = await createLocalSessionCliClientInput(arguments_, {
+        agentRefusal: WAKE_CHECK_APPROVAL_AGENT_REFUSAL,
+      })
       const responses = await approveWakeCheckCommands(client, arguments_.positionals[0] ?? '')
       await writeSchedulesCliResponses(command, responses, hasFlag(arguments_, 'json'))
       const error = resultError(responses)
       return error ? sessionCliExitCodeForError(error) : EXIT.SUCCESS
     }
     const commands = await buildSchedulesCliCommands(command, arguments_)
-    const client = await createLocalSessionCliClientInput(arguments_)
+    const client = await createLocalSessionCliClientInput(arguments_, {
+      agentRefusal: SCHEDULES_CLI_AGENT_REFUSAL,
+    })
     const idempotencyKey = option(arguments_, 'idempotency-key')
     const responses: ScheduledTasksResponse[] = []
     // One at a time on purpose: an import creates its tasks in file order, so the report lines
