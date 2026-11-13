@@ -179,7 +179,7 @@ describe('Hive tool revision guidance (#454)', () => {
     const tool = await queenTool()
     const overview = await hiveHelpText(tool)
     expect(overview).toMatch(
-      /delegation_request_revision and delegation_reopen, and delegation_amend or delegation_dependency on a result awaiting review, also send your feedback to the Worker as your Follow-up, which starts its next Run; do not send follow_up as well/,
+      /request revision \(it starts the Worker's Run with the feedback\) or accept/,
     )
 
     const topic = JSON.parse(await hiveHelpText(tool, 'delegation_request_revision'))

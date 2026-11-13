@@ -1,22 +1,27 @@
 /**
  * What the Hive tool tells agents about revision requests (#454): a reviewer's
- * `delegation_request_revision` or `delegation_reopen` reaches the Worker as the reviewer's
+ * `delegation_request_revision` or `delegation_reopen`, or a `delegation_amend` or
+ * `delegation_dependency` on a `ready_for_review` result, reaches the Worker as the reviewer's
  * Follow-up (`delegation-revision-follow-up.ts`), which starts the Worker's next Run.
  */
 
-/** For a reviewer, in the system prompt. */
-export const REVISION_REACHES_WORKER =
-  'delegation_request_revision and delegation_reopen, and delegation_amend or delegation_dependency on a result awaiting review, also send your feedback to the Worker as your Follow-up, which starts its next Run; do not send follow_up as well.'
+/**
+ * For a reviewer, in the system prompt, right after "request revision". Kept to a few words for
+ * the first-turn prefix budget: `help` has the full rule, including reopens and task changes, and
+ * the Worker's side needs no system-prompt line because the request it receives says what to do.
+ */
+export const REVISION_STARTS_WORKER_RUN = "(it starts the Worker's Run with the feedback)"
 
-/** For a Worker, in the system prompt. */
-export const REVISION_ARRIVES =
+/** For a Worker, in `help`. */
+const REVISION_ARRIVES =
   'A revision request from your parent arrives as a Host-authored Follow-up naming delegationId, submissionRevision and feedback; address the feedback and submit a new revision.'
 
 /** The full revision rules for `help`, for the review actions this Session may use. */
 export function revisionGuideline(permits: (action: string) => boolean) {
   const reviews = ['delegation_request_revision', 'delegation_reopen'].filter(permits)
   const taskChanges = ['delegation_amend', 'delegation_dependency'].filter(permits)
-  if (reviews.length === 0 && taskChanges.length === 0) return undefined
+  const arrives = permits('delegation_submit') ? REVISION_ARRIVES : ''
+  if (reviews.length === 0 && taskChanges.length === 0) return arrives || undefined
   const sendsBack = [
     ...(reviews.length ? [reviews.join(' and ')] : []),
     ...(taskChanges.length ? [`${taskChanges.join(' or ')} on a ready_for_review result`] : []),
@@ -28,6 +33,7 @@ export function revisionGuideline(permits: (action: string) => boolean) {
     'A changed task also reaches the Worker as its own Delegation specification update.',
     `${taskChanges.length ? `${taskChanges.join(' or ')} on a Worker still on the task sends no Follow-up: the new specification reaches its current or next Run. ` : ''}`.trim(),
     'If you may not message the Worker (no sessions:message for it), any of these that would send it back to work is refused with worker_message_denied and the Delegation does not change; ask the user to send the revision.',
+    arrives,
   ]
     .filter(Boolean)
     .join(' ')
