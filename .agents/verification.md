@@ -56,7 +56,7 @@ In CI a missing `origin/main` fails the step instead of comparing with `HEAD`; t
 
 CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no Electron E2E and no merge queue:
 
-- **Per-PR / per-push gate:** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them.
+- **Per-PR / per-push gate:** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them. A PR that changes packages also runs the Package Consumer Rehearsal (`bun run package:smoke` with npm, pnpm, Yarn and Bun on Node 22.19.0), and one that changes the website or docs runs the Website & Docs Rehearsal; a full-tier dispatch runs both.
 - **Session Performance workflow (manual/dispatch):** `bun run benchmark:session-release` validates the packaged embedding model's warm query latency and multilingual recall, the exact 100,000-Session vector index, and the 100,000-Session/10,000,000-message reference corpus. `bun run benchmark:session-performance` remains the faster local 1,000,000-message development check.
 - **Nightly canary (non-gating):** `.github/workflows/nightly.yml` builds and runs `packaged-app:smoke` on macOS/Linux/Windows, and runs the syntax performance benchmark on macOS. It never blocks a merge.
 

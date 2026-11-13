@@ -216,9 +216,7 @@ function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violatio
     if (job === undefined) continue
     const hasExactCondition = conditionLines.every((line) => job.block.includes(line))
     if (!hasExactCondition) {
-      violations.push(
-        `CI queue-only job ${jobName} must run exactly on merge-queue results and dispatched full runs.`,
-      )
+      violations.push(`CI conditional job ${jobName} must keep its exact job-level condition.`)
     }
   }
 }

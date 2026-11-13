@@ -90,11 +90,11 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
       ],
       [
         `needs.changes.outputs.package == 'true'`,
-        `${CI_WORKFLOW_PATH} must scope package consumer rehearsal to package-changing merge results.`,
+        `${CI_WORKFLOW_PATH} must scope package consumer rehearsal to package-changing pull requests.`,
       ],
       [
         `needs.changes.outputs.website-docs == 'true'`,
-        `${CI_WORKFLOW_PATH} must scope the website and docs rehearsal to website-changing merge results.`,
+        `${CI_WORKFLOW_PATH} must scope the website and docs rehearsal to website-changing pull requests.`,
       ],
       [
         `${DIRECT_NODE} .release-tooling/scripts/package-consumer-tools.ts install`,

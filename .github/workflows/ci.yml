@@ -317,10 +317,10 @@ jobs:
   package-release-rehearsal-package:
     name: Package Consumer Rehearsal (Node 22.19.0)
     needs: changes
-    # Release-shaped validation runs against the merged result only. The release branch
+    # Runs on a pull request or full dispatch whose changes touch packages. The release branch
     # always rehearses so the coordinated package release path is never under-validated.
     if: >-
-      (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
+      (github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
       (needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -380,7 +380,7 @@ jobs:
     timeout-minutes: 25
     needs: changes
     if: >-
-      (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
+      (github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
       (needs.changes.outputs.website-docs == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')
     runs-on: ubuntu-latest
     env:

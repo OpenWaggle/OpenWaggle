@@ -35,9 +35,9 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
    * future divergence has a place to land without re-plumbing the CI_TIER selector.
    */
   /*
-   * The rehearsals stay conditional even in the full tier: they are path-scoped, so a
-   * merge result that touches no package or website/docs surfaces legitimately skips
-   * them. A rehearsal that RUNS and fails still fails the gate through the generic
+   * The rehearsals stay conditional in every tier: they are path-scoped, so a pull
+   * request or merge result that touches no package or website/docs surfaces legitimately
+   * skips them. A rehearsal that RUNS and fails still fails the gate through the generic
    * rejected-conclusion check below.
    */
   full: [

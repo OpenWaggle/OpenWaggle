@@ -195,7 +195,7 @@ describe('package release workflow validation', () => {
     )
   })
 
-  it('rejects a package consumer rehearsal that runs per push instead of on merge results only', async () => {
+  it('rejects a package consumer rehearsal that runs on every change instead of package changes', async () => {
     const invalidCi = replaceRequired(
       validCiWorkflow,
       "needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main'",

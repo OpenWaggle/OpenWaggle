@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const EMPTY_COUNT = 0
-const CI_WORKFLOW_AST_CONTRACT = 'a70af954bd9df0bc684c36787aaf5d771bac5a37de3ac45b3c6232e6d0ffe571'
+const CI_WORKFLOW_AST_CONTRACT = '04d90348a85e869c66163947155cb2cfdda16bb0df6fd66d8bd74316a7c0ed06'
 const SESSION_PERFORMANCE_WORKFLOW_AST_CONTRACT =
   'c9309bd637262376cd1b56e6e16f484e85754874206da8498dc6c3dce84f1001'
 
