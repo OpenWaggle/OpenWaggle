@@ -1,5 +1,6 @@
 import type { EventEmitter } from 'node:events'
 import { structuredTransport } from '@shared/structured-wire'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /**
  * Fakes of Electrobun's windows and webviews for the webview cluster's contract runners:
@@ -35,10 +36,6 @@ interface Packet {
 
 const DEFAULT_MAX_REQUEST_TIME = 1000
 
-function asPacket(value: unknown): Packet {
-  return typeof value === 'object' && value !== null ? value : {}
-}
-
 /** Electrobun's RPC object, as `BrowserView.defineRPC` and `Electroview.defineRPC` make it. */
 export function fakeRpc(config: RpcConfig) {
   let transport: PacketTransport = {}
@@ -46,7 +43,7 @@ export function fakeRpc(config: RpcConfig) {
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
 
   function receive(raw: unknown) {
-    const packet = asPacket(raw)
+    const packet = uncheckedFields<Packet>(raw)
     if (packet.type === 'request' && typeof packet.method === 'string') {
       const id = packet.id
       const handler = config.handlers.requests?.[packet.method]
@@ -105,8 +102,9 @@ export function fakeRpc(config: RpcConfig) {
 }
 
 /** JSON in, JSON out, as Electrobun's socket and evaluate bridges carry packets. */
-function overTheWire(packet: unknown): unknown {
-  return JSON.parse(JSON.stringify(packet))
+function overTheWire(packet: unknown) {
+  const copy: unknown = JSON.parse(JSON.stringify(packet))
+  return copy
 }
 
 /** The page at the far end of a webview's RPC, as the Electrobun preload sets it up. */
@@ -122,7 +120,7 @@ export class FakePage {
       requests: { 'shell:heartbeat': () => (this.alive ? true : new Promise(() => undefined)) },
       messages: {
         'shell:event': (payload) => {
-          const event = asPacket(payload)
+          const event = uncheckedFields<Packet>(payload)
           const channel: unknown = Reflect.get(event, 'channel')
           const args: unknown = Reflect.get(event, 'args')
           if (typeof channel === 'string' && Array.isArray(args)) {
@@ -145,13 +143,14 @@ export class FakePage {
   }
 
   /** The host side of the webview transport (`BrowserView.createTransport()`). */
-  hostTransport(): PacketTransport {
-    return {
+  hostTransport() {
+    const transport: PacketTransport = {
       send: (packet) => this.fromHost(overTheWire(packet)),
       registerHandler: (handler) => {
         this.toHost = handler
       },
     }
+    return transport
   }
 
   invoke(channel: string, ...args: unknown[]) {

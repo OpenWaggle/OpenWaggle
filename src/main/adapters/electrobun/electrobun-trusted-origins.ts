@@ -166,9 +166,7 @@ function createHostServers(input: {
   return { get, release, ofOrigin, byLoopbackOrigin: (origin: string) => byOrigin.get(origin) }
 }
 
-export function createLoopbackTrustedOrigins(
-  options: LoopbackTrustedOriginsOptions = {},
-): ElectrobunTrustedOrigins {
+export function createLoopbackTrustedOrigins(options: LoopbackTrustedOriginsOptions = {}) {
   const declarations = new Map<TrustedOriginDomain, TrustedOriginDeclaration>()
   const handlers = new Map<TrustedOriginDomain, TrustedOriginHandler>()
   const documentPolicies = new Map<TrustedOriginDomain, () => DocumentPolicy>()
@@ -230,7 +228,7 @@ export function createLoopbackTrustedOrigins(
     setDocumentPolicy: (domain, policy) => {
       documentPolicies.set(domain, policy)
     },
-  }
+  } satisfies ElectrobunTrustedOrigins
 }
 
 /** The app's loopback trusted origins; one set of servers per process. */

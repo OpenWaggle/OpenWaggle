@@ -11,14 +11,10 @@ export function boundedBrowserPreviewText(value: string, maxLength: number) {
   return value.length <= maxLength ? value : value.slice(0, maxLength)
 }
 
-export function browserPreviewStateError(
-  code: string,
-  description: string,
-  url: string,
-): BrowserPreviewError {
+export function browserPreviewStateError(code: string, description: string, url: string) {
   return {
     code,
     description: boundedBrowserPreviewText(description, MAX_ERROR_DESCRIPTION_LENGTH),
     url: isBrowserPreviewUrl(url) ? normalizeBrowserPreviewUrl(url) : '',
-  }
+  } satisfies BrowserPreviewError
 }

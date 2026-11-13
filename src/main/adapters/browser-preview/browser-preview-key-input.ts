@@ -46,30 +46,24 @@ function isPrimaryModifier(input: BrowserPreviewKeyInput, isMac: boolean) {
   return isMac ? input.meta && !input.control : input.control && !input.meta
 }
 
-function nativeBrowserPreviewShortcutForChord(
-  input: BrowserPreviewKeyInput,
-  isMac: boolean,
-): NativeBrowserPreviewShortcut | null {
+function nativeBrowserPreviewShortcutForChord(input: BrowserPreviewKeyInput, isMac: boolean) {
   if (input.isComposing || input.shift) return null
 
   const key = input.key.toLowerCase()
   const primary = isPrimaryModifier(input, isMac)
   if (primary && !input.alt) {
-    if (key === 'l') return 'focus-location'
-    if (key === 'r') return 'reload'
-    if (key === 'w') return 'close'
+    if (key === 'l') return 'focus-location' satisfies NativeBrowserPreviewShortcut | null
+    if (key === 'r') return 'reload' satisfies NativeBrowserPreviewShortcut | null
+    if (key === 'w') return 'close' satisfies NativeBrowserPreviewShortcut | null
   }
   if (input.alt && !input.control && !input.meta) {
-    if (key === 'arrowleft') return 'back'
-    if (key === 'arrowright') return 'forward'
+    if (key === 'arrowleft') return 'back' satisfies NativeBrowserPreviewShortcut | null
+    if (key === 'arrowright') return 'forward' satisfies NativeBrowserPreviewShortcut | null
   }
   return null
 }
 
-export function browserPreviewShortcutForInput(
-  input: BrowserPreviewKeyInput,
-  isMac: boolean,
-): NativeBrowserPreviewShortcut | null {
+export function browserPreviewShortcutForInput(input: BrowserPreviewKeyInput, isMac: boolean) {
   if (input.type !== 'keyDown' || input.isAutoRepeat) {
     return null
   }
@@ -123,10 +117,7 @@ export function browserPreviewInputKeyIdentity(input: BrowserPreviewKeyInput) {
     : `key:${input.key}:location:${String(input.location)}`
 }
 
-export function browserPreviewKeyEventForInput(
-  previewId: string,
-  input: BrowserPreviewKeyInput,
-): BrowserPreviewKeyEvent | null {
+export function browserPreviewKeyEventForInput(previewId: string, input: BrowserPreviewKeyInput) {
   const type = input.type === 'keyDown' ? 'keydown' : input.type === 'keyUp' ? 'keyup' : null
   if (type === null) return null
   return {
@@ -140,7 +131,7 @@ export function browserPreviewKeyEventForInput(
     shiftKey: input.shift,
     isComposing: input.isComposing,
     repeat: input.isAutoRepeat,
-  }
+  } satisfies BrowserPreviewKeyEvent | null
 }
 
 /**
@@ -156,25 +147,33 @@ export function decideBrowserPreviewKeyInput(
     readonly isMac: boolean
   },
   input: BrowserPreviewKeyInput,
-): BrowserPreviewKeyDecision {
+) {
   const { previewId, bindings, claimedKeys, isMac } = options
   const keyIdentity = browserPreviewInputKeyIdentity(input)
   if (input.type === 'keyUp') {
     if (claimedKeys.delete(keyIdentity)) {
-      return { kind: 'release', event: browserPreviewKeyEventForInput(previewId, input) }
+      return {
+        kind: 'release',
+        event: browserPreviewKeyEventForInput(previewId, input),
+      } satisfies BrowserPreviewKeyDecision
     }
-    return isBrowserPreviewNativeShortcutChord(input, isMac)
-      ? { kind: 'swallow' }
-      : { kind: 'page' }
+    return (
+      isBrowserPreviewNativeShortcutChord(input, isMac) ? { kind: 'swallow' } : { kind: 'page' }
+    ) satisfies BrowserPreviewKeyDecision
   }
-  if (input.type !== 'keyDown') return { kind: 'page' }
+  if (input.type !== 'keyDown') return { kind: 'page' } satisfies BrowserPreviewKeyDecision
 
   if (browserPreviewShortcutBindingsMatchInput(input, bindings, isMac)) {
     claimedKeys.add(keyIdentity)
-    return { kind: 'claim', event: browserPreviewKeyEventForInput(previewId, input) }
+    return {
+      kind: 'claim',
+      event: browserPreviewKeyEventForInput(previewId, input),
+    } satisfies BrowserPreviewKeyDecision
   }
 
   const shortcut = browserPreviewShortcutForInput(input, isMac)
-  if (shortcut) return { kind: 'shortcut', shortcut }
-  return isBrowserPreviewNativeShortcutChord(input, isMac) ? { kind: 'swallow' } : { kind: 'page' }
+  if (shortcut) return { kind: 'shortcut', shortcut } satisfies BrowserPreviewKeyDecision
+  return (
+    isBrowserPreviewNativeShortcutChord(input, isMac) ? { kind: 'swallow' } : { kind: 'page' }
+  ) satisfies BrowserPreviewKeyDecision
 }

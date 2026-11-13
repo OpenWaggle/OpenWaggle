@@ -10,20 +10,20 @@ import {
 
 const REAL_HOME = '/Users/maintainer'
 const CDP_PORT = 9300
-const previousHome = process.env['HOME']
-const previousPiAgentDir = process.env['PI_CODING_AGENT_DIR']
+const previousHome = process.env.HOME
+const previousPiAgentDir = process.env.PI_CODING_AGENT_DIR
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env['HOME']
-  else process.env['HOME'] = previousHome
-  if (previousPiAgentDir === undefined) delete process.env['PI_CODING_AGENT_DIR']
-  else process.env['PI_CODING_AGENT_DIR'] = previousPiAgentDir
+  if (previousHome === undefined) delete process.env.HOME
+  else process.env.HOME = previousHome
+  if (previousPiAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR
+  else process.env.PI_CODING_AGENT_DIR = previousPiAgentDir
 })
 
 describe('Electrobun automation launch isolation', () => {
   it('never hands the app the caller HOME or Pi agent directory', () => {
-    process.env['HOME'] = REAL_HOME
-    process.env['PI_CODING_AGENT_DIR'] = `${REAL_HOME}/.pi/agent`
+    process.env.HOME = REAL_HOME
+    process.env.PI_CODING_AGENT_DIR = `${REAL_HOME}/.pi/agent`
 
     const environment = buildElectrobunAppEnvironment({
       userDataDir: '/tmp/shots',

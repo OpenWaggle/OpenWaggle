@@ -3,12 +3,10 @@ import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sentry = vi.hoisted(() => {
-  const integration =
-    (name: string) =>
-    (options?: unknown): { readonly name: string; readonly options?: unknown } => ({
-      name,
-      options,
-    })
+  const integration = (name: string) => (options?: unknown) => {
+    const created: { readonly name: string; readonly options?: unknown } = { name, options }
+    return created
+  }
   const transportSend = vi.fn(async (_envelope: unknown) => ({ statusCode: 200 }))
   return {
     init: vi.fn(),
@@ -67,8 +65,8 @@ const FORBIDDEN_INTEGRATIONS = [
 
 const HANDLED = { type: 'generic', handled: true }
 
-function reporterInput(isEnabled: () => boolean): SentryBunErrorReporterInput {
-  return {
+function reporterInput(isEnabled: () => boolean) {
+  const input: SentryBunErrorReporterInput = {
     process: 'session-host',
     release: 'openwaggle@1.0.0-beta.4',
     environment: 'beta',
@@ -79,14 +77,15 @@ function reporterInput(isEnabled: () => boolean): SentryBunErrorReporterInput {
     arch: 'arm64',
     appRoot: '/Applications/OpenWaggle.app/Contents/Resources/app',
   }
+  return input
 }
 
 function integrationsOf(options: BunOptions) {
   return Array.isArray(options.integrations) ? options.integrations : []
 }
 
-function handledErrorEvent(): ErrorEvent {
-  return {
+function handledErrorEvent() {
+  const event: ErrorEvent = {
     type: undefined,
     exception: {
       values: [
@@ -100,6 +99,7 @@ function handledErrorEvent(): ErrorEvent {
     user: { ip_address: '203.0.113.7' },
     breadcrumbs: [{ message: 'clicked' }],
   }
+  return event
 }
 
 const NO_HINT: EventHint = {}
@@ -272,7 +272,10 @@ describe('Sentry main-process options', () => {
       fromPartial({ url: 'https://openwaggle.ai/api/v1/errors' }),
     )
     type SentEnvelope = Parameters<NonNullable<typeof transport>['send']>[0]
-    const envelopeOf = (event: unknown): SentEnvelope => fromAny([{}, [[{ type: 'event' }, event]]])
+    const envelopeOf = (event: unknown) => {
+      const envelope: SentEnvelope = fromAny([{}, [[{ type: 'event' }, event]]])
+      return envelope
+    }
     const scrubbed = await options.beforeSend?.(handledErrorEvent(), NO_HINT)
 
     expect(

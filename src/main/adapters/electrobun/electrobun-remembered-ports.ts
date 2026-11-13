@@ -25,7 +25,7 @@ function isPortRecord(value: unknown): value is Readonly<Record<string, number>>
 }
 
 /** Remembers ports in `<userData>/trusted-origin-ports.json`, beside the web profile. */
-export function userDataRememberedPorts(): RememberedPorts {
+export function userDataRememberedPorts() {
   const file = () => join(appPaths.userData(), PORTS_FILE)
   return {
     read: () => {
@@ -38,5 +38,5 @@ export function userDataRememberedPorts(): RememberedPorts {
       }
     },
     write: (ports) => writeFileSync(file(), `${JSON.stringify(ports, null, JSON_INDENT)}\n`),
-  }
+  } satisfies RememberedPorts
 }

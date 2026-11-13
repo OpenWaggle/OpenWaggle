@@ -6,7 +6,6 @@ import { createElectronSafeStorageReader } from '../../electron-migration/electr
 import {
   acknowledgeLocalStorageImport,
   type ElectronMigrationOptions,
-  type ElectronMigrationReport,
   runElectronMigration,
   skipMigrationStep,
 } from '../../electron-migration/electron-migrator'
@@ -90,12 +89,12 @@ function isBunSecretsReader(value: unknown): value is BunSecretsReader {
 }
 
 /** The macOS login keychain through this process's `Bun.secrets`, each read bounded. */
-function keychainReader(): KeychainReader | undefined {
+function keychainReader() {
   const bun: unknown = Reflect.get(globalThis, 'Bun')
   if (!isBunSecretsReader(bun)) return undefined
   return {
     get: (item) => withTimeout(`The keychain item ${item.service}`, bun.secrets.get(item)),
-  }
+  } satisfies KeychainReader | undefined
 }
 
 interface MigrationRun {
@@ -137,9 +136,7 @@ function migrationOptions(run: MigrationRun = {}) {
 }
 
 /** Runs every unfinished step; resolves with the state and any localStorage import to apply. */
-export function runElectrobunFirstLaunchMigration(
-  run?: MigrationRun,
-): Promise<ElectronMigrationReport> {
+export function runElectrobunFirstLaunchMigration(run?: MigrationRun) {
   return runElectronMigration(migrationOptions(run))
 }
 

@@ -461,7 +461,7 @@ async function main() {
     }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
-      `${JSON.stringify({ ok: true, runtime: process.versions['bun'] ? 'bun' : 'node', codemode, mcp, waggle, imageWorker, packageAssets, oauth })}\n`,
+      `${JSON.stringify({ ok: true, runtime: process.versions.bun ? 'bun' : 'node', codemode, mcp, waggle, imageWorker, packageAssets, oauth })}\n`,
     )
   } finally {
     await rm(workDirectory, { recursive: true, force: true })

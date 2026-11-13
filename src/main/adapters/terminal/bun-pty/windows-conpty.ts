@@ -166,7 +166,7 @@ export function spawnWindowsPty(
   file: string,
   args: readonly string[],
   options: PtySpawnOptions,
-): WindowsPty {
+) {
   const pipes = createPipes(win32)
   let console: Pointer | null = null
   let job: Pointer | null = null
@@ -202,14 +202,14 @@ export function spawnWindowsPty(
     resume: terminal.output.resume,
     closeDescriptor,
     waitForResourceDrain: () => terminal.drained,
-  }
+  } satisfies WindowsPty
 }
 
-export async function loadWindowsPtyModule(): Promise<PtyModule> {
+export async function loadWindowsPtyModule() {
   const win32 = await loadWin32()
   return {
     spawn: (file, args, options) => spawnWindowsPty(win32, file, args, options),
     processTable: async () => readWindowsProcessTable(win32),
     listeningPorts: async () => readWindowsListeningPorts(win32),
-  }
+  } satisfies PtyModule
 }

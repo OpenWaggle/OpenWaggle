@@ -50,7 +50,7 @@ function cString(ffi: Ffi, text: string) {
   return ffi.ptr(Buffer.from(`${text}${NUL}`, 'utf8'))
 }
 
-async function createMacOsRuntime(): Promise<MacOsRuntime> {
+async function createMacOsRuntime() {
   const ffi = await loadFfi()
   const objc = ffi.dlopen(LIBOBJC, {
     objc_getClass: { args: ['ptr'], returns: 'ptr' },
@@ -78,7 +78,7 @@ async function createMacOsRuntime(): Promise<MacOsRuntime> {
     sendOnMainThread: (receiver, selector, argument) =>
       onMainThread.symbols.objc_msgSend(receiver, performOnMainThread, selector, argument, false),
     beep: () => appKit.symbols.NSBeep(),
-  }
+  } satisfies MacOsRuntime
 }
 
 function macOs() {

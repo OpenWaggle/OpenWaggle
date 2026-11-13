@@ -28,11 +28,7 @@ export class BrowserPreviewReplacement<
     this.host = host
   }
 
-  replace(
-    sender: Surface,
-    input: BrowserPreviewOpenInput,
-    replacedPreviewId: string,
-  ): BrowserPreviewReplacementResult {
+  replace(sender: Surface, input: BrowserPreviewOpenInput, replacedPreviewId: string) {
     if (input.previewId === replacedPreviewId) {
       throw new Error('A browser preview cannot replace itself for capacity.')
     }

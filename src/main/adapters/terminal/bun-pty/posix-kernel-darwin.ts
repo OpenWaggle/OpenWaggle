@@ -4,7 +4,6 @@ import {
   type PlatformKernel,
   type ProcessRead,
   SIGNAL_RESULT,
-  type SignalResult,
 } from './posix-kernel-types'
 
 /**
@@ -52,7 +51,7 @@ function darwinTtyIdentity(device: number) {
   return `darwin:${String(major)}:${String(value & DARWIN_DEVICE_MINOR_MASK)}`
 }
 
-export function darwinKernel(ffi: Ffi): PlatformKernel {
+export function darwinKernel(ffi: Ffi) {
   const library = ffi.dlopen(DARWIN_LIBSYSTEM, {
     proc_pidinfo: { args: ['i32', 'i32', 'u64', 'ptr', 'i32'], returns: 'i32' },
     proc_listallpids: { args: ['ptr', 'i32'], returns: 'i32' },
@@ -70,13 +69,13 @@ export function darwinKernel(ffi: Ffi): PlatformKernel {
       version: view.getInt32(UNIQUE.version, true),
     }
   }
-  const read = (pid: number): ProcessRead => {
+  const read = (pid: number) => {
     const before = unique(pid)
-    if (!before) return { status: 'absent' }
+    if (!before) return { status: 'absent' } satisfies ProcessRead
     const buffer = new Uint8Array(DARWIN_BSD_INFO_BYTES)
     const size = pidInfo(pid, DARWIN_PIDTBSDINFO, 0n, ffi.ptr(buffer), buffer.length)
     const after = unique(pid)
-    if (!after || after.id !== before.id) return { status: 'absent' }
+    if (!after || after.id !== before.id) return { status: 'absent' } satisfies ProcessRead
     if (size !== buffer.length) {
       // A zombie keeps its unique id but no longer answers the BSD flavor.
       return {
@@ -92,7 +91,7 @@ export function darwinKernel(ffi: Ffi): PlatformKernel {
           zombie: true,
           name: '?',
         },
-      }
+      } satisfies ProcessRead
     }
     const view = new DataView(buffer.buffer)
     return {
@@ -108,9 +107,9 @@ export function darwinKernel(ffi: Ffi): PlatformKernel {
         zombie: view.getUint32(BSD.status, true) === DARWIN_ZOMBIE,
         name: cleanName(buffer.subarray(BSD.comm, BSD.comm + BSD.commBytes)),
       },
-    }
+    } satisfies ProcessRead
   }
-  const signal = (pid: number, identity: string, signalNumber: number): SignalResult => {
+  const signal = (pid: number, identity: string, signalNumber: number) => {
     for (let attempt = 0; attempt < DARWIN_SIGNAL_ATTEMPTS; attempt += 1) {
       const current = unique(pid)
       if (!current) return SIGNAL_RESULT.absent
@@ -146,5 +145,5 @@ export function darwinKernel(ffi: Ffi): PlatformKernel {
     const text = String(name)
     return text.length > 0 ? `/dev/${text}` : null
   }
-  return { read, signal, listPids, ttyPath }
+  return { read, signal, listPids, ttyPath } satisfies PlatformKernel
 }

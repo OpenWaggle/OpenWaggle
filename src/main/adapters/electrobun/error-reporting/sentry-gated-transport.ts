@@ -21,7 +21,7 @@ export function createGatedFetchTransport(
   isEnabled: () => boolean,
   wasScrubbed: (event: unknown) => boolean,
 ) {
-  return (options: FetchTransportOptions): FetchTransport => {
+  return (options: FetchTransportOptions) => {
     const transport = makeFetchTransport(options)
     return {
       send: (envelope) =>
@@ -29,6 +29,6 @@ export function createGatedFetchTransport(
           ? transport.send(envelope)
           : Promise.resolve({}),
       flush: (timeout) => transport.flush(timeout),
-    }
+    } satisfies FetchTransport
   }
 }

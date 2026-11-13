@@ -32,10 +32,7 @@ export interface BrowserPreviewPageConfig {
 }
 
 /** Resolves the owner's bindings into the chords the page script matches. */
-export function browserPreviewPageChords(
-  bindings: BrowserPreviewShortcutBindings,
-  isMac: boolean,
-): readonly BrowserPreviewPageChord[] {
+export function browserPreviewPageChords(bindings: BrowserPreviewShortcutBindings, isMac: boolean) {
   return bindings.map((binding) => {
     const key = binding.key.trim().toLowerCase()
     return {

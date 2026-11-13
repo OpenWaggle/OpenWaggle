@@ -50,7 +50,7 @@ function scutilExceptions(output: string) {
 }
 
 /** `scutil --proxy` prints the active network service's proxies as a property list dump. */
-export function parseScutilProxy(output: string): SystemProxy {
+export function parseScutilProxy(output: string) {
   const enabled = (key: string) => Number.parseInt(scutilValue(output, key) ?? '0', DECIMAL) === 1
   const http = enabled('HTTPEnable')
     ? proxyUrl(scutilValue(output, 'HTTPProxy'), scutilValue(output, 'HTTPPort'))
@@ -75,7 +75,7 @@ function registryValue(output: string, name: string) {
  * `reg query ...\Internet Settings`: `ProxyEnable` and `ProxyServer`, either one `host:port` for
  * every scheme or `http=host:port;https=host:port`, and `ProxyOverride` with `;` separators.
  */
-export function parseWindowsProxy(output: string): SystemProxy {
+export function parseWindowsProxy(output: string) {
   const enable = registryValue(output, 'ProxyEnable')
   if (enable === undefined || Number.parseInt(enable, HEXADECIMAL) !== 1) return {}
   const server = registryValue(output, 'ProxyServer') ?? ''
@@ -104,7 +104,7 @@ function gsettingsText(value: string) {
   return value.trim().replace(/^'(.*)'$/u, '$1')
 }
 
-function gnomeProxy(read: CommandReader): SystemProxy {
+function gnomeProxy(read: CommandReader) {
   const get = (schema: string, key: string) =>
     gsettingsText(read('gsettings', ['get', schema, key]))
   if (get('org.gnome.system.proxy', 'mode') !== 'manual') return {}
@@ -129,7 +129,7 @@ function gnomeProxy(read: CommandReader): SystemProxy {
 export function readSystemProxy(
   platform: NodeJS.Platform = process.platform,
   read: CommandReader = readCommand,
-): SystemProxy {
+) {
   try {
     if (platform === 'darwin') return parseScutilProxy(read('scutil', ['--proxy']))
     if (platform === 'win32') {
@@ -156,12 +156,12 @@ const PROXY_VARIABLES = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy
 export function systemProxyEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
   proxy: SystemProxy,
-): Record<string, string> {
+) {
   if (PROXY_VARIABLES.some((name) => environment[name])) return {}
   return {
     ...(proxy.http ? { HTTP_PROXY: proxy.http } : {}),
     ...(proxy.https ? { HTTPS_PROXY: proxy.https } : {}),
-    ...(proxy.noProxy && !environment['NO_PROXY'] && !environment['no_proxy']
+    ...(proxy.noProxy && !environment.NO_PROXY && !environment.no_proxy
       ? { NO_PROXY: proxy.noProxy }
       : {}),
   }

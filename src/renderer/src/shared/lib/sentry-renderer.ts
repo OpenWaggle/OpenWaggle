@@ -82,14 +82,15 @@ export function createSentryRendererOptions() {
 type BrowserTransport = NonNullable<BrowserOptions['transport']>
 
 /** Hands each envelope to the main process, which sends it; nothing here touches the network. */
-function envelopeTransport(send: (envelope: string) => void): BrowserTransport {
+function envelopeTransport(send: (envelope: string) => void) {
   const decoder = new TextDecoder()
-  return (options) =>
+  const transport: BrowserTransport = (options) =>
     createTransport(options, (request) => {
       send(typeof request.body === 'string' ? request.body : decoder.decode(request.body))
       // The main process applies rate limits and Usage statistics; the renderer never retries.
       return Promise.resolve({})
     })
+  return transport
 }
 
 /**
@@ -112,8 +113,8 @@ function rendererFramesIntegration(documentUrl: string) {
 export function createSentryBrowserRendererOptions(input: {
   readonly documentUrl: string
   readonly send: (envelope: string) => void
-}): BrowserOptions {
-  return {
+}) {
+  const options: BrowserOptions = {
     ...createSentryRendererOptions(),
     // The browser SDK starts no transport without a DSN; the main process never reads this one.
     dsn: ERROR_REPORTING_PLACEHOLDER_DSN,
@@ -121,6 +122,7 @@ export function createSentryBrowserRendererOptions(input: {
     transport: envelopeTransport(input.send),
     integrations: [...errorCaptureIntegrations(), rendererFramesIntegration(input.documentUrl)],
   }
+  return options
 }
 
 /** Initializes Sentry in this renderer and returns how the app reports a caught error. */

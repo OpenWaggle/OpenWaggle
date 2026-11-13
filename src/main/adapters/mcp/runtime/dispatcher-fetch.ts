@@ -10,7 +10,7 @@ export async function fetchThroughDispatcher(
   url: URL,
   init: RequestInit,
   dispatcher: Dispatcher1Wrapper,
-): Promise<Response> {
+) {
   const answer: unknown = await Reflect.apply(undiciFetch, undefined, [
     url,
     { ...init, dispatcher },
@@ -27,7 +27,7 @@ function isIterable(value: unknown): value is Iterable<unknown> {
 }
 
 /** undici's `Headers` iterates `[name, value]` pairs, as the global one does. */
-function headerEntries(headers: unknown): [string, string][] {
+function headerEntries(headers: unknown) {
   if (!isIterable(headers)) return []
   const pairs: [string, string][] = []
   for (const pair of headers) {

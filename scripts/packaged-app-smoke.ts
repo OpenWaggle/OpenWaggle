@@ -157,11 +157,7 @@ export function nativeProbeInvocation(appRoot: string, platform: SmokePlatform) 
   }
 }
 
-async function smokeAppRoot(
-  appRoot: string,
-  platform: SmokePlatform,
-  probe: boolean,
-): Promise<boolean> {
+async function smokeAppRoot(appRoot: string, platform: SmokePlatform, probe: boolean) {
   const appDirectory = path.join(appRoot, APP_DIRECTORY[platform])
   const files = await listFiles(appDirectory).catch(() => null)
   if (files === null) {

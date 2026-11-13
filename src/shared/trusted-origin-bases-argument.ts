@@ -13,9 +13,7 @@ export interface RendererTrustedOriginBases {
 const EXTENSION_RUNTIME_BASE_SWITCH = '--openwaggle-extension-runtime-base='
 
 /** The renderer arguments that carry `bases`. */
-export function trustedOriginBasesRendererArguments(
-  bases: RendererTrustedOriginBases,
-): readonly string[] {
+export function trustedOriginBasesRendererArguments(bases: RendererTrustedOriginBases) {
   return [`${EXTENSION_RUNTIME_BASE_SWITCH}${bases.extensionRuntime}`]
 }
 
@@ -28,9 +26,7 @@ function isAbsoluteUrl(value: string) {
 }
 
 /** The bases main passed in a renderer's arguments, or null when one is missing or no URL. */
-export function trustedOriginBasesFromRendererArguments(
-  argv: readonly string[],
-): RendererTrustedOriginBases | null {
+export function trustedOriginBasesFromRendererArguments(argv: readonly string[]) {
   const argument = argv.find((entry) => entry.startsWith(EXTENSION_RUNTIME_BASE_SWITCH))
   const extensionRuntime = argument?.slice(EXTENSION_RUNTIME_BASE_SWITCH.length) ?? ''
   return isAbsoluteUrl(extensionRuntime) ? { extensionRuntime } : null

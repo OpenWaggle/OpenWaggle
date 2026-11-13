@@ -23,7 +23,7 @@ const SummarySchema = Schema.Struct({
   ),
 })
 
-export function probePersistenceProblems(summary: unknown): string[] {
+export function probePersistenceProblems(summary: unknown) {
   const [first, second] = decodeUnknownOrThrow(SummarySchema, summary).runs
   if (first === undefined || second === undefined) return ['The probe needs two launches.']
   const problems: string[] = []

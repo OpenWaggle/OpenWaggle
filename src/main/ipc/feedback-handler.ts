@@ -49,7 +49,7 @@ function collectDiagnostics() {
   return {
     os: humanOsName(),
     appVersion: appLifecycle.version(),
-    runtimeVersion: `Bun ${process.versions['bun'] ?? 'unknown'}`,
+    runtimeVersion: `Bun ${process.versions.bun ?? 'unknown'}`,
     nodeVersion: process.versions.node,
     arch: process.arch,
   }

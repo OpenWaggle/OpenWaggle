@@ -24,8 +24,8 @@ function unsupported(reason: string) {
 }
 
 /** Bun and the app directory whose `package.json` `main` it runs. */
-function launchCommand(): readonly [string, ...string[]] {
-  return [process.execPath, appPaths.appRoot()]
+function launchCommand() {
+  return [process.execPath, appPaths.appRoot()] satisfies readonly [string, ...string[]]
 }
 
 function macLaunchAgentPath() {

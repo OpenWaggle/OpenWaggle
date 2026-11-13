@@ -63,7 +63,7 @@ function creationTime(win32: Win32, pid: number) {
   }
 }
 
-export function readWindowsProcessTable(win32: Win32): WindowsProcessRow[] {
+export function readWindowsProcessTable(win32: Win32) {
   const { kernel32, ffi } = win32
   const within = budget()
   const now = new Uint8Array(LAYOUT.fileTimeBytes)
@@ -205,7 +205,7 @@ function readListeners(win32: Win32, family: number, within: (count: number) => 
   return rows
 }
 
-export function readWindowsListeningPorts(win32: Win32): WindowsListenerRow[] {
+export function readWindowsListeningPorts(win32: Win32) {
   const within = budget()
   return [
     ...readListeners(win32, WIN32.afInet, within),

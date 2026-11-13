@@ -27,7 +27,7 @@ const MCP_CONFIG_WATCH_IGNORES = ['**/.mcp.json', '**/.openwaggle/mcp.json']
 const RENDERER_ROOT = resolve('src/renderer')
 const RENDERER_OUT_DIR = resolve('out/renderer')
 
-function disablePluginTimingWarningsPlugin(): Plugin {
+function disablePluginTimingWarningsPlugin() {
   return {
     name: 'openwaggle:disable-plugin-timing-warnings',
     enforce: 'post',
@@ -48,7 +48,7 @@ function disablePluginTimingWarningsPlugin(): Plugin {
         },
       }
     },
-  }
+  } satisfies Plugin
 }
 
 export default defineConfig({

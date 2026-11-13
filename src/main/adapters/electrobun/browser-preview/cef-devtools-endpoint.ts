@@ -32,7 +32,7 @@ const PORT_FLAG = 'remote-debugging-port'
 const CEF_REMOTE_DEBUGGING_PORT_VARIABLE = 'ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT'
 
 /** The launcher's CEF DevTools port, removed so no child process inherits a way into previews. */
-export function takeCefRemoteDebuggingPortVariable(): string | undefined {
+export function takeCefRemoteDebuggingPortVariable() {
   const environment = liveProcessEnvironment()
   const value = environment[CEF_REMOTE_DEBUGGING_PORT_VARIABLE]
   Reflect.deleteProperty(environment, CEF_REMOTE_DEBUGGING_PORT_VARIABLE)
@@ -55,7 +55,7 @@ export type CefDevToolsFetch = (url: string) => Promise<{
   readonly text: () => Promise<string>
 }>
 
-function parsePort(value: unknown): number | null {
+function parsePort(value: unknown) {
   if (typeof value !== 'string' || !/^\d+$/.test(value.trim())) return null
   const port = Number(value.trim())
   return port >= MIN_PORT && port <= MAX_PORT ? port : null
@@ -69,13 +69,13 @@ function parsePort(value: unknown): number | null {
 export function resolveCefRemoteDebuggingPort(input: {
   readonly environmentPort: string | undefined
   readonly chromiumFlags: Readonly<Record<string, string | boolean>> | undefined
-}): number | null {
+}) {
   if (input.environmentPort !== undefined) return parsePort(input.environmentPort)
   return parsePort(input.chromiumFlags?.[PORT_FLAG])
 }
 
 /** The page target's WebSocket URL, accepted only on the endpoint's own loopback host and port. */
-export function cefDevToolsSocketUrl(port: number, target: CefDevToolsTarget): string {
+export function cefDevToolsSocketUrl(port: number, target: CefDevToolsTarget) {
   const raw = target.webSocketDebuggerUrl
   if (raw === undefined) throw new Error('The CEF DevTools target has no WebSocket URL.')
   const url = new URL(raw)
@@ -99,7 +99,7 @@ export class CefDevToolsEndpoint {
     this.fetchTargets = fetchTargets
   }
 
-  async listTargets(): Promise<readonly CefDevToolsTarget[]> {
+  async listTargets() {
     const response = await this.fetchTargets(
       `http://${LOOPBACK_HOST}:${String(this.port)}/json/list`,
     )
@@ -118,7 +118,7 @@ export class CefDevToolsEndpoint {
   async waitForPage(
     marker: string,
     options: { readonly deadlineMs: number; readonly pollMs: number; readonly signal: AbortSignal },
-  ): Promise<CefDevToolsTarget> {
+  ) {
     const deadline = Date.now() + options.deadlineMs
     let lastError: unknown = null
     while (Date.now() < deadline) {

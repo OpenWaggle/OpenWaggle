@@ -120,7 +120,7 @@ function signalByTty(platform: PlatformKernel, request: TtySignalRequest) {
   return tally.result()
 }
 
-function createKernel(platform: PlatformKernel): PosixKernel {
+function createKernel(platform: PlatformKernel) {
   const ownUid = process.getuid?.() ?? -1
   return {
     ttyPath: platform.ttyPath,
@@ -137,11 +137,11 @@ function createKernel(platform: PlatformKernel): PosixKernel {
       if (terminalHandles.get(handle)?.() !== ttyIdentity) return TTY_UNPROVEN
       return signalByTty(platform, { ttyIdentity, rootPid, rootIdentity, signal, ownUid })
     },
-  }
+  } satisfies PosixKernel
 }
 
 /** The kernel primitives of this platform, or null where neither macOS nor Linux applies. */
-export async function loadPosixKernel(platform = process.platform): Promise<PosixKernel | null> {
+export async function loadPosixKernel(platform = process.platform) {
   if (platform === 'darwin') {
     const [ffi, { darwinKernel }] = await Promise.all([
       import('bun:ffi'),

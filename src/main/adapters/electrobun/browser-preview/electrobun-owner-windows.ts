@@ -28,10 +28,7 @@ export interface ElectrobunOwnerWindow extends BrowserPreviewOwnerWindow {
  * The window an owner page lives in. An Electrobun renderer surface's id is its `BrowserView` id,
  * and the view records its window; `null` when the page or its window is gone.
  */
-export function electrobunOwnerWindow(
-  sdk: ElectrobunWindowSdk,
-  surfaceId: number,
-): ElectrobunOwnerWindow | null {
+export function electrobunOwnerWindow(sdk: ElectrobunWindowSdk, surfaceId: number) {
   const windowId = sdk.BrowserView.getById(surfaceId)?.windowId
   if (windowId === undefined || sdk.BrowserWindow.getById(windowId) === undefined) return null
   let closed = false
@@ -59,5 +56,5 @@ export function electrobunOwnerWindow(
       listeners.delete(listener)
       sdk.events.off('close', onClose)
     },
-  }
+  } satisfies ElectrobunOwnerWindow | null
 }

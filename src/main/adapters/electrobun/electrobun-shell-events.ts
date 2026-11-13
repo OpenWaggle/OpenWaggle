@@ -1,5 +1,4 @@
 import { EventEmitter } from 'node:events'
-import type { Unsubscribe } from '../../ports/desktop-shell/shell-events'
 import type { ShellProcessExit } from '../../ports/desktop-shell/system-integration'
 
 /**
@@ -17,7 +16,7 @@ export function emitShellEvent(name: ShellEventName) {
   emitter.emit(name)
 }
 
-export function onShellEvent(name: ShellEventName, listener: () => void): Unsubscribe {
+export function onShellEvent(name: ShellEventName, listener: () => void) {
   const handler = () => listener()
   emitter.on(name, handler)
   return () => {
@@ -31,7 +30,7 @@ const PROCESS_GONE = 'process-gone'
  * A renderer (or helper) process of the web engine ended. The renderer heartbeat
  * (RendererSurfaces) emits `process-gone` with a `ShellProcessExit` on this emitter.
  */
-export function onProcessGone(listener: (exit: ShellProcessExit) => void): Unsubscribe {
+export function onProcessGone(listener: (exit: ShellProcessExit) => void) {
   const handler = (exit: ShellProcessExit) => listener(exit)
   emitter.on(PROCESS_GONE, handler)
   return () => {

@@ -7,7 +7,6 @@ import {
   type PlatformKernel,
   type ProcessRead,
   SIGNAL_RESULT,
-  type SignalResult,
 } from './posix-kernel-types'
 
 /**
@@ -43,11 +42,7 @@ function linuxTtyIdentity(ttyNr: number) {
 }
 
 /** `/proc/<pid>/stat`, split after the parenthesized command name, which may hold spaces. */
-export function parseLinuxStat(
-  stat: string,
-  bootId: string,
-  pid: number,
-): PtyKernelProcessInfo | null {
+export function parseLinuxStat(stat: string, bootId: string, pid: number) {
   const open = stat.indexOf('(')
   const close = stat.lastIndexOf(')')
   if (open === -1 || close < open) return null
@@ -66,7 +61,7 @@ export function parseLinuxStat(
     ttyIdentity: linuxTtyIdentity(number(LINUX_STAT_FIELDS.ttyNr)),
     zombie: fields[LINUX_STAT_FIELDS.state] === 'Z',
     name: name.length > 0 ? name : '?',
-  }
+  } satisfies PtyKernelProcessInfo | null
 }
 
 function isMissing(error: unknown) {
@@ -75,23 +70,23 @@ function isMissing(error: unknown) {
   return code === 'ENOENT' || code === 'ESRCH'
 }
 
-export function linuxKernel(ffi: Ffi): PlatformKernel {
+export function linuxKernel(ffi: Ffi) {
   const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim()
   const libc = ffi.dlopen(LINUX_LIBC, {
     syscall: { args: ['i64', 'i64', 'i64', 'ptr', 'u32'], returns: 'i64' },
     close: { args: ['i32'], returns: 'i32' },
   })
-  const read = (pid: number): ProcessRead => {
+  const read = (pid: number) => {
     try {
       const uid = statSync(`/proc/${String(pid)}`).uid
       const info = parseLinuxStat(readFileSync(`/proc/${String(pid)}/stat`, 'utf8'), bootId, pid)
-      return info ? { status: 'found', info, uid } : { status: 'error' }
+      return (info ? { status: 'found', info, uid } : { status: 'error' }) satisfies ProcessRead
     } catch (error) {
-      return isMissing(error) ? { status: 'absent' } : { status: 'error' }
+      return (isMissing(error) ? { status: 'absent' } : { status: 'error' }) satisfies ProcessRead
     }
   }
   const nullPointer: Pointer | null = null
-  const signal = (pid: number, identity: string, signalNumber: number): SignalResult => {
+  const signal = (pid: number, identity: string, signalNumber: number) => {
     const pidfd = Number(libc.symbols.syscall(LINUX_PIDFD_OPEN, BigInt(pid), 0n, nullPointer, 0))
     if (pidfd < 0) {
       return read(pid).status === 'absent' ? SIGNAL_RESULT.absent : SIGNAL_RESULT.failed
@@ -133,5 +128,5 @@ export function linuxKernel(ffi: Ffi): PlatformKernel {
       return null
     }
   }
-  return { read, signal, listPids, ttyPath }
+  return { read, signal, listPids, ttyPath } satisfies PlatformKernel
 }

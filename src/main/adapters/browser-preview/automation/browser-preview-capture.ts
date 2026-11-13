@@ -83,7 +83,7 @@ function enqueueNativeCapture<Image extends BrowserPreviewAutomationImage>(
   return completion
 }
 
-function boundedAttempt<Image>(completion: Promise<Image>, signal?: AbortSignal): Promise<Image> {
+function boundedAttempt<Image>(completion: Promise<Image>, signal?: AbortSignal) {
   if (signal?.aborted) return Promise.reject(cancellationError(signal))
   return new Promise<Image>((resolve, reject) => {
     let settled = false
@@ -142,7 +142,7 @@ function requestRepaint(contents: CaptureContents) {
 export async function captureBrowserPreviewPage<Image extends BrowserPreviewAutomationImage>(
   contents: CaptureContents<Image>,
   options: BrowserPreviewCaptureOptions = {},
-): Promise<Image> {
+) {
   const request: CaptureRequest = { active: true }
   let completion: Promise<Image> | undefined
   try {

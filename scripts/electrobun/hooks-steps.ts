@@ -63,29 +63,28 @@ const AD_HOC_IDENTITY = '-'
 async function prepareMacosApp(app: string, environment: NodeJS.ProcessEnv) {
   const bundleId = required(environment, 'ELECTROBUN_APP_IDENTIFIER')
   await prepareMacosTransitionBundle({ app, bundleId })
-  const configured = environment['OPENWAGGLE_MACOS_SIGN_IDENTITY'] ?? ''
+  const configured = environment.OPENWAGGLE_MACOS_SIGN_IDENTITY ?? ''
   const identity = configured === '' ? AD_HOC_IDENTITY : configured
-  const keychain = environment['OPENWAGGLE_MACOS_SIGN_KEYCHAIN'] ?? ''
+  const keychain = environment.OPENWAGGLE_MACOS_SIGN_KEYCHAIN ?? ''
   await signMacosApp({
     app,
     identity,
     bundleId,
     entitlements: path.resolve(ELECTROBUN_ENTITLEMENTS),
-    timestamp:
-      identity !== AD_HOC_IDENTITY && environment['OPENWAGGLE_MACOS_SIGN_TIMESTAMP'] !== '0',
+    timestamp: identity !== AD_HOC_IDENTITY && environment.OPENWAGGLE_MACOS_SIGN_TIMESTAMP !== '0',
     ...(keychain === '' ? {} : { keychain }),
   })
   return `${app}: ${identity === AD_HOC_IDENTITY ? 'ad-hoc signed' : 'signed'}`
 }
 
 async function signWindows(targets: readonly string[], environment: NodeJS.ProcessEnv) {
-  const pfx = environment['OPENWAGGLE_WINDOWS_SIGN_PFX'] ?? ''
-  if (pfx === '' || environment['ELECTROBUN_BUILD_ENV'] === 'dev') return ['Windows: unsigned']
-  const timestampUrl = environment['OPENWAGGLE_WINDOWS_SIGN_TIMESTAMP_URL'] ?? ''
+  const pfx = environment.OPENWAGGLE_WINDOWS_SIGN_PFX ?? ''
+  if (pfx === '' || environment.ELECTROBUN_BUILD_ENV === 'dev') return ['Windows: unsigned']
+  const timestampUrl = environment.OPENWAGGLE_WINDOWS_SIGN_TIMESTAMP_URL ?? ''
   const signed = await signWindowsBinaries({
     targets,
     pfx,
-    password: environment['OPENWAGGLE_WINDOWS_SIGN_PASSWORD'] ?? '',
+    password: environment.OPENWAGGLE_WINDOWS_SIGN_PASSWORD ?? '',
     timestampUrl: timestampUrl === '' ? null : timestampUrl,
   })
   return signed.map((file) => `signed ${file}`)
@@ -93,7 +92,7 @@ async function signWindows(targets: readonly string[], environment: NodeJS.Proce
 
 export async function electrobunPostBuild(environment: NodeJS.ProcessEnv) {
   const buildDirectory = required(environment, 'ELECTROBUN_BUILD_DIR')
-  const os = environment['ELECTROBUN_OS']
+  const os = environment.ELECTROBUN_OS
   if (os === 'macos') {
     const applied = await applyLaunchVersion(environment)
     const prepared: string[] = []
@@ -110,12 +109,12 @@ export async function electrobunPostBuild(environment: NodeJS.ProcessEnv) {
 }
 
 export async function electrobunPostWrap(environment: NodeJS.ProcessEnv) {
-  const os = environment['ELECTROBUN_OS']
+  const os = environment.ELECTROBUN_OS
   if (os === 'macos') {
     const applied = await applyLaunchVersion(environment)
     return applied.map((bundle) => `launch version: ${bundle}`)
   }
-  const wrapper = environment['ELECTROBUN_WRAPPER_BUNDLE_PATH'] ?? ''
+  const wrapper = environment.ELECTROBUN_WRAPPER_BUNDLE_PATH ?? ''
   if (os === 'win' && wrapper !== '') return signWindows([wrapper], environment)
   return []
 }

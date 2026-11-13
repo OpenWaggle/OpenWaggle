@@ -1,5 +1,4 @@
 import { type Mock, vi } from 'vitest'
-import type { Unsubscribe } from '../ports/desktop-shell/shell-events'
 import type {
   UpdateCheck,
   UpdateEngineShape,
@@ -27,7 +26,7 @@ function listenerSet<Value>() {
   const listeners = new Set<Listener<Value>>()
   return {
     listeners,
-    add: (listener: Listener<Value>): Unsubscribe => {
+    add: (listener: Listener<Value>) => {
       listeners.add(listener)
       return () => void listeners.delete(listener)
     },
@@ -75,17 +74,18 @@ export interface FakeUpdateEngine extends UpdateEngineShape {
   readonly reset: () => void
 }
 
-function initialSettings(): FakeUpdateEngineSettings {
-  return {
+function initialSettings() {
+  const settings: FakeUpdateEngineSettings = {
     feedChannel: null,
     allowPrerelease: false,
     autoDownload: true,
     feed: null,
     installOnQuit: true,
   }
+  return settings
 }
 
-export function fakeUpdateEngine(): FakeUpdateEngine {
+export function fakeUpdateEngine() {
   const events = {
     checking: listenerSet<undefined>(),
     available: listenerSet<string>(),
@@ -116,7 +116,7 @@ export function fakeUpdateEngine(): FakeUpdateEngine {
     checkForUpdates: vi.fn<UpdateEngineShape['checkForUpdates']>(async () => null),
     quitAndInstall: vi.fn<UpdateEngineShape['quitAndInstall']>(),
   }
-  return {
+  const engine: FakeUpdateEngine = {
     ...mocks,
     settings,
     onCheckingForUpdate: (listener) => events.checking.add(() => listener()),
@@ -153,4 +153,5 @@ export function fakeUpdateEngine(): FakeUpdateEngine {
       for (const mock of Object.values(mocks)) mock.mockReset()
     },
   }
+  return engine
 }

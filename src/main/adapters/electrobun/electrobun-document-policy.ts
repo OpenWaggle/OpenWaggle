@@ -48,10 +48,7 @@ export function withoutScriptDirectives(policy: string) {
 }
 
 /** `html` with `policy` as the head's first child, and the header it is served with. */
-export function placeContentSecurityPolicy(
-  html: string,
-  policy: string,
-): PlacedContentSecurityPolicy {
+export function placeContentSecurityPolicy(html: string, policy: string) {
   const head = HEAD_TAG.exec(html)
   if (!head) return { html, header: policy }
   const end = head.index + head[0].length

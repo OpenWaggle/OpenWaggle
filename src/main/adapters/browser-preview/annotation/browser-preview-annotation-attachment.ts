@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
-import type { BrowserPreviewAttachmentMetadata, PreparedAttachment } from '@shared/types/agent'
+import type { BrowserPreviewAttachmentMetadata } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 
 export interface BrowserPreviewAnnotationAttachmentInput {
@@ -13,7 +13,7 @@ export interface BrowserPreviewAnnotationAttachmentInput {
 /** Native screenshots become sendable only after the Host commits their capability. */
 export async function prepareBrowserPreviewAnnotationAttachment(
   entry: BrowserPreviewAnnotationAttachmentInput,
-): Promise<PreparedAttachment> {
+) {
   const { dispatchConfiguredGuiSessionCommand } =
     await import('../../../application/gui-session-command-router')
   const requestId = randomUUID()

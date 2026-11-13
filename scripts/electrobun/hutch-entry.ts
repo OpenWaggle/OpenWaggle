@@ -32,8 +32,8 @@ function webView2Installed() {
   // bootstrapper for a runtime that is installed blocks the start for minutes.
   const roots = [
     process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
-    process.env['ProgramFiles'] ?? 'C:\\Program Files',
-    process.env['LOCALAPPDATA'],
+    process.env.ProgramFiles ?? 'C:\\Program Files',
+    process.env.LOCALAPPDATA,
   ]
   return roots.some(
     (root) =>
@@ -55,7 +55,7 @@ function ensureWebView2() {
 
 function bootModule() {
   if (existsSync(PACKAGED_BOOT_MODULE)) return PACKAGED_BOOT_MODULE
-  const development = process.env['OPENWAGGLE_ELECTROBUN_MAIN']
+  const development = process.env.OPENWAGGLE_ELECTROBUN_MAIN
   if (development !== undefined && development !== '') return path.resolve(development)
   throw new Error(`No main bundle at ${PACKAGED_BOOT_MODULE}; set OPENWAGGLE_ELECTROBUN_MAIN.`)
 }

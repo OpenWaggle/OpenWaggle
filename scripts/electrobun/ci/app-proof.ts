@@ -37,7 +37,7 @@ export async function waitUntil<T>(
   what: string,
   timeoutMs: number,
   read: () => Promise<T | null | undefined | false>,
-): Promise<T> {
+) {
   const deadline = Date.now() + timeoutMs
   let lastError = ''
   while (Date.now() < deadline) {
@@ -84,7 +84,7 @@ export function runAppCli(input: {
   readonly args: readonly string[]
   readonly environment: NodeJS.ProcessEnv
   readonly timeoutMs: number
-}): Promise<CliResult> {
+}) {
   const started = Date.now()
   const child = spawn(input.bun, [input.appRoot, ...input.args], {
     env: input.environment,
@@ -103,7 +103,7 @@ export function runAppCli(input: {
       clearTimeout(timer)
       resolve({ status, output, ms: Date.now() - started })
     })
-  })
+  }) satisfies Promise<CliResult>
 }
 
 type Cli = (args: readonly string[]) => Promise<CliResult>
@@ -221,10 +221,10 @@ function isDevToolsTarget(value: unknown): value is DevToolsTarget {
   return typeof value === 'object' && value !== null
 }
 
-async function devToolsTargets(port: number): Promise<DevToolsTarget[]> {
+async function devToolsTargets(port: number) {
   const response = await fetch(`http://${LOOPBACK}:${String(port)}/json/list`)
   const targets: unknown = await response.json()
-  return Array.isArray(targets) ? targets.filter(isDevToolsTarget) : []
+  return (Array.isArray(targets) ? targets.filter(isDevToolsTarget) : []) satisfies DevToolsTarget[]
 }
 
 const CDP_SCREENSHOT_TIMEOUT_MS = 15_000

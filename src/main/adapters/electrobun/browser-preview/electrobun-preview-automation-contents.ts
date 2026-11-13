@@ -49,22 +49,22 @@ class CefAutomationDebugger implements BrowserPreviewAutomationDebugger {
     })
   }
 
-  attach(): void {
+  attach() {
     this.attached = true
   }
 
-  detach(): void {
+  detach() {
     this.attached = false
     for (const domain of AUTOMATION_DOMAINS) {
       void this.guest.send(`${domain}.disable`).catch(() => undefined)
     }
   }
 
-  isAttached(): boolean {
+  isAttached() {
     return this.attached
   }
 
-  sendCommand(method: string, params: Readonly<Record<string, unknown>> = {}): Promise<unknown> {
+  sendCommand(method: string, params: Readonly<Record<string, unknown>> = {}) {
     return this.guest.send(method, params)
   }
 
@@ -98,7 +98,7 @@ class CefScreenshot implements BrowserPreviewAutomationImage {
     this.clip = clip
   }
 
-  isEmpty(): boolean {
+  isEmpty() {
     return this.png.byteLength === 0
   }
 
@@ -106,13 +106,13 @@ class CefScreenshot implements BrowserPreviewAutomationImage {
     return pngDimensions(this.png)
   }
 
-  async resize(size: { readonly width: number }): Promise<BrowserPreviewAutomationImage> {
+  async resize(size: { readonly width: number }) {
     const region = this.clip ?? (await visibleRegion(this.send))
     const clip = { ...region, scale: region.scale * (size.width / this.getSize().width) }
     return new CefScreenshot(await captureCefPng(this.send, clip), this.send, clip)
   }
 
-  toPNG(): Uint8Array {
+  toPNG() {
     return this.png
   }
 }
@@ -142,33 +142,33 @@ class CefAutomationContents implements BrowserPreviewAutomationContents {
     })
   }
 
-  isDestroyed(): boolean {
+  isDestroyed() {
     return this.record.disposed
   }
 
-  isDevToolsOpened(): boolean {
+  isDevToolsOpened() {
     return false
   }
 
-  getBackgroundThrottling(): boolean {
+  getBackgroundThrottling() {
     return this.backgroundThrottling
   }
 
   /** Recorded only: CEF keeps rendering a preview the window shows, which automation needs. */
-  setBackgroundThrottling(allowed: boolean): void {
+  setBackgroundThrottling(allowed: boolean) {
     this.backgroundThrottling = allowed
   }
 
-  focus(): void {
+  focus() {
     void this.record.guest.send('Page.bringToFront').catch(() => undefined)
   }
 
   /** CDP has no repaint request; the next capture asks CEF for a frame again. */
-  invalidate(): void {
+  invalidate() {
     return undefined
   }
 
-  async capturePage(clip?: BrowserPreviewAutomationClip): Promise<BrowserPreviewAutomationImage> {
+  async capturePage(clip?: BrowserPreviewAutomationClip) {
     // Electron clips the view's viewport; CDP clips the document.
     const send: CdpSend = (method, params) => this.record.guest.send(method, params)
     const region = clip ? await documentClip(send, clip) : undefined
@@ -184,7 +184,7 @@ class CefAutomationContents implements BrowserPreviewAutomationContents {
     return this
   }
 
-  once(event: string, listener: () => void): this {
+  once(event: string, listener: () => void) {
     this.events.once(event, listener)
     return this
   }
@@ -199,13 +199,13 @@ class CefAutomationContents implements BrowserPreviewAutomationContents {
   }
 }
 
-const contentsByRecord = new WeakMap<ElectrobunPreviewRecord, CefAutomationContents>()
+const contentsByRecord = new WeakMap<ElectrobunPreviewRecord, BrowserPreviewAutomationContents>()
 
 /** The one automation page of a CEF preview, so its control session survives between actions. */
-export function cefAutomationContents(record: ElectrobunPreviewRecord): CefAutomationContents {
+export function cefAutomationContents(record: ElectrobunPreviewRecord) {
   const existing = contentsByRecord.get(record)
   if (existing) return existing
-  const contents = new CefAutomationContents(record)
+  const contents: BrowserPreviewAutomationContents = new CefAutomationContents(record)
   contentsByRecord.set(record, contents)
   return contents
 }

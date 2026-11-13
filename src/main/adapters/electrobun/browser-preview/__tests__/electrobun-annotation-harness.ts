@@ -1,4 +1,5 @@
 import { onlyView, openPreview, setup, type Setup } from './electrobun-browser-preview-harness'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /** A CEF preview being annotated: its page script worlds and the picker's messages. */
 export const MAIN_WORLD = 7
@@ -29,11 +30,13 @@ export function evaluations(harness: Setup) {
 
 /** The token of the picker last started in the main world. */
 export function pickToken(harness: Setup) {
-  const started = evaluations(harness).findLast(
-    (params) =>
-      params['contextId'] === MAIN_WORLD && String(params['expression']).includes("kind: 'pick'"),
-  )
-  const token = /const token = "([^"]+)"/.exec(String(started?.['expression']))?.[1]
+  const started = evaluations(harness)
+    .map((params) => uncheckedFields<{ contextId: number; expression: string }>(params))
+    .findLast(
+      (params) =>
+        params.contextId === MAIN_WORLD && String(params.expression).includes("kind: 'pick'"),
+    )
+  const token = /const token = "([^"]+)"/.exec(String(started?.expression))?.[1]
   if (token === undefined) throw new Error('The picker did not start in the main frame.')
   return token
 }

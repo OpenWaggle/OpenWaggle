@@ -118,7 +118,7 @@ async function run() {
   const result = {
     identity: {
       pid: process.pid,
-      bun: process.versions['bun'],
+      bun: process.versions.bun,
       node: process.versions.node,
       uv: process.versions.uv,
     },

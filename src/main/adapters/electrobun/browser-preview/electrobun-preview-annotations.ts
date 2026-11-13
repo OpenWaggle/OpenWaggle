@@ -1,4 +1,3 @@
-import type { BrowserPreviewAnnotation } from '@shared/types/browser-preview-controls'
 import type { ElectrobunPreviewControls } from './electrobun-preview-controls'
 import type { ElectrobunPreviewHost } from './electrobun-preview-record-factory'
 import type { ElectrobunPreviewRecord } from './electrobun-preview-records'
@@ -33,7 +32,7 @@ export class ElectrobunPreviewAnnotations {
     )
   }
 
-  async pick(record: ElectrobunPreviewRecord): Promise<BrowserPreviewAnnotation | null> {
+  async pick(record: ElectrobunPreviewRecord) {
     this.controls.updateControls(record, { picking: true })
     try {
       // CDP screenshots take CSS pixels, the units the picker reports, at any zoom or viewport.
@@ -48,12 +47,12 @@ export class ElectrobunPreviewAnnotations {
     }
   }
 
-  async cancel(record: ElectrobunPreviewRecord): Promise<void> {
+  async cancel(record: ElectrobunPreviewRecord) {
     await this.picker.cancel(pickKey(record))
     if (!record.disposed) this.controls.updateControls(record, { picking: false })
   }
 
-  private page(record: ElectrobunPreviewRecord): BrowserPreviewPickerPage {
+  private page(record: ElectrobunPreviewRecord) {
     return {
       assertAvailable: () => {
         if (record.disposed) throw new Error('Browser preview content was retired.')
@@ -62,6 +61,6 @@ export class ElectrobunPreviewAnnotations {
       runPicker: (script) => record.guest.runPicker(script),
       runControl: (script) => record.guest.runPickerControl(script),
       captureScreenshot: (clip) => this.controls.captureScreenshot(record, clip),
-    }
+    } satisfies BrowserPreviewPickerPage
   }
 }

@@ -76,7 +76,7 @@ export const PageMessageSchema = Schema.Union(
     kind: Schema.Literal('pick'),
     token: Schema.String,
     result: Schema.Unknown,
-    failed: Schema.optional(Schema.Boolean),
+    failed: Schema.optionalWith(Schema.Boolean, { exact: true }),
   }),
   Schema.Struct({
     kind: Schema.Literal('key'),
@@ -93,12 +93,12 @@ export const PageMessageSchema = Schema.Union(
   }),
 )
 
-export function decode<A, I>(schema: Schema.Schema<A, I>, value: unknown): A | null {
+export function decode<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
   return decoded.success ? decoded.data : null
 }
 
-export function decodeJson<A, I>(schema: Schema.Schema<A, I>, raw: string): A | null {
+export function decodeJson<A, I>(schema: Schema.Schema<A, I>, raw: string) {
   try {
     return decode(schema, parseJsonUnknown(raw))
   } catch {

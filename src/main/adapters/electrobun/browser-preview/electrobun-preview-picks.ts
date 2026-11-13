@@ -13,7 +13,7 @@ interface PendingPick {
 export interface CefPickMessage {
   readonly token: string
   readonly result: unknown
-  readonly failed?: boolean | undefined
+  readonly failed?: boolean
 }
 
 async function evaluateIn(send: CdpSend, contextId: number, expression: string) {
@@ -41,7 +41,7 @@ export class CefPicks {
   private readonly pending = new Map<string, PendingPick>()
 
   /** Starts `picker` in `contextId`; resolves with its raw result once the user finishes. */
-  async run(send: CdpSend, contextId: number, picker: string): Promise<unknown> {
+  async run(send: CdpSend, contextId: number, picker: string) {
     const token = randomUUID()
     const result = new Promise<unknown>((resolve, reject) => {
       this.pending.set(token, { contextId, resolve, reject })
@@ -56,11 +56,11 @@ export class CefPicks {
   }
 
   /** Runs a short picker control script in `contextId`. */
-  control(send: CdpSend, contextId: number, script: string): Promise<void> {
+  control(send: CdpSend, contextId: number, script: string) {
     return evaluateIn(send, contextId, script)
   }
 
-  receive(contextId: number | undefined, message: CefPickMessage): void {
+  receive(contextId: number | undefined, message: CefPickMessage) {
     const pick = this.pending.get(message.token)
     if (pick === undefined || pick.contextId !== contextId) return
     this.pending.delete(message.token)
@@ -69,7 +69,7 @@ export class CefPicks {
   }
 
   /** Fails the picks of `contextId`, whose page sent a message too large to read. */
-  reject(contextId: number | undefined, reason: string): void {
+  reject(contextId: number | undefined, reason: string) {
     for (const [token, pick] of this.pending) {
       if (pick.contextId !== contextId) continue
       this.pending.delete(token)
@@ -78,7 +78,7 @@ export class CefPicks {
   }
 
   /** Ends the picks of a world that went away, or of every world for `null`. */
-  end(contextId: number | null): void {
+  end(contextId: number | null) {
     for (const [token, pick] of this.pending) {
       if (contextId !== null && pick.contextId !== contextId) continue
       this.pending.delete(token)

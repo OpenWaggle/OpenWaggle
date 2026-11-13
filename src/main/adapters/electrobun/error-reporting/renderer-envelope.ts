@@ -15,7 +15,7 @@ function isEvent(value: unknown): value is Event {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function rendererEnvelopeEvents(envelope: string): readonly Event[] {
+export function rendererEnvelopeEvents(envelope: string) {
   if (envelope.length > MAX_RENDERER_ENVELOPE_BYTES) return []
   const [, items] = parseEnvelope(envelope)
   const events: Event[] = []

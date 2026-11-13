@@ -57,15 +57,15 @@ export async function createMacosDmg(options: MacosDmgOptions) {
   } finally {
     fs.rmSync(source, { recursive: true, force: true })
   }
-  const identity = options.environment['OPENWAGGLE_MACOS_SIGN_IDENTITY'] ?? ''
+  const identity = options.environment.OPENWAGGLE_MACOS_SIGN_IDENTITY ?? ''
   if (identity === '') return
-  const keychain = options.environment['OPENWAGGLE_MACOS_SIGN_KEYCHAIN'] ?? ''
+  const keychain = options.environment.OPENWAGGLE_MACOS_SIGN_KEYCHAIN ?? ''
   execFileSync('codesign', [
     '--force',
     '--sign',
     identity,
     ...(keychain === '' ? [] : ['--keychain', keychain]),
-    options.environment['OPENWAGGLE_MACOS_SIGN_TIMESTAMP'] === '0'
+    options.environment.OPENWAGGLE_MACOS_SIGN_TIMESTAMP === '0'
       ? '--timestamp=none'
       : '--timestamp',
     options.output,

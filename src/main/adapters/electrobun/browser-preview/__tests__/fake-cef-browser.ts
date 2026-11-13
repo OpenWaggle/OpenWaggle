@@ -157,7 +157,7 @@ export function fakeCefBrowser(port = 9555) {
     [
       'Page.navigateToHistoryEntry',
       (page, params) => {
-        const index = page.history.findIndex((entry) => entry.id === params['entryId'])
+        const index = page.history.findIndex((entry) => entry.id === params.entryId)
         const entry = page.history[index]
         if (entry === undefined) throw new Error('No such history entry')
         page.index = index

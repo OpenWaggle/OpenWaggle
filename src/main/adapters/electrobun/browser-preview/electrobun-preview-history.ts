@@ -50,15 +50,12 @@ export async function stepInHistory(send: CdpSend, marker: string, step: -1 | 1)
 }
 
 /** What the history says about the page now: its back and forward flags, and its title. */
-export async function historyEvents(
-  send: CdpSend,
-  marker: string,
-): Promise<readonly ElectrobunPreviewGuestEvent[]> {
+export async function historyEvents(send: CdpSend, marker: string) {
   const history = await navigationHistory(send)
-  if (history === null) return []
+  if (history === null) return [] satisfies readonly ElectrobunPreviewGuestEvent[]
   const title = browserPreviewHistoryTitle(history, marker)
   return [
     { kind: 'history', ...browserPreviewHistoryFlags(history, marker) },
     ...(title === null ? [] : [{ kind: 'title' as const, title }]),
-  ]
+  ] satisfies readonly ElectrobunPreviewGuestEvent[]
 }

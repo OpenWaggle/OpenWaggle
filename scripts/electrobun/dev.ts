@@ -44,7 +44,7 @@ interface DevOptions {
   readonly skipBuild: boolean
 }
 
-export function parseDevArguments(argv: readonly string[]): DevOptions {
+export function parseDevArguments(argv: readonly string[]) {
   const { values } = parseArgs({
     args: [...argv],
     options: {

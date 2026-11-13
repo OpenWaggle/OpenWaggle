@@ -15,7 +15,6 @@ import type {
   SecondInstanceLaunch,
   SystemIntegrationShape,
 } from '../../ports/desktop-shell/system-integration'
-import type { Unsubscribe } from '../../ports/desktop-shell/shell-events'
 import { createLogger } from '../../logger'
 
 /**
@@ -109,7 +108,7 @@ export function receiveSecondInstance(launch: SecondInstanceLaunch) {
   for (const listener of [...state.listeners]) listener(launch)
 }
 
-function parseLaunch(text: string): SecondInstanceLaunch | null {
+function parseLaunch(text: string) {
   try {
     const value: unknown = JSON.parse(text)
     if (typeof value !== 'object' || value === null) return null
@@ -117,7 +116,11 @@ function parseLaunch(text: string): SecondInstanceLaunch | null {
     const workingDirectory: unknown = Reflect.get(value, 'workingDirectory')
     if (!Array.isArray(argv) || !argv.every((item) => typeof item === 'string')) return null
     if (typeof workingDirectory !== 'string') return null
-    return { argv, workingDirectory, additionalData: Reflect.get(value, 'additionalData') }
+    return {
+      argv,
+      workingDirectory,
+      additionalData: Reflect.get(value, 'additionalData'),
+    } satisfies SecondInstanceLaunch | null
   } catch {
     return null
   }
@@ -172,15 +175,7 @@ export function pendingForwardedLaunch() {
   return state.forwarding
 }
 
-export function singleInstanceLock(
-  userData: () => string,
-): Pick<
-  SystemIntegrationShape,
-  | 'requestSingleInstanceLock'
-  | 'hasSingleInstanceLock'
-  | 'releaseSingleInstanceLock'
-  | 'onSecondInstance'
-> {
+export function singleInstanceLock(userData: () => string) {
   return {
     requestSingleInstanceLock: (additionalData) => {
       if (state.owned !== null) return true
@@ -204,11 +199,17 @@ export function singleInstanceLock(
       state.server = null
       if (lockOwner(lockPath) === process.pid) rmSync(lockPath, { force: true })
     },
-    onSecondInstance: (listener): Unsubscribe => {
+    onSecondInstance: (listener) => {
       state.listeners.add(listener)
       return () => {
         state.listeners.delete(listener)
       }
     },
-  }
+  } satisfies Pick<
+    SystemIntegrationShape,
+    | 'requestSingleInstanceLock'
+    | 'hasSingleInstanceLock'
+    | 'releaseSingleInstanceLock'
+    | 'onSecondInstance'
+  >
 }

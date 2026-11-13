@@ -76,9 +76,7 @@ function onMainFrame(sink: CdpPageEventSink, params: unknown, event: ElectrobunP
 }
 
 /** The CDP events a preview page reacts to, by method. */
-export function cdpPageEventHandlers(
-  sink: CdpPageEventSink,
-): ReadonlyMap<string, (params: unknown) => void> {
+export function cdpPageEventHandlers(sink: CdpPageEventSink) {
   return new Map<string, (params: unknown) => void>([
     ['Page.frameStartedLoading', (params) => onMainFrame(sink, params, { kind: 'loading' })],
     ['Page.frameStoppedLoading', (params) => onMainFrame(sink, params, { kind: 'loaded' })],

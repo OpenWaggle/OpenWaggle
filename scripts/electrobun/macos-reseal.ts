@@ -127,7 +127,7 @@ async function packArchive(app: string, archive: string) {
 
 function recordArchive(manifestPath: string, archive: { tarSha256: string; tarSize: number }) {
   const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-  const artifact = isRecord(manifest) ? manifest['artifact'] : null
+  const artifact = isRecord(manifest) ? manifest.artifact : null
   if (!isRecord(manifest) || !isRecord(artifact)) {
     throw new Error(`${manifestPath} has no artifact entry.`)
   }
@@ -140,15 +140,15 @@ export async function resealMacosUpdate(options: ResealOptions) {
   const entry = [path.basename(options.app), ...VERSION_JSON].join('/')
   const versionJson = await readArchiveEntry(archive, entry)
   fs.writeFileSync(path.join(options.app, ...VERSION_JSON), versionJson)
-  const configured = options.environment['OPENWAGGLE_MACOS_SIGN_IDENTITY'] ?? ''
+  const configured = options.environment.OPENWAGGLE_MACOS_SIGN_IDENTITY ?? ''
   const identity = configured === '' ? '-' : configured
-  const keychain = options.environment['OPENWAGGLE_MACOS_SIGN_KEYCHAIN'] ?? ''
+  const keychain = options.environment.OPENWAGGLE_MACOS_SIGN_KEYCHAIN ?? ''
   await signMacosApp({
     app: options.app,
     identity,
     bundleId: options.bundleId,
     entitlements: path.resolve(ELECTROBUN_ENTITLEMENTS),
-    timestamp: identity !== '-' && options.environment['OPENWAGGLE_MACOS_SIGN_TIMESTAMP'] !== '0',
+    timestamp: identity !== '-' && options.environment.OPENWAGGLE_MACOS_SIGN_TIMESTAMP !== '0',
     sealOnly: true,
     ...(keychain === '' ? {} : { keychain }),
   })

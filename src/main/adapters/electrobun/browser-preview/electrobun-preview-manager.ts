@@ -3,9 +3,7 @@ import { normalizeBrowserPreviewUrl } from '@shared/schemas/browser-preview'
 import type {
   BrowserPreviewBounds,
   BrowserPreviewOpenInput,
-  BrowserPreviewReplacementResult,
   BrowserPreviewShortcutBindings,
-  BrowserPreviewState,
 } from '@shared/types/browser-preview'
 import type { DesktopMutationScope } from '@shared/types/desktop-service'
 import { ElectrobunPreviewControls } from './electrobun-preview-controls'
@@ -75,32 +73,32 @@ export class ElectrobunBrowserPreviewManager {
     this.controls = new ElectrobunPreviewControls(host)
   }
 
-  findOwnedPreview(ownerKey: string, previewId?: string): ElectrobunPreviewRecord | undefined {
+  findOwnedPreview(ownerKey: string, previewId?: string) {
     return this.records.findOwned(ownerKey, previewId)
   }
 
   /** Navigates for the agent: the state shows the new URL loading, as a user's navigation does. */
-  beginNavigation(record: ElectrobunPreviewRecord, url: string): string {
+  beginNavigation(record: ElectrobunPreviewRecord, url: string) {
     const canonicalUrl = normalizeBrowserPreviewUrl(url)
     this.assertAdmission(record.ownerKey)
     this.controls.update(record, { url: canonicalUrl, title: '', loading: true, error: null })
     return canonicalUrl
   }
 
-  listOwnedPreviews(ownerKey: string): readonly ElectrobunPreviewRecord[] {
+  listOwnedPreviews(ownerKey: string) {
     return this.records.listOwned(ownerKey)
   }
 
-  setCurrentPreview(sender: RendererSurface, ownerKey: string, previewId: string | null): void {
+  setCurrentPreview(sender: RendererSurface, ownerKey: string, previewId: string | null) {
     this.ownerRegistry.assertRegistered(ownerKey, sender)
     this.records.setCurrent(sender, ownerKey, previewId)
   }
 
-  forgetOwnerSelection(sender: RendererSurface, ownerKey: string): void {
+  forgetOwnerSelection(sender: RendererSurface, ownerKey: string) {
     this.records.forgetSelection(sender, ownerKey)
   }
 
-  open(sender: RendererSurface, input: BrowserPreviewOpenInput): BrowserPreviewState {
+  open(sender: RendererSurface, input: BrowserPreviewOpenInput) {
     this.assertAdmission(input.ownerKey)
     this.ownerRegistry.assertRegistered(input.ownerKey, sender)
     const canonicalUrl = normalizeBrowserPreviewUrl(input.url)
@@ -148,7 +146,7 @@ export class ElectrobunBrowserPreviewManager {
     sender: RendererSurface,
     input: BrowserPreviewOpenInput,
     replacedPreviewId: string,
-  ): BrowserPreviewReplacementResult {
+  ) {
     this.assertAdmission(input.ownerKey)
     this.ownerRegistry.assertRegistered(input.ownerKey, sender)
     return this.replacement.replace(sender, input, replacedPreviewId)
@@ -162,7 +160,7 @@ export class ElectrobunBrowserPreviewManager {
     if (record !== undefined) this.controls.place(record, bounds)
   }
 
-  navigate(sender: RendererSurface, previewId: string, url: string): BrowserPreviewState {
+  navigate(sender: RendererSurface, previewId: string, url: string) {
     const record = this.requirePreview(sender, previewId)
     return this.navigateRecord(record, normalizeBrowserPreviewUrl(url))
   }
@@ -173,48 +171,48 @@ export class ElectrobunBrowserPreviewManager {
     previewId: string,
     run: (record: ElectrobunPreviewRecord) => Promise<void>,
     loading = true,
-  ): BrowserPreviewState {
+  ) {
     const record = this.requirePreview(sender, previewId)
     if (loading) this.controls.update(record, { loading: true, error: null })
     void run(record).catch((error: unknown) => this.controls.fail(record, error))
     return record.state
   }
 
-  close(sender: RendererSurface, previewId: string): Promise<void> {
+  close(sender: RendererSurface, previewId: string) {
     const record = this.records.findForDisposal(sender, previewId)
     if (record !== undefined) this.dispose(record)
-    return Promise.resolve()
+    return Promise.resolve() satisfies Promise<void>
   }
 
-  closeForOwner(ownerKey: string): Promise<void> {
+  closeForOwner(ownerKey: string) {
     return this.shutdown.closeForOwner(ownerKey)
   }
 
-  beginShutdown(): void {
+  beginShutdown() {
     this.shutdown.beginShutdown()
   }
 
-  closeAll(): Promise<void> {
+  closeAll() {
     return this.shutdown.closeAll()
   }
 
-  acquireMutationFence(scope: DesktopMutationScope): Promise<() => void> {
-    return Promise.resolve(this.mutationFences.acquire(scope))
+  acquireMutationFence(scope: DesktopMutationScope) {
+    return Promise.resolve(this.mutationFences.acquire(scope)) satisfies Promise<() => void>
   }
 
-  setShortcutBindings(sender: RendererSurface, bindings: BrowserPreviewShortcutBindings): void {
+  setShortcutBindings(sender: RendererSurface, bindings: BrowserPreviewShortcutBindings) {
     const owner = this.records.getOrCreateOwner(sender)
     owner.shortcutBindings = bindings.map((binding) => ({ ...binding }))
     for (const record of owner.previews.values()) this.controls.configurePage(record)
   }
 
-  requirePreview(sender: RendererSurface, previewId: string): ElectrobunPreviewRecord {
+  requirePreview(sender: RendererSurface, previewId: string) {
     const record = this.records.requirePreview(sender, previewId)
     this.assertAdmission(record.ownerKey)
     return record
   }
 
-  requireOwner(sender: RendererSurface): ElectrobunPreviewOwner {
+  requireOwner(sender: RendererSurface) {
     return this.records.requireOwner(sender)
   }
 

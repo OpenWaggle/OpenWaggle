@@ -109,7 +109,7 @@ export function openPreview(
   })
 }
 
-export function lastState(sent: Setup['sent']): unknown {
+export function lastState(sent: Setup['sent']) {
   return sent.filter(([channel]) => channel === 'browser-preview:state').at(-1)?.[1]
 }
 

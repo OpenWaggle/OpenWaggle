@@ -11,27 +11,26 @@ import {
 } from './browser-preview/cef-devtools-endpoint'
 import { electrobunOwnerWindow } from './browser-preview/electrobun-owner-windows'
 import { makeElectrobunBrowserPreview } from './browser-preview/electrobun-browser-preview-shape'
-import type { ElectrobunPreviewRecord } from './browser-preview/electrobun-preview-records'
-import type { BrowserPreviewAutomationShell } from '../browser-preview/automation/browser-preview-automation-service'
 import { electrobunNativeWebviewFrames } from './browser-preview/electrobun-webview-frames'
 import { electrobun } from './electrobun-sdk'
 import { openBackgroundWindow } from './electrobun-window-policy'
 import type { PrepareBrowserPreviewAnnotation } from '../browser-preview/annotation/browser-preview-annotation'
 import { BrowserPreviewArtifactStorage } from '../browser-preview/browser-preview-artifact-storage'
 import type { AppPathsShape } from '../../ports/desktop-shell/app-paths'
-import type { BrowserPreviewViewsShape } from '../../ports/desktop-shell/browser-preview-views'
 import type { ClipboardShape } from '../../ports/desktop-shell/clipboard'
 import type { OsShellShape } from '../../ports/desktop-shell/os-shell'
 
 const ARTIFACT_DIRECTORY_NAME = 'browser-preview-artifacts'
 const INITIAL_FRAME = { x: 0, y: 0, width: 1, height: 1 } as const
 
-function cefDevToolsEndpoint(environmentPort: string | undefined): CefDevToolsEndpoint | null {
+function cefDevToolsEndpoint(environmentPort: string | undefined) {
   const port = resolveCefRemoteDebuggingPort({
     environmentPort,
     chromiumFlags: electrobun().BuildConfig.getSync().chromiumFlags,
   })
-  return port === null ? null : new CefDevToolsEndpoint(port, (url) => fetch(url))
+  return (
+    port === null ? null : new CefDevToolsEndpoint(port, (url) => fetch(url))
+  ) satisfies CefDevToolsEndpoint | null
 }
 
 /** The other desktop shell ports the Browser preview reaches. */
@@ -44,7 +43,7 @@ export interface ElectrobunBrowserPreviewShell {
 }
 
 /** The shell side of the Electrobun Browser preview, from the loaded SDK and the shell ports. */
-export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell): ElectrobunPreviewHost {
+export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell) {
   // Taken before the app starts any child process; see cef-devtools-endpoint.ts.
   const environmentPort = takeCefRemoteDebuggingPortVariable()
   let maintenanceWindowId: number | null = null
@@ -100,7 +99,7 @@ export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell): Ele
       }
     },
     isMac: process.platform === 'darwin',
-  }
+  } satisfies ElectrobunPreviewHost
 }
 
 /**
@@ -108,15 +107,10 @@ export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell): Ele
  * driven over CEF's DevTools endpoint, and the same previews as the agent's automation sees them.
  * Creating it reaches no native code; the views load the SDK on first use.
  */
-export function createElectrobunBrowserPreview(shell: ElectrobunBrowserPreviewShell): {
-  readonly views: BrowserPreviewViewsShape
-  readonly automation: BrowserPreviewAutomationShell<ElectrobunPreviewRecord>
-} {
+export function createElectrobunBrowserPreview(shell: ElectrobunBrowserPreviewShell) {
   return makeElectrobunBrowserPreview(electrobunPreviewHost(shell))
 }
 
-export function createElectrobunBrowserPreviewViews(
-  shell: ElectrobunBrowserPreviewShell,
-): BrowserPreviewViewsShape {
+export function createElectrobunBrowserPreviewViews(shell: ElectrobunBrowserPreviewShell) {
   return createElectrobunBrowserPreview(shell).views
 }

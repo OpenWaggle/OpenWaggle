@@ -138,9 +138,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 /** Every package the bundle leaves to `node_modules`. */
 export function mainExternalPackages(manifest: unknown) {
   const dependencies =
-    isRecord(manifest) && isRecord(manifest['dependencies'])
-      ? Object.keys(manifest['dependencies'])
-      : []
+    isRecord(manifest) && isRecord(manifest.dependencies) ? Object.keys(manifest.dependencies) : []
   return new Set([
     ...ALWAYS_EXTERNAL,
     ...dependencies.filter((name) => !BUNDLED_DEPENDENCIES.includes(name)),

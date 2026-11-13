@@ -52,8 +52,8 @@ export type KeychainKeyStore = (item: {
   readonly create: string | null
 }) => string | null
 
-function bunSecretsKeyStore(): KeychainKeyStore {
-  return (item) => {
+function bunSecretsKeyStore() {
+  const store: KeychainKeyStore = (item) => {
     const value = execFileSync(process.execPath, ['-e', KEY_SCRIPT], {
       cwd: tmpdir(),
       encoding: 'utf8',
@@ -65,6 +65,7 @@ function bunSecretsKeyStore(): KeychainKeyStore {
     })
     return value.length > 0 ? value : null
   }
+  return store
 }
 
 /** `Bun.secrets.get`'s shape, for the in-process read. */
@@ -83,9 +84,7 @@ export interface KeychainSecureStorageOptions {
   readonly now?: () => number
 }
 
-export function createKeychainSecureStorage(
-  options: KeychainSecureStorageOptions,
-): SecureStorageShape {
+export function createKeychainSecureStorage(options: KeychainSecureStorageOptions) {
   const state: { key: Buffer | null; failedAt: number | null } = { key: null, failedAt: null }
   const now = options.now ?? Date.now
 
@@ -172,7 +171,7 @@ export function createKeychainSecureStorage(
         // The port never rejects: the synchronous path reads the key again on first use.
       }
     },
-  }
+  } satisfies SecureStorageShape
 }
 
 interface BunSecretsGlobal {
@@ -190,10 +189,11 @@ function isBunSecretsGlobal(value: unknown): value is BunSecretsGlobal {
 }
 
 /** `Bun.secrets.get` of this process, absent outside Bun. */
-function inProcessKeyReader(): KeychainKeyReader | undefined {
+function inProcessKeyReader() {
   const bun: unknown = Reflect.get(globalThis, 'Bun')
   if (!isBunSecretsGlobal(bun)) return undefined
-  return (item) => bun.secrets.get(item)
+  const reader: KeychainKeyReader = (item) => bun.secrets.get(item)
+  return reader
 }
 
 /** Owner-only: the mock key is a secret like the keychain's. */
@@ -211,8 +211,8 @@ function isMissingFile(error: unknown) {
  * key lives in a file of the profile instead of the OS keychain, readable by every process of that
  * profile, as Chromium's mock keychain answers every process alike. Never for a user profile.
  */
-export function mockKeychainKeyStore(directory: () => string): KeychainKeyStore {
-  return (item) => {
+export function mockKeychainKeyStore(directory: () => string) {
+  const store: KeychainKeyStore = (item) => {
     const file = path.join(directory(), MOCK_KEY_DIRECTORY, encodeURIComponent(item.name))
     try {
       return readFileSync(file, 'utf8')
@@ -224,6 +224,7 @@ export function mockKeychainKeyStore(directory: () => string): KeychainKeyStore 
     writeFileSync(file, item.create, { mode: MOCK_KEY_FILE_MODE, flag: 'wx' })
     return readFileSync(file, 'utf8')
   }
+  return store
 }
 
 /**

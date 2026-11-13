@@ -95,7 +95,7 @@ export class ElectrobunPreviewGuest {
   }
 
   /** Finds the page on the DevTools endpoint, prepares it, then loads `url`. */
-  start(url: string, config: BrowserPreviewPageConfig): Promise<void> {
+  start(url: string, config: BrowserPreviewPageConfig) {
     this.attached = this.attach(config)
     return this.attached.then(
       () => this.navigate(url),
@@ -109,7 +109,7 @@ export class ElectrobunPreviewGuest {
     )
   }
 
-  async navigate(url: string): Promise<void> {
+  async navigate(url: string) {
     const cdp = await this.cdpOrNull()
     if (cdp === null) {
       this.options.view.loadURL(url)
@@ -126,19 +126,19 @@ export class ElectrobunPreviewGuest {
     }
   }
 
-  async goBack(): Promise<void> {
+  async goBack() {
     await this.goInHistory(-1)
   }
 
-  async goForward(): Promise<void> {
+  async goForward() {
     await this.goInHistory(1)
   }
 
-  async reload(ignoreCache: boolean): Promise<void> {
+  async reload(ignoreCache: boolean) {
     await (await this.cdp()).send('Page.reload', { ignoreCache })
   }
 
-  async stop(): Promise<void> {
+  async stop() {
     await (await this.cdp()).send('Page.stopLoading')
   }
 
@@ -153,7 +153,7 @@ export class ElectrobunPreviewGuest {
   }
 
   /** Updates the page script's chords and muting, now and for later documents. */
-  async configurePage(config: BrowserPreviewPageConfig): Promise<void> {
+  async configurePage(config: BrowserPreviewPageConfig) {
     const cdp = await this.cdpOrNull()
     if (cdp === null) return
     await this.installPageScript(cdp, config)
@@ -166,51 +166,51 @@ export class ElectrobunPreviewGuest {
   }
 
   /** The visible page, or `rect` of its viewport, as PNG bytes within the pixel budget. */
-  async captureScreenshot(rect?: CefViewportRect): Promise<Uint8Array> {
+  async captureScreenshot(rect?: CefViewportRect) {
     const cdp = await this.cdp()
     return captureBoundedCefPng((method, params) => cdp.send(method, params), rect)
   }
 
   /** Runs the element picker in the main frame; resolves with its raw, page-derived result. */
-  async runPicker(picker: string): Promise<unknown> {
+  async runPicker(picker: string) {
     const cdp = await this.cdp()
     return this.picks.run((method, params) => cdp.send(method, params), this.mainWorld(), picker)
   }
 
   /** Runs a picker control script in the main frame. */
-  async runPickerControl(script: string): Promise<void> {
+  async runPickerControl(script: string) {
     const cdp = await this.cdp()
     await this.picks.control((method, params) => cdp.send(method, params), this.mainWorld(), script)
   }
 
   /** One raw CDP command on this page. */
-  async send(method: string, params: object = {}): Promise<unknown> {
+  async send(method: string, params: object = {}) {
     return (await this.cdp()).send(method, params)
   }
 
   /** Every CDP event of this page, as the agent's automation records them; returns the unsubscribe. */
-  onCdpEvent(listener: (method: string, params: unknown) => void): () => void {
+  onCdpEvent(listener: (method: string, params: unknown) => void) {
     this.cdpListeners.add(listener)
     return () => this.cdpListeners.delete(listener)
   }
 
   /** Called when the page's CDP connection ends; returns the unsubscribe. */
-  onCdpClose(listener: () => void): () => void {
+  onCdpClose(listener: () => void) {
     this.closeListeners.add(listener)
     return () => this.closeListeners.delete(listener)
   }
 
   /** Attaches CDP without loading a page, for profile maintenance. */
-  attachOnly(config: BrowserPreviewPageConfig): Promise<void> {
+  attachOnly(config: BrowserPreviewPageConfig) {
     this.attached ??= this.attach(config)
     return this.attached.then(() => undefined)
   }
 
-  openDevTools(): void {
+  openDevTools() {
     this.options.view.openDevTools()
   }
 
-  close(): void {
+  close() {
     if (this.closed) return
     this.closed = true
     this.picks.end(null)
@@ -219,7 +219,7 @@ export class ElectrobunPreviewGuest {
     this.options.view.remove()
   }
 
-  private async attach(config: BrowserPreviewPageConfig): Promise<CdpConnection> {
+  private async attach(config: BrowserPreviewPageConfig) {
     const { endpoint } = this.options
     if (endpoint === null) throw new Error('This app has no CEF DevTools port configured.')
     const target = await endpoint.waitForPage(this.options.marker, {
@@ -270,7 +270,7 @@ export class ElectrobunPreviewGuest {
     this.pageScriptId = added?.identifier ?? null
   }
 
-  private async cdpOrNull(): Promise<CdpConnection | null> {
+  private async cdpOrNull() {
     if (this.attached === null) return null
     try {
       const cdp = await this.attached
@@ -280,7 +280,7 @@ export class ElectrobunPreviewGuest {
     }
   }
 
-  private async cdp(): Promise<CdpConnection> {
+  private async cdp() {
     const cdp = await this.cdpOrNull()
     if (cdp === null) {
       throw new Error('This browser preview has no DevTools connection (CEF remote debugging).')
@@ -288,7 +288,7 @@ export class ElectrobunPreviewGuest {
     return cdp
   }
 
-  private mainWorld(): number {
+  private mainWorld() {
     for (const [contextId, frameId] of this.pageWorlds) {
       if (frameId !== null && frameId === this.mainFrameId) return contextId
     }

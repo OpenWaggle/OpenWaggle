@@ -7,9 +7,7 @@ import type { TrustedOriginsShape } from './ports/desktop-shell/trusted-origins'
  * URLs for, on the shell `origins` belongs to: `openwaggle-extension://runtime` on Electron, the
  * extension runtime's loopback base on Electrobun. Each shell's main window passes them.
  */
-export function trustedOriginBaseRendererArguments(
-  origins: Pick<TrustedOriginsShape, 'originOf'>,
-): readonly string[] {
+export function trustedOriginBaseRendererArguments(origins: Pick<TrustedOriginsShape, 'originOf'>) {
   return trustedOriginBasesRendererArguments({
     extensionRuntime: origins.originOf(
       'extension-runtime',

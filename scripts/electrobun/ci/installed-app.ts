@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { scriptEnv } from '../../support/env'
 
 const ELECTROBUN_INSTALL = ['com.openwaggle.app', 'stable', 'app', 'bin']
 const EXECUTABLE_MODE = 0o755
@@ -30,10 +31,7 @@ export interface InstalledApp {
 }
 
 /** The installed files around a launcher: macOS `Contents/MacOS`, elsewhere `app/bin`. */
-export function installedApp(
-  launcher: string,
-  platform: NodeJS.Platform = process.platform,
-): InstalledApp {
+export function installedApp(launcher: string, platform: NodeJS.Platform = process.platform) {
   const bin = path.dirname(launcher)
   const resources = path.join(bin, '..', 'Resources')
   return {
@@ -42,7 +40,7 @@ export function installedApp(
     bun: path.join(bin, platform === 'win32' ? 'bun.exe' : 'bun'),
     appRoot: path.resolve(resources, 'app'),
     versionFile: path.resolve(resources, 'version.json'),
-  }
+  } satisfies InstalledApp
 }
 
 export function installedVersion(app: InstalledApp) {
@@ -64,12 +62,7 @@ function single(directory: string, pattern: RegExp) {
   return path.join(directory, match)
 }
 
-interface ProcessCommand {
-  readonly pid: number
-  readonly command: string
-}
-
-function windowsProcessCommands(): ProcessCommand[] {
+function windowsProcessCommands() {
   const script =
     'Get-CimInstance Win32_Process | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress'
   const raw = execFileSync('powershell.exe', ['-NoProfile', '-Command', script], {
@@ -85,7 +78,7 @@ function windowsProcessCommands(): ProcessCommand[] {
   })
 }
 
-function posixProcessCommands(): ProcessCommand[] {
+function posixProcessCommands() {
   const raw = execFileSync('ps', ['-A', '-o', 'pid=,args='], {
     encoding: 'utf8',
     maxBuffer: EXEC_BUFFER_BYTES,
@@ -103,8 +96,8 @@ export function electrobunChannelRoot(platform: NodeJS.Platform = process.platfo
     platform === 'darwin'
       ? path.join(os.homedir(), 'Library', 'Application Support')
       : platform === 'win32'
-        ? (process.env['LOCALAPPDATA'] ?? path.join(os.homedir(), 'AppData', 'Local'))
-        : (process.env['XDG_DATA_HOME'] ?? path.join(os.homedir(), '.local', 'share'))
+        ? (scriptEnv().LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'))
+        : (scriptEnv().XDG_DATA_HOME ?? path.join(os.homedir(), '.local', 'share'))
   return path.join(data, 'com.openwaggle.app', 'stable')
 }
 
@@ -169,7 +162,7 @@ function installMacos(release: string) {
 function installWindows(release: string) {
   const installer = single(release, /^openwaggle-.+-x64\.exe$/u)
   execFileSync(installer, ['/S'], { stdio: INSTALLER_STDIO, env: installerEnvironment() })
-  const local = process.env['LOCALAPPDATA'] ?? path.join(os.homedir(), 'AppData', 'Local')
+  const local = scriptEnv().LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local')
   return path.join(local, ...ELECTROBUN_INSTALL, 'launcher.exe')
 }
 
@@ -182,7 +175,7 @@ function installLinux(release: string) {
     stdio: INSTALLER_STDIO,
     env: { ...installerEnvironment(), APPIMAGE_EXTRACT_AND_RUN: '1' },
   })
-  const data = process.env['XDG_DATA_HOME'] ?? path.join(os.homedir(), '.local', 'share')
+  const data = scriptEnv().XDG_DATA_HOME ?? path.join(os.homedir(), '.local', 'share')
   return path.join(data, ...ELECTROBUN_INSTALL, 'launcher')
 }
 

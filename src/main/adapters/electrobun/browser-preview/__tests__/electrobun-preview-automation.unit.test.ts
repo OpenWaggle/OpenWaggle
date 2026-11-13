@@ -14,6 +14,7 @@ import {
 import { browserPreviewAutomationController } from '../../../browser-preview/automation/browser-preview-automation-control'
 import { makeBrowserPreviewAutomationService } from '../../../browser-preview/automation/browser-preview-automation-service'
 import type { SettingsServiceShape } from '../../../../services/settings-service'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 vi.mock('../../../../desktop-native-admission', () => ({
   assertDesktopNativeAdmission: () => undefined,
@@ -66,7 +67,9 @@ describe('Electrobun Browser preview automation', () => {
   it('opens a preview for the agent and evaluates in its page over the preview’s CDP', async () => {
     const harness = agentHarness()
     harness.cef.respond('Runtime.evaluate', (params) =>
-      params['expression'] === 'document.title' ? { result: { value: 'Example' } } : {},
+      uncheckedFields<{ expression: string }>(params).expression === 'document.title'
+        ? { result: { value: 'Example' } }
+        : {},
     )
     const service = automation(harness)
 
@@ -180,9 +183,11 @@ describe('Electrobun Browser preview automation', () => {
       },
     }))
     harness.cef.respond('Page.captureScreenshot', (params) => ({
-      data: Buffer.from(params['clip'] ? pngHeader(1_024, 768) : pngHeader(2_000, 1_500)).toString(
-        'base64',
-      ),
+      data: Buffer.from(
+        uncheckedFields<{ clip: object }>(params).clip
+          ? pngHeader(1_024, 768)
+          : pngHeader(2_000, 1_500),
+      ).toString('base64'),
     }))
     const service = automation(harness)
     await run(service.open(scope, { url: 'https://example.com/' }))
@@ -192,7 +197,9 @@ describe('Electrobun Browser preview automation', () => {
     await settle()
 
     await expect(snapshot).resolves.toMatchObject({ screenshot: { width: 1_024, height: 768 } })
-    const clip = harness.cef.sent('Page.captureScreenshot').at(-1)?.params['clip']
+    const clip = uncheckedFields<{ clip: object }>(
+      harness.cef.sent('Page.captureScreenshot').at(-1)?.params,
+    ).clip
     expect(clip).toMatchObject({ x: 0, y: 0, width: 2, height: 3, scale: 0.512 })
   })
 

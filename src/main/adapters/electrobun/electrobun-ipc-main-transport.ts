@@ -22,7 +22,7 @@ export async function answerInvoke(
   sender: RendererSurface,
   channel: string,
   args: readonly unknown[],
-): Promise<unknown> {
+) {
   const handler = invokeHandlers.get(channel)
   if (!handler) throw new Error(`No handler registered for '${channel}'`)
   try {

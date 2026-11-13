@@ -128,7 +128,7 @@ interface OpenUrlEvent {
   readonly data?: { readonly url?: string }
 }
 
-function onOpenUrl(listener: (event: CancellableShellEvent, url: string) => void): Unsubscribe {
+function onOpenUrl(listener: (event: CancellableShellEvent, url: string) => void) {
   const subscription: { stop: Unsubscribe | null; stopped: boolean } = {
     stop: null,
     stopped: false,

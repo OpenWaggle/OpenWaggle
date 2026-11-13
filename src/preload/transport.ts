@@ -52,7 +52,7 @@ rpc.addMessageListener(SHELL_EVENT_MESSAGE, (event: DesktopShellCall) => {
   for (const listener of eventListeners.get(event.channel) ?? []) listener(event.args[0])
 })
 
-function stringArray(value: unknown): readonly string[] {
+function stringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((entry) => typeof entry === 'string') : []
 }
 
@@ -60,7 +60,7 @@ const injectedArguments = stringArray(Reflect.get(globalThis, RENDERER_ARGUMENTS
 Reflect.deleteProperty(globalThis, RENDERER_ARGUMENTS_GLOBAL)
 
 /** What the main process passed this page, as Electron's `additionalArguments` do. */
-export function rendererArguments(): readonly string[] {
+export function rendererArguments() {
   return injectedArguments
 }
 
@@ -97,21 +97,17 @@ function listenChannel(channel: IpcEventChannel, callback: (payload: unknown) =>
   }
 }
 
-export function invoke<C extends IpcInvokeChannel>(
-  channel: C,
-): (...args: IpcInvokeArgs<C>) => Promise<IpcInvokeReturn<C>> {
+export function invoke<C extends IpcInvokeChannel>(channel: C) {
   return (...args: IpcInvokeArgs<C>) => invokeChannel(channel, args)
 }
 
-export function send<C extends IpcSendChannel>(channel: C): (...args: IpcSendArgs<C>) => void {
+export function send<C extends IpcSendChannel>(channel: C) {
   return (...args: IpcSendArgs<C>) => {
     void rpc.send(SHELL_SEND_MESSAGE, { channel, args })
   }
 }
 
-export function on<C extends IpcEventChannel>(
-  channel: C,
-): (callback: (payload: IpcEventPayload<C>) => void) => () => void {
+export function on<C extends IpcEventChannel>(channel: C) {
   return (callback: (payload: IpcEventPayload<C>) => void) => listenChannel(channel, callback)
 }
 

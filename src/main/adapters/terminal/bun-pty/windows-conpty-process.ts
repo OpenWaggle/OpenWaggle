@@ -47,7 +47,7 @@ function createPipe(win32: Win32) {
   return { read, write }
 }
 
-export function createPipes(win32: Win32): Pipes {
+export function createPipes(win32: Win32) {
   const input = createPipe(win32)
   try {
     const output = createPipe(win32)
@@ -126,7 +126,7 @@ export function startProcess(
   file: string,
   args: readonly string[],
   options: PtySpawnOptions,
-): Started {
+) {
   const { kernel32, ffi } = win32
   const list = attributeList(win32, console)
   try {

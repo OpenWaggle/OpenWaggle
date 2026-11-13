@@ -69,7 +69,7 @@ function isDomain(value: string): value is TrustedOriginDomain {
   return Object.hasOwn(TRUSTED_ORIGIN_SCHEMES, value)
 }
 
-export function domainOfScheme(scheme: string): TrustedOriginDomain | null {
+export function domainOfScheme(scheme: string) {
   for (const [domain, candidate] of Object.entries(TRUSTED_ORIGIN_SCHEMES)) {
     if (candidate === scheme && isDomain(domain)) return domain
   }

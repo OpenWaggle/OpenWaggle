@@ -98,9 +98,7 @@ export function browserPreviewAutomationOwnerKey(scope: BrowserPreviewAutomation
   return String(scope.sessionId)
 }
 
-export function browserPreviewAutomationStatusFor(
-  tab?: BrowserPreviewAutomationTab,
-): BrowserPreviewAutomationStatus {
+export function browserPreviewAutomationStatusFor(tab?: BrowserPreviewAutomationTab) {
   if (!tab || tab.disposed) {
     return {
       available: false,
@@ -111,7 +109,7 @@ export function browserPreviewAutomationStatusFor(
       loading: false,
       viewport: null,
       appearance: null,
-    }
+    } satisfies BrowserPreviewAutomationStatus
   }
   return {
     available: true,
@@ -122,7 +120,7 @@ export function browserPreviewAutomationStatusFor(
     loading: tab.state.loading,
     viewport: tab.state.controls.viewport,
     appearance: tab.state.controls.appearance,
-  }
+  } satisfies BrowserPreviewAutomationStatus
 }
 
 function tabs<Tab extends BrowserPreviewAutomationTab>(shell: BrowserPreviewAutomationShell<Tab>) {
@@ -150,10 +148,7 @@ function lifecycleOperations<Tab extends BrowserPreviewAutomationTab>(
   settings: SettingsServiceShape,
   withAgentAccess: BrowserPreviewAutomationAccessGuard,
   shell: BrowserPreviewAutomationShell<Tab>,
-): Pick<
-  BrowserPreviewAutomationServiceShape,
-  'status' | 'open' | 'navigate' | 'resize' | 'setAppearance'
-> {
+) {
   const { find, require } = tabs(shell)
   return {
     status: (scope, input) =>
@@ -226,16 +221,16 @@ function lifecycleOperations<Tab extends BrowserPreviewAutomationTab>(
           return { tabId: tab.previewId, colorScheme: input.colorScheme }
         }),
       ),
-  }
+  } satisfies Pick<
+    BrowserPreviewAutomationServiceShape,
+    'status' | 'open' | 'navigate' | 'resize' | 'setAppearance'
+  >
 }
 
 function pageOperations<Tab extends BrowserPreviewAutomationTab>(
   withAgentAccess: BrowserPreviewAutomationAccessGuard,
   shell: BrowserPreviewAutomationShell<Tab>,
-): Pick<
-  BrowserPreviewAutomationServiceShape,
-  'snapshot' | 'click' | 'type' | 'press' | 'scroll' | 'evaluate' | 'waitFor'
-> {
+) {
   const { require } = tabs(shell)
   const controller = browserPreviewAutomationController
   const onPage =
@@ -268,13 +263,16 @@ function pageOperations<Tab extends BrowserPreviewAutomationTab>(
     waitFor: onPage((page, input, signal) =>
       waitForBrowserPreviewPage(controller, page, input, signal),
     ),
-  }
+  } satisfies Pick<
+    BrowserPreviewAutomationServiceShape,
+    'snapshot' | 'click' | 'type' | 'press' | 'scroll' | 'evaluate' | 'waitFor'
+  >
 }
 
 function recordingOperations<Tab extends BrowserPreviewAutomationTab>(
   withAgentAccess: BrowserPreviewAutomationAccessGuard,
   shell: BrowserPreviewAutomationShell<Tab>,
-): Pick<BrowserPreviewAutomationServiceShape, 'startRecording' | 'stopRecording'> {
+) {
   const { require } = tabs(shell)
   return {
     startRecording: (scope, input) =>
@@ -293,18 +291,18 @@ function recordingOperations<Tab extends BrowserPreviewAutomationTab>(
           return { ...artifact, tabId: tab.previewId }
         }),
       ),
-  }
+  } satisfies Pick<BrowserPreviewAutomationServiceShape, 'startRecording' | 'stopRecording'>
 }
 
 /** The agent's Browser preview tools over one desktop shell's previews. */
 export function makeBrowserPreviewAutomationService<Tab extends BrowserPreviewAutomationTab>(
   settings: SettingsServiceShape,
   shell: BrowserPreviewAutomationShell<Tab>,
-): BrowserPreviewAutomationServiceShape {
+) {
   const withAgentAccess = createBrowserPreviewAutomationAccessGuard(settings)
   return {
     ...lifecycleOperations(settings, withAgentAccess, shell),
     ...pageOperations(withAgentAccess, shell),
     ...recordingOperations(withAgentAccess, shell),
-  }
+  } satisfies BrowserPreviewAutomationServiceShape
 }

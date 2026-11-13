@@ -30,8 +30,6 @@ import { discoverElectrobunApps } from '../native-platform-floor-targets'
 import { buildSafeAppEnvironment } from '../safe-app-environment'
 import { forwardLines, type PipedChildProcess } from './child-output-lines'
 
-type LaunchPlatform = 'darwin' | 'linux' | 'win32'
-
 /** The port `bun run dev:debug` and the electron-qa skill attach to. */
 export const DEV_DEBUG_CDP_PORT = 9223
 
@@ -102,7 +100,7 @@ export function credentialStoreArguments(platform: NodeJS.Platform = process.pla
   return ['--use-mock-keychain', ...(platform === 'linux' ? ['--password-store=basic'] : [])]
 }
 
-function launchPlatform(platform: NodeJS.Platform): LaunchPlatform {
+function launchPlatform(platform: NodeJS.Platform) {
   if (platform === 'darwin' || platform === 'linux' || platform === 'win32') return platform
   throw new Error(`OpenWaggle has no Electrobun build for ${platform}.`)
 }
@@ -160,9 +158,7 @@ export interface ElectrobunLaunchInput extends ScratchProfileInput {
  * Starts the launcher in its own process group (so `stopElectrobunApp` stops the CEF helpers with
  * it), collecting its output.
  */
-export async function startElectrobunApp(
-  input: ElectrobunLaunchInput,
-): Promise<LaunchedElectrobunApp> {
+export async function startElectrobunApp(input: ElectrobunLaunchInput) {
   // Tools the app starts expect the home and Pi agent directories to exist.
   await fs.mkdir(electrobunAppHome(input).piAgentDir, { recursive: true })
   const spawnedAt = Date.now()
@@ -184,7 +180,7 @@ export async function startElectrobunApp(
   }
   forwardLines(child.stdout, onLine)
   forwardLines(child.stderr, onLine)
-  return { child, spawnedAt, cdpPort: input.cdpPort, logLines }
+  return { child, spawnedAt, cdpPort: input.cdpPort, logLines } satisfies LaunchedElectrobunApp
 }
 
 function hasExited(child: AppProcess) {
@@ -298,7 +294,7 @@ async function attachRendererPage(cdpPort: number, deadline: number) {
 export async function connectElectrobunApp(
   app: LaunchedElectrobunApp,
   timeoutMs: number = DEFAULT_LAUNCH_TIMEOUT_MS,
-): Promise<ConnectedElectrobunApp> {
+) {
   await waitForRendererTarget(app, timeoutMs)
   const deadline = Date.now() + timeoutMs
   const { browser, page } = await attachRendererPage(app.cdpPort, deadline)
@@ -306,7 +302,7 @@ export async function connectElectrobunApp(
     await browser.close().catch(() => undefined)
     await stopElectrobunApp(app)
   }
-  return { ...app, browser, page, close }
+  return { ...app, browser, page, close } satisfies ConnectedElectrobunApp
 }
 
 /** Starts an app hidden and connects Playwright to its renderer; stops it if that fails. */

@@ -71,7 +71,7 @@ export class ElectrobunPreviewProfiles {
     this.host = host
   }
 
-  cookieJar(profileId: string): BrowserProfileCookieJar {
+  cookieJar(profileId: string) {
     return {
       cookies: {
         set: async (cookie) => {
@@ -84,11 +84,11 @@ export class ElectrobunPreviewProfiles {
         // CEF writes its cookie store itself; flushing releases the maintenance page.
         flushStore: async () => this.release(profileId),
       },
-    }
+    } satisfies BrowserProfileCookieJar
   }
 
   /** Deletes the profile's cookies and HTTP cache, and the site storage of every cookie origin. */
-  async clearProfileData(profileId: string): Promise<void> {
+  async clearProfileData(profileId: string) {
     const all = safeDecodeUnknown(
       AllCookiesSchema,
       await this.send(profileId, 'Network.getAllCookies'),
@@ -104,7 +104,7 @@ export class ElectrobunPreviewProfiles {
     await this.release(profileId)
   }
 
-  async closeAll(): Promise<void> {
+  async closeAll() {
     await Promise.all([...this.pages.keys()].map((profileId) => this.release(profileId)))
   }
 
@@ -114,7 +114,7 @@ export class ElectrobunPreviewProfiles {
     return page.send(method, params)
   }
 
-  private page(profileId: string): Promise<ElectrobunPreviewGuest> {
+  private page(profileId: string) {
     const existing = this.pages.get(profileId)
     if (existing) return existing
     const marker = newBrowserPreviewMarker()

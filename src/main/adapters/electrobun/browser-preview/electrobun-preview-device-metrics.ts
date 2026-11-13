@@ -31,7 +31,7 @@ export function browserPreviewDeviceMetrics(
   viewport: BrowserPreviewViewport,
   zoomFactor: number,
   bounds: BrowserPreviewBounds | null,
-): CdpDeviceMetrics | null {
+) {
   const source = bounds?.sourceViewport
   const fixed =
     viewport.mode === 'fixed'
@@ -45,7 +45,7 @@ export function browserPreviewDeviceMetrics(
       deviceScaleFactor: 0,
       mobile: false,
       scale: rounded(zoomFactor),
-    }
+    } satisfies CdpDeviceMetrics | null
   }
   const renderedWidth = Math.max(1, fixed.width * zoomFactor)
   const renderedHeight = Math.max(1, fixed.height * zoomFactor)
@@ -57,7 +57,7 @@ export function browserPreviewDeviceMetrics(
     deviceScaleFactor: 0,
     mobile: false,
     scale: rounded(zoomFactor * fit),
-  }
+  } satisfies CdpDeviceMetrics | null
 }
 
 /** `Emulation.setEmulatedMedia` features for an appearance; `system` follows the OS. */

@@ -68,7 +68,7 @@ const LOCAL_STORAGE_IMPORT_SWITCH = '--openwaggle-electron-local-storage-import=
 
 export function electronLocalStorageImportRendererArguments(
   payload: ElectronLocalStorageImport | null,
-): readonly string[] {
+) {
   return payload ? [`${LOCAL_STORAGE_IMPORT_SWITCH}${JSON.stringify(payload)}`] : []
 }
 
@@ -82,9 +82,7 @@ function isStringRecord(value: unknown): value is Readonly<Record<string, string
 }
 
 /** The pending import main passed in the renderer arguments, or null. */
-export function electronLocalStorageImportFromArguments(
-  argv: readonly string[],
-): ElectronLocalStorageImport | null {
+export function electronLocalStorageImportFromArguments(argv: readonly string[]) {
   const argument = argv.find((entry) => entry.startsWith(LOCAL_STORAGE_IMPORT_SWITCH))
   if (argument === undefined) return null
   try {

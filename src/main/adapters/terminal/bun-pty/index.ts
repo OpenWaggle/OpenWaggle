@@ -8,7 +8,7 @@ import { spawnPosixPty } from './posix-pty'
  * (`windows-conpty.ts`). It replaces the patched node-pty addon, which never delivered output
  * under Bun.
  */
-export async function loadBunPtyModule(platform = process.platform): Promise<PtyModule> {
+export async function loadBunPtyModule(platform = process.platform) {
   if (platform === 'win32') {
     const { loadWindowsPtyModule } = await import('./windows-conpty')
     return loadWindowsPtyModule()
@@ -18,5 +18,5 @@ export async function loadBunPtyModule(platform = process.platform): Promise<Pty
   return {
     spawn: (file, args, options) => spawnPosixPty(kernel, file, args, options),
     native: kernel,
-  }
+  } satisfies PtyModule
 }

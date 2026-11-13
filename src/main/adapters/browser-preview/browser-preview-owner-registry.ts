@@ -141,35 +141,38 @@ export class BrowserPreviewOwnerRegistry<Surface extends RendererSurface = Rende
   }
 
   /** A live renderer holds this owner: the Session is open, or retains previews or a Run. */
-  isRegistered(ownerKey: string): boolean {
+  isRegistered(ownerKey: string) {
     const owner = this.owners.get(ownerKey)
     return owner !== undefined && !owner.sender.isDestroyed()
   }
 
-  assertRegistered(ownerKey: string, sender: Surface): void {
+  assertRegistered(ownerKey: string, sender: Surface) {
     const owner = this.owners.get(ownerKey)
     if (!owner || owner.sender !== sender || sender.isDestroyed()) {
       throw new Error('Browser-preview owner is not registered to this renderer.')
     }
   }
 
-  requestOpen(
-    input: BrowserPreviewOpenRequestInput,
-    options: BrowserPreviewOpenWaitOptions = {},
-  ): Promise<void> {
+  requestOpen(input: BrowserPreviewOpenRequestInput, options: BrowserPreviewOpenWaitOptions = {}) {
     const owner = this.owners.get(input.ownerKey)
     if (!owner || owner.sender.isDestroyed()) {
-      return Promise.reject(new Error('No renderer is registered for this browser-preview owner.'))
+      return Promise.reject(
+        new Error('No renderer is registered for this browser-preview owner.'),
+      ) satisfies Promise<void>
     }
     if (options.signal?.aborted) {
-      return Promise.reject(new Error('Browser-preview open was aborted.'))
+      return Promise.reject(new Error('Browser-preview open was aborted.')) satisfies Promise<void>
     }
     const key = previewKey(input.ownerKey, input.previewId)
     if (this.pendingRequestByPreview.has(key)) {
-      return Promise.reject(new Error('This browser preview is already being opened.'))
+      return Promise.reject(
+        new Error('This browser preview is already being opened.'),
+      ) satisfies Promise<void>
     }
     if (this.pendingByRequestId.size >= MAX_PENDING_OPENS) {
-      return Promise.reject(new Error('Too many browser previews are waiting to open.'))
+      return Promise.reject(
+        new Error('Too many browser previews are waiting to open.'),
+      ) satisfies Promise<void>
     }
 
     const request: BrowserPreviewOpenRequest = {
@@ -216,10 +219,10 @@ export class BrowserPreviewOwnerRegistry<Surface extends RendererSurface = Rende
           false,
         )
       }
-    })
+    }) satisfies Promise<void>
   }
 
-  acknowledge(sender: Surface, acknowledgment: BrowserPreviewOpenRequestAck): void {
+  acknowledge(sender: Surface, acknowledgment: BrowserPreviewOpenRequestAck) {
     const operation = this.pendingByRequestId.get(acknowledgment.requestId)
     if (!operation) {
       throw new Error('Browser-preview open request is no longer active.')
@@ -244,7 +247,7 @@ export class BrowserPreviewOwnerRegistry<Surface extends RendererSurface = Rende
     this.resolveIfComplete(operation)
   }
 
-  notifyMaterialized(ownerKey: string, previewId: string, sender: Surface): void {
+  notifyMaterialized(ownerKey: string, previewId: string, sender: Surface) {
     const requestId = this.pendingRequestByPreview.get(previewKey(ownerKey, previewId))
     if (!requestId) return
     const operation = this.pendingByRequestId.get(requestId)
@@ -253,26 +256,26 @@ export class BrowserPreviewOwnerRegistry<Surface extends RendererSurface = Rende
     this.resolveIfComplete(operation)
   }
 
-  private nextRequestGeneration(): number {
+  private nextRequestGeneration() {
     this.nextGeneration =
       this.nextGeneration >= Number.MAX_SAFE_INTEGER ? 1 : this.nextGeneration + 1
     return this.nextGeneration
   }
 
-  private resolveIfComplete(operation: PendingOpen<Surface>): void {
+  private resolveIfComplete(operation: PendingOpen<Surface>) {
     if (!operation.acknowledged || !operation.materialized) return
     this.remove(operation)
     operation.resolve()
   }
 
-  private reject(operation: PendingOpen<Surface>, error: Error, notifyRenderer: boolean): void {
+  private reject(operation: PendingOpen<Surface>, error: Error, notifyRenderer: boolean) {
     if (this.pendingByRequestId.get(operation.request.requestId) !== operation) return
     this.remove(operation)
     if (notifyRenderer) this.sendCancellation(operation)
     operation.reject(error)
   }
 
-  private remove(operation: PendingOpen<Surface>): void {
+  private remove(operation: PendingOpen<Surface>) {
     this.pendingByRequestId.delete(operation.request.requestId)
     const key = previewKey(operation.request.ownerKey, operation.request.previewId)
     if (this.pendingRequestByPreview.get(key) === operation.request.requestId) {
@@ -282,7 +285,7 @@ export class BrowserPreviewOwnerRegistry<Surface extends RendererSurface = Rende
     operation.removeAbort()
   }
 
-  private sendCancellation(operation: PendingOpen<Surface>): void {
+  private sendCancellation(operation: PendingOpen<Surface>) {
     if (operation.sender.isDestroyed()) return
     const cancellation: BrowserPreviewOpenRequestCancellation = {
       requestId: operation.request.requestId,

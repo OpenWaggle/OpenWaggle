@@ -24,14 +24,14 @@ export interface ListedRelease {
   readonly assets: readonly string[]
 }
 
-function listedRelease(value: unknown): ListedRelease | null {
-  if (!isRecord(value) || typeof value['tag_name'] !== 'string') return null
-  const assets = Array.isArray(value['assets']) ? value['assets'] : []
+function listedRelease(value: unknown) {
+  if (!isRecord(value) || typeof value.tag_name !== 'string') return null
+  const assets = Array.isArray(value.assets) ? value.assets : []
   return {
-    tag: value['tag_name'],
-    draft: value['draft'] === true,
+    tag: value.tag_name,
+    draft: value.draft === true,
     assets: assets.flatMap((asset: unknown) =>
-      isRecord(asset) && typeof asset['name'] === 'string' ? [asset['name']] : [],
+      isRecord(asset) && typeof asset.name === 'string' ? [asset.name] : [],
     ),
   }
 }
@@ -56,7 +56,7 @@ async function main(argv: readonly string[]) {
   if (version === undefined || os === undefined || arch === undefined) {
     throw new Error('Usage: patch-base-url.ts <version> <macos|win|linux> <arm64|x64>')
   }
-  const token = process.env['GITHUB_TOKEN'] ?? ''
+  const token = process.env.GITHUB_TOKEN ?? ''
   const response = await fetch(RELEASES_URL, {
     headers: {
       accept: 'application/vnd.github+json',

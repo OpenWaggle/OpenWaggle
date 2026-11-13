@@ -89,14 +89,16 @@ export async function acknowledgeFirstLaunchLocalStorageImport(importId: string)
   if (next) state.last = next
 }
 
-function stringList(value: unknown): readonly string[] {
+function stringList(value: unknown) {
   return Array.isArray(value) ? value.filter((entry) => typeof entry === 'string') : []
 }
 
-function detailValue(step: MigrationStepState, key: string): unknown {
-  return typeof step.detail === 'object' && step.detail !== null
-    ? Reflect.get(step.detail, key)
-    : undefined
+function detailValue(step: MigrationStepState, key: string) {
+  const value: unknown =
+    typeof step.detail === 'object' && step.detail !== null
+      ? Reflect.get(step.detail, key)
+      : undefined
+  return value
 }
 
 /** The entries of the moved files that no key opened. */
@@ -112,11 +114,11 @@ function notice(
   secrets: ElectronMigrationNotice['secrets'],
   step: MigrationStepState,
   unrecoverable: readonly string[] = [],
-): ElectronMigrationNotice {
+) {
   return { secrets, unrecoverable, error: step.error ?? null, busy: state.busy }
 }
 
-function noticeFor(migration: MigrationState | null): ElectronMigrationNotice | null {
+function noticeFor(migration: MigrationState | null) {
   if (!migration?.fromElectron) return null
   const step = migration.steps.secrets
   if (detailValue(step, 'skippedByUser') === true) return null

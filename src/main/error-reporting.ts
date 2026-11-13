@@ -229,7 +229,7 @@ export function reportError(error: unknown, origin?: ErrorReportOrigin) {
  * Usage statistics check. Does nothing while reporting is off, and where the reporter takes
  * renderer reports another way (Electron's SDK bridge).
  */
-export function reportRendererEnvelope(envelope: string): void {
+export function reportRendererEnvelope(envelope: string) {
   void startup?.then(() => reporter?.captureRendererEnvelope?.(envelope))
 }
 

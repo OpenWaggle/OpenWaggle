@@ -92,7 +92,7 @@ function fakePage(runPicker: (script: string) => Promise<unknown>) {
     },
     isDestroyed: () => false,
     runPicker: vi.fn(runPicker),
-    runControl: vi.fn(async (_script: string): Promise<unknown> => true),
+    runControl: vi.fn<(script: string) => Promise<unknown>>(async () => true),
     captureScreenshot: vi.fn(async () => screenshot),
   } satisfies BrowserPreviewPickerPage
   return { page, retire: () => (retired = true) }

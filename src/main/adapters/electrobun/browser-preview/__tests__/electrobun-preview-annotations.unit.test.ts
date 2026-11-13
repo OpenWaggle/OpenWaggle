@@ -86,7 +86,7 @@ describe('Electrobun Browser preview annotations', () => {
       }),
     )
     // The viewport rectangle the picker reports, clipped in the scrolled document.
-    expect(harness.cef.sent('Page.captureScreenshot').at(-1)?.params['clip']).toEqual({
+    expect(harness.cef.sent('Page.captureScreenshot').at(-1)?.params.clip).toEqual({
       x: 0,
       y: 100,
       width: 80,

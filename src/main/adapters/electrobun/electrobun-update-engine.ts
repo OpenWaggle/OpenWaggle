@@ -1,5 +1,4 @@
 import type { UpdateStatusEntry } from 'electrobun/main'
-import type { Unsubscribe } from '../../ports/desktop-shell/shell-events'
 import type {
   UpdateEngineShape,
   UpdateMetadataTarget,
@@ -75,7 +74,7 @@ const NUMERIC_IDENTIFIER = /^\d+$/u
 function createListeners<Value>() {
   const listeners = new Set<Listener<Value>>()
   return {
-    add(listener: Listener<Value>): Unsubscribe {
+    add(listener: Listener<Value>) {
       listeners.add(listener)
       return () => {
         listeners.delete(listener)
@@ -175,7 +174,7 @@ const STATUS_HANDLERS: Readonly<Partial<Record<UpdateStatusEntry['status'], Stat
   error: (entry, { listeners }) => listeners.failed.emit(new Error(entry.message)),
 }
 
-function createElectrobunUpdateEngine(): UpdateEngineShape {
+function createElectrobunUpdateEngine() {
   const listeners = createEngineListeners()
   const { checking, available, notAvailable, progress, downloaded, failed } = listeners
   const state: EngineState = {
@@ -295,7 +294,7 @@ function createElectrobunUpdateEngine(): UpdateEngineShape {
     onDownloadProgress: listen(progress),
     onUpdateDownloaded: listen(downloaded),
     onError: listen(failed),
-  }
+  } satisfies UpdateEngineShape
 }
 
 export const electrobunUpdateEngine: UpdateEngineShape = createElectrobunUpdateEngine()

@@ -75,7 +75,7 @@ function runBun(root: string, script: string, args: readonly string[]) {
 }
 
 export function hutchCommand(environment: NodeJS.ProcessEnv) {
-  const configured = (environment['OPENWAGGLE_HUTCH'] ?? '').trim().split(/\s+/u).filter(Boolean)
+  const configured = (environment.OPENWAGGLE_HUTCH ?? '').trim().split(/\s+/u).filter(Boolean)
   return configured.length > 0 ? configured : [process.execPath, 'x', 'electrobun']
 }
 
@@ -234,7 +234,7 @@ export async function packageElectrobunApp(options: PackageOptions) {
   return [...updateFiles, ...packaged, ...writeTransitionMetadata(options.root, release, platform)]
 }
 
-function parseCli(argv: readonly string[]): PackageOptions {
+function parseCli(argv: readonly string[]) {
   const { values } = parseArgs({
     args: [...argv],
     options: {

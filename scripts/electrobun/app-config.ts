@@ -200,7 +200,7 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
 /** The version in the checkout's `package.json`, which every artifact carries. */
 export function packageVersion(root: string) {
   const manifest: unknown = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'))
-  const version = isRecord(manifest) ? manifest['version'] : null
+  const version = isRecord(manifest) ? manifest.version : null
   if (typeof version !== 'string') throw new Error(`${root}/package.json has no version.`)
   return version
 }

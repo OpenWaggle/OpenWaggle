@@ -36,7 +36,7 @@ export const RPC_SOCKET_SOURCE = 'ws://127.0.0.1:*'
 /** The renderer policy's sources for the Electrobun shell's trusted origins. */
 export function electrobunRendererPolicySources(
   origins: Pick<ElectrobunTrustedOrigins, 'sourcesOf'> = electrobunTrustedOrigins,
-): RendererPolicySources {
+) {
   const sourcesOf = (domain: TrustedOriginDomain) => origins.sourcesOf(domain)
   return {
     extensionRuntime: sourcesOf('extension-runtime'),
@@ -45,7 +45,7 @@ export function electrobunRendererPolicySources(
     inlineVisualization: sourcesOf('inline-visualization'),
     mcpAppFrame: sourcesOf('mcp-app-frame'),
     connect: [RPC_SOCKET_SOURCE],
-  }
+  } satisfies RendererPolicySources
 }
 
 /** The Content Security Policy of every renderer document. */
@@ -58,7 +58,7 @@ export function rendererContentSecurityPolicy(
 /** The desktop shell binding takes `createElectrobunWebSecurity()`, on the app's trusted origins. */
 export function createElectrobunWebSecurity(
   origins: Pick<ElectrobunTrustedOrigins, 'clearStorage'> = electrobunTrustedOrigins,
-): WebSecurityShape {
+) {
   // Storage belongs to the frame hosts' servers, not to the page that asked: the handle works
   // whether or not the page is still open.
   const storage = { clear: (list: readonly string[]) => origins.clearStorage(list) }
@@ -66,5 +66,5 @@ export function createElectrobunWebSecurity(
     guardEmbeddedFrames: () => undefined,
     originStorageOf: () => storage,
     maintainCaches: () => undefined,
-  }
+  } satisfies WebSecurityShape
 }

@@ -24,7 +24,7 @@ function step(status: MigrationStepState['status'], extra: Partial<MigrationStep
   return { status, attempts: 0, updatedAt: AT, ...extra }
 }
 
-function stateWith(secrets: MigrationStepState, fromElectron = true): MigrationState {
+function stateWith(secrets: MigrationStepState, fromElectron = true) {
   return {
     version: 1,
     createdAt: AT,
@@ -35,7 +35,7 @@ function stateWith(secrets: MigrationStepState, fromElectron = true): MigrationS
       secrets,
       'browser-preview-reset': step('done'),
     },
-  }
+  } satisfies MigrationState
 }
 
 async function loadFirstLaunch() {

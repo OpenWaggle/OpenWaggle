@@ -1,8 +1,6 @@
 import type { BrowserPreviewElementPickPayload } from '@shared/types/browser-preview-controls'
 
-export function annotationPayload(
-  comment = 'Make this panel narrower.',
-): BrowserPreviewElementPickPayload {
+export function annotationPayload(comment = 'Make this panel narrower.') {
   return {
     version: 2,
     pageUrl: 'http://localhost:3000/settings',
@@ -13,5 +11,5 @@ export function annotationPayload(
     strokes: [],
     styleChanges: [],
     captureRect: { x: 0, y: 0, width: 80, height: 30 },
-  }
+  } satisfies BrowserPreviewElementPickPayload
 }

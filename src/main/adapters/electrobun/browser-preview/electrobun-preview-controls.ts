@@ -36,10 +36,7 @@ export class ElectrobunPreviewControls {
     this.host = host
   }
 
-  update(
-    record: ElectrobunPreviewRecord,
-    patch: Partial<BrowserPreviewState>,
-  ): BrowserPreviewState {
+  update(record: ElectrobunPreviewRecord, patch: Partial<BrowserPreviewState>) {
     record.state = { ...record.state, ...patch }
     emitBrowserPreviewState(record)
     return record.state
@@ -49,7 +46,7 @@ export class ElectrobunPreviewControls {
     return this.update(record, { controls: { ...record.state.controls, ...patch } })
   }
 
-  fail(record: ElectrobunPreviewRecord, error: unknown): void {
+  fail(record: ElectrobunPreviewRecord, error: unknown) {
     if (record.disposed) return
     const description = error instanceof Error ? error.message : String(error)
     this.update(record, {
@@ -59,7 +56,7 @@ export class ElectrobunPreviewControls {
   }
 
   /** Shows the view at `bounds` in its owner's window, or hides it for `null`. */
-  place(record: ElectrobunPreviewRecord, bounds: BrowserPreviewBounds | null): void {
+  place(record: ElectrobunPreviewRecord, bounds: BrowserPreviewBounds | null) {
     record.bounds = bounds
     if (bounds === null) {
       this.host.frames.setHidden(record.webviewId, true)
@@ -70,21 +67,21 @@ export class ElectrobunPreviewControls {
     this.applyEmulationSoon(record)
   }
 
-  pageConfig(record: ElectrobunPreviewRecord): BrowserPreviewPageConfig {
+  pageConfig(record: ElectrobunPreviewRecord) {
     return {
       chords: browserPreviewPageChords(record.owner.shortcutBindings, this.host.isMac),
       muted: record.state.audioMuted,
       isMac: this.host.isMac,
-    }
+    } satisfies BrowserPreviewPageConfig
   }
 
-  configurePage(record: ElectrobunPreviewRecord): void {
+  configurePage(record: ElectrobunPreviewRecord) {
     void record.guest.configurePage(this.pageConfig(record)).catch((error: unknown) => {
       this.fail(record, error)
     })
   }
 
-  async applyEmulation(record: ElectrobunPreviewRecord): Promise<void> {
+  async applyEmulation(record: ElectrobunPreviewRecord) {
     if (record.disposed) return
     const { viewport, zoomFactor, appearance } = record.state.controls
     await record.guest.emulate(
@@ -94,11 +91,11 @@ export class ElectrobunPreviewControls {
   }
 
   /** Applies emulation without waiting; a preview without CDP keeps its page as is. */
-  applyEmulationSoon(record: ElectrobunPreviewRecord): void {
+  applyEmulationSoon(record: ElectrobunPreviewRecord) {
     void this.applyEmulation(record).catch(() => undefined)
   }
 
-  zoom(record: ElectrobunPreviewRecord, action: BrowserPreviewZoomAction): number {
+  zoom(record: ElectrobunPreviewRecord, action: BrowserPreviewZoomAction) {
     const next = nextBrowserPreviewZoomFactor(record.state.controls.zoomFactor, action)
     this.updateControls(record, { zoomFactor: next })
     this.applyEmulationSoon(record)
@@ -117,35 +114,34 @@ export class ElectrobunPreviewControls {
     return state
   }
 
-  setAudioMuted(record: ElectrobunPreviewRecord, audioMuted: boolean): BrowserPreviewState {
+  setAudioMuted(record: ElectrobunPreviewRecord, audioMuted: boolean) {
     if (record.state.audioMuted === audioMuted) return record.state
     const state = this.update(record, { audioMuted })
     this.configurePage(record)
     return state
   }
 
-  openDevTools(record: ElectrobunPreviewRecord): Promise<void> {
+  openDevTools(record: ElectrobunPreviewRecord) {
     // CEF opens DevTools in a window of its own.
     if (isAutomationMode()) {
-      return Promise.reject(new AutomationDesktopUiError('browser-preview.devtools'))
+      return Promise.reject(
+        new AutomationDesktopUiError('browser-preview.devtools'),
+      ) satisfies Promise<void>
     }
     record.guest.openDevTools()
-    return Promise.resolve()
+    return Promise.resolve() satisfies Promise<void>
   }
 
-  async clearCookies(record: ElectrobunPreviewRecord): Promise<void> {
+  async clearCookies(record: ElectrobunPreviewRecord) {
     await record.guest.send('Network.clearBrowserCookies')
   }
 
-  async clearCache(record: ElectrobunPreviewRecord): Promise<void> {
+  async clearCache(record: ElectrobunPreviewRecord) {
     await record.guest.send('Network.clearBrowserCache')
   }
 
   /** The visible page, or `rect` of its viewport, stored as a screenshot artifact. */
-  async captureScreenshot(
-    record: ElectrobunPreviewRecord,
-    rect?: CefViewportRect,
-  ): Promise<BrowserPreviewScreenshotArtifact> {
+  async captureScreenshot(record: ElectrobunPreviewRecord, rect?: CefViewportRect) {
     const data = await record.guest.captureScreenshot(rect)
     if (data.byteLength > BROWSER_PREVIEW_CAPTURE_LIMITS.SCREENSHOT_BYTES) {
       throw new Error(
@@ -161,10 +157,10 @@ export class ElectrobunPreviewControls {
       sizeBytes: data.byteLength,
       ...dimensions,
       createdAt: new Date().toISOString(),
-    }
+    } satisfies BrowserPreviewScreenshotArtifact
   }
 
-  async revealArtifact(artifactPath: string): Promise<void> {
+  async revealArtifact(artifactPath: string) {
     this.host.revealInFolder(await this.host.artifacts().resolveOwnedArtifact(artifactPath))
   }
 

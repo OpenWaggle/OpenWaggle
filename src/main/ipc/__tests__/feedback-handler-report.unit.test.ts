@@ -53,7 +53,7 @@ describe('feedback:generate-markdown', () => {
           '|-------|-------|',
           `| OS | Linux ${os.release()} |`,
           '| App Version | 0.1.0-test |',
-          `| Runtime | Bun ${process.versions['bun'] ?? 'unknown'} |`,
+          `| Runtime | Bun ${process.versions.bun ?? 'unknown'} |`,
           `| Node.js | ${process.versions.node} |`,
           `| Arch | ${process.arch} |`,
         ].join('\n'),

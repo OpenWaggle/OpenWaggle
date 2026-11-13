@@ -2,12 +2,11 @@ import { fromAny } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sentry = vi.hoisted(() => {
-  const integration =
-    (name: string) =>
-    (options?: unknown): { readonly name: string; readonly options?: unknown } => ({
+  const integration = (name: string) => (options?: unknown) =>
+    ({
       name,
       options,
-    })
+    }) satisfies { readonly name: string; readonly options?: unknown }
   const transportSend = vi.fn(async (_envelope: unknown) => ({ statusCode: 200 }))
   return {
     init: vi.fn(),
@@ -37,7 +36,7 @@ import {
 
 const HANDLED = { type: 'generic', handled: true }
 
-function reporterInput(): SentryBunErrorReporterInput {
+function reporterInput() {
   return {
     process: 'gui',
     release: 'openwaggle@1.0.0-beta.4',
@@ -48,7 +47,7 @@ function reporterInput(): SentryBunErrorReporterInput {
     operatingSystem: { name: 'macOS', version: '15.2' },
     arch: 'arm64',
     appRoot: '/Applications/OpenWaggle.app/Contents/Resources/app',
-  }
+  } satisfies SentryBunErrorReporterInput
 }
 
 describe('process exit integration', () => {

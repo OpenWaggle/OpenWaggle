@@ -50,7 +50,7 @@ interface ActivePick {
 
 const PICKER_CONTROL_TIMEOUT_MS = 1_000
 
-async function executePickerControl(page: BrowserPreviewPickerPage, code: string): Promise<void> {
+async function executePickerControl(page: BrowserPreviewPickerPage, code: string) {
   if (page.isDestroyed()) return
   await new Promise<void>((resolve) => {
     let settled = false
@@ -79,7 +79,7 @@ function captureClip(payload: BrowserPreviewElementPickPayload, scale: number) {
 }
 
 /** The picker's result is page-derived: it is decoded before anything reads it. */
-function decodePickPayload(value: unknown): BrowserPreviewElementPickPayload | null {
+function decodePickPayload(value: unknown) {
   if (value === null) return null
   const decoded = safeDecodeUnknown(browserPreviewElementPickPayloadSchema, value)
   if (decoded.success) return decoded.data
@@ -89,7 +89,7 @@ function decodePickPayload(value: unknown): BrowserPreviewElementPickPayload | n
 }
 
 /** Waits for `work`, then for `release` whether `work` succeeded or not. */
-async function settledBefore<T>(work: Promise<T>, release: () => Promise<void>): Promise<T> {
+async function settledBefore<T>(work: Promise<T>, release: () => Promise<void>) {
   try {
     return await work
   } finally {
@@ -113,12 +113,7 @@ export class BrowserPreviewElementPicker {
    * Lets the user pick elements and annotate the page; `null` when they cancel. `captureScale`
    * maps the page's CSS pixels to the units of `page.captureScreenshot`.
    */
-  async pick(
-    pickKey: string,
-    previewId: string,
-    page: BrowserPreviewPickerPage,
-    captureScale = 1,
-  ): Promise<BrowserPreviewAnnotation | null> {
+  async pick(pickKey: string, previewId: string, page: BrowserPreviewPickerPage, captureScale = 1) {
     page.assertAvailable()
     if (page.isDestroyed()) throw new Error('Browser preview content is no longer available.')
     if (this.active.has(pickKey)) await this.cancel(pickKey)
@@ -167,14 +162,14 @@ export class BrowserPreviewElementPicker {
         createdAt: new Date().toISOString(),
         screenshot,
         attachment,
-      }
+      } satisfies BrowserPreviewAnnotation | null
     } finally {
       await releaseOverlay()
       if (this.active.get(pickKey)?.token === token) this.active.delete(pickKey)
     }
   }
 
-  async cancel(pickKey: string): Promise<void> {
+  async cancel(pickKey: string) {
     const active = this.active.get(pickKey)
     if (active === undefined) return
     this.active.delete(pickKey)

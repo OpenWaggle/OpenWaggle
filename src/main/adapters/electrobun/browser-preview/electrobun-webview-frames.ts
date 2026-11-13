@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /**
  * Moves, resizes and hides a native Electrobun webview by id. Electrobun 2.0.6 gives a
@@ -52,7 +53,7 @@ function coreLibraryName(ffi: BunFfi) {
   return process.platform === 'win32' ? 'ElectrobunCore.dll' : `libElectrobunCore.${ffi.suffix}`
 }
 
-function openCore(ffi: BunFfi): FfiLibrary {
+function openCore(ffi: BunFfi) {
   const name = coreLibraryName(ffi)
   const candidates = new Set([path.join(process.cwd(), name)])
   if (process.argv0) candidates.add(path.join(path.dirname(process.argv0), name))
@@ -71,15 +72,17 @@ function openCore(ffi: BunFfi): FfiLibrary {
 }
 
 /** Binds the native core on first use, so importing this module loads no native code. */
-export function electrobunNativeWebviewFrames(): NativeWebviewFrames {
+export function electrobunNativeWebviewFrames() {
   let bound: { readonly resize: NativeFunction; readonly hide: NativeFunction } | null = null
   const bind = () => {
     if (bound !== null) return bound
     const ffi: unknown = createRequire(import.meta.url)('bun:ffi')
     if (!isBunFfi(ffi)) throw new Error('bun:ffi is not available in this runtime.')
     const core = openCore(ffi)
-    const resize = core.symbols['resizeWebview']
-    const hide = core.symbols['webviewSetHidden']
+    const { resizeWebview: resize, webviewSetHidden: hide } = uncheckedFields<{
+      resizeWebview: unknown
+      webviewSetHidden: unknown
+    }>(core.symbols)
     if (!isNativeFunction(resize) || !isNativeFunction(hide)) {
       throw new Error("Electrobun's native core lacks the webview frame functions.")
     }
@@ -93,5 +96,5 @@ export function electrobunNativeWebviewFrames(): NativeWebviewFrames {
     setHidden: (webviewId, hidden) => {
       bind().hide(webviewId, hidden)
     },
-  }
+  } satisfies NativeWebviewFrames
 }

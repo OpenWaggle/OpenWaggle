@@ -467,9 +467,8 @@ function ensureHutch(work: string, platform: HostPlatform) {
   run('sh', [installer, '--version', HUTCH_VERSION, '--no-modify-path'], {
     env: { ...process.env, HUTCH_HOME: hutchHome },
   })
-  process.env['HUTCH_HOME'] = hutchHome
-  process.env['PATH'] =
-    `${path.join(hutchHome, 'bin')}${path.delimiter}${process.env['PATH'] ?? ''}`
+  process.env.HUTCH_HOME = hutchHome
+  process.env.PATH = `${path.join(hutchHome, 'bin')}${path.delimiter}${process.env.PATH ?? ''}`
   const installed = hutchVersion()
   if (installed !== HUTCH_VERSION)
     fail(`Installed Hutch reports ${installed}, not ${HUTCH_VERSION}`)
@@ -493,7 +492,7 @@ function buildRuntime(platform: HostPlatform, environment: NodeJS.ProcessEnv) {
     }
   }
   if (platform === 'win32') {
-    const system32 = path.join(environment['SystemRoot'] ?? 'C:\\Windows', 'System32')
+    const system32 = path.join(environment.SystemRoot ?? 'C:\\Windows', 'System32')
     const pathKey = Object.keys(environment).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH'
     const searchPath = `${system32}${path.delimiter}${environment[pathKey] ?? ''}`
     return { install: HUTCH_INSTALL, env: { ...environment, [pathKey]: searchPath } }

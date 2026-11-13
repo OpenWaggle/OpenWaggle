@@ -5,7 +5,6 @@
 import { readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import type { MainChunkManifestEntry } from './main-bundle-graph'
 import type { BunBuildMetafileOutput, BunPlugin } from './support/bun-build'
 
 const LAZY_EXTERNAL_NAMESPACE = 'openwaggle-lazy-external'
@@ -29,7 +28,7 @@ export function lazyExternalSource(specifier: string) {
   return `module.exports = import.meta.require(${JSON.stringify(specifier)});\n`
 }
 
-export function lazyExternals(externals: ReadonlySet<string>): BunPlugin {
+export function lazyExternals(externals: ReadonlySet<string>) {
   return {
     name: 'openwaggle:lazy-externals',
     setup(builder) {
@@ -47,7 +46,7 @@ export function lazyExternals(externals: ReadonlySet<string>): BunPlugin {
         loader: 'js',
       }))
     },
-  }
+  } satisfies BunPlugin
 }
 
 const SOURCE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '/index.ts', '/index.tsx']
@@ -73,7 +72,7 @@ export function sourceAliases(
   root: string,
   aliases: readonly SourceAlias[],
   modules: Readonly<Record<string, string>>,
-): BunPlugin {
+) {
   const prefixes = [...aliases.map((alias) => alias.specifier), ...Object.keys(modules)].map(
     (prefix) => prefix.replace(/[.*+?^${}()|[\]\\/]/gu, String.raw`\$&`),
   )
@@ -93,14 +92,14 @@ export function sourceAliases(
         return { path: resolveSourceFile(path.join(root, `${alias.target}${rest}`)) }
       })
     },
-  }
+  } satisfies BunPlugin
 }
 
 const RAW_NAMESPACE = 'openwaggle-raw'
 const RAW_QUERY = '?raw'
 
 /** Vite's `?raw` imports: the file's text as the default export. */
-export function rawImports(): BunPlugin {
+export function rawImports() {
   return {
     name: 'openwaggle:raw-imports',
     setup(builder) {
@@ -116,7 +115,7 @@ export function rawImports(): BunPlugin {
         loader: 'js',
       }))
     },
-  }
+  } satisfies BunPlugin
 }
 
 /**
@@ -124,7 +123,7 @@ export function rawImports(): BunPlugin {
  * so a relative import such as the boot shim's `import('./index.js')` would resolve to its source
  * file and bundle the whole main graph.
  */
-export function relativeExternal(specifier: string): BunPlugin {
+export function relativeExternal(specifier: string) {
   return {
     name: 'openwaggle:relative-external',
     setup(builder) {
@@ -132,13 +131,11 @@ export function relativeExternal(specifier: string): BunPlugin {
         args.path === specifier ? { path: specifier, external: true } : undefined,
       )
     },
-  }
+  } satisfies BunPlugin
 }
 
 /** The chunk manifest scripts/check-main-bundle.ts reads, from Bun's metafile. */
-export function chunkManifest(
-  outputs: Readonly<Record<string, BunBuildMetafileOutput>>,
-): MainChunkManifestEntry[] {
+export function chunkManifest(outputs: Readonly<Record<string, BunBuildMetafileOutput>>) {
   return Object.entries(outputs).map(([file, output]) => ({
     file: path.posix.normalize(file.split(path.sep).join('/')),
     isEntry: output.entryPoint !== undefined,

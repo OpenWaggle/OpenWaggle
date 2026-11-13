@@ -66,7 +66,7 @@ export class CdpConnection {
   static connect(
     url: string,
     options: { readonly openSocket: CdpSocketFactory; readonly commandTimeoutMs: number },
-  ): Promise<CdpConnection> {
+  ) {
     return new Promise((resolve, reject) => {
       const socket = options.openSocket(url)
       let settled = false
@@ -81,15 +81,17 @@ export class CdpConnection {
       }
       socket.addEventListener('error', fail)
       socket.addEventListener('close', fail)
-    })
+    }) satisfies Promise<CdpConnection>
   }
 
-  get isOpen(): boolean {
+  get isOpen() {
     return this.open
   }
 
-  send(method: string, params: object = {}): Promise<unknown> {
-    if (!this.open) return Promise.reject(new Error(`${method}: the CDP connection is closed.`))
+  send(method: string, params: object = {}) {
+    if (!this.open) {
+      return Promise.reject(new Error(`${method}: the CDP connection is closed.`))
+    }
     const id = this.nextId++
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -104,20 +106,20 @@ export class CdpConnection {
         this.pending.delete(id)
         reject(new Error(`${method} could not be sent.`, { cause }))
       }
-    })
+    }) satisfies Promise<unknown>
   }
 
-  onEvent(listener: CdpEventListener): () => void {
+  onEvent(listener: CdpEventListener) {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
 
-  onClose(listener: () => void): () => void {
+  onClose(listener: () => void) {
     this.closeListeners.add(listener)
     return () => this.closeListeners.delete(listener)
   }
 
-  close(): void {
+  close() {
     if (!this.open) return
     this.shutDown('The CDP connection was closed.')
     try {

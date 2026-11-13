@@ -15,9 +15,9 @@ import type {
  */
 type Send = (input: string | Request, init?: RequestInit) => Promise<Response>
 
-export function createBunNetworkFetch(send: Send): NetworkFetchShape {
+export function createBunNetworkFetch(send: Send) {
   const guard: { policy: ShellNetworkEgressPolicy | null } = { policy: null }
-  return {
+  const networkFetch: NetworkFetchShape = {
     fetch: (input, init) => {
       const policy = guard.policy
       if (!policy?.isActive()) return send(input, init)
@@ -32,6 +32,7 @@ export function createBunNetworkFetch(send: Send): NetworkFetchShape {
       guard.policy = policy
     },
   }
+  return networkFetch
 }
 
 /** The process's `fetch` as it is at load, before any extension guard wraps the global. */

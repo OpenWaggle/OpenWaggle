@@ -11,10 +11,10 @@ export function packageJson(name: string, optionalDependencies: readonly string[
 }
 
 /** `files` maps app-relative paths (`node_modules/sharp/package.json`) to contents. */
-export function appFiles(files: Readonly<Record<string, string>>): PackagedAppFiles {
+export function appFiles(files: Readonly<Record<string, string>>) {
   const byPath = new Map(Object.entries(files).map(([file, contents]) => [`/${file}`, contents]))
   return {
     files: new Set(byPath.keys()),
     readFile: async (file) => Buffer.from(byPath.get(file) ?? ''),
-  }
+  } satisfies PackagedAppFiles
 }

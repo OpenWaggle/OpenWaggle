@@ -118,11 +118,11 @@ export interface BrowserPreviewAutomationPage {
 const retiredContents = new WeakSet<object>()
 
 /** Cached automation pages must not regain access after their renderer owner retires. */
-export function retireBrowserPreviewContents(contents: object): void {
+export function retireBrowserPreviewContents(contents: object) {
   retiredContents.add(contents)
 }
 
-export function assertBrowserPreviewContentsAvailable(contents: object): void {
+export function assertBrowserPreviewContentsAvailable(contents: object) {
   if (retiredContents.has(contents)) {
     throw new Error('Browser preview owner is retired; only native close cleanup is available.')
   }

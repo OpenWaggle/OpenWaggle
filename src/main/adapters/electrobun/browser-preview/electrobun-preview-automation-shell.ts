@@ -95,8 +95,8 @@ export interface ElectrobunAutomationOperations extends Pick<
 }
 
 /** Electrobun's CEF previews as the agent's Browser preview tools see them. */
-export function electrobunAutomationShell(manager: ElectrobunAutomationOperations): Shell {
-  return {
+export function electrobunAutomationShell(manager: ElectrobunAutomationOperations) {
+  const shell: Shell = {
     findTab: manager.findTab,
     selectTab: manager.selectTab,
     page: (record) => ({
@@ -118,4 +118,5 @@ export function electrobunAutomationShell(manager: ElectrobunAutomationOperation
     startRecording: () => Promise.reject(new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.recording)),
     stopRecording: () => Promise.reject(new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.recording)),
   }
+  return shell
 }

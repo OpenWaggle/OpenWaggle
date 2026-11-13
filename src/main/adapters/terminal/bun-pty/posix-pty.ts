@@ -41,14 +41,16 @@ function captureIdentity(kernel: PosixKernel, pid: number) {
   throw new Error('Could not capture the spawned process and PTY identities.')
 }
 
-function exitEvent(subprocess: BunSubprocess, code: number): PtyExitEvent {
+function exitEvent(subprocess: BunSubprocess, code: number) {
   const signalName = subprocess.signalCode
   const signal: unknown =
     signalName !== null && signalName in osConstants.signals
       ? Reflect.get(osConstants.signals, signalName)
       : undefined
-  if (typeof signal === 'number') return { exitCode: 0, signal }
-  return { exitCode: subprocess.exitCode ?? (code >= SIGNAL_EXIT_BASE ? 1 : code) }
+  if (typeof signal === 'number') return { exitCode: 0, signal } satisfies PtyExitEvent
+  return {
+    exitCode: subprocess.exitCode ?? (code >= SIGNAL_EXIT_BASE ? 1 : code),
+  } satisfies PtyExitEvent
 }
 
 export interface PosixPty extends Pty {
@@ -67,7 +69,7 @@ export function spawnPosixPty(
   file: string,
   args: readonly string[],
   options: PtySpawnOptions,
-): PosixPty {
+) {
   const output = ptyOutput()
   const exit = ptyEvent<PtyExitEvent>()
   const state: { eof: boolean; closed: boolean; exited: PtyExitEvent | null; emitted: boolean } = {
@@ -154,5 +156,5 @@ export function spawnPosixPty(
     _socket: { pause: output.pause, resume: output.resume },
     closeDescriptor: closeTerminal,
     waitForResourceDrain: () => drained,
-  }
+  } satisfies PosixPty
 }

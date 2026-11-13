@@ -6,7 +6,7 @@ class FakeDatabase {
 }
 
 function fakeNativeModules() {
-  return vi.fn((moduleName: string): unknown => {
+  return vi.fn((moduleName: string) => {
     if (moduleName === 'better-sqlite3') return FakeDatabase
     if (moduleName === 'sharp') return { versions: {} }
     throw new Error(`Unexpected module ${moduleName}.`)
@@ -22,7 +22,7 @@ describe('native load probe', () => {
   })
 
   it('rejects a SQLite module that is not a database constructor', () => {
-    const loadModule = vi.fn((): unknown => ({}))
+    const loadModule = vi.fn(() => ({}))
     expect(() => assertNativeModulesLoad(loadModule)).toThrow()
   })
 })

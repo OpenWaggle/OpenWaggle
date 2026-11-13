@@ -15,10 +15,7 @@ import type { BrowserPreviewViewsShape } from '../../../ports/desktop-shell/brow
  * The Browser preview as Electrobun CEF `BrowserView`s driven over CEF's DevTools endpoint, and
  * the same previews as the agent's automation sees them.
  */
-export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost): {
-  readonly views: BrowserPreviewViewsShape
-  readonly automation: BrowserPreviewAutomationShell<ElectrobunPreviewRecord>
-} {
+export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost) {
   const manager = new ElectrobunBrowserPreviewManager(host)
   const profiles = new ElectrobunPreviewProfiles(host)
   const { controls } = manager
@@ -111,5 +108,8 @@ export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost): {
     clearProfileData: (profileId) => profiles.clearProfileData(profileId),
     profileCookieJar: (profileId) => profiles.cookieJar(profileId),
   }
-  return { views, automation }
+  return { views, automation } satisfies {
+    readonly views: BrowserPreviewViewsShape
+    readonly automation: BrowserPreviewAutomationShell<ElectrobunPreviewRecord>
+  }
 }

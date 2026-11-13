@@ -14,9 +14,7 @@ type AutomationUpdateEnvironment = Pick<
  * (`OPENWAGGLE_AUTOMATION=1`) and only over loopback HTTP, so the shipped app updates from GitHub
  * alone and a link or setting can never point it elsewhere.
  */
-export function automationUpdateReleaseUrl(
-  environment: AutomationUpdateEnvironment = env,
-): string | null {
+export function automationUpdateReleaseUrl(environment: AutomationUpdateEnvironment = env) {
   const value = environment.OPENWAGGLE_AUTOMATION_UPDATE_FEED
   if (environment.OPENWAGGLE_AUTOMATION !== '1' || value === undefined) return null
   const url = new URL(value)
@@ -24,7 +22,7 @@ export function automationUpdateReleaseUrl(
   if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
     return null
   }
-  return url.href.endsWith('/') ? url.href : `${url.href}/`
+  return (url.href.endsWith('/') ? url.href : `${url.href}/`) satisfies string | null
 }
 
 /**
@@ -43,7 +41,10 @@ export function startsGuiAutoUpdater(
 export function configureAutomationUpdateFeed(
   engine: Pick<UpdateFeedEngine, 'setFeed'>,
   releaseUrl: string,
-): Promise<UpdateFeedSelection> {
+) {
   engine.setFeed({ releaseUrl })
-  return Promise.resolve({ type: 'release', tag: releaseUrl })
+  return Promise.resolve({
+    type: 'release',
+    tag: releaseUrl,
+  }) satisfies Promise<UpdateFeedSelection>
 }

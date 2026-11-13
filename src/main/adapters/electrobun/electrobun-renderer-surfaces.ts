@@ -18,6 +18,7 @@ import type {
 } from '../../ports/desktop-shell/renderer-surfaces'
 import { answerInvoke, deliverSend } from './electrobun-ipc-main-transport'
 import { electrobun } from './electrobun-sdk'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /**
  * Electrobun's renderer surfaces (ADR 0064): each app webview the shell opens with the app's RPC
@@ -60,14 +61,10 @@ const willNavigateDetail = Schema.parseJson(
 )
 const newWindowDetail = Schema.Struct({ url: Schema.String })
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null
-}
-
 /** The `detail` of an Electrobun webview event (`{ data: { detail } }`). */
-function eventDetail(event: unknown): unknown {
-  const data = isRecord(event) ? event['data'] : undefined
-  return isRecord(data) ? data['detail'] : undefined
+function eventDetail(event: unknown) {
+  const { data } = uncheckedFields<{ data: unknown }>(event)
+  return uncheckedFields<{ detail: unknown }>(data).detail
 }
 
 export class ElectrobunRendererSurface
@@ -222,7 +219,7 @@ export interface AppWebviewLink {
  * The RPC for a new app webview, and how its webview becomes a surface: create the window with
  * `link.rpc`, then `link.attach(window.webview, ...)`.
  */
-export function createAppWebviewLink(): AppWebviewLink {
+export function createAppWebviewLink() {
   let surface: ElectrobunRendererSurface | null = null
   const rpc = createShellRpc(() => surface)
   return {
@@ -237,7 +234,7 @@ export function createAppWebviewLink(): AppWebviewLink {
       attached.startHeartbeat()
       return attached
     },
-  }
+  } satisfies AppWebviewLink
 }
 
 function watchWebview(

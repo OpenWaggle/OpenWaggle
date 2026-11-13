@@ -30,9 +30,9 @@ afterEach(async () => {
 type ShellFake = Awaited<ReturnType<typeof prepareElectrobunShell>>['electrobun']
 
 /** A hidden app window in the fake shell, as the dialogs and menus see it. */
-function fakeWindow(electrobun: ShellFake): DesktopWindow {
+function fakeWindow(electrobun: ShellFake) {
   const window = new electrobun.module.BrowserWindow({ hidden: true })
-  return fromPartial({ id: window.id, isDestroyed: () => false })
+  return fromPartial({ id: window.id, isDestroyed: () => false }) satisfies DesktopWindow
 }
 
 /** Electron's userData for a Dev build under test, which the Electrobun adapter must match. */

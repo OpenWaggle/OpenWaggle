@@ -34,6 +34,7 @@ const scriptEnvSchema = Schema.Struct({
   GITHUB_SHA: optionalString,
   GITHUB_STEP_SUMMARY: optionalString,
   HOME: optionalString,
+  LOCALAPPDATA: optionalString,
   MCP_CONFORMANCE_PROTOCOL_VERSION: optionalString,
   MCP_CONFORMANCE_SCENARIO: optionalString,
   NODE_OPTIONS: optionalString,
@@ -76,6 +77,7 @@ const scriptEnvSchema = Schema.Struct({
   USERPROFILE: optionalString,
   XAUTHORITY: optionalString,
   XDG_CONFIG_HOME: optionalString,
+  XDG_DATA_HOME: optionalString,
 })
 
 export type ScriptEnv = SchemaType<typeof scriptEnvSchema>

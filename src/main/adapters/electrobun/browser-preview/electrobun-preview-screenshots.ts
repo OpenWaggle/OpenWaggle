@@ -34,7 +34,7 @@ export interface CefClip extends CefViewportRect {
 }
 
 /** Width and height from a PNG's IHDR chunk. */
-export function pngDimensions(png: Uint8Array): { width: number; height: number } {
+export function pngDimensions(png: Uint8Array) {
   if (
     png.byteLength < PNG_HEADER_BYTES ||
     PNG_SIGNATURE.some((byte, index) => png[index] !== byte)
@@ -55,7 +55,7 @@ async function layoutViewport(send: CdpSend) {
 }
 
 /** The visible part of the page, in CSS pixels of the document. */
-export async function visibleRegion(send: CdpSend): Promise<CefClip> {
+export async function visibleRegion(send: CdpSend) {
   const viewport = await layoutViewport(send)
   return {
     x: viewport.pageX,
@@ -67,12 +67,12 @@ export async function visibleRegion(send: CdpSend): Promise<CefClip> {
 }
 
 /** A region of the viewport as a clip of the document, which is how CDP takes clips. */
-export async function documentClip(send: CdpSend, rect: CefViewportRect): Promise<CefClip> {
+export async function documentClip(send: CdpSend, rect: CefViewportRect) {
   const viewport = await layoutViewport(send)
   return { ...rect, x: rect.x + viewport.pageX, y: rect.y + viewport.pageY, scale: 1 }
 }
 
-export async function captureCefPng(send: CdpSend, clip?: CefClip): Promise<Uint8Array> {
+export async function captureCefPng(send: CdpSend, clip?: CefClip) {
   const shot = decode(
     ScreenshotSchema,
     await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip } : {}) }),
@@ -86,10 +86,7 @@ export async function captureCefPng(send: CdpSend, clip?: CefClip): Promise<Uint
  * budget. CEF captures at device pixels and the main process has no image library, so an image
  * over the budget is captured again at a smaller CDP scale.
  */
-export async function captureBoundedCefPng(
-  send: CdpSend,
-  rect?: CefViewportRect,
-): Promise<Uint8Array> {
+export async function captureBoundedCefPng(send: CdpSend, rect?: CefViewportRect) {
   const clip = rect === undefined ? undefined : await documentClip(send, rect)
   const png = await captureCefPng(send, clip)
   const { width, height } = pngDimensions(png)

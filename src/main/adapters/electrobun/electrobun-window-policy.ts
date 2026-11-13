@@ -90,20 +90,20 @@ export function openBackgroundWindow(options: { readonly title: string; readonly
   return new (electrobun().BrowserWindow)({ ...options, frame, hidden: true, activate: false }).id
 }
 
-export function appWindowOf(window: DesktopWindow): AppWindow | null {
+export function appWindowOf(window: DesktopWindow) {
   const tracked = openWindows.get(window.id)
   return tracked && !tracked.closed ? tracked.window : null
 }
 
-export function allDesktopWindows(): readonly DesktopWindow[] {
+export function allDesktopWindows() {
   return [...openWindows.values()]
 }
 
-export function focusedDesktopWindow(): DesktopWindow | null {
+export function focusedDesktopWindow() {
   return focusState.id === null ? null : (openWindows.get(focusState.id) ?? null)
 }
 
-export function desktopWindowOfSurface(surface: RendererSurface): DesktopWindow | null {
+export function desktopWindowOfSurface(surface: RendererSurface) {
   for (const tracked of openWindows.values()) {
     if (tracked.webContents.id === surface.id) return tracked
   }

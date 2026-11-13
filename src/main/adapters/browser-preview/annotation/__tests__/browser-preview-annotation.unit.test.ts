@@ -35,7 +35,7 @@ afterEach(async () => {
   await fs.rm(root, { recursive: true, force: true })
 })
 
-async function storedScreenshot(): Promise<BrowserPreviewScreenshotArtifact> {
+async function storedScreenshot() {
   const data = Buffer.from([1, 2, 3])
   const stored = await storage.write('screenshot', 'png', data)
   return {
@@ -46,7 +46,7 @@ async function storedScreenshot(): Promise<BrowserPreviewScreenshotArtifact> {
     width: 80,
     height: 30,
     createdAt: new Date().toISOString(),
-  }
+  } satisfies BrowserPreviewScreenshotArtifact
 }
 
 function prepare(

@@ -3,7 +3,7 @@ import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import { spawnDetachedProcess } from '../../detached-process'
 import { liveProcessEnvironment } from '../../env'
 import type { AppLifecycleShape } from '../../ports/desktop-shell/app-lifecycle'
-import type { CancellableShellEvent, Unsubscribe } from '../../ports/desktop-shell/shell-events'
+import type { CancellableShellEvent } from '../../ports/desktop-shell/shell-events'
 import { electrobunBootShell } from './electrobun-boot-shell'
 import { isElectrobunDesktopApp, loadElectrobun } from './electrobun-sdk'
 import { pendingForwardedLaunch } from './electrobun-single-instance'
@@ -22,7 +22,7 @@ const state: {
 } = { completing: false, relaunch: false, nativeQuitRouted: false, install: null }
 const RELAUNCH_POLL_SECONDS = 0.2
 
-function listen<Listener>(listeners: Set<Listener>, listener: Listener): Unsubscribe {
+function listen<Listener>(listeners: Set<Listener>, listener: Listener) {
   const entry = listener
   listeners.add(entry)
   return () => {

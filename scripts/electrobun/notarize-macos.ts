@@ -26,10 +26,10 @@ export interface NotaryCredentials {
 }
 
 /** The notary credentials the release already uses for electron-builder, if all are set. */
-export function notaryCredentials(environment: NodeJS.ProcessEnv): NotaryCredentials | null {
-  const appleId = environment['APPLE_ID'] ?? ''
-  const password = environment['APPLE_APP_SPECIFIC_PASSWORD'] ?? ''
-  const teamId = environment['APPLE_TEAM_ID'] ?? ''
+export function notaryCredentials(environment: NodeJS.ProcessEnv) {
+  const appleId = environment.APPLE_ID ?? ''
+  const password = environment.APPLE_APP_SPECIFIC_PASSWORD ?? ''
+  const teamId = environment.APPLE_TEAM_ID ?? ''
   return appleId === '' || password === '' || teamId === '' ? null : { appleId, password, teamId }
 }
 
@@ -79,7 +79,7 @@ async function submitAndStaple(target: string, submission: string, credentials: 
     ),
   )
   const result: unknown = JSON.parse(submit.stdout)
-  const status = isRecord(result) ? result['status'] : null
+  const status = isRecord(result) ? result.status : null
   if (status !== 'Accepted') {
     throw new Error(`Notarization of ${target} was not accepted: ${submit.stdout}`)
   }

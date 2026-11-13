@@ -67,7 +67,7 @@ interface PlacedPackage {
   readonly assetsOnly: boolean
 }
 
-function readPackageJson(directory: string): PackageJson {
+function readPackageJson(directory: string) {
   const parsed: unknown = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8'))
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error(`${directory}: bad package.json`)

@@ -45,7 +45,7 @@ function isBunRuntime(value: unknown): value is BunRuntime {
   )
 }
 
-function bunRuntime(): BunRuntime {
+function bunRuntime() {
   const bun: unknown = Reflect.get(globalThis, 'Bun')
   if (!isBunRuntime(bun)) throw new Error('This needs the Bun runtime.')
   return bun

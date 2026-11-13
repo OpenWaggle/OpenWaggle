@@ -4,9 +4,9 @@ import type { PtyDisposable } from '../terminal-pty-backend'
 export function ptyEvent<Event>() {
   const set = new Set<(event: Event) => void>()
   return {
-    add: (listener: (event: Event) => void): PtyDisposable => {
+    add: (listener: (event: Event) => void) => {
       set.add(listener)
-      return { dispose: () => set.delete(listener) }
+      return { dispose: () => set.delete(listener) } satisfies PtyDisposable
     },
     emit: (event: Event) => {
       for (const listener of [...set]) listener(event)

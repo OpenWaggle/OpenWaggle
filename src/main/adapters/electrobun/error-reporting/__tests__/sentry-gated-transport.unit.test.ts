@@ -1,10 +1,4 @@
-import {
-  createEnvelope,
-  createStackParser,
-  type Envelope,
-  makeSession,
-  ServerRuntimeClient,
-} from '@sentry/core'
+import { createEnvelope, createStackParser, makeSession, ServerRuntimeClient } from '@sentry/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const delivered = vi.hoisted(() => {
@@ -71,7 +65,7 @@ async function sendEveryKind(client: ServerRuntimeClient) {
   await client.flush(FLUSH_TIMEOUT_MS)
 }
 
-function logEnvelope(): Envelope {
+function logEnvelope() {
   return createEnvelope({}, [
     [
       { type: 'log', item_count: 1, content_type: 'application/vnd.sentry.items.log+json' },

@@ -9,6 +9,7 @@
  * instances arrive as plain objects. Unlike it, a cycle is refused instead of preserved; no IPC
  * payload has one.
  */
+import { uncheckedFields } from './utils/object-shape'
 
 const TAG = '$ow'
 
@@ -155,7 +156,7 @@ function encodeObject(value: object, ancestors: Set<object>): unknown {
 }
 
 /** A JSON-safe form of `value` that `decodeStructured` turns back into an equal value. */
-export function encodeStructured(value: unknown): unknown {
+export function encodeStructured(value: unknown) {
   return encodeWith(value, new Set())
 }
 
@@ -177,7 +178,7 @@ function decodeNumber(text: string) {
   throw new TypeError(`"${text}" is not a sent number.`)
 }
 
-function decodeBytes(record: Readonly<Record<string, unknown>>): ArrayBuffer | ArrayBufferView {
+function decodeBytes(record: Readonly<Record<string, unknown>>) {
   const kind = stringField(record, 'kind')
   const buffer = base64ToBuffer(stringField(record, 'base64'))
   if (kind === 'ArrayBuffer') return buffer
@@ -189,7 +190,7 @@ function decodeBytes(record: Readonly<Record<string, unknown>>): ArrayBuffer | A
 function decodeError(record: Readonly<Record<string, unknown>>) {
   const error = new Error(stringField(record, 'message'))
   error.name = stringField(record, 'name')
-  const stack = record['stack']
+  const { stack } = uncheckedFields<{ stack: string }>(record)
   if (typeof stack === 'string') error.stack = stack
   return error
 }
@@ -214,13 +215,13 @@ function decodeEntries(entries: unknown) {
 type TaggedDecoder = (record: Readonly<Record<string, unknown>>) => unknown
 
 function decodeDate(record: Readonly<Record<string, unknown>>) {
-  const time = record['value']
+  const time = uncheckedFields<{ value: number }>(record).value
   if (typeof time !== 'number' && time !== null) throw new TypeError('A sent date has no time.')
   return new Date(time ?? Number.NaN)
 }
 
 function decodeSet(record: Readonly<Record<string, unknown>>) {
-  const values = record['values']
+  const { values } = uncheckedFields<{ values: unknown }>(record)
   if (!Array.isArray(values)) throw new TypeError('A sent set has no values.')
   return new Set(values.map((entry: unknown) => decodeStructured(entry)))
 }
@@ -233,13 +234,13 @@ const TAGGED_DECODERS: Readonly<Record<string, TaggedDecoder>> = {
   date: decodeDate,
   regexp: (record) => new RegExp(stringField(record, 'source'), stringField(record, 'flags')),
   bytes: decodeBytes,
-  map: (record) => decodeEntries(record['entries']),
+  map: (record) => decodeEntries(uncheckedFields<{ entries: unknown }>(record).entries),
   set: decodeSet,
   error: decodeError,
-  object: (record) => decodePlainObject(record['entries']),
+  object: (record) => decodePlainObject(uncheckedFields<{ entries: unknown }>(record).entries),
 }
 
-function decodeTagged(record: Readonly<Record<string, unknown>>, tag: string): unknown {
+function decodeTagged(record: Readonly<Record<string, unknown>>, tag: string) {
   const decoder = Object.hasOwn(TAGGED_DECODERS, tag) ? TAGGED_DECODERS[tag] : undefined
   if (!decoder) throw new TypeError(`"${tag}" is not a sent value kind.`)
   return decoder(record)
@@ -284,11 +285,11 @@ function mapPacketValues(packet: unknown, map: (value: unknown) => unknown) {
  * Wraps a JSON RPC transport so the typed RPC above it sends and receives structured values: it
  * encodes the values of every outgoing packet and decodes those of every incoming one.
  */
-export function structuredTransport(inner: PacketTransport): PacketTransport {
+export function structuredTransport(inner: PacketTransport) {
   return {
     send: (packet) => inner.send?.(mapPacketValues(packet, encodeStructured)),
     registerHandler: (handler) =>
       inner.registerHandler?.((packet) => handler(mapPacketValues(packet, decodeStructured))),
     unregisterHandler: () => inner.unregisterHandler?.(),
-  }
+  } satisfies PacketTransport
 }

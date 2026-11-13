@@ -73,9 +73,7 @@ function annotationTargetSummary(payload: BrowserPreviewElementPickPayload) {
   return targets.join(', ')
 }
 
-function annotationAttachmentMetadata(
-  payload: BrowserPreviewElementPickPayload,
-): BrowserPreviewAttachmentMetadata {
+function annotationAttachmentMetadata(payload: BrowserPreviewElementPickPayload) {
   const firstElement = payload.elements[0]?.element
   const targetSummary = annotationTargetSummary(payload)
   if (firstElement === undefined) {
@@ -94,7 +92,7 @@ function annotationAttachmentMetadata(
       componentName: null,
       sourceFile: null,
       sourceLine: null,
-    }
+    } satisfies BrowserPreviewAttachmentMetadata
   }
   const source = firstElement.source
   return {
@@ -112,7 +110,7 @@ function annotationAttachmentMetadata(
     componentName: firstElement.componentName,
     sourceFile: source === null ? null : source.fileName,
     sourceLine: source === null ? null : source.lineNumber,
-  }
+  } satisfies BrowserPreviewAttachmentMetadata
 }
 
 export type PrepareBrowserPreviewAnnotation = (
@@ -129,7 +127,7 @@ export async function prepareBrowserPreviewAnnotation(
   payload: BrowserPreviewElementPickPayload,
   screenshot: BrowserPreviewScreenshotArtifact,
   prepare: PrepareBrowserPreviewAnnotation = prepareBrowserPreviewAnnotationAttachment,
-): Promise<PreparedAttachment | null> {
+) {
   if (screenshot.sizeBytes > ATTACHMENT.MAX_SIZE_BYTES) return null
   const resolvedPath = await storage.resolveOwnedArtifact(screenshot.path)
   const stats = await fs.stat(resolvedPath)

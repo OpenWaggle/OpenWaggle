@@ -42,9 +42,7 @@ export function materializeNativeArtifactPath(
   return template.replaceAll(VERSION_TOKEN, packageVersion)
 }
 
-function betterSqliteRequirements(
-  runtime: NativeArtifactRuntime,
-): readonly NativeArtifactRequirement[] {
+function betterSqliteRequirements(runtime: NativeArtifactRuntime) {
   const target = nativeTarget(runtime)
   const requirement: readonly NativeArtifactRequirement[] = [
     {

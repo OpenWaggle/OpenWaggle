@@ -82,10 +82,12 @@ function logicalUrl(url: string) {
  * always does. Users never get it: outside automation the macOS and Windows app window stays in the
  * system webview, off CEF's endpoint.
  */
-function qaRenderer(): { readonly renderer?: 'cef' } {
-  return isAutomationMode() && env.OPENWAGGLE_QA_MAIN_WINDOW_RENDERER === 'cef'
-    ? { renderer: 'cef' }
-    : {}
+function qaRenderer() {
+  return (
+    isAutomationMode() && env.OPENWAGGLE_QA_MAIN_WINDOW_RENDERER === 'cef'
+      ? { renderer: 'cef' }
+      : {}
+  ) satisfies { readonly renderer?: 'cef' }
 }
 
 export function createMainWindow(request: MainWindowRequest) {

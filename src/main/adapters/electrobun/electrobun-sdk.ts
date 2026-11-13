@@ -54,7 +54,7 @@ export function whenElectrobunLoaded(callback: (sdk: ElectrobunSdk) => void) {
 }
 
 /** The loaded SDK, for synchronous port members; it fails loudly before `loadElectrobun()`. */
-export function electrobun(): ElectrobunSdk {
+export function electrobun() {
   if (loaded === null) {
     throw new Error('The Electrobun SDK is only available in the desktop app, once it is ready.')
   }

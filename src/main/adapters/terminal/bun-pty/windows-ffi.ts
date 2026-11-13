@@ -58,7 +58,7 @@ export interface Win32 {
 
 let loaded: Win32 | null = null
 
-export async function loadWin32(): Promise<Win32> {
+export async function loadWin32() {
   if (loaded) return loaded
   const ffi = await import('bun:ffi')
   loaded = {
@@ -110,13 +110,13 @@ export const LAYOUT = {
 } as const
 
 /** A handle or address read out of memory; Bun's pointers are plain numbers. */
-export function pointerFromAddress(address: bigint): Pointer | null {
+export function pointerFromAddress(address: bigint) {
   const value = Number(address)
   return isPointer(value) ? value : null
 }
 
 /** The handle in an 8-byte slot, or null when the slot holds none. */
-export function readHandle(slot: BigUint64Array, index = 0): Pointer | null {
+export function readHandle(slot: BigUint64Array, index = 0) {
   return pointerFromAddress(slot[index] ?? 0n)
 }
 

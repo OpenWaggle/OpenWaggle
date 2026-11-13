@@ -54,7 +54,7 @@ export interface ElectrobunPreviewHost {
   readonly isMac: boolean
 }
 
-function initialState(input: BrowserPreviewOpenInput, canonicalUrl: string): BrowserPreviewState {
+function initialState(input: BrowserPreviewOpenInput, canonicalUrl: string) {
   return {
     previewId: input.previewId,
     ownerKey: input.ownerKey,
@@ -77,14 +77,14 @@ function initialState(input: BrowserPreviewOpenInput, canonicalUrl: string): Bro
         ...(input.initialControls?.viewport ?? DEFAULT_BROWSER_PREVIEW_CONTROL_STATE.viewport),
       },
     },
-  }
+  } satisfies BrowserPreviewState
 }
 
 /** The state after one guest event, or `null` when the event changes no state. */
 export function browserPreviewStateAfter(
   state: BrowserPreviewState,
   event: ElectrobunPreviewGuestEvent,
-): BrowserPreviewState | null {
+) {
   return matchBy(event, 'kind')
     .with('loading', () => ({ ...state, loading: true, error: null }))
     .with('loaded', () => ({ ...state, loading: false }))
@@ -129,7 +129,7 @@ export function createElectrobunPreviewRecord(options: {
     record: ElectrobunPreviewRecord,
     event: ElectrobunPreviewGuestEvent,
   ) => void
-}): ElectrobunPreviewRecord {
+}) {
   const { host, owner, input } = options
   const marker = newBrowserPreviewMarker()
   const view = host.createView({
@@ -169,7 +169,7 @@ export function createElectrobunPreviewRecord(options: {
 export function applyElectrobunPreviewGuestEvent(
   record: ElectrobunPreviewRecord,
   event: ElectrobunPreviewGuestEvent,
-): void {
+) {
   if (record.disposed) return
   const next = browserPreviewStateAfter(record.state, event)
   if (next === null) return
