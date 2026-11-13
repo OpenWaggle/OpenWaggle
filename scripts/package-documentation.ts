@@ -24,10 +24,12 @@ import {
 } from './package-documentation-manifest'
 import { substituteInstallPlaceholders } from '../website/src/lib/install-command'
 import { parseFrontmatter } from './installed-docs-generator-model'
+import { renderApiReference } from './package-api-reference-renderer'
 import {
-  generatedApiReferencePackageVersion,
-  renderApiReference,
-} from './package-api-reference-renderer'
+  apiReferencePath,
+  apiReferenceState,
+  readIfPresent,
+} from './package-documentation-api-page'
 import { renderPackageReadme } from './package-documentation-renderer'
 
 const ARGUMENT_START_INDEX = 2
@@ -57,20 +59,6 @@ function canonicalGuidePath(projectRoot: string, slug: string, version: string) 
     slug,
     version,
     'index.md',
-  )
-}
-
-function apiReferencePath(projectRoot: string, slug: string, version: string) {
-  return path.join(
-    projectRoot,
-    'website',
-    'src',
-    'content',
-    'docs',
-    'packages',
-    slug,
-    version,
-    'api-reference.md',
   )
 }
 
@@ -157,32 +145,6 @@ async function generatedFilesForPackage(
   return generatedFiles
 }
 
-async function readIfPresent(filePath: string) {
-  try {
-    return await readFile(filePath, 'utf8')
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
-    throw error
-  }
-}
-
-/**
- * Whether the current line's API page is generated: not while a pending line defers it, and not
- * once it lists the declarations of `packageVersion`, a released version.
- */
-async function generatesApiReference(input: {
-  readonly projectRoot: string
-  readonly definition: VersionedPackageDocumentationDefinition
-  readonly packageVersion: string
-  readonly deferred: boolean
-}) {
-  if (input.deferred) return false
-  const page = await readIfPresent(
-    apiReferencePath(input.projectRoot, input.definition.slug, input.definition.currentVersion),
-  )
-  return page === undefined || generatedApiReferencePackageVersion(page) !== input.packageVersion
-}
-
 function relativePath(projectRoot: string, filePath: string) {
   return path.relative(projectRoot, filePath).split(path.sep).join('/')
 }
@@ -266,15 +228,17 @@ export async function checkPackageDocumentation(
     // from that historical guide while unreleased declarations evolve. An API page generated for
     // the package's current version documents a published release, so it stays as it is until a
     // release changes the version; the API snapshot tracks the unreleased declarations.
+    const apiReference = await apiReferenceState({
+      projectRoot,
+      definition,
+      packageVersion: manifest.version,
+      deferred: deferGeneratedDocumentation,
+    })
+    violations.push(...apiReference.violations)
     for (const generatedFile of await generatedFilesForPackage(
       projectRoot,
       definition,
-      await generatesApiReference({
-        projectRoot,
-        definition,
-        packageVersion: manifest.version,
-        deferred: deferGeneratedDocumentation,
-      }),
+      apiReference.generates,
     )) {
       const expected = normalizeMarkdown(generatedFile.contents)
       const actual = await readIfPresent(generatedFile.path)
