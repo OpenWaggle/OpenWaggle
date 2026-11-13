@@ -127,6 +127,25 @@ describe('staged node_modules', () => {
     expect(shipsPackageFile('onnxruntime-node', 'bin/napi-v6/linux/x64/a.so', target)).toBe(false)
   })
 
+  it('leaves out the builds for other runtimes and engines the app never loads', () => {
+    const transformers = '@huggingface/transformers'
+    expect(shipsPackageFile(transformers, 'dist/transformers.node.cjs', target)).toBe(true)
+    expect(shipsPackageFile(transformers, 'dist/transformers.node.mjs', target)).toBe(true)
+    expect(shipsPackageFile(transformers, 'dist/transformers.web.js', target)).toBe(false)
+    expect(shipsPackageFile(transformers, 'src/models.js', target)).toBe(false)
+    expect(shipsPackageFile('lucide', 'dist/cjs/lucide.js', target)).toBe(true)
+    expect(shipsPackageFile('lucide', 'dist/umd/lucide.min.js', target)).toBe(false)
+    expect(shipsPackageFile('underscore', 'underscore-node.cjs', target)).toBe(true)
+    expect(shipsPackageFile('underscore', 'modules/index.js', target)).toBe(false)
+    expect(shipsPackageFile('tesseract.js-core', 'tesseract-core-simd-lstm.wasm', target)).toBe(
+      true,
+    )
+    expect(shipsPackageFile('tesseract.js-core', 'tesseract-core-simd.wasm', target)).toBe(false)
+    expect(shipsPackageFile('tesseract.js-core', 'tesseract-core.wasm.js', target)).toBe(false)
+    expect(shipsPackageFile('playwright-core', 'lib/vite/recorder/index.html', target)).toBe(false)
+    expect(shipsPackageFile('playwright-core', 'lib/server/index.js', target)).toBe(true)
+  })
+
   it('leaves out what the main bundle inlines, except what main resolves by path', () => {
     const roots = externalRoots({
       dependencies: { 'better-sqlite3': '1', zod: '1', mammoth: '1', unpdf: '1' },

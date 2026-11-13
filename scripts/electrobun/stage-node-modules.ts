@@ -1,8 +1,8 @@
 /**
  * The production `node_modules` the Electrobun app ships (scripts/electrobun/stage.ts). The main
  * build bundles every dependency it can (scripts/build-main.ts `BUNDLED_DEPENDENCIES`), so the
- * app needs only the externals that build leaves to `node_modules` (`mainExternalPackages`): native modules (better-sqlite3, sharp, onnxruntime-node through
- * transformers.js, the keyring), WASM readers and packages that locate files beside themselves, and
+ * app needs only the externals that build leaves to `node_modules` (`mainExternalPackages`):
+ * native modules (better-sqlite3, sharp, onnxruntime-node through transformers.js, the keyring), WASM readers and packages that locate files beside themselves, and
  * everything they depend on at run time.
  *
  * Bun installs with the isolated linker (bunfig.toml), where `node_modules/<name>` is a symlink into
@@ -12,26 +12,19 @@
  * fails the build instead of loading the wrong version at run time.
  *
  * It leaves out what the runtime never reads: declarations, maps, docs and tests, native builds for
- * other platforms and architectures, onnxruntime's CUDA providers and the browser-only builds.
+ * other platforms and architectures, onnxruntime's CUDA providers, and the builds for other
+ * runtimes and engines that scripts/packaged-runtime-packages.ts names.
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { mainExternalPackages } from '../build-main'
+import {
+  BUNDLED_PACKAGE_ASSETS,
+  PACKAGE_UNLOADED_FILES,
+  RUNTIME_RESOLVED_PACKAGES,
+  UNLOADED_PACKAGES,
+} from '../packaged-runtime-packages'
 
-/**
- * Bundled packages that main also loads from `node_modules` by path: the attachment parser worker
- * resolves them when its module loads (src/main/utils/attachment-parser-worker.ts), so a package
- * without them fails to boot.
- */
-export const RUNTIME_RESOLVED_PACKAGES = ['jszip', 'mammoth', 'unpdf'] as const
-
-/** Files of bundled packages they read from their package directory at run time: Pi's docs. */
-const BUNDLED_PACKAGE_ASSETS: Readonly<Record<string, readonly string[]>> = {
-  '@earendil-works/pi-coding-agent': ['package.json', 'README.md', 'docs', 'examples'],
-}
-
-/** Packages nothing in the app loads: transformers.js's Node build runs on onnxruntime-node. */
-const EXCLUDED_PACKAGES = new Set(['onnxruntime-web'])
 const NODE_PLATFORMS = ['darwin', 'linux', 'win32'] as const
 const NODE_ARCHES = ['arm64', 'x64', 'ia32'] as const
 const EXCLUDED_DIRECTORIES = new Set([
@@ -45,6 +38,8 @@ const EXCLUDED_DIRECTORIES = new Set([
 ])
 const EXCLUDED_FILE =
   /(?:\.d\.ts|\.d\.mts|\.map)$|^(?:README|CHANGELOG|LICENSE)|^\.(?:eslintrc|prettierrc)|^tsconfig\.json$/iu
+/** What a bundled package's assets leave out: its declarations and source maps. */
+const EXCLUDED_ASSET_FILE = /\.(?:d\.[cm]?ts|map)$/u
 
 export interface StageTarget {
   readonly platform: NodeJS.Platform
@@ -112,7 +107,26 @@ const PACKAGE_FILE_RULES: Readonly<Record<string, FileRule>> = {
     if (segments[0] !== 'prebuilds' || segments.length <= 1) return true
     return file === `${target.platform}-${target.arch}.node`
   },
-  'tesseract.js-core': (_segments, file) => !file.endsWith('.wasm.js'),
+}
+
+/** Whether `relative`, or a directory it is in, matches one of the package's unloaded globs. */
+function isUnloadedFile(name: string, segments: readonly string[]) {
+  const globs = PACKAGE_UNLOADED_FILES[name]
+  if (globs === undefined) return false
+  return segments.some((_segment, index) => {
+    const prefix = segments.slice(0, index + 1).join('/')
+    return globs.some((glob) => path.posix.matchesGlob(prefix, glob))
+  })
+}
+
+/** Whether `relative` is one of a bundled package's assets, or inside one. */
+function isAsset(relative: string, assets: readonly string[]) {
+  return assets.some((asset) => relative === asset || relative.startsWith(`${asset}/`))
+}
+
+/** Whether a directory of a bundled package holds one of its assets. */
+function holdsAsset(relative: string, assets: readonly string[]) {
+  return assets.some((asset) => asset.startsWith(`${relative}/`))
 }
 
 /** Whether a file of a package ships, by its path inside the package (POSIX separators). */
@@ -121,6 +135,7 @@ export function shipsPackageFile(name: string, relative: string, target: StageTa
   const file = segments.at(-1) ?? ''
   if (segments.slice(0, -1).some((segment) => EXCLUDED_DIRECTORIES.has(segment))) return false
   if (EXCLUDED_FILE.test(file)) return false
+  if (isUnloadedFile(name, segments)) return false
   const rule = PACKAGE_FILE_RULES[name]
   return rule === undefined || rule(segments, file, target)
 }
@@ -178,7 +193,7 @@ class NodeModulesLayout {
   }
 
   add(name: string, realDir: string, parentPlacement: string, assetsOnly = false) {
-    if (EXCLUDED_PACKAGES.has(name) || isForeignPlatformPackage(name, this.target)) return
+    if (UNLOADED_PACKAGES.has(name) || isForeignPlatformPackage(name, this.target)) return
     const nearest = this.lookup(parentPlacement, name)
     if (nearest?.realDir === realDir) return
     const placement =
@@ -205,7 +220,7 @@ class NodeModulesLayout {
       for (const dependency of runtimeDependencies(readPackageJson(entry.realDir))) {
         const expected = resolveFrom(entry.realDir, dependency.name)
         const shipped =
-          !EXCLUDED_PACKAGES.has(dependency.name) &&
+          !UNLOADED_PACKAGES.has(dependency.name) &&
           !isForeignPlatformPackage(dependency.name, this.target)
         if (expected === null || !shipped) continue
         const actual = this.lookup(entry.placement, dependency.name)
@@ -220,19 +235,25 @@ class NodeModulesLayout {
 
 function copyPackage(entry: PlacedPackage, destinationRoot: string, target: StageTarget) {
   const destination = path.join(destinationRoot, entry.placement)
-  const allowList = entry.assetsOnly ? BUNDLED_PACKAGE_ASSETS[entry.name] : undefined
+  const assets = entry.assetsOnly ? BUNDLED_PACKAGE_ASSETS[entry.name] : undefined
   const visit = (relative: string) => {
     const source = path.join(entry.realDir, relative)
     for (const item of fs.readdirSync(source, { withFileTypes: true })) {
       if (item.name === 'node_modules') continue
       const childRelative = relative === '' ? item.name : `${relative}/${item.name}`
-      if (relative === '' && allowList !== undefined && !allowList.includes(item.name)) continue
       if (item.isDirectory()) {
-        if (allowList === undefined && EXCLUDED_DIRECTORIES.has(item.name)) continue
+        if (assets === undefined && EXCLUDED_DIRECTORIES.has(item.name)) continue
+        if (assets !== undefined && !isAsset(childRelative, assets)) {
+          if (holdsAsset(childRelative, assets)) visit(childRelative)
+          continue
+        }
         visit(childRelative)
         continue
       }
-      const keep = allowList !== undefined || shipsPackageFile(entry.name, childRelative, target)
+      const keep =
+        assets === undefined
+          ? shipsPackageFile(entry.name, childRelative, target)
+          : isAsset(childRelative, assets) && !EXCLUDED_ASSET_FILE.test(item.name)
       if (!keep) continue
       const to = path.join(destination, childRelative)
       fs.mkdirSync(path.dirname(to), { recursive: true })
