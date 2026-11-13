@@ -163,3 +163,37 @@ describe('Hive tool self-archive guidance', () => {
     )
   })
 })
+
+describe('Hive tool revision guidance (#454)', () => {
+  async function queenTool() {
+    const registerTool = vi.fn()
+    await createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+    return registerTool.mock.calls[0]?.[0]
+  }
+
+  it('tells a reviewer that a revision request reaches the Worker and starts its Run', async () => {
+    const tool = await queenTool()
+    const overview = await hiveHelpText(tool)
+    expect(overview).toMatch(
+      /delegation_request_revision and delegation_reopen also send your feedback to the Worker as your Follow-up, which starts its next Run; do not send follow_up as well/,
+    )
+
+    const topic = JSON.parse(await hiveHelpText(tool, 'delegation_request_revision'))
+    const rules: string = topic.rules.join('\n')
+    expect(rules).toMatch(/OpenWaggle Host-authored Delegation revision request/)
+    expect(rules).toMatch(/delegationId, parentSessionId, submissionRevision, feedback/)
+    expect(rules).toMatch(/busy Worker runs it after its current Run/)
+    expect(rules).toMatch(/refused with worker_message_denied and the Delegation does not change/)
+  })
+
+  it('tells a Worker what a revision request from its parent looks like', async () => {
+    const tool = await queenTool()
+    expect(await hiveHelpText(tool)).toMatch(
+      /revision request from your parent arrives as a Host-authored Follow-up naming delegationId, submissionRevision and feedback/,
+    )
+  })
+})

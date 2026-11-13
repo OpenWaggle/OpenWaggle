@@ -3,6 +3,11 @@ import {
   permitsSessionsToolAction,
   type SessionsToolActionGrant,
 } from './sessions-tool-capability-schema'
+import {
+  REVISION_ARRIVES,
+  REVISION_REACHES_WORKER,
+  revisionGuideline,
+} from './sessions-tool-revision-guidelines'
 import { SCHEDULED_TASK_GUIDELINES } from './sessions-tool-schedule-guidelines'
 import { SELF_ARCHIVE_GUIDELINE } from './sessions-tool-self-archive-guideline'
 
@@ -154,18 +159,14 @@ function interactionGuideline(permits: Permits) {
 const IDLE_PARENT_WAKE =
   'A Worker result or help request that arrives while you are idle starts a Run for you.'
 
-/** A revision request or reopen is queued on the Worker as the reviewer's Follow-up (#454). */
-const REVISION_REACHES_WORKER =
-  "A revision request or reopen reaches the Worker as your Follow-up and starts its next Run; don't follow_up as well."
-
 function delegationGuideline(permits: Permits) {
   const submits = permits('delegation_submit')
   const reviews = permits('delegation_accept') || permits('delegation_request_revision')
   if (submits && reviews) {
-    return `Workers submit immutable Delegation results; parents request revision or accept an exact submission revision. ${REVISION_REACHES_WORKER} ${IDLE_PARENT_WAKE}`
+    return `Workers submit immutable Delegation results; parents request revision or accept an exact submission revision. ${REVISION_REACHES_WORKER} ${REVISION_ARRIVES} ${IDLE_PARENT_WAKE}`
   }
   if (submits)
-    return 'Submit immutable Delegation results; your parent requests revision or accepts an exact submission revision.'
+    return `Submit immutable Delegation results; your parent requests revision or accepts an exact submission revision. ${REVISION_ARRIVES}`
   if (reviews)
     return `Workers submit immutable Delegation results; request revision or accept an exact submission revision. ${REVISION_REACHES_WORKER} ${IDLE_PARENT_WAKE}`
   return undefined
@@ -242,6 +243,7 @@ function sessionsToolGuidelines(permits: Permits) {
       ? 'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.'
       : undefined,
     delegationGuideline(permits),
+    revisionGuideline(permitted(permits, ['delegation_request_revision', 'delegation_reopen'])),
     nextActorGuideline(permits),
     cleanupGuideline(permits),
     permits('archive') ? SELF_ARCHIVE_GUIDELINE : undefined,

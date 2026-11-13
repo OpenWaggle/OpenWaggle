@@ -200,7 +200,7 @@ A `needs_attention` that OpenWaggle set for a failed run goes back to `working` 
 - An idle worker starts a run on it straight away.
 - A busy worker gets it after its current run. The reply of that current run does not count as the new revision. The reply of the run that reads the feedback does.
 - It is a follow-up from the reviewer, so the queue rules and run limits are the ones for that reviewer's other follow-ups.
-- A reviewer that may not message the worker, such as a CLI client profile without `sessions:message` on it, still records the request. The worker then gets no follow-up and stays `revision_requested` until someone sends it a message.
+- The reviewer must be allowed to message the worker. A reviewer that may not, such as a CLI client profile without `sessions:message` on it, gets `worker_message_denied` (kind `authorization`, CLI exit 4), and the delegation does not change. Ask someone who may message the worker, such as the person, to send the revision.
 
 ### When a worker reports to an idle parent
 

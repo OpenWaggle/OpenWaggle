@@ -1,3 +1,4 @@
+import type * as SqlClient from '@effect/sql/SqlClient'
 import {
   type SessionHostRefusalCode,
   sessionHostRefusal,
@@ -8,7 +9,9 @@ import {
   type SessionControlDelegationMutationRequest,
   type SessionControlMutationOutcome,
 } from '@shared/types/session-control'
+import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
+import { messageCallerBlockReason } from './session-follow-up-authorization'
 
 export interface ExecuteDelegationInput {
   readonly callerId: string
@@ -103,4 +106,22 @@ export function updatedDelegationOutcome(
     submissionRevision,
     ...(specificationChanged ? { specificationChanged: true } : {}),
   } as const
+}
+
+/**
+ * A revision request or reopen sends the Worker back to work through the reviewer's Follow-up
+ * (`delegation-revision-follow-up.ts`), so the reviewer must be allowed to message the Worker, by
+ * the check queued Follow-up delivery makes. Otherwise the review is refused: recording it would
+ * leave the Worker `revision_requested`, next actor the Worker, with nothing to work on (#454).
+ */
+export function workerMessageRefusal(
+  sql: SqlClient.SqlClient,
+  input: ExecuteDelegationInput,
+  contract: DelegationContractRow,
+) {
+  return messageCallerBlockReason(sql, contract.child_session_id, input.callerId).pipe(
+    Effect.map((blocked) =>
+      blocked ? rejectedDelegationOutcome(input, 'worker_message_denied') : undefined,
+    ),
+  )
 }

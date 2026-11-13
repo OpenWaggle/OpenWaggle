@@ -22,6 +22,7 @@ import {
   type ExecuteDelegationInput,
   rejectedDelegationOutcome,
   updatedDelegationOutcome,
+  workerMessageRefusal,
 } from './sqlite-session-delegation-support'
 import { recordWorkerOrchestrationUpdate } from './sqlite-session-orchestration-update-insert'
 
@@ -178,6 +179,10 @@ function transitionDelegation(
     }
     if (command.operation === 'delegation-reopen' && contract.state !== 'accepted') {
       return rejectedDelegationOutcome(input, 'delegation_not_accepted')
+    }
+    if (command.operation === 'delegation-reopen') {
+      const refusal = yield* workerMessageRefusal(sql, input, contract)
+      if (refusal) return refusal
     }
     if (
       command.operation === 'delegation-cancel' &&

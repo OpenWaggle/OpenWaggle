@@ -57,6 +57,7 @@ const RELEASED_REFUSAL_KINDS: Readonly<Record<SessionHostErrorKind, readonly str
     'source_run_not_authorized',
     'target_not_authorized',
     'target_scope_denied',
+    'worker_message_denied',
     'worker_required',
   ],
   not_found: [

@@ -3,13 +3,20 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionControlMutationRequest } from '@shared/types/session-control'
 import * as Deferred from 'effect/Deferred'
 import * as Effect from 'effect/Effect'
-import * as Schedule from 'effect/Schedule'
 import { describe, expect, it } from 'vitest'
 import {
   QUEEN_CALLER_ID,
   seedHiveWorker,
 } from '../../adapters/__tests__/hive-worker-cleanup-fixture'
-import type { SessionControlRunExecutionInput } from '../../ports/session-control-run-executor'
+import {
+  expectRevisionPrompt,
+  FEEDBACK,
+  REVISED_SPECIFICATION,
+  recordingExecutor,
+  waitFor,
+  workerDelegation,
+  workerWork,
+} from './delegation-revision.test-support'
 import {
   commandHostLayer,
   controlCommandAs,
@@ -17,80 +24,6 @@ import {
   useHiveHostTestContext,
   waitForSessionIdle,
 } from './hive-worker-cleanup-host.test-harness'
-
-const FEEDBACK = 'Cover the error path too.'
-
-const REVISED_SPECIFICATION = {
-  objective: 'Review the tests, including the error path',
-  deliverables: ['A list of missing error-path tests'],
-  acceptanceCriteria: ['Every error path is named'],
-  resourceReferences: [],
-} as const
-
-function recordingExecutor(options: { readonly holdFirstRun?: Deferred.Deferred<void> } = {}) {
-  const runs: SessionControlRunExecutionInput[] = []
-  return {
-    runs,
-    executor: {
-      execute: (input: SessionControlRunExecutionInput) =>
-        Effect.gen(function* () {
-          runs.push(input)
-          if (runs.length === 1 && options.holdFirstRun) yield* Deferred.await(options.holdFirstRun)
-          return { terminalStatus: 'completed' as const, finalResponse: `Reply ${runs.length}.` }
-        }),
-    },
-  }
-}
-
-function waitFor(condition: () => boolean) {
-  return Effect.suspend(() => (condition() ? Effect.void : Effect.fail('pending' as const))).pipe(
-    Effect.retry(Schedule.spaced('10 millis').pipe(Schedule.upTo('5 seconds'))),
-  )
-}
-
-function workerDelegation(sql: SqlClient.SqlClient) {
-  return Effect.gen(function* () {
-    const contract = yield* sql<{ readonly state: string }>`
-      SELECT state FROM delegation_contracts WHERE id = ${'delegation-worker'}
-    `
-    const submissions = yield* sql<{ readonly revision: number; readonly source_run_id: string }>`
-      SELECT revision, source_run_id FROM delegation_submissions
-      WHERE delegation_id = ${'delegation-worker'} ORDER BY revision
-    `
-    return { state: contract[0]?.state, submissions }
-  })
-}
-
-/** The Worker's queued and active work: what a `nextActor: worker` must stand on. */
-function workerWork(sql: SqlClient.SqlClient) {
-  return Effect.gen(function* () {
-    const control = yield* sql<{ readonly active_run_id: string | null }>`
-      SELECT active_run_id FROM session_control_states WHERE session_id = ${'worker'}
-    `
-    const followUps = yield* sql<{ readonly intent_json: string }>`
-      SELECT intent_json FROM session_follow_ups WHERE session_id = ${'worker'} ORDER BY position
-    `
-    return {
-      activeRunId: control[0]?.active_run_id ?? null,
-      queuedTexts: followUps.map((row) => {
-        const intent: unknown = JSON.parse(row.intent_json)
-        return typeof intent === 'object' && intent !== null && 'text' in intent
-          ? String(intent.text)
-          : ''
-      }),
-    }
-  })
-}
-
-function expectRevisionPrompt(
-  text: string | undefined,
-  expected: { readonly submissionRevision: number; readonly feedback: string },
-) {
-  expect(text).toContain('OpenWaggle Host-authored Delegation revision request')
-  expect(text).toContain('"delegationId":"delegation-worker"')
-  expect(text).toContain(`"submissionRevision":${String(expected.submissionRevision)}`)
-  expect(text).toContain(JSON.stringify(expected.feedback))
-}
 
 describe('a Delegation revision request reaches the Worker through the Session Host', () => {
   const host = useHiveHostTestContext('openwaggle-delegation-revision-run-')
@@ -188,43 +121,6 @@ describe('a Delegation revision request reaches the Worker through the Session H
 
     expect(recorder.runs[0]?.sessionId).toBe('worker')
     expectRevisionPrompt(recorder.runs[0]?.intent.text, { submissionRevision: 1, feedback: reason })
-  })
-
-  it('sends nothing to the Worker for a reviewer that may not message it', async () => {
-    const recorder = recordingExecutor()
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        yield* seedHiveWorker(sql, { state: 'ready_for_review' })
-        yield* seedQueenAuthority(sql, host.temporaryRoot)
-        // The Queen's agent may review its Worker but not message it.
-        yield* sql`
-          UPDATE session_execution_profiles
-          SET profile_json = ${JSON.stringify({
-            modelId: 'provider/model',
-            thinkingLevel: 'medium',
-            sessionCapabilities: ['delegations:review'],
-          })}
-          WHERE session_id = ${'queen'}
-        `
-        const revision = yield* controlCommandAs(QUEEN_CALLER_ID, 'queen-revision', {
-          operation: 'delegation-request-revision',
-          sessionId: 'queen',
-          delegationId: 'delegation-worker',
-          submissionRevision: 1,
-          feedback: FEEDBACK,
-        })
-        return { revision: revision.outcome, work: yield* workerWork(sql) }
-      }).pipe(
-        Effect.provide(
-          commandHostLayer(path.join(host.temporaryRoot, 'revoked.sqlite'), recorder.executor),
-        ),
-      ),
-    )
-
-    expect(result.revision).toMatchObject({ delegationState: 'revision_requested' })
-    expect(result.work).toEqual({ activeRunId: null, queuedTexts: [] })
-    expect(recorder.runs).toHaveLength(0)
   })
 
   it('queues the revision request after a busy Worker’s current Run', async () => {
