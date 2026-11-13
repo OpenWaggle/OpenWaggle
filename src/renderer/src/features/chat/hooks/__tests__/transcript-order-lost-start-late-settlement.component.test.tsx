@@ -268,4 +268,22 @@ describe('transcript order when the Run before settles late and the next start i
       (h) => h.endRun(),
     ])
   })
+
+  // Pi continues the shown Run, its start lost: the Host's buffer names it that Run, and the late
+  // settlement of the Run before must not take its unsaved answers for the settled Run's.
+  it('keeps the answers of a shown Run continuing with its start lost when the Run before settles late', async () => {
+    await expectCompleteTranscript([
+      (h) => h.mount('session'),
+      (h) => h.startRun('run-1', 'host prompt run-1'),
+      (h) => h.endRun({ settleLater: true }),
+      (h) => h.startRun('run-2', 'host prompt run-2'),
+      (h) => h.loseNextStart(),
+      (h) => h.continueRun(),
+      (h) => h.dropHistory(),
+      (h) => h.answer('two'),
+      (h) => h.answer('three'),
+      (h) => h.settleRun(),
+      (h) => h.endRun(),
+    ])
+  })
 })

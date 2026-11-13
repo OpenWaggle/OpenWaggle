@@ -151,11 +151,29 @@ export function withEarlierRunSettledBeforeUnannounced(
 }
 
 /**
- * The Run whose start was lost is named another Run than the one before (`nameUnannouncedRun`):
- * that one was saved when it ended, so its rows set apart at the notice leave the snapshot, as
- * another Run's start drops them. Kept, they showed twice whenever no saved prompt vouched for them.
+ * The Host's buffer named the Run whose start was lost (`nameUnannouncedRun`). When it is another
+ * Run than the one before, that one was saved when it ended, so its rows set apart at the notice
+ * leave the snapshot, as another Run's start drops them. Kept, they showed twice whenever no saved
+ * prompt vouched for them.
  */
-export function withoutEarlierRunRows(state: RenderSnapshotState, id: SessionId) {
+export function withUnannouncedRunNamed(
+  state: RenderSnapshotState,
+  id: SessionId,
+  runId: string,
+  anotherRun: boolean,
+) {
+  const existing = state.renderSnapshotsBySessionId.get(id)
+  if (!existing) return state
+  // The snapshot's unnamed seed or start is named too, or the Run's continuation took the late
+  // settlement of the Run before for its own and settled its answers.
+  const named = withEndedRunNamed(existing, runId)
+  const next = new Map(state.renderSnapshotsBySessionId).set(id, named)
+  return anotherRun
+    ? withoutEarlierRunRows({ renderSnapshotsBySessionId: next }, id)
+    : { renderSnapshotsBySessionId: next }
+}
+
+function withoutEarlierRunRows(state: RenderSnapshotState, id: SessionId) {
   const existing = state.renderSnapshotsBySessionId.get(id)
   const settled = existing?.settledMessageIds
   // A route's snapshot holds what the route shows, which places these rows itself.
