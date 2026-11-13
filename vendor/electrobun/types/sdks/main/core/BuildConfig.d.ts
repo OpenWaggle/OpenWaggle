@@ -12,7 +12,7 @@ export type BuildConfigType = {
     isPackaged: boolean;
     runtime?: {
         exitOnLastWindowClosed?: boolean;
-        [key: string]: unknown;
+        [key: string]: import("../../../json").ElectrobunJsonValue;
     };
 };
 export type RuntimeBuildChannel = "dev" | "canary" | "stable";

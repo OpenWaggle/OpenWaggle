@@ -21,7 +21,7 @@ type CarrotFileActivatorConfig = {
         type: string;
         name?: string;
         icon?: string;
-        config?: Record<string, unknown>;
+        config?: import("../json").ElectrobunJsonObject;
     };
 };
 type CarrotContributionsConfig = {
@@ -31,7 +31,7 @@ type CarrotUIDefinition = {
     name?: string;
     entrypoint?: string;
     path?: string;
-    [key: string]: unknown;
+    [key: string]: import("../json").ElectrobunJsonValue;
 };
 export interface ElectrobunConfig {
     /**
@@ -545,7 +545,7 @@ export interface ElectrobunConfig {
          * @default true
          */
         exitOnLastWindowClosed?: boolean;
-        [key: string]: unknown;
+        [key: string]: import("../json").ElectrobunJsonValue;
     };
     /**
      * Build scripts configuration

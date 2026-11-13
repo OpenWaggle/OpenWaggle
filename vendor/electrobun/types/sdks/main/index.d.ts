@@ -50,7 +50,7 @@ export declare const Carrots: {
                     type: string;
                     name?: string;
                     icon?: string;
-                    config?: Record<string, unknown>;
+                    config?: import("../../json").ElectrobunJsonObject;
                 };
             }>;
         };
@@ -67,7 +67,7 @@ export declare const app: {
     quit(): void;
     readonly isPackaged: boolean;
     readonly isCarrotMode: boolean;
-    readonly manifest: Record<string, unknown> | null;
+    readonly manifest: import("../../json").ElectrobunJsonObject | null;
     readonly currentDir: string;
     readonly statePath: string;
     readonly logsPath: string;

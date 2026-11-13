@@ -34,8 +34,10 @@ release targets (docs/release-and-versioning.md), so they are not built.
   2.x ships its SDK as TypeScript source in the devkit (`bunx electrobun prepare` writes
   `.hutch/devkit`, pinned by the root `hutch.config.ts`), so the repository type-checks the shell
   adapters against these declarations (the `electrobun`, `electrobun/main` and `electrobun/view`
-  paths in `tsconfig.node.json`), and the main build bundles the devkit source. Regenerate after a
-  version bump: `bunx electrobun prepare && bun vendor/electrobun/api-types.ts`.
+  paths in `tsconfig.node.json`), and the main build bundles the devkit source. The generator
+  declares the SDK's open `unknown` maps as JSON maps (`types/json.d.ts`), since Electrobun reads
+  and writes them as JSON. Regenerate after a version bump:
+  `bunx electrobun prepare && bun vendor/electrobun/api-types.ts`.
 - `probe/`: a small Electrobun app with a system-webview shell and a CEF browser preview. CI packages
   it against the devkit and drives the preview over CDP.
 - `ci/linux-display.sh`: Xvfb, a window manager and a session bus for launching on CI.

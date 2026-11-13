@@ -12,16 +12,8 @@ import { addedLines } from './added-lines'
 import type { Finding } from './findings'
 
 const TYPESCRIPT_FILE = /\.(?:[cm]?tsx?|astro|vue|svelte)$/u
-/**
- * The check that names the patterns on purpose, and its tests; Electrobun's own type declarations,
- * which vendor/electrobun/api-types.ts copies from the pinned release unchanged; and the native
- * layer probe, which runs inside the Electrobun build and, like every probe file, lint skips.
- */
-const EXEMPT_DIRECTORIES = [
-  'scripts/no-cheating/',
-  'vendor/electrobun/types/',
-  'vendor/electrobun/probe/',
-] as const
+/** The check that names the patterns on purpose, and its tests. */
+const EXEMPT_DIRECTORY = 'scripts/no-cheating/'
 const OPEN_RECORD_TYPE =
   /\bRecord<\s*(?:string|PropertyKey)\s*,\s*(?:unknown|any)\s*>|\[\s*[\w$]+\s*:\s*string\s*\]\s*:\s*(?:unknown|any)\b/gu
 const OPEN_RECORD_SCHEMA =
@@ -49,11 +41,7 @@ export function openRecordFindings(
   before: string | undefined,
   after: string | undefined,
 ) {
-  if (
-    after === undefined ||
-    !TYPESCRIPT_FILE.test(file) ||
-    EXEMPT_DIRECTORIES.some((directory) => file.startsWith(directory))
-  ) {
+  if (after === undefined || !TYPESCRIPT_FILE.test(file) || file.startsWith(EXEMPT_DIRECTORY)) {
     const result: Finding[] = []
     return result
   }

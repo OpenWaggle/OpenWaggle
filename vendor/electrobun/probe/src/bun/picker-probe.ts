@@ -6,7 +6,10 @@
 import type { BrowserPreviewViewsShape } from '../../../../../src/main/ports/desktop-shell/browser-preview-views'
 import type { RendererSurface } from '../../../../../src/main/ports/desktop-shell/renderer-surfaces'
 
-type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
+type Json = null | boolean | number | string | Json[] | JsonObject
+interface JsonObject {
+  [key: string]: Json
+}
 
 const STEP_MS = 30_000
 const OVERLAY = '[data-openwaggle-browser-annotation-ui]'
@@ -20,7 +23,7 @@ export const PICK_PAGE = `<!doctype html><html><head><meta charset="utf-8"><titl
 </body></html>`
 
 interface Cdp {
-  send(method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>>
+  send(method: string, params?: JsonObject): Promise<JsonObject>
   close(): void
 }
 
@@ -42,7 +45,7 @@ async function connect(port: string, url: string): Promise<Cdp> {
         socket.onerror = reject
       })
       let id = 1
-      const pending = new Map<number, (value: Record<string, unknown>) => void>()
+      const pending = new Map<number, (value: JsonObject) => void>()
       socket.onmessage = (event) => {
         const message = JSON.parse(String(event.data))
         if (typeof message.id === 'number') pending.get(message.id)?.(message.result ?? {})
