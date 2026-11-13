@@ -14,6 +14,10 @@ const SAFE_APP_ENVIRONMENT_KEYS = [
   'WINDIR',
   'CI',
   'COLORTERM',
+  // The desktop session bus, as a launch from the user's desktop inherits it. Without it GLib
+  // starts a private bus of its own for the app (dbus-launch --autolaunch), which no user's app
+  // runs on, and a bus monitor or keyring of the session never sees the app.
+  'DBUS_SESSION_BUS_ADDRESS',
   'DISPLAY',
   'HOME',
   'LANG',
