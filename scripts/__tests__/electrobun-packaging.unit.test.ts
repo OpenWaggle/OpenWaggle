@@ -88,8 +88,15 @@ describe('electrobunAppConfig', () => {
       'disable-web-security': false,
     }
     expect(mac.chromiumFlags).toEqual(flags)
-    // Linux's first page load does not wait on the desktop portal's Secret interface.
-    expect(linux.chromiumFlags).toEqual({ ...flags, 'disable-features': 'DbusSecretPortal' })
+    // Linux's first page load does not wait on the desktop portal's Secret interface, and the GPU,
+    // network and audio services run in the browser process.
+    expect(linux.chromiumFlags).toEqual({
+      ...flags,
+      'in-process-gpu': true,
+      'enable-features': 'NetworkServiceInProcess',
+      'disable-features':
+        'DbusSecretPortal,AudioServiceOutOfProcess,SpareRendererForSitePerProcess',
+    })
     expect(mac).toMatchObject({ codesign: false, notarize: false, createDmg: false })
   })
 

@@ -129,8 +129,19 @@ export const CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
 }
 
 /**
- * Linux's CEF command line: CEF_CHROMIUM_FLAGS without Chromium's secret portal key provider
- * (`DbusSecretPortal`). At startup Chromium asks the desktop portal (`org.freedesktop.portal.Secret`
+ * Linux's CEF command line: CEF_CHROMIUM_FLAGS, fewer Chromium processes, and no secret portal key
+ * provider.
+ *
+ * Every CEF process maps libcef.so and its own allocator and IPC state, so each helper costs tens
+ * of MiB of resident memory. With software compositing (Electrobun's Linux defaults turn the GPU
+ * off) the GPU process only rasterizes, and the network service only serves the app's loopback
+ * pages and the previews: both run in the browser process (`in-process-gpu`,
+ * `NetworkServiceInProcess`); the two helpers held about 240 MiB. The audio service runs in the browser process too (`AudioServiceOutOfProcess` off):
+ * the out-of-process one started with the first sound of a turn and stayed, about 90 MiB. No spare
+ * renderer is kept warm for the next site (`SpareRendererForSitePerProcess` off): the app has one
+ * window and a preview opens rarely, so the spare, about 90 MiB, waited for nothing.
+ *
+ * `DbusSecretPortal` off: at startup Chromium asks the desktop portal (`org.freedesktop.portal.Secret`
  * RetrieveSecret) for its cookie encryption key and holds the first page load until the answer
  * comes, so a portal that is activatable but never answers (a session without a working
  * xdg-desktop-portal) kept the window blank for D-Bus's 25 s reply timeout. Chromium then uses its
@@ -140,7 +151,9 @@ export const CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
  */
 export const LINUX_CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
   ...CEF_CHROMIUM_FLAGS,
-  'disable-features': 'DbusSecretPortal',
+  'in-process-gpu': true,
+  'enable-features': 'NetworkServiceInProcess',
+  'disable-features': 'DbusSecretPortal,AudioServiceOutOfProcess,SpareRendererForSitePerProcess',
 }
 
 export function electrobunAppConfig(input: ElectrobunConfigInput) {
