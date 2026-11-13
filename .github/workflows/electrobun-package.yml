@@ -15,7 +15,9 @@
 #   the new version.
 # - with `bench-runs`, the installed app is also measured by the shell bench
 #   (scripts/bench/electron-bench.ts --shell electrobun), the same way bench-electron.yml measures
-#   the Electron app, and its result uploads with the rest.
+#   the Electron app, and its result uploads with the rest. With `electron-ref` too, that Electron
+#   build is packaged and benched in the same job, on the same display and session bus, so the two
+#   shells' numbers differ only by the shell.
 #
 # `targets` narrows the matrix while iterating (one entry of the default list, as JSON).
 name: Electrobun Package
@@ -35,6 +37,10 @@ on:
         description: Runs of the shell bench on the installed app (0 skips it).
         type: string
         default: "0"
+      electron-ref:
+        description: With bench-runs, an Electron-shell commit to package and bench in the same job (empty skips it).
+        type: string
+        default: ""
   workflow_call:
     inputs:
       devkit-run-id:
@@ -46,6 +52,9 @@ on:
       bench-runs:
         type: string
         default: "0"
+      electron-ref:
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -227,6 +236,49 @@ jobs:
           {
             echo "## $TARGET"
             bun scripts/bench/electron-bench.ts summarize "$RESULTS/bench-result.json"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Check out the Electron build to compare
+        if: inputs.bench-runs != '0' && inputs.electron-ref != ''
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.electron-ref }}
+          path: electron-app
+          persist-credentials: false
+
+      # bench-electron.yml's build of the Electron app, measured by the same bench as the app above.
+      - name: Bench the Electron build in the same session
+        if: inputs.bench-runs != '0' && inputs.electron-ref != ''
+        env:
+          BENCH_RUNS: ${{ inputs.bench-runs }}
+          ELECTRON_REF: ${{ inputs.electron-ref }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+          TARGET: ${{ matrix.target }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          set -euo pipefail
+          case "$PLATFORM" in
+            darwin) flags=(--mac "--$ARCH") ;;
+            linux) flags=(--linux); sudo apt-get install -y -q libfuse2t64 ;;
+            win32) flags=(--win) ;;
+          esac
+          (
+            cd electron-app
+            bun install --frozen-lockfile --cpu=arm64 --cpu=x64
+            node node_modules/electron/install.js
+            bun run build
+            bunx electron-builder "${flags[@]}" --publish never
+          ) > "$RESULTS/electron-package.txt" 2>&1
+          bun scripts/bench/electron-bench.ts install --shell electron --dist electron-app/dist \
+            --dir "$RUNNER_TEMP/electron-install" --out "$RESULTS/electron-install.json"
+          bun scripts/bench/electron-bench.ts measure --shell electron --install "$RESULTS/electron-install.json" \
+            --runs "$BENCH_RUNS" --work "$RUNNER_TEMP/electron-bench" --label "electron @ ${ELECTRON_REF::9}" \
+            --out "$RESULTS/electron-result.json" --screenshots "$RESULTS/screenshots/electron" \
+            --logs "$RESULTS/electron-logs"
+          {
+            echo "## $TARGET, both shells"
+            bun scripts/bench/electron-bench.ts summarize "$RESULTS/bench-result.json" "$RESULTS/electron-result.json"
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Package the next version against the current one
