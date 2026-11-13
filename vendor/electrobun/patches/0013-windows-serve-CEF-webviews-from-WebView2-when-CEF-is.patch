@@ -1,0 +1,374 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Fri, 13 Nov 2026 07:57:01 +0100
+Subject: [PATCH] windows: serve CEF webviews from WebView2 when CEF is not
+ bundled
+
+An app that bundles CEF on Windows only for Chromium pages it drives over
+the DevTools protocol ships libcef.dll and its resources, hundreds of
+megabytes installed, and initializes CEF at every launch. Without CEF, a
+renderer: "cef" webview fell back to an ordinary WebView2 webview that no
+DevTools client can reach.
+
+Such webviews now open in a WebView2 environment of their own, the
+Chromium environment. It has its own user data folder
+(<LOCALAPPDATA>\<identifier>\<channel>\WebView2Chromium), so its own
+browser process, and only that process serves DevTools, on the port CEF
+would have used: ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT, then build.json's
+chromiumFlags, then the dev-build scan (chromium_flags.h). The app's
+system-webview windows stay in their environments, never on the port. It
+gets no remote-allow-origins, so web pages cannot open a DevTools socket.
+
+A browser process serves one port, so partitions are profiles of the one
+environment rather than user data folders: persist:<name> is the on-disk
+profile <name>, any other name an InPrivate profile of that name, shared
+by its webviews and gone when the last one closes, and an empty partition
+an InPrivate profile of its own. Names that are not short lowercase ASCII
+become a hash (webview2_chromium_environment.h, with a test). The
+environment starts with the first such webview, not at launch.
+---
+ .../shared/webview2_chromium_environment.h    |  96 +++++++++++++++++
+ .../webview2_chromium_environment_test.cpp    |  50 +++++++++
+ package/src/native/win/nativeWrapper.cpp      | 101 +++++++++++++++---
+ 3 files changed, 235 insertions(+), 12 deletions(-)
+ create mode 100644 package/src/native/shared/webview2_chromium_environment.h
+ create mode 100644 package/src/native/shared/webview2_chromium_environment_test.cpp
+
+diff --git a/package/src/native/shared/webview2_chromium_environment.h b/package/src/native/shared/webview2_chromium_environment.h
+new file mode 100644
+index 0000000..0c29cd2
+--- /dev/null
++++ b/package/src/native/shared/webview2_chromium_environment.h
+@@ -0,0 +1,96 @@
++#ifndef ELECTROBUN_WEBVIEW2_CHROMIUM_ENVIRONMENT_H
++#define ELECTROBUN_WEBVIEW2_CHROMIUM_ENVIRONMENT_H
++
++#include <cstdint>
++#include <string>
++#include <string_view>
++
++#include "sha256.h"
++
++namespace electrobun {
++
++/**
++ * Where a `renderer: "cef"` webview lives on Windows when the app bundles no
++ * CEF: one WebView2 environment of its own, apart from the app's other
++ * webviews. It has its own user data folder, so its own browser process, and
++ * only that process serves Chrome DevTools Protocol on the app's remote
++ * debugging port. The app's system-webview windows never appear on the port.
++ *
++ * Partitions map to WebView2 profiles of that one environment, since a
++ * browser process serves one remote debugging port and every user data
++ * folder is a browser process: `persist:<name>` is the on-disk profile
++ * `<name>`; any other name is an InPrivate profile of that name, whose data
++ * lives in memory, is shared by every webview of the partition, and is gone
++ * once none is left.
++ */
++struct WebView2ChromiumProfile {
++    std::wstring profileName;
++    bool inPrivate;
++};
++
++/** The base arguments of every WebView2 browser process Electrobun starts. */
++inline constexpr std::wstring_view kWebView2BrowserArguments =
++    L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
++
++/** The browser arguments of the Chromium environment; port 0 serves no DevTools. */
++inline std::wstring buildWebView2ChromiumBrowserArguments(int remoteDebuggingPort) {
++    std::wstring arguments(kWebView2BrowserArguments);
++    if (remoteDebuggingPort > 0 && remoteDebuggingPort <= 65535) {
++        arguments += L" --remote-debugging-port=";
++        arguments += std::to_wstring(remoteDebuggingPort);
++    }
++    return arguments;
++}
++
++/**
++ * A WebView2 profile name for a partition name. Profile names are at most 64
++ * characters of a restricted ASCII set and compare case-insensitively, so
++ * only short lowercase names (letters, digits, `-`, `_`, no reserved device
++ * name) are kept as they are; every other name becomes `~h-` and 40 hex digits
++ * of the SHA-256 of its UTF-16BE code units (`~` never appears in a kept name).
++ */
++inline std::wstring buildWebView2ProfileName(std::wstring_view name) {
++    bool plain = !name.empty() && name.size() <= 64;
++    for (const wchar_t ch : name) {
++        if (!((ch >= L'a' && ch <= L'z') || (ch >= L'0' && ch <= L'9') ||
++              ch == L'-' || ch == L'_')) {
++            plain = false;
++        }
++    }
++    // Profiles are directories: never a reserved device name.
++    const bool reserved = name == L"con" || name == L"prn" || name == L"aux" ||
++        name == L"nul" ||
++        (name.size() == 4 && (name.substr(0, 3) == L"com" || name.substr(0, 3) == L"lpt") &&
++         name[3] >= L'1' && name[3] <= L'9');
++    if (plain && !reserved) return std::wstring(name);
++    std::string identity;
++    for (const wchar_t ch : name) {
++        const uint32_t value = static_cast<uint32_t>(ch);
++        identity += static_cast<char>((value >> 8) & 0xff);
++        identity += static_cast<char>(value & 0xff);
++    }
++    const std::string digest = sha256Hex(identity).substr(0, 40);
++    return L"~h-" + std::wstring(digest.begin(), digest.end());
++}
++
++/**
++ * The profile of a partition. An empty partition gets an InPrivate profile of
++ * its own, as a CEF webview without a partition gets its own context.
++ */
++inline WebView2ChromiumProfile buildWebView2ChromiumProfile(
++    std::wstring_view partition,
++    uint32_t webviewId
++) {
++    constexpr std::wstring_view persistentPrefix = L"persist:";
++    if (partition.empty()) {
++        return {L"~w-" + std::to_wstring(webviewId), true};
++    }
++    if (partition.rfind(persistentPrefix, 0) == 0) {
++        return {buildWebView2ProfileName(partition.substr(persistentPrefix.size())), false};
++    }
++    return {buildWebView2ProfileName(partition), true};
++}
++
++} // namespace electrobun
++
++#endif
+diff --git a/package/src/native/shared/webview2_chromium_environment_test.cpp b/package/src/native/shared/webview2_chromium_environment_test.cpp
+new file mode 100644
+index 0000000..3fc085a
+--- /dev/null
++++ b/package/src/native/shared/webview2_chromium_environment_test.cpp
+@@ -0,0 +1,50 @@
++#include <cassert>
++#include <iostream>
++#include <string>
++
++#include "webview2_chromium_environment.h"
++
++int main() {
++    using electrobun::buildWebView2ChromiumBrowserArguments;
++    using electrobun::buildWebView2ChromiumProfile;
++    using electrobun::buildWebView2ProfileName;
++
++    // No same-origin bypass, and a DevTools port only when one is chosen.
++    assert(buildWebView2ChromiumBrowserArguments(0) ==
++        L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
++    assert(buildWebView2ChromiumBrowserArguments(70000) ==
++        buildWebView2ChromiumBrowserArguments(0));
++    assert(buildWebView2ChromiumBrowserArguments(49152) ==
++        L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=49152");
++    assert(buildWebView2ChromiumBrowserArguments(49152).find(L"web-security") == std::wstring::npos);
++
++    // persist:* is an on-disk profile; other names are InPrivate profiles.
++    const auto persistent = buildWebView2ChromiumProfile(L"persist:openwaggle-browser-preview", 3);
++    assert(persistent.profileName == L"openwaggle-browser-preview" && !persistent.inPrivate);
++    const auto named = buildWebView2ChromiumProfile(L"openwaggle-browser-preview-incognito", 3);
++    assert(named.profileName == L"openwaggle-browser-preview-incognito" && named.inPrivate);
++    assert(buildWebView2ChromiumProfile(L"openwaggle-browser-preview-incognito", 9).profileName ==
++        named.profileName);
++    const auto unnamed = buildWebView2ChromiumProfile(L"", 7);
++    assert(unnamed.profileName == L"~w-7" && unnamed.inPrivate);
++    assert(buildWebView2ChromiumProfile(L"", 8).profileName != unnamed.profileName);
++
++    // Profile names: at most 64 characters, case-insensitive, directories.
++    const std::wstring longest(64, L'a');
++    assert(buildWebView2ProfileName(longest) == longest);
++    const std::wstring tooLong(65, L'a');
++    const auto hashed = buildWebView2ProfileName(tooLong);
++    assert(hashed.rfind(L"~h-", 0) == 0 && hashed.size() == 43);
++    assert(buildWebView2ProfileName(L"Work") != buildWebView2ProfileName(L"work"));
++    assert(buildWebView2ProfileName(L"Work") != buildWebView2ProfileName(L"WORK"));
++    assert(buildWebView2ProfileName(L"nul").rfind(L"~h-", 0) == 0);
++    assert(buildWebView2ProfileName(L"com1").rfind(L"~h-", 0) == 0);
++    assert(buildWebView2ProfileName(L"..").rfind(L"~h-", 0) == 0);
++    assert(buildWebView2ProfileName(L"a/b").rfind(L"~h-", 0) == 0);
++    assert(buildWebView2ProfileName(L"").rfind(L"~h-", 0) == 0);
++    // SHA-256 of the UTF-16BE code units of "A".
++    assert(buildWebView2ProfileName(L"A") == L"~h-c00b4d3c929cb5cc316691ed4636f634576f2c9b");
++
++    std::cout << "webview2_chromium_environment_test: ok" << std::endl;
++    return 0;
++}
+diff --git a/package/src/native/win/nativeWrapper.cpp b/package/src/native/win/nativeWrapper.cpp
+index 00051d1..e6088c9 100644
+--- a/package/src/native/win/nativeWrapper.cpp
++++ b/package/src/native/win/nativeWrapper.cpp
+@@ -82,6 +82,7 @@
+ #include "../shared/chromium_flags.h"
+ #include "../shared/webview2_permissions.h"
+ #include "../shared/webview2_window.h"
++#include "../shared/webview2_chromium_environment.h"
+ #include "../shared/cache_migration.h"
+ #include "../shared/views_url.h"
+ #include "../shared/console_forwarding.h"
+@@ -7414,6 +7415,36 @@ extern "C" ELECTROBUN_EXPORT bool webview2TestGetState(uint32_t webviewId, char*
+     });
+ }
+ 
++// The remote debugging port of WebView2's Chromium environment, decided once
++// the way CEF decides its own (chromium_flags.h): the environment variable,
++// then build.json's chromiumFlags, then the dev-build scan. 0 serves none.
++static int webView2ChromiumRemoteDebuggingPort() {
++    static const int port = []() {
++        const std::wstring executablePath = electrobun::getModuleFileNameWide();
++        const size_t lastSlash = executablePath.find_last_of(L"\\/");
++        std::string buildJsonContent;
++        if (!executablePath.empty() && lastSlash != std::wstring::npos) {
++            buildJsonContent = electrobun::readFileToString(
++                std::filesystem::path(executablePath.substr(0, lastSlash)) / L".." /
++                L"Resources" / L"build.json");
++        }
++        const electrobun::ChromiumFlagConfig flags = buildJsonContent.empty()
++            ? electrobun::ChromiumFlagConfig{}
++            : electrobun::parseChromiumFlags(buildJsonContent);
++        const auto decision = electrobun::resolveRemoteDebugging(
++            buildJsonContent, flags, getenv(electrobun::kRemoteDebuggingPortEnvironment));
++        const int selected = electrobun::selectRemoteDebuggingPort(decision, IsPortAvailable);
++        if (selected != 0) {
++            std::cout << "[WebView2] Chromium environment remote debugging on 127.0.0.1:"
++                      << selected << " ("
++                      << electrobun::remoteDebuggingSourceName(decision.source) << ")"
++                      << std::endl;
++        }
++        return selected;
++    }();
++    return port;
++}
++
+ // Internal factory method for creating WebView2 instances
+ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+                                                  HWND hwnd,
+@@ -7432,7 +7463,8 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+                                                  bool startTransparent,
+                                                  bool startPassthrough,
+                                                  bool transparent,
+-                                                 bool sandbox) {
++                                                 bool sandbox,
++                                                 bool chromiumEnvironment) {
+     // Check if WebView2 runtime is available
+     LPWSTR versionInfo = nullptr;
+     HRESULT result = GetAvailableCoreWebView2BrowserVersionString(nullptr, &versionInfo);
+@@ -7475,7 +7507,7 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+     retainAbstractView(view);
+ 
+     // Create WebView2 on main thread
+-    MainThreadDispatcher::dispatch_sync([view, urlString, x, y, width, height, hwnd, partitionStr, transparent]() {
++    MainThreadDispatcher::dispatch_sync([view, urlString, x, y, width, height, hwnd, partitionStr, transparent, chromiumEnvironment]() {
+         if (g_webview2TestHoldNextController) {
+             g_webview2TestHoldNextController = false;
+             g_webview2TestHeldControllers.emplace(view->webviewId, nullptr);
+@@ -7529,7 +7561,7 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+         HWND parentHwnd = hwnd;
+         
+         auto environmentCompletedHandler = Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
+-            [view, container, x, y, width, height, transparent](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
++            [view, container, x, y, width, height, transparent, chromiumEnvironment, partitionStr](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+                 if (!isCurrentWebView2Container(view.get(), container)) {
+                     g_webview2TestHeldControllers.erase(view->webviewId);
+                     return S_OK;
+@@ -8241,18 +8273,43 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+                             return S_OK;
+                         });
+ 
++                // A webview of the Chromium environment opens in its
++                // partition's profile (webview2_chromium_environment.h).
++                ComPtr<ICoreWebView2Environment> environment(env);
++                std::wstring widePartition;
++                electrobun::utf8ToWide(partitionStr, widePartition);
++                const electrobun::WebView2ChromiumProfile profile =
++                    electrobun::buildWebView2ChromiumProfile(widePartition, view->webviewId);
++                auto createController = [environment, targetHwnd, controllerCompletedHandler,
++                                         chromiumEnvironment, profile]() -> HRESULT {
++                    if (!chromiumEnvironment) {
++                        return environment->CreateCoreWebView2Controller(
++                            targetHwnd, controllerCompletedHandler.Get());
++                    }
++                    ComPtr<ICoreWebView2Environment10> environment10;
++                    ComPtr<ICoreWebView2ControllerOptions> controllerOptions;
++                    if (FAILED(environment.As(&environment10)) ||
++                        FAILED(environment10->CreateCoreWebView2ControllerOptions(&controllerOptions)) ||
++                        FAILED(controllerOptions->put_ProfileName(profile.profileName.c_str())) ||
++                        FAILED(controllerOptions->put_IsInPrivateModeEnabled(profile.inPrivate ? TRUE : FALSE))) {
++                        ::log("ERROR: This WebView2 runtime cannot open a webview in a profile");
++                        return E_NOINTERFACE;
++                    }
++                    return environment10->CreateCoreWebView2ControllerWithOptions(
++                        targetHwnd, controllerOptions.Get(), controllerCompletedHandler.Get());
++                };
+                 const auto held = g_webview2TestHeldControllers.find(view->webviewId);
+                 if (held != g_webview2TestHeldControllers.end()) {
+-                    ComPtr<ICoreWebView2Environment> environment(env);
+-                    held->second = [view, container, targetHwnd, environment, controllerCompletedHandler]() {
++                    held->second = [view, container, createController]() {
+                         if (!isCurrentWebView2Container(view.get(), container)) return;
+-                        const HRESULT hr = environment->CreateCoreWebView2Controller(
+-                            targetHwnd, controllerCompletedHandler.Get());
++                        const HRESULT hr = createController();
+                         if (FAILED(hr)) view->setCreationFailed(true);
+                     };
+                     return S_OK;
+                 }
+-                return env->CreateCoreWebView2Controller(targetHwnd, controllerCompletedHandler.Get());
++                const HRESULT controllerResult = createController();
++                if (FAILED(controllerResult)) view->setCreationFailed(true);
++                return controllerResult;
+             });
+         
+         
+@@ -8263,8 +8320,12 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+             // The same-origin policy stays on: --disable-web-security would let
+             // every page read any origin, including the app's own loopback
+             // servers, and --allow-insecure-localhost would accept any
+-            // certificate for localhost.
+-            options->put_AdditionalBrowserArguments(L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
++            // certificate for localhost. Only the Chromium environment serves
++            // DevTools, on the app's remote debugging port.
++            const std::wstring browserArguments = chromiumEnvironment
++                ? electrobun::buildWebView2ChromiumBrowserArguments(webView2ChromiumRemoteDebuggingPort())
++                : std::wstring(electrobun::kWebView2BrowserArguments);
++            options->put_AdditionalBrowserArguments(browserArguments.c_str());
+ 
+             // Get the interface that supports custom scheme registration
+             Microsoft::WRL::ComPtr<ICoreWebView2EnvironmentOptions4> options4;
+@@ -8311,7 +8372,17 @@ static std::shared_ptr<WebView2View> createWebView2View(uint32_t webviewId,
+                 std::wstring identifier;
+                 std::wstring channel;
+                 std::wstring partition;
+-                if (electrobun::utf8ToWide(g_electrobunIdentifier, identifier) &&
++                if (chromiumEnvironment &&
++                    electrobun::utf8ToWide(g_electrobunIdentifier, identifier) &&
++                    electrobun::utf8ToWide(g_electrobunChannel, channel)) {
++                    // One folder, so one browser process, for every partition
++                    // of the Chromium environment; partitions are its profiles.
++                    userDataFolder = electrobun::buildAppDataPath(
++                        localAppData, identifier, channel, L"WebView2Chromium", L'\\');
++                    SHCreateDirectoryExW(
++                        nullptr, userDataFolder.c_str(), nullptr);
++                } else if (!chromiumEnvironment &&
++                    electrobun::utf8ToWide(g_electrobunIdentifier, identifier) &&
+                     electrobun::utf8ToWide(g_electrobunChannel, channel) &&
+                     electrobun::utf8ToWide(partitionStr, partition)) {
+                     userDataFolder = electrobun::buildWebView2UserDataPath(
+@@ -9121,12 +9192,18 @@ ELECTROBUN_EXPORT AbstractView* initWebview(uint32_t webviewId,
+         retainAbstractView(cefView);
+         view = cefView.get();
+     } else {
++        // Without a bundled CEF, a CEF webview is still a Chromium page on
++        // a DevTools port: WebView2's Chromium environment serves it. The
++        // port is read with the first webview, before the app can change
++        // the environment it was launched with.
++        const bool chromiumEnvironment = renderer && strcmp(renderer, "cef") == 0;
++        webView2ChromiumRemoteDebuggingPort();
+         auto webview2View = createWebView2View(webviewId, hwnd, url, x, y, width, height, autoResize,
+                                               partitionIdentifier, navigationCallback, webviewEventHandler,
+                                               eventBridgeHandler, bunBridgeHandler, internalBridgeHandler,
+                                               electrobunPreloadScript, customPreloadScript,
+                                               startTransparent, startPassthrough,
+-                                              transparent, sandbox);
++                                              transparent, sandbox, chromiumEnvironment);
+         view = webview2View.get();
+     }
+ 

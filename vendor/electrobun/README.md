@@ -9,7 +9,7 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 | --- | --- | --- | --- |
 | macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0006 to 0011, Zig tools and Dawn rebuilt for 13.4 |
 | Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007 and 0009 to 0011, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007 and 0009 to 0012, plus the WebView2 Evergreen bootstrapper |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007 and 0009 to 0013, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -38,8 +38,9 @@ release targets (docs/release-and-versioning.md), so they are not built.
   declares the SDK's open `unknown` maps as JSON maps (`types/json.d.ts`), since Electrobun reads
   and writes them as JSON. Regenerate after a version bump:
   `bunx electrobun prepare && bun vendor/electrobun/api-types.ts`.
-- `probe/`: a small Electrobun app with a system-webview shell and a CEF browser preview. CI packages
-  it against the devkit and drives the preview over CDP.
+- `probe/`: a small Electrobun app with a system-webview shell and a CEF browser preview (on Windows,
+  no CEF: WebView2's Chromium environment, patch 0013). CI packages it against the devkit and drives
+  the preview over CDP, and checks that the shell and the preview keep the same-origin policy.
 - `ci/linux-display.sh`: Xvfb, a window manager and a session bus for launching on CI.
 
 ## Patches
@@ -96,6 +97,17 @@ release targets (docs/release-and-versioning.md), so they are not built.
    with `--disable-web-security --allow-insecure-localhost`, so any page, the app's own windows
    included, could read every other origin, the app's loopback servers among them. Both switches
    are gone; macOS and Linux system webviews never turned the policy off.
+13. **windows: serve CEF webviews from WebView2 when CEF is not bundled.** A `renderer: "cef"`
+   webview in a build without CEF opens in WebView2's Chromium environment: its own user data
+   folder (`<LOCALAPPDATA>\<identifier>\<channel>\WebView2Chromium`), so its own browser process,
+   the only one with `--remote-debugging-port`, on the port CEF would have used
+   (`ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT`, then `chromiumFlags`, then the dev scan) and with no
+   `remote-allow-origins`. The app's system-webview windows never appear on the port. A browser
+   process serves one port, so partitions are WebView2 profiles of that one environment:
+   `persist:<name>` the on-disk profile `<name>`, any other name an InPrivate profile shared by its
+   webviews, an empty partition an InPrivate profile of its own; names other than short lowercase
+   ASCII are hashed (`shared/webview2_chromium_environment.h`, with a test). The environment starts
+   with the first such webview, never at launch. OpenWaggle's Windows build ships no CEF.
 
 ## Building
 

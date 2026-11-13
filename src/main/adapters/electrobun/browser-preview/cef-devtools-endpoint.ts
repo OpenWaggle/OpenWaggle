@@ -3,7 +3,10 @@ import { liveProcessEnvironment } from '../../../env'
 
 /**
  * CEF's DevTools endpoint (ADR 0064): the Chrome DevTools Protocol of the CEF browser previews,
- * served by CEF on `127.0.0.1:<port>` when the app enables `remote-debugging-port`.
+ * served by CEF on `127.0.0.1:<port>` when the app enables `remote-debugging-port`. Windows bundles
+ * no CEF: there the same `renderer: 'cef'` views open in WebView2's Chromium environment
+ * (vendor/electrobun patch 0013), a browser process of their own that serves this endpoint on the
+ * same port. The main window lives in another WebView2 environment, never on the port.
  *
  * The port is chosen per launch. The app's build sets `chromiumFlags['remote-debugging-port']` to
  * `'launch'`; OpenWaggle's Electrobun launcher (vendor/electrobun patch 0007) then reserves a free

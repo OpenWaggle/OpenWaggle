@@ -11,9 +11,11 @@
  *   install per machine across channel switches, as Electron's shared identity does. OpenWaggle
  *   chooses the release a channel follows itself (src/main/update-feed.ts); see
  *   docs/release-and-versioning.md, "Electrobun updates".
- * - The app renders in the system webview on macOS and Windows and bundles CEF for the browser
- *   preview, which needs the Chrome DevTools Protocol. A Linux process cannot mix CEF and WebKitGTK
- *   views, so Linux renders everything with CEF.
+ * - The app renders in the system webview on macOS and Windows. The browser preview needs Chromium
+ *   pages it drives over the Chrome DevTools Protocol: macOS bundles CEF for them; Windows bundles
+ *   none and gets them from WebView2's separate Chromium environment (vendor/electrobun patch 0013),
+ *   which serves DevTools on a per-launch loopback port and starts with the first preview. A Linux
+ *   process cannot mix CEF and WebKitGTK views, so Linux renders everything with CEF.
  * - The main process is OpenWaggle's own `bun build` output (`out/main`, scripts/build-main.ts).
  *   Hutch bundles only the thin entry (scripts/electrobun/hutch-entry.ts), which imports
  *   `app/out/main/boot.js` by a computed path, so the main graph and its Electrobun SDK are bundled
@@ -172,7 +174,11 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
         icons: `${stage}/icon.iconset`,
       },
       win: {
-        bundleCEF: true,
+        // No CEF (vendor/electrobun patch 0013): the preview's `renderer: 'cef'` views open in
+        // WebView2's Chromium environment, the only one on the DevTools port, which the launcher
+        // picks per launch (patch 0007). The main window's environment never serves DevTools.
+        bundleCEF: false,
+        chromiumFlags: { 'remote-debugging-port': 'launch' },
         defaultRenderer: 'native',
         icon: identity.channel === 'stable' ? 'build/icon.ico' : `${stage}/${WINDOWS_ICON_PNG}`,
       },

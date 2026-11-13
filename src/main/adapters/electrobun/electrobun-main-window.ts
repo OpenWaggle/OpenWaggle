@@ -81,8 +81,9 @@ function logicalUrl(url: string) {
  * Hidden QA screenshots the window over CDP, which only CEF serves: the system webviews of macOS and
  * Windows have no endpoint, and their hidden windows cannot be captured. Under automation alone,
  * `OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef` renders the main window with the bundled CEF, as Linux
- * always does. Users never get it: outside automation the macOS and Windows app window stays in the
- * system webview, off CEF's endpoint.
+ * always does; on Windows, which bundles no CEF, in WebView2's Chromium environment, the one the
+ * Browser preview uses (vendor/electrobun patch 0013). Users never get it: their main window is in
+ * an environment without a DevTools endpoint.
  */
 function qaRenderer() {
   return (

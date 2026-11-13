@@ -1,7 +1,12 @@
 /**
  * The CDP mode of the probe. It opens a system-webview shell window and a CEF browser-preview view in the
  * same window, then drives the preview over the Chrome DevTools Protocol the way OpenWaggle's
- * preview automation does: discover the target, navigate, screenshot, click and type. Results go to
+ * preview automation does: discover the target, navigate, screenshot, click and type. On Windows
+ * the build has no CEF and the preview opens in WebView2's Chromium environment (vendor/electrobun
+ * patch 0013). There the system webview and the preview must keep the same-origin policy (patches
+ * 0012 and 0013): a page reads another loopback origin only when that origin allows it with CORS.
+ * Other platforms record the check without requiring it: Linux CEF turns the policy off by default.
+ * Results go to
  * `$PROBE_OUT_DIR/probe.jsonl` and `$PROBE_OUT_DIR/result.json`, and the app quits with a non-zero
  * code when a check fails, so CI can launch it, wait and assert.
  *
@@ -63,8 +68,19 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const fixture = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
-  fetch(request) {
-    const page = new URL(request.url).pathname === '/b' ? 'b' : 'a'
+  async fetch(request) {
+    const pathname = new URL(request.url).pathname
+    if (pathname === '/same-origin') {
+      return new Response(SAME_ORIGIN_PAGE, {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+    }
+    if (pathname === '/same-origin-result') {
+      const result: Json = JSON.parse(await request.text())
+      shellSameOrigin?.(result)
+      return new Response('ok')
+    }
+    const page = pathname === '/b' ? 'b' : 'a'
     const colour = page === 'a' ? '#2f6fde' : '#1f9d63'
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>probe-${page}</title></head>
 <body style="margin:0;font:16px system-ui,sans-serif;background:${colour};color:white">
@@ -77,6 +93,32 @@ const fixture = Bun.serve({
   },
 })
 const fixtureOrigin = `http://127.0.0.1:${fixture.port}`
+
+/** Another origin: `/plain` sends no CORS headers, `/cors` allows the fixture's origin. */
+const other = Bun.serve({
+  hostname: '127.0.0.1',
+  port: 0,
+  fetch(request) {
+    const cors = new URL(request.url).pathname === '/cors'
+    return new Response('secret', {
+      headers: cors ? { 'access-control-allow-origin': fixtureOrigin } : {},
+    })
+  },
+})
+const otherOrigin = `http://127.0.0.1:${other.port}`
+
+/** Reads `/plain` and `/cors` of the other origin; each is `read` or `blocked`. */
+const SAME_ORIGIN_SCRIPT = `Promise.all(['plain', 'cors'].map((name) =>
+  fetch(${JSON.stringify(otherOrigin)} + '/' + name).then((response) => response.text())
+    .then((text) => (text === 'secret' ? 'read' : 'empty'), () => 'blocked')))
+  .then(([plain, cors]) => ({ plain, cors }))`
+
+/** A page of the fixture's origin that runs the check and posts the result back to it. */
+const SAME_ORIGIN_PAGE = `<!doctype html><title>same-origin</title><script>
+${SAME_ORIGIN_SCRIPT}.then((result) => fetch('/same-origin-result', { method: 'POST', body: JSON.stringify(result) }))
+</script>`
+
+let shellSameOrigin: ((result: Json) => void) | null = null
 
 async function listTargets() {
   const response = await fetch(`http://127.0.0.1:${cdpPort}/json/list`)
@@ -217,6 +259,16 @@ async function driveOverCdp(target: CdpTarget) {
     checks.typedValue = await cdp.evaluate(`document.getElementById('field').value`)
     await click('#button')
     checks.clickedTitle = await cdp.evaluate('document.title')
+    const sameOrigin = await cdp.send('Runtime.evaluate', {
+      expression: SAME_ORIGIN_SCRIPT,
+      awaitPromise: true,
+      returnByValue: true,
+    })
+    const remote = sameOrigin.result
+    checks.previewSameOrigin =
+      remote !== null && typeof remote === 'object' && !Array.isArray(remote)
+        ? (remote.value ?? null)
+        : null
   } finally {
     cdp.close()
   }
@@ -225,8 +277,44 @@ async function driveOverCdp(target: CdpTarget) {
     typeof checks.screenshotBytes === 'number' &&
     checks.screenshotBytes > 0 &&
     checks.typedValue === TYPED_TEXT &&
-    checks.clickedTitle === 'clicked-probe-b'
+    checks.clickedTitle === 'clicked-probe-b' &&
+    keepsSameOriginPolicy(checks.previewSameOrigin)
   )
+}
+
+/** Required on Windows, whose patches keep the policy on; recorded elsewhere. */
+const SAME_ORIGIN_REQUIRED = process.platform === 'win32'
+
+function keepsSameOriginPolicy(result: Json | undefined) {
+  if (!SAME_ORIGIN_REQUIRED) return true
+  return (
+    result !== null &&
+    typeof result === 'object' &&
+    !Array.isArray(result) &&
+    result.plain === 'blocked' &&
+    result.cors === 'read'
+  )
+}
+
+/** Runs the check in a hidden system-webview view of the shell window, the app's own webviews. */
+async function checkShellSameOrigin() {
+  // A Linux process cannot mix CEF and WebKitGTK views.
+  if (process.platform === 'linux') return true
+  const result = new Promise<Json>((resolve) => {
+    shellSameOrigin = resolve
+  })
+  const view = new BrowserView({
+    windowId: win.id,
+    url: `${fixtureOrigin}/same-origin`,
+    frame: { x: 0, y: 0, width: 1, height: 1 },
+    renderer: 'native',
+    autoResize: false,
+  })
+  const timeout = delay(STEP_TIMEOUT_MS).then(() => 'timed out')
+  checks.shellSameOrigin = await Promise.race([result, timeout])
+  view.remove()
+  record('shell-same-origin', { result: checks.shellSameOrigin })
+  return keepsSameOriginPolicy(checks.shellSameOrigin)
 }
 
 async function finish(ok: boolean, extra: Record<string, Json> = {}) {
@@ -244,11 +332,13 @@ async function finish(ok: boolean, extra: Record<string, Json> = {}) {
   if (!outDir) return
   if (holdMs > 0) await delay(holdMs)
   fixture.stop(true)
+  other.stop(true)
   Utils.quit(ok ? 0 : 1)
 }
 
 const build = await BuildConfig.get()
-const cefAvailable = build.availableRenderers.includes('cef')
+// Without CEF, Windows serves `renderer: 'cef'` views from WebView2 (patch 0013).
+const cefAvailable = build.availableRenderers.includes('cef') || process.platform === 'win32'
 record('start', {
   defaultRenderer: build.defaultRenderer,
   availableRenderers: build.availableRenderers,
@@ -268,16 +358,18 @@ win.webview.on('dom-ready', () => {
   record('shell-dom-ready')
   if (previewStarted) return
   previewStarted = true
-  if (!cefAvailable) {
-    void delay(previewDelayMs).then(() =>
-      finish(true, { cdp: 'skipped: this build has no CEF renderer' }),
-    )
-    return
-  }
-  setTimeout(openPreview, previewDelayMs)
+  void checkShellSameOrigin().then((shellOk) => {
+    if (!cefAvailable) {
+      void delay(previewDelayMs).then(() =>
+        finish(shellOk, { cdp: 'skipped: this build has no CEF renderer' }),
+      )
+      return
+    }
+    setTimeout(() => openPreview(shellOk), previewDelayMs)
+  })
 })
 
-function openPreview() {
+function openPreview(shellOk: boolean) {
   const view = new BrowserView({
     windowId: win.id,
     url: `${fixtureOrigin}/a`,
@@ -300,6 +392,6 @@ function openPreview() {
       checks.error = String(error)
       return false
     })
-    await finish(ok)
+    await finish(ok && shellOk)
   })()
 }

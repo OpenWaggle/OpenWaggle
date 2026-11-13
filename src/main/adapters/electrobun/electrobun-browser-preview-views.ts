@@ -103,8 +103,9 @@ export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell) {
 }
 
 /**
- * The Browser preview on Electrobun (ADR 0064): CEF `BrowserView`s in the owner page's window,
- * driven over CEF's DevTools endpoint, and the same previews as the agent's automation sees them.
+ * The Browser preview on Electrobun (ADR 0064): CEF `BrowserView`s in the owner page's window
+ * (on Windows, WebView2 views of its Chromium environment, vendor/electrobun patch 0013), driven
+ * over the DevTools endpoint, and the same previews as the agent's automation sees them.
  * Creating it reaches no native code; the views load the SDK on first use.
  */
 export function createElectrobunBrowserPreview(shell: ElectrobunBrowserPreviewShell) {

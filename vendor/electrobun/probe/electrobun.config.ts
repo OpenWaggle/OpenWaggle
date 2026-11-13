@@ -5,6 +5,8 @@ import type { ElectrobunConfig } from 'electrobun'
 //   loopback port on every launch (vendor/electrobun patch 0007), as OpenWaggle does.
 // - PROBE_LINUX_RENDERER: `cef` (default) bundles CEF and renders the whole Linux app with it,
 //   because a Linux process cannot mix CEF and WebKitGTK views; `native` ships WebKitGTK only.
+// Windows bundles no CEF, as OpenWaggle: the preview opens in WebView2's Chromium environment
+// (vendor/electrobun patch 0013).
 const cdpPort = process.env.PROBE_CDP_PORT ?? 'launch'
 const linuxRenderer = process.env.PROBE_LINUX_RENDERER === 'native' ? 'native' : 'cef'
 const chromiumFlags = { 'remote-debugging-port': cdpPort }
@@ -20,7 +22,7 @@ export default {
     bun: { entrypoint: 'src/bun/index.ts' },
     copy: { 'src/mainview/index.html': 'views/mainview/index.html' },
     mac: { bundleCEF: true, defaultRenderer: 'native', chromiumFlags },
-    win: { bundleCEF: true, defaultRenderer: 'native', chromiumFlags },
+    win: { bundleCEF: false, defaultRenderer: 'native', chromiumFlags },
     linux: { bundleCEF: linuxRenderer === 'cef', defaultRenderer: linuxRenderer, chromiumFlags },
   },
   scripts: {

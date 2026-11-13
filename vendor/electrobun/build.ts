@@ -13,8 +13,8 @@
  * - Linux: run on Ubuntu 22.04 (glibc 2.35, GCC 12's libstdc++); `--linux-container` does that in
  *   Docker from any Linux host. Zig binaries target x86_64-linux-gnu.2.35 explicitly. The devkit's
  *   ELF files are stripped (`stripLinuxDevkit`); the release tarballs keep upstream's symbols.
- * - Windows: the upstream build unchanged, plus the WebView2 Evergreen bootstrapper, whose
- *   Microsoft signature is checked.
+ * - Windows: the upstream build settings, plus the WebView2 Evergreen bootstrapper, whose
+ *   Microsoft signature is checked; patch 0013's native test runs first.
  *
  * Needs git, curl, tar, xz, Node (npm), and Hutch HUTCH_VERSION on PATH (Bun instead on Linux);
  * Xcode on macOS, MSVC on Windows. Re-runs reuse the checkout, toolchains and dependency builds under --work.
@@ -511,6 +511,25 @@ function requireLinuxFloorHost() {
   }
 }
 
+/**
+ * Compiles and runs patch 0013's test of the WebView2 Chromium environment's profile names and
+ * browser arguments with MSVC, so a regression fails the build before anything is packaged.
+ */
+function testWebView2ChromiumEnvironment(packageDirectory: string, work: string) {
+  const directory = path.join(work, 'native-tests')
+  fs.mkdirSync(directory, { recursive: true })
+  const source = path.join(
+    packageDirectory,
+    'src',
+    'native',
+    'shared',
+    'webview2_chromium_environment_test.cpp',
+  )
+  const executable = path.join(directory, 'webview2-chromium-environment-test.exe')
+  run('cl', ['/nologo', '/EHsc', '/std:c++20', `/Fe${executable}`, source], { cwd: directory })
+  run(executable, [])
+}
+
 function fetchWebview2Bootstrapper(outDirectory: string) {
   const directory = path.join(outDirectory, 'webview2')
   fs.mkdirSync(directory, { recursive: true })
@@ -646,6 +665,7 @@ function main() {
   checkout(ELECTROBUN_SOURCE, checkoutDirectory)
   const patches = applyPatches(checkoutDirectory)
   const packageDirectory = path.join(checkoutDirectory, 'package')
+  if (platform === 'win32') testWebView2ChromiumEnvironment(packageDirectory, work)
   if (platform !== 'win32') {
     const zig = vendorZig(packageDirectory, platform, arch, work)
     buildOwnedDependencies(packageDirectory, zig, platform, arch, work)

@@ -67,14 +67,16 @@ describe('electrobunAppConfig', () => {
     expect(PACKAGED_APP_LAYOUT.main).toBe('out/main')
   })
 
-  it('uses the system webview with CEF bundled, and CEF for the whole app on Linux', () => {
+  it('uses the system webview, CEF on macOS and Linux, and no CEF on Windows', () => {
     const { mac, win, linux } = configFor('stable').build
     expect([mac.defaultRenderer, win.defaultRenderer, linux.defaultRenderer]).toEqual([
       'native',
       'native',
       'cef',
     ])
-    expect([mac.bundleCEF, win.bundleCEF, linux.bundleCEF]).toEqual([true, true, true])
+    expect([mac.bundleCEF, win.bundleCEF, linux.bundleCEF]).toEqual([true, false, true])
+    // WebView2's Chromium environment serves the preview on a port chosen per launch.
+    expect(win.chromiumFlags).toEqual({ 'remote-debugging-port': 'launch' })
   })
 
   it('gives CEF a per-launch DevTools port and drops the defaults that weaken it', () => {
