@@ -11,7 +11,8 @@
  * - macOS: every binary targets macOS 13.4; the launcher and self-extractor target 12.0, the launch
  *   version, so an older Mac opens the app and is told it needs 13.4.
  * - Linux: run on Ubuntu 22.04 (glibc 2.35, GCC 12's libstdc++); `--linux-container` does that in
- *   Docker from any Linux host. Zig binaries target x86_64-linux-gnu.2.35 explicitly.
+ *   Docker from any Linux host. Zig binaries target x86_64-linux-gnu.2.35 explicitly. The devkit's
+ *   ELF files are stripped (`stripLinuxDevkit`); the release tarballs keep upstream's symbols.
  * - Windows: the upstream build unchanged, plus the WebView2 Evergreen bootstrapper, whose
  *   Microsoft signature is checked.
  *
@@ -527,6 +528,38 @@ function fetchWebview2Bootstrapper(outDirectory: string) {
   }
 }
 
+const ELF_MAGIC = Buffer.from([0x7f, 0x45, 0x4c, 0x46])
+
+function isElfFile(file: string) {
+  const header = Buffer.alloc(ELF_MAGIC.length)
+  const descriptor = fs.openSync(file, 'r')
+  try {
+    return (
+      fs.readSync(descriptor, header, 0, header.length, 0) === header.length &&
+      header.equals(ELF_MAGIC)
+    )
+  } finally {
+    fs.closeSync(descriptor)
+  }
+}
+
+/**
+ * Linux: strips the devkit's ELF files as distributions strip what they ship. Zig's ReleaseFast and
+ * the CEF distribution keep their debug and static symbol tables: the self-extractor, which every
+ * install keeps as its uninstaller, is 13 MB with them and 1.8 MB without, libcef.so 472 MB and
+ * about 280 MB. `--strip-unneeded` keeps the dynamic symbols the binaries link against.
+ */
+function stripLinuxDevkit(devkit: string) {
+  const stripped: string[] = []
+  for (const entry of fs.readdirSync(devkit, { recursive: true, withFileTypes: true })) {
+    const file = path.join(entry.parentPath, entry.name)
+    if (!entry.isFile() || !isElfFile(file)) continue
+    run('strip', ['--strip-unneeded', file])
+    stripped.push(path.relative(devkit, file))
+  }
+  return stripped.toSorted()
+}
+
 function copyOutputs(
   packageDirectory: string,
   outDirectory: string,
@@ -539,6 +572,7 @@ function copyOutputs(
     recursive: true,
     verbatimSymlinks: true,
   })
+  if (platform === 'linux') console.log(`Stripped ${stripLinuxDevkit(devkit).join(', ')}`)
   const suffix = `${platform === 'win32' ? 'win' : platform}-${arch}`
   const tarballs = [`electrobun-core-${suffix}.tar.gz`, `electrobun-cef-${suffix}.tar.gz`].filter(
     (name) => fs.existsSync(path.join(packageDirectory, name)),
