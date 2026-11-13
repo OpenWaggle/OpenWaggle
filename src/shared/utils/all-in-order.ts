@@ -29,3 +29,37 @@ export function settledValue<T>(outcome: PromiseSettledResult<T>) {
   if (outcome.status === 'rejected') throw outcome.reason
   return outcome.value
 }
+
+/**
+ * `task` over each value with at most `limit` tasks running at once, the results in argument
+ * order. As with `allInOrder`, a failure is the first one in argument order: tasks start in order
+ * and none starts after a failure, so every earlier task has started and is waited for.
+ */
+export async function mapInOrder<T, R>(
+  values: readonly T[],
+  limit: number,
+  task: (value: T) => Promise<R>,
+) {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error('At least one task must run.')
+  const outcomes: PromiseSettledResult<R>[] = []
+  const pending = values.entries()
+  let failed = false
+  const runner = async () => {
+    for (const [index, value] of pending) {
+      try {
+        outcomes[index] = { status: 'fulfilled', value: await task(value) }
+      } catch (reason) {
+        outcomes[index] = { status: 'rejected', reason }
+        failed = true
+      }
+      if (failed) return
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, runner))
+  const results: R[] = []
+  for (const outcome of outcomes) {
+    // A value after a failure never started, so it has no outcome; the failure throws first.
+    if (outcome !== undefined) results.push(settledValue(outcome))
+  }
+  return results
+}

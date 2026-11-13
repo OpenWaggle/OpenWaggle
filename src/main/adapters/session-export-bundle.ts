@@ -12,13 +12,15 @@ import {
   type SessionExportBundleManifest,
   type SessionExportManifest,
 } from '@shared/types/session-export'
-import { allInOrder } from '@shared/utils/all-in-order'
+import { mapInOrder } from '@shared/utils/all-in-order'
 import JSZip from 'jszip'
 
 const BUNDLE_MANIFEST_PATH = 'manifest.json'
 const BUNDLE_TRANSCRIPT_PATH = 'session.jsonl'
 const LINE_FEED_BYTE = 10
 const READ_BUFFER_BYTES = 1024 * 1024
+/** Sources measured and hashed at once; each holds a 1 MiB read buffer while it runs. */
+const HASH_CONCURRENCY = 4
 
 export interface SessionExportBundleSource {
   readonly path: string
@@ -170,11 +172,11 @@ export async function finalizeSessionExportBundle(input: {
   const transcript = input.sources.find((source) => source.path === BUNDLE_TRANSCRIPT_PATH)
   if (!transcript) throw new Error('Bundle transcript is missing.')
   await validateTranscript(transcript, input.signal)
-  // Each source is measured and hashed with positional reads, so all of them can be at once. The
-  // first failure in path order is the one reported, as when they were hashed in turn.
+  // Each source is measured and hashed with positional reads, so a few can run at once. The first
+  // failure in path order is the one reported, as when they were hashed in turn.
   const sorted = [...input.sources].sort((left, right) => left.path.localeCompare(right.path))
-  const entries: SessionExportBundleEntry[] = await allInOrder(
-    sorted.map((source) => bundleEntry(source, input.signal)),
+  const entries: SessionExportBundleEntry[] = await mapInOrder(sorted, HASH_CONCURRENCY, (source) =>
+    bundleEntry(source, input.signal),
   )
   const manifest = {
     schemaVersion: SESSION_EXPORT_BUNDLE_SCHEMA_VERSION,
