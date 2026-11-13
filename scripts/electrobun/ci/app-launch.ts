@@ -126,7 +126,11 @@ export async function startApp(context: LaunchContext) {
   try {
     const started =
       cdpPort === LAUNCHER_CHOSEN_CDP_PORT
-        ? { ...launched, cdpPort: await launcherChosenCdpPort(context) }
+        ? await launcherChosenCdpPort(context).then((port) => ({
+            ...launched,
+            cdpPort: port,
+            previewCdpPort: port,
+          }))
         : launched
     const app = await connectElectrobunApp(started, context.timeoutMs)
     const rendererAt = Date.now()

@@ -10,7 +10,11 @@
  * - renders the hidden main window with the bundled CEF (OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef,
  *   src/main/adapters/electrobun/electrobun-main-window.ts) and opens CEF's DevTools endpoint on the
  *   port it is given (ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT, vendor/electrobun patch 0006). A system
- *   webview has no CDP endpoint.
+ *   webview has no CDP endpoint. Windows' system webview, WebView2, is Chromium: there the main
+ *   window stays in the WebView2 environment a user's runs in, which opens its own DevTools on the
+ *   port (ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT, patch 0021), and the Browser previews'
+ *   environment serves a second port, `previewCdpPort`. Moving the window into the previews'
+ *   environment would add the GPU and network processes that environment keeps (patch 0013).
  *
  * The launcher forwards its arguments to the main process; inputs that must reach the app before
  * its first line runs still travel as `OPENWAGGLE_*` variables.
@@ -67,7 +71,21 @@ export const LAUNCHER_CHOSEN_CDP_PORT = 0
  * `port`. With `LAUNCHER_CHOSEN_CDP_PORT` the launcher reserves the port itself
  * (vendor/electrobun patch 0007), as for a user, and the caller finds it on the app's processes.
  */
-export function cefDevToolsEnvironment(port: number) {
+export function cefDevToolsEnvironment(
+  port: number,
+  previewPort?: number,
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform === 'win32') {
+    // Without a preview port the launcher chooses the previews' one (patch 0007).
+    return {
+      OPENWAGGLE_AUTOMATION: '1',
+      ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT: String(port),
+      ...(previewPort === undefined
+        ? {}
+        : { ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: String(previewPort) }),
+    }
+  }
   const renderer = { OPENWAGGLE_AUTOMATION: '1', OPENWAGGLE_QA_MAIN_WINDOW_RENDERER: 'cef' }
   if (port === LAUNCHER_CHOSEN_CDP_PORT) return renderer
   return { ...renderer, ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: String(port) }
@@ -80,7 +98,10 @@ export function cefDevToolsEnvironment(port: number) {
 export function buildElectrobunAppEnvironment(
   input: ScratchProfileInput & {
     readonly cdpPort: number
+    /** Windows: the Browser previews' DevTools port, apart from the window's (`cdpPort`). */
+    readonly previewCdpPort?: number
     readonly environment?: Readonly<Record<string, string>>
+    readonly platform?: NodeJS.Platform
   },
 ) {
   const home = electrobunAppHome(input)
@@ -90,7 +111,7 @@ export function buildElectrobunAppEnvironment(
     PI_CODING_AGENT_DIR: home.piAgentDir,
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: input.userDataDir,
-    ...cefDevToolsEnvironment(input.cdpPort),
+    ...cefDevToolsEnvironment(input.cdpPort, input.previewCdpPort, input.platform),
   }
   return { ...buildSafeAppEnvironment(appControls), ...input.environment, ...appControls }
 }
@@ -143,7 +164,10 @@ type AppProcess = PipedChildProcess
 export interface LaunchedElectrobunApp {
   readonly child: AppProcess
   readonly spawnedAt: number
+  /** The main window's DevTools port. */
   readonly cdpPort: number
+  /** The Browser previews' DevTools port: `cdpPort` except on Windows. */
+  readonly previewCdpPort: number
   readonly logLines: string[]
 }
 
@@ -166,13 +190,14 @@ export interface ElectrobunLaunchInput extends ScratchProfileInput {
 export async function startElectrobunApp(input: ElectrobunLaunchInput) {
   // Tools the app starts expect the home and Pi agent directories to exist.
   await fs.mkdir(electrobunAppHome(input).piAgentDir, { recursive: true })
+  const previewCdpPort = process.platform === 'win32' ? await freePort() : input.cdpPort
   const spawnedAt = Date.now()
   const child = spawn(
     input.launcher,
     [...credentialStoreArguments(), ...(input.appArguments ?? [])],
     {
       ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
-      env: buildElectrobunAppEnvironment(input),
+      env: buildElectrobunAppEnvironment({ ...input, previewCdpPort }),
       detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
@@ -185,7 +210,13 @@ export async function startElectrobunApp(input: ElectrobunLaunchInput) {
   }
   forwardLines(child.stdout, onLine)
   forwardLines(child.stderr, onLine)
-  return { child, spawnedAt, cdpPort: input.cdpPort, logLines } satisfies LaunchedElectrobunApp
+  return {
+    child,
+    spawnedAt,
+    cdpPort: input.cdpPort,
+    previewCdpPort,
+    logLines,
+  } satisfies LaunchedElectrobunApp
 }
 
 function hasExited(child: AppProcess) {

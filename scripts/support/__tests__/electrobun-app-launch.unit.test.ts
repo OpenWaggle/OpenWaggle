@@ -46,12 +46,29 @@ describe('Electrobun automation launch isolation', () => {
         userDataDir: '/tmp/shots',
         cdpPort: CDP_PORT,
         environment: { OPENWAGGLE_AUTOMATION: '0', ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: '1' },
+        platform: 'linux',
       }),
     ).toMatchObject({
       OPENWAGGLE_AUTOMATION: '1',
       OPENWAGGLE_QA_MAIN_WINDOW_RENDERER: 'cef',
       ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: String(CDP_PORT),
     })
+  })
+
+  it('keeps the Windows window in its own WebView2 environment, on a port apart from the previews', () => {
+    const environment = buildElectrobunAppEnvironment({
+      userDataDir: '/tmp/shots',
+      cdpPort: CDP_PORT,
+      previewCdpPort: CDP_PORT + 1,
+      platform: 'win32',
+    })
+
+    expect(environment).toMatchObject({
+      OPENWAGGLE_AUTOMATION: '1',
+      ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT: String(CDP_PORT),
+      ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: String(CDP_PORT + 1),
+    })
+    expect(environment).not.toHaveProperty('OPENWAGGLE_QA_MAIN_WINDOW_RENDERER')
   })
 
   it('keeps a scratch home or Pi agent directory the caller chose', () => {

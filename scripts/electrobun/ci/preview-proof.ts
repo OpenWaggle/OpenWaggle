@@ -113,7 +113,7 @@ export async function proveBrowserPreview(input: {
       },
     )
     const target = await waitUntil('the preview DevTools target', input.timeoutMs, async () =>
-      (await devToolsTargets(input.app.cdpPort)).find(
+      (await devToolsTargets(input.app.previewCdpPort)).find(
         (candidate) => typeof candidate.url === 'string' && candidate.url.startsWith(fixture.url),
       ),
     )

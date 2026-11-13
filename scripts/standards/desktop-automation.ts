@@ -92,7 +92,7 @@ export function collectUnguardedDesktopUiViolations(file: string, contents: stri
  */
 const AUTOMATION_LAUNCH_OWNER = 'scripts/support/electrobun-app-launch.ts'
 const AUTOMATION_LAUNCH_SETTINGS =
-  /\b(?:ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT|OPENWAGGLE_QA_MAIN_WINDOW_RENDERER)\b/u
+  /\b(?:ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT|ELECTROBUN_WEBVIEW2_MAIN_REMOTE_DEBUGGING_PORT|OPENWAGGLE_QA_MAIN_WINDOW_RENDERER)\b/u
 
 const DEV_SCRIPT = `['"\`](?:run['"\`]\\s*,\\s*['"\`])?dev(?::debug(?::headed)?)?['"\`]`
 /** The package manager that runs a script: `bun` (or `bunExecutable()`), or `pnpm`. */
