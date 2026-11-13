@@ -1,5 +1,7 @@
 import { sessionIdSchema, supportedModelIdSchema } from '@shared/types/brand'
 import { Schema } from '../schema'
+import { backgroundRunUserMessageSchema } from './agent-transport-user-message'
+import { messagePartSchema } from './message'
 import {
   agentTransportAutoRetryEndEventSchema,
   agentTransportAutoRetryStartEventSchema,
@@ -125,3 +127,49 @@ export const activeRunInfoSchema = Schema.Union(
   activeAgentRunInfoSchema,
   activeCompactionInfoSchema,
 )
+
+/**
+ * An assistant message the active Run finished streaming, retained so a reconnect (a renderer
+ * reload) still shows it: a Run's messages reach the persisted transcript only when it ends.
+ */
+export const backgroundRunAssistantMessageSchema = Schema.Struct({
+  messageId: Schema.String,
+  /** When the message started streaming (Host time). */
+  timestamp: Schema.Number,
+  /** Its text, reasoning, tool calls and tool results, as `parts` holds the streaming one's. */
+  parts: Schema.Array(messagePartSchema),
+})
+
+/** What the Host's byte caps left out of an active Run snapshot. */
+export const backgroundRunDegradedSchema = Schema.Struct({
+  reason: Schema.Literal('content-limit'),
+  /**
+   * All the caps omitted over the Run. On the GUI side it also counts streaming parts the client
+   * could not decode, which mark the message cut short like the caps do.
+   */
+  omittedBytes: Schema.Number,
+  toolCallIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  /** Whether the caps cut the message `parts` streams; the omissions may be an earlier one's. */
+  messageCutShort: Schema.Boolean,
+})
+
+/** Full snapshot of an active agent Run, with its accumulated message parts, for reconnecting. */
+export const backgroundRunSnapshotSchema = Schema.Struct({
+  ...activeAgentRunInfoSchema.fields,
+  /** The Run the snapshot belongs to; absent from older Hosts. */
+  runId: Schema.optionalWith(Schema.String, { exact: true }),
+  messageId: Schema.optionalWith(Schema.String, { exact: true }),
+  /** When the message `parts` streams started (Host time); absent from older Hosts. */
+  messageStartedAt: Schema.optionalWith(Schema.Number, { exact: true }),
+  parts: Schema.Array(messagePartSchema),
+  userMessages: Schema.optionalWith(Schema.Array(backgroundRunUserMessageSchema), { exact: true }),
+  /**
+   * The Run's earlier assistant messages, complete, in order, before the one `parts` streams. One
+   * the byte caps cannot hold, or one cut short by them, is left out. Absent from older Hosts.
+   */
+  assistantMessages: Schema.optionalWith(Schema.Array(backgroundRunAssistantMessageSchema), {
+    exact: true,
+  }),
+  degraded: Schema.optionalWith(backgroundRunDegradedSchema, { exact: true }),
+  worktreeLaunch: Schema.optionalWith(worktreeLaunchSnapshotSchema, { exact: true }),
+})
