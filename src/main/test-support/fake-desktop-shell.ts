@@ -224,15 +224,20 @@ export function fakeClipboard() {
  */
 export function fakeSecureStorage(options: { available?: boolean } = {}) {
   const state = { available: options.available ?? true }
+  const encryptString = (plainText: string) =>
+    Buffer.from(`fake:${Buffer.from(plainText, 'utf8').toString('base64')}`, 'utf8')
+  const decryptString = (encrypted: Buffer) => {
+    const sealed = encrypted.toString('utf8')
+    if (!sealed.startsWith('fake:')) throw new Error('Not sealed by this SecureStorage.')
+    return Buffer.from(sealed.slice('fake:'.length), 'base64').toString('utf8')
+  }
   const storage = {
     isEncryptionAvailable: () => state.available,
-    encryptString: (plainText: string) =>
-      Buffer.from(`fake:${Buffer.from(plainText, 'utf8').toString('base64')}`, 'utf8'),
-    decryptString: (encrypted: Buffer) => {
-      const sealed = encrypted.toString('utf8')
-      if (!sealed.startsWith('fake:')) throw new Error('Not sealed by this SecureStorage.')
-      return Buffer.from(sealed.slice('fake:'.length), 'base64').toString('utf8')
-    },
+    encryptString,
+    decryptString,
+    isAsyncEncryptionAvailable: async () => state.available,
+    encryptStringAsync: async (plainText: string) => encryptString(plainText),
+    decryptStringAsync: async (encrypted: Buffer) => ({ result: decryptString(encrypted) }),
     warm: async () => undefined,
   } satisfies SecureStorageShape
   return Object.assign(storage, { state })

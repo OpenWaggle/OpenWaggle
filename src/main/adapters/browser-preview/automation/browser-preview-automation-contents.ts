@@ -1,4 +1,5 @@
 import type { BrowserPreviewControllerState } from '@shared/types/browser-preview'
+import type { CdpCommandParams } from './browser-preview-cdp-input-params'
 
 /**
  * The page the Browser preview automation drives, in the shape every desktop shell gives it (ADR 0064):
@@ -58,7 +59,7 @@ export interface BrowserPreviewAutomationDebugger {
   attach(protocolVersion?: string): void
   detach(): void
   isAttached(): boolean
-  sendCommand(method: string, params?: Readonly<Record<string, unknown>>): Promise<unknown>
+  sendCommand(method: string, params?: CdpCommandParams): Promise<unknown>
   on(event: 'message', listener: BrowserPreviewCdpMessageListener): unknown
   on(event: 'detach', listener: BrowserPreviewCdpDetachListener): unknown
   removeListener(event: 'message', listener: BrowserPreviewCdpMessageListener): unknown

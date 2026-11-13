@@ -5,6 +5,7 @@ import { getDesktopHelperChildEnv } from '../../env'
 import { createElectronSafeStorageReader } from '../../electron-migration/electron-safe-storage'
 import {
   acknowledgeLocalStorageImport,
+  type ElectronMigrationOptions,
   type ElectronMigrationReport,
   runElectronMigration,
   skipMigrationStep,
@@ -116,7 +117,7 @@ function migrationOptions(run: MigrationRun = {}) {
       ...(keychain ? { keychain } : {}),
     }),
   )
-  return {
+  const options: ElectronMigrationOptions = {
     userData,
     sharedMcpDirectory: sharedMcpStateDirectory(),
     codec: {
@@ -128,11 +129,11 @@ function migrationOptions(run: MigrationRun = {}) {
         waitUntilAvailable: true,
         maxWaitMs: MIGRATION_LOCK_WAIT_MS,
       }),
-    log: (message: string, context: Readonly<Record<string, unknown>>) =>
-      logger.info(message, context),
+    log: (message, context) => logger.info(message, { ...context }),
     ...(run.steps ? { steps: run.steps } : {}),
     ...(run.userRequested ? { maxAttempts: Number.POSITIVE_INFINITY } : {}),
   }
+  return options
 }
 
 /** Runs every unfinished step; resolves with the state and any localStorage import to apply. */

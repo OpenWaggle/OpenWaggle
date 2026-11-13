@@ -6,6 +6,9 @@
  * runtime. Every package.json in the packaged app directory, the app's own included, is read.
  */
 
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
+
 /** A packaged app's files by `/`-rooted path, and a way to read one. */
 export interface PackagedAppFiles {
   readonly files: ReadonlySet<string>

@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { nsisDefines } from './electrobun-transition/windows-transition-installer'
+import { scriptEnv } from './support/env'
 
 const execFileAsync = promisify(execFile)
 

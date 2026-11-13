@@ -114,10 +114,30 @@ export function createKeychainSecureStorage(
     }
   }
 
+  /** Reads an existing key without blocking first; only a missing key is read or made in a child. */
+  async function keyOffThread() {
+    const read = options.read
+    if (state.key || !read) return key()
+    try {
+      const stored = await read({ service: SERVICE, name: options.name() })
+      if (stored !== null && !state.key) {
+        state.key = decodeKey(stored)
+        state.failedAt = null
+      }
+    } catch {
+      // The keychain refused the in-process read; the child read below reports why.
+    }
+    return key()
+  }
+
+  function recentlyUnavailable() {
+    return state.failedAt !== null && now() - state.failedAt < UNAVAILABLE_RETRY_MS
+  }
+
   return {
     isEncryptionAvailable: () => {
       if (state.key) return true
-      if (state.failedAt !== null && now() - state.failedAt < UNAVAILABLE_RETRY_MS) return false
+      if (recentlyUnavailable()) return false
       try {
         key()
         return true
@@ -127,6 +147,20 @@ export function createKeychainSecureStorage(
     },
     encryptString: (plainText) => sealWithKey(key(), plainText),
     decryptString: (encrypted) => openWithKey(key(), encrypted),
+    isAsyncEncryptionAvailable: async () => {
+      if (state.key) return true
+      if (recentlyUnavailable()) return false
+      try {
+        await keyOffThread()
+        return true
+      } catch {
+        return false
+      }
+    },
+    encryptStringAsync: async (plainText) => sealWithKey(await keyOffThread(), plainText),
+    decryptStringAsync: async (encrypted) => ({
+      result: openWithKey(await keyOffThread(), encrypted),
+    }),
     // Reads an existing key in-process, so the first secret needs no child; never creates one.
     warm: async () => {
       const read = options.read

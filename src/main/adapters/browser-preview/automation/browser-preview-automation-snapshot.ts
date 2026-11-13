@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer'
-import type { BrowserPreviewAutomationSnapshot } from '@shared/types/browser-preview-automation'
 import type {
   BrowserPreviewAutomationImage,
   BrowserPreviewAutomationPage,
