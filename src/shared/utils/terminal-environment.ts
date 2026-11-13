@@ -43,13 +43,13 @@ function compareEnvironmentNames(
   return 0
 }
 
-/** Canonical key ordering keeps launch-context equality independent of insertion order. */
 /** The variables OpenWaggle sets in a Project Action terminal's environment. */
 export interface ProjectActionContextEnvironment {
   readonly OPENWAGGLE_PROJECT_ROOT: string
   readonly OPENWAGGLE_WORKTREE_PATH?: string
 }
 
+/** Canonical key ordering keeps launch-context equality independent of insertion order. */
 export function normalizeTerminalEnvironment(environment: Readonly<Record<string, string>> = {}) {
   const readonly: Readonly<Record<string, string>> = Object.fromEntries(
     Object.entries(environment).sort(compareEnvironmentNames),
