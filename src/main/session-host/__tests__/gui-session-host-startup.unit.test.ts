@@ -41,6 +41,36 @@ describe('GUI Session Host startup', () => {
         endpoint: '/tmp/openwaggle.sock',
         databasePath: '/tmp/session-host.db',
       }),
+      ensurePrepared: expect.any(Function),
     })
+    await startup.ensurePrepared()
+    expect(prepareLocalSessionHostPathsMock).toHaveBeenCalledOnce()
+  })
+
+  it('leaves the paths of a prelaunched Windows Host to that Host', async () => {
+    const startup = await prepareGuiSessionHostStartup({
+      userDataRoot: '/tmp/openwaggle-test',
+      startupMark: startupMarkMock,
+      hostPrelaunched: true,
+      platform: 'win32',
+    })
+
+    expect(prepareLocalSessionHostPathsMock).not.toHaveBeenCalled()
+    expect(startupMarkMock).toHaveBeenCalledWith('session-host-paths-ready')
+    await startup.ensurePrepared()
+    await startup.ensurePrepared()
+    expect(prepareLocalSessionHostPathsMock).toHaveBeenCalledOnce()
+  })
+
+  it('prepares the paths beside a prelaunched Host on macOS and Linux', async () => {
+    const startup = await prepareGuiSessionHostStartup({
+      userDataRoot: '/tmp/openwaggle-test',
+      startupMark: startupMarkMock,
+      hostPrelaunched: true,
+      platform: 'linux',
+    })
+
+    await startup.ensurePrepared()
+    expect(prepareLocalSessionHostPathsMock).toHaveBeenCalledOnce()
   })
 })

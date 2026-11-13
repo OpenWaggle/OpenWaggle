@@ -6,17 +6,23 @@
  * it. The GUI's Host startup takes the launched process (`session-host-prelaunch-handoff.ts`) and
  * waits for it rather than launching another.
  *
- * Only a start that would launch a Host anyway does it: a desktop-app launch on macOS or Linux
- * whose profile has no Host socket, and no legacy store that the GUI must first move under its
- * single-instance lock. Anything else (a socket left by a running or crashed Host, an update
- * hand-off, Windows named pipes) keeps the GUI's usual path. A Host launched for nothing, such as
- * for a second window that quits, stops itself after its orphan grace period.
+ * Only a start that would launch a Host anyway does it: a desktop-app launch whose profile has no
+ * Host socket (macOS, Linux) or Host pipe (Windows), and no legacy store that the GUI must first
+ * move under its single-instance lock. Anything else (a socket left by a running or crashed Host,
+ * a running Host's pipe, an update hand-off) keeps the GUI's usual path. A Host launched for
+ * nothing, such as for a second window that quits, stops itself after its orphan grace period.
+ *
+ * Windows. The Host names its pipe after a capability it rotates at every start and publishes in
+ * `endpoint.capability` (`local-session-paths.ts`), so a running Host is found by the pipe that
+ * file names, asked of the kernel without connecting to it (`windowsPipeExists`). The Host starts
+ * with `CreateProcessW` (`windows-headless-process.ts`): libuv would let it inherit this process's
+ * handles. The GUI reads each endpoint the Host publishes until it answers.
  *
  * Like the rest of the shim it imports no OpenWaggle runtime: everything here is compiled on every
  * launch before the compile cache exists.
  */
 import type { ChildProcess } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { type DetachedProcessLaunch, spawnDetachedProcess } from '../detached-process'
 import { buildNpmCompatiblePath } from '../environment-paths'
@@ -27,6 +33,9 @@ import {
   legacySessionDatabasePath,
   sessionHostDatabasePath,
   unixSessionHostEndpoint,
+  WINDOWS_ENDPOINT_CAPABILITY_PATTERN,
+  windowsEndpointCapabilityPath,
+  windowsSessionHostPipe,
 } from '../session-host/local-session-host-layout'
 import {
   type SessionHostLaunchSwitches,
@@ -40,12 +49,20 @@ import {
   recordSessionHostPrelaunch,
   type SessionHostPrelaunch,
 } from '../session-host/session-host-prelaunch-handoff'
+import {
+  startWindowsHeadlessProcess,
+  WINDOWS_CHILD_REQUIRED_VARIABLES,
+  type WindowsHeadlessLaunchInput,
+  type WindowsHeadlessProcess,
+  windowsPipeExists,
+  windowsProcessKernel,
+} from '../windows-headless-process'
 
 export type SessionHostPrelaunchSkipReason =
   | 'not-desktop-app'
-  | 'windows-named-pipe'
   | 'relative-profile'
   | 'host-socket-present'
+  | 'host-pipe-present'
   | 'legacy-store-to-move'
 
 export type SessionHostPrelaunchDecision =
@@ -64,6 +81,8 @@ export interface SessionHostPrelaunchDecisionInput {
    * (`legacyDatabaseFileState`): an empty file holds nothing (#357), unless its `-wal` has frames.
    */
   readonly legacyStorePresent: (databasePath: string) => boolean
+  /** Windows: whether a Host's pipe exists for this profile (`windowsHostPipePresent`). */
+  readonly windowsHostPresent: (userDataRoot: string) => boolean
 }
 
 function skip(reason: SessionHostPrelaunchSkipReason) {
@@ -72,24 +91,15 @@ function skip(reason: SessionHostPrelaunchSkipReason) {
 }
 
 export function sessionHostPrelaunchDecision(input: SessionHostPrelaunchDecisionInput) {
-  if (!input.desktopApp) {
-    const decision: SessionHostPrelaunchDecision = skip('not-desktop-app')
-    return decision
-  }
-  // The Windows endpoint is a named pipe whose name the Host rotates; the GUI reads it.
+  if (!input.desktopApp) return skip('not-desktop-app')
+  if (!path.isAbsolute(input.userDataRoot)) return skip('relative-profile')
   if (input.platform === 'win32') {
-    const decision: SessionHostPrelaunchDecision = skip('windows-named-pipe')
-    return decision
-  }
-  if (!path.isAbsolute(input.userDataRoot)) {
-    const decision: SessionHostPrelaunchDecision = skip('relative-profile')
-    return decision
-  }
-  const { endpoint } = unixSessionHostEndpoint(input.userDataRoot, input.temporaryRoot)
-  // A running Host, a Host handing over to an update, or a crashed Host's stale socket.
-  if (input.pathExists(endpoint)) {
-    const decision: SessionHostPrelaunchDecision = skip('host-socket-present')
-    return decision
+    // A running Host, or one handing over to an update; a crashed Host's pipe is gone.
+    if (input.windowsHostPresent(input.userDataRoot)) return skip('host-pipe-present')
+  } else {
+    const { endpoint } = unixSessionHostEndpoint(input.userDataRoot, input.temporaryRoot)
+    // A running Host, a Host handing over to an update, or a crashed Host's stale socket.
+    if (input.pathExists(endpoint)) return skip('host-socket-present')
   }
   // The GUI moves a legacy store under its single-instance lock before any Host starts.
   if (
@@ -125,6 +135,9 @@ export interface SessionHostPrelaunchInput {
   readonly pathExists?: (target: string) => boolean
   readonly legacyStorePresent?: (databasePath: string) => boolean
   readonly spawn?: (launch: DetachedProcessLaunch) => ChildProcess
+  /** Windows: starts the Host without handing it this process's handles. */
+  readonly startWindows?: (launch: WindowsHeadlessLaunchInput) => WindowsHeadlessProcess
+  readonly windowsHostPresent?: (userDataRoot: string) => boolean
   readonly record?: (prelaunch: SessionHostPrelaunch) => void
 }
 
@@ -182,7 +195,54 @@ function prelaunchEnvironment(input: SessionHostPrelaunchInput, userDataRoot: st
   })
 }
 
-function trackLaunchedHost(child: ChildProcess, userDataRoot: string) {
+/**
+ * Whether the pipe `endpoint.capability` names exists. A missing or malformed file means no Host
+ * has published an endpoint, so none runs.
+ */
+export function windowsHostPipePresent(
+  userDataRoot: string,
+  pipeExists: (pipe: string) => boolean = (pipe) => windowsPipeExists(windowsProcessKernel(), pipe),
+) {
+  let capability: string
+  try {
+    capability = readFileSync(windowsEndpointCapabilityPath(userDataRoot), 'utf8').trim()
+  } catch {
+    return false
+  }
+  if (!WINDOWS_ENDPOINT_CAPABILITY_PATTERN.test(capability)) return false
+  return pipeExists(windowsSessionHostPipe(capability))
+}
+
+function startWindowsHost(launch: WindowsHeadlessLaunchInput) {
+  return startWindowsHeadlessProcess(windowsProcessKernel(), launch)
+}
+
+const WINDOWS_EXIT_POLL_MS = 1_000
+
+function trackWindowsHost(
+  started: WindowsHeadlessProcess,
+  userDataRoot: string,
+): SessionHostPrelaunch {
+  const { promise, resolve } = Promise.withResolvers<void>()
+  const hasEnded = () => {
+    if (!started.hasExited()) return false
+    resolve()
+    return true
+  }
+  const poll = setInterval(() => {
+    if (hasEnded()) clearInterval(poll)
+  }, WINDOWS_EXIT_POLL_MS)
+  poll.unref()
+  return { userDataRoot, ended: promise, hasEnded }
+}
+
+function inheritedWindowsVariables(environment: Readonly<Record<string, string | undefined>>) {
+  const inherited: Record<string, string | undefined> = {}
+  for (const name of WINDOWS_CHILD_REQUIRED_VARIABLES) inherited[name] = environment[name]
+  return inherited
+}
+
+function trackLaunchedHost(child: ChildProcess, userDataRoot: string): SessionHostPrelaunch {
   let ended = false
   const { promise, resolve } = Promise.withResolvers<void>()
   const end = () => {
@@ -213,6 +273,7 @@ export function startSessionHostPrelaunch(input: SessionHostPrelaunchInput) {
         launchEnvironment(input).OPENWAGGLE_HOST_TMPDIR || input.temporaryDirectory(),
       pathExists: input.pathExists ?? existsSync,
       legacyStorePresent: input.legacyStorePresent ?? legacyStorePresent,
+      windowsHostPresent: input.windowsHostPresent ?? ((root) => windowsHostPipePresent(root)),
     })
     if (decision.kind !== 'launch') {
       const result: SessionHostPrelaunchDecision | null = decision
@@ -224,13 +285,20 @@ export function startSessionHostPrelaunch(input: SessionHostPrelaunchInput) {
       appPath: input.app.getAppPath(),
       commandLine: input.app.commandLine,
     })
-    const child = (input.spawn ?? spawnDetachedProcess)({
-      ...command,
-      environment: prelaunchEnvironment(input, userDataRoot),
-    })
-    ;(input.record ?? recordSessionHostPrelaunch)(trackLaunchedHost(child, userDataRoot))
-    const result: SessionHostPrelaunchDecision | null = decision
-    return result
+    const environment = prelaunchEnvironment(input, userDataRoot)
+    const record = input.record ?? recordSessionHostPrelaunch
+    if (input.platform === 'win32') {
+      const started = (input.startWindows ?? startWindowsHost)({
+        ...command,
+        environment,
+        inherited: inheritedWindowsVariables(input.environment),
+      })
+      record(trackWindowsHost(started, userDataRoot))
+      return decision
+    }
+    const child = (input.spawn ?? spawnDetachedProcess)({ ...command, environment })
+    record(trackLaunchedHost(child, userDataRoot))
+    return decision
   } catch {
     return null
   }

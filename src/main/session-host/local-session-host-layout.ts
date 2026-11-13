@@ -11,6 +11,9 @@ import { DATABASE_FILE_NAME } from '../services/database-constants'
 export const SESSION_HOST_STATE_DIRECTORY = 'session-host'
 export const SESSION_HOST_DATABASE_FILE = 'session-host.sqlite'
 export const SESSION_HOST_SOCKET_FILE = 'host.sock'
+/** Windows: the file naming the Host's current pipe, which each Host start rotates. */
+export const WINDOWS_ENDPOINT_CAPABILITY_FILE = 'endpoint.capability'
+export const WINDOWS_ENDPOINT_CAPABILITY_PATTERN = /^[A-Za-z0-9_-]{43}$/
 /** The shortest Unix socket path limit among supported platforms (macOS: 104 bytes). */
 const PORTABLE_UNIX_SOCKET_PATH_BYTES = 100
 const PORTABLE_TEMPORARY_ROOT = '/tmp'
@@ -71,4 +74,13 @@ export function unixSessionHostEndpoint(userDataRoot: string, temporaryRoot: () 
     endpointDirectory,
   }
   return result
+}
+
+export function windowsEndpointCapabilityPath(userDataRoot: string) {
+  return path.join(sessionHostStateRoot(userDataRoot), WINDOWS_ENDPOINT_CAPABILITY_FILE)
+}
+
+/** The named pipe a Windows Host with `capability` listens on. */
+export function windowsSessionHostPipe(capability: string) {
+  return `\\\\.\\pipe\\openwaggle-${capability}-session-host`
 }

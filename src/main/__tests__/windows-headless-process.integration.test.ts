@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
+import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -7,6 +9,8 @@ import { readEnvironmentVariables } from '../env'
 import {
   launchWindowsHeadlessProcess,
   WINDOWS_CHILD_REQUIRED_VARIABLES,
+  windowsPipeExists,
+  windowsProcessKernel,
 } from '../windows-headless-process'
 
 const RESULT_WAIT_MS = 20_000
@@ -67,5 +71,20 @@ describe.runIf(process.platform === 'win32')('Windows headless process launch (k
         inherited: {},
       }),
     ).rejects.toThrow(/create-process \(Win32 code \d+\)/u)
+  })
+
+  it('finds a listening named pipe without connecting to it, and no pipe nobody created', async () => {
+    const pipe = `\\\\.\\pipe\\openwaggle-test-${randomUUID()}`
+    const connections: net.Socket[] = []
+    const server = net.createServer((socket) => void connections.push(socket))
+    await new Promise<void>((resolve) => server.listen(pipe, resolve))
+    try {
+      expect(windowsPipeExists(windowsProcessKernel(), pipe)).toBe(true)
+      expect(windowsPipeExists(windowsProcessKernel(), `${pipe}-missing`)).toBe(false)
+      await delay(POLL_MS)
+      expect(connections).toEqual([])
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 })

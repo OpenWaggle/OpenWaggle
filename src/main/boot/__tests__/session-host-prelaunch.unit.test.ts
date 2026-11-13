@@ -1,13 +1,9 @@
-import type { ChildProcess } from 'node:child_process'
-import { EventEmitter } from 'node:events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
-import type { DetachedProcessLaunch } from '../../detached-process'
+import { PROFILE, prelaunchInput } from './session-host-prelaunch-fixtures'
 import { resolveLocalSessionHostPaths } from '../../session-host/local-session-paths'
-import type { SessionHostPrelaunch } from '../../session-host/session-host-prelaunch-handoff'
 import {
   type SessionHostPrelaunchDecisionInput,
   type SessionHostPrelaunchInput,
@@ -15,7 +11,6 @@ import {
   startSessionHostPrelaunch,
 } from '../session-host-prelaunch'
 
-const PROFILE = '/Users/person/Library/Application Support/openwaggle'
 const ENDPOINT = `${PROFILE}/session-host/host.sock`
 const TARGET_DATABASE = `${PROFILE}/session-host/session-host.sqlite`
 const LEGACY_DATABASE = `${PROFILE}/openwaggle.db`
@@ -29,6 +24,7 @@ function decide(overrides: Partial<SessionHostPrelaunchDecisionInput> = {}) {
     temporaryRoot: () => TEMPORARY_ROOT,
     pathExists: () => false,
     legacyStorePresent: () => false,
+    windowsHostPresent: () => false,
     ...overrides,
   })
 }
@@ -38,12 +34,28 @@ describe('sessionHostPrelaunchDecision', () => {
     expect(decide()).toEqual({ kind: 'launch' })
   })
 
-  it('leaves CLI commands, the Host itself and Windows to their usual paths', () => {
+  it('leaves CLI commands and the Host itself to their usual paths', () => {
     expect(decide({ desktopApp: false })).toEqual({ kind: 'skip', reason: 'not-desktop-app' })
-    expect(decide({ platform: 'win32' })).toEqual({ kind: 'skip', reason: 'windows-named-pipe' })
     expect(decide({ userDataRoot: 'relative/profile' })).toEqual({
       kind: 'skip',
       reason: 'relative-profile',
+    })
+  })
+
+  it("launches on Windows unless a Host's pipe exists, which no socket path stands for", () => {
+    const windowsHostPresent = vi.fn(() => false)
+    const pathExists = vi.fn(() => true)
+    expect(
+      decide({
+        platform: 'win32',
+        windowsHostPresent,
+        pathExists: (target) => target === ENDPOINT,
+      }),
+    ).toEqual({ kind: 'launch' })
+    expect(windowsHostPresent).toHaveBeenCalledWith(PROFILE)
+    expect(decide({ platform: 'win32', windowsHostPresent: () => true, pathExists })).toEqual({
+      kind: 'skip',
+      reason: 'host-pipe-present',
     })
   })
 
@@ -80,53 +92,6 @@ describe('sessionHostPrelaunchDecision', () => {
     expect(decide({ legacyStorePresent: () => false })).toEqual({ kind: 'launch' })
   })
 })
-
-class FakeChild extends EventEmitter {
-  readonly unref = vi.fn()
-}
-
-function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
-  const child = new FakeChild()
-  const spawn = vi.fn((_launch: DetachedProcessLaunch) => fromAny<ChildProcess, FakeChild>(child))
-  const record = vi.fn<(prelaunch: SessionHostPrelaunch) => void>()
-  const switches = new Set<string>(['use-mock-keychain'])
-  const input: SessionHostPrelaunchInput = {
-    app: {
-      isPackaged: true,
-      getAppPath: () => '/Applications/OpenWaggle.app/Contents/Resources/app',
-      getPath: () => PROFILE,
-      commandLine: {
-        hasSwitch: (name) => switches.has(name),
-        getSwitchValue: () => '',
-      },
-    },
-    desktopApp: true,
-    environment: {
-      PATH: '/usr/bin',
-      HOME: '/Users/person',
-      TMPDIR: '/agent/scratch',
-      OPENWAGGLE_HOST_TMPDIR: '/var/folders/xy/T',
-      OPENWAGGLE_PROFILE: 'agent-profile',
-      OPENWAGGLE_AGENT_RUN: '1',
-      ELECTRON_RUN_AS_NODE: '1',
-      OPENWAGGLE_LOG_LEVEL: 'debug',
-      OPENWAGGLE_STARTUP_TIMINGS: '1',
-      ANTHROPIC_API_KEY: 'provider-key',
-      OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1',
-    },
-    platform: 'darwin',
-    executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/bun',
-    homeDirectory: '/Users/person',
-    temporaryDirectory: () => '/agent/scratch',
-    now: () => 1_800_000_000_000,
-    pathExists: () => false,
-    legacyStorePresent: () => false,
-    spawn,
-    record,
-    ...overrides,
-  }
-  return { input, child, spawn, record, switches }
-}
 
 describe('startSessionHostPrelaunch', () => {
   it('leaves an empty legacy database whose WAL holds frames to the GUI, as the Host would', async () => {

@@ -97,6 +97,7 @@ describe('GUI Session Host lifecycle with a Host launched by the boot shim', () 
     mocks.probe.mockReset().mockRejectedValueOnce(unavailable()).mockResolvedValue(undefined)
     mocks.remoteBridge.mockClear()
     mocks.targetExists.mockReset().mockResolvedValue(false)
+    mocks.preparePaths.mockClear()
   })
 
   it('waits for that Host and attaches to it without launching another', async () => {
@@ -219,5 +220,43 @@ describe('GUI Session Host lifecycle with a Host launched by the boot shim', () 
     expect(prepared.waitForPrelaunchedHost).toHaveBeenCalledOnce()
     expect(mocks.ensure).toHaveBeenCalledOnce()
     await lifecycle.stop()
+  })
+
+  it('leaves a Windows Host it launched to secure its own paths, unless that Host ends first', async () => {
+    const windows = (answered: boolean) => {
+      const order: string[] = []
+      mocks.preparePaths.mockImplementation(async (paths: object) => {
+        order.push('prepare')
+        return paths
+      })
+      mocks.ensure.mockImplementation(async () => {
+        order.push('launch')
+      })
+      return {
+        order,
+        lifecycle: prepareGuiSessionHostLifecycle({
+          userDataRoot: PROFILE,
+          clientVersion: 'test',
+          startupMark: vi.fn(),
+          platform: 'win32',
+          hasPrelaunchedHost: () => true,
+          takePrelaunchedHost: prelaunch,
+          waitForPrelaunchedHost: async () => answered,
+        }),
+      }
+    }
+
+    const attached = windows(true)
+    const attachedLifecycle = await attached.lifecycle
+    await attachedLifecycle.start()
+    expect(attached.order).toEqual([])
+    await attachedLifecycle.stop()
+
+    mocks.probe.mockReset().mockRejectedValueOnce(unavailable()).mockResolvedValue(undefined)
+    const ended = windows(false)
+    const endedLifecycle = await ended.lifecycle
+    await endedLifecycle.start()
+    expect(ended.order).toEqual(['prepare', 'launch'])
+    await endedLifecycle.stop()
   })
 })

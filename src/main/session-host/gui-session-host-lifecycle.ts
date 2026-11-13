@@ -93,10 +93,12 @@ export async function prepareGuiSessionHostLifecycle(input: {
   readonly takePrelaunchedHost?: (userDataRoot: string) => SessionHostPrelaunch | null
   /** Waits for that Host to answer; false once it ended without answering. */
   readonly waitForPrelaunchedHost?: typeof waitForPrelaunchedLocalSessionHost
+  readonly platform?: NodeJS.Platform
 }) {
   const takePrelaunchedHost = input.takePrelaunchedHost ?? takeSessionHostPrelaunch
   const hostPrelaunched = (input.hasPrelaunchedHost ?? hasSessionHostPrelaunch)(input.userDataRoot)
-  const { paths } = await prepareGuiSessionHostStartup({ ...input, hostPrelaunched })
+  const startup = await prepareGuiSessionHostStartup({ ...input, hostPrelaunched })
+  const { paths } = startup
   const remoteClient = guiRemoteClient(paths, input.clientVersion)
   let stopRendererBridge: (() => void | Promise<void>) | null = null
   let stopping = false
@@ -109,6 +111,8 @@ export async function prepareGuiSessionHostLifecycle(input: {
    * or the profile was another Host's) left the store to move, which only this process may do.
    */
   const moveStoreUnlessPrelaunchedHostLives = async () => {
+    // Paths left to a prelaunched Windows Host that ended or never answered.
+    await startup.ensurePrepared()
     if (!storeLeftToPrelaunchedHost) return
     if (claimedPrelaunch && !claimedPrelaunch.hasEnded()) return
     await moveLegacySessionStoreIfNeeded({ paths, startupMark: input.startupMark })

@@ -8,6 +8,7 @@ import {
   type LocalSessionHostLauncherDependencies,
 } from './local-session-host-launcher'
 import { waitForCondition } from './local-session-host-polling'
+import type { LocalSessionHostPaths } from './local-session-paths'
 import type { SessionHostPrelaunch } from './session-host-prelaunch-handoff'
 
 /**
@@ -26,6 +27,23 @@ export const PRELAUNCHED_HOST_ANSWER_TIMEOUT_MS = 30_000
  * has not listened within the timeout. Rejects with the last refusal when it listened and kept
  * refusing the window until the timeout.
  */
+function hasErrorCode(error: unknown, code: string) {
+  return error instanceof Error && 'code' in error && error.code === code
+}
+
+/** The Host's endpoint once it has published one; a Windows Host may not have written it yet. */
+async function publishedPaths(
+  paths: LocalSessionHostPaths,
+  dependencies: LocalSessionHostLauncherDependencies,
+) {
+  try {
+    return await dependencies.refreshPaths(paths)
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return null
+    throw error
+  }
+}
+
 export async function waitForPrelaunchedLocalSessionHost(
   input: LocalSessionClientConnectionInput & {
     readonly prelaunch: Pick<SessionHostPrelaunch, 'hasEnded'>
@@ -42,7 +60,8 @@ export async function waitForPrelaunchedLocalSessionHost(
     ...(input.signal ? { signal: input.signal } : {}),
     condition: async () => {
       if (input.prelaunch.hasEnded()) return true
-      const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+      const paths = await awaitWithSignal(publishedPaths(input.paths, dependencies), input.signal)
+      if (paths === null) return false
       if (
         !(await awaitWithSignal(
           dependencies.canConnect(paths.endpoint, input.signal),

@@ -1,4 +1,5 @@
 import type * as BunFfi from 'bun:ffi'
+import { createRequire } from 'node:module'
 import { win32 } from 'node:path'
 
 /**
@@ -28,6 +29,11 @@ const STARTUP_SHOW_WINDOW_OFFSET = 64
 const PROCESS_INFORMATION_BYTES = 24
 const PROCESS_HANDLE_OFFSET = 0
 const THREAD_HANDLE_OFFSET = 8
+const WAIT_TIMEOUT = 258
+const ERROR_FILE_NOT_FOUND = 2
+const NO_WAIT_MS = 0
+/** `WaitNamedPipeW` takes 0 as "the pipe's default time-out", so the shortest wait is 1 ms. */
+const SHORTEST_PIPE_WAIT_MS = 1
 
 /** What libuv copies from the parent into every child environment that lacks them. */
 export const WINDOWS_CHILD_REQUIRED_VARIABLES = [
@@ -67,6 +73,15 @@ export interface WindowsProcessKernel {
   }) => boolean
   readonly lastError: () => number
   readonly closeHandle: (handle: bigint) => boolean
+  /** `WaitForSingleObject`: `WAIT_TIMEOUT` while a process handle's process runs. */
+  readonly waitForObject: (handle: bigint, milliseconds: number) => number
+  /** `WaitNamedPipeW` with a NUL-terminated UTF-16 name. */
+  readonly waitNamedPipe: (name: Uint8Array, milliseconds: number) => boolean
+}
+
+/** A started process whose handle this process keeps, to learn when it exits. */
+export interface WindowsHeadlessProcess {
+  readonly hasExited: () => boolean
 }
 
 function quoteArgument(argument: string) {
@@ -137,11 +152,14 @@ function startupInfo() {
   return startup
 }
 
-/** Starts the process and closes both of its handles; throws with the Win32 error code. */
-export function createWindowsHeadlessProcess(
-  kernel: WindowsProcessKernel,
-  input: WindowsHeadlessLaunchInput,
-) {
+function launchFailure(kernel: WindowsProcessKernel, stage: string) {
+  return new Error(
+    `Windows headless process launch failed at ${stage} (Win32 code ${String(kernel.lastError())}).`,
+  )
+}
+
+/** `CreateProcessW` for `input`: the new process's handles, both open. */
+function createProcess(kernel: WindowsProcessKernel, input: WindowsHeadlessLaunchInput) {
   const commandLine = windowsHeadlessCommandLine(input.command, input.args)
   const environment = windowsEnvironmentBlock(input.environment, input.inherited)
   const processInformation = Buffer.alloc(PROCESS_INFORMATION_BYTES)
@@ -155,20 +173,56 @@ export function createWindowsHeadlessProcess(
     startupInfo: startupInfo(),
     processInformation,
   })
-  if (!created) {
-    throw new Error(
-      `Windows headless process launch failed at create-process (Win32 code ${String(kernel.lastError())}).`,
-    )
+  if (!created) throw launchFailure(kernel, 'create-process')
+  return {
+    process: processInformation.readBigUInt64LE(PROCESS_HANDLE_OFFSET),
+    thread: processInformation.readBigUInt64LE(THREAD_HANDLE_OFFSET),
   }
-  const threadClosed = kernel.closeHandle(processInformation.readBigUInt64LE(THREAD_HANDLE_OFFSET))
-  const processClosed = kernel.closeHandle(
-    processInformation.readBigUInt64LE(PROCESS_HANDLE_OFFSET),
-  )
-  if (!threadClosed || !processClosed) {
-    throw new Error(
-      `Windows headless process launch failed at close-handle (Win32 code ${String(kernel.lastError())}).`,
-    )
+}
+
+/** Starts the process and keeps only its process handle; throws with the Win32 error code. */
+export function startWindowsHeadlessProcess(
+  kernel: WindowsProcessKernel,
+  input: WindowsHeadlessLaunchInput,
+): WindowsHeadlessProcess {
+  const handles = createProcess(kernel, input)
+  if (!kernel.closeHandle(handles.thread)) {
+    const failure = launchFailure(kernel, 'close-handle')
+    kernel.closeHandle(handles.process)
+    throw failure
   }
+  let exited = false
+  return {
+    hasExited: () => {
+      if (exited) return true
+      // A handle that cannot be waited on counts as ended: the caller then starts its own.
+      if (kernel.waitForObject(handles.process, NO_WAIT_MS) === WAIT_TIMEOUT) return false
+      exited = true
+      kernel.closeHandle(handles.process)
+      return true
+    },
+  }
+}
+
+/** Starts the process and closes both of its handles; throws with the Win32 error code. */
+export function createWindowsHeadlessProcess(
+  kernel: WindowsProcessKernel,
+  input: WindowsHeadlessLaunchInput,
+) {
+  const handles = createProcess(kernel, input)
+  const threadClosed = kernel.closeHandle(handles.thread)
+  const processClosed = kernel.closeHandle(handles.process)
+  if (!threadClosed || !processClosed) throw launchFailure(kernel, 'close-handle')
+}
+
+/**
+ * Whether a server has created the named pipe `pipe`, without connecting to it: `WaitNamedPipeW`
+ * fails with `ERROR_FILE_NOT_FOUND` only when no instance exists. Any other answer, a busy pipe
+ * included, counts as present.
+ */
+export function windowsPipeExists(kernel: WindowsProcessKernel, pipe: string) {
+  if (kernel.waitNamedPipe(wideString(pipe), SHORTEST_PIPE_WAIT_MS)) return true
+  return kernel.lastError() !== ERROR_FILE_NOT_FOUND
 }
 
 function kernel32(ffi: typeof BunFfi): WindowsProcessKernel {
@@ -182,8 +236,11 @@ function kernel32(ffi: typeof BunFfi): WindowsProcessKernel {
     },
     CloseHandle: { args: ['u64'], returns: 'i32' },
     GetLastError: { args: [], returns: 'u32' },
+    WaitForSingleObject: { args: ['u64', 'u32'], returns: 'u32' },
+    WaitNamedPipeW: { args: ['ptr', 'u32'], returns: 'i32' },
   })
-  const { CreateProcessW, CloseHandle, GetLastError } = library.symbols
+  const { CreateProcessW, CloseHandle, GetLastError, WaitForSingleObject, WaitNamedPipeW } =
+    library.symbols
   return {
     createProcess: (call) =>
       CreateProcessW(
@@ -200,14 +257,38 @@ function kernel32(ffi: typeof BunFfi): WindowsProcessKernel {
       ) !== 0,
     lastError: () => GetLastError(),
     closeHandle: (handle) => CloseHandle(handle) !== 0,
+    waitForObject: (handle, milliseconds) => WaitForSingleObject(handle, milliseconds),
+    waitNamedPipe: (name, milliseconds) => WaitNamedPipeW(ffi.ptr(name), milliseconds) !== 0,
   }
 }
 
-let loadedKernel: Promise<WindowsProcessKernel> | null = null
+function isBunFfi(value: unknown): value is typeof BunFfi {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'dlopen' in value &&
+    typeof value.dlopen === 'function' &&
+    'ptr' in value &&
+    typeof value.ptr === 'function'
+  )
+}
 
-function loadKernel32() {
-  loadedKernel ??= import('bun:ffi').then(kernel32)
+let loadedKernel: WindowsProcessKernel | null = null
+
+/**
+ * kernel32's calls, bound on first use. Synchronous, so the boot shim can start the Host and
+ * record it before the main bundle loads (`boot/session-host-prelaunch.ts`).
+ */
+export function windowsProcessKernel() {
+  if (loadedKernel) return loadedKernel
+  const ffi: unknown = createRequire(import.meta.url)('bun:ffi')
+  if (!isBunFfi(ffi)) throw new Error('bun:ffi is not available in this runtime.')
+  loadedKernel = kernel32(ffi)
   return loadedKernel
+}
+
+async function loadKernel32() {
+  return windowsProcessKernel()
 }
 
 export async function launchWindowsHeadlessProcess(

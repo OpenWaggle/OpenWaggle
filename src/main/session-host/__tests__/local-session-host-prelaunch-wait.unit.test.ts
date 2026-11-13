@@ -170,4 +170,37 @@ describe('waitForPrelaunchedLocalSessionHost', () => {
     ).resolves.toBe(false)
     expect(probe).toHaveBeenCalledOnce()
   })
+
+  it('keeps waiting while a Windows Host has not published its endpoint yet', async () => {
+    const missing = Object.assign(new Error('no capability yet'), { code: 'ENOENT' })
+    const launcher = dependencies({ canConnect: vi.fn(async () => true) })
+    const published = { ...paths, endpoint: '\\\\.\\pipe\\openwaggle-published-session-host' }
+    launcher.refreshPaths
+      .mockRejectedValueOnce(missing)
+      .mockRejectedValueOnce(missing)
+      .mockResolvedValue(published)
+
+    await expect(
+      waitForPrelaunchedLocalSessionHost(
+        { ...client, prelaunch: { hasEnded: () => false } },
+        launcher,
+      ),
+    ).resolves.toBe(true)
+    expect(launcher.canConnect).toHaveBeenCalledOnce()
+    expect(launcher.canConnect).toHaveBeenCalledWith(published.endpoint, undefined)
+  })
+
+  it('fails on any other error reading the published endpoint', async () => {
+    const launcher = dependencies({ canConnect: vi.fn(async () => true) })
+    launcher.refreshPaths.mockRejectedValue(
+      new Error('The Windows Local Session endpoint capability is invalid.'),
+    )
+
+    await expect(
+      waitForPrelaunchedLocalSessionHost(
+        { ...client, prelaunch: { hasEnded: () => false } },
+        launcher,
+      ),
+    ).rejects.toThrow('capability is invalid')
+  })
 })

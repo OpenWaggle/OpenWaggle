@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   createWindowsHeadlessProcess,
+  startWindowsHeadlessProcess,
+  windowsPipeExists,
   launchWindowsHeadlessProcess,
   WINDOWS_HEADLESS_CREATION_FLAGS,
   windowsEnvironmentBlock,
@@ -21,9 +23,18 @@ const THREAD_HANDLE = 0x5678n
 
 type CreateProcessCall = Parameters<WindowsProcessKernel['createProcess']>[0]
 
-function fakeKernel(options: { created?: boolean; closes?: boolean; lastError?: number } = {}) {
+function fakeKernel(
+  options: {
+    created?: boolean
+    closes?: boolean
+    lastError?: number
+    waits?: number[]
+    pipeAnswer?: boolean
+  } = {},
+) {
   const calls: CreateProcessCall[] = []
   const closed: bigint[] = []
+  const pipes: string[] = []
   const kernel: WindowsProcessKernel = {
     createProcess: (call) => {
       calls.push(call)
@@ -38,8 +49,13 @@ function fakeKernel(options: { created?: boolean; closes?: boolean; lastError?: 
       closed.push(handle)
       return options.closes !== false
     },
+    waitForObject: () => options.waits?.shift() ?? 0,
+    waitNamedPipe: (name) => {
+      pipes.push(wide(name))
+      return options.pipeAnswer === true
+    },
   }
-  return { kernel, calls, closed }
+  return { kernel, calls, closed, pipes }
 }
 
 function wide(bytes: Uint8Array) {
@@ -168,5 +184,26 @@ describe('Windows headless process launch', () => {
     expect(() => createWindowsHeadlessProcess(kernel, launch)).toThrow(
       'failed at close-handle (Win32 code 6)',
     )
+  })
+
+  it('keeps the process handle of a started process until it has exited', () => {
+    const WAIT_TIMEOUT = 258
+    const { kernel, closed } = fakeKernel({ waits: [WAIT_TIMEOUT, 0] })
+    const started = startWindowsHeadlessProcess(kernel, launch)
+    expect(closed).toEqual([THREAD_HANDLE])
+    expect(started.hasExited()).toBe(false)
+    expect(started.hasExited()).toBe(true)
+    expect(started.hasExited()).toBe(true)
+    expect(closed).toEqual([THREAD_HANDLE, PROCESS_HANDLE])
+  })
+
+  it('finds a named pipe without connecting, and counts a busy or unreadable one as present', () => {
+    const pipe = '\\\\.\\pipe\\openwaggle-x-session-host'
+    const open = fakeKernel({ pipeAnswer: true })
+    expect(windowsPipeExists(open.kernel, pipe)).toBe(true)
+    expect(open.pipes).toEqual([`${pipe}\0`])
+    expect(windowsPipeExists(fakeKernel({ lastError: 2 }).kernel, pipe)).toBe(false)
+    // ERROR_SEM_TIMEOUT: every instance is busy.
+    expect(windowsPipeExists(fakeKernel({ lastError: 121 }).kernel, pipe)).toBe(true)
   })
 })
