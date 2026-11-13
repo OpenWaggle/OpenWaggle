@@ -11,11 +11,7 @@ import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
 import { secureWindowsUserOnly } from '../windows-user-only-security'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
-import {
-  verifyWindowsPipeDescriptors,
-  verifyWindowsPipeInstances,
-} from './windows-pipe-readback-probe'
-import { withWindowsCompileDiagnostics } from './windows-security-compile-diagnostics'
+import { verifyWindowsPipeInstances } from './windows-pipe-instances'
 
 const itWindows = process.platform === 'win32' ? it : it.skip
 
@@ -114,13 +110,13 @@ describe('Windows Local Session user-only admission', () => {
     })
   })
 
-  itWindows('starts only after PowerShell verifies the protected user-SID-only DACL', async () => {
+  itWindows('starts only after the protected user-SID-only DACL is verified', async () => {
     const endpoint = `\\\\.\\pipe\\openwaggle-owner-dacl-${crypto.randomUUID()}`
     const secureEndpoint = vi.fn(secureLocalSessionEndpoint)
-    handle = await withWindowsCompileDiagnostics(() =>
-      listenLocalSessionServer(endpoint, { ...serverDependencies(), secureEndpoint }),
-    )
-    const verifiedSid = await verifyWindowsPipeInstances(endpoint)
+    handle = await listenLocalSessionServer(endpoint, { ...serverDependencies(), secureEndpoint })
+    // More than libuv's four pending instances, twice: every instance carries the DACL.
+    const verifiedSid = await verifyWindowsPipeInstances(endpoint, 8)
+    expect(await verifyWindowsPipeInstances(endpoint, 8)).toBe(verifiedSid)
 
     expect(verifiedSid).toMatch(/^S-1-(?:\d+-)+\d+$/)
     expect(verifiedSid).not.toBe('S-1-5-32-544')
@@ -144,67 +140,4 @@ describe('Windows Local Session user-only admission', () => {
       revision: LOCAL_SESSION_CURRENT_REVISION,
     })
   })
-
-  itWindows('secures and verifies a directory and file whose path is not ASCII', async () => {
-    // The helper's request is a single-quoted literal with \u escapes, read by PowerShell from a
-    // stdin decoded with the console code page: an apostrophe or a non-ASCII name must survive.
-    const directory = path.join(temporaryRoot, "Jürgen O'Brien 蜂")
-    const file = path.join(directory, 'capability-🐝.json')
-    await fs.mkdir(directory)
-    await fs.writeFile(file, '{}')
-
-    const { userSid } = await withWindowsCompileDiagnostics(() =>
-      secureWindowsUserOnly([
-        { kind: 'directory', path: directory },
-        { kind: 'file', path: file },
-      ]),
-    )
-
-    expect(userSid).toMatch(/^S-1-(?:\d+-)+\d+$/)
-    await expect(fs.readFile(file, 'utf8')).resolves.toBe('{}')
-  })
-
-  itWindows(
-    'accepts explicit pipe full control and rejects weakened or broader descriptors',
-    async () => {
-      const cases = [
-        {
-          name: 'pipe full control',
-          sddl: 'O:{user}D:P(A;;{fullControl};;;{user})',
-          accepted: true,
-        },
-        { name: 'read only', sddl: 'O:{user}D:P(A;;GR;;;{user})', accepted: false },
-        {
-          name: 'missing change permissions',
-          sddl: 'O:{user}D:P(A;;0x1b019f;;;{user})',
-          accepted: false,
-        },
-        {
-          name: 'missing create instance',
-          sddl: 'O:{user}D:P(A;;0x1f019b;;;{user})',
-          accepted: false,
-        },
-        {
-          name: 'extra system security',
-          sddl: 'O:{user}D:P(A;;0x11f019f;;;{user})',
-          accepted: false,
-        },
-        { name: 'wrong owner', sddl: 'O:BAD:P(A;;{fullControl};;;{user})', accepted: false },
-        { name: 'everyone', sddl: 'O:{user}D:P(A;;{fullControl};;;WD)', accepted: false },
-        {
-          name: 'extra principal',
-          sddl: 'O:{user}D:P(A;;{fullControl};;;{user})(A;;GR;;;WD)',
-          accepted: false,
-        },
-        { name: 'unprotected', sddl: 'O:{user}D:(A;;{fullControl};;;{user})', accepted: false },
-        { name: 'deny ace', sddl: 'O:{user}D:P(D;;{fullControl};;;{user})', accepted: false },
-        { name: 'inherit only', sddl: 'O:{user}D:P(A;IO;{fullControl};;;{user})', accepted: false },
-        { name: 'empty dacl', sddl: 'O:{user}D:P', accepted: false },
-      ]
-
-      await expect(verifyWindowsPipeDescriptors(cases)).resolves.toEqual(
-        cases.map(({ name, accepted }) => ({ name, accepted })),
-      )
-    },
-  )
 })

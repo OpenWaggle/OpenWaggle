@@ -11,7 +11,6 @@ import {
   getNpmCompatiblePath,
   getSafeChildEnv,
   getSessionHostChildEnv,
-  getWindowsSecurityChildEnv,
   restoreHostTemporaryDirectory,
   takeShellEnvironmentRefreshedSince,
 } from '../env'
@@ -95,20 +94,6 @@ describe('main process environment helpers', () => {
     expect(entries.slice(0, existingEntries.length)).toEqual(existingEntries)
     expect(entries).toContain(join(homedir(), '.local', 'bin'))
     expect(entries).toContain('/usr/local/bin')
-  })
-
-  it('passes only Windows runtime paths to the pipe security helper', () => {
-    vi.stubEnv('SystemRoot', 'C:\\Windows')
-    vi.stubEnv('TEMP', 'C:\\Users\\person\\Temp')
-    vi.stubEnv('USERPROFILE', 'C:\\Users\\person')
-    vi.stubEnv('OPENAI_API_KEY', 'provider-secret')
-
-    expect(getWindowsSecurityChildEnv()).toMatchObject({
-      SystemRoot: 'C:\\Windows',
-      TEMP: 'C:\\Users\\person\\Temp',
-      USERPROFILE: 'C:\\Users\\person',
-    })
-    expect(getWindowsSecurityChildEnv()).not.toHaveProperty('OPENAI_API_KEY')
   })
 
   it('preserves provider and shell-agent state for a detached Host without client authority', () => {

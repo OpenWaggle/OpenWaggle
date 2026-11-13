@@ -158,18 +158,6 @@ export function getSafeChildEnv() {
   }
 }
 
-/** Minimum environment required by the built-in Windows PowerShell security helper. */
-export function getWindowsSecurityChildEnv() {
-  const live = readLiveEnv()
-  return {
-    PATH: getNpmCompatiblePath(),
-    SystemRoot: live.SystemRoot,
-    TEMP: live.TEMP,
-    TMP: live.TMP,
-    USERPROFILE: live.USERPROFILE,
-  }
-}
-
 /** The environment a detached Session Host starts with (see `sessionHostSafeEnvironment`). */
 export function getSessionHostChildEnv() {
   return sessionHostSafeEnvironment(
