@@ -121,4 +121,12 @@ describe('nightly packaged canary workflow', () => {
     expect(WORKFLOW).toContain('name: coverage-uniqueness-index')
     expect(advise).toContain("const INDEX_ARTIFACT = 'coverage-uniqueness-index'")
   })
+
+  // Regression: the merge ran with no install and failed on `Cannot find module 'effect/ParseResult'`.
+  it('installs the dependencies before it merges the coverage-uniqueness shards', () => {
+    const job = WORKFLOW.slice(WORKFLOW.indexOf('  coverage-uniqueness-index:'))
+    const install = job.indexOf('uses: ./.github/actions/bun-install')
+    expect(install).toBeGreaterThan(0)
+    expect(job.indexOf('bun scripts/coverage-uniqueness.ts merge')).toBeGreaterThan(install)
+  })
 })
