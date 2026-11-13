@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseNameStatus, renderBlastRadius } from '../blast-radius'
+import { GITHUB_COMMENT_MAX_CHARACTERS, parseNameStatus, renderBlastRadius } from '../blast-radius'
 import { classifyArea } from '../blast-radius-rules'
 import { buildGhCreateArgs, missingTemplateHeadings, parseCreateArgs } from '../create-args'
 import { findStickyComment, replaceManagedSection } from '../managed-content'
@@ -158,6 +158,39 @@ describe('blast radius', () => {
     expect(summary('https://example.test/c')).toMatch(
       /^<!-- openwaggle:blast-radius -->[\s\S]*Full report: https:\/\/example\.test\/c[\s\S]*<!-- \/openwaggle:blast-radius -->$/,
     )
+  })
+
+  // A 5,000-file PR rendered a 352 KB report that GitHub refused with HTTP 422.
+  it('shortens the file lists until the report fits in one GitHub comment', () => {
+    const changedFiles = parseNameStatus(
+      Array.from(
+        { length: 6000 },
+        (_, index) => `M\tsrc/main/some/long/path/file-${String(index)}.ts`,
+      ).join('\n'),
+    )
+    const { report } = renderBlastRadius({
+      changedFiles,
+      headSha: SHA,
+      packageJson: {},
+      range: 'a...b',
+    })
+
+    expect(report.length).toBeLessThanOrEqual(GITHUB_COMMENT_MAX_CHARACTERS)
+    expect(report).toContain('Main process (Medium, 6000 files)')
+    expect(report).toMatch(/- … and \d+ files more: `git diff --name-status a\.\.\.b`/u)
+  })
+
+  it('lists every file when the report fits', () => {
+    const changedFiles = parseNameStatus('M\tsrc/main/a.ts\nM\tsrc/main/b.ts')
+    const { report } = renderBlastRadius({
+      changedFiles,
+      headSha: SHA,
+      packageJson: {},
+      range: 'a...b',
+    })
+
+    expect(report).toContain('- M `src/main/b.ts`')
+    expect(report).not.toContain('more:')
   })
 
   // The lint and format configs moved from ESLint and Biome to oxlint, oxfmt and the Bun lint runner.

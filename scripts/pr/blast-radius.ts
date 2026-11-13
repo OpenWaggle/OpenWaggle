@@ -113,6 +113,18 @@ function formatFile(file: ChangedFile) {
   return `- ${file.status} \`${file.path}\`${previous}`
 }
 
+/** GitHub refuses a comment body longer than this many characters. */
+export const GITHUB_COMMENT_MAX_CHARACTERS = 65_536
+/** Files listed per area when the full lists do not fit, largest first; undefined lists them all. */
+const AREA_FILE_LIMITS = [undefined, 200, 100, 50, 20, 5, 0] as const
+
+function areaFiles(files: readonly ChangedFile[], limit: number | undefined, range: string) {
+  const shown = limit === undefined ? files : files.slice(0, limit)
+  const hidden = files.length - shown.length
+  const more = `- … and ${fileCount(hidden)} more: \`git diff --name-status ${range}\``
+  return hidden === 0 ? shown.map(formatFile) : [...shown.map(formatFile), more]
+}
+
 export function renderBlastRadius(input: BlastRadiusInput) {
   const assessments = input.changedFiles.map((file) => assess(file, input))
   const risk = highestRisk(assessments)
@@ -122,33 +134,39 @@ export function renderBlastRadius(input: BlastRadiusInput) {
   ].sort((left, right) => left.localeCompare(right))
   const verification = verificationFor(input.changedFiles.map((file) => file.path))
   const shortSha = input.headSha.slice(0, SHORT_SHA_LENGTH)
-  const report = [
-    BLAST_RADIUS_COMMENT_MARKER,
-    '## Blast radius report',
-    '',
-    `- Risk: **${risk}**`,
-    `- Head: \`${shortSha}\`, range \`${input.range}\``,
-    `- Changed files: ${String(input.changedFiles.length)}`,
-    '',
-    '### Risk reasons',
-    '',
-    ...reasons.map((reason) => `- ${reason}`),
-    '',
-    '### Changed areas',
-    '',
-    ...groups.flatMap((group) => [
-      `<details><summary>${group.label} (${group.risk}, ${fileCount(group.files.length)})</summary>`,
+  const renderReport = (limit: number | undefined) =>
+    [
+      BLAST_RADIUS_COMMENT_MARKER,
+      '## Blast radius report',
       '',
-      ...group.files.map(formatFile),
+      `- Risk: **${risk}**`,
+      `- Head: \`${shortSha}\`, range \`${input.range}\``,
+      `- Changed files: ${String(input.changedFiles.length)}`,
       '',
-      '</details>',
+      '### Risk reasons',
       '',
-    ]),
-    '### Verification',
-    '',
-    ...verification.map((check) => `- ${check}`),
-    '',
-  ].join('\n')
+      ...reasons.map((reason) => `- ${reason}`),
+      '',
+      '### Changed areas',
+      '',
+      ...groups.flatMap((group) => [
+        `<details><summary>${group.label} (${group.risk}, ${fileCount(group.files.length)})</summary>`,
+        '',
+        ...areaFiles(group.files, limit, input.range),
+        '',
+        '</details>',
+        '',
+      ]),
+      '### Verification',
+      '',
+      ...verification.map((check) => `- ${check}`),
+      '',
+    ].join('\n')
+  const reports = AREA_FILE_LIMITS.map(renderReport)
+  const report =
+    reports.find((candidate) => candidate.length <= GITHUB_COMMENT_MAX_CHARACTERS) ??
+    reports.at(-1) ??
+    ''
   const summary = (reportUrl: string) =>
     [
       BLAST_RADIUS_SECTION_START,
