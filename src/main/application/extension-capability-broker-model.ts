@@ -7,6 +7,7 @@ import type {
   ExtensionInvokeScope,
 } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import { withoutUndefinedProperties } from '@shared/utils/undefined-properties'
 import type { DiscoveredExtensionPackage } from '../extensions/types'
 import { contributionMethodIsDeclared } from './extension-contribution-authorization-model'
 
@@ -28,8 +29,19 @@ export function normalizeScope(scope: ExtensionInvokeScope) {
     .exhaustive()
 }
 
+/**
+ * The invocation with its scope trimmed and its payload without explicit-undefined keys: an
+ * extension that builds `{ cursor: undefined }` over postMessage or IPC means no cursor, and the
+ * exact optional payload schemas would refuse the key.
+ */
 export function normalizeInput(input: ExtensionInvokeInput) {
-  return { ...input, scope: normalizeScope(input.scope) }
+  const { payload: rawPayload, ...invocation } = input
+  const payload = withoutUndefinedProperties(rawPayload)
+  return {
+    ...invocation,
+    scope: normalizeScope(input.scope),
+    ...(payload === undefined ? {} : { payload }),
+  } satisfies ExtensionInvokeInput
 }
 
 export function getScopeProjectPath(scope: ExtensionInvokeScope) {
