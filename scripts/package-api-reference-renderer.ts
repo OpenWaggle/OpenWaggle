@@ -1,13 +1,15 @@
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from './support/object-fields'
 
 /*
- * The marker names the package version whose declarations the page lists. A published version's
- * page is frozen: it is generated again only once the package's version changes, at a release.
+ * The marker names the package version whose declarations the page lists and the SHA-256 of the
+ * page without the marker. A published version's page is frozen: it is generated again only once
+ * the package's version changes, at a release, and until then the hash shows it was not edited.
  */
 const GENERATED_API_MARKER_PATTERN =
-  /^<!-- Generated from the public declarations of (?<packageName>\S+) (?<packageVersion>\S+)\. -->$/mu
+  /^<!-- Generated from the public declarations of (?<packageName>\S+) (?<packageVersion>\S+)(?:; content sha256 (?<contentHash>[0-9a-f]{64}))?\. -->$/mu
 const MATCH_DECLARATION_GROUP = 2
 const NAMED_EXPORT_SOURCE_GROUP = 2
 const SUBPATH_PREFIX_LENGTH = 2
@@ -30,6 +32,18 @@ interface RenderApiReferenceInput {
 /** The package version a generated API page lists, or `undefined` for a page without the marker. */
 export function generatedApiReferencePackageVersion(contents: string) {
   return GENERATED_API_MARKER_PATTERN.exec(contents)?.groups?.packageVersion
+}
+
+function apiReferenceContentHash(contents: string) {
+  return createHash('sha256')
+    .update(contents.replace(GENERATED_API_MARKER_PATTERN, ''))
+    .digest('hex')
+}
+
+/** Whether a generated API page still holds the content whose hash its marker records. */
+export function apiReferenceMatchesRecordedHash(contents: string) {
+  const recorded = GENERATED_API_MARKER_PATTERN.exec(contents)?.groups?.contentHash
+  return recorded !== undefined && recorded === apiReferenceContentHash(contents)
 }
 
 function normalizeMarkdown(value: string) {
@@ -247,7 +261,8 @@ export function renderApiReference(input: RenderApiReferenceInput) {
   const moduleSections = Object.entries(input.exports).map(([subpath, target]) =>
     renderModule(input, sections, subpath, target),
   )
-  return normalizeMarkdown(
+  const marker = `<!-- Generated from the public declarations of ${input.packageName} ${input.packageVersion}`
+  const page = normalizeMarkdown(
     [
       '---',
       `title: "${input.packageName} API"`,
@@ -257,7 +272,7 @@ export function renderApiReference(input: RenderApiReferenceInput) {
       'kind: "reference"',
       '---',
       '',
-      `<!-- Generated from the public declarations of ${input.packageName} ${input.packageVersion}. -->`,
+      `${marker}. -->`,
       '',
       `This reference inventories every public entry point and named export in \`${input.packageName}\` ${input.version}.`,
       '',
@@ -265,5 +280,9 @@ export function renderApiReference(input: RenderApiReferenceInput) {
       '',
       ...moduleSections,
     ].join('\n'),
+  )
+  return page.replace(
+    `${marker}. -->`,
+    `${marker}; content sha256 ${apiReferenceContentHash(page)}. -->`,
   )
 }

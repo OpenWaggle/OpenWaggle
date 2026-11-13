@@ -71,6 +71,13 @@ describe('package API reference pages', () => {
       await checkPackageDocumentation(projectRoot, true, [definition])
       await expect(lifecycleFs.readFile(pagePath, 'utf8')).resolves.toBe(released)
 
+      // Regression: a frozen page was never compared with anything, so a hand edit passed.
+      await lifecycleFs.writeFile(pagePath, released.replace('`released`', '`edited`'))
+      await expect(apiViolations()).resolves.toEqual([
+        'website/src/content/docs/packages/extension-sdk/0.2/api-reference.md no longer matches the content hash in its generated marker. A released API page changes only with its package version; restore it from git.',
+      ])
+      await lifecycleFs.writeFile(pagePath, released)
+
       await writeManifest('0.2.1')
       await expect(apiViolations()).resolves.toEqual([
         'website/src/content/docs/packages/extension-sdk/0.2/api-reference.md is stale. Run bun run package-docs:update.',
