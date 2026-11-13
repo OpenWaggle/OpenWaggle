@@ -15,6 +15,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
 
 /**
  * Bundled packages the attachment parser worker resolves from `node_modules` when it loads
@@ -68,21 +69,44 @@ export const PACKAGE_UNLOADED_FILES: Readonly<Record<string, readonly string[]>>
   'playwright-core': ['lib/vite'],
 }
 
-interface PackageManifest {
+export interface PackageManifest {
   readonly dependencies?: Readonly<Record<string, string>>
   readonly optionalDependencies?: Readonly<Record<string, string>>
   readonly peerDependencies?: Readonly<Record<string, string>>
   readonly peerDependenciesMeta?: Readonly<Record<string, { readonly optional?: boolean }>>
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const dependencyMap = Schema.optionalWith(
+  Schema.Record({ key: Schema.String, value: Schema.String }),
+  { exact: true },
+)
+/** The dependency fields of a `package.json`; the rest is not read. */
+const packageManifestSchema = Schema.Struct({
+  dependencies: dependencyMap,
+  optionalDependencies: dependencyMap,
+  peerDependencies: dependencyMap,
+  peerDependenciesMeta: Schema.optionalWith(
+    Schema.Record({
+      key: Schema.String,
+      value: Schema.Struct({
+        optional: Schema.optionalWith(Schema.Boolean, { exact: true }),
+      }),
+    }),
+    { exact: true },
+  ),
+})
 
-export function readManifest(directory: string): PackageManifest {
-  const parsed: unknown = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8'))
-  if (!isRecord(parsed)) throw new Error(`${directory}/package.json is not an object`)
-  return parsed
+export function readManifest(directory: string) {
+  const file = path.join(directory, 'package.json')
+  try {
+    const manifest: PackageManifest = decodeUnknownOrThrow(
+      packageManifestSchema,
+      parseJsonUnknown(fs.readFileSync(file, 'utf8')),
+    )
+    return manifest
+  } catch (error) {
+    throw new Error(`${file} has no readable dependency fields`, { cause: error })
+  }
 }
 
 /** What a package needs at run time: dependencies, optional ones and required peers. */
@@ -154,10 +178,7 @@ export interface PackagedRuntimePackages {
  * ones it does not: those only the bundle contains and `UNLOADED_PACKAGES` with what only they
  * need. `externals` are the main build's externals.
  */
-export function packagedRuntimePackages(
-  projectRoot: string,
-  externals: readonly string[],
-): PackagedRuntimePackages {
+export function packagedRuntimePackages(projectRoot: string, externals: readonly string[]) {
   const manifest = readManifest(projectRoot)
   const production = packageClosure(
     [
@@ -174,5 +195,6 @@ export function packagedRuntimePackages(
   const unshipped = [...production]
     .filter((name) => !runtime.has(name))
     .sort((left, right) => left.localeCompare(right))
-  return { runtime, unshipped }
+  const packages: PackagedRuntimePackages = { runtime, unshipped }
+  return packages
 }

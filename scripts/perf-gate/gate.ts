@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
+import { parseJsonUnknown } from '@shared/schema'
 import type { AbResults } from './ab-run'
 import { REGRESSION_ACCEPTED_LABEL, type Thresholds, timingVerdict } from './ab-verdict'
 import { BUDGET_INCREASE_LABEL, budgetFailureLines, compareBudgets } from './budget-compare'
@@ -49,8 +50,11 @@ const OPTIONS = {
   markdown: { type: 'string' },
 } as const
 
-function readJson(file: string): unknown {
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
+/** The options a command reads; `parseArgs` fills only those given. */
+type GateValues = { readonly [Name in keyof typeof OPTIONS]?: string | undefined }
+
+function readJson(file: string) {
+  return parseJsonUnknown(fs.readFileSync(file, 'utf8'))
 }
 
 function writeJson(file: string, value: unknown) {
@@ -98,10 +102,10 @@ function maintainerLabels(repo: string, pr: string) {
   })
 }
 
-function verdict(values: Record<string, string | undefined>) {
-  const results = parseAbResults(readJson(required(values['results'], 'results')))
+function verdict(values: GateValues) {
+  const results = parseAbResults(readJson(required(values.results, 'results')))
   const thresholds: Thresholds = parseThresholds(
-    readJson(required(values['thresholds'], 'thresholds')),
+    readJson(required(values.thresholds, 'thresholds')),
   )
   const headThresholds = parseThresholds(
     readJson(required(values['head-thresholds'], 'head-thresholds')),
@@ -110,56 +114,57 @@ function verdict(values: Record<string, string | undefined>) {
     results,
     thresholds,
     headThresholds,
-    labels: labelList(values['labels'] ?? ''),
+    labels: labelList(values.labels ?? ''),
   })
-  writeJson(required(values['out'], 'out'), outcome)
+  writeJson(required(values.out, 'out'), outcome)
   for (const line of abFailureLines(outcome, results)) console.error(line)
   return outcome.passed ? 0 : 1
 }
 
 /** main's file; none before the gate landed on main, which compares every metric as new. */
-function budgetFile(file: string): PerfBudgetFile {
-  if (!fs.existsSync(file)) return { about: '', metrics: {} }
+function budgetFile(file: string) {
+  if (!fs.existsSync(file)) {
+    const none: PerfBudgetFile = { about: '', metrics: {} }
+    return none
+  }
   return parsePerfBudgetFile(fs.readFileSync(file, 'utf8'), file)
 }
 
-function budgets(values: Record<string, string | undefined>) {
+function budgets(values: GateValues) {
   const comparison = compareBudgets({
-    base: budgetFile(required(values['base'], 'base')),
-    head: budgetFile(required(values['head'], 'head')),
+    base: budgetFile(required(values.base, 'base')),
+    head: budgetFile(required(values.head, 'head')),
     metrics: PERF_BUDGET_METRICS,
-    labels: labelList(values['labels'] ?? ''),
+    labels: labelList(values.labels ?? ''),
   })
-  writeJson(required(values['out'], 'out'), comparison)
+  writeJson(required(values.out, 'out'), comparison)
   for (const line of budgetFailureLines(comparison)) console.error(line)
   return comparison.passed ? 0 : 1
 }
 
-function report(values: Record<string, string | undefined>) {
-  const results: AbResults | null = values['results']
-    ? parseAbResults(readJson(values['results']))
-    : null
+function report(values: GateValues) {
+  const results: AbResults | null = values.results ? parseAbResults(readJson(values.results)) : null
   const parsed = parsePerfGateReport({
     baseSha: required(values['base-sha'], 'base-sha'),
     headSha: required(values['head-sha'], 'head-sha'),
-    pullRequest: values['pr'] ? Number(values['pr']) : null,
-    timingsSkipped: values['skipped'] ?? null,
-    labels: labelList(values['labels'] ?? ''),
-    budgets: values['budgets'] ? readJson(values['budgets']) : null,
-    timings: values['verdict'] ? readJson(values['verdict']) : null,
+    pullRequest: values.pr ? Number(values.pr) : null,
+    timingsSkipped: values.skipped ?? null,
+    labels: labelList(values.labels ?? ''),
+    budgets: values.budgets ? readJson(values.budgets) : null,
+    timings: values.verdict ? readJson(values.verdict) : null,
     pairs: results?.pairs ?? null,
     platform: results ? `${results.platform}-${results.arch}` : null,
   })
   if (parsed === null) throw new Error('The report is malformed.')
-  writeJson(required(values['out'], 'out'), parsed)
-  fs.writeFileSync(required(values['markdown'], 'markdown'), renderReport(parsed))
+  writeJson(required(values.out, 'out'), parsed)
+  fs.writeFileSync(required(values.markdown, 'markdown'), renderReport(parsed))
   return 0
 }
 
-function render(values: Record<string, string | undefined>) {
-  const parsed = parsePerfGateReport(readJson(required(values['report'], 'report')))
+function render(values: GateValues) {
+  const parsed = parsePerfGateReport(readJson(required(values.report, 'report')))
   if (parsed === null) throw new Error('The report artifact is malformed; nothing to post.')
-  fs.writeFileSync(required(values['markdown'], 'markdown'), renderReport(parsed))
+  fs.writeFileSync(required(values.markdown, 'markdown'), renderReport(parsed))
   return 0
 }
 

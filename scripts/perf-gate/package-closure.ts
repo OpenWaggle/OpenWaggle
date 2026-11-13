@@ -11,6 +11,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { parseJsonUnknown, Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 import {
   BUNDLED_PACKAGE_ASSETS,
   PACKAGE_UNLOADED_FILES,
@@ -74,16 +76,13 @@ const UNLOADED = new Map(
   Object.entries(PACKAGE_UNLOADED_FILES).map(([name, globs]) => [name, globs.map(globExpression)]),
 )
 
-function readJson(file: string): Readonly<Record<string, unknown>> {
-  const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'))
-  return typeof parsed === 'object' && parsed !== null
-    ? Object.fromEntries(Object.entries(parsed))
-    : {}
-}
+/** The `package.json` fields that tie a package to one host. */
+const hostFields = Schema.Struct({ os: unknownField, cpu: unknownField })
 
 function hostBound(directory: string) {
-  const manifest = readJson(path.join(directory, 'package.json'))
-  return manifest['os'] !== undefined || manifest['cpu'] !== undefined
+  const raw = fs.readFileSync(path.join(directory, 'package.json'), 'utf8')
+  const manifest = objectFields(hostFields, parseJsonUnknown(raw))
+  return manifest?.os !== undefined || manifest?.cpu !== undefined
 }
 
 function walk(root: string, relative: string, keep: (entry: string) => boolean): string[] {
@@ -147,7 +146,7 @@ function runtimeDirectories(projectRoot: string) {
 }
 
 /** The files and bytes the packaged app ships from `node_modules`, the same on every host. */
-export function measurePackageClosure(projectRoot = process.cwd()): PackageClosureSize {
+export function measurePackageClosure(projectRoot = process.cwd()) {
   let packages = 0
   let files = 0
   let bytes = 0
@@ -165,5 +164,6 @@ export function measurePackageClosure(projectRoot = process.cwd()): PackageClosu
     files += list.length
     bytes += sizeOf(directory, list)
   }
-  return { packages, files, bytes }
+  const size: PackageClosureSize = { packages, files, bytes }
+  return size
 }

@@ -14,6 +14,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { parseJsonUnknown } from '@shared/schema'
 import {
   MAIN_ENTRY_CHUNK,
   MAIN_PROCESS_BUDGETS,
@@ -34,8 +35,8 @@ const PAGE_REFERENCE = /(?:src|href)="\.\/(?<file>assets\/[^"]+)"/gu
 /** `index.html` itself. */
 const DOCUMENT_REQUESTS = 1
 
-function readJson(file: string): unknown {
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
+function readJson(file: string) {
+  return parseJsonUnknown(fs.readFileSync(file, 'utf8'))
 }
 
 function files(directory: string) {
@@ -105,7 +106,7 @@ function rendererMetrics(out: string) {
   const html = fs.readFileSync(path.join(renderer, 'index.html'), 'utf8')
   const initial = new Set(
     [...html.matchAll(PAGE_REFERENCE)].flatMap((match) =>
-      match.groups?.['file'] ? [match.groups['file']] : [],
+      match.groups?.file ? [match.groups.file] : [],
     ),
   )
   const manifest = parseRendererManifest(readJson(path.join(renderer, '.vite', 'manifest.json')))
@@ -119,6 +120,6 @@ function rendererMetrics(out: string) {
 }
 
 /** Every build metric of `out/` (the electron-vite output directory). */
-export function measureBuild(out = path.resolve('out')): Record<string, number> {
+export function measureBuild(out = path.resolve('out')) {
   return { ...mainMetrics(out), ...rendererMetrics(out) }
 }

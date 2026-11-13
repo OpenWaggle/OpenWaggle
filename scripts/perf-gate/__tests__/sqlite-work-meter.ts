@@ -81,7 +81,7 @@ export function meterSqliteWork() {
     return original.run.apply(this, params)
   }
   return {
-    take(): SqliteWork {
+    take() {
       const work = { statements, rows }
       statements = 0
       rows = 0

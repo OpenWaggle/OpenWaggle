@@ -7,13 +7,14 @@
  * what the window receives.
  */
 import { toHostUiJsonValue } from '@shared/host-ui-json'
+import { parseJsonUnknown } from '@shared/schema'
 import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
 import { decodeSessionQueryRequest } from '@shared/schemas/session-query'
 import { HOST_UI_CONTRACT_VERSION, type HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type { IpcInvokeArgs, IpcInvokeReturn } from '@shared/types/ipc'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol-revisions'
-import type { SessionQueryRequest, SessionQueryResponse } from '@shared/types/session-query'
+import type { SessionQueryRequest } from '@shared/types/session-query'
 import { dispatchLocalSessionCommand } from '../../../src/main/application/local-session-command-dispatcher'
 import type { runAppEffect } from '../../../src/main/runtime'
 import type { SqliteWork, SqliteWorkMeter } from './sqlite-work-meter'
@@ -31,8 +32,8 @@ export interface MeasuredReads extends SqliteWork {
 }
 
 /** A JSON round trip: what the socket and the window's IPC carry. No reply crosses as nothing. */
-function overTheWire(value: unknown): unknown {
-  return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
+function overTheWire(value: unknown) {
+  return value === undefined ? undefined : parseJsonUnknown(JSON.stringify(value))
 }
 
 function wireBytes(value: unknown) {
@@ -92,7 +93,7 @@ export function sessionHostReads(runEffect: RunAppEffect, meter: SqliteWorkMeter
     return overTheWire(reply)
   }
 
-  async function querySessionControl(request: SessionQueryRequest): Promise<SessionQueryResponse> {
+  async function querySessionControl(request: SessionQueryRequest) {
     const result = await command({
       contract: 'session-query-v2',
       request: decodeSessionQueryRequest(request),
@@ -105,12 +106,18 @@ export function sessionHostReads(runEffect: RunAppEffect, meter: SqliteWorkMeter
   }
 
   /** Runs `reads` and returns their result, what they moved and what SQLite did for them. */
-  async function measure<T>(reads: () => Promise<T>): Promise<MeasuredReads & { result: T }> {
+  async function measure<T>(reads: () => Promise<T>) {
     meter.take()
     bytes = 0
     channels = []
     const result = await reads()
-    return { ...meter.take(), bytes, channels, result }
+    const measured: MeasuredReads & { readonly result: T } = {
+      ...meter.take(),
+      bytes,
+      channels,
+      result,
+    }
+    return measured
   }
 
   return { hostUi, querySessionControl, measure }

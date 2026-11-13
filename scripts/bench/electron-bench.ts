@@ -42,7 +42,7 @@ const JSON_INDENT = 2
 const FIRST_ARGUMENT = 2
 const SUBCOMMAND_OPTIONS = 1
 
-function readJson<T>(file: string, guard: (value: unknown) => value is T, what: string): T {
+function readJson<T>(file: string, guard: (value: unknown) => value is T, what: string) {
   const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'))
   if (!guard(parsed)) throw new Error(`${file} is not ${what}.`)
   return parsed

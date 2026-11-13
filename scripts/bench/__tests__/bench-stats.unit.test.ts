@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { AppMemory } from '../app-processes'
 import { type BenchResult, isBenchResult, median, summarizeBench, tableRow } from '../bench-stats'
 
-function memory(rssBytes: number, gpu: number): AppMemory {
-  return {
+function memory(rssBytes: number, gpu: number) {
+  const memory: AppMemory = {
     rssBytes,
     processCount: 2,
     byRole: { main: { count: 1, rssBytes: rssBytes - gpu }, gpu: { count: 1, rssBytes: gpu } },
     processes: [],
   }
+  return memory
 }
 
 function run(windowReadyMs: number, rss: number) {

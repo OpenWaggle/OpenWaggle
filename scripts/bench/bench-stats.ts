@@ -52,7 +52,7 @@ export function isBenchResult(value: unknown): value is BenchResult {
   )
 }
 
-export function median(values: readonly number[]): number | null {
+export function median(values: readonly number[]) {
   const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b)
   if (sorted.length === 0) return null
   const middle = (sorted.length - 1) / PAIR

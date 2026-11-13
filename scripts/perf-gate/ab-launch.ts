@@ -140,10 +140,7 @@ async function ipcCallsUntil(inspector: CdpClient, chatReadyAt: number | null) {
 }
 
 /** Launches the app on `profile` and waits until its chat is ready. */
-export async function launchUntilChatReady(
-  app: InstalledElectronApp,
-  profile: ScratchProfile,
-): Promise<Launched> {
+export async function launchUntilChatReady(app: InstalledElectronApp, profile: ScratchProfile) {
   const cdpPort = await freePort()
   const inspectorPort = await freePort()
   const started = startElectronApp({
@@ -165,7 +162,7 @@ export async function launchUntilChatReady(
     })
     await waitForMilestones(page, ['shell', 'chatReady'], LAUNCH_TIMEOUT_MS)
     const boot = await readRendererBoot(page, true)
-    const chatReadyRenderer = boot.milestones['chatReady']
+    const chatReadyRenderer = boot.milestones.chatReady
     const chatReadyAt = chatReadyRenderer === undefined ? null : boot.timeOrigin + chatReadyRenderer
     const ipcCalls = pageExisted ? null : await ipcCallsUntil(inspector, chatReadyAt)
     const timings: LaunchTimings = {

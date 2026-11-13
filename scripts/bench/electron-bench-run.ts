@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { Browser, Page } from '@playwright/test'
 import { configureFakeProvider, FAKE_MODEL_REFERENCE } from '../perf/lib/fake-openai-provider'
-import { type AppMemory, listProcesses, sampleAppMemory } from './app-processes'
+import { listProcesses, sampleAppMemory } from './app-processes'
 import {
   connectRenderer,
   proveBrowserPreview,
@@ -77,7 +77,7 @@ async function launch(
   app: InstalledElectronApp,
   profile: ScratchProfile,
   appArguments: readonly string[] = [],
-): Promise<Connected> {
+) {
   const cdpPort = await freePort()
   const started = startElectronApp({ app, profile, cdpPort, appArguments })
   const exited = () => started.child.exitCode !== null || started.child.signalCode !== null
@@ -97,7 +97,7 @@ async function launch(
   }
 }
 
-function memory(app: InstalledElectronApp, connected: Connected): AppMemory {
+function memory(app: InstalledElectronApp, connected: Connected) {
   const pid = connected.started.child.pid
   return sampleAppMemory({
     rootPids: pid === undefined ? [] : [pid],

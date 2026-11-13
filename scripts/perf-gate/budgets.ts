@@ -31,7 +31,7 @@ import { measurePackageClosure } from './package-closure'
 const FIRST_ARGUMENT = 2
 const BUILD_GROUP = 'build'
 
-function measureBuildSource(): Record<string, number> {
+function measureBuildSource() {
   const closure = measurePackageClosure()
   return {
     'package.runtime.packages': closure.packages,

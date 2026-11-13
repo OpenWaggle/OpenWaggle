@@ -42,7 +42,7 @@ const FAILING: ReadonlySet<BudgetRowStatus> = new Set(['raised', 'removed', 'qua
 function rowStatus(
   base: PerfBudgetFile['metrics'][string] | undefined,
   head: PerfBudgetFile['metrics'][string] | undefined,
-): BudgetRowStatus {
+) {
   if (base === undefined) return 'new'
   if (head === undefined) return 'removed'
   if (head.quantum > base.quantum) return 'quantum-raised'
@@ -56,14 +56,14 @@ export function compareBudgets(input: {
   readonly head: PerfBudgetFile
   readonly metrics: readonly PerfBudgetMetric[]
   readonly labels: readonly string[]
-}): BudgetComparison {
+}) {
   const described = new Map(input.metrics.map((metric) => [metric.id, metric]))
   const ids = [...new Set([...Object.keys(input.base.metrics), ...Object.keys(input.head.metrics)])]
-  const rows = ids.map((id): BudgetRow => {
+  const rows = ids.map((id) => {
     const base = input.base.metrics[id]
     const head = input.head.metrics[id]
     const metric = described.get(id)
-    return {
+    const row: BudgetRow = {
       id,
       title: metric?.title ?? id,
       unit: metric?.unit ?? 'count',
@@ -74,10 +74,17 @@ export function compareBudgets(input: {
       status: rowStatus(base, head),
       fix: metric?.fix ?? '',
     }
+    return row
   })
   const increases = rows.filter((row) => FAILING.has(row.status))
   const accepted = increases.length > 0 && input.labels.includes(BUDGET_INCREASE_LABEL)
-  return { rows, increases, accepted, passed: increases.length === 0 || accepted }
+  const comparison: BudgetComparison = {
+    rows,
+    increases,
+    accepted,
+    passed: increases.length === 0 || accepted,
+  }
+  return comparison
 }
 
 function change(row: BudgetRow) {

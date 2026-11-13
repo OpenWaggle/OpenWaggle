@@ -27,7 +27,7 @@ interface Shape {
   readonly processes?: number
 }
 
-function sample(build: 'base' | 'head', order: number, shape: Shape = {}): AbSample {
+function sample(build: 'base' | 'head', order: number, shape: Shape = {}) {
   const jitter = (order % 2) * 7
   const chat = (shape.chat ?? 1_400) + jitter
   const launch = {
@@ -42,15 +42,24 @@ function sample(build: 'base' | 'head', order: number, shape: Shape = {}): AbSam
     processCount: shape.processes ?? 6,
     byRole: { main: 200 * MIB, renderer: 150 * MIB },
   }
-  return { build, order, cold: launch, warm: launch, idle: memory, afterTurn: memory, turnMs: 900 }
+  const result: AbSample = {
+    build,
+    order,
+    cold: launch,
+    warm: launch,
+    idle: memory,
+    afterTurn: memory,
+    turnMs: 900,
+  }
+  return result
 }
 
-function results(head: Shape, pairs = 4): AbResults {
+function results(head: Shape, pairs = 4) {
   const samples = Array.from({ length: pairs }, (_, index) => [
     sample('base', index + 1),
     sample('head', index + 1, head),
   ]).flat()
-  return {
+  const result: AbResults = {
     platform: 'linux',
     arch: 'x64',
     pairs,
@@ -58,6 +67,7 @@ function results(head: Shape, pairs = 4): AbResults {
     builds: { base: { label: 'base' }, head: { label: 'head' } },
     samples,
   }
+  return result
 }
 
 function verdict(head: Shape, labels: readonly string[] = [], headThresholds = THRESHOLDS) {

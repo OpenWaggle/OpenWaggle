@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  type PackageManifest,
   packageClosure,
   packagedRuntimePackages,
   resolvePackageDirectory,
@@ -11,11 +12,13 @@ import {
 
 const roots: string[] = []
 
+type WrittenManifest = PackageManifest & { readonly name?: string }
+
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
 
-function writePackage(directory: string, manifest: Record<string, unknown>) {
+function writePackage(directory: string, manifest: WrittenManifest) {
   fs.mkdirSync(directory, { recursive: true })
   fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify(manifest))
 }
@@ -28,7 +31,7 @@ function isolatedProject() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-packages-'))
   roots.push(root)
   const store = path.join(root, 'node_modules', '.bun')
-  const place = (id: string, name: string, manifest: Record<string, unknown>, deps: string[]) => {
+  const place = (id: string, name: string, manifest: WrittenManifest, deps: string[]) => {
     const directory = path.join(store, id, 'node_modules', name)
     writePackage(directory, { name, ...manifest })
     for (const dependency of deps) {

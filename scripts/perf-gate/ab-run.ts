@@ -36,20 +36,21 @@ export interface AbResults {
 }
 
 /** A built checkout as the bench harness launches it: its own Electron, given the directory. */
-export function unpackagedApp(checkout: string): InstalledElectronApp {
+export function unpackagedApp(checkout: string) {
   const root = fs.realpathSync(checkout)
   const electron: unknown = createRequire(path.join(root, 'package.json'))('electron')
   if (typeof electron !== 'string') throw new Error(`${root} has no Electron binary.`)
   if (!fs.existsSync(path.join(root, 'out', 'main', 'boot.js'))) {
     throw new Error(`${root} is not built: out/main/boot.js is missing.`)
   }
-  return {
+  const app: InstalledElectronApp = {
     launcher: electron,
     leadingArguments: [root],
     installRoot: root,
     installedBytes: 0,
     downloads: {},
   }
+  return app
 }
 
 function log(message: string) {
@@ -87,7 +88,7 @@ export async function runAb(options: {
   readonly idleMs: number
   readonly work: string
   readonly labels: { readonly base: string; readonly head: string }
-}): Promise<AbResults> {
+}) {
   const apps = { base: unpackagedApp(options.base), head: unpackagedApp(options.head) }
   const builds = ['base', 'head'] as const
   const samples: AbSample[] = []

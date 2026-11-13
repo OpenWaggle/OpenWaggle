@@ -42,7 +42,7 @@ export interface AbSample {
   readonly turnMs: number
 }
 
-function memory(app: InstalledElectronApp, launched: Launched): MemorySample {
+function memory(app: InstalledElectronApp, launched: Launched) {
   const pid = launched.started.child.pid
   const sampled: AppMemory = sampleAppMemory({
     rootPids: pid === undefined ? [] : [pid],
@@ -84,7 +84,7 @@ export async function measureSample(input: {
   readonly order: number
   readonly root: string
   readonly idleMs: number
-}): Promise<AbSample> {
+}) {
   const { app } = input
   const profile = createScratchProfile(
     path.join(input.root, `${String(input.order)}-${input.build}`),

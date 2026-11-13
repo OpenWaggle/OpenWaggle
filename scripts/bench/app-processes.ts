@@ -38,18 +38,20 @@ export interface RoleTotal {
   readonly rssBytes: number
 }
 
+export interface AppProcessMemory {
+  readonly pid: number
+  readonly ppid: number
+  readonly role: ProcessRole
+  /** Chromium's `--type` and `--utility-sub-type`, which tell its helpers apart. */
+  readonly kind: string
+  readonly rssBytes: number
+}
+
 export interface AppMemory {
   readonly rssBytes: number
   readonly processCount: number
   readonly byRole: Readonly<Partial<Record<ProcessRole, RoleTotal>>>
-  readonly processes: readonly {
-    readonly pid: number
-    readonly ppid: number
-    readonly role: ProcessRole
-    /** Chromium's `--type` and `--utility-sub-type`, which tell its helpers apart. */
-    readonly kind: string
-    readonly rssBytes: number
-  }[]
+  readonly processes: readonly AppProcessMemory[]
 }
 
 const KIB = 1024
@@ -69,7 +71,7 @@ function stringField(row: object, key: string) {
 }
 
 /** Rows of `ConvertTo-Json` output: one object when there is one process, else an array. */
-export function parseWindowsProcesses(json: string): ProcessRow[] {
+export function parseWindowsProcesses(json: string) {
   const parsed: unknown = JSON.parse(json)
   const rows: unknown[] = Array.isArray(parsed) ? parsed : [parsed]
   return rows.flatMap((row) => {
@@ -88,7 +90,7 @@ export function parseWindowsProcesses(json: string): ProcessRow[] {
 }
 
 /** Rows of `ps -A -o pid=,ppid=,rss=,args=`; `rss` is in KiB. */
-export function parsePosixProcesses(output: string): ProcessRow[] {
+export function parsePosixProcesses(output: string) {
   return output.split('\n').flatMap((line) => {
     const [, pid, ppid, rss, command] = POSIX_ROW.exec(line) ?? []
     if (pid === undefined || ppid === undefined || rss === undefined) return []
@@ -98,7 +100,7 @@ export function parsePosixProcesses(output: string): ProcessRow[] {
   })
 }
 
-export function listProcesses(platform: NodeJS.Platform = process.platform): ProcessRow[] {
+export function listProcesses(platform: NodeJS.Platform = process.platform) {
   if (platform === 'win32') {
     const json = execFileSync('powershell.exe', ['-NoProfile', '-Command', WINDOWS_PROCESSES], {
       encoding: 'utf8',
@@ -156,7 +158,7 @@ export function selectAppProcesses(
 const CHROMIUM_TYPE = /--type=([\w-]+)/u
 const UTILITY_SUB_TYPE = /--utility-sub-type=([\w.]+)/u
 
-function chromiumRole(command: string): ProcessRole | null {
+function chromiumRole(command: string) {
   const type = CHROMIUM_TYPE.exec(command)?.[1]
   if (type === undefined) return null
   if (type === 'renderer') return 'renderer'
@@ -177,7 +179,7 @@ const CLI_COMMANDS = /\s(?:run|host|hive|mcp|sessions)\s/u
  * install is the app's main process (or a CLI command), and the rest are what the app started:
  * shells, git, MCP servers.
  */
-export function processRole(command: string, installPaths: readonly string[]): ProcessRole {
+export function processRole(command: string, installPaths: readonly string[]) {
   const chromium = chromiumRole(command)
   if (chromium !== null) return chromium
   if (command.includes('session-host-internal')) return 'session-host'
@@ -192,7 +194,7 @@ export function processRole(command: string, installPaths: readonly string[]): P
   return CLI_COMMANDS.test(` ${command} `) ? 'cli' : 'main'
 }
 
-export function appMemory(rows: readonly ProcessRow[], installPaths: readonly string[]): AppMemory {
+export function appMemory(rows: readonly ProcessRow[], installPaths: readonly string[]) {
   const byRole: Partial<Record<ProcessRole, RoleTotal>> = {}
   const processes = rows.map((row) => {
     const role = processRole(row.command, installPaths)
@@ -201,14 +203,22 @@ export function appMemory(rows: readonly ProcessRow[], installPaths: readonly st
     const kind = [CHROMIUM_TYPE.exec(row.command)?.[1], UTILITY_SUB_TYPE.exec(row.command)?.[1]]
       .filter((part) => part !== undefined)
       .join(':')
-    return { pid: row.pid, ppid: row.ppid, role, kind, rssBytes: row.rssBytes }
+    const entry: AppProcessMemory = {
+      pid: row.pid,
+      ppid: row.ppid,
+      role,
+      kind,
+      rssBytes: row.rssBytes,
+    }
+    return entry
   })
-  return {
+  const memory: AppMemory = {
     rssBytes: rows.reduce((sum, row) => sum + row.rssBytes, 0),
     processCount: rows.length,
     byRole,
     processes,
   }
+  return memory
 }
 
 /** One sample of the running app's memory. */
