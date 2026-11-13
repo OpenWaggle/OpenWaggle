@@ -136,7 +136,10 @@ export const CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
  * of MiB of resident memory. With software compositing (Electrobun's Linux defaults turn the GPU
  * off) the GPU process only rasterizes, and the network service only serves the app's loopback
  * pages and the previews: both run in the browser process (`in-process-gpu`,
- * `NetworkServiceInProcess`); the two helpers held about 240 MiB. The audio service runs in the browser process too (`AudioServiceOutOfProcess` off):
+ * `NetworkServiceInProcess2`, the feature `kNetworkServiceInProcess` names); the two helpers held
+ * about 240 MiB. Renderers start without the zygote (`no-zygote`; Electrobun already runs CEF
+ * with `no-sandbox`, which is what the zygote prepares): its two processes held about 150 MiB, and
+ * the app starts one renderer for its window and one per open preview. The audio service runs in the browser process too (`AudioServiceOutOfProcess` off):
  * the out-of-process one started with the first sound of a turn and stayed, about 90 MiB. No spare
  * renderer is kept warm for the next site (`SpareRendererForSitePerProcess` off): the app has one
  * window and a preview opens rarely, so the spare, about 90 MiB, waited for nothing.
@@ -152,7 +155,8 @@ export const CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
 export const LINUX_CEF_CHROMIUM_FLAGS: Readonly<Record<string, string | boolean>> = {
   ...CEF_CHROMIUM_FLAGS,
   'in-process-gpu': true,
-  'enable-features': 'NetworkServiceInProcess',
+  'no-zygote': true,
+  'enable-features': 'NetworkServiceInProcess2',
   'disable-features': 'DbusSecretPortal,AudioServiceOutOfProcess,SpareRendererForSitePerProcess',
 }
 

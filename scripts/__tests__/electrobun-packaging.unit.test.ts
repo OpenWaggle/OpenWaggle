@@ -93,7 +93,8 @@ describe('electrobunAppConfig', () => {
     expect(linux.chromiumFlags).toEqual({
       ...flags,
       'in-process-gpu': true,
-      'enable-features': 'NetworkServiceInProcess',
+      'no-zygote': true,
+      'enable-features': 'NetworkServiceInProcess2',
       'disable-features':
         'DbusSecretPortal,AudioServiceOutOfProcess,SpareRendererForSitePerProcess',
     })
