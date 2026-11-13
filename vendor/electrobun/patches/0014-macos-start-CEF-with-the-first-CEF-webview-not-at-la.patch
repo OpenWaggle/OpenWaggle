@@ -1,0 +1,366 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Fri, 13 Nov 2026 08:32:44 +0100
+Subject: [PATCH] macos: start CEF with the first CEF webview, not at launch
+
+An app that bundles CEF started it in startEventLoop whenever the
+framework was present: CefInitialize, then CefRunMessageLoop for the
+life of the app. An app whose CEF webviews open later, or never, paid
+for CEF's browser-process setup, its GPU and utility helper processes
+and the mapped framework from the first second, and its launch waited
+for CefInitialize.
+
+The main thread now always runs [NSApp run], with ElectrobunNSApplication
+(CefAppProtocol) when CEF is bundled. The first CEF webview starts CEF
+on that run loop with external_message_pump: CEF asks for work through
+OnScheduleMessagePumpWork and CefDoMessageLoopWork runs on the main
+thread, immediately or from a timer in the common run loop modes and
+never later than 1/30 s, after cefclient's
+MainMessageLoopExternalPumpMac. CefShutdown runs at exit only if CEF
+started. A failed start is final (CefInitialize runs once per process)
+and the webview falls back to WKWebView, as it does without CEF.
+
+The native wrapper no longer links the framework (-weak_framework): it
+calls the C API through libcef_dll_wrapper's dylib stubs and loads the
+framework with cef_load_library when CEF starts, as CEF's helpers
+already do, so dyld does not map 300 MB of CEF into every launch.
+
+The remote debugging port is still read when CEF starts, from
+ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT or chromiumFlags.
+---
+ package/build.ts                          |   2 +-
+ package/src/native/macos/nativeWrapper.mm | 207 +++++++++++++++++-----
+ 2 files changed, 165 insertions(+), 44 deletions(-)
+
+diff --git a/package/build.ts b/package/build.ts
+index 55dcbd4..d87fbd7 100644
+--- a/package/build.ts
++++ b/package/build.ts
+@@ -2292,7 +2292,7 @@ async function buildNative() {
+ 		writeNativeCompileFlags("macos", compileFlags);
+ 		await $`mkdir -p src/native/macos/build`;
+ 		await $`xcrun --sdk macosx clang++ -c src/native/macos/nativeWrapper.mm -o src/native/macos/build/nativeWrapper.o ${compileFlags}`;
+-		await $`mkdir -p src/native/build && xcrun --sdk macosx clang++ ${macosClangTargetFlags} -o src/native/build/libNativeWrapper.dylib src/native/macos/build/nativeWrapper.o ./vendors/zig-asar/libasar.dylib -framework Cocoa -framework WebKit -framework QuartzCore -framework CoreVideo -framework Metal -framework MetalKit -framework UserNotifications -F./vendors/cef/Release -weak_framework 'Chromium Embedded Framework' -L./vendors/cef/build/libcef_dll_wrapper -lcef_dll_wrapper -stdlib=libc++ -shared -install_name @executable_path/libNativeWrapper.dylib -Wl,-rpath,@executable_path`;
++		await $`mkdir -p src/native/build && xcrun --sdk macosx clang++ ${macosClangTargetFlags} -o src/native/build/libNativeWrapper.dylib src/native/macos/build/nativeWrapper.o ./vendors/zig-asar/libasar.dylib -framework Cocoa -framework WebKit -framework QuartzCore -framework CoreVideo -framework Metal -framework MetalKit -framework UserNotifications -L./vendors/cef/build/libcef_dll_wrapper -lcef_dll_wrapper -stdlib=libc++ -shared -install_name @executable_path/libNativeWrapper.dylib -Wl,-rpath,@executable_path`;
+ 	} else if (OS === "win") {
+ 		const webview2Include = join(
+ 			process.cwd(),
+diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
+index 159fa0a..ab67ac5 100644
+--- a/package/src/native/macos/nativeWrapper.mm
++++ b/package/src/native/macos/nativeWrapper.mm
+@@ -43,6 +43,7 @@ static bool wgpuDebugEnabled() {
+ #include "include/base/cef_ref_counted.h"
+ #include "include/cef_app.h"
+ #include "include/cef_application_mac.h"
++#include "include/wrapper/cef_library_loader.h"
+ #include "include/cef_base.h"
+ #include "include/cef_browser.h"
+ #include "include/cef_client.h"
+@@ -106,6 +107,10 @@ static bool wgpuDebugEnabled() {
+ 
+ CGFloat OFFSCREEN_OFFSET = -20000;
+ BOOL useCEF = false;
++// CEF starts with the first CEF webview, not at launch: an app whose CEF
++// webviews open later (or never) runs no CEF processes until then.
++static bool g_cefStarted = false;
++static void scheduleCefMessagePumpWork(int64_t delayMs);
+ std::string g_electrobunChannel = "";
+ std::string g_electrobunIdentifier = "";
+ 
+@@ -674,12 +679,21 @@ static void applyWindowButtonPosition(NSWindow *window, double x, double y) {
+  * =============================================================================
+  */
+ 
++// The CEF framework the app bundles. The native wrapper does not link it: CEF
++// is loaded with cef_load_library when the first CEF webview starts it, so an
++// app that opens no CEF webview never maps the framework.
++static NSString *cefFrameworkDirectory() {
++  return [[NSBundle mainBundle].privateFrameworksPath
++      stringByAppendingPathComponent:@"Chromium Embedded Framework.framework"];
++}
++
++static NSString *cefFrameworkBinary() {
++  return [cefFrameworkDirectory()
++      stringByAppendingPathComponent:@"Chromium Embedded Framework"];
++}
++
+ bool isCEFAvailable() {
+-  NSBundle *mainBundle = [NSBundle mainBundle];
+-  NSString *frameworkPath = [mainBundle.privateFrameworksPath
+-      stringByAppendingPathComponent:
+-          @"Chromium Embedded Framework.framework/Chromium Embedded Framework"];
+-  return [[NSFileManager defaultManager] fileExistsAtPath:frameworkPath];
++  return [[NSFileManager defaultManager] fileExistsAtPath:cefFrameworkBinary()];
+ }
+ 
+ extern "C" uint32_t getWindowStyle(bool Borderless, bool Titled, bool Closable,
+@@ -5867,6 +5881,97 @@ - (void)sendEvent:(NSEvent *)event {
+ }
+ @end
+ 
++// CEF's external message pump on the Cocoa run loop, after cefclient's
++// MainMessageLoopExternalPumpMac. [NSApp run] owns the main thread from
++// launch; once CEF starts it asks for work through OnScheduleMessagePumpWork
++// (from any thread), and CefDoMessageLoopWork runs here on the main thread,
++// immediately or from a timer, and never later than kCefPumpMaxDelayMs.
++static const int64_t kCefPumpMaxDelayMs = 1000 / 30;
++static const int64_t kCefPumpTimerPlaceholder = INT64_MAX;
++
++@interface ElectrobunCefPump : NSObject
++- (void)scheduleWork:(NSNumber *)delayMs;
++- (void)stop;
++@end
++
++@implementation ElectrobunCefPump {
++  NSTimer *timer_;
++  BOOL active_;
++  BOOL reentrancyDetected_;
++  BOOL stopped_;
++}
++- (void)killTimer {
++  [timer_ invalidate];
++  timer_ = nil;
++}
++- (void)setTimer:(int64_t)delayMs {
++  timer_ = [NSTimer timerWithTimeInterval:(double)delayMs / 1000.0
++                                   target:self
++                                 selector:@selector(timerFired:)
++                                 userInfo:nil
++                                  repeats:NO];
++  NSRunLoop *loop = [NSRunLoop currentRunLoop];
++  [loop addTimer:timer_ forMode:NSRunLoopCommonModes];
++  [loop addTimer:timer_ forMode:NSEventTrackingRunLoopMode];
++}
++- (void)timerFired:(NSTimer *)timer {
++  (void)timer;
++  [self killTimer];
++  [self doWork];
++}
++- (BOOL)performWork {
++  if (active_) {
++    // CefDoMessageLoopWork can call back into OnScheduleMessagePumpWork; the
++    // nested request runs as soon as this one returns.
++    reentrancyDetected_ = YES;
++    return NO;
++  }
++  reentrancyDetected_ = NO;
++  active_ = YES;
++  CefDoMessageLoopWork();
++  active_ = NO;
++  return reentrancyDetected_;
++}
++- (void)doWork {
++  if (stopped_)
++    return;
++  if ([self performWork]) {
++    [self scheduleWork:@(0)];
++  } else if (timer_ == nil) {
++    [self scheduleWork:@(kCefPumpTimerPlaceholder)];
++  }
++}
++- (void)scheduleWork:(NSNumber *)delayNumber {
++  if (stopped_)
++    return;
++  int64_t delayMs = [delayNumber longLongValue];
++  if (delayMs == kCefPumpTimerPlaceholder && timer_ != nil)
++    return;
++  [self killTimer];
++  if (delayMs <= 0) {
++    [self doWork];
++  } else {
++    [self setTimer:MIN(delayMs, kCefPumpMaxDelayMs)];
++  }
++}
++- (void)stop {
++  stopped_ = YES;
++  [self killTimer];
++}
++@end
++
++static ElectrobunCefPump *g_cefPump = nil;
++
++static void scheduleCefMessagePumpWork(int64_t delayMs) {
++  ElectrobunCefPump *pump = g_cefPump;
++  if (pump == nil)
++    return;
++  [pump performSelectorOnMainThread:@selector(scheduleWork:)
++                         withObject:@(delayMs)
++                      waitUntilDone:NO
++                              modes:@[ NSRunLoopCommonModes ]];
++}
++
+ @implementation StatusItemTarget
+ - (void)statusItemClicked:(id)sender {
+   if (self.zigHandler) {
+@@ -5988,6 +6093,9 @@ void OnBeforeCommandLineProcessing(
+   CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override {
+     return this;
+   }
++  void OnScheduleMessagePumpWork(int64_t delay_ms) override {
++    scheduleCefMessagePumpWork(delay_ms);
++  }
+   CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override {
+     return this;
+   }
+@@ -7471,11 +7579,21 @@ - (instancetype)initWithWebviewId:(uint32_t)webviewId
+ 
+ bool initializeCEF() {
+   static bool initialized = false;
++  // CefInitialize runs at most once per process, so a failed start is final.
++  static bool failed = false;
+   if (initialized)
+     return true;
++  if (failed)
++    return false;
+ 
+   [ElectrobunNSApplication sharedApplication];
+   if (![NSApp isKindOfClass:[ElectrobunNSApplication class]]) {
++    failed = true;
++    return false;
++  }
++  if (!cef_load_library([cefFrameworkBinary() fileSystemRepresentation])) {
++    NSLog(@"[CEF] Could not load %@", cefFrameworkBinary());
++    failed = true;
+     return false;
+   }
+ 
+@@ -7503,6 +7621,9 @@ bool initializeCEF() {
+   settings.no_sandbox = true;
+   settings.multi_threaded_message_loop =
+       false; // Use single threaded message loop on macOS
++  // [NSApp run] owns the main thread; CEF's work arrives through
++  // OnScheduleMessagePumpWork (ElectrobunCefPump).
++  settings.external_message_pump = true;
+   settings.windowless_rendering_enabled =
+       true; // Required for OSR/transparent windows
+   const auto remoteDebugging = electrobun::resolveRemoteDebugging(
+@@ -7534,13 +7655,7 @@ bool initializeCEF() {
+     CefString(&settings.main_bundle_path) = [bundlePath UTF8String];
+   }
+ 
+-  NSString *frameworkPath =
+-      [[NSBundle mainBundle] pathForResource:@"Chromium Embedded Framework"
+-                                      ofType:@"framework"
+-                                 inDirectory:@"Contents/Frameworks"];
+-  if (frameworkPath) {
+-    CefString(&settings.framework_dir_path) = [frameworkPath UTF8String];
+-  }
++  CefString(&settings.framework_dir_path) = [cefFrameworkDirectory() UTF8String];
+ 
+   // Match the helper name to the actual host executable. Native modes launch
+   // a different host binary than Cottontail.
+@@ -7614,6 +7729,7 @@ bool initializeCEF() {
+ 
+   // Enable required packaged services
+   // settings.packaged_services = cef_services_t::CEF_SERVICE_ALL;
++  g_cefPump = [[ElectrobunCefPump alloc] init];
+   bool result = CefInitialize(main_args, settings, g_app.get(), nullptr);
+ 
+   for (int i = 0; i < argc; i++)
+@@ -7621,13 +7737,31 @@ bool initializeCEF() {
+   free(argv);
+ 
+   if (!result) {
++    failed = true;
++    [g_cefPump stop];
++    g_cefPump = nil;
+     return false;
+   }
+ 
+   initialized = true;
++  g_cefStarted = true;
++  scheduleCefMessagePumpWork(0);
+   return true;
+ }
+ 
++// After [NSApp run] returns: lets CEF finish pending work, then shuts it down.
++static void shutdownStartedCEF() {
++  if (!g_cefStarted)
++    return;
++  [g_cefPump stop];
++  for (int i = 0; i < 10; i++) {
++    CefDoMessageLoopWork();
++  }
++  CefShutdown();
++  g_cefPump = nil;
++  g_cefStarted = false;
++}
++
+ struct WebviewAllowedProtocols {
+   bool views;
+   bool appData;
+@@ -8786,28 +8920,19 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+   });
+   dispatch_resume(sigtermSource);
+ 
+-  if (useCEF) {
+-    @autoreleasepool {
+-      if (!initializeCEF()) {
+-        return;
+-      }
+-      NSApplication *app = [NSApplication sharedApplication];
+-      AppDelegate *delegate = [[AppDelegate alloc] init];
+-      [app setDelegate:delegate];
+-      retainObjCObject(delegate);
+-      [NSApp finishLaunching];
+-      CefRunMessageLoop();
+-      CefShutdown();
+-      g_shutdownComplete.store(true);
+-    }
+-  } else {
+-    NSApplication *app = [NSApplication sharedApplication];
+-    AppDelegate *delegate = [[AppDelegate alloc] init];
+-    [app setDelegate:delegate];
+-    retainObjCObject(delegate);
+-    [app run];
+-    g_shutdownComplete.store(true);
++  // CEF needs an NSApplication that implements CefAppProtocol, created before
++  // anything else asks for NSApp; CEF itself starts with the first CEF webview
++  // (initWebview), on this run loop.
++  NSApplication *app = useCEF ? [ElectrobunNSApplication sharedApplication]
++                              : [NSApplication sharedApplication];
++  AppDelegate *delegate = [[AppDelegate alloc] init];
++  [app setDelegate:delegate];
++  retainObjCObject(delegate);
++  [app run];
++  @autoreleasepool {
++    shutdownStartedCEF();
+   }
++  g_shutdownComplete.store(true);
+ }
+ 
+ extern "C" void stopEventLoop() {
+@@ -8819,15 +8944,9 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+   // Intentionally no log here - output after shell prompt return is confusing
+   // in dev mode
+ 
+-  if (useCEF) {
+-    // CefQuitMessageLoop must be called on the main thread on macOS because
+-    // CEF's message loop is integrated with the Cocoa run loop.
+-    // dispatch_async to the main queue is processed by CefRunMessageLoop().
+-    dispatch_async(dispatch_get_main_queue(), ^{
+-      CefQuitMessageLoop();
+-    });
+-  } else {
+-    // [NSApp stop:nil] is thread-safe per Apple docs
++  {
++    // [NSApp run] runs whether or not CEF started (CEF uses an external
++    // message pump). [NSApp stop:nil] is thread-safe per Apple docs
+     // Post a dummy event to ensure the run loop wakes up and processes the stop
+     dispatch_async(dispatch_get_main_queue(), ^{
+       [[NSApplication sharedApplication] stop:nil];
+@@ -8949,7 +9068,9 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+   __block AbstractView *impl = nil;
+ 
+   impl = (__bridge AbstractView *)runOnMainThreadSyncPtr(^{
+-    Class ImplClass = (strcmp(renderer, "cef") == 0 && useCEF)
++    // The first CEF webview starts CEF; if it cannot start, the webview falls
++    // back to WKWebView as it does when the app bundles no CEF.
++    Class ImplClass = (strcmp(renderer, "cef") == 0 && useCEF && initializeCEF())
+                           ? [CEFWebViewImpl class]
+                           : [WKWebViewImpl class];
+ 
+-- 
+2.54.0 (Apple Git-157)
+

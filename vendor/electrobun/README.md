@@ -7,7 +7,7 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011 and 0020, Zig tools and Dawn rebuilt for 13.4 |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, 0006 to 0011, 0014 and 0020, Zig tools and Dawn rebuilt for 13.4 |
 | Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007, 0009 to 0011 and 0020, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
 | Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007, 0009 to 0013 and 0020, plus the WebView2 Evergreen bootstrapper |
 
@@ -114,6 +114,16 @@ release targets (docs/release-and-versioning.md), so they are not built.
    call. The webview's secret key then arrived short and the app quit at startup ("Webview secret
    key must contain exactly 32 bytes"). Each Buffer now stays referenced until the next macrotask.
    Patches 0020 on are packaging and Linux fixes (0012 and 0013 are Windows, 0014 on macOS).
+14. **macos: start CEF with the first CEF webview, not at launch.** With CEF bundled,
+   `startEventLoop` ran `CefInitialize` and `CefRunMessageLoop` at every launch, so an app with no
+   CEF webview open still started CEF's GPU and utility processes and waited for CEF before its
+   window. The main thread now always runs `[NSApp run]` (with `ElectrobunNSApplication`), and the
+   first CEF webview starts CEF on it with `external_message_pump`: `OnScheduleMessagePumpWork`
+   drives `CefDoMessageLoopWork` on the main thread (cefclient's
+   `MainMessageLoopExternalPumpMac`). `CefShutdown` runs at exit only if CEF started; a failed
+   start falls back to WKWebView. The wrapper no longer links the framework: it loads it with
+   `cef_load_library` when CEF starts, through `libcef_dll_wrapper`'s dylib stubs, as CEF's
+   helpers do. Patches 0012 and 0013 are Windows'.
 
 ## Building
 

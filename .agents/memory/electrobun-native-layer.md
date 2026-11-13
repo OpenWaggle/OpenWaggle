@@ -85,6 +85,13 @@ browser preview.
   world-only `Runtime.addBinding`, tagged with a token. A result counts only from the main frame
   world it started in, and a destroyed world ends the pick as a cancel would. CDP screenshot clips
   are in document CSS pixels, so add `cssVisualViewport.pageX/pageY` to a viewport rectangle.
-- A local `package.ts` build bundles stock `node_modules/electrobun` binaries without the vendor
-  patches. On macOS, previews there never appear on the DevTools port (no patch 0004), so native
-  preview checks need the CI-built devkit or the adapter probe.
+- A local `package.ts` build without `HUTCH_ELECTROBUN_DEVKIT_ROOT` bundles stock Electrobun
+  binaries, whose macOS previews never reach the DevTools port (no patch 0004). Point it at
+  `out/electrobun-native/<platform>-<arch>/devkit` from `bun vendor/electrobun/build.ts`, which
+  needs `cmake` and `ninja` (Homebrew) and takes about 45 minutes on a loaded arm64 Mac (mostly
+  Dawn). After one build, `libNativeWrapper.dylib` relinks in seconds from the work dir's
+  `vendors/` and `src/native/compile_flags.txt`.
+- Patch 0014: macOS starts CEF with the first CEF webview, on `[NSApp run]` with an external
+  message pump, and loads the framework with `cef_load_library`, so no CEF process or mapping
+  exists before a preview opens. Measured idle drop on arm64: CEF's GPU and two utility processes
+  (about 110 to 125 MB) and about 70 MB of the main process.
