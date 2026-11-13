@@ -67,7 +67,7 @@ A fresh reviewer almost always finds one more P3, so a review with zero findings
    bun run pr:ready -- --reviewed-sha <full sha> --review-file "<absolute path>"
    ```
 
-   `--dry-run` runs every check and the gate and writes `.tmp/pr/` files without touching GitHub. Gate logs land in `.tmp/pr/gate-<script>.log`; a failure prints the end of its log.
+   `--dry-run` runs every check and the gate and writes `.tmp/pr/` files without touching GitHub. Gate logs land in `.tmp/pr/gate-<script>.log`; a failure prints the end of its log. The test step runs with at most four workers (set `VITEST_MAX_WORKERS` to change it), and each test file it fails gets one rerun on its own: a busy machine times out tests that pass alone. A file that fails again, or any other failure, still fails the gate.
 
 7. Report the PR URL, the blast-radius and review comment URLs, the rounds, every P2 and P3 disposition, and the gate result.
 8. Load `.agents/skills/babysit/SKILL.md` and run it on this PR in the same session, without waiting for the maintainer.
