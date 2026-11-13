@@ -37,6 +37,7 @@ export async function waitUntil<T>(
   what: string,
   timeoutMs: number,
   read: () => Promise<T | null | undefined | false>,
+  pollMs = POLL_MS,
 ) {
   const deadline = Date.now() + timeoutMs
   let lastError = ''
@@ -47,7 +48,7 @@ export async function waitUntil<T>(
     } catch (error) {
       lastError = error instanceof Error ? error.message : JSON.stringify(error)
     }
-    await delay(POLL_MS)
+    await delay(pollMs)
   }
   throw new Error(
     `Timed out after ${String(timeoutMs)} ms waiting for ${what}${lastError === '' ? '' : `: ${lastError}`}`,
@@ -196,7 +197,7 @@ export async function proveTerminal(page: Page, timeoutMs: number) {
   return { echoed: true, tail: text.slice(-CLI_OUTPUT_TAIL) }
 }
 
-function serveFixturePage() {
+export function serveFixturePage() {
   const server = http.createServer((_request, response) => {
     response.writeHead(HTTP_OK, { 'content-type': 'text/html; charset=utf-8' })
     response.end(`<!doctype html><title>${PREVIEW_TITLE}</title><h1>${PREVIEW_TITLE}</h1>`)

@@ -11,7 +11,7 @@ import { createServer } from 'node:net'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 import type { Readable } from 'node:stream'
-import { buildSafeElectronEnvironment } from '../safe-electron-environment'
+import { buildSafeAppEnvironment } from '../safe-app-environment'
 import { listProcesses, selectAppProcesses } from './app-processes'
 
 export interface InstalledElectronApp {
@@ -89,7 +89,7 @@ function sizes(files: readonly string[]) {
   return Object.fromEntries(files.map((file) => [path.basename(file), fs.statSync(file).size]))
 }
 
-function installMac(dist: string, installDir: string): InstalledElectronApp {
+function installMac(dist: string, installDir: string) {
   const dmg = single(dist, /-arm64\.dmg$|-x64\.dmg$/u)
   const zip = path.join(dist, `${path.basename(dmg, '.dmg')}.zip`)
   const mountPoint = path.join(installDir, 'dmg')
@@ -107,13 +107,13 @@ function installMac(dist: string, installDir: string): InstalledElectronApp {
       installRoot: target,
       installedBytes: directoryBytes(target),
       downloads: sizes([dmg, zip]),
-    }
+    } satisfies InstalledElectronApp
   } finally {
     execFileSync('hdiutil', ['detach', mountPoint, '-force'], { stdio: INSTALLER_STDIO })
   }
 }
 
-function installWindows(dist: string, installDir: string): InstalledElectronApp {
+function installWindows(dist: string, installDir: string) {
   const installer = single(dist, /^openwaggle-.+-x64\.exe$/u)
   const target = path.join(installDir, 'OpenWaggle')
   execFileSync(installer, ['/S', `/D=${target}`], { stdio: INSTALLER_STDIO })
@@ -124,10 +124,10 @@ function installWindows(dist: string, installDir: string): InstalledElectronApp 
     installRoot: target,
     installedBytes: directoryBytes(target),
     downloads: sizes([installer]),
-  }
+  } satisfies InstalledElectronApp
 }
 
-function installLinux(dist: string, installDir: string): InstalledElectronApp {
+function installLinux(dist: string, installDir: string) {
   const appImage = single(dist, /\.AppImage$/u)
   const target = path.join(installDir, 'openwaggle.AppImage')
   fs.copyFileSync(appImage, target)
@@ -137,22 +137,22 @@ function installLinux(dist: string, installDir: string): InstalledElectronApp {
     installRoot: target,
     installedBytes: fs.statSync(target).size,
     downloads: sizes([appImage]),
-  }
+  } satisfies InstalledElectronApp
 }
 
 /** Installs the artifact electron-builder left in `dist` into `installDir`. */
-export function installElectronApp(dist: string, installDir: string): InstalledElectronApp {
+export function installElectronApp(dist: string, installDir: string) {
   fs.mkdirSync(installDir, { recursive: true })
   if (process.platform === 'darwin') return installMac(dist, installDir)
   if (process.platform === 'win32') return installWindows(dist, installDir)
   return installLinux(dist, installDir)
 }
 
-export function createScratchProfile(root: string): ScratchProfile {
+export function createScratchProfile(root: string) {
   const home = path.join(root, 'home')
   const piAgentDir = path.join(home, '.pi', 'agent')
   fs.mkdirSync(piAgentDir, { recursive: true })
-  return { root, userData: path.join(root, 'user-data'), home, piAgentDir }
+  return { root, userData: path.join(root, 'user-data'), home, piAgentDir } satisfies ScratchProfile
 }
 
 /**
@@ -161,7 +161,7 @@ export function createScratchProfile(root: string): ScratchProfile {
  * and a second launch with a Session link hands the link to the running window.
  */
 export function appEnvironment(profile: ScratchProfile) {
-  return buildSafeElectronEnvironment({
+  return buildSafeAppEnvironment({
     HOME: profile.home,
     USERPROFILE: profile.home,
     PI_CODING_AGENT_DIR: profile.piAgentDir,
@@ -198,7 +198,7 @@ export function startElectronApp(input: {
   readonly profile: ScratchProfile
   readonly cdpPort: number
   readonly appArguments?: readonly string[]
-}): StartedApp {
+}) {
   const spawnedAt = Date.now()
   const child = spawn(
     input.app.launcher,
@@ -218,7 +218,7 @@ export function startElectronApp(input: {
   const logLines: string[] = []
   forwardLines(child.stdout, (line) => logLines.push(line))
   forwardLines(child.stderr, (line) => logLines.push(line))
-  return { child, spawnedAt, cdpPort: input.cdpPort, logLines }
+  return { child, spawnedAt, cdpPort: input.cdpPort, logLines } satisfies StartedApp
 }
 
 export interface CliResult {
@@ -236,7 +236,7 @@ export function runAppCli(
   profile: ScratchProfile,
   args: readonly string[],
   timeoutMs: number,
-): Promise<CliResult> {
+) {
   const started = Date.now()
   const prefix = process.platform === 'win32' || args[0] === '--' ? [] : credentialStoreArguments()
   const separator = process.platform === 'win32' && args[0] !== '--' ? ['--'] : []
@@ -257,7 +257,7 @@ export function runAppCli(
       clearTimeout(timer)
       resolve({ status, output, ms: Date.now() - started })
     })
-  })
+  }) satisfies Promise<CliResult>
 }
 
 function hasExited(child: AppProcess) {

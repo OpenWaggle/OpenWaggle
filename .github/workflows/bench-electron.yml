@@ -1,15 +1,27 @@
-# Measures the packaged Electron app the way the Electrobun package proof measures its build, so the
-# two shells compare (scripts/bench/electron-bench.ts): download and installed size, cold and warm
-# window-ready and backend-ready, idle and after-turn resident memory by process, medians of four
-# runs, on the same runners. Each run also proves a fake-provider turn, a terminal, a Browser
-# preview and a Session link. Throwaway `bench/electron-best-*` branches run it; it gates nothing.
+# Measures a packaged Electron build with the shell bench (scripts/bench/electron-bench.ts), the
+# code electrobun-package.yml's `bench-runs` measures the Electrobun app with: download and
+# installed size, cold and warm window-ready (`window-ready-to-show`) and backend-ready, idle and
+# after-turn resident memory by process, medians of the runs, on the same runners. Each run also
+# proves a fake-provider turn, a terminal, a Browser preview and a Session link. The app is built
+# from `electron-ref` (an Electron-shell commit) in `electron-app/`; the bench runs from this
+# commit. It gates nothing.
 name: Electron Bench
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "bench/electron-best-*"
+    inputs:
+      electron-ref:
+        description: The Electron-shell commit to package and measure.
+        type: string
+        default: adab9878a6ba1c1cb40bcac0d34d33e1df70c1b6
+      targets:
+        description: The bench matrix, as JSON (default every target).
+        type: string
+        default: '[{"target":"darwin-arm64","runner":"macos-15","flags":"--mac --arm64"},{"target":"linux-x64","runner":"ubuntu-24.04","flags":"--linux"},{"target":"win32-x64","runner":"windows-2025","flags":"--win"}]'
+      runs:
+        description: Runs per target.
+        type: string
+        default: "4"
 
 permissions:
   contents: read
@@ -28,10 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { target: darwin-arm64, runner: macos-15, flags: --mac --arm64 }
-          - { target: linux-x64, runner: ubuntu-24.04, flags: --linux }
-          - { target: win32-x64, runner: windows-2025, flags: --win }
+        include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     defaults:
@@ -39,10 +48,18 @@ jobs:
         shell: bash
     env:
       RESULTS: ${{ github.workspace }}/out/bench-results/${{ matrix.target }}
+      ELECTRON_APP: ${{ github.workspace }}/electron-app
       DISPLAY: ":99"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          persist-credentials: false
+
+      - name: Check out the Electron build
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.electron-ref }}
+          path: electron-app
           persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -54,9 +71,16 @@ jobs:
           node-version: 24.14.0
           package-manager-cache: false
 
-      - uses: ./.github/actions/bun-install
-        with:
-          electron-binary: "true"
+      - name: Install the bench's dependencies
+        uses: ./.github/actions/bun-install
+
+      # The Electron build's own install, with its Electron binary (its bun-install action).
+      - name: Install the Electron build's dependencies
+        working-directory: electron-app
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile --cpu=arm64 --cpu=x64
+          node node_modules/electron/install.js
 
       # The same display, session bus and sandbox setup the Electrobun proof uses on Ubuntu 24.04,
       # plus FUSE for the AppImage.
@@ -76,9 +100,11 @@ jobs:
           openbox >/dev/null 2>&1 &
 
       - name: Build the app
+        working-directory: electron-app
         run: bun run build
 
       - name: Package
+        working-directory: electron-app
         run: |
           set -euo pipefail
           mkdir -p "$RESULTS"
@@ -91,20 +117,25 @@ jobs:
       # builds where it measures, as the Electrobun proof does, so a newer glibc only warns here.
       - name: Check the package against the platform floor
         continue-on-error: ${{ runner.os == 'Linux' }}
+        working-directory: electron-app
         run: bun scripts/check-native-platform-floor.ts | tee "$RESULTS/floor.txt"
 
       - name: Smoke the packaged runtime
+        working-directory: electron-app
         run: bun run packaged-app:smoke | tee "$RESULTS/smoke.txt"
 
       - name: Install
         run: |
-          bun scripts/bench/electron-bench.ts install --dist dist --dir "$RUNNER_TEMP/install" \
+          bun scripts/bench/electron-bench.ts install --shell electron --dist "$ELECTRON_APP/dist" --dir "$RUNNER_TEMP/install" \
             --out "$RESULTS/install.json"
 
-      - name: Measure (4 runs)
+      - name: Measure
+        env:
+          ELECTRON_REF: ${{ inputs.electron-ref }}
+          RUNS: ${{ inputs.runs }}
         run: |
-          bun scripts/bench/electron-bench.ts measure --install "$RESULTS/install.json" --runs 4 \
-            --work "$RUNNER_TEMP/bench" --label "${GITHUB_REF_NAME#bench/} @ ${GITHUB_SHA::9}" \
+          bun scripts/bench/electron-bench.ts measure --shell electron --install "$RESULTS/install.json" \
+            --runs "$RUNS" --work "$RUNNER_TEMP/bench" --label "electron @ ${ELECTRON_REF::9}" \
             --out "$RESULTS/result.json" --screenshots "$RESULTS/screenshots" --logs "$RESULTS/logs"
 
       - name: Summary

@@ -69,7 +69,7 @@ function stringField(row: object, key: string) {
 }
 
 /** Rows of `ConvertTo-Json` output: one object when there is one process, else an array. */
-export function parseWindowsProcesses(json: string): ProcessRow[] {
+export function parseWindowsProcesses(json: string) {
   const parsed: unknown = JSON.parse(json)
   const rows: unknown[] = Array.isArray(parsed) ? parsed : [parsed]
   return rows.flatMap((row) => {
@@ -88,7 +88,7 @@ export function parseWindowsProcesses(json: string): ProcessRow[] {
 }
 
 /** Rows of `ps -A -o pid=,ppid=,rss=,args=`; `rss` is in KiB. */
-export function parsePosixProcesses(output: string): ProcessRow[] {
+export function parsePosixProcesses(output: string) {
   return output.split('\n').flatMap((line) => {
     const [, pid, ppid, rss, command] = POSIX_ROW.exec(line) ?? []
     if (pid === undefined || ppid === undefined || rss === undefined) return []
@@ -98,7 +98,7 @@ export function parsePosixProcesses(output: string): ProcessRow[] {
   })
 }
 
-export function listProcesses(platform: NodeJS.Platform = process.platform): ProcessRow[] {
+export function listProcesses(platform: NodeJS.Platform = process.platform) {
   if (platform === 'win32') {
     const json = execFileSync('powershell.exe', ['-NoProfile', '-Command', WINDOWS_PROCESSES], {
       encoding: 'utf8',
@@ -153,19 +153,22 @@ export function selectAppProcesses(
   })
 }
 
+/** A role, typed as one: the role functions infer their union from these. */
+const asRole = (value: ProcessRole) => value
+
 const CHROMIUM_TYPE = /--type=([\w-]+)/u
 const UTILITY_SUB_TYPE = /--utility-sub-type=([\w.]+)/u
 
-function chromiumRole(command: string): ProcessRole | null {
+function chromiumRole(command: string) {
   const type = CHROMIUM_TYPE.exec(command)?.[1]
   if (type === undefined) return null
-  if (type === 'renderer') return 'renderer'
-  if (type === 'gpu-process') return 'gpu'
-  if (type === 'crashpad-handler') return 'crashpad'
-  if (type === 'zygote') return 'zygote'
-  if (type !== 'utility') return 'utility'
+  if (type === 'renderer') return asRole('renderer')
+  if (type === 'gpu-process') return asRole('gpu')
+  if (type === 'crashpad-handler') return asRole('crashpad')
+  if (type === 'zygote') return asRole('zygote')
+  if (type !== 'utility') return asRole('utility')
   const subType = UTILITY_SUB_TYPE.exec(command)?.[1] ?? ''
-  return subType.startsWith('network.') ? 'network' : 'utility'
+  return asRole(subType.startsWith('network.') ? 'network' : 'utility')
 }
 
 const CLI_COMMANDS = /\s(?:run|host|hive|mcp|sessions)\s/u
@@ -177,22 +180,22 @@ const CLI_COMMANDS = /\s(?:run|host|hive|mcp|sessions)\s/u
  * install is the app's main process (or a CLI command), and the rest are what the app started:
  * shells, git, MCP servers.
  */
-export function processRole(command: string, installPaths: readonly string[]): ProcessRole {
+export function processRole(command: string, installPaths: readonly string[]) {
   const chromium = chromiumRole(command)
   if (chromium !== null) return chromium
-  if (command.includes('session-host-internal')) return 'session-host'
-  if (command.includes('transformersPath')) return 'embedding'
-  if (/WebKit(?:Web|Network)Process|msedgewebview2/u.test(command)) return 'webview'
-  if (/crashpad_handler/u.test(command)) return 'crashpad'
-  if (/\.AppImage(?:\s|$)/u.test(command)) return 'launcher'
+  if (command.includes('session-host-internal')) return asRole('session-host')
+  if (command.includes('transformersPath')) return asRole('embedding')
+  if (/WebKit(?:Web|Network)Process|msedgewebview2/u.test(command)) return asRole('webview')
+  if (/crashpad_handler/u.test(command)) return asRole('crashpad')
+  if (/\.AppImage(?:\s|$)/u.test(command)) return asRole('launcher')
   const fromInstall = installPaths
     .map(comparable)
     .some((needle) => needle !== '' && comparable(command).includes(needle))
-  if (!fromInstall) return 'child'
-  return CLI_COMMANDS.test(` ${command} `) ? 'cli' : 'main'
+  if (!fromInstall) return asRole('child')
+  return asRole(CLI_COMMANDS.test(` ${command} `) ? 'cli' : 'main')
 }
 
-export function appMemory(rows: readonly ProcessRow[], installPaths: readonly string[]): AppMemory {
+export function appMemory(rows: readonly ProcessRow[], installPaths: readonly string[]) {
   const byRole: Partial<Record<ProcessRole, RoleTotal>> = {}
   const processes = rows.map((row) => {
     const role = processRole(row.command, installPaths)
@@ -208,7 +211,7 @@ export function appMemory(rows: readonly ProcessRow[], installPaths: readonly st
     processCount: rows.length,
     byRole,
     processes,
-  }
+  } satisfies AppMemory
 }
 
 /** One sample of the running app's memory. */

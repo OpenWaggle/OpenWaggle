@@ -2,20 +2,20 @@ import { describe, expect, it } from 'vitest'
 import type { AppMemory } from '../app-processes'
 import { type BenchResult, isBenchResult, median, summarizeBench, tableRow } from '../bench-stats'
 
-function memory(rssBytes: number, gpu: number): AppMemory {
+function memory(rssBytes: number, gpu: number) {
   return {
     rssBytes,
     processCount: 2,
     byRole: { main: { count: 1, rssBytes: rssBytes - gpu }, gpu: { count: 1, rssBytes: gpu } },
     processes: [],
-  }
+  } satisfies AppMemory
 }
 
 function run(windowReadyMs: number, rss: number) {
   const sample = {
-    windowReadyMs,
+    windowReadyMs: windowReadyMs - 50,
     backendReadyMs: windowReadyMs + 100,
-    marks: { ready: windowReadyMs },
+    marks: { 'window-ready-to-show': windowReadyMs },
   }
   return {
     cold: { ...sample, idle: memory(rss, 10), afterTurn: memory(rss + 1, 10), runMs: 5 },
@@ -46,10 +46,19 @@ describe('bench medians', () => {
   it('summarizes each column and process role across runs', () => {
     expect(summarizeBench(result)).toMatchObject({
       coldWindowReadyMs: 250,
+      coldDevToolsListedMs: 200,
       coldBackendReadyMs: 350,
       idleByRole: { gpu: 10 },
-      coldMarks: { ready: 250 },
+      coldMarks: { 'window-ready-to-show': 250 },
     })
+  })
+
+  it('leaves the window column empty for a run that logged no window-shown mark', () => {
+    const unmarked = {
+      ...result,
+      runs: [{ ...run(100, 0), cold: { ...run(100, 0).cold, marks: {} } }],
+    }
+    expect(summarizeBench(unmarked).coldWindowReadyMs).toBeNull()
   })
 
   it('renders the row the Electrobun table uses', () => {

@@ -7,17 +7,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { Browser, Page } from '@playwright/test'
 import { configureFakeProvider, FAKE_MODEL_REFERENCE } from '../perf/lib/fake-openai-provider'
-import { type AppMemory, listProcesses, sampleAppMemory } from './app-processes'
+import { listProcesses, sampleAppMemory } from './app-processes'
 import {
-  connectRenderer,
-  proveBrowserPreview,
   proveFakeProviderRun,
   proveTerminal,
-  startBenchFakeProvider,
-  waitForRendererTarget,
+  startCiFakeProvider,
   waitForStartupReady,
   waitUntil,
-} from './app-proof'
+} from '../electrobun/ci/app-proof'
+import { connectRenderer, proveBrowserPreview, waitForRendererTarget } from './app-proof'
 import type { BenchRun } from './bench-stats'
 import {
   createScratchProfile,
@@ -30,11 +28,11 @@ import {
   stopElectronApp,
   stopProcessesUnder,
 } from './electron-installed-app'
+import { startupMarksSince } from './startup-marks'
 
 const IDLE_MS = 10_000
 const LAUNCH_TIMEOUT_MS = 120_000
 const CLI_TIMEOUT_MS = 180_000
-const STARTUP_TIMING_PATTERN = /Startup timing.*label: '([^']+)'/u
 const LOG_TAIL_LINES = 30
 const HOST_EXIT_TIMEOUT_MS = 15_000
 const APPIMAGE_MOUNT = /(\/tmp\/\.mount_[^/\s]+)/u
@@ -61,23 +59,11 @@ function installPaths(app: InstalledElectronApp) {
   return [app.installRoot, ...new Set(mounts)]
 }
 
-function marksAfterSpawn(started: StartedApp) {
-  const marks: Record<string, number> = {}
-  for (const line of started.logLines) {
-    const label = STARTUP_TIMING_PATTERN.exec(line)?.[1]
-    const uptime = /at ([0-9.]+) ms uptime/u.exec(line)?.[1]
-    if (label !== undefined && uptime !== undefined && marks[label] === undefined) {
-      marks[label] = Number(uptime)
-    }
-  }
-  return marks
-}
-
 async function launch(
   app: InstalledElectronApp,
   profile: ScratchProfile,
   appArguments: readonly string[] = [],
-): Promise<Connected> {
+) {
   const cdpPort = await freePort()
   const started = startElectronApp({ app, profile, cdpPort, appArguments })
   const exited = () => started.child.exitCode !== null || started.child.signalCode !== null
@@ -87,7 +73,7 @@ async function launch(
     const { browser, page } = await connectRenderer(cdpPort, LAUNCH_TIMEOUT_MS)
     await waitForStartupReady(page, LAUNCH_TIMEOUT_MS)
     const backendReadyMs = Date.now() - started.spawnedAt
-    return { started, browser, page, windowReadyMs, backendReadyMs }
+    return { started, browser, page, windowReadyMs, backendReadyMs } satisfies Connected
   } catch (error) {
     await stopElectronApp(started)
     stopProcessesUnder(installPaths(app))
@@ -97,7 +83,7 @@ async function launch(
   }
 }
 
-function memory(app: InstalledElectronApp, connected: Connected): AppMemory {
+function memory(app: InstalledElectronApp, connected: Connected) {
   const pid = connected.started.child.pid
   return sampleAppMemory({
     rootPids: pid === undefined ? [] : [pid],
@@ -173,7 +159,7 @@ export async function measureRun(input: {
 }) {
   const { app } = input
   const profile = createScratchProfile(path.join(input.root, `run-${String(input.index)}`))
-  const provider = await startBenchFakeProvider()
+  const provider = await startCiFakeProvider()
   await configureFakeProvider(profile.piAgentDir, provider.baseUrl)
   try {
     const cold = await launch(app, profile)
@@ -202,7 +188,7 @@ export async function measureRun(input: {
       coldSample = {
         windowReadyMs: cold.windowReadyMs,
         backendReadyMs: cold.backendReadyMs,
-        marks: marksAfterSpawn(cold.started),
+        marks: startupMarksSince(path.join(profile.userData, 'logs'), cold.started.spawnedAt),
         idle,
         afterTurn,
         runMs: run.runMs,
@@ -226,7 +212,7 @@ export async function measureRun(input: {
         warm: {
           windowReadyMs: warm.windowReadyMs,
           backendReadyMs: warm.backendReadyMs,
-          marks: marksAfterSpawn(warm.started),
+          marks: startupMarksSince(path.join(profile.userData, 'logs'), warm.started.spawnedAt),
           idle: memory(app, warm),
         },
       }

@@ -1,25 +1,26 @@
 /**
- * The Electron side of the shell bench: download and installed size, cold and warm launch, idle
- * and after-turn memory of the packaged app, measured the way the Electrobun package proof
- * measures its build (scripts/electrobun/ci/smoke.ts on the Electrobun branch), so the two tables
- * compare. `.github/workflows/bench-electron.yml` runs it on macOS arm64, Ubuntu x64 and Windows
- * x64 GitHub runners.
+ * The shell bench: download and installed size, cold and warm window-ready time, idle and
+ * after-turn memory of a packaged OpenWaggle app, measured the same way for the Electron and the
+ * Electrobun shell so their results share one table. Every count comes from the same code: the
+ * process accounting (app-processes.ts, the launched process and its descendants plus a Session Host
+ * that was reparented), the startup marks (startup-marks.ts) and the medians (bench-stats.ts).
+ * `.github/workflows/bench-shells.yml` runs it on macOS arm64, Ubuntu x64 and Windows x64 runners.
  *
- *   bun scripts/bench/electron-bench.ts install --dist dist --dir <install dir> --out <json>
- *     Installs the fresh-install artifact (macOS DMG, Windows NSIS installer, Linux AppImage) and
- *     records the download and installed sizes.
- *   bun scripts/bench/electron-bench.ts measure --install <json> --runs 4 --work <dir> --out <json>
- *     Each run takes a new scratch profile (userData, HOME, compile cache) and makes:
- *     - a cold launch: spawn until the DevTools endpoint lists the renderer page (window ready) and
- *       until the window reports startup status `ready` (backend ready); 10 s idle, then the
- *       resident memory of every app process (the window, its Chromium helpers and the Session
- *       Host, by role); one turn against a local fake provider through `openwaggle run`, shown in
- *       the window; 10 s idle and memory again (after turn). The first run also proves a terminal
- *       and a Browser preview.
- *     - a warm launch of the same profile; a second launch then hands it that Session's
- *       `openwaggle://` link through the single-instance lock, and the window opens it.
- *   bun scripts/bench/electron-bench.ts summarize <json>... [--label <label>]...
- *     Medians of each result as a Markdown table, with the per-process breakdown.
+ *   bun scripts/bench/electron-bench.ts install --shell <electron|electrobun> --dist <dir>
+ *       --dir <install dir> --out <json>
+ *     Installs the fresh-install artifact (DMG; Windows installer; AppImage) from `--dist`
+ *     (electron-builder's `dist`, or the Electrobun release directory) and records the download
+ *     and installed sizes. Electrobun installs where its installer puts it and ignores `--dir`;
+ *     `--launcher <installed launcher>` takes the app the package proof already installed.
+ *   bun scripts/bench/electron-bench.ts measure --shell <shell> --install <json> --runs 4
+ *       --work <dir> --out <json>
+ *     Each run takes a new scratch profile and makes a cold launch (window shown, backend ready,
+ *     10 s idle, memory; one turn against a local fake provider through `openwaggle run`, shown in
+ *     the window; 10 s idle, memory) and a warm launch of the same profile that opens that
+ *     Session's `openwaggle://` link. The first run also proves a terminal and a Browser preview.
+ *   bun scripts/bench/electron-bench.ts summarize <json>...
+ *     Medians of each result as one Markdown table, with the per-process breakdown. The window
+ *     column is the `window-ready-to-show` mark on either shell.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -35,6 +36,7 @@ import {
   tableRow,
 } from './bench-stats'
 import { measureRun } from './electron-bench-run'
+import { installElectrobunApp, measureElectrobunRun } from './electrobun-bench-run'
 import { installElectronApp, isInstalledElectronApp } from './electron-installed-app'
 
 const DEFAULT_RUNS = 4
@@ -42,7 +44,7 @@ const JSON_INDENT = 2
 const FIRST_ARGUMENT = 2
 const SUBCOMMAND_OPTIONS = 1
 
-function readJson<T>(file: string, guard: (value: unknown) => value is T, what: string): T {
+function readJson<T>(file: string, guard: (value: unknown) => value is T, what: string) {
   const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'))
   if (!guard(parsed)) throw new Error(`${file} is not ${what}.`)
   return parsed
@@ -52,7 +54,18 @@ function step(message: string) {
   console.log(`bench: ${message}`)
 }
 
+type Shell = 'electron' | 'electrobun'
+
+function shellOf(value: string) {
+  if (value !== 'electron' && value !== 'electrobun') {
+    throw new Error(`--shell is electron or electrobun, not ${value}.`)
+  }
+  const shell: Shell = value
+  return shell
+}
+
 async function measure(options: {
+  readonly shell: Shell
   readonly install: string
   readonly runs: number
   readonly work: string
@@ -65,14 +78,17 @@ async function measure(options: {
   const runs: BenchRun[] = []
   let proof: unknown = null
   for (let index = 1; index <= options.runs; index += 1) {
-    const measured = await measureRun({
-      app: installed,
+    const run = {
       root: options.work,
       index,
       prove: index === 1,
       screenshots: options.screenshots,
       logs: options.logs,
-    })
+    }
+    const measured =
+      options.shell === 'electron'
+        ? await measureRun({ ...run, app: installed })
+        : await measureElectrobunRun({ ...run, launcher: installed.launcher })
     runs.push(measured.run)
     step(`run ${String(index)} of ${String(options.runs)} measured`)
     if (index === 1) proof = measured.proof
@@ -114,28 +130,39 @@ async function main(argv: readonly string[]) {
     options: {
       dist: { type: 'string', default: 'dist' },
       dir: { type: 'string' },
+      launcher: { type: 'string' },
       out: { type: 'string' },
       install: { type: 'string' },
       runs: { type: 'string', default: String(DEFAULT_RUNS) },
       work: { type: 'string' },
-      label: { type: 'string', default: 'electron' },
+      shell: { type: 'string', default: 'electron' },
+      label: { type: 'string' },
       screenshots: { type: 'string' },
       logs: { type: 'string' },
     },
   })
-  if (command === 'install' && values.dir !== undefined && values.out !== undefined) {
-    const installed = installElectronApp(path.resolve(values.dist), path.resolve(values.dir))
+  const shell = shellOf(values.shell)
+  const electronInstall = shell === 'electron' ? values.dir : 'unused'
+  if (command === 'install' && electronInstall !== undefined && values.out !== undefined) {
+    const installed =
+      shell === 'electron'
+        ? installElectronApp(path.resolve(values.dist), path.resolve(electronInstall))
+        : await installElectrobunApp(
+            path.resolve(values.dist),
+            values.launcher === undefined ? undefined : path.resolve(values.launcher),
+          )
     fs.writeFileSync(values.out, `${JSON.stringify(installed, null, JSON_INDENT)}\n`)
     console.log(JSON.stringify(installed))
     return
   }
   if (command === 'measure' && values.install && values.work && values.out) {
     await measure({
+      shell,
       install: values.install,
       runs: Number(values.runs),
       work: path.resolve(values.work),
       out: values.out,
-      label: values.label,
+      label: values.label ?? shell,
       screenshots: values.screenshots,
       logs: values.logs,
     })

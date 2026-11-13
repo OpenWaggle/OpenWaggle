@@ -13,6 +13,11 @@
 # - a second build one version later, served from a loopback feed, is found, downloaded and
 #   installed by the installed app's own updater (Restart to update), and the app then launches as
 #   the new version.
+# - with `bench-runs`, the installed app is also measured by the shell bench
+#   (scripts/bench/electron-bench.ts --shell electrobun), the same way bench-electron.yml measures
+#   the Electron app, and its result uploads with the rest.
+#
+# `targets` narrows the matrix while iterating (one entry of the default list, as JSON).
 name: Electrobun Package
 
 on:
@@ -22,11 +27,25 @@ on:
         description: Run of electrobun-native.yml whose devkits to package against (empty builds them).
         type: string
         default: ""
+      targets:
+        description: The package matrix, as JSON (default every target).
+        type: string
+        default: '[{"target":"darwin-arm64","runner":"macos-15","platform":"darwin","arch":"arm64"},{"target":"darwin-x64","runner":"macos-15-intel","platform":"darwin","arch":"x64"},{"target":"linux-x64","runner":"ubuntu-24.04","platform":"linux","arch":"x64"},{"target":"win32-x64","runner":"windows-2025","platform":"win32","arch":"x64"}]'
+      bench-runs:
+        description: Runs of the shell bench on the installed app (0 skips it).
+        type: string
+        default: "0"
   workflow_call:
     inputs:
       devkit-run-id:
         type: string
         default: ""
+      targets:
+        type: string
+        default: '[{"target":"darwin-arm64","runner":"macos-15","platform":"darwin","arch":"arm64"},{"target":"darwin-x64","runner":"macos-15-intel","platform":"darwin","arch":"x64"},{"target":"linux-x64","runner":"ubuntu-24.04","platform":"linux","arch":"x64"},{"target":"win32-x64","runner":"windows-2025","platform":"win32","arch":"x64"}]'
+      bench-runs:
+        type: string
+        default: "0"
 
 permissions:
   contents: read
@@ -57,11 +76,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { target: darwin-arm64, runner: macos-15, platform: darwin, arch: arm64 }
-          - { target: darwin-x64, runner: macos-15-intel, platform: darwin, arch: x64 }
-          - { target: linux-x64, runner: ubuntu-24.04, platform: linux, arch: x64 }
-          - { target: win32-x64, runner: windows-2025, platform: win32, arch: x64 }
+        include: ${{ fromJSON(inputs.targets) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     defaults:
@@ -190,6 +205,24 @@ jobs:
           session=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).proof.run.sessionId" "$RESULTS/launch-cold.json")
           bun scripts/electrobun/ci/smoke.ts launch "$LAUNCHER" --expect "$VERSION" --profile "$PROFILE" --open-session "$session" \
             --out "$RESULTS/launch-warm.json" --screenshots "$RESULTS/screenshots/warm"
+
+      - name: Bench the installed app (shell bench, medians of the runs)
+        if: inputs.bench-runs != '0'
+        env:
+          BENCH_RUNS: ${{ inputs.bench-runs }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bun scripts/bench/electron-bench.ts install --shell electrobun --dist "$RUNNER_TEMP/feed/current" \
+            --launcher "$LAUNCHER" --out "$RESULTS/bench-install.json"
+          bun scripts/bench/electron-bench.ts measure --shell electrobun --install "$RESULTS/bench-install.json" \
+            --runs "$BENCH_RUNS" --work "$RUNNER_TEMP/bench" \
+            --label "electrobun @ ${GITHUB_SHA::9}" --out "$RESULTS/bench-result.json" \
+            --screenshots "$RESULTS/screenshots/bench" --logs "$RESULTS/bench-logs"
+          {
+            echo "## $TARGET"
+            bun scripts/bench/electron-bench.ts summarize "$RESULTS/bench-result.json"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Package the next version against the current one
         run: |

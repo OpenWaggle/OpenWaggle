@@ -4,13 +4,17 @@
  * columns: download, installed, cold and warm window-ready, backend-ready, idle and after-turn RSS.
  */
 import type { AppMemory } from './app-processes'
+import { WINDOW_SHOWN_MARK } from './startup-marks'
 
 export interface LaunchSample {
   /** Spawn until the DevTools endpoint lists the renderer page. */
   readonly windowReadyMs: number
   /** Spawn until the window reports startup status `ready` (the Session Host answered). */
   readonly backendReadyMs: number
-  /** Startup timing marks the main process logged, by label, in ms after spawn. */
+  /**
+   * Startup timing marks, by label, in ms after spawn by the wall clock of the line that logged
+   * them (startup-marks.ts); the Session Host's are `host:<label>`.
+   */
   readonly marks: Readonly<Record<string, number>>
   readonly idle: AppMemory
 }
@@ -52,7 +56,7 @@ export function isBenchResult(value: unknown): value is BenchResult {
   )
 }
 
-export function median(values: readonly number[]): number | null {
+export function median(values: readonly number[]) {
   const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b)
   if (sorted.length === 0) return null
   const middle = (sorted.length - 1) / PAIR
@@ -84,6 +88,11 @@ function roleMedians(runs: readonly BenchRun[], read: (run: BenchRun) => AppMemo
   return byRole
 }
 
+/** When the window was shown (`window-ready-to-show`), the same mark on either shell. */
+function windowShown(sample: LaunchSample) {
+  return new Map(Object.entries(sample.marks)).get(WINDOW_SHOWN_MARK)
+}
+
 export function summarizeBench(result: BenchResult) {
   const { runs } = result
   return {
@@ -92,9 +101,11 @@ export function summarizeBench(result: BenchResult) {
     runs: runs.length,
     downloads: result.downloads,
     installedBytes: result.installedBytes,
-    coldWindowReadyMs: medianOf(runs, (run) => run.cold.windowReadyMs),
+    coldWindowReadyMs: medianOf(runs, (run) => windowShown(run.cold)),
+    coldDevToolsListedMs: medianOf(runs, (run) => run.cold.windowReadyMs),
     coldBackendReadyMs: medianOf(runs, (run) => run.cold.backendReadyMs),
-    warmWindowReadyMs: medianOf(runs, (run) => run.warm.windowReadyMs),
+    warmWindowReadyMs: medianOf(runs, (run) => windowShown(run.warm)),
+    warmDevToolsListedMs: medianOf(runs, (run) => run.warm.windowReadyMs),
     warmBackendReadyMs: medianOf(runs, (run) => run.warm.backendReadyMs),
     idleRssBytes: medianOf(runs, (run) => run.cold.idle.rssBytes),
     idleProcesses: medianOf(runs, (run) => run.cold.idle.processCount),
