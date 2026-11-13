@@ -57,7 +57,7 @@ async function withTransportRetries<Result>(label: string, action: () => Promise
   }
 }
 
-async function submitAndStaple(target: string, submission: string, credentials: NotaryCredentials) {
+async function submit(target: string, submission: string, credentials: NotaryCredentials) {
   const submit = await withTransportRetries('notarytool submit', () =>
     run(
       'xcrun',
@@ -83,19 +83,47 @@ async function submitAndStaple(target: string, submission: string, credentials: 
   if (status !== 'Accepted') {
     throw new Error(`Notarization of ${target} was not accepted: ${submit.stdout}`)
   }
+}
+
+async function staple(target: string) {
   await withTransportRetries('stapler staple', () => run('xcrun', ['stapler', 'staple', target]))
   await run('xcrun', ['stapler', 'validate', target])
+}
+
+async function submitAndStaple(target: string, submission: string, credentials: NotaryCredentials) {
+  await submit(target, submission, credentials)
+  await staple(target)
+}
+
+/** Runs `action` on a zip of `target` (an app or a directory), which notarytool accepts. */
+async function zipped<Result>(target: string, action: (archive: string) => Promise<Result>) {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-notary-'))
+  const archive = path.join(directory, `${path.basename(target, '.app')}.zip`)
+  try {
+    await run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', target, archive])
+    return await action(archive)
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true })
+  }
 }
 
 /** Notarizes and staples an app bundle (submitted as a zip of it) or a signed DMG (as is). */
 export async function notarizeMacos(target: string, credentials: NotaryCredentials) {
   if (target.endsWith('.dmg')) return submitAndStaple(target, target, credentials)
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-notary-'))
-  const archive = path.join(directory, `${path.basename(target, '.app')}.zip`)
-  try {
-    await run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', target, archive])
-    await submitAndStaple(target, archive, credentials)
-  } finally {
-    await fs.rm(directory, { recursive: true, force: true })
+  return zipped(target, (archive) => submitAndStaple(target, archive, credentials))
+}
+
+/**
+ * Notarizes a directory of signed code that is not an app (the CEF component) in one submission,
+ * then staples the bundles that hold a ticket (its helper apps; a framework takes none).
+ */
+export async function notarizeMacosDirectory(
+  directory: string,
+  bundles: readonly string[],
+  credentials: NotaryCredentials,
+) {
+  await zipped(directory, (archive) => submit(directory, archive, credentials))
+  for (const bundle of bundles) {
+    await staple(bundle)
   }
 }

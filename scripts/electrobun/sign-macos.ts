@@ -71,6 +71,9 @@ async function walk(directory: string) {
 }
 
 const depth = (file: string) => file.split(path.sep).length
+/** Deepest first, so codesign reaches nested code before the bundle that seals it. */
+const byDepth = (left: string, right: string) =>
+  depth(right) - depth(left) || left.localeCompare(right)
 const BUNDLE_EXECUTABLE = /<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/u
 
 /** `Contents/MacOS/<CFBundleExecutable>` of an `.app` bundle, from its XML Info.plist. */
@@ -96,13 +99,16 @@ export async function macosSigningOrder(app: string) {
   for (const file of files) {
     if (!mainExecutables.has(file) && (await isMachO(file))) machO.push(file)
   }
-  const byDepth = (left: string, right: string) =>
-    depth(right) - depth(left) || left.localeCompare(right)
   return [...machO.sort(byDepth), ...bundles.sort(byDepth), app]
 }
 
-export async function signMacosApp(options: MacosSigningOptions) {
-  const base = [
+type CodesignOptions = Pick<
+  MacosSigningOptions,
+  'identity' | 'keychain' | 'entitlements' | 'timestamp'
+>
+
+function codesignArguments(options: CodesignOptions) {
+  return [
     '--force',
     options.timestamp ? '--timestamp' : '--timestamp=none',
     '--sign',
@@ -112,6 +118,10 @@ export async function signMacosApp(options: MacosSigningOptions) {
     'runtime',
     ...(options.entitlements === undefined ? [] : ['--entitlements', options.entitlements]),
   ]
+}
+
+export async function signMacosApp(options: MacosSigningOptions) {
+  const base = codesignArguments(options)
   const signed: string[] = []
   const targets = options.sealOnly === true ? [options.app] : await macosSigningOrder(options.app)
   for (const target of targets) {
@@ -126,6 +136,32 @@ export async function signMacosApp(options: MacosSigningOptions) {
     maxBuffer: MAX_BUFFER_BYTES,
   })
   return signed
+}
+
+/**
+ * Signs a directory of code that is not an app, inside out with the app's identity and
+ * entitlements: the CEF component (scripts/electrobun/cef-component.ts), whose framework and helper
+ * apps CEF loads and launches from outside the app bundle.
+ */
+export async function signMacosDirectory(
+  options: CodesignOptions & { readonly directory: string },
+) {
+  const { files, bundles } = await walk(options.directory)
+  const machO: string[] = []
+  for (const file of files) {
+    if (await isMachO(file)) machO.push(file)
+  }
+  const base = codesignArguments(options)
+  const targets = [...machO.sort(byDepth), ...bundles.sort(byDepth)]
+  for (const target of targets) {
+    await run('codesign', [...base, target], { maxBuffer: MAX_BUFFER_BYTES })
+  }
+  for (const bundle of bundles.filter((entry) => depth(entry) === depth(options.directory) + 1)) {
+    await run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', bundle], {
+      maxBuffer: MAX_BUFFER_BYTES,
+    })
+  }
+  return targets
 }
 
 async function main() {
