@@ -15,17 +15,18 @@ const MAIN_OUT_DIRECTORY = path.resolve('out/main')
  * The boot shim runs before V8's compile cache exists, so it is compiled from source on every
  * launch (src/main/boot.ts). It holds the compile cache setup, the `--version`/`--help` router
  * (34 KB when this budget was set) and the desktop app's Session Host prelaunch (W11, 48 KB with
- * it); anything more it imports is paid by every process.
+ * it), minified with names kept since November 2026 (54.5 to 24.8 KiB); anything more it imports
+ * is paid by every process.
  */
 const MAIN_BOOT_FILE = 'boot.js'
-const MAX_MAIN_BOOT_BYTES = 56 * KIBIBYTE
+const MAX_MAIN_BOOT_BYTES = 28 * KIBIBYTE
 
 async function fileBytes(file: string) {
   return (await fs.stat(path.join(MAIN_OUT_DIRECTORY, file))).size
 }
 
 /**
- * Every main chunk has its hidden source map (electron.vite.config.ts): the bundle is minified, so
+ * The boot shim and every main chunk have their hidden source map (electron.vite.config.ts): the bundle is minified, so
  * a field stack trace is `index.js:1:<column>` and only the map turns it back into source lines.
  */
 async function missingSourceMaps(files: readonly string[]) {
@@ -66,7 +67,9 @@ async function main() {
     MAIN_BOOT_FILE,
     ...manifest.map((entry) => entry.file),
   ])
-  failures.push(...(await missingSourceMaps(manifest.map((entry) => entry.file))))
+  failures.push(
+    ...(await missingSourceMaps([MAIN_BOOT_FILE, ...manifest.map((entry) => entry.file)])),
+  )
   const bootBytes = await fileBytes(MAIN_BOOT_FILE)
   if (bootBytes > MAX_MAIN_BOOT_BYTES) {
     failures.push(
