@@ -136,4 +136,32 @@ describe('Session discovery before the embedding model arrives', () => {
       reason: expect.stringContaining('has not been downloaded yet; search matches words'),
     })
   })
+
+  it.each<{ readonly model: SessionEmbeddingModelAvailability; readonly name: string }>([
+    { model: { state: 'missing' }, name: 'missing' },
+    { model: { state: 'failed', reason: 'HTTP 503', retryAt: 1 }, name: 'failed' },
+  ])(
+    'tells a restricted caller a failed index is unavailable while the model is $name',
+    async ({ model }) => {
+      const runtime = await preparedRuntime(`semantic-restricted-${model.state}`, model)
+      await runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* new SqliteSessionSemanticProjection(sql, fakeModel).recordFailure('disk full')
+        }),
+      )
+
+      const result = await executeQuery(
+        runtime,
+        { operation: 'search', query: 'migration', mode: 'semantic', limit: 2 },
+        RESTRICTED,
+      )
+
+      if (result.outcome.operation !== 'search') throw new Error('Expected a search result.')
+      expect(result.outcome.semanticReadiness).toMatchObject({
+        status: 'unavailable',
+        model: { state: model.state },
+      })
+    },
+  )
 })
