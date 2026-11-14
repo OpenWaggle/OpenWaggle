@@ -7,8 +7,9 @@
  * Until the files are there, semantic discovery is not usable and search stays lexical
  * (`SqliteSessionSemanticSearch.usable`). A failed download (offline, an HTTP error, a file that
  * fails its hash) is reported through `availability()` and retried no sooner than
- * `SESSION_EMBEDDING_MODEL_RETRY_MS` later, so the background loop and searches do not hammer the
- * network. A copy bundled with the app (an older package, or a build that still ships it) is used
+ * `sessionEmbeddingModelRetryDelayMs` later: 15 s after the first failure, doubling with each
+ * failure in a row up to 30 minutes, so the background loop and searches do not hammer the network
+ * and a long outage costs a request every half hour. A copy bundled with the app (an older package, or a build that still ships it) is used
  * when present, without a download.
  */
 import { createHash, randomUUID } from 'node:crypto'
@@ -36,7 +37,18 @@ export interface SessionEmbeddingModelFailure {
 }
 
 export const SESSION_EMBEDDING_MODEL_HOST = 'https://huggingface.co'
-export const SESSION_EMBEDDING_MODEL_RETRY_MS = 60_000
+export const SESSION_EMBEDDING_MODEL_RETRY_BASE_MS = 15_000
+export const SESSION_EMBEDDING_MODEL_RETRY_CAP_MS = 30 * 60_000
+const RETRY_GROWTH = 2
+
+/** How long to wait after the `failures`-th failed download in a row (1 for the first). */
+export function sessionEmbeddingModelRetryDelayMs(failures: number) {
+  const doublings = Math.max(0, failures - 1)
+  return Math.min(
+    SESSION_EMBEDDING_MODEL_RETRY_BASE_MS * RETRY_GROWTH ** doublings,
+    SESSION_EMBEDDING_MODEL_RETRY_CAP_MS,
+  )
+}
 /** The record of a verified download; its presence and the file sizes stand for the hashes. */
 const VERIFIED_MANIFEST = 'openwaggle-model-manifest.json'
 /** Progress is reported at most this often (bytes), so listeners are not called per chunk. */
@@ -143,6 +155,8 @@ export class SessionEmbeddingModelFiles {
   #availability: SessionEmbeddingModelAvailability = { state: 'missing' }
   #resolved: string | null = null
   #download: Promise<string> | null = null
+  /** Failed downloads so far, which set the next retry's delay; a success ends the downloads. */
+  #failures = 0
 
   constructor(options: SessionEmbeddingModelFilesOptions) {
     this.#options = options
@@ -245,7 +259,9 @@ export class SessionEmbeddingModelFiles {
         `${JSON.stringify({ id: this.#options.modelId, revision: this.#options.revision, files: this.#options.files }, null, JSON_INDENT)}\n`,
       )
     } catch (error) {
-      const retryAt = (this.#options.now ?? Date.now)() + SESSION_EMBEDDING_MODEL_RETRY_MS
+      this.#failures += 1
+      const retryAt =
+        (this.#options.now ?? Date.now)() + sessionEmbeddingModelRetryDelayMs(this.#failures)
       const reason = error instanceof Error ? error.message : String(error)
       const failed: SessionEmbeddingModelAvailability = isOffline(error)
         ? { state: 'offline', reason, retryAt }

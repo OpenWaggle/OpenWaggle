@@ -11,7 +11,9 @@ import {
   type SessionEmbeddingModelAvailability,
   SessionEmbeddingModelFiles,
   SessionEmbeddingModelUnavailableError,
-  SESSION_EMBEDDING_MODEL_RETRY_MS,
+  SESSION_EMBEDDING_MODEL_RETRY_BASE_MS,
+  SESSION_EMBEDDING_MODEL_RETRY_CAP_MS,
+  sessionEmbeddingModelRetryDelayMs,
 } from '../session-embedding-model-files'
 
 const MODEL_ID = 'Org/tiny-model'
@@ -148,14 +150,37 @@ describe('Session embedding model files fetched on first use', () => {
     await expect(files.ensure()).rejects.toThrow(/offline/)
     expect(files.availability()).toMatchObject({
       state: 'offline',
-      retryAt: 1_000 + SESSION_EMBEDDING_MODEL_RETRY_MS,
+      retryAt: 1_000 + SESSION_EMBEDDING_MODEL_RETRY_BASE_MS,
     })
     await expect(files.ensure()).rejects.toBeInstanceOf(SessionEmbeddingModelUnavailableError)
     expect(offline.requested).toHaveLength(1)
 
-    now += SESSION_EMBEDDING_MODEL_RETRY_MS
+    now += SESSION_EMBEDDING_MODEL_RETRY_BASE_MS
     await expect(files.ensure()).rejects.toThrow(/offline/)
     expect(offline.requested).toHaveLength(2)
+  })
+
+  it('backs off exponentially between failed downloads, up to a cap', async () => {
+    let now = 0
+    const offline = modelHost({ 'config.json': offlineError() })
+    const files = store({ fetch: offline.fetch, now: () => now })
+    const waits: number[] = []
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expect(files.ensure()).rejects.toThrow(/offline/)
+      const availability = files.availability()
+      if (availability.state !== 'offline') throw new Error('Expected an offline download.')
+      waits.push(availability.retryAt - now)
+      now = availability.retryAt - 1
+      await expect(files.ensure()).rejects.toBeInstanceOf(SessionEmbeddingModelUnavailableError)
+      now = availability.retryAt
+    }
+
+    expect(offline.requested).toHaveLength(10)
+    expect(waits).toEqual([
+      15_000, 30_000, 60_000, 120_000, 240_000, 480_000, 960_000, 1_800_000, 1_800_000, 1_800_000,
+    ])
+    expect(sessionEmbeddingModelRetryDelayMs(40)).toBe(SESSION_EMBEDDING_MODEL_RETRY_CAP_MS)
   })
 
   it('reports an HTTP error as a failed download', async () => {
