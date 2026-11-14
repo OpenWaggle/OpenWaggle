@@ -155,22 +155,25 @@ jobs:
           node-version: 24.14.0
           package-manager-cache: false
 
-      # This job ships nothing and signs nothing, so it may restore caches (release-and-ci.md).
+      # This job ships nothing and signs nothing, so it may restore caches (release-and-ci.md). The
+      # keys are ci.yml's (.github/actions/bun-install), which CI saves on every push to main: a pull
+      # request run can only restore caches its base branch saved, and nothing on main saved the
+      # gate's own keys.
       - name: Restore the Bun package cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.bun/install/cache
-          key: perf-gate-bun-${{ runner.os }}-${{ hashFiles('base/bun.lock', 'head/bun.lock') }}
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('head/bun.lock') }}
           restore-keys: |
-            perf-gate-bun-${{ runner.os }}-
             bun-install-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Restore the Electron download cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/electron
-          key: perf-gate-electron-${{ runner.os }}-${{ hashFiles('base/bun.lock', 'head/bun.lock') }}
-          restore-keys: perf-gate-electron-${{ runner.os }}-
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('head/bun.lock') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
 
       # Each checkout installs with its own package manager (package.json packageManager): a base
       # from before the move to Bun installs with pnpm.
