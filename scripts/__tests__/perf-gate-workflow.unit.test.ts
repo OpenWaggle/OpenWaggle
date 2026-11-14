@@ -145,6 +145,11 @@ describe('Performance Gate workflows', () => {
     ] as const) {
       const step = timings.steps.find((candidate) => candidate.id === id)
       expect(step?.if, id).toContain(`${needs} == 'success'`)
+    }
+    // Each step that installs, builds or measures can hang (apt-get on the display step too), so
+    // each has its own timeout, and together they stay under the job's.
+    for (const id of ['install', 'display', 'build', 'measure']) {
+      const step = timings.steps.find((candidate) => candidate.id === id)
       expect(typeof step?.['timeout-minutes'], id).toBe('number')
     }
     const gate = gateJob('gate')

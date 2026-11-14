@@ -25,7 +25,8 @@
 #
 # A push to a throwaway bench/perf-gate-* branch runs the same jobs; performance/perf-gate/bench.json
 # on that branch may name the base and head refs and the pair count, for example base-vs-base
-# noise runs. Repository standards fail that file on any branch but bench/perf-gate-* and
+# noise runs. The measure step's 16-minute timeout fits about 19 pairs; a bench with more raises it
+# on its branch, or its timings come back unavailable. Repository standards fail that file on any branch but bench/perf-gate-* and
 # bench/electron-best-*, and in any pull request or merge group run (scripts/standards/bench-file.ts),
 # so push a bench from a local bench branch and never open a pull request from it.
 name: Performance Gate
@@ -143,7 +144,7 @@ jobs:
     needs: decide
     if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     # Timings are reported only, so this job never shows a red check: every step continues on
     # error, later steps run only after the ones they need, the slow steps have their own timeouts
     # under the job's, and `status` tells the gate what happened (measured, setup-failed,
@@ -248,6 +249,7 @@ jobs:
       - name: Linux display
         id: display
         continue-on-error: true
+        timeout-minutes: 3
         run: |
           set -euo pipefail
           sudo apt-get update -q || true
