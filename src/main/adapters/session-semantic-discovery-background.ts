@@ -145,8 +145,9 @@ function transcriptProjectionLoop(
 }
 
 /**
- * Scoped: a model download a readiness read starts takes the Host's `semantic-preparation` hold,
- * as a batch does, so a Host without a window does not exit partway through it (ADR 0057).
+ * Scoped: every model download takes the Host's `semantic-preparation` hold, as a batch does, so a
+ * Host without a window does not exit partway through it (ADR 0030;
+ * src/main/application/session-host-liveness.ts).
  */
 export function holdModelDownloads(
   model: Pick<MultilingualE5SessionEmbeddingModel, 'holdDownloadsWith'>,
@@ -157,6 +158,15 @@ export function holdModelDownloads(
     (release) => Effect.sync(release),
   )
 }
+
+/**
+ * Installed before the Host serves its first client (runtime-host-services.ts): a readiness read
+ * in a CLI-spawned Host's first seconds starts a download before the indexers' quiet start.
+ */
+export const installSessionModelDownloadHold = holdModelDownloads(
+  defaultSessionEmbeddingModel,
+  () => getSessionHostEventRuntime().liveness.acquire('semantic-preparation'),
+)
 
 export const runSessionSemanticDiscoveryBackground = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
@@ -169,9 +179,6 @@ export const runSessionSemanticDiscoveryBackground = Effect.gen(function* () {
   const transcriptProjection = new SqliteSessionTranscriptSemanticProjection(
     sql,
     defaultSessionEmbeddingModel,
-  )
-  yield* holdModelDownloads(defaultSessionEmbeddingModel, () =>
-    getSessionHostEventRuntime().liveness.acquire('semantic-preparation'),
   )
   // Download progress and failures of the model, fetched on first use, reach clients as readiness.
   yield* Effect.acquireRelease(

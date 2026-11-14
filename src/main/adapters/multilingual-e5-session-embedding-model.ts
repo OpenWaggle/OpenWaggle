@@ -12,6 +12,9 @@ export const SESSION_EMBEDDING_MODEL = {
 } as const
 
 export const SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY = 'session-embedding-model'
+function noHold() {
+  return () => undefined
+}
 
 /** The pinned files of the revision; `bytes` gives download progress and the quick presence check. */
 export const SESSION_EMBEDDING_MODEL_FILES = [
@@ -115,32 +118,19 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
       throw new Error('Session embedding model files must be set before their first use.')
     }
     this.#files = files
+    files.holdDownloadsWith(() => (this.#holdDownload ?? noHold)())
   }
 
   /**
-   * How a download `availability()` starts keeps its process running: the Session Host passes its
-   * `semantic-preparation` hold (ADR 0057), so a Host with no window does not reach idle grace and
-   * exit partway through. Returns the undo.
+   * How a model download keeps its process running, whichever use starts it: the Session Host
+   * passes its `semantic-preparation` hold (ADR 0030; src/main/application/session-host-liveness.ts),
+   * so a Host with no window does not reach idle grace and exit partway through. Returns the undo.
    */
   holdDownloadsWith(hold: () => () => void) {
     this.#holdDownload = hold
     return () => {
       if (this.#holdDownload === hold) this.#holdDownload = null
     }
-  }
-
-  #downloadInBackground(files: SessionEmbeddingModelFiles) {
-    let release: () => void = () => undefined
-    try {
-      release = this.#holdDownload?.() ?? release
-    } catch {
-      // The Host is stopping and takes no new work; a later launch downloads it.
-      return
-    }
-    files
-      .ensure()
-      .catch(() => undefined)
-      .finally(release)
   }
 
   readonly availability = async () => {
@@ -155,7 +145,8 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
       // An install whose index was prepared before the model was fetched on first use, or one that
       // only searches, never embeds, so reading the state starts the download. `ensure()` refuses
       // a retry before `retryAt`, and a download in progress is shared.
-      this.#downloadInBackground(files)
+      // A Host that is stopping refuses the hold, so `ensure()` starts nothing then.
+      files.ensure().catch(() => undefined)
     }
     return current
   }

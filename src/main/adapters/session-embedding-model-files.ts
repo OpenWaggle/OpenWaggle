@@ -159,6 +159,7 @@ export class SessionEmbeddingModelFiles {
   #availability: SessionEmbeddingModelAvailability = { state: 'missing' }
   #resolved: string | null = null
   #download: Promise<string> | null = null
+  #hold: (() => () => void) | null = null
   /** Failed downloads so far, which set the next retry's delay; a success ends the downloads. */
   #failures = 0
 
@@ -198,6 +199,15 @@ export class SessionEmbeddingModelFiles {
     return null
   }
 
+  /**
+   * What every download takes for as long as it runs, so its process stays up (the Session Host's
+   * liveness hold). A hold that throws, as a stopping Host's does, fails `ensure()` with nothing
+   * started.
+   */
+  holdDownloadsWith(hold: () => () => void) {
+    this.#hold = hold
+  }
+
   /** The `localModelPath` with verified files, downloading them once if they are not there. */
   async ensure() {
     const present = await this.present()
@@ -207,9 +217,13 @@ export class SessionEmbeddingModelFiles {
     if ((current.state === 'offline' || current.state === 'failed') && now < current.retryAt) {
       throw new SessionEmbeddingModelUnavailableError(current)
     }
-    this.#download ??= this.#fetchAll().finally(() => {
-      this.#download = null
-    })
+    if (this.#download === null) {
+      const release = this.#hold?.() ?? (() => undefined)
+      this.#download = this.#fetchAll().finally(() => {
+        this.#download = null
+        release()
+      })
+    }
     return this.#download
   }
 

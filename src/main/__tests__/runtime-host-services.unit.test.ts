@@ -35,6 +35,7 @@ vi.mock('../application/pi-session-discovery', () => ({
   runPiSessionDiscoveryBackground: () => recorded('pi session discovery'),
 }))
 vi.mock('../adapters/session-semantic-discovery-background', () => ({
+  installSessionModelDownloadHold: recorded('model download hold'),
   runSessionSemanticDiscoveryBackground: recorded('semantic discovery'),
 }))
 vi.mock('../store/session-details/snapshot-transcript-term-projection', () => ({
@@ -104,6 +105,9 @@ describe('Host background services', () => {
     expect(started.indexOf('mcp files')).toBeLessThan(started.indexOf('tool gateway'))
     // WAL checkpoints leave the Host's event loop; their worker start is forked, not awaited.
     expect(started).toContain('wal checkpoints')
+    // A readiness read in a CLI-spawned Host's first seconds starts the model download, which must
+    // hold the Host; the semantic indexer that once installed the hold starts only after 5 s.
+    expect(started).toContain('model download hold')
     // Work no client request needs waits until the Host listens.
     expect(started).not.toContain('export recovery')
     expect(started).not.toContain('scratch sweep')
