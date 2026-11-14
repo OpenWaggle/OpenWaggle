@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  createExtensionBrokerSdk,
-  type ExtensionBrokerTransport,
-  OPENWAGGLE_EXTENSION_BROKER,
-} from '../index.js'
+import { type ExtensionBrokerTransport, OPENWAGGLE_EXTENSION_BROKER } from '../index.js'
+import { createExtensionBrokerSdk } from '../testing.js'
 
 const APP_SCOPE = { kind: 'app' } as const
 const IDENTITY = { extensionId: 'sample-extension', contributionId: 'sample.docs' }
@@ -94,8 +91,8 @@ describe('broker result decoding', () => {
     })
   })
 
-  // The 0.2 SDK declares the thinking level as a string, and a minor release keeps that: a level a
-  // later Pi adds still decodes. Narrowing it to the app's levels belongs to the 0.3.0 SDK.
+  // The SDK has declared the thinking level as a string since 0.2, so a level a later Pi adds still
+  // decodes.
   it.each(['high', 'a level a later Pi adds'])(
     'accepts a model preference with the thinking level %s',
     async (thinkingLevel) => {

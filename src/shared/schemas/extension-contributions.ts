@@ -1,12 +1,16 @@
+export type {
+  ExtensionCapabilityDeclaration,
+  ExtensionContributionRegistration,
+  ExtensionContributions,
+  ExtensionContributionUnregistration,
+  ExtensionSessionSummaryContribution,
+  ExtensionSidePanelIcon,
+} from '@openwaggle/extension-sdk'
 export {
-  type ExtensionCapabilityDeclaration,
-  type ExtensionContributionRegistration,
-  type ExtensionContributions,
-  type ExtensionContributionUnregistration,
-  type ExtensionSessionSummaryContribution,
-  type ExtensionSidePanelIcon,
-  extensionContributionIdSchema,
   extensionContributionRegistrationSchema,
   extensionContributionUnregistrationSchema,
+} from '@openwaggle/extension-sdk/internal/manifest-contributions'
+export {
+  extensionContributionIdSchema,
   extensionRelativePathSchema,
-} from '@openwaggle/extension-sdk'
+} from '@openwaggle/extension-sdk/internal/manifest-primitives'

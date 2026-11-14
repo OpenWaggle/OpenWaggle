@@ -1,7 +1,7 @@
-// The broker's resources schemas are the public extension SDK's: the host builds results from the
-// schemas extensions decode them with.
+// The broker's resources schemas are the extension SDK's internal ones: the host builds results
+// from the schemas the SDK's broker client decodes them with.
 export {
   extensionSessionResourcePublishPayloadSchema,
   extensionSessionResourceViewSchema,
   extensionSessionResourcesListPayloadSchema,
-} from '@openwaggle/extension-sdk'
+} from '@openwaggle/extension-sdk/internal/broker-schemas-resources'

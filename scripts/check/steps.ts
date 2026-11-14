@@ -19,6 +19,7 @@ import {
   TYPESCRIPT_INPUTS,
 } from './step-helpers'
 import type { CheckGate, CheckStep } from './step-model'
+import { EXTENSION_SDK_TYPES_STEP } from './extension-sdk-types-step'
 import { NO_CHEATING_STEP } from './no-cheating-step'
 import { TEST_STEPS } from './test-steps'
 
@@ -88,8 +89,9 @@ export const STEPS: readonly CheckStep[] = [
     findings: 'generic',
     hint: 'bun run usage-statistics-catalog:generate',
   },
+  EXTENSION_SDK_TYPES_STEP,
   packageBuild('waggle-core'),
-  packageBuild('extension-sdk'),
+  packageBuild('extension-sdk', [], { pruneDeclarations: true }),
   packageBuild('pi-waggle', ['waggle-core']),
   packageBuild('extension-react', ['extension-sdk']),
   {
@@ -261,6 +263,7 @@ const STATIC_STEPS = [
   'dependency-pins',
   'no-cheating',
   'usage-statistics-catalog',
+  'extension-sdk-types',
   'format',
   'lint',
   'repository-standards',

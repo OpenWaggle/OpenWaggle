@@ -1,5 +1,5 @@
 import * as Schema from 'effect/Schema'
-import { OPENWAGGLE_EXTENSION } from './constants.js'
+import { OPENWAGGLE_EXTENSION } from '../constants.js'
 import {
   extensionCapabilityScopeSchema,
   extensionCommandContributionFamilySchema,
@@ -11,26 +11,25 @@ import {
   extensionLucideIconNameSchema,
   extensionNonEmptyStringSchema,
   extensionSvgIconPathSchema,
-  validateBrokerCapabilityDeclaration,
+  brokerCapabilityMethodsRule,
 } from './manifest-primitives.js'
-import type { SchemaType } from './schema.js'
 
 export const extensionCapabilityDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   methods: Schema.optionalWith(Schema.Array(extensionContributionIdSchema), { exact: true }),
   scopes: Schema.optionalWith(Schema.Array(extensionCapabilityScopeSchema), { exact: true }),
-}).pipe(Schema.filter(validateBrokerCapabilityDeclaration))
+}).pipe(Schema.filter(brokerCapabilityMethodsRule))
 
 const brokerBindingSchema = {
   capability: Schema.optionalWith(extensionContributionIdSchema, { exact: true }),
   method: Schema.optionalWith(extensionContributionIdSchema, { exact: true }),
   methods: Schema.optionalWith(Schema.Array(extensionContributionIdSchema), { exact: true }),
 }
-const targetSchema = Schema.Struct({
+export const extensionContributionTargetSchema = Schema.Struct({
   projectPaths: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
   sessionIds: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
 })
-const matchSchema = Schema.Struct({
+export const extensionContributionMatchSchema = Schema.Struct({
   toolNames: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
   customMessageNames: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), {
     exact: true,
@@ -62,7 +61,7 @@ export const extensionCommandContributionSchema = Schema.Struct({
     ),
     { exact: true },
   ),
-  target: Schema.optionalWith(targetSchema, { exact: true }),
+  target: Schema.optionalWith(extensionContributionTargetSchema, { exact: true }),
   ...brokerBindingSchema,
 })
 
@@ -74,8 +73,8 @@ const entryContributionFields = {
   runtime: extensionContributionRuntimeSchema,
   execution: extensionExecutionPlacementSchema,
   entry: extensionContributionEntryPathSchema,
-  target: Schema.optionalWith(targetSchema, { exact: true }),
-  matches: Schema.optionalWith(matchSchema, { exact: true }),
+  target: Schema.optionalWith(extensionContributionTargetSchema, { exact: true }),
+  matches: Schema.optionalWith(extensionContributionMatchSchema, { exact: true }),
   ...brokerBindingSchema,
 }
 
@@ -177,7 +176,7 @@ export const extensionSessionSummaryContributionSchema = Schema.Struct({
   placement: Schema.optionalWith(Schema.Literal('context', 'coordination', 'details'), {
     exact: true,
   }),
-  target: Schema.optionalWith(targetSchema, { exact: true }),
+  target: Schema.optionalWith(extensionContributionTargetSchema, { exact: true }),
   disclosure: Schema.optionalWith(extensionSessionSummaryDisclosureSchema, { exact: true }),
   state: Schema.optionalWith(extensionSessionSummaryStateSchema, { exact: true }),
   rows: Schema.Array(extensionSessionSummaryRowSchema),
@@ -263,21 +262,3 @@ export const extensionContributionUnregistrationSchema = Schema.Struct({
   family: extensionContributionFamilySchema,
   contributionId: extensionContributionIdSchema,
 })
-
-export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>
-export type ExtensionCommandContribution = SchemaType<typeof extensionCommandContributionSchema>
-export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>
-export type ExtensionContributionRegistration = SchemaType<
-  typeof extensionContributionRegistrationSchema
->
-export type ExtensionContributionUnregistration = SchemaType<
-  typeof extensionContributionUnregistrationSchema
->
-export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>
-export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>
-export type ExtensionEntryContribution =
-  | SchemaType<typeof extensionRouteContributionSchema>
-  | ExtensionSidePanelContribution
-export type ExtensionSessionSummaryContribution = SchemaType<
-  typeof extensionSessionSummaryContributionSchema
->

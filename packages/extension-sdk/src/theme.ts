@@ -23,7 +23,6 @@ export type {
   OpenWaggleExtensionThemeTokens,
   OpenWaggleExtensionTypeScaleEntry,
 } from './theme-types.js'
-export { isOpenWaggleExtensionTheme } from './theme-validation.js'
 
 const EMPTY_LENGTH = 0
 

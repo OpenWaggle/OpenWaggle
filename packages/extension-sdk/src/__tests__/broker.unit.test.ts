@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createExtensionBrokerSdk,
   type ExtensionBrokerTransport,
   type ExtensionInvokeInput,
   OPENWAGGLE_EXTENSION,
   OPENWAGGLE_EXTENSION_BROKER,
 } from '../index.js'
+import { createExtensionBrokerSdk } from '../testing.js'
 
 const APP_SCOPE = { kind: 'app' } as const
 const PROJECT_SCOPE = { kind: 'project', projectPath: '/tmp/project' } as const

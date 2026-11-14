@@ -10,7 +10,7 @@ import {
   MAX_INLINE_VISUALIZATION_PATH_LENGTH,
   MAX_INLINE_VISUALIZATION_STATE_BYTES,
 } from '@shared/constants/inline-visualization'
-import { jsonValueSchema } from '@openwaggle/extension-sdk'
+import { jsonValueSchema } from '@openwaggle/extension-sdk/internal/json-schemas'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'

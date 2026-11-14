@@ -25,7 +25,10 @@ import {
   extensionStorageListResultSchema,
   extensionStorageSetResultSchema,
 } from './broker-schemas-storage.js'
-import { extensionDocsDiscoverResultSchema, extensionDocsResolveTopicResultSchema } from './docs.js'
+import {
+  extensionDocsDiscoverResultSchema,
+  extensionDocsResolveTopicResultSchema,
+} from './docs-schemas.js'
 
 export const extensionInvokeSuccessValueSchema = Schema.Union(
   extensionHostContextResultSchema,

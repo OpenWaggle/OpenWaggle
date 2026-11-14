@@ -2,7 +2,7 @@
  * Generated files edited by hand (`generated-file`): a changed generated file whose content
  * differs from what its generator writes now. Each entry regenerates in memory, so the check writes nothing.
  * Generated files with their own `check` step are left to it: the usage statistics catalog, the
- * package API snapshots and the package documentation. The TanStack route tree is rewritten by
+ * extension SDK's generated types, the package API snapshots and the package documentation. The TanStack route tree is rewritten by
  * every renderer build, and Bun cannot compare bun.lock with a fresh resolution offline, so
  * neither is checked here.
  */
