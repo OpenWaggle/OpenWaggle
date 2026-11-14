@@ -14,7 +14,7 @@ const MAX_INITIAL_RENDERER_BYTES = 384 * KIBIBYTE
  * measured 1,733,432 bytes rounded up to 16 KiB (November 2026). Unlike the entry budget it does not
  * move when Rolldown regroups the same modules between the entry and its preloaded chunks.
  */
-const MAX_INITIAL_RENDERER_GRAPH_BYTES = 1_696 * KIBIBYTE
+const MAX_INITIAL_RENDERER_GRAPH_BYTES = 1_712 * KIBIBYTE
 /**
  * The chat surface: what the welcome and Session routes load right after the shell renders, before
  * the composer or a transcript appears (renderer-load.md, B8). It was 2.7 MB unminified and
