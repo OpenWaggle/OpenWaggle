@@ -14,4 +14,16 @@ describe('electronAppLifecycle.disableHardwareAcceleration', () => {
       'enable-features': 'NetworkServiceInProcess2',
     })
   })
+
+  it('adds the network service feature to an --enable-features already given', async () => {
+    const { electron } = await prepareElectronShell()
+    electron.app.switches.set('enable-features', 'OverlayScrollbar,WebGPU')
+    const { electronAppLifecycle } = await import('../electron-app-lifecycle')
+
+    electronAppLifecycle.disableHardwareAcceleration()
+
+    expect(electron.app.switches.get('enable-features')).toBe(
+      'OverlayScrollbar,WebGPU,NetworkServiceInProcess2',
+    )
+  })
 })
