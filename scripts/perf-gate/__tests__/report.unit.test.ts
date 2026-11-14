@@ -90,6 +90,20 @@ describe('the Performance Gate report', () => {
     )
   })
 
+  it('counts a metric the head stopped measuring as a failure', () => {
+    const parsed = parsePerfGateReport({
+      ...REPORT,
+      timings: {
+        rows: [{ ...timingRow('cold.chat-ready', 1400, 0, 'missing'), head: null, delta: null }],
+        loosened: [],
+        accepted: false,
+      },
+    })
+
+    expect(parsed?.timings).toMatchObject({ passed: false, regressions: [{ status: 'missing' }] })
+    expect(parsed && renderReport(parsed)).toContain('not measured on the head')
+  })
+
   it('says why timings were skipped', () => {
     const parsed = parsePerfGateReport({
       ...REPORT,

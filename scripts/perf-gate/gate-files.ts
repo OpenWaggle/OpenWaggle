@@ -125,6 +125,9 @@ export function abFailureLines(verdict: TimingVerdict, results: AbResults) {
     : `Only a maintainer can accept it, with the ${REGRESSION_ACCEPTED_LABEL} label.`
   return [
     ...verdict.regressions.map((row) => {
+      if (row.status === 'missing') {
+        return `${row.id}: measured on the base (${value(row, row.base)}) but not on the head.${samplesOf(results, row.id)} ${outcome}`
+      }
       const relative =
         row.relative === null ? '' : ` (${(row.relative * PERCENT).toFixed(DECIMALS)}%)`
       return (
