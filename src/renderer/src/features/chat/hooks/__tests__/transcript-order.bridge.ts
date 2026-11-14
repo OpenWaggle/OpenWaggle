@@ -61,3 +61,22 @@ function missedSettlement(runId: string | null, active: string | null) {
   if (active === null) return runId === null ? {} : { runId }
   return runId === null ? null : { runId, continues: true as const }
 }
+
+/**
+ * A Run start lost on its way to the renderer with nothing to announce it again (`loseNextStart`),
+ * as when a resync's gap held it and the bridge did not announce the Run it found.
+ */
+export function createStartLoss() {
+  let losing = false
+  return {
+    lose() {
+      losing = true
+    },
+    /** Whether the event is the start to lose; only the next one is. */
+    takes(event: AgentTransportEvent) {
+      if (!losing || event.type !== 'agent_start') return false
+      losing = false
+      return true
+    },
+  }
+}
