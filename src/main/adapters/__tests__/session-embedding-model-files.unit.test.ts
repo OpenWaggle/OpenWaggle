@@ -5,8 +5,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { MultilingualE5SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
+import { withModelAvailability } from '../semantic-discovery-model-readiness'
 import {
   type SessionEmbeddingModelAvailability,
   SessionEmbeddingModelFiles,
@@ -251,5 +253,62 @@ describe('the Session embedding model with files fetched on first use', () => {
       SessionEmbeddingModelUnavailableError,
     )
     expect(configs).toEqual([])
+  })
+
+  it('downloads the model when an index prepared before it was fetched reads its readiness', async () => {
+    const host = modelHost()
+    const files = store({ fetch: host.fetch })
+    const model = new MultilingualE5SessionEmbeddingModel({ spawnChild: answeringChild([]) })
+    model.useModelFiles(files)
+    const settled = new Promise<void>((resolve) => {
+      files.onChange((availability) => {
+        if (availability.state === 'ready') resolve()
+      })
+    })
+
+    const readiness = await Effect.runPromise(
+      withModelAvailability(
+        { status: 'ready', modelRevision: REVISION, snapshotRevision: 3, coverage: 1 },
+        model,
+      ),
+    )
+
+    expect(readiness).toMatchObject({ status: 'preparing', model: { state: 'missing' } })
+    await settled
+    expect(host.requested).toHaveLength(FILES.length)
+    expect(await model.availability()).toEqual({ state: 'ready' })
+  })
+
+  it('starts a download from its availability no sooner than the retry time', async () => {
+    let now = 1_000
+    let offline = true
+    const host = modelHost()
+    const fetch = (url: string) => (offline ? Promise.reject(offlineError()) : host.fetch(url))
+    const files = store({ fetch, now: () => now })
+    const model = new MultilingualE5SessionEmbeddingModel({ spawnChild: answeringChild([]) })
+    model.useModelFiles(files)
+    const states = (state: SessionEmbeddingModelAvailability['state']) =>
+      new Promise<void>((resolve) => {
+        const stop = files.onChange((availability) => {
+          if (availability.state !== state) return
+          stop()
+          resolve()
+        })
+      })
+
+    const wentOffline = states('offline')
+    expect(await model.availability()).toEqual({ state: 'missing' })
+    await wentOffline
+    offline = false
+
+    expect((await model.availability()).state).toBe('offline')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(host.requested).toEqual([])
+
+    now += SESSION_EMBEDDING_MODEL_RETRY_BASE_MS
+    const ready = states('ready')
+    expect((await model.availability()).state).toBe('offline')
+    await ready
+    expect(host.requested).toHaveLength(FILES.length)
   })
 })
