@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/OpenWaggle/OpenWaggle/compare/extension-sdk-v0.2.0...extension-sdk-v0.3.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **extension-sdk:** The 132 *Schema exports are removed; use the matching type (usually the schema's name without Schema; the package docs list the renamed ones and the schemas with no public type), a validate* helper, or the manifest JSON Schema. The ./broker and ./manifest subpaths are removed; their types are on the root entry. validateExtensionManifest moves to ./validation and returns { success, value } or { success: false, issues } with { path, message } issues instead of { manifest, issues: string[] }. isOpenWaggleExtensionTheme is replaced by validateOpenWaggleExtensionTheme on ./validation, whose value leaves out undeclared top-level fields. ExtensionManifestValidationResult is replaced by ExtensionValidationResult. createExtensionBrokerSdk, createExtensionBrokerSdkFromInvoke, createRuntimeContributionSdk and toInvokeInput move from the root, ./broker and ./runtime entries to ./testing; extension code uses context.sdk. A broker invalid-payload error now lists every issue, not the first one only.
+
+### Features
+
+* **extension-sdk:** publish types and result helpers with an Effect-free runtime ([#461](https://github.com/OpenWaggle/OpenWaggle/issues/461)) ([9bc04f0](https://github.com/OpenWaggle/OpenWaggle/commit/9bc04f0678b4dc544e0cc843ce05e8630d026e95))
+
+
+### Bug Fixes
+
+* build and test with Bun and enforce the strictest type, lint and test checks ([#453](https://github.com/OpenWaggle/OpenWaggle/issues/453)) ([901f5b0](https://github.com/OpenWaggle/OpenWaggle/commit/901f5b00dff0b1ae23cb2e036dba6dab4146b18c))
+
 ## [0.2.0](https://github.com/OpenWaggle/OpenWaggle/compare/extension-sdk-v0.1.1...extension-sdk-v0.2.0) (2026-11-06)
 
 
