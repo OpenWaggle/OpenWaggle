@@ -40,6 +40,8 @@ export const BUNDLED_PACKAGE_ASSETS: Readonly<Record<string, readonly string[]>>
  * Packages the app installs but never loads, so neither they nor what only they depend on ship:
  * transformers.js's Node build runs inference through onnxruntime-node, not the web runtime.
  */
+const ELECTRON_PACKAGE = 'electron'
+
 export const UNLOADED_PACKAGES: ReadonlySet<string> = new Set(['onnxruntime-web'])
 
 /**
@@ -192,8 +194,10 @@ export function packagedRuntimePackages(projectRoot: string, externals: readonly
     ],
     projectRoot,
   )
+  // `electron` is the Electron runtime's own module; the npm package only downloads its binary,
+  // so its closure (@electron/get, undici and the rest) ships nothing.
   const runtime = packageClosure(
-    [...externals, ...RUNTIME_RESOLVED_PACKAGES],
+    [...externals.filter((name) => name !== ELECTRON_PACKAGE), ...RUNTIME_RESOLVED_PACKAGES],
     projectRoot,
     UNLOADED_PACKAGES,
   )
