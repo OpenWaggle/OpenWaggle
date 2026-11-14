@@ -152,7 +152,7 @@ After a successful migration, OpenWaggle uses `session-host/session-host.sqlite`
 
 Search by meaning needs a second index that builds in the background. It can show `preparing` or `failed` while text search keeps working.
 
-It also needs the session search model, which OpenWaggle downloads on first use ([The session search model](/docs/configuration/security-privacy#the-session-search-model)). Until the model arrives, readiness is `preparing` while its `model.state` is `missing` or `downloading`, and `unavailable` while it is `offline` or `failed` and waiting to try again. Search falls back to matching words in the meantime. Hybrid search, which combines the two, uses text search alone until enough of that index is ready. After a restart, OpenWaggle carries on building the index without running the database migration again.
+It also needs the session search model, which OpenWaggle downloads on first use ([The session search model](/docs/configuration/security-privacy#the-session-search-model)). Until the model arrives, readiness is `preparing` while its `model.state` is `missing` or `downloading`, and `unavailable` while it is `offline` or `failed` and waiting to try again, unless the index already reports `failed` or `unavailable`. Search falls back to matching words in the meantime. Hybrid search, which combines the two, uses text search alone until enough of that index is ready. After a restart, OpenWaggle carries on building the index without running the database migration again.
 
 ### Command errors
 

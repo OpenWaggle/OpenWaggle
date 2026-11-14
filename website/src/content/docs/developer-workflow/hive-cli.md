@@ -284,6 +284,8 @@ Both modes also need the session search model, which OpenWaggle downloads on fir
 | `offline` | `unavailable` | The download failed without a network. `retryAt` says when it tries again |
 | `failed` | `unavailable` | The download failed for another reason, such as a hash mismatch. `retryAt` says when it tries again |
 
+These statuses apply unless the index already reports `failed` or `unavailable`, which it keeps.
+
 Meanwhile hybrid search returns word matches, with `searchBackend: "lexical"` and the degradation reason `semantic_not_ready`. Semantic-only search fails with `semantic_not_ready`. `--require-fresh` returns at once instead of waiting for the download.
 
 The meaning index is a local cache that OpenWaggle can rebuild. The transcript itself is the source of truth. The cache keeps these limits:
