@@ -147,11 +147,18 @@ export interface SessionHydrationInput {
   readonly cachedRenderSeeded: boolean
   /** Ids of cached messages a settled Run left, persisted under other ids once the Session saved it. */
   readonly cachedSettledMessageIds?: ReadonlySet<string>
+  /**
+   * Ids of cached rows a Run whose start was lost streamed over, before the Host named it. Read
+   * straight off the snapshot, an explicit undefined when it notes none.
+   */
+  readonly cachedNoticedMessageIds?: ReadonlySet<string> | undefined
   readonly cachedCompactionStatus: AgentCompactionStatus | null
   /** Counts Host event-stream resyncs: events may have been lost before each. */
   readonly resyncRevision: number
   /** Counts restores of the activity in progress when the renderer started. */
   readonly activityRestoreRevision: number
+  /** Counts the Session's Runs the monitor learned of from what they streamed, their start lost. */
+  readonly unannouncedRunNotice: number
 }
 
 export interface SessionHydrationKeys {
