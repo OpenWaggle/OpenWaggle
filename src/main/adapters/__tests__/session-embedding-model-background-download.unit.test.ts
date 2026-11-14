@@ -72,6 +72,7 @@ describe('the Session embedding model download a readiness read starts', () => {
     })
 
     expect(await model.availability()).toEqual({ state: 'missing' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
     expect(held).toBe(1)
     arrive()
     await download.ready
@@ -106,5 +107,51 @@ describe('the Session embedding model download a readiness read starts', () => {
     const left = await fs.readdir(directory, { recursive: true })
     expect(left.filter((entry) => entry.endsWith('.download'))).toEqual([])
     expect(left).toContain(path.join('onnx', 'model_quantized.onnx'))
+  })
+
+  it('downloads past a partial file it cannot remove', async () => {
+    const directory = path.join(root, 'download', 'Org', 'tiny-model')
+    // A directory fails a non-recursive removal, as a file another process holds does.
+    await fs.mkdir(path.join(directory, 'config.json.held.download'), { recursive: true })
+    await fs.writeFile(path.join(directory, 'config.json.held.download', 'inner'), 'held')
+
+    expect(await modelFiles('download').files.ensure()).toBe(path.join(root, 'download'))
+  })
+})
+
+describe('the Session embedding model files hold', () => {
+  it('is taken once by the download ensure() starts, for every caller, until it ends', async () => {
+    let arrive: () => void = () => undefined
+    const download = modelFiles(
+      'download',
+      new Promise<void>((resolve) => {
+        arrive = resolve
+      }),
+    )
+    const holds: string[] = []
+    download.files.holdDownloadsWith(() => {
+      holds.push('taken')
+      return () => {
+        holds.push('released')
+      }
+    })
+
+    const both = Promise.all([download.files.ensure(), download.files.ensure()])
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(holds).toEqual(['taken'])
+    arrive()
+    await both
+
+    expect(holds).toEqual(['taken', 'released'])
+  })
+
+  it('fails ensure() with nothing fetched when the hold is refused', async () => {
+    const download = modelFiles('download')
+    download.files.holdDownloadsWith(() => {
+      throw new Error('The Session Host is stopping')
+    })
+
+    await expect(download.files.ensure()).rejects.toThrow('The Session Host is stopping')
+    expect(download.requested).toEqual([])
   })
 })

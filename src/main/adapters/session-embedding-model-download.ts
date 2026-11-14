@@ -30,11 +30,18 @@ export async function fileHashMatches(filePath: string, sha256: string) {
   return hash.digest('hex') === sha256
 }
 
-/** Removes every partial download under `directory`; none is in progress when this runs. */
+/**
+ * Removes every partial download under `directory`; none is in progress when this runs. Best
+ * effort: a file another process holds (EBUSY, EPERM on Windows) stays, and the download goes on.
+ */
 export async function removeStaleDownloads(directory: string) {
   const entries = await fs.readdir(directory, { recursive: true }).catch(() => [])
   const stale = entries.filter((entry) => entry.endsWith(PARTIAL_SUFFIX))
-  await Promise.all(stale.map((entry) => fs.rm(path.join(directory, entry), { force: true })))
+  await Promise.all(
+    stale.map((entry) =>
+      fs.rm(path.join(directory, entry), { force: true }).catch(() => undefined),
+    ),
+  )
 }
 
 export async function downloadModelFile(download: ModelFileDownload) {
