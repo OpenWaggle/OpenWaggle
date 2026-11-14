@@ -40,6 +40,11 @@ export const delegationConflictAcknowledgedOutcomeSchema = Schema.Struct({
   acknowledgedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
 })
 
+const delegationRevisionRequestSchema = Schema.Struct({
+  parentSessionId: Schema.String,
+  submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
+})
+
 export const delegationDependenciesUpdatedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('delegation-dependency'),
   effect: Schema.Literal('delegation-dependencies-updated'),
@@ -49,6 +54,7 @@ export const delegationDependenciesUpdatedOutcomeSchema = Schema.Struct({
   specificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   dependencyCount: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   workerSessionId: Schema.String,
+  revisionRequest: Schema.optional(delegationRevisionRequestSchema),
 })
 
 export const delegationAmendmentProposedOutcomeSchema = Schema.Struct({
@@ -69,6 +75,7 @@ export const delegationSpecificationAmendedOutcomeSchema = Schema.Struct({
   specificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   appliedProposalId: Schema.optionalWith(Schema.String, { exact: true }),
   workerSessionId: Schema.String,
+  revisionRequest: Schema.optional(delegationRevisionRequestSchema),
 })
 
 export const delegationVerificationRecordedOutcomeSchema = Schema.Struct({

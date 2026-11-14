@@ -8,6 +8,8 @@ import {
   type DelegationContractRow,
   type ExecuteDelegationInput,
   rejectedDelegationOutcome,
+  taskChangeMessageRefusal,
+  taskChangeRevisionRequest,
 } from './sqlite-session-delegation-support'
 
 interface DependencyRow {
@@ -122,6 +124,8 @@ export function updateDelegationDependency(
     ) {
       return rejectedDelegationOutcome(input, 'delegation_dependency_invalid')
     }
+    const messageRefusal = yield* taskChangeMessageRefusal(sql, input, contract)
+    if (messageRefusal) return messageRefusal
     const dependencies =
       command.action === 'add'
         ? [
@@ -195,6 +199,7 @@ export function updateDelegationDependency(
       specificationRevision,
       dependencyCount: dependencies.length,
       workerSessionId: contract.child_session_id,
+      ...taskChangeRevisionRequest(contract),
     } satisfies Extract<
       SessionControlMutationOutcome,
       { readonly effect: 'delegation-dependencies-updated' }

@@ -57,6 +57,7 @@ const RELEASED_REFUSAL_KINDS: Readonly<Record<SessionHostErrorKind, readonly str
     'source_run_not_authorized',
     'target_not_authorized',
     'target_scope_denied',
+    'worker_message_denied',
     'worker_required',
   ],
   not_found: [
@@ -95,6 +96,7 @@ const RELEASED_REFUSAL_KINDS: Readonly<Record<SessionHostErrorKind, readonly str
     'delegation_not_contributable',
     'delegation_not_reviewable',
     'delegation_operation_invalid',
+    'delegation_revision_pending',
     'delegation_terminal',
     'delegation_workspace_missing',
     'follow_up_already_exists',
