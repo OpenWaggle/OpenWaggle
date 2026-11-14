@@ -49,6 +49,7 @@ const BUDGET_STATUS_TEXT: Readonly<Record<BudgetRow['status'], string>> = {
 
 const TIMING_STATUS_TEXT: Readonly<Record<TimingRow['status'], string>> = {
   regressed: '🔺 slower or heavier',
+  missing: '🔺 not measured on the head',
   improved: '✅ better',
   same: 'within noise',
   unavailable: 'not measured',

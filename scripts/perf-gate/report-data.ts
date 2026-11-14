@@ -7,12 +7,13 @@
 import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from '../support/object-fields'
 import type { BudgetComparison, BudgetRow, BudgetRowStatus } from './budget-compare'
-import type {
-  MetricKind,
-  ThresholdChange,
-  TimingRow,
-  TimingStatus,
-  TimingVerdict,
+import {
+  isTimingFailure,
+  type MetricKind,
+  type ThresholdChange,
+  type TimingRow,
+  type TimingStatus,
+  type TimingVerdict,
 } from './ab-verdict'
 
 export interface PerfGateReport {
@@ -42,7 +43,13 @@ const BUDGET_STATUSES: readonly BudgetRowStatus[] = [
   'quantum-raised',
   'quantum-lowered',
 ]
-const TIMING_STATUSES: readonly TimingStatus[] = ['regressed', 'improved', 'same', 'unavailable']
+const TIMING_STATUSES: readonly TimingStatus[] = [
+  'regressed',
+  'missing',
+  'improved',
+  'same',
+  'unavailable',
+]
 const KINDS: readonly MetricKind[] = ['timing', 'memory', 'count', 'calls']
 const UNITS = ['bytes', 'count'] as const
 const SKIP_REASONS = ['no shipped code changed', 'not a pull request'] as const
@@ -181,7 +188,7 @@ function timings(value: unknown) {
   const fields = objectFields(comparisonFields, value)
   if (fields === undefined) return null
   const rows = list(fields.rows).flatMap(timingRow)
-  const regressions = rows.filter((row) => row.status === 'regressed')
+  const regressions = rows.filter(isTimingFailure)
   const loosened = list(fields.loosened).flatMap(thresholdChange)
   const failing = regressions.length > 0 || loosened.length > 0
   const accepted = failing && fields.accepted === true

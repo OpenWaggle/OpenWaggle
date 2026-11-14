@@ -136,6 +136,57 @@ describe('the timing verdict', () => {
     ])
   })
 
+  it('fails a metric the base measured and the head did not, unless the label accepts it', () => {
+    const unmeasured = results({})
+    const samples = unmeasured.samples.map((entry) =>
+      entry.build === 'head' ? { ...entry, cold: { ...entry.cold, chatReadyMs: null } } : entry,
+    )
+    const input = { ...unmeasured, samples }
+
+    const verdict = timingVerdict({
+      results: input,
+      thresholds: THRESHOLDS,
+      headThresholds: THRESHOLDS,
+      labels: [],
+    })
+
+    expect(verdict.passed).toBe(false)
+    expect(verdict.regressions.map((row) => [row.id, row.status, row.head])).toEqual([
+      ['cold.chat-ready', 'missing', null],
+    ])
+    expect(abFailureLines(verdict, input)[0]).toContain(
+      'cold.chat-ready: measured on the base (1404 ms) but not on the head.',
+    )
+    expect(
+      timingVerdict({
+        results: input,
+        thresholds: THRESHOLDS,
+        headThresholds: THRESHOLDS,
+        labels: [REGRESSION_ACCEPTED_LABEL],
+      }),
+    ).toMatchObject({ passed: true, accepted: true })
+  })
+
+  it('leaves a metric neither side measured out of the verdict', () => {
+    const unmeasured = results({})
+    const samples = unmeasured.samples.map((entry) => ({
+      ...entry,
+      cold: { ...entry.cold, ipcCallsUntilChatReady: null },
+    }))
+
+    const verdict = timingVerdict({
+      results: { ...unmeasured, samples },
+      thresholds: THRESHOLDS,
+      headThresholds: THRESHOLDS,
+      labels: [],
+    })
+
+    expect(verdict.passed).toBe(true)
+    expect(verdict.rows.find((row) => row.id === 'cold.ipc-until-chat-ready')?.status).toBe(
+      'unavailable',
+    )
+  })
+
   it('names a loosened threshold and needs the label for it', () => {
     const looser: Thresholds = { ...THRESHOLDS, timing: { relative: 0.2, absolute: 60 }, pairs: 2 }
     expect(loosenedThresholds(THRESHOLDS, looser)).toEqual([

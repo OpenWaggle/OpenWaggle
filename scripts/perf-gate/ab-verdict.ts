@@ -29,7 +29,11 @@ export interface Thresholds {
   readonly calls: Limit
 }
 
-export type TimingStatus = 'regressed' | 'improved' | 'same' | 'unavailable'
+/**
+ * `missing`: measured on the base but not the head, which fails like a regression (a head that
+ * stops reporting a metric must not pass unjudged). `unavailable`: the base has no value either.
+ */
+export type TimingStatus = 'regressed' | 'missing' | 'improved' | 'same' | 'unavailable'
 
 export interface TimingRow {
   readonly id: string
@@ -123,7 +127,7 @@ function row(id: string, kind: MetricKind, read: Reader, results: AbResults, lim
   const headMedian = median(numbers(head.map(read)))
   const delta = median(differences)
   if (baseMedian === null || headMedian === null || delta === null) {
-    const unavailable: TimingRow = {
+    const unjudged: TimingRow = {
       id,
       kind,
       base: baseMedian,
@@ -131,9 +135,9 @@ function row(id: string, kind: MetricKind, read: Reader, results: AbResults, lim
       delta,
       relative: null,
       limit: null,
-      status: 'unavailable',
+      status: baseMedian === null ? 'unavailable' : 'missing',
     }
-    return unavailable
+    return unjudged
   }
   const allowed = Math.max(limit.relative * baseMedian, limit.absolute)
   const relative = baseMedian === 0 ? null : delta / baseMedian
@@ -150,6 +154,11 @@ function row(id: string, kind: MetricKind, read: Reader, results: AbResults, lim
     status,
   }
   return measured
+}
+
+/** A row that fails the gate unless a maintainer accepts it. */
+export function isTimingFailure(candidate: TimingRow) {
+  return candidate.status === 'regressed' || candidate.status === 'missing'
 }
 
 /** Limits the head's thresholds file loosens against main's: a higher limit or fewer pairs. */
@@ -175,7 +184,7 @@ export function timingVerdict(input: {
   const rows = abMetrics(input.results.samples).map(([id, kind, read]) =>
     row(id, kind, read, input.results, input.thresholds[kind]),
   )
-  const regressions = rows.filter((candidate) => candidate.status === 'regressed')
+  const regressions = rows.filter(isTimingFailure)
   const loosened = loosenedThresholds(input.thresholds, input.headThresholds)
   const failing = regressions.length > 0 || loosened.length > 0
   const accepted = failing && input.labels.includes(REGRESSION_ACCEPTED_LABEL)
