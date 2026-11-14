@@ -83,7 +83,7 @@ export function makeSessionLifecycleTestLayer(filename: string) {
           session_id, profile_json, authority_origin_caller_id,
           authorization_ceiling, created_at, updated_at
         ) VALUES (
-          ${'session-parent'}, ${JSON.stringify({ modelId: 'provider/model' })},
+          ${'session-parent'}, ${JSON.stringify({ modelId: 'provider/model', thinkingLevel: 'medium' })},
           ${'local-user'}, ${'ask-for-approval'}, ${1}, ${1}
         )
       `

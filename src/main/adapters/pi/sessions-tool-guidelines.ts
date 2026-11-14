@@ -3,6 +3,7 @@ import {
   permitsSessionsToolAction,
   type SessionsToolActionGrant,
 } from './sessions-tool-capability-schema'
+import { REVISION_STARTS_WORKER_RUN, revisionGuideline } from './sessions-tool-revision-guidelines'
 import { SCHEDULED_TASK_GUIDELINES } from './sessions-tool-schedule-guidelines'
 import { SELF_ARCHIVE_GUIDELINE } from './sessions-tool-self-archive-guideline'
 
@@ -161,13 +162,13 @@ function delegationGuideline(permits: Permits) {
   const submits = permits('delegation_submit')
   const reviews = permits('delegation_accept') || permits('delegation_request_revision')
   if (submits && reviews) {
-    return `Workers submit immutable Delegation results; parents request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+    return `Workers submit immutable Delegation results; parents request revision ${REVISION_STARTS_WORKER_RUN} or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
   }
   if (submits) {
     return 'Submit immutable Delegation results; your parent requests revision or accepts an exact submission revision.'
   }
   if (reviews) {
-    return `Workers submit immutable Delegation results; request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+    return `Workers submit immutable Delegation results; request revision ${REVISION_STARTS_WORKER_RUN} or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
   }
   return undefined
 }
@@ -243,6 +244,7 @@ function sessionsToolGuidelines(permits: Permits) {
       ? 'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.'
       : undefined,
     delegationGuideline(permits),
+    revisionGuideline(permits),
     nextActorGuideline(permits),
     cleanupGuideline(permits),
     permits('archive') ? SELF_ARCHIVE_GUIDELINE : undefined,

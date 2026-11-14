@@ -163,3 +163,50 @@ describe('Hive tool self-archive guidance', () => {
     )
   })
 })
+
+describe('Hive tool revision guidance (#454)', () => {
+  function queenTool() {
+    const registerTool = vi.fn()
+    createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+    return registerTool.mock.calls[0]?.[0]
+  }
+
+  it('tells a reviewer that a revision request reaches the Worker and starts its Run', async () => {
+    const tool = queenTool()
+    const overview = await hiveHelpText(tool)
+    expect(overview).toMatch(
+      /request revision \(it starts the Worker's Run with the feedback\) or accept/,
+    )
+
+    const topic = JSON.parse(await hiveHelpText(tool, 'delegation_request_revision'))
+    const rules: string = topic.rules.join('\n')
+    expect(rules).toMatch(/OpenWaggle Delegation revision request/)
+    expect(rules).toMatch(/delegationId, parentSessionId, submissionRevision, feedback/)
+    expect(rules).toMatch(/busy Worker runs it after its current Run/)
+    expect(rules).toMatch(/refused with worker_message_denied and the Delegation does not change/)
+    expect(rules).toMatch(
+      /refused with parent_concurrency_limit_reached or host_run_ceiling_reached/,
+    )
+
+    const amendRules: string = JSON.parse(await hiveHelpText(tool, 'delegation_amend')).rules.join(
+      '\n',
+    )
+    expect(amendRules).toMatch(
+      /delegation_amend or delegation_dependency on a submitted result the Worker waits on you for \(ready_for_review, needs_attention or waiting\)/,
+    )
+    expect(amendRules).toMatch(
+      /on a Worker still on the task \(working or revision_requested\) sends no Follow-up/,
+    )
+  })
+
+  it('tells a Worker what a revision request from its parent looks like', async () => {
+    const tool = queenTool()
+    expect(await hiveHelpText(tool)).toMatch(
+      /revision request from your parent arrives as its Follow-up starting "OpenWaggle Delegation revision request", naming delegationId, submissionRevision and feedback/,
+    )
+  })
+})

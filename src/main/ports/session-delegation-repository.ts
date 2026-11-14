@@ -1,3 +1,4 @@
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { DelegationState } from '@shared/types/session-collaboration'
 import type {
   SessionControlDelegationMutationRequest,
@@ -9,6 +10,8 @@ import type { SessionControlRepositoryError } from '../errors'
 export interface SessionDelegationRepositoryShape {
   readonly execute: (input: {
     readonly callerId: string
+    /** The live caller, when a transport authenticated it. */
+    readonly caller?: LocalSessionCallerIdentity
     readonly request: SessionControlDelegationMutationRequest
     readonly now: number
   }) => Effect.Effect<SessionControlMutationResponse, SessionControlRepositoryError>
@@ -16,6 +19,18 @@ export interface SessionDelegationRepositoryShape {
   readonly delegationStateOf: (
     sessionId: string,
   ) => Effect.Effect<DelegationState | null, SessionControlRepositoryError>
+  /**
+   * Why `callerId` may not send the Worker `sessionId` a message that starts a Run, checked as
+   * Follow-up delivery checks a queued Follow-up's caller and, for a live `caller`, by its own
+   * authority, or undefined when it may. A revision
+   * request reaches its Worker as the reviewer's Follow-up only when it may. Optional so test
+   * doubles that never review keep compiling; absent, no revision request reaches a Worker.
+   */
+  readonly messageBlockReason?: (input: {
+    readonly sessionId: string
+    readonly callerId: string
+    readonly caller?: LocalSessionCallerIdentity
+  }) => Effect.Effect<string | undefined, SessionControlRepositoryError>
 }
 
 export class SessionDelegationRepository extends Context.Tag(

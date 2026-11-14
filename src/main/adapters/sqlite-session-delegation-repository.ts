@@ -7,6 +7,8 @@ import * as Layer from 'effect/Layer'
 import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import { SessionControlRepositoryError } from '../errors'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
+import { liveCallerMessageBlockReason } from './session-follow-up-authorization'
+import { revisionPendingForSubmittingRun } from './sqlite-delegation-revision-owed'
 import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { updateDelegationCoordination } from './sqlite-session-delegation-coordination'
@@ -21,6 +23,7 @@ import {
   type ExecuteDelegationInput,
   rejectedDelegationOutcome,
   updatedDelegationOutcome,
+  workerMessageRefusal,
 } from './sqlite-session-delegation-support'
 import { recordWorkerOrchestrationUpdate } from './sqlite-session-orchestration-update-insert'
 
@@ -116,6 +119,9 @@ function submitDelegation(
       ['working', 'waiting', 'needs_attention', 'revision_requested'].includes(contract.state) ||
       (yield* wokenAfterResult(sql, input.callerId, contract))
     if (!contributable) return rejectedDelegationOutcome(input, 'delegation_not_contributable')
+    if (yield* revisionPendingForSubmittingRun(sql, input.callerId, contract)) {
+      return rejectedDelegationOutcome(input, 'delegation_revision_pending')
+    }
     if (command.summary.trim().length === 0) {
       return rejectedDelegationOutcome(input, 'submission_empty')
     }
@@ -177,6 +183,10 @@ function transitionDelegation(
     }
     if (command.operation === 'delegation-reopen' && contract.state !== 'accepted') {
       return rejectedDelegationOutcome(input, 'delegation_not_accepted')
+    }
+    if (command.operation === 'delegation-reopen') {
+      const refusal = yield* workerMessageRefusal(sql, input, contract)
+      if (refusal) return refusal
     }
     if (
       command.operation === 'delegation-cancel' &&
@@ -260,6 +270,12 @@ export const SqliteSessionDelegationRepositoryLive = Layer.effect(
         `.pipe(
           Effect.map((rows) => rows[0]?.state ?? null),
           Effect.mapError((cause) => delegationRepositoryError('delegation-state-of', cause)),
+        ),
+      messageBlockReason: (input) =>
+        liveCallerMessageBlockReason(sql, input).pipe(
+          Effect.mapError((cause) =>
+            delegationRepositoryError('delegation-message-block-reason', cause),
+          ),
         ),
     })
   }),

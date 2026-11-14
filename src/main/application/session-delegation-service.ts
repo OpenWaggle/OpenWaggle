@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
   SessionControlDelegationMutationRequest,
   SessionControlMutationResponse,
@@ -59,6 +60,7 @@ function notifiedParentForWorkerChange(response: SessionControlMutationResponse)
 
 export function executeSessionDelegationMutation(input: {
   readonly callerId: string
+  readonly caller?: LocalSessionCallerIdentity
   readonly request: SessionControlDelegationMutationRequest
 }) {
   return Effect.gen(function* () {
@@ -67,6 +69,7 @@ export function executeSessionDelegationMutation(input: {
     const delivery = yield* SessionOrchestrationUpdateDeliveryService
     const response = (yield* repository.execute({
       callerId: input.callerId,
+      ...(input.caller ? { caller: input.caller } : {}),
       request: input.request,
       now: yield* identities.now,
     })) satisfies SessionControlMutationResponse

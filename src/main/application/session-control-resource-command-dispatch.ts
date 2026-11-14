@@ -1,5 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionCallerIdentity,
+  LocalSessionProfileAuthority,
+} from '@shared/types/local-session-profile'
 import type {
   SessionControlDelegationMutationRequest,
   SessionControlMutationRequest,
@@ -40,12 +43,13 @@ type ResourceCommand = Extract<
 >
 
 function executeDelegationCommand(
-  callerId: string,
+  input: { readonly callerId: string; readonly caller?: LocalSessionCallerIdentity },
   request: SessionControlMutationRequest,
   command: SessionControlDelegationMutationRequest['command'],
 ) {
   return executeSessionDelegationMutation({
-    callerId,
+    callerId: input.callerId,
+    ...(input.caller ? { caller: input.caller } : {}),
     request: { ...request, command } satisfies SessionControlDelegationMutationRequest,
   })
 }
@@ -53,6 +57,7 @@ function executeDelegationCommand(
 export function executeResourceSessionControlCommand(
   input: {
     readonly callerId: string
+    readonly caller?: LocalSessionCallerIdentity
     readonly request: SessionControlMutationRequest
     readonly authority?: LocalSessionProfileAuthority
   },
@@ -95,7 +100,7 @@ export function executeResourceSessionControlCommand(
       'delegation-reopen',
       'delegation-cancel',
       'delegation-verify',
-      (command) => executeDelegationCommand(callerId, request, command),
+      (command) => executeDelegationCommand(input, request, command),
     )
     .exhaustive()
 }

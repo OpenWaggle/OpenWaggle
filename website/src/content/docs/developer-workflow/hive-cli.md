@@ -99,10 +99,10 @@ A retry with the same `--idempotency-key` is safe. When the request is no longer
 | `delegation-claim` | `hive delegation-claim <worker> <delegation-id> <reason> [<claims>]` | A worker records the files or areas it plans to change. Claims lock nothing. |
 | `delegation-propose-amendment` | `hive delegation-propose-amendment <worker> <delegation-id> <base-revision> <reason> <changes>` | A worker proposes a change to its task. |
 | `delegation-amend` | `hive delegation-amend <parent> <delegation-id> <expected-revision> <reason> (<changes> \| --proposal <proposal-id>)` | Changes the task, or accepts a proposed change. |
-| `delegation-request-revision` | `hive delegation-request-revision <parent> <delegation-id> <revision> <feedback>` | Asks for a new revision. |
+| `delegation-request-revision` | `hive delegation-request-revision <parent> <delegation-id> <revision> <feedback>` | Asks for a new revision. The worker gets the feedback as a follow-up. |
 | `delegation-accept` | `hive delegation-accept <parent> <delegation-id> <revision> [note]` | Accepts one submitted revision. |
 | `delegation-verify` | `hive delegation-verify <parent> <delegation-id> <revision> passed\|failed\|inconclusive <summary> [<evidence>]` | Records a check of a submitted revision. |
-| `delegation-reopen` | `hive delegation-reopen <parent> <delegation-id> <reason>` | Reopens an accepted delegation. |
+| `delegation-reopen` | `hive delegation-reopen <parent> <delegation-id> <reason>` | Reopens an accepted delegation. The worker gets the reason as a follow-up. |
 | `delegation-cancel` | `hive delegation-cancel <parent> <delegation-id> <reason>` | Cancels an open delegation. |
 | `delegation-dependency` | `hive delegation-dependency <parent> <delegation-id> add\|remove <dependency-id> ready_for_review\|accepted <reason>` | Makes a delegation wait for another to reach a state, or stops it waiting. |
 | `delegation-conflict-acknowledge` | `hive delegation-conflict-acknowledge <parent> <delegation-id> <conflict-id> <reason>` | Marks a conflict between claims as seen. |
@@ -239,7 +239,7 @@ What each kind covers:
 
 - `usage` covers an unknown option, a missing operand, a bad value, or an `update --version` older than the installed one. It also covers a request the Session Host finds incomplete, such as a delegation change without its required reason (`transition_reason_required`) or an empty report (`report_empty`).
 - `authentication` covers an unknown or revoked access profile, and one whose credential was rotated. It also comes back while the Session Host slows down repeated failed attempts, so retry later.
-- `authorization` covers a missing capability, a session outside the caller's scope (`target_scope_denied`), a delegation change only its parent or its worker may make (`parent_required`, `worker_required`), and an OpenWaggle agent that uses the CLI without a named profile.
+- `authorization` covers a missing capability, a session outside the caller's scope (`target_scope_denied`), a delegation change only its parent or its worker may make (`parent_required`, `worker_required`), a change that would send a worker back to work from a caller that may not message it (`worker_message_denied`), and an OpenWaggle agent that uses the CLI without a named profile.
 - `not_found` comes with `session_not_found`, `delegation_not_found`, `interaction-not-found` for a request that is not pending, and the other codes for a target that does not exist.
 - `conflict` covers a stale run or queue revision, an existing credential destination without `--replace`, a destination that changed after a repeatable operation, and most other refusals of the current state.
 - `timeout` covers a `hive wait` or `hive exports-wait` that ended before its condition was met. Both still print their response on stdout. For `run`, it means a question went unanswered past `--interaction-timeout-ms`, so OpenWaggle stopped the run. `host stop` returns it when, with `--wait`, the Session Host's work outlasted `--timeout-ms`, or when, with `--update`, the Session Host had not exited after 20 seconds. It also covers an update download or a Session Host request that took too long, and an `update --check --json` release check that did not finish within 30 seconds.

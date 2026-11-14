@@ -10,6 +10,8 @@ import {
   type DelegationContractRow,
   type ExecuteDelegationInput,
   rejectedDelegationOutcome,
+  taskChangeMessageRefusal,
+  taskChangeRevisionRequest,
 } from './sqlite-session-delegation-support'
 
 interface AmendmentProposalRow {
@@ -205,6 +207,8 @@ function amendSpecification(
     if (!(yield* validateSpecificationDependencies(sql, contract, command.specification))) {
       return rejectedDelegationOutcome(input, 'delegation_dependency_invalid')
     }
+    const messageRefusal = yield* taskChangeMessageRefusal(sql, input, contract)
+    if (messageRefusal) return messageRefusal
     const applied = yield* persistAmendment(
       sql,
       input,
@@ -221,6 +225,7 @@ function amendSpecification(
       specificationRevision: applied.revision,
       workerSessionId: contract.child_session_id,
       ...(command.proposalId ? { appliedProposalId: command.proposalId } : {}),
+      ...taskChangeRevisionRequest(contract),
     } satisfies Extract<
       SessionControlMutationOutcome,
       { readonly effect: 'delegation-specification-amended' }

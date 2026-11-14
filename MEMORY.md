@@ -19,6 +19,7 @@ Each line names a topic file and when to load it:
 - [`sessions`](.agents/memory/sessions.md): touching Session Control, Follow-ups, steering, Run lifecycle, fork/clone, titles or notifications.
 - [`session-search-and-discovery`](.agents/memory/session-search-and-discovery.md): touching Session search, FTS/semantic discovery, archived-items search or Pi session discovery.
 - [`hive`](.agents/memory/hive.md): touching the `hive` tool, Workers, Delegations, Agent definitions, Hive wake or the Hive panel.
+- [`hive-delegation-revisions`](.agents/memory/hive-delegation-revisions.md): touching how a revision request, reopen or task change reaches the Worker (#454).
 - [`scheduled-tasks`](.agents/memory/scheduled-tasks.md): touching Heartbeats, Launch schedules or `openwaggle schedules`.
 - [`access-and-authorization`](.agents/memory/access-and-authorization.md): touching authorization modes, grants, approvals, caller ceilings or catalog-wide reach.
 - [`cli`](.agents/memory/cli.md): touching the `openwaggle` CLI, CLI profiles and credentials, or CLI exit and error kinds.
