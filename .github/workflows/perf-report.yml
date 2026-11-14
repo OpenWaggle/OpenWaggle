@@ -55,6 +55,11 @@ jobs:
           fi
           echo "number=$number" >> "$GITHUB_OUTPUT"
 
+      # gate.ts reads the report through Effect Schema, and bunfig.toml disables auto-install.
+      - name: Install the reporter's dependencies
+        if: steps.pr.outputs.number != ''
+        run: bun install --frozen-lockfile --ignore-scripts
+
       - name: Render the comment with main's reporter
         if: steps.pr.outputs.number != ''
         run: bun scripts/perf-gate/gate.ts render --report report/report.json --markdown comment.md
