@@ -238,7 +238,8 @@ describe('GUI Session Host lifecycle', () => {
     const onHostUnderway = vi.fn()
     const startupMark = vi.fn()
     ensureLocalSessionHostMock.mockImplementationOnce(
-      async (input: { readonly onLaunched?: () => void }) => {
+      async (input: { readonly onLaunching?: () => void; readonly onLaunched?: () => void }) => {
+        input.onLaunching?.()
         input.onLaunched?.()
       },
     )
@@ -255,7 +256,13 @@ describe('GUI Session Host lifecycle', () => {
     expect(ensureLocalSessionHostMock).toHaveBeenCalledWith(
       expect.objectContaining({ signal: controller.signal }),
     )
-    expect(startupMark).toHaveBeenCalledWith('session-host-launched')
+    expect(startupMark.mock.calls.map(([label]) => label)).toEqual([
+      'session-host-paths-ready',
+      'session-host-cutover-ready',
+      'session-host-launch-started',
+      'session-host-launched',
+      'session-host-listening',
+    ])
     expect(onHostUnderway).toHaveBeenCalled()
     await lifecycle.stop()
   })
