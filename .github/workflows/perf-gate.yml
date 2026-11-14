@@ -18,8 +18,9 @@
 # counts one only if it was added after the run's first attempt began, so a new push needs it again.
 #
 # A push to a throwaway bench/perf-gate-* branch runs the same jobs; performance/perf-gate/bench.json
-# on that branch (never on main) may name the base and head refs and the pair count, for example
-# base-vs-base noise runs.
+# on that branch may name the base and head refs and the pair count, for example base-vs-base
+# noise runs. Repository standards fail that file on any branch not named bench/*
+# (scripts/standards/bench-file.ts), so push a bench from a local bench/* branch.
 name: Performance Gate
 
 on:
