@@ -3,12 +3,16 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { Schema } from '@shared/schema'
+import { UNAVAILABLE_REASONS } from '../perf-gate/report-data'
 import { objectEntries, objectFields, objectMap, unknownField } from '../support/object-fields'
 
 const WORKFLOWS = ['perf-gate.yml', 'perf-report.yml'] as const
 
 const stepSchema = Schema.Struct({
+  id: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
+  'continue-on-error': unknownField,
+  'timeout-minutes': unknownField,
   uses: Schema.optional(Schema.String),
   run: Schema.optional(Schema.String),
   if: Schema.optional(Schema.String),
@@ -19,6 +23,8 @@ const stepSchema = Schema.Struct({
 const jobSchema = Schema.Struct({
   if: Schema.optional(Schema.String),
   'continue-on-error': unknownField,
+  'timeout-minutes': unknownField,
+  outputs: unknownField,
   permissions: unknownField,
   steps: Schema.Array(Schema.Unknown),
 })
@@ -40,6 +46,8 @@ function workflowJobs(file: string) {
       id,
       if: job.if,
       continueOnError: job['continue-on-error'] === true,
+      timeoutMinutes: job['timeout-minutes'],
+      outputs: objectMap(job.outputs),
       permissions: objectMap(job.permissions),
       steps,
     }
@@ -112,9 +120,52 @@ describe('Performance Gate workflows', () => {
     expect(budgets).toContain('|| status=1')
     expect(timings).toContain('gate.ts timings')
     expect(timings).not.toMatch(/status=1|exit /u)
-    expect(timings).toContain('cancelled) reason="the timing job was cancelled or timed out"')
-    expect(timings).toContain('failure) reason="the timing job failed"')
+    expect(timings).toContain('cancelled:*) reason="the timing job was cancelled or timed out"')
+    expect(timings).toContain('failure:*) reason="the timing job failed"')
     expect(timings).toContain('--unavailable "$reason"')
+  })
+
+  it('never ends the timing job red: every step continues on error and the gate reads its status', () => {
+    const timings = gateJob('timings')
+    const stopping = timings.steps
+      .filter((step) => step['continue-on-error'] !== true)
+      .map((step) => step.name ?? step.uses ?? '')
+    expect(stopping).toEqual([])
+    expect(timings.outputs?.get('status')).toBe('${{ steps.outcome.outputs.status }}')
+    const job = typeof timings.timeoutMinutes === 'number' ? timings.timeoutMinutes : 0
+    const stepMinutes = timings.steps.reduce(
+      (total, step) =>
+        total + (typeof step['timeout-minutes'] === 'number' ? step['timeout-minutes'] : 0),
+      0,
+    )
+    expect(stepMinutes).toBeLessThan(job)
+    for (const [id, needs] of [
+      ['build', 'steps.install.outcome'],
+      ['measure', 'steps.build.outcome'],
+    ] as const) {
+      const step = timings.steps.find((candidate) => candidate.id === id)
+      expect(step?.if, id).toContain(`${needs} == 'success'`)
+      expect(typeof step?.['timeout-minutes'], id).toBe('number')
+    }
+    const gate = gateJob('gate')
+    const judge = stepNamed(gate, JUDGE_STEP)
+    expect(judge.env?.get('TIMINGS_STATUS')).toBe('${{ needs.timings.outputs.status }}')
+    expect(judge.run).toContain('[ "$TIMINGS_STATUS" = "measured" ]')
+    const download = gate.steps.find((step) => (step.uses ?? '').includes('download-artifact'))
+    expect(download?.if).toBe("needs.timings.outputs.status == 'measured'")
+  })
+
+  it('passes only unavailable reasons the report keeps', () => {
+    const run = stepNamed(gateJob('gate'), JUDGE_STEP).run ?? ''
+    const reasons = [...run.matchAll(/reason="(?<reason>[^"]+)"/gu)].map(
+      (match) => match.groups?.reason ?? '',
+    )
+    const passed = [...run.matchAll(/--unavailable "(?<reason>[^"$]+)"/gu)].map(
+      (match) => match.groups?.reason ?? '',
+    )
+    expect(reasons.length).toBeGreaterThan(4)
+    const known: readonly string[] = UNAVAILABLE_REASONS
+    expect([...reasons, ...passed].filter((reason) => !known.includes(reason))).toEqual([])
   })
 
   it('posts the comment itself only while main has no reporter, from this repository only', () => {

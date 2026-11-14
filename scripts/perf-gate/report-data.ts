@@ -60,6 +60,9 @@ const UNITS = ['bytes', 'count'] as const
 const SKIP_REASONS = ['no shipped code changed', 'not a pull request'] as const
 export const UNAVAILABLE_REASONS = [
   'the timing job failed',
+  "the timing job's setup failed",
+  'the base or head build failed',
+  'the A/B measurement failed',
   'the timing job was cancelled or timed out',
   'the timing job did not run',
   'the timing results could not be read',

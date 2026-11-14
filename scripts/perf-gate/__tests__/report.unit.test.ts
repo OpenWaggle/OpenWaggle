@@ -157,21 +157,24 @@ describe('the Performance Gate report', () => {
     expect(markdown).toContain('🔺 not measured on either side')
   })
 
-  it.each(['the timing job failed', 'the timing job was cancelled or timed out'])(
-    'says timings are unavailable when %s',
-    (reason) => {
-      const parsed = parsePerfGateReport({ ...REPORT, timings: null, timingsUnavailable: reason })
-      const markdown = parsed ? renderReport(parsed) : ''
+  it.each([
+    'the timing job failed',
+    'the timing job was cancelled or timed out',
+    'the base or head build failed',
+    'the A/B measurement failed',
+    "the timing job's setup failed",
+  ])('says timings are unavailable when %s', (reason) => {
+    const parsed = parsePerfGateReport({ ...REPORT, timings: null, timingsUnavailable: reason })
+    const markdown = parsed ? renderReport(parsed) : ''
 
-      expect(markdown).toContain(
-        `- ⚠️ Timings unavailable: ${reason}. Timings are reported only and never fail this check; re-run the timing job to measure them.`,
-      )
-      expect(markdown).toContain(`Unavailable: ${reason}.`)
-      expect(parsePerfGateReport({ ...REPORT, timingsUnavailable: '<b>pwned</b>' })).toMatchObject({
-        timingsUnavailable: null,
-      })
-    },
-  )
+    expect(markdown).toContain(
+      `- ⚠️ Timings unavailable: ${reason}. Timings are reported only and never fail this check; re-run the timing job to measure them.`,
+    )
+    expect(markdown).toContain(`Unavailable: ${reason}.`)
+    expect(parsePerfGateReport({ ...REPORT, timingsUnavailable: '<b>pwned</b>' })).toMatchObject({
+      timingsUnavailable: null,
+    })
+  })
 
   it('says why timings were skipped', () => {
     const parsed = parsePerfGateReport({

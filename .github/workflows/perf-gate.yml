@@ -14,8 +14,9 @@
 # Only the deterministic budgets can fail it: a value over main's, unless a maintainer adds the
 # perf-budget-increase label after the run's first attempt began and re-runs the job (a new push
 # needs the label again). Timings and memory are noisy, so they are reported only: a regression,
-# a missing or unmeasured value, too few samples, or a timing job that failed or was cancelled is
-# shown in the report and never fails the check.
+# a missing or unmeasured value, too few samples, a build or measurement that failed, or a timing
+# job that was cancelled is shown in the report and never fails the check. The timing job itself
+# never ends red either: its steps continue on error and it hands the gate a status.
 #
 # main's scripts and thresholds judge the result whenever main has them: decide, the timing harness
 # and the gate run from main's checkout (trusted/), installed there, so Bun also loads main's
@@ -142,11 +143,19 @@ jobs:
     if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    # Timings are reported only, so this job never shows a red check: every step continues on
+    # error, later steps run only after the ones they need, the slow steps have their own timeouts
+    # under the job's, and `status` tells the gate what happened (measured, setup-failed,
+    # build-failed, measure-failed) for its report.
+    outputs:
+      status: ${{ steps.outcome.outputs.status }}
     env:
       DISPLAY: ":99"
       OPENWAGGLE_RELEASE_CHANNEL: beta
     steps:
       - name: Check out the head
+        id: head
+        continue-on-error: true
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.decide.outputs.head_sha }}
@@ -154,6 +163,8 @@ jobs:
           persist-credentials: false
 
       - name: Check out the merge base
+        id: base
+        continue-on-error: true
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.decide.outputs.base_sha }}
@@ -163,6 +174,8 @@ jobs:
       # The harness and its thresholds are main's (decide's main_sha), never the merge base's or the
       # pull request's; the head's own only while main has no Performance Gate.
       - name: Check out main's timing harness
+        id: harness
+        continue-on-error: true
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.decide.outputs.gate_fallback == 'true' && needs.decide.outputs.head_sha || needs.decide.outputs.main_sha }}
@@ -170,10 +183,14 @@ jobs:
           persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        id: setup-bun
+        continue-on-error: true
         with:
           bun-version-file: head/package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        id: setup-node
+        continue-on-error: true
         with:
           node-version: 24.14.0
           package-manager-cache: false
@@ -183,6 +200,8 @@ jobs:
       # request run can only restore caches its base branch saved, and nothing on main saved the
       # gate's own keys.
       - name: Restore the Bun package cache
+        id: bun-cache
+        continue-on-error: true
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.bun/install/cache
@@ -191,6 +210,8 @@ jobs:
             bun-install-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Restore the Electron download cache
+        id: electron-cache
+        continue-on-error: true
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/electron
@@ -201,6 +222,10 @@ jobs:
       # Each checkout installs with its own package manager (package.json packageManager): a base
       # from before the move to Bun installs with pnpm.
       - name: Install both checkouts
+        id: install
+        continue-on-error: true
+        timeout-minutes: 8
+        if: steps.head.outcome == 'success' && steps.base.outcome == 'success' && steps.harness.outcome == 'success' && steps.setup-bun.outcome == 'success' && steps.setup-node.outcome == 'success'
         run: |
           set -euo pipefail
           for side in base head; do
@@ -220,6 +245,8 @@ jobs:
           (cd trusted && bun install --frozen-lockfile --ignore-scripts)
 
       - name: Linux display
+        id: display
+        continue-on-error: true
         run: |
           set -euo pipefail
           sudo apt-get update -q || true
@@ -234,6 +261,10 @@ jobs:
           openbox >/dev/null 2>&1 &
 
       - name: Build both checkouts
+        id: build
+        continue-on-error: true
+        timeout-minutes: 8
+        if: steps.install.outcome == 'success'
         run: |
           set -euo pipefail
           start=$(date +%s)
@@ -246,6 +277,10 @@ jobs:
           exit "$status"
 
       - name: Measure base and head, interleaved
+        id: measure
+        continue-on-error: true
+        timeout-minutes: 16
+        if: steps.build.outcome == 'success' && steps.display.outcome == 'success'
         working-directory: trusted
         env:
           PAIRS_OVERRIDE: ${{ needs.decide.outputs.pairs }}
@@ -261,6 +296,7 @@ jobs:
           echo "::notice::measurement took $(( $(date +%s) - start )) s for $pairs pairs"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        continue-on-error: true
         if: ${{ !cancelled() }}
         with:
           name: perf-gate-ab
@@ -268,6 +304,22 @@ jobs:
             results
             build-*.log
           retention-days: 14
+
+      - name: Report what the timing job measured
+        id: outcome
+        continue-on-error: true
+        if: ${{ !cancelled() }}
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          MEASURE: ${{ steps.measure.outcome }}
+        run: |
+          if [ "$MEASURE" = "success" ]; then status=measured
+          elif [ "$BUILD" = "failure" ]; then status=build-failed
+          elif [ "$MEASURE" = "failure" ]; then status=measure-failed
+          else status=setup-failed
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
 
   gate:
     name: Performance Gate
@@ -330,7 +382,7 @@ jobs:
           bun scripts/perf-gate/gate.ts labels --repo "$GITHUB_REPOSITORY" --pr "$PR" --run "$RUN_ID" | tee -a "$GITHUB_ENV"
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        if: needs.timings.result == 'success'
+        if: needs.timings.outputs.status == 'measured'
         with:
           name: perf-gate-ab
           path: ab
@@ -340,6 +392,7 @@ jobs:
         working-directory: trusted
         env:
           TIMINGS_RESULT: ${{ needs.timings.result }}
+          TIMINGS_STATUS: ${{ needs.timings.outputs.status }}
           DECIDE_RESULT: ${{ needs.decide.result }}
           RUN_TIMINGS: ${{ needs.decide.outputs.run }}
           REASON: ${{ needs.decide.outputs.reason }}
@@ -364,7 +417,7 @@ jobs:
           # Timings are reported only: nothing in this branch sets status.
           if [ "$RUN_TIMINGS" = "false" ]; then
             report_args+=(--skipped "no shipped code changed")
-          elif [ "$TIMINGS_RESULT" = "success" ]; then
+          elif [ "$TIMINGS_RESULT" = "success" ] && [ "$TIMINGS_STATUS" = "measured" ]; then
             if bun scripts/perf-gate/gate.ts timings --results "$pr_tree/ab/results/ab.json" \
               --thresholds performance/perf-gate/thresholds.json \
               --head-thresholds "$pr_tree/performance/perf-gate/thresholds.json" \
@@ -375,9 +428,12 @@ jobs:
               report_args+=(--unavailable "the timing results could not be read")
             fi
           else
-            case "$TIMINGS_RESULT" in
-              failure) reason="the timing job failed" ;;
-              cancelled) reason="the timing job was cancelled or timed out" ;;
+            case "$TIMINGS_RESULT:${TIMINGS_STATUS:-}" in
+              success:build-failed) reason="the base or head build failed" ;;
+              success:measure-failed) reason="the A/B measurement failed" ;;
+              success:*) reason="the timing job's setup failed" ;;
+              failure:*) reason="the timing job failed" ;;
+              cancelled:*) reason="the timing job was cancelled or timed out" ;;
               *) reason="the timing job did not run" ;;
             esac
             echo "::warning::Timings are unavailable: $reason. They are reported only, so this check does not fail on them."
