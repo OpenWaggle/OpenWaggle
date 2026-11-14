@@ -3,7 +3,7 @@ import {
   collectPiRuntimeAlignmentProblems,
   type PiRuntimeAlignmentInput,
 } from '../check-pi-runtime-alignment'
-import { alignedInput, version } from './pi-runtime-alignment.test-support'
+import { alignedInput, lockedPackage, version } from './pi-runtime-alignment.test-support'
 
 describe('Pi runtime alignment', () => {
   it('accepts aligned non-runtime catalog packages absent from the lockfile', () => {
@@ -15,7 +15,10 @@ describe('Pi runtime alignment', () => {
       drift: 'catalog',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(`"@earendil-works/pi-tui": ${version}`, '"@earendil-works/pi-tui": 0.86.0'),
+        catalogs: {
+          ...input.catalogs,
+          'pi-runtime': { ...input.catalogs['pi-runtime'], '@earendil-works/pi-tui': '0.86.0' },
+        },
       }),
       expected: 'must use 1.2.0 in catalogs.pi-runtime',
     },
@@ -55,25 +58,29 @@ describe('Pi runtime alignment', () => {
       drift: 'second QuickJS version',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        lockfile: `${input.lockfile}  quickjs-wasi@3.7.0:\n`,
+        lockfile: {
+          ...input.lockfile,
+          packages: [...input.lockfile.packages, lockedPackage('quickjs-wasi', '3.7.0')],
+        },
       }),
-      expected: 'pnpm-lock.yaml must resolve exactly one quickjs-wasi version',
+      expected: 'bun.lock must resolve exactly one quickjs-wasi version',
     },
     {
       drift: 'release-age exclusion',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(`  - "@earendil-works/pi-tui@${version}"\n`, ''),
+        bunfig: input.bunfig.replace(`  "@earendil-works/pi-tui@${version}",\n`, ''),
       }),
-      expected: 'minimumReleaseAgeExclude must be empty or contain exactly the 7 matched Pi packages',
+      expected:
+        'minimumReleaseAgeExcludes must be empty or contain exactly the 7 matched Pi packages',
     },
     {
       drift: 'release-age exclusion for a package the lockfile does not resolve',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(
-          `  - "@earendil-works/pi-tui@${version}"\n`,
-          `  - "@earendil-works/pi-tui@${version}"\n  - "@earendil-works/pi-client@${version}"\n`,
+        bunfig: input.bunfig.replace(
+          `  "@earendil-works/pi-tui@${version}",\n`,
+          `  "@earendil-works/pi-tui@${version}",\n  "@earendil-works/pi-client@${version}",\n`,
         ),
       }),
       expected: 'unneeded @earendil-works/pi-client@1.2.0',
@@ -82,7 +89,7 @@ describe('Pi runtime alignment', () => {
       drift: 'missing release-age exclusion',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(`  - "@earendil-works/pi-mcp@${version}"\n`, ''),
+        bunfig: input.bunfig.replace(`  "@earendil-works/pi-mcp@${version}",\n`, ''),
       }),
       expected: 'missing @earendil-works/pi-mcp@1.2.0',
     },
@@ -90,10 +97,10 @@ describe('Pi runtime alignment', () => {
       drift: 'catalog entry for a package Pi no longer releases',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(
-          `    "@earendil-works/pi-tui": ${version}\n`,
-          `    "@earendil-works/pi-tui": ${version}\n    "@earendil-works/pi-client": 1.1.0\n`,
-        ),
+        catalogs: {
+          ...input.catalogs,
+          'pi-runtime': { ...input.catalogs['pi-runtime'], '@earendil-works/pi-client': '1.1.0' },
+        },
       }),
       expected: '@earendil-works/pi-client is no longer part of the Pi release',
     },
@@ -101,18 +108,23 @@ describe('Pi runtime alignment', () => {
       drift: 'lockfile entry for a package Pi no longer releases',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        lockfile: `${input.lockfile}  '@earendil-works/chord@1.2.0':\n`,
+        lockfile: {
+          ...input.lockfile,
+          packages: [...input.lockfile.packages, lockedPackage('@earendil-works/chord', '1.2.0')],
+        },
       }),
-      expected: 'pnpm-lock.yaml still resolves @earendil-works/chord',
+      expected: 'bun.lock still resolves @earendil-works/chord',
     },
     {
       drift: 'lockfile version',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        lockfile: input.lockfile.replace(
-          `@earendil-works/pi-telemetry@${version}`,
-          '@earendil-works/pi-telemetry@0.86.0',
-        ),
+        lockfile: {
+          ...input.lockfile,
+          packages: input.lockfile.packages.map((entry) =>
+            entry.name === '@earendil-works/pi-telemetry' ? { ...entry, version: '0.86.0' } : entry,
+          ),
+        },
       }),
       expected: '@earendil-works/pi-telemetry lockfile versions must align at 1.2.0',
     },
@@ -120,7 +132,10 @@ describe('Pi runtime alignment', () => {
       drift: 'multiple lockfile versions',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        lockfile: `${input.lockfile}\n@earendil-works/pi-ai@0.86.0`,
+        lockfile: {
+          ...input.lockfile,
+          packages: [...input.lockfile.packages, lockedPackage('@earendil-works/pi-ai', '0.86.0')],
+        },
       }),
       expected: '@earendil-works/pi-ai lockfile versions must align at 1.2.0',
     },
@@ -152,12 +167,20 @@ describe('Pi runtime alignment', () => {
       drift: 'patch registration',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(
-          `patches/@earendil-works__pi-ai@${version}.patch`,
-          'patches/@earendil-works__pi-ai@0.86.0.patch',
-        ),
+        patchedDependencies: {
+          ...input.patchedDependencies,
+          [`@earendil-works/pi-ai@${version}`]: 'patches/@earendil-works__pi-ai@0.86.0.patch',
+        },
       }),
-      expected: 'pnpm-workspace.yaml must register the 1.2.0 pi-ai patch',
+      expected: 'package.json patchedDependencies must register the 1.2.0 pi-ai patch',
+    },
+    {
+      drift: 'lockfile patch registration',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        lockfile: { ...input.lockfile, patchedDependencies: {} },
+      }),
+      expected: 'bun.lock must register the 1.2.0 pi-coding-agent patch',
     },
   ])('detects $drift drift', ({ breakInput, expected }) => {
     expect(collectPiRuntimeAlignmentProblems(breakInput(alignedInput()))).toContainEqual(
@@ -168,9 +191,14 @@ describe('Pi runtime alignment', () => {
   it('pins the pi-extension-host catalog at the typebox Pi supplies to extensions', () => {
     const input = alignedInput()
     expect(
-      collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: { typebox: '1.3.32' } }),
+      collectPiRuntimeAlignmentProblems({
+        ...input,
+        piCodingAgentDependencies: { typebox: '1.3.32' },
+      }),
     ).toContainEqual("catalogs.pi-extension-host must pin typebox at pi-coding-agent's 1.3.32.")
-    expect(collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: {} })).toContainEqual(
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: {} }),
+    ).toContainEqual(
       'pi-coding-agent no longer depends on typebox; update catalogs.pi-extension-host.',
     )
   })

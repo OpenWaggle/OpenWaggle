@@ -40,9 +40,7 @@ function attachmentName(payload: TerminalContextPayload) {
 }
 
 /** Adds bounded, explicitly untrusted terminal data as a removable composer context chip. */
-export async function appendTerminalContextToComposer(
-  selection: TerminalContextSelection,
-): Promise<TerminalContextPayload | null> {
+export async function appendTerminalContextToComposer(selection: TerminalContextSelection) {
   const payload = buildTerminalContextPayload([selection])
   if (payload === null) return null
   const composer = useComposerStore.getState()

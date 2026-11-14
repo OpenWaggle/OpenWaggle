@@ -144,7 +144,7 @@ function dedupeProviderModels(
   models: readonly ProviderInfo['models'][number][],
 ) {
   const seen = new Set<string>()
-  const deduped: ProviderInfo['models'] = []
+  const deduped: ProviderInfo['models'][number][] = []
 
   for (const model of models) {
     const normalizedId = model.id.trim()
@@ -160,7 +160,7 @@ function dedupeProviderModels(
       provider,
       available: model.available,
       availableThinkingLevels: model.availableThinkingLevels,
-      contextWindow: model.contextWindow,
+      ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
       ...(model.virtual ? { virtual: true } : {}),
     })
   }

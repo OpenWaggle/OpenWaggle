@@ -122,7 +122,7 @@ export function Popover({
     containerRef,
   } = usePopover({
     onClose: () => onOpenChange?.(false),
-    isActive: isControlled ? controlledOpen : undefined,
+    ...(isControlled ? { isActive: controlledOpen } : {}),
   })
 
   const isOpen = isControlled ? controlledOpen : popoverIsOpen

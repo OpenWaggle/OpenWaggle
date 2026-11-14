@@ -8,7 +8,7 @@ import { useTerminalStore } from '../state/terminal-store'
  * no mounted drawer or side-panel surface. Main's existing shared inspector is
  * the only poller; this monitor only applies pushed metadata snapshots.
  */
-export function useTerminalActivityMonitor(): void {
+export function useTerminalActivityMonitor() {
   const applySnapshot = useTerminalActivityStore((state) => state.applySnapshot)
 
   useLayoutEffect(() => {

@@ -12,7 +12,7 @@ export interface GitQuickAction {
   readonly hint?: string
 }
 
-function terminologyFor(status: VcsStatus | null): ChangeRequestTerminology {
+function terminologyFor(status: VcsStatus | null) {
   return getChangeRequestTerminology(status?.sourceControlProvider?.id)
 }
 
@@ -28,17 +28,24 @@ function hasOpenChangeRequest(status: VcsStatus) {
  * when behind, otherwise commit. `isDefaultRef` and `hasPrimaryRemote` are read
  * from status so the decision needs no extra git calls.
  */
-export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean): GitQuickAction {
+export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean) {
   if (isBusy) {
-    return { label: 'Commit', disabled: true, kind: 'show_hint', hint: 'Git action in progress.' }
+    const result: GitQuickAction = {
+      label: 'Commit',
+      disabled: true,
+      kind: 'show_hint',
+      hint: 'Git action in progress.',
+    }
+    return result
   }
   if (!status) {
-    return {
+    const result: GitQuickAction = {
       label: 'Commit',
       disabled: true,
       kind: 'show_hint',
       hint: 'Git status is unavailable.',
     }
+    return result
   }
 
   const terminology = terminologyFor(status)
@@ -53,12 +60,13 @@ export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean): G
   const hasDefaultBranchDelta = (status.aheadOfDefaultCount ?? status.aheadCount) > 0
 
   if (!hasBranch) {
-    return {
+    const result: GitQuickAction = {
       label: 'Commit',
       disabled: true,
       kind: 'show_hint',
       hint: `Create and checkout a ref before pushing or opening a ${terminology.singular}.`,
     }
+    return result
   }
 
   if (hasChanges) {
@@ -82,32 +90,44 @@ export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean): G
   }
 
   if (isDiverged) {
-    return {
+    const result: GitQuickAction = {
       label: 'Sync ref',
       disabled: true,
       kind: 'show_hint',
       hint: 'Branch has diverged from upstream. Rebase/merge first.',
     }
+    return result
   }
-  if (isBehind) return { label: 'Pull', disabled: false, kind: 'run_pull' }
+  if (isBehind) {
+    const result: GitQuickAction = { label: 'Pull', disabled: false, kind: 'run_pull' }
+    return result
+  }
   if (isAhead) return resolveAheadQuickAction({ hasOpenPr, isDefaultRef, terminology })
 
-  if (hasOpenPr)
-    return { label: `View ${terminology.shortLabel}`, disabled: false, kind: 'open_pr' }
+  if (hasOpenPr) {
+    const result: GitQuickAction = {
+      label: `View ${terminology.shortLabel}`,
+      disabled: false,
+      kind: 'open_pr',
+    }
+    return result
+  }
   if (hasDefaultBranchDelta && !isDefaultRef) {
-    return {
+    const result: GitQuickAction = {
       label: `Create ${terminology.shortLabel}`,
       disabled: false,
       kind: 'run_action',
       action: 'create_pr',
     }
+    return result
   }
-  return {
+  const result: GitQuickAction = {
     label: 'Commit',
     disabled: true,
     kind: 'show_hint',
     hint: 'Branch is up to date. No action needed.',
   }
+  return result
 }
 
 function resolveDirtyQuickAction(input: {
@@ -116,19 +136,32 @@ function resolveDirtyQuickAction(input: {
   hasOpenPr: boolean
   isDefaultRef: boolean
   terminology: ChangeRequestTerminology
-}): GitQuickAction {
+}) {
   if (!input.hasUpstream && !input.hasPrimaryRemote) {
-    return { label: 'Commit', disabled: false, kind: 'run_action', action: 'commit' }
+    const result: GitQuickAction = {
+      label: 'Commit',
+      disabled: false,
+      kind: 'run_action',
+      action: 'commit',
+    }
+    return result
   }
   if (input.hasOpenPr || input.isDefaultRef) {
-    return { label: 'Commit & push', disabled: false, kind: 'run_action', action: 'commit_push' }
+    const result: GitQuickAction = {
+      label: 'Commit & push',
+      disabled: false,
+      kind: 'run_action',
+      action: 'commit_push',
+    }
+    return result
   }
-  return {
+  const result: GitQuickAction = {
     label: `Commit, push & ${input.terminology.shortLabel}`,
     disabled: false,
     kind: 'run_action',
     action: 'commit_push_pr',
   }
+  return result
 }
 
 function resolveNoUpstreamQuickAction(input: {
@@ -137,18 +170,39 @@ function resolveNoUpstreamQuickAction(input: {
   isAhead: boolean
   isDefaultRef: boolean
   terminology: ChangeRequestTerminology
-}): GitQuickAction {
+}) {
   if (!input.hasPrimaryRemote) {
     if (input.hasOpenPr && !input.isAhead) {
-      return { label: `View ${input.terminology.shortLabel}`, disabled: false, kind: 'open_pr' }
+      const result: GitQuickAction = {
+        label: `View ${input.terminology.shortLabel}`,
+        disabled: false,
+        kind: 'open_pr',
+      }
+      return result
     }
-    return { label: 'Publish repository', disabled: false, kind: 'open_publish' }
+    const result: GitQuickAction = {
+      label: 'Publish repository',
+      disabled: false,
+      kind: 'open_publish',
+    }
+    return result
   }
   if (!input.isAhead) {
     if (input.hasOpenPr) {
-      return { label: `View ${input.terminology.shortLabel}`, disabled: false, kind: 'open_pr' }
+      const result: GitQuickAction = {
+        label: `View ${input.terminology.shortLabel}`,
+        disabled: false,
+        kind: 'open_pr',
+      }
+      return result
     }
-    return { label: 'Push', disabled: true, kind: 'show_hint', hint: 'No local commits to push.' }
+    const result: GitQuickAction = {
+      label: 'Push',
+      disabled: true,
+      kind: 'show_hint',
+      hint: 'No local commits to push.',
+    }
+    return result
   }
   if (input.hasOpenPr || input.isDefaultRef) {
     /*
@@ -159,21 +213,28 @@ function resolveNoUpstreamQuickAction(input: {
      * then threw the message away. The default-ref confirmation still fires: `push` is one of the
      * actions it gates.
      */
-    return { label: 'Push', disabled: false, kind: 'run_action', action: 'push' }
+    const result: GitQuickAction = {
+      label: 'Push',
+      disabled: false,
+      kind: 'run_action',
+      action: 'push',
+    }
+    return result
   }
-  return {
+  const result: GitQuickAction = {
     label: `Push & create ${input.terminology.shortLabel}`,
     disabled: false,
     kind: 'run_action',
     action: 'create_pr',
   }
+  return result
 }
 
 function resolveAheadQuickAction(input: {
   hasOpenPr: boolean
   isDefaultRef: boolean
   terminology: ChangeRequestTerminology
-}): GitQuickAction {
+}) {
   if (input.hasOpenPr || input.isDefaultRef) {
     /*
      * `push`, never `commit_push`. These branches are only reached with a clean tree, and main
@@ -183,12 +244,19 @@ function resolveAheadQuickAction(input: {
      * then threw the message away. The default-ref confirmation still fires: `push` is one of the
      * actions it gates.
      */
-    return { label: 'Push', disabled: false, kind: 'run_action', action: 'push' }
+    const result: GitQuickAction = {
+      label: 'Push',
+      disabled: false,
+      kind: 'run_action',
+      action: 'push',
+    }
+    return result
   }
-  return {
+  const result: GitQuickAction = {
     label: `Push & create ${input.terminology.shortLabel}`,
     disabled: false,
     kind: 'run_action',
     action: 'create_pr',
   }
+  return result
 }

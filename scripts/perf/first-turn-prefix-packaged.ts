@@ -7,8 +7,8 @@
  * requests a local fake provider records. Counts o200k tokens of the system prompt (by section),
  * the tool declarations and the Run's hidden context, for every request of the Run.
  *
- *   pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty --out <dir>
- *   pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup maintainer --out <dir>
+ *   bun run perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty --out <dir>
+ *   bun run perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup maintainer --out <dir>
  *
  * `real-home` is an empty project whose HOME has a slow `.zshrc` exporting the user PATH.
  * `maintainer` adds the heavy-user MCP setup, this repository's AGENTS.md and project skills at the
@@ -19,7 +19,12 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { measurePrefixTokens } from './first-turn-prefix/prefix-tokens'
 import { startCliRun } from './lib/cli-run'
-import { configureFakeProvider, FAKE_MODEL_REFERENCE, isTitleRequest, startFakeProvider } from './lib/fake-openai-provider'
+import {
+  configureFakeProvider,
+  FAKE_MODEL_REFERENCE,
+  isTitleRequest,
+  startFakeProvider,
+} from './lib/fake-openai-provider'
 import { writeSlowLoginShellHome } from './lib/login-shell-home'
 import { createMaintainerLikeProject, writeMaintainerLikeHome } from './lib/maintainer-like-setup'
 import { HEAVY_USER_MCP_ENVIRONMENT, writeHeavyUserMcpConfig } from './lib/mcp-fixtures'
@@ -59,7 +64,9 @@ async function measurePackagedPrefix(appPath: string, label: string | undefined,
     if (isTitleRequest(request)) return stream.text('Prefix')
     agentRequests += 1
     if (maintainer && agentRequests === 1) {
-      return stream.toolCalls([{ name: 'bash', arguments: { command: `sleep ${String(MCP_SETTLE_SECONDS)}` } }])
+      return stream.toolCalls([
+        { name: 'bash', arguments: { command: `sleep ${String(MCP_SETTLE_SECONDS)}` } },
+      ])
     }
     return stream.text('OK')
   })
@@ -80,7 +87,12 @@ async function measurePackagedPrefix(appPath: string, label: string | undefined,
         },
       },
       async ({ profile }) => {
-        const run = startCliRun(app, profile, { prompt: PROMPT, model: FAKE_MODEL_REFERENCE, yolo: true, environment })
+        const run = startCliRun(app, profile, {
+          prompt: PROMPT,
+          model: FAKE_MODEL_REFERENCE,
+          yolo: true,
+          environment,
+        })
         await Promise.race([run.exited, delay(RUN_TIMEOUT_MS)])
         const requests = provider.requests
           .filter((request) => !isTitleRequest(request))
@@ -96,25 +108,39 @@ async function measurePackagedPrefix(appPath: string, label: string | undefined,
 async function main() {
   const apps = values.app ?? []
   if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) [--setup empty|maintainer|real-home] (macOS only)\n')
+    process.stderr.write(
+      'Use --app <OpenWaggle.app> (repeatable) [--setup empty|maintainer|real-home] (macOS only)\n',
+    )
     process.exit(USAGE_EXIT_CODE)
   }
-  const setup = values.setup ?? 'empty'
+  const setup = values.setup
   const results = []
   for (const [index, appPath] of apps.entries()) {
     const result = await measurePackagedPrefix(appPath, values.label?.[index], setup)
     results.push(result)
     const [first, last] = [result.requests[0], result.requests.at(-1)]
-    log(`${result.app} ${setup}: first ${String(first?.o200kTotal)} o200k (${String(first?.opusEstimateTotal)} Opus), last ${String(last?.o200kTotal)} o200k, ${String(last?.toolCount)} tools`)
+    log(
+      `${result.app} ${setup}: first ${String(first?.o200kTotal)} o200k (${String(first?.opusEstimateTotal)} Opus), last ${String(last?.o200kTotal)} o200k, ${String(last?.toolCount)} tools`,
+    )
   }
-  const report = { kind: `first-turn-prefix-packaged-${setup}`, environment: measurementEnvironment(), results }
-  if (values.out) log(`Wrote ${await writeJsonResult(values.out, `first-turn-prefix-packaged-${setup}.json`, report)}`)
+  const report = {
+    kind: `first-turn-prefix-packaged-${setup}`,
+    environment: measurementEnvironment(),
+    results,
+  }
+  if (values.out) {
+    log(
+      `Wrote ${await writeJsonResult(values.out, `first-turn-prefix-packaged-${setup}.json`, report)}`,
+    )
+  }
 }
 
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

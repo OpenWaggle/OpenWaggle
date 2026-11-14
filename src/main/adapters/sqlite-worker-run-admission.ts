@@ -113,26 +113,35 @@ export function workerRunAdmissionRefusal(
     /** Read only when the ceiling applies; settlement reads the stored setting. */
     readonly hostRunCeiling: number | Effect.Effect<number, unknown>
   },
-): Effect.Effect<WorkerRunAdmissionRefusal | undefined, unknown> {
-  if (isPersonStartedRun(input.caller)) return Effect.succeed(undefined)
-  return Effect.gen(function* () {
-    const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
-    const isWorker = 'parentSessionId' in parentAdmission
-    if (isWorker && !parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
-    // A root Session the person made holds back only an agent's work, never the Host's wake of it.
-    if (
-      !isWorker &&
-      !isAgentWorkRun(input.caller) &&
-      !(yield* isAgentMadeSession(sql, input.sessionId))
-    ) {
-      return undefined
-    }
-    const hostRunCeiling =
-      typeof input.hostRunCeiling === 'number' ? input.hostRunCeiling : yield* input.hostRunCeiling
-    const ceiling = yield* hostWorkerCeilingRefusal(sql, {
-      exceptSessionId: input.sessionId,
-      hostRunCeiling,
-    })
-    return ceiling?.code
-  })
+) {
+  if (isPersonStartedRun(input.caller)) {
+    const effect: Effect.Effect<WorkerRunAdmissionRefusal | undefined, unknown> =
+      Effect.succeed(undefined)
+    return effect
+  }
+  const effect: Effect.Effect<WorkerRunAdmissionRefusal | undefined, unknown> = Effect.gen(
+    function* () {
+      const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
+      const isWorker = 'parentSessionId' in parentAdmission
+      if (isWorker && !parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
+      // A root Session the person made holds back only an agent's work, never the Host's wake of it.
+      if (
+        !isWorker &&
+        !isAgentWorkRun(input.caller) &&
+        !(yield* isAgentMadeSession(sql, input.sessionId))
+      ) {
+        return undefined
+      }
+      const hostRunCeiling =
+        typeof input.hostRunCeiling === 'number'
+          ? input.hostRunCeiling
+          : yield* input.hostRunCeiling
+      const ceiling = yield* hostWorkerCeilingRefusal(sql, {
+        exceptSessionId: input.sessionId,
+        hostRunCeiling,
+      })
+      return ceiling?.code
+    },
+  )
+  return effect
 }

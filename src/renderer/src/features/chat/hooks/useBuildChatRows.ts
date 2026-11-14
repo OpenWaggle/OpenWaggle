@@ -73,8 +73,8 @@ function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
   })
 }
 
-function toTurnFoldInput(params: BuildChatRowsParams): TurnFoldInput {
-  return {
+function toTurnFoldInput(params: BuildChatRowsParams) {
+  const input: TurnFoldInput = {
     isLoading: params.isLoading,
     // A reset phase timer (0 on session load) is "unknown", not a zero-second run.
     settledRunDurationMs:
@@ -83,6 +83,7 @@ function toTurnFoldInput(params: BuildChatRowsParams): TurnFoldInput {
     interrupted: !params.isLoading && params.interruptedRun !== undefined,
     expandedTurnKeys: params.expandedTurnKeys ?? new Set(),
   }
+  return input
 }
 
 function placeCards(params: BuildChatRowsParams) {
@@ -90,11 +91,13 @@ function placeCards(params: BuildChatRowsParams) {
     messages: params.messages,
     customMessages: (params.customMessages ?? []).filter((event) => !isWorktreeCreatedEvent(event)),
     interactionEvents: params.interactionEvents ?? [],
-    anchorMessageIdByEventKey: params.agentLoopAnchorMessageIds,
+    ...(params.agentLoopAnchorMessageIds === undefined
+      ? {}
+      : { anchorMessageIdByEventKey: params.agentLoopAnchorMessageIds }),
   })
 }
 
-export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
+export function buildChatRows(params: BuildChatRowsParams) {
   const rows: ChatRow[] = []
   const compactionRows = createCompactionStatusRows(
     params.compactionStatus,
@@ -105,7 +108,7 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   const appendCompactionRowsAt = createCompactionRowAppender(rows, compactionRows)
   const launchRows = createWorktreeLaunchRows({
     sessionId: params.sessionId,
-    liveLaunch: params.worktreeLaunch,
+    ...(params.worktreeLaunch === undefined ? {} : { liveLaunch: params.worktreeLaunch }),
     customMessages: params.customMessages ?? [],
   })
   let didAppendLaunchRows = false
@@ -150,9 +153,8 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   }
 
   appendCardsAfter(BEFORE_FIRST_MESSAGE)
-  for (let index = 0; index < params.messages.length; index += 1) {
+  for (const [index, message] of params.messages.entries()) {
     appendCompactionRowsAt(index)
-    const message = params.messages[index]
     if (message.role === 'assistant') appendLaunchRows()
     appendMessage(message, index)
     appendCardsAfter(index)

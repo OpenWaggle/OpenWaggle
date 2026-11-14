@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { McpConnectionPool } from '../../../../src/main/adapters/mcp/pool/mcp-connection-pool-api'
 import { composeFirstTurnRun } from '../run-composition'
+import { scriptEnv } from '../../../support/env'
 
 /**
  * R6 P3-3: the first-turn prefix budget measures the Run the Host builds, not a hand-kept copy of
@@ -14,7 +15,7 @@ function trustedSentinel() {}
 const APPENDIX_SENTINEL = 'appendix added to the real Run path'
 
 vi.mock('electron', () => ({
-  app: { getPath: () => process.env.OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
+  app: { getPath: () => scriptEnv().OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
   safeStorage: { isEncryptionAvailable: () => false },
   shell: {},
 }))
@@ -24,10 +25,15 @@ vi.mock('../../../../src/main/adapters/pi/mcp/openwaggle-mcp-extensions', () => 
 }))
 
 vi.mock('../../../../src/main/adapters/pi/agent-kernel/classic-run', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../../src/main/adapters/pi/agent-kernel/classic-run')>()
+  const actual =
+    await importOriginal<
+      typeof import('../../../../src/main/adapters/pi/agent-kernel/classic-run')
+    >()
   return {
     ...actual,
-    classicRunInlineExtensions: (input: Parameters<typeof actual.classicRunInlineExtensions>[0]) => {
+    classicRunInlineExtensions: (
+      input: Parameters<typeof actual.classicRunInlineExtensions>[0],
+    ) => {
       const built = actual.classicRunInlineExtensions(input)
       return { ...built, extensionFactories: [...built.extensionFactories, inlineSentinel] }
     },
@@ -35,23 +41,28 @@ vi.mock('../../../../src/main/adapters/pi/agent-kernel/classic-run', async (impo
 })
 
 vi.mock('../../../../src/main/adapters/pi/pi-agent-kernel-run', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../../src/main/adapters/pi/pi-agent-kernel-run')>()
+  const actual =
+    await importOriginal<typeof import('../../../../src/main/adapters/pi/pi-agent-kernel-run')>()
   return {
     ...actual,
-    createRunTrustedExtensionFactories: (input: Parameters<typeof actual.createRunTrustedExtensionFactories>[0]) => [
-      ...actual.createRunTrustedExtensionFactories(input),
-      trustedSentinel,
-    ],
+    createRunTrustedExtensionFactories: (
+      input: Parameters<typeof actual.createRunTrustedExtensionFactories>[0],
+    ) => [...actual.createRunTrustedExtensionFactories(input), trustedSentinel],
   }
 })
 
 vi.mock('../../../../src/main/adapters/pi/agent-kernel/run-lifecycle', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../../src/main/adapters/pi/agent-kernel/run-lifecycle')>()
+  const actual =
+    await importOriginal<
+      typeof import('../../../../src/main/adapters/pi/agent-kernel/run-lifecycle')
+    >()
   return {
     ...actual,
     runSystemPromptAppendices: (...args: Parameters<typeof actual.runSystemPromptAppendices>) => {
       const built = actual.runSystemPromptAppendices(...args)
-      return { systemPromptAppendices: [...(built.systemPromptAppendices ?? []), APPENDIX_SENTINEL] }
+      return {
+        systemPromptAppendices: [...(built.systemPromptAppendices ?? []), APPENDIX_SENTINEL],
+      }
     },
   }
 })

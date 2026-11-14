@@ -3,6 +3,7 @@ import { LOCAL_SESSION_CURRENT_REVISION } from '../../../shared/types/local-sess
 import { localSessionClientProtocolError } from '../local-session-client-protocol-error'
 import type { LocalSessionWatchInput, LocalSessionWatchResult } from '../local-session-event-client'
 import type { RemoteSessionHostRendererBridgeDependencies } from '../session-host-renderer-bridge'
+import { startRemoteSessionHostRendererBridge } from '../session-host-renderer-bridge'
 
 const { broadcastToWindowsMock } = vi.hoisted(() => ({
   broadcastToWindowsMock: vi.fn(),
@@ -11,8 +12,6 @@ const { broadcastToWindowsMock } = vi.hoisted(() => ({
 vi.mock('../../utils/broadcast', () => ({
   broadcastToWindows: broadcastToWindowsMock,
 }))
-
-import { startRemoteSessionHostRendererBridge } from '../session-host-renderer-bridge'
 
 const paths = {
   stateRoot: '/state',
@@ -111,14 +110,16 @@ describe('remote Session Host renderer recovery', () => {
       reportResubscribed = resolve
     })
     const recoveryLog = recoveryLogger()
-    const watch = vi.fn(async (input: LocalSessionWatchInput): Promise<LocalSessionWatchResult> => {
-      if (watch.mock.calls.length <= 3) {
-        throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
-      }
-      await input.onSnapshot?.([])
-      reportResubscribed?.()
-      return new Promise<LocalSessionWatchResult>(() => {})
-    })
+    const watch = vi.fn<(input: LocalSessionWatchInput) => Promise<LocalSessionWatchResult>>(
+      async (input: LocalSessionWatchInput) => {
+        if (watch.mock.calls.length <= 3) {
+          throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+        }
+        await input.onSnapshot?.([])
+        reportResubscribed?.()
+        return new Promise<LocalSessionWatchResult>(() => {})
+      },
+    )
     const ensure = vi
       .fn<() => Promise<undefined>>()
       .mockRejectedValueOnce(handshakeTimeout)
@@ -149,23 +150,25 @@ describe('remote Session Host renderer recovery', () => {
     const snapshotEstablished = new Promise<void>((resolve) => {
       reportSnapshot = resolve
     })
-    const watch = vi.fn(async (input: LocalSessionWatchInput): Promise<LocalSessionWatchResult> => {
-      watchCalls += 1
-      if (watchCalls === 1) {
-        return {
-          status: 'resync-required',
-          reason: 'cursor-expired',
-          cursor: { hostInstanceId: 'host-next', sequence: 12 },
+    const watch = vi.fn<(input: LocalSessionWatchInput) => Promise<LocalSessionWatchResult>>(
+      async (input: LocalSessionWatchInput) => {
+        watchCalls += 1
+        if (watchCalls === 1) {
+          return {
+            status: 'resync-required',
+            reason: 'cursor-expired',
+            cursor: { hostInstanceId: 'host-next', sequence: 12 },
+          }
         }
-      }
-      expect(broadcastToWindowsMock).not.toHaveBeenCalledWith(
-        'session-host:resync-required',
-        expect.anything(),
-      )
-      await input.onSnapshot?.([])
-      reportSnapshot?.()
-      return new Promise<LocalSessionWatchResult>(() => {})
-    })
+        expect(broadcastToWindowsMock).not.toHaveBeenCalledWith(
+          'session-host:resync-required',
+          expect.anything(),
+        )
+        await input.onSnapshot?.([])
+        reportSnapshot?.()
+        return new Promise<LocalSessionWatchResult>(() => {})
+      },
+    )
     const stop = startRemoteSessionHostRendererBridge(
       { paths, clientVersion: 'test' },
       {

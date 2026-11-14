@@ -7,14 +7,13 @@ import {
 import { SessionId } from '@shared/types/brand'
 import type {
   InlineVisualizationFrameRegisterInput,
-  InlineVisualizationFrameRegisterResult,
   InlineVisualizationFrameUnregisterInput,
   InlineVisualizationReadResult,
 } from '@shared/types/inline-visualization'
 import { inlineVisualizationFrameUrl } from '@shared/utils/inline-visualization'
-import { protocol } from 'electron'
 import lucideRuntime from 'lucide/dist/umd/lucide.min.js?raw'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import baseStyles from './inline-visualization-assets/base.css.raw?raw'
 import hostStyles from './inline-visualization-assets/host.css.raw?raw'
 import hostRuntime from './inline-visualization-assets/host-runtime.js.raw?raw'
@@ -110,9 +109,9 @@ function serializedRestoredState(state: InlineVisualizationFrameRegisterInput['r
 export function registerInlineVisualizationFrame(
   input: InlineVisualizationFrameRegisterInput,
   ownerId: number,
-): InlineVisualizationFrameRegisterResult {
+) {
   if (!FRAME_ID_PATTERN.test(input.frameId)) throw new Error('Invalid visualization frame id')
-  if (!input.sessionId || String(input.sessionId).length > MAX_SESSION_ID_LENGTH) {
+  if (!input.sessionId || input.sessionId.length > MAX_SESSION_ID_LENGTH) {
     throw new Error('Invalid visualization session id')
   }
   if (!input.sourcePath || input.sourcePath.length > MAX_INLINE_VISUALIZATION_PATH_LENGTH) {
@@ -262,7 +261,7 @@ export function registerInlineVisualizationProtocolOnce(
   inlineVisualizationProtocolRegistered = true
   const readSource = dependencies.readSource ?? defaultReadSource
 
-  protocol.handle(INLINE_VISUALIZATION_PROTOCOL.SCHEME, async (request) => {
+  trustedOrigins.serve('inline-visualization', async (request) => {
     try {
       if (isLucideRuntimeRequest(request.url)) {
         return new Response(lucideRuntime, {

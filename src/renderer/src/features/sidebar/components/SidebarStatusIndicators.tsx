@@ -20,7 +20,7 @@ function StateIcon({
   if (iconName === null) return null
   const Icon = iconName === 'AlertTriangle' ? AlertTriangle : SESSION_STATUS_ICON[iconName]
   if (Icon === undefined) return null
-  return <Icon className={className} />
+  return <Icon {...(className === undefined ? {} : { className })} />
 }
 
 /**

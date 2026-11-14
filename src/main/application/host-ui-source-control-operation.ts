@@ -37,9 +37,9 @@ export function isHostUiSourceControlChannel(
   return HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel)
 }
 
-function threeArguments(args: readonly unknown[]): [unknown, unknown, unknown] {
+function threeArguments(args: readonly unknown[]) {
   const [first, second, third] = args
-  return [first, second, third]
+  return [first, second, third] satisfies [unknown, unknown, unknown]
 }
 
 function decoded<A, R>(decode: () => A, run: (value: A) => Effect.Effect<unknown, unknown, R>) {

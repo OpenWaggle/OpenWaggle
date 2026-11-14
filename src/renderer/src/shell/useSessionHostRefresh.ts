@@ -1,6 +1,9 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { isSessionlessHostEvent } from '@shared/types/session-host-event'
+import {
+  isSessionlessHostEvent,
+  type SessionHostEventCursor as HostCursor,
+} from '@shared/types/session-host-event'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import {
@@ -38,8 +41,6 @@ interface PendingSessionHostRefresh {
   relationshipMayHaveChanged: boolean
   scheduled: boolean
 }
-
-type HostCursor = { readonly hostInstanceId: string; readonly sequence: number }
 
 /** No route renders an archived or deleted Session: forget its status and cached transcript. */
 function forgetRemovedSession(sessionId: SessionId) {
@@ -133,10 +134,9 @@ function invalidateChangedProjectActions(queryClient: QueryClient, sessionIds: r
   })
 }
 
-function invalidateSessionHostQueries(
-  queryClient: QueryClient,
-  refresh: ReturnType<typeof takePendingSessionHostRefresh>,
-) {
+type SessionHostRefresh = ReturnType<typeof takePendingSessionHostRefresh>
+
+function invalidateSessionHostQueries(queryClient: QueryClient, refresh: SessionHostRefresh) {
   for (const sessionId of refresh.queueSessionIds) {
     void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
   }
@@ -158,8 +158,6 @@ function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
   void invalidateDefaultThinkingLevel(queryClient)
   void invalidateExtensionContributionsQueries(queryClient)
 }
-
-type SessionHostRefresh = ReturnType<typeof takePendingSessionHostRefresh>
 
 function useSessionTitleUpdates(updateSessionTitle: ChatLifecycle['updateSessionTitle']) {
   useEffect(

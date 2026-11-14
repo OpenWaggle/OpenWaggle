@@ -14,7 +14,10 @@ export class SyntaxSourceTokenization {
   private complete = false
   private grammarState: GrammarState | undefined
 
-  constructor(private readonly source: string) {
+  private readonly source: string
+
+  constructor(source: string) {
+    this.source = source
     // The source stays in this worker so subsequent viewports need no IPC retransmission.
     this.estimatedBytes = source.length * UTF16_CODE_UNIT_BYTES
   }

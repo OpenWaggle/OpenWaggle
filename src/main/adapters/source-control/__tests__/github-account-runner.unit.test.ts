@@ -13,8 +13,8 @@ vi.mock('../../../services/source-control/cli-host-config', () => ({
 
 const { createGithubAccountRunner } = await import('../github-account-runner')
 
-function cli(partial: Partial<CliResult>): CliResult {
-  return { stdout: '', stderr: '', code: 0, missing: false, ...partial }
+function cli(partial: Partial<CliResult>) {
+  return { stdout: '', stderr: '', code: 0, missing: false, ...partial } satisfies CliResult
 }
 
 const REPO_NOT_FOUND = cli({

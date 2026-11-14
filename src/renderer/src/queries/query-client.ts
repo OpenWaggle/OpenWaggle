@@ -22,6 +22,6 @@ function buildQueryClient() {
 
 export const rendererQueryClient = buildQueryClient()
 
-export function createRendererQueryClient(): QueryClient {
+export function createRendererQueryClient() {
   return buildQueryClient()
 }

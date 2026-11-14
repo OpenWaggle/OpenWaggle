@@ -1,6 +1,7 @@
 import type { JsonObject, JsonValue } from '../types/json'
 import type { AgentTransportEvent } from '../types/stream'
 import type { NestedToolCallRecord, NestedToolCalls } from '../types/tools'
+import { uncheckedFields } from './object-shape'
 
 /**
  * The limits Pi puts on the nested-call record of a tool result (`NESTED_CALL_LIMITS` in Pi's
@@ -28,9 +29,13 @@ function isJsonObject(value: JsonValue | undefined): value is JsonObject {
 
 function resultText(result: JsonValue) {
   if (typeof result === 'string') return result
-  if (isJsonObject(result) && Array.isArray(result.content)) {
-    return result.content
-      .map((block) => (isJsonObject(block) && typeof block.text === 'string' ? block.text : ''))
+  const { content } = uncheckedFields<{ readonly content: readonly unknown[] }>(result)
+  if (Array.isArray(content)) {
+    return content
+      .map((block: unknown) => {
+        const { text } = uncheckedFields<{ readonly text: string }>(block)
+        return typeof text === 'string' ? text : ''
+      })
       .join('\n')
   }
   return JSON.stringify(result)
@@ -44,10 +49,7 @@ function recordedArgumentBytes(calls: readonly NestedToolCallRecord[]) {
   )
 }
 
-function startedRecord(
-  calls: readonly NestedToolCallRecord[],
-  event: NestedToolExecutionEvent,
-): NestedToolCallRecord {
+function startedRecord(calls: readonly NestedToolCallRecord[], event: NestedToolExecutionEvent) {
   const args = isJsonObject(event.args) ? event.args : {}
   const bytes = encoder.encode(JSON.stringify(args)).length
   const fits =
@@ -58,23 +60,17 @@ function startedRecord(
     name: event.toolName,
     ...(fits ? { args } : { argsBytes: bytes }),
     status: 'unfinished',
-  }
+  } satisfies NestedToolCallRecord
 }
 
-function finishedRecord(
-  record: NestedToolCallRecord,
-  event: NestedToolExecutionEvent,
-): NestedToolCallRecord {
+function finishedRecord(record: NestedToolCallRecord, event: NestedToolExecutionEvent) {
   if (event.type !== 'tool_execution_end') return record
-  if (!event.isError) return { ...record, status: 'ok' }
+  if (!event.isError) return { ...record, status: 'ok' } satisfies NestedToolCallRecord
   const error = resultText(event.result).slice(0, NESTED_TOOL_CALL_LIMITS.maxErrorChars)
-  return { ...record, status: 'error', ...(error ? { error } : {}) }
+  return { ...record, status: 'error', ...(error ? { error } : {}) } satisfies NestedToolCallRecord
 }
 
-function withCompleteness(
-  calls: readonly NestedToolCallRecord[],
-  droppedCalls: number,
-): NestedToolCalls {
+function withCompleteness(calls: readonly NestedToolCallRecord[], droppedCalls: number) {
   const complete =
     droppedCalls === 0 &&
     calls.every((call) => call.status !== 'unfinished' && call.argsBytes === undefined)
@@ -89,29 +85,29 @@ function withCompleteness(
 export function recordNestedToolExecution(
   record: NestedToolCalls | undefined,
   event: NestedToolExecutionEvent,
-): NestedToolCalls {
+) {
   const { calls, droppedCalls = 0 } = record ?? EMPTY_RECORD
   const index = calls.findIndex((call) => call.id === event.toolCallId)
   const existing = calls[index]
   if (existing) {
     const next = finishedRecord(existing, event)
-    if (next === existing) return record ?? EMPTY_RECORD
+    if (next === existing) return (record ?? EMPTY_RECORD) satisfies NestedToolCalls
     return withCompleteness(
       calls.map((call, callIndex) => (callIndex === index ? next : call)),
       droppedCalls,
-    )
+    ) satisfies NestedToolCalls
   }
   if (calls.length >= NESTED_TOOL_CALL_LIMITS.maxCalls) {
     // A dropped call is counted when it starts; its later events change nothing.
     return withCompleteness(
       calls,
       event.type === 'tool_execution_start' ? droppedCalls + 1 : droppedCalls,
-    )
+    ) satisfies NestedToolCalls
   }
   return withCompleteness(
     [...calls, finishedRecord(startedRecord(calls, event), event)],
     droppedCalls,
-  )
+  ) satisfies NestedToolCalls
 }
 
 function isFinished(call: NestedToolCallRecord) {
@@ -136,8 +132,8 @@ function hidesDroppedCalls(record: NestedToolCalls) {
 export function mergeNestedToolCalls(
   first: NestedToolCalls | undefined,
   second: NestedToolCalls | undefined,
-): NestedToolCalls | undefined {
-  if (!first || !second) return first ?? second
+) {
+  if (!first || !second) return (first ?? second) satisfies NestedToolCalls | undefined
   const byId = new Map<string, NestedToolCallRecord>()
   for (const call of [...first.calls, ...second.calls]) {
     const known = byId.get(call.id)
@@ -147,9 +143,9 @@ export function mergeNestedToolCalls(
   const droppedCalls =
     Math.max(first.droppedCalls ?? 0, second.droppedCalls ?? 0) + (byId.size - calls.length)
   const merged = withCompleteness(calls, droppedCalls)
-  return hidesDroppedCalls(first) || hidesDroppedCalls(second)
-    ? { ...merged, complete: false }
-    : merged
+  return (
+    hidesDroppedCalls(first) || hidesDroppedCalls(second) ? { ...merged, complete: false } : merged
+  ) satisfies NestedToolCalls | undefined
 }
 
 /**

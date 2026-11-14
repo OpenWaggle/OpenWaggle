@@ -29,7 +29,7 @@ export function scheduledTaskFixtures(input: {
   readonly queenSessionId: string
   readonly projectPath: string
   readonly now: Date
-}): readonly ScheduledTaskInput[] {
+}) {
   return [
     {
       name: 'Check CI on the release branch',
@@ -59,7 +59,7 @@ export function scheduledTaskFixtures(input: {
       target: { kind: 'heartbeat', sessionId: input.queenSessionId },
       heartbeat: { stopWhen: 'The docs site is live and its links resolve.' },
     },
-  ]
+  ] satisfies readonly ScheduledTaskInput[]
 }
 
 export async function createScheduledTasks(page: Page, tasks: readonly ScheduledTaskInput[]) {

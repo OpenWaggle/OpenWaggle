@@ -39,8 +39,9 @@ describe('createPiRuntimeServices', () => {
     const sections: Record<string, string> = {}
     const event = { systemPromptOptions: { sections, skills: [], cwd: projectPath } }
     for (const handler of handlers) await handler(event, {})
-    expect(sections.openwaggle_session_directories).toContain(
-      JSON.stringify(visualizationDirectory),
+    expect(sections).toHaveProperty(
+      'openwaggle_session_directories',
+      expect.stringContaining(JSON.stringify(visualizationDirectory)),
     )
   })
 

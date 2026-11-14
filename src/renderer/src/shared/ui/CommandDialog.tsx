@@ -26,7 +26,7 @@ const INITIAL_FOCUS_SELECTOR =
  */
 const dialogOpeners = new Map<HTMLDialogElement, HTMLElement>()
 
-function resolveOpener(): HTMLElement | null {
+function resolveOpener() {
   const inherited = [...dialogOpeners.values()].at(-1)
   if (inherited !== undefined) return inherited
   const active = document.activeElement

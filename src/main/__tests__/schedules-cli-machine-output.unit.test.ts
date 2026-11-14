@@ -6,6 +6,7 @@ import type {
   ScheduledTask,
   ScheduledTasksOutcome,
 } from '@shared/types/scheduled-task'
+import { safeDecodeUnknown, Schema } from '@shared/schema'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,21 +68,28 @@ const HEARTBEAT = fromPartial<ScheduledTask>({
   },
 })
 
-function answer(outcome: ScheduledTasksOutcome): LocalScheduledTasksCommandResult {
+function answer(outcome: ScheduledTasksOutcome) {
   return {
     contract: 'scheduled-tasks-v1',
     response: { contractVersion: 1, requestId: 'request', operation: 'list', outcome },
-  }
+  } satisfies LocalScheduledTasksCommandResult
 }
+
+/** A Host call that creates a Scheduled task. */
+const createCallSchema = Schema.Struct({
+  payload: Schema.Struct({
+    request: Schema.Struct({
+      command: Schema.Struct({ operation: Schema.Literal('create'), input: Schema.Unknown }),
+    }),
+  }),
+})
 
 /** The create inputs the CLI sent, in order. */
 function createdInputs() {
   return mocks.execute.mock.calls.map((call: readonly unknown[]) => {
-    const payload: unknown = Reflect.get(Object(call[0]), 'payload')
-    const command: unknown = Reflect.get(Object(Reflect.get(Object(payload), 'request')), 'command')
-    if (Reflect.get(Object(command), 'operation') !== 'create')
-      throw new Error('Expected a create.')
-    return Reflect.get(Object(command), 'input')
+    const created = safeDecodeUnknown(createCallSchema, call[0])
+    if (!created.success) throw new Error('Expected a create.')
+    return created.data.payload.request.command.input
   })
 }
 

@@ -11,7 +11,7 @@ import {
 function subject(result: number | null = 1) {
   const socket = { destroyed: false, closed: false }
   const pty = fromPartial<IPty>({ pid: 12_345 })
-  Reflect.set(pty, '_socket', socket)
+  Object.assign(pty, { _socket: socket })
   const signalTtyMembers = vi.fn((_force: boolean) => result)
   const live = fromPartial<LiveTerminalProcess>({
     pty,

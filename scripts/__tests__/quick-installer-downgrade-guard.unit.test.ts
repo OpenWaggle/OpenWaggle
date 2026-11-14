@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
+import { execFailure } from '../test-support/exec-failure'
 
 const execFileAsync = promisify(execFile)
 const SECTIONS = [
@@ -28,7 +29,12 @@ while [ "$#" -gt 0 ]; do
   printf '%s\\n' "$(downgrade_refusal "$1" "$2")"
   shift 2
 done`
-  const result = await execFileAsync('bash', ['-c', script, 'installer-downgrade-test', ...pairs.flat()])
+  const result = await execFileAsync('bash', [
+    '-c',
+    script,
+    'installer-downgrade-test',
+    ...pairs.flat(),
+  ])
   return result.stdout.split('\n').slice(0, pairs.length)
 }
 
@@ -88,7 +94,7 @@ printf 'installed\\n'`
       'installer-downgrade-exit-test',
       '1.0.0-rc.1',
       'v1.0.0-beta.37',
-    ]).catch((error: { stdout: string; stderr: string; code: number }) => error)
+    ]).catch(execFailure)
 
     expect('code' in result ? result.code : 0).toBe(2)
     expect(result.stdout).toBe('restored\n')
@@ -108,9 +114,11 @@ refuse_downgrade "$1" "$2" "$3"`
       '1.0.1-beta.1',
       'v1.0.0',
       'It is ahead of the stable channel.',
-    ]).catch((error: { stderr: string; code: number }) => error)
+    ]).catch(execFailure)
 
-    expect(result.stderr).toContain('OpenWaggle was not changed. It is ahead of the stable channel.\n')
+    expect(result.stderr).toContain(
+      'OpenWaggle was not changed. It is ahead of the stable channel.\n',
+    )
   })
 
   it('takes the newer of two versions, either of which may be missing', async () => {
@@ -126,7 +134,12 @@ done`
       ['', '1.0.0-rc.1'],
       ['1.0.0-rc.1', ''],
     ]
-    const result = await execFileAsync('bash', ['-c', script, 'installer-newer-test', ...pairs.flat()])
+    const result = await execFileAsync('bash', [
+      '-c',
+      script,
+      'installer-newer-test',
+      ...pairs.flat(),
+    ])
 
     expect(result.stdout.split('\n').slice(0, pairs.length)).toEqual([
       '1.0.0-rc.2',
@@ -141,7 +154,12 @@ done`
     const script = `set -euo pipefail
 ${await guardSource()}
 printf '[%s]' "$(mac_app_version "$1")"`
-    const result = await execFileAsync('bash', ['-c', script, 'installer-mac-version-test', '/nonexistent/OpenWaggle.app'])
+    const result = await execFileAsync('bash', [
+      '-c',
+      script,
+      'installer-mac-version-test',
+      '/nonexistent/OpenWaggle.app',
+    ])
 
     expect(result.stdout).toBe('[]')
   })

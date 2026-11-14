@@ -7,8 +7,8 @@ vi.mock('@/shared/hooks/useEscapeHotkey', () => ({
   useEscapeHotkey: vi.fn(),
 }))
 
-function status(): GitStatusSummary {
-  return {
+function status() {
+  const summary: GitStatusSummary = {
     branch: 'main',
     additions: 5,
     deletions: 2,
@@ -35,6 +35,7 @@ function status(): GitStatusSummary {
     ahead: 0,
     behind: 0,
   }
+  return summary
 }
 
 describe('CommitDialog', () => {

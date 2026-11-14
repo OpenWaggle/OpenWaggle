@@ -8,8 +8,8 @@ import {
   resolveBrowserProfiles,
 } from '@shared/types/browser-profile'
 
-export function sanitizeBrowserProfiles(raw: unknown): readonly BrowserProfile[] {
-  if (!Array.isArray(raw)) return []
+export function sanitizeBrowserProfiles(raw: unknown) {
+  if (!Array.isArray(raw)) return [] satisfies readonly BrowserProfile[]
   const profiles: BrowserProfile[] = []
   const seen = new Set<string>()
   for (const candidate of raw.slice(0, BROWSER_PROFILE_LIMITS.USER_PROFILES)) {

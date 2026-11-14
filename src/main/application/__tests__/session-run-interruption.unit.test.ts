@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -29,21 +30,38 @@ import { HOST_SHUTDOWN_CALLER_ID } from '../../domain/session-control/root-sessi
 import { interruptAllSessionRuns } from '../session-run-interruption'
 
 // The dispatcher is mocked, so the services its type names are never used.
-function runWithoutRequirements(effect: Effect.Effect<void, unknown, unknown>): Promise<void> {
-  return Effect.runPromise(fromAny<Effect.Effect<void, unknown, never>, typeof effect>(effect))
+function runWithoutRequirements(effect: Effect.Effect<void, unknown, unknown>) {
+  return Effect.runPromise(fromAny<Effect.Effect<void, unknown>, typeof effect>(effect))
+}
+
+const sessionTargetSchema = Schema.Struct({
+  sessionId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+/** The members of a dispatched command payload these tests read. */
+const dispatchedPayloadSchema = Schema.Struct({
+  contract: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  request: Schema.optionalWith(
+    Schema.Struct({
+      requestId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+      query: Schema.optionalWith(sessionTargetSchema, { exact: true }),
+      command: Schema.optionalWith(sessionTargetSchema, { exact: true }),
+    }),
+    { exact: true },
+  ),
+})
+
+function dispatchedPayload(payload: unknown) {
+  return decodeUnknownOrThrow(dispatchedPayloadSchema, payload)
 }
 
 function contract(payload: unknown) {
-  return typeof payload === 'object' && payload !== null ? Reflect.get(payload, 'contract') : null
+  return dispatchedPayload(payload).contract
 }
 
 function sessionOf(payload: unknown) {
-  const request =
-    typeof payload === 'object' && payload !== null ? Reflect.get(payload, 'request') : null
-  const query = request && typeof request === 'object' ? Reflect.get(request, 'query') : null
-  const command = request && typeof request === 'object' ? Reflect.get(request, 'command') : null
-  const source = query ?? command
-  return source && typeof source === 'object' ? Reflect.get(source, 'sessionId') : null
+  const { request } = dispatchedPayload(payload)
+  return (request?.query ?? request?.command)?.sessionId
 }
 
 function statusResponse(activeRunId: string | null) {
@@ -100,10 +118,12 @@ describe('interrupting every Run at a drain deadline', () => {
     mocks.activities.mockReturnValue([{ sessionId: 'session-c' }])
     mocks.dispatch.mockImplementation(({ payload }) => {
       if (contract(payload) === 'session-query-v2') return statusResponse(null)
-      const request = Reflect.get(Object(payload), 'request')
       return {
         contract: 'local-compaction-cancel-v1',
-        response: { requestId: Reflect.get(Object(request), 'requestId'), sessionId: 'session-c' },
+        response: {
+          requestId: dispatchedPayload(payload).request?.requestId,
+          sessionId: 'session-c',
+        },
       }
     })
 

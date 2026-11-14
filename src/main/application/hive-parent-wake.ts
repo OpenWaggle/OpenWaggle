@@ -65,12 +65,16 @@ function piCliWroteLast(piSessionFile: string | null) {
   })
 }
 
-function outcomeOf(response: SessionControlMutationResponse): HiveParentWakeOutcome {
+function outcomeOf(response: SessionControlMutationResponse) {
   const { outcome } = response
-  if (outcome.effect === 'started-run') return 'started'
-  if (outcome.effect === 'rejected' && RUN_LIMIT_REFUSALS.has(outcome.code)) return 'deferred'
-  if (outcome.effect === 'rejected' && outcome.code === HIVE_WAKE_NOT_NEEDED) return 'not-needed'
-  return 'refused'
+  if (outcome.effect === 'started-run') return 'started' as const
+  if (outcome.effect === 'rejected' && RUN_LIMIT_REFUSALS.has(outcome.code)) {
+    return 'deferred' as const
+  }
+  if (outcome.effect === 'rejected' && outcome.code === HIVE_WAKE_NOT_NEEDED) {
+    return 'not-needed' as const
+  }
+  return 'refused' as const
 }
 
 /** Starts a wake Run on the parent when it is idle and holds Worker updates no Run acted on. */

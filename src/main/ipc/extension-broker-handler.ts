@@ -1,5 +1,5 @@
 import { hostHandle } from './typed-ipc'
 
-export function registerExtensionBrokerHandlers(): void {
+export function registerExtensionBrokerHandlers() {
   hostHandle('extensions:invoke')
 }

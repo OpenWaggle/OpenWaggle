@@ -8,7 +8,7 @@ export function retryableLastUserMessage(messages: readonly UIMessage[]) {
   let lastUserMessage: UIMessage | undefined
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
-    if (message && message.role === 'user') {
+    if (message?.role === 'user') {
       lastUserMessage = message
       break
     }

@@ -6,8 +6,8 @@ import {
   getAssistantMessageRows,
 } from './useBuildChatRows.test-utils'
 
-function reply(id: string, text: string): UIMessage {
-  return { id, role: 'assistant', parts: [{ type: 'text', content: text }] }
+function reply(id: string, text: string) {
+  return { id, role: 'assistant', parts: [{ type: 'text', content: text }] } satisfies UIMessage
 }
 
 /** ADR 0055 through the whole row build: the fold runs first, then the replies are marked. */

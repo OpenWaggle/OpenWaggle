@@ -52,10 +52,7 @@ export interface ValidateDeclaredFilesInput {
   readonly missingCode: ExtensionDiagnosticCode
 }
 
-async function validateDeclaredFile(
-  input: ValidateDeclaredFilesInput,
-  relativePath: string,
-): Promise<ExtensionDiagnostic | null> {
+async function validateDeclaredFile(input: ValidateDeclaredFilesInput, relativePath: string) {
   const candidatePath = resolvePackageRelativePath(input.packagePath, relativePath)
   if (!candidatePath) {
     return {
@@ -63,7 +60,7 @@ async function validateDeclaredFile(
       code: 'package-path-invalid',
       message: `Declared ${input.label} escapes the extension package root.`,
       path: relativePath,
-    }
+    } satisfies ExtensionDiagnostic
   }
 
   try {
@@ -74,7 +71,7 @@ async function validateDeclaredFile(
         code: 'package-path-invalid',
         message: `Declared ${input.label} resolves outside the extension package root.`,
         path: relativePath,
-      }
+      } satisfies ExtensionDiagnostic
     }
 
     if (await fileExists(filePath)) {
@@ -85,7 +82,7 @@ async function validateDeclaredFile(
       code: input.missingCode,
       message: `Declared ${input.label} does not exist.`,
       path: filePath,
-    }
+    } satisfies ExtensionDiagnostic
   } catch (error) {
     return {
       severity: 'error',
@@ -94,7 +91,7 @@ async function validateDeclaredFile(
         ? `Declared ${input.label} does not exist.`
         : `Failed to inspect declared ${input.label}: ${formatErrorMessage(error)}`,
       path: candidatePath,
-    }
+    } satisfies ExtensionDiagnostic
   }
 }
 
@@ -123,10 +120,7 @@ function contentHashFileLabel(missingCode: ExtensionDiagnosticCode) {
     : OPENWAGGLE_EXTENSION.LABELS.BUILT_ARTIFACT
 }
 
-function contentHashFileInput(
-  relativePath: string,
-  missingCode: ExtensionDiagnosticCode,
-): ContentHashFileInput {
+function contentHashFileInput(relativePath: string, missingCode: ExtensionDiagnosticCode) {
   return {
     relativePath,
     label: contentHashFileLabel(missingCode),
@@ -167,13 +161,10 @@ function uniqueSortedHashFileInputs(files: readonly ContentHashFileInput[]) {
   )
 }
 
-async function readHashFile(
-  packagePath: string,
-  file: ContentHashFileInput,
-): Promise<HashFileReadResult> {
+async function readHashFile(packagePath: string, file: ContentHashFileInput) {
   const candidatePath = resolvePackageRelativePath(packagePath, file.relativePath)
   if (!candidatePath) {
-    return {
+    const result: HashFileReadResult = {
       ok: false,
       diagnostic: {
         severity: 'error',
@@ -182,12 +173,13 @@ async function readHashFile(
         path: file.relativePath,
       },
     }
+    return result
   }
 
   try {
     const filePath = await resolveSafePackageFilePath(packagePath, file.relativePath)
     if (!filePath) {
-      return {
+      const result: HashFileReadResult = {
         ok: false,
         diagnostic: {
           severity: 'error',
@@ -196,11 +188,13 @@ async function readHashFile(
           path: file.relativePath,
         },
       }
+      return result
     }
 
-    return { ok: true, file, content: await readFile(filePath) }
+    const result: HashFileReadResult = { ok: true, file, content: await readFile(filePath) }
+    return result
   } catch (error) {
-    return {
+    const result: HashFileReadResult = {
       ok: false,
       diagnostic: {
         severity: 'error',
@@ -209,6 +203,7 @@ async function readHashFile(
         path: candidatePath,
       },
     }
+    return result
   }
 }
 
@@ -216,7 +211,7 @@ export async function calculateContentHash(
   packagePath: string,
   rawManifest: string,
   input: ContentHashInput,
-): Promise<ContentHashResult> {
+) {
   const hash = createHash(OPENWAGGLE_EXTENSION.HASH.ALGORITHM)
   const diagnostics: ExtensionDiagnostic[] = []
   const { FIELD_SEPARATOR } = OPENWAGGLE_EXTENSION.HASH
@@ -243,17 +238,18 @@ export async function calculateContentHash(
   }
   await updateHashWithOptionalFiles(hash, packagePath, input.optionalFiles ?? [])
 
-  return {
+  const result: ContentHashResult = {
     contentHash: diagnostics.length === 0 ? hash.digest(OPENWAGGLE_EXTENSION.HASH.ENCODING) : null,
     diagnostics,
   }
+  return result
 }
 
 export async function calculateBuildPlanHash(
   packagePath: string,
   rawManifest: string,
   input: BuildPlanHashInput,
-): Promise<ContentHashResult> {
+) {
   const hash = createHash(OPENWAGGLE_EXTENSION.HASH.ALGORITHM)
   const diagnostics: ExtensionDiagnostic[] = []
   const { FIELD_SEPARATOR } = OPENWAGGLE_EXTENSION.HASH
@@ -292,8 +288,9 @@ export async function calculateBuildPlanHash(
     hash.update(FIELD_SEPARATOR)
   }
 
-  return {
+  const result: ContentHashResult = {
     contentHash: diagnostics.length === 0 ? hash.digest(OPENWAGGLE_EXTENSION.HASH.ENCODING) : null,
     diagnostics,
   }
+  return result
 }

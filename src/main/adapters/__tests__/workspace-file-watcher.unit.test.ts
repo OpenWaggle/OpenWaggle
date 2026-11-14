@@ -1,5 +1,4 @@
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 interface WatcherMockInstance {
@@ -14,12 +13,10 @@ interface WatcherMocks {
   watch: ReturnType<typeof vi.fn>
 }
 
-const watcherMocks = vi.hoisted(
-  (): WatcherMocks => ({
-    instances: [],
-    watch: vi.fn(),
-  }),
-)
+const watcherMocks = vi.hoisted<WatcherMocks>(() => ({
+  instances: [],
+  watch: vi.fn(),
+}))
 
 watcherMocks.watch.mockImplementation(() => {
   type Listener = ((...args: unknown[]) => void) & { original?: (...args: unknown[]) => void }
@@ -76,6 +73,7 @@ vi.mock('../filesystem-workspace-file-service', () => ({
   invalidateWorkspaceFileIndex: vi.fn(),
 }))
 
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 import {
   setWorkspaceWatcherPlatformForTests,
   unwatchWorkspaceFiles,
@@ -95,8 +93,8 @@ async function watcherAt(index: number) {
   return watcher
 }
 
-function webContents(id: number): WebContents {
-  return fromPartial<WebContents>({
+function webContents(id: number) {
+  return fromPartial<RendererSurface>({
     id,
     isDestroyed: () => false,
     once: vi.fn(),

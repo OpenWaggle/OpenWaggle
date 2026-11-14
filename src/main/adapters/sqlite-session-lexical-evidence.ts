@@ -49,9 +49,9 @@ function lexicalDiscoverySnippet(value: string, queryTerms: readonly string[]) {
 export function decorateLexicalDiscoveryRows(
   rows: readonly LexicalDiscoverySearchRow[],
   exactQuery: string,
-): readonly DiscoverySearchRow[] {
+) {
   let preparedQuery: ReturnType<typeof prepareLexicalDiscoveryQuery> | undefined
-  return rows.map((row): DiscoverySearchRow => {
+  return rows.map((row) => {
     const matchedFields = row.matched_fields.split(',')
     if (!matchedFields.includes('discovery')) return row
     preparedQuery ??= prepareLexicalDiscoveryQuery(exactQuery)

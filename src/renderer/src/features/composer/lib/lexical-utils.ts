@@ -11,7 +11,7 @@ import { $createWaggleMentionNode } from '../components/nodes/WaggleMentionNode'
 /**
  * Replace all editor content with the given text and move cursor to end.
  */
-export function setEditorText(editor: LexicalEditor, text: string): void {
+export function setEditorText(editor: LexicalEditor, text: string) {
   setEditorDraft(editor, text, null)
 }
 
@@ -30,7 +30,7 @@ export function setEditorDraft(
   text: string,
   wagglePreset: WagglePreset | null,
   { scrollIntoView = true }: SetEditorDraftOptions = {},
-): void {
+) {
   editor.update(
     () => {
       const root = $getRoot()
@@ -54,6 +54,6 @@ export function setEditorDraft(
 /**
  * Clear all editor content.
  */
-export function clearEditor(editor: LexicalEditor): void {
+export function clearEditor(editor: LexicalEditor) {
   setEditorText(editor, '')
 }

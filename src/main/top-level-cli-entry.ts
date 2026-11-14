@@ -1,7 +1,7 @@
 import { match, matchBy } from '@diegogbrisa/ts-match'
-import { app } from 'electron'
 import { startAppCliIfRequested } from './app-cli-entry'
 import { writeCliStdout, writeWritableChunk } from './cli-stdout'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { env } from './env'
 import { SESSION_CLI_EXIT } from './session-cli-exit-status'
 import { configureAppStoragePaths } from './session-data'
@@ -54,12 +54,12 @@ function startCommand(command: TopLevelCliCommand, argv: readonly string[]) {
     await exitAfterCliOutput(SESSION_CLI_EXIT.FAILURE)
   }
   try {
-    configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+    configureAppStoragePaths(env.OPENWAGGLE_USER_DATA_DIR)
   } catch (error) {
     void fail(error)
     return
   }
-  void app
+  void appLifecycle
     .whenReady()
     .then(() => runCommand(command, argv))
     .then(exitAfterCliOutput)
@@ -72,30 +72,36 @@ function startCommand(command: TopLevelCliCommand, argv: readonly string[]) {
  */
 export function startTopLevelCli(
   argv: readonly string[],
-  environment: TopLevelCliEnvironment = nodeTopLevelCliEnvironment(app.isPackaged),
+  environment: TopLevelCliEnvironment = nodeTopLevelCliEnvironment(appLifecycle.isPackaged()),
   platform: NodeJS.Platform = process.platform,
-): TopLevelCliLaunch {
+) {
   const route = routeTopLevelCli(argv, environment)
   if (route.kind !== 'gui' && route.kind !== 'open-project' && route.kind !== 'open-session-link') {
     hideCliFromDock(platform)
     ignoreCliOutputStreamErrors()
   }
   const handled = { kind: 'handled' } as const
-  return matchBy(route, 'kind')
-    .with('gui', (): TopLevelCliLaunch => ({ kind: 'gui' }))
-    .with(
-      'open-project',
-      (route): TopLevelCliLaunch => ({
+  const launch: TopLevelCliLaunch = matchBy(route, 'kind')
+    .with('gui', () => {
+      const launch: TopLevelCliLaunch = { kind: 'gui' }
+      return launch
+    })
+    .with('open-project', (route) => {
+      const launch: TopLevelCliLaunch = {
         kind: 'gui',
         openProjectPath: route.projectPath,
-      }),
-    )
-    .with(
-      'open-session-link',
-      (route): TopLevelCliLaunch => ({ kind: 'gui', openSessionLink: route.link }),
-    )
+      }
+      return launch
+    })
+    .with('open-session-link', (route) => {
+      const launch: TopLevelCliLaunch = {
+        kind: 'gui',
+        openSessionLink: route.link,
+      }
+      return launch
+    })
     .with('help', 'version', 'usage-error', (route) => {
-      const answer = topLevelCliAnswer(route, app.getVersion())
+      const answer = topLevelCliAnswer(route, appLifecycle.version())
       if (answer) {
         writeAndExit(
           () =>
@@ -119,4 +125,5 @@ export function startTopLevelCli(
       return handled
     })
     .exhaustive()
+  return launch
 }

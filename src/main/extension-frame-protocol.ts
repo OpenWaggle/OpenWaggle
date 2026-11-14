@@ -1,4 +1,3 @@
-import { is } from '@electron-toolkit/utils'
 import {
   OPENWAGGLE_EXTENSION_FRAME_PROTOCOL,
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
@@ -7,10 +6,10 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { isNetworkOrigin } from '@shared/schemas/extension-network-origin'
 import type {
   ExtensionFrameRegisterInput,
-  ExtensionFrameRegisterResult,
   ExtensionFrameUnregisterInput,
 } from '@shared/types/extension-frame'
-import { protocol } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { env } from './env'
 import extensionFrameCss from './extension-frame-assets/extension-frame.css.raw?raw'
 import extensionFrameHtml from './extension-frame-assets/extension-frame.html?raw'
@@ -46,7 +45,11 @@ function notFoundResponse() {
   return new Response(null, { status: HTTP_NOT_FOUND_STATUS })
 }
 
-function textResponse(content: string, contentType: string, headers?: HeadersInit) {
+function textResponse(
+  content: string,
+  contentType: string,
+  headers?: Readonly<Record<string, string>>,
+) {
   return new Response(content, {
     headers: {
       ...headers,
@@ -73,7 +76,7 @@ function cspSourceForUrl(url: string) {
   return parsedUrl.protocol
 }
 
-function devConnectSourcesForBootstrap(url: string): readonly string[] {
+function devConnectSourcesForBootstrap(url: string) {
   const parsedUrl = new URL(url)
   if (
     (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') ||
@@ -97,7 +100,7 @@ function frameContentSecurityPolicy(frame: RegisteredExtensionFrame) {
     bootstrapSource,
     EXTENSION_RUNTIME_SCRIPT_SOURCE,
   ] as const
-  const directives: Array<readonly [string, readonly string[]]> = [
+  const directives: (readonly [string, readonly string[]])[] = [
     ['default-src', ["'none'"]],
     ['script-src', scriptSources],
     ['script-src-elem', scriptSources],
@@ -190,7 +193,7 @@ function normalizedNetworkOrigins(origins: readonly string[] | undefined) {
 }
 
 function devRendererOrigin() {
-  if (!is.dev || !env.ELECTRON_RENDERER_URL) {
+  if (appLifecycle.isPackaged() || !env.ELECTRON_RENDERER_URL) {
     return null
   }
 
@@ -243,9 +246,7 @@ function nextRegistrationId() {
   return `frame-registration-${String(registrationSequence)}`
 }
 
-export function registerExtensionFrame(
-  input: ExtensionFrameRegisterInput,
-): ExtensionFrameRegisterResult {
+export function registerExtensionFrame(input: ExtensionFrameRegisterInput) {
   const registration = validateRegistration(input)
   const registrationId = nextRegistrationId()
   registeredFrames.set(registration.frameId, {
@@ -257,7 +258,7 @@ export function registerExtensionFrame(
   return { frameUrl: extensionFrameUrl(registration.frameId), registrationId }
 }
 
-export function unregisterExtensionFrame(input: ExtensionFrameUnregisterInput): void {
+export function unregisterExtensionFrame(input: ExtensionFrameUnregisterInput) {
   const registration = registeredFrames.get(input.frameId)
   if (registration?.registrationId !== input.registrationId) {
     return
@@ -272,7 +273,7 @@ export function registerExtensionFrameProtocolOnce() {
   }
 
   extensionFrameProtocolRegistered = true
-  protocol.handle(OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME, (request) => {
+  trustedOrigins.serve('extension-frame', (request) => {
     try {
       const parsedRequest = parseFrameRequest(request.url)
       if (parsedRequest === null) {

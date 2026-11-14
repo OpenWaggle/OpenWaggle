@@ -80,7 +80,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
   it('moves the held sent turn to the persisted copy of its message', () => {
     const { viewport, controller } = reservedTurn('optimistic')
 
-    const swapped: Array<[string, number]> = [...rows(10), ['persisted', 60], ['reply', 100]]
+    const swapped: [string, number][] = [...rows(10), ['persisted', 60], ['reply', 100]]
     viewport.setRows(swapped)
     controller.syncRows(rowIndex(keysOf(swapped), { users: ['persisted'] }))
     controller.applyLayout()
@@ -93,7 +93,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     const { viewport, controller, scrollUp } = reservedTurn('optimistic')
     scrollUp(150)
 
-    const swapped: Array<[string, number]> = [...rows(10), ['persisted', 60], ['reply', 100]]
+    const swapped: [string, number][] = [...rows(10), ['persisted', 60], ['reply', 100]]
     viewport.setRows(swapped)
     controller.syncRows(rowIndex(keysOf(swapped), { users: ['persisted'] }))
     controller.applyLayout()
@@ -106,7 +106,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     const { viewport, controller } = reservedTurn('optimistic')
 
     // The run completes with a steer inside the turn: the steer is now the latest user message.
-    const swapped: Array<[string, number]> = [
+    const swapped: [string, number][] = [
       ...rows(10),
       ['persisted', 60],
       ['reply', 100],
@@ -121,7 +121,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
   })
 
   it('does not hold the previous message when the sent one is withdrawn', () => {
-    const list: Array<[string, number]> = [
+    const list: [string, number][] = [
       ['u1', 60],
       ['a1', 900],
       ['sent', 60],
@@ -131,7 +131,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     controller.anchorNewTurn('sent', 'a1')
 
     // A refused or queued send removes its optimistic row; the previous turn is all that is left.
-    const withdrawn: Array<[string, number]> = [
+    const withdrawn: [string, number][] = [
       ['u1', 60],
       ['a1', 900],
     ]
@@ -146,7 +146,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
   })
 
   it('pairs the persisted copy after the row before it was re-keyed during the turn', () => {
-    const list: Array<[string, number]> = [
+    const list: [string, number][] = [
       ['u1', 60],
       ['a-stream', 100],
       ['sent', 60],
@@ -156,7 +156,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     controller.anchorNewTurn('sent', 'a-stream')
 
     // The previous run's snapshot refresh re-keys its answer while the sent message is held.
-    const refreshed: Array<[string, number]> = [
+    const refreshed: [string, number][] = [
       ['u1', 60],
       ['a-persisted', 100],
       ['sent', 60],
@@ -164,7 +164,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     viewport.setRows(refreshed)
     controller.syncRows(rowIndex(keysOf(refreshed), { users: ['u1', 'sent'] }))
 
-    const swapped: Array<[string, number]> = [
+    const swapped: [string, number][] = [
       ['u1', 60],
       ['a-persisted', 100],
       ['sent-p', 60],
@@ -180,12 +180,7 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
   it('keeps holding the sent message when a steer arrives inside its turn', () => {
     const { viewport, controller } = reservedTurn()
 
-    const steered: Array<[string, number]> = [
-      ...rows(10),
-      ['sent', 60],
-      ['reply', 100],
-      ['steer', 40],
-    ]
+    const steered: [string, number][] = [...rows(10), ['sent', 60], ['reply', 100], ['steer', 40]]
     viewport.setRows(steered)
     controller.syncRows(rowIndex(keysOf(steered), { users: ['sent', 'steer'] }))
     controller.applyLayout()

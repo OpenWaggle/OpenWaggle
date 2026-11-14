@@ -58,19 +58,16 @@ export interface RetireResult {
  * Retires published entries: each is deleted, and only when the delete fails is a tombstone
  * written, so the next flush skips the entry instead of sending it again.
  */
-export async function retireEntries(
-  store: KeyValueStore,
-  day: string,
-  keys: readonly string[],
-): Promise<RetireResult> {
+export async function retireEntries(store: KeyValueStore, day: string, keys: readonly string[]) {
   const expiration = bufferExpiration(day)
   const results = await inKvBatches(keys, async (key) => {
     if (await attempt(() => store.delete(key))) return { deleted: true, retired: true }
     const tombstoned = await attempt(() => store.put(flushedKey(key), '1', { expiration }))
     return { deleted: false, retired: tombstoned }
   })
-  return {
+  const result: RetireResult = {
     undeleted: results.filter(({ deleted }) => !deleted).length,
     unretired: results.filter(({ retired }) => !retired).length,
   }
+  return result
 }

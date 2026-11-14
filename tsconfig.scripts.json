@@ -1,0 +1,42 @@
+{
+  /*
+   * Repository scripts, the project's Pi extensions and the two build configs, checked under the
+   * strictness flags in tsconfig.package.base.json. The src/main, src/shared and package modules
+   * they import are read as tsconfig.node.json's declarations.
+   */
+  "extends": "./tsconfig.package.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "./.typecheck/scripts",
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "rewriteRelativeImportExtensions": true,
+    "types": ["node"],
+    "rootDir": ".",
+    "paths": {
+      "@shared/*": ["./src/shared/*"],
+      "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
+      "@openwaggle/extension-sdk/*": ["./packages/extension-sdk/src/*"],
+      "@openwaggle/extension-react": ["./packages/extension-react/src/index.tsx"],
+      "@openwaggle/pi-waggle": ["./packages/pi-waggle/src/index.ts"],
+      "@openwaggle/pi-waggle/*": ["./packages/pi-waggle/src/*"],
+      "@openwaggle/waggle-core": ["./packages/waggle-core/src/index.ts"],
+      "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"]
+    }
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "scripts/mcp-conformance-client.mts",
+    ".pi/extensions/**/*.ts",
+    "electron.vite.config.ts",
+    "electron-builder.ts"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

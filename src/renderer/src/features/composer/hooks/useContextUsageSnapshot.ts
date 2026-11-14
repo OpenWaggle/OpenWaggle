@@ -33,7 +33,7 @@ export function useContextUsageSnapshot({
   })
 
   useEffect(() => {
-    if (!activeSessionId || !selectedModel || typeof api.getContextUsage !== 'function') return
+    if (!activeSessionId || !selectedModel) return
 
     let cancelled = false
     let receivedLiveUpdate = false

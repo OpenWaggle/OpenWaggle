@@ -30,7 +30,7 @@ import { runRequestedWaggleWith } from '../agent-requested-waggle-adapter'
 const SESSION_ID = SessionId('agent-handoff-session')
 const MODEL = SupportedModelId('openai/gpt-5.4')
 
-function handoffMessage(): Message {
+function handoffMessage() {
   const preset = BUILT_IN_WAGGLE_PRESETS[0]
   if (!preset) throw new Error('Expected a built-in Waggle preset')
   return {
@@ -58,7 +58,7 @@ function handoffMessage(): Message {
         },
       },
     ],
-  }
+  } satisfies Message
 }
 
 function input(messages: readonly Message[] = [handoffMessage()]) {

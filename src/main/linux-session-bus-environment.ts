@@ -11,8 +11,14 @@ export interface LinuxSessionBusEnvironmentInput {
   readonly exists: (path: string) => boolean
 }
 
+/** The session bus variables of the environment map being filled. */
+interface SessionBusEnvironment {
+  DBUS_SESSION_BUS_ADDRESS?: string
+  readonly XDG_RUNTIME_DIR?: string
+}
+
 export function fillLinuxSessionBusAddress(
-  env: Record<string, string | undefined>,
+  env: SessionBusEnvironment,
   input: LinuxSessionBusEnvironmentInput,
 ) {
   if (input.platform !== 'linux' || env.DBUS_SESSION_BUS_ADDRESS?.trim()) return

@@ -6,7 +6,7 @@ import type {
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type { IpcInvokeArgs } from '@shared/types/ipc'
 import type * as Effect from 'effect/Effect'
-import type { IpcMainInvokeEvent } from 'electron'
+import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
 import type { AppServices } from '../../runtime'
 
 export interface LegacyHostOperationDependencies {
@@ -19,7 +19,7 @@ export interface LegacyHostOperationDependencies {
 }
 
 export type LegacyHostOperation<C extends HostBackedGuiChannel> = (
-  event: IpcMainInvokeEvent,
+  event: IpcInvocation,
   ...args: IpcInvokeArgs<C>
 ) => Effect.Effect<unknown, unknown, AppServices>
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
-import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from '@shared/types/turn-diff'
+import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
 import {
   parseTurnDiffFilesFromUnifiedDiff,
   sumDeletions,
@@ -35,7 +35,7 @@ export interface RecordTurnCheckpointInput {
 }
 
 /** Persist a per-turn worktree checkpoint (diff blob) for a session. */
-export async function recordTurnCheckpoint(input: RecordTurnCheckpointInput): Promise<void> {
+export async function recordTurnCheckpoint(input: RecordTurnCheckpointInput) {
   const files = parseTurnDiffFilesFromUnifiedDiff(input.diff)
   const insertions = sumInsertions(files)
   const deletions = sumDeletions(files)
@@ -67,7 +67,7 @@ export async function setTurnCheckpointAnchor(
   sessionId: SessionId,
   turnId: string,
   anchorNodeId: string,
-): Promise<void> {
+) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -81,7 +81,7 @@ export async function setTurnCheckpointAnchor(
 }
 
 /** The snapshot ref of the most recent checkpoint for a session, if any. */
-export async function getLatestSnapshotRef(sessionId: SessionId): Promise<string | null> {
+export async function getLatestSnapshotRef(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -98,7 +98,7 @@ export async function getLatestSnapshotRef(sessionId: SessionId): Promise<string
 }
 
 /** List checkpoint summaries for a session ordered by turn index. */
-export async function listTurnCheckpoints(sessionId: SessionId): Promise<TurnCheckpointSummary[]> {
+export async function listTurnCheckpoints(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -122,7 +122,7 @@ export async function listTurnCheckpoints(sessionId: SessionId): Promise<TurnChe
 }
 
 /** Compute the Turn diff for a specific turn from its persisted checkpoint. */
-export async function getTurnDiff(sessionId: SessionId, turnId: string): Promise<TurnDiff | null> {
+export async function getTurnDiff(sessionId: SessionId, turnId: string) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -147,10 +147,7 @@ export async function getTurnDiff(sessionId: SessionId, turnId: string): Promise
 }
 
 /** File summaries for a turn without shipping the whole diff blob across IPC. */
-export async function getTurnDiffFiles(
-  sessionId: SessionId,
-  turnId: string,
-): Promise<readonly TurnDiffFileSummary[]> {
+export async function getTurnDiffFiles(sessionId: SessionId, turnId: string) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -177,10 +174,7 @@ const TURN_DIFF_FILE_PAGE = 25
  * (generated files), so the diffs are selected a page at a time and parsed with the event loop
  * running between slices, never all 500 in one synchronous stretch.
  */
-export async function listTurnDiffFiles(
-  sessionId: SessionId,
-  turnIds: readonly string[],
-): Promise<Readonly<Record<string, readonly TurnDiffFileSummary[]>>> {
+export async function listTurnDiffFiles(sessionId: SessionId, turnIds: readonly string[]) {
   const unique = [...new Set(turnIds)].slice(0, MAX_TURN_DIFF_FILE_BATCH)
   const filesByTurnId: Record<string, readonly TurnDiffFileSummary[]> = {}
   for (const turnId of unique) filesByTurnId[turnId] = []
@@ -206,10 +200,7 @@ export async function listTurnDiffFiles(
 }
 
 /** Retention: keep only the most recent `maxCheckpoints` turns for a session. Returns pruned turn ids. */
-export async function pruneTurnCheckpoints(
-  sessionId: SessionId,
-  maxCheckpoints: number,
-): Promise<readonly string[]> {
+export async function pruneTurnCheckpoints(sessionId: SessionId, maxCheckpoints: number) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -240,9 +231,7 @@ export async function pruneTurnCheckpoints(
 }
 
 /** Retention: drop all checkpoints for a session (e.g. on session delete). Returns removed turn ids. */
-export async function deleteTurnCheckpointsForSession(
-  sessionId: SessionId,
-): Promise<readonly string[]> {
+export async function deleteTurnCheckpointsForSession(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

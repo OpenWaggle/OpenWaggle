@@ -100,7 +100,7 @@ export async function readProcessMetadata(
   timeoutMs = TERMINAL_SPAWN_PROCESS_METADATA_MS,
   expectedStartedAt?: string,
   expectedTtyIdentity?: string,
-): Promise<TerminalProcessMetadata | null> {
+) {
   if (!Number.isInteger(pid) || pid <= 0) return null
   // ConPTY is closed through its native handle, not a numeric root PID. Avoid
   // starting a cold PowerShell process for metadata that POSIX alone needs.
@@ -128,7 +128,7 @@ export async function readProcessMetadata(
     startedAt: after.info.startedAt,
     tty,
     ttyIdentity: after.info.ttyIdentity,
-  }
+  } satisfies TerminalProcessMetadata
 }
 
 function matchesExpectedProcess(
@@ -143,10 +143,7 @@ function matchesExpectedProcess(
   )
 }
 
-export function parsePosixProcessMetadataRow(
-  pid: number,
-  output: string,
-): TerminalProcessMetadata | null {
+export function parsePosixProcessMetadataRow(pid: number, output: string) {
   const columns = output.trim().split(/\s+/)
   if (columns.length !== POSIX_PROCESS_METADATA_COLUMNS) return null
   const [ttyField, ...startedAtFields] = columns
@@ -215,8 +212,13 @@ function terminalProcessPids(target: ProcessTableTarget, output: string) {
   return [...processPids]
 }
 
-function emptyTerminalSession(): TerminalProcessCommandResult {
-  return { ok: true, output: '', errorOutput: '', exitCode: null }
+function emptyTerminalSession() {
+  return {
+    ok: true,
+    output: '',
+    errorOutput: '',
+    exitCode: null,
+  } satisfies TerminalProcessCommandResult
 }
 
 async function readPosixTerminalTty(target: ProcessTableTarget, options: ProcessProbeOptions) {
@@ -258,7 +260,7 @@ function parsePosixProcessTable(output: string) {
   return rows
 }
 
-export function parsePosixRow(line: string): ProcessRow | null {
+export function parsePosixRow(line: string) {
   const trimmed = line.trim()
   if (trimmed.length === 0) return null
   const columns = trimmed.split(/\s+/)
@@ -290,7 +292,7 @@ export function parsePosixRow(line: string): ProcessRow | null {
     zombie: stateField?.startsWith('Z') ?? false,
     startedAt,
     name: basename(name),
-  }
+  } satisfies ProcessRow
 }
 
 function basename(command: string) {

@@ -1,9 +1,5 @@
 import type { ActionCatalog } from '@shared/types/action-definitions'
-import type {
-  PreparationExecution,
-  WorkspacePreparation,
-  WorkspacePreparationSnapshot,
-} from '@shared/types/workspace-preparation'
+import type { PreparationExecution } from '@shared/types/workspace-preparation'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
 
 export const EMPTY_PREPARATION_EXECUTION: PreparationExecution = {
@@ -16,12 +12,10 @@ export const EMPTY_PREPARATION_EXECUTION: PreparationExecution = {
   output: '',
   truncated: false,
 }
-export function capturePreparationSnapshot(
-  catalog: ActionCatalog,
-  profileId?: string,
-): WorkspacePreparationSnapshot {
-  if (!profileId && catalog.profiles.length > 1)
+export function capturePreparationSnapshot(catalog: ActionCatalog, profileId?: string) {
+  if (!profileId && catalog.profiles.length > 1) {
     throw new Error('Choose a Preparation profile for this Workspace before continuing.')
+  }
   const profile = catalog.profiles.find(
     ({ definition }) => definition.id === (profileId ?? 'default'),
   )?.definition
@@ -38,7 +32,7 @@ export function preparationProjection(
   state: StoredWorkspacePreparation,
   catalog: ActionCatalog | null,
   catalogError?: string,
-): WorkspacePreparation {
+) {
   const current = catalog?.profiles.find(
     ({ definition }) => definition.id === state.snapshot.profile.id,
   )?.definition
@@ -63,6 +57,7 @@ export function requirePreparationRevision(
   state: StoredWorkspacePreparation | null,
   expected: number,
 ) {
-  if ((state?.revision ?? 0) !== expected)
+  if ((state?.revision ?? 0) !== expected) {
     throw new Error('Workspace preparation changed. Reload before continuing.')
+  }
 }

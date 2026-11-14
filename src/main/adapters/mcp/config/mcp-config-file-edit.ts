@@ -19,6 +19,7 @@ import {
 import path from 'node:path'
 import { applyEdits, type FormattingOptions, type JSONPath, modify } from 'jsonc-parser'
 import { isJsonRecord } from '../../../domain/mcp/config/mcp-server-config'
+import { writtenMcpServers } from '../mcp-config-server-maps'
 import { danglingMcpFileLink } from './mcp-config-files'
 import { duplicateMcpConfigKeys, duplicateMcpKeyMessage } from './mcp-duplicate-servers'
 import { mcpFileWriteTarget } from './mcp-file-write-target'
@@ -30,26 +31,26 @@ const NEW_FILE_MODE = 0o600
 /** `st_mode` modulo this is the permission bits. */
 const PERMISSION_MODULUS = 0o1000
 
-function parseFile(filePath: string, text: string | undefined): JsonRecord {
-  const parsed: unknown = text === undefined || !text.trim() ? {} : JSON.parse(text)
-  if (
-    !isJsonRecord(parsed) ||
-    (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))
-  ) {
+/** The file's `mcpServers`, undefined when it has none. */
+function parseFile(filePath: string, text: string | undefined) {
+  const parsed: unknown = !text?.trim() ? {} : JSON.parse(text)
+  const servers = writtenMcpServers(parsed)
+  if (!isJsonRecord(parsed) || (servers !== undefined && !isJsonRecord(servers))) {
     throw new Error(`${filePath}: expected an object with an "mcpServers" object`)
   }
-  return parsed
+  return servers
 }
 
 /** Inserted values follow the file's layout; a one-line file gets one-line values. */
-function formattingOf(text: string): FormattingOptions | undefined {
+function formattingOf(text: string) {
   if (!text.trim().includes('\n')) return undefined
   const indent = /^([ \t]+)\S/m.exec(text)?.[1] ?? DEFAULT_INDENT
-  return {
+  const options: FormattingOptions | undefined = {
     insertSpaces: !indent.includes('\t'),
     tabSize: indent.includes('\t') ? 1 : indent.length,
     eol: text.includes('\r\n') ? '\r\n' : '\n',
   }
+  return options
 }
 
 function same(left: unknown, right: unknown) {
@@ -68,8 +69,9 @@ function serverChanges(before: JsonRecord, after: JsonRecord) {
       continue
     }
     for (const key of new Set([...Object.keys(old), ...Object.keys(next)])) {
-      if (!same(old[key], next[key]))
+      if (!same(old[key], next[key])) {
         changes.push({ path: ['mcpServers', name, key], value: next[key] })
+      }
     }
   }
   return changes
@@ -81,7 +83,10 @@ function editedText(text: string, before: JsonRecord | undefined, after: JsonRec
   const changes = before ? serverChanges(before, after) : [{ path: ['mcpServers'], value: after }]
   return changes.reduce(
     (current, change) =>
-      applyEdits(current, modify(current, change.path, change.value, { formattingOptions })),
+      applyEdits(
+        current,
+        modify(current, change.path, change.value, formattingOptions ? { formattingOptions } : {}),
+      ),
     text,
   )
 }
@@ -117,8 +122,7 @@ export function editMcpServers(filePath: string, edit: (servers: JsonRecord) => 
   const text = exists ? readFileSync(filePath, 'utf8') : undefined
   const [duplicate] = text ? duplicateMcpConfigKeys(text) : []
   if (duplicate !== undefined) throw new Error(duplicateMcpKeyMessage(filePath, duplicate))
-  const parsed = parseFile(filePath, text)
-  const before = isJsonRecord(parsed.mcpServers) ? parsed.mcpServers : undefined
+  const before = parseFile(filePath, text)
   const servers: JsonRecord = before ? structuredClone(before) : {}
   if (!edit(servers)) return false
   writeAtomically(filePath, editedText(text ?? '', before, servers))

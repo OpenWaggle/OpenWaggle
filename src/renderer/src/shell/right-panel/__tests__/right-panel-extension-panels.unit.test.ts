@@ -10,8 +10,8 @@ function sidePanel(
   id: string,
   overrides: Partial<ExtensionContributionRegistryEntry> = {},
   eligibility: Partial<ExtensionContributionRegistryEntry['eligibility']> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'linear',
     extensionName: 'Linear Sync',
     extensionVersion: '1.0.0',
@@ -44,6 +44,7 @@ function sidePanel(
     diagnostics: [],
     ...overrides,
   }
+  return entry
 }
 
 function list(entries: readonly ExtensionContributionRegistryEntry[]) {

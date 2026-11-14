@@ -15,17 +15,13 @@ import {
 } from './constants'
 import type { CreateSessionInput } from './types'
 
-function buildNewSessionDetail(
-  input: CreateSessionInput,
-  id: SessionId,
-  now: number,
-): SessionDetail {
-  return {
+function buildNewSessionDetail(input: CreateSessionInput, id: SessionId, now: number) {
+  const detail: SessionDetail = {
     id,
     title: DEFAULT_SESSION_TITLE,
     projectPath: input.projectPath,
     piSessionId: input.piSessionId,
-    piSessionFile: input.piSessionFile,
+    ...(input.piSessionFile === undefined ? {} : { piSessionFile: input.piSessionFile }),
     messages: [],
     createdAt: now,
     updatedAt: now,
@@ -38,6 +34,7 @@ function buildNewSessionDetail(
       ? {}
       : { authorizationMode: input.authorizationMode }),
   }
+  return detail
 }
 
 function insertSessionRow(input: {
@@ -113,7 +110,7 @@ export function copySessionMcpSwitch(
   `
 }
 
-export async function createSession(input: CreateSessionInput): Promise<SessionDetail> {
+export async function createSession(input: CreateSessionInput) {
   const now = Date.now()
   const id = SessionId(input.piSessionId)
   const sessionId = SessionId(String(id))

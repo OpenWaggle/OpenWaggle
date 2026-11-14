@@ -32,7 +32,7 @@ export type FollowUpPromotionPlan =
       readonly currentRunId?: RunId
     }
 
-export function planFollowUpPromotion(input: FollowUpPromotionInput): FollowUpPromotionPlan {
+export function planFollowUpPromotion(input: FollowUpPromotionInput) {
   const steering = planSteeringMessage({
     requestedRunId: input.requestedRunId,
     run: input.run,
@@ -40,10 +40,10 @@ export function planFollowUpPromotion(input: FollowUpPromotionInput): FollowUpPr
   if (!steering.accepted) return steering
 
   if (!input.followUpQueue.items.includes(input.followUpId)) {
-    return { accepted: false, code: 'follow_up_not_found' }
+    return { accepted: false, code: 'follow_up_not_found' } satisfies FollowUpPromotionPlan
   }
   if (input.followUpQueue.heldItems?.includes(input.followUpId)) {
-    return { accepted: false, code: 'follow_up_edit_held' }
+    return { accepted: false, code: 'follow_up_edit_held' } satisfies FollowUpPromotionPlan
   }
 
   return {
@@ -52,14 +52,14 @@ export function planFollowUpPromotion(input: FollowUpPromotionInput): FollowUpPr
     runId: steering.runId,
     followUpId: input.followUpId,
     removal: 'after-steering-accepted',
-  }
+  } satisfies FollowUpPromotionPlan
 }
 
 export function applyAcceptedFollowUpPromotion(
   state: SessionControlSessionState,
   expectedRunId: RunId,
   followUpId: FollowUpId,
-): SessionControlSessionState {
+) {
   if (
     (state.run.state !== 'active' && state.run.state !== 'stopping') ||
     state.run.runId !== expectedRunId

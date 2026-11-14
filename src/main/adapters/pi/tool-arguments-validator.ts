@@ -9,9 +9,7 @@ export type ToolArgumentsValidator = (arguments_: unknown) => readonly string[]
  * Compiles `schema` so arguments can be checked against it exactly. Returns the compile error
  * instead of a validator when the schema uses something the validator cannot evaluate.
  */
-export function compileToolArgumentsValidator(
-  schema: JsonSchemaObject,
-): { readonly validate: ToolArgumentsValidator } | { readonly error: string } {
+export function compileToolArgumentsValidator(schema: JsonSchemaObject) {
   try {
     const validator = Compile(schema)
     return {
@@ -29,8 +27,10 @@ export function compileToolArgumentsValidator(
           ]
         }
       },
-    }
+    } satisfies { readonly validate: ToolArgumentsValidator } | { readonly error: string }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    return { error: error instanceof Error ? error.message : String(error) } satisfies
+      | { readonly validate: ToolArgumentsValidator }
+      | { readonly error: string }
   }
 }

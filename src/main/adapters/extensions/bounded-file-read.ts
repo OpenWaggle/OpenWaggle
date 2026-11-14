@@ -20,15 +20,12 @@ function openFlags() {
  * and the read stops after `maxBytes + 1` bytes, so a file that is swapped or grows after the
  * check can never be read beyond the bound.
  */
-export async function readBoundedFile(
-  filePath: string,
-  maxBytes: number,
-): Promise<BoundedFileRead> {
+export async function readBoundedFile(filePath: string, maxBytes: number) {
   const handle = await open(filePath, openFlags())
   try {
     const fileStat = await handle.stat()
-    if (!fileStat.isFile()) return { kind: 'not-file' }
-    if (fileStat.size > maxBytes) return { kind: 'oversized' }
+    if (!fileStat.isFile()) return { kind: 'not-file' } satisfies BoundedFileRead
+    if (fileStat.size > maxBytes) return { kind: 'oversized' } satisfies BoundedFileRead
 
     const buffer = Buffer.alloc(maxBytes + 1)
     let length = 0
@@ -37,9 +34,11 @@ export async function readBoundedFile(
       if (bytesRead === 0) break
       length += bytesRead
     }
-    return length > maxBytes
-      ? { kind: 'oversized' }
-      : { kind: 'file', content: buffer.subarray(0, length) }
+    return (
+      length > maxBytes
+        ? { kind: 'oversized' }
+        : { kind: 'file', content: buffer.subarray(0, length) }
+    ) satisfies BoundedFileRead
   } finally {
     await handle.close()
   }

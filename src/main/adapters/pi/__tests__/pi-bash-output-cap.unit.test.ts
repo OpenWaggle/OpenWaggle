@@ -28,8 +28,10 @@ async function runBash(command: string) {
   )
   const text = result.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
   const fullOutputPath: unknown =
-    typeof result.details === 'object' && result.details !== null
-      ? Reflect.get(result.details, 'fullOutputPath')
+    typeof result.details === 'object' &&
+    result.details !== null &&
+    'fullOutputPath' in result.details
+      ? result.details.fullOutputPath
       : undefined
   if (typeof fullOutputPath === 'string') {
     onTestFinished(() => rmSync(fullOutputPath, { force: true }))

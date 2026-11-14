@@ -67,14 +67,14 @@ async function relayUnlessCredentialsExpired(
   attempt: AssistantMessageEventStream,
   target: AssistantMessageEventStream,
   onRejectedCredentials: (error: AssistantMessage) => void,
-): Promise<FirstAttempt> {
+) {
   let relayed = false
   let terminal: AssistantMessage | undefined
   for await (const event of attempt) {
     if (!relayed && event.type === 'error' && event.reason === 'error') {
       const message = event.error.errorMessage ?? ''
       if (isExpiredCredentialMessage(message)) {
-        return { kind: 'expired-credentials', error: event.error }
+        return { kind: 'expired-credentials', error: event.error } satisfies FirstAttempt
       }
       if (isRejectedCredentialMessage(message)) onRejectedCredentials(event.error)
     }
@@ -83,7 +83,7 @@ async function relayUnlessCredentialsExpired(
     target.push(event)
   }
   target.end(terminal ?? (await settledResult(attempt)))
-  return { kind: 'relayed' }
+  return { kind: 'relayed' } satisfies FirstAttempt
 }
 
 /**
@@ -137,8 +137,8 @@ async function relay(
 type ModelIdentity = Pick<Model<Api>, 'api' | 'provider' | 'id'>
 
 /** The error a Run sees when relaying itself failed, so a caller awaiting the result never hangs. */
-function relayFailure(model: ModelIdentity, error: unknown): AssistantMessageEvent {
-  return {
+function relayFailure(model: ModelIdentity, error: unknown) {
+  const event: AssistantMessageEvent = {
     type: 'error',
     reason: 'error',
     error: {
@@ -160,10 +160,15 @@ function relayFailure(model: ModelIdentity, error: unknown): AssistantMessageEve
       timestamp: Date.now(),
     },
   }
+  return event
 }
 
-function abortedEvent(error: AssistantMessage): AssistantMessageEvent {
-  return { type: 'error', reason: 'aborted', error: { ...error, stopReason: 'aborted' } }
+function abortedEvent(error: AssistantMessage) {
+  return {
+    type: 'error',
+    reason: 'aborted',
+    error: { ...error, stopReason: 'aborted' },
+  } satisfies AssistantMessageEvent
 }
 
 interface ExpiredCredentialRetryDependencies {
@@ -198,7 +203,7 @@ export function withExpiredCredentialRetry<
 >(
   stream: ProviderStream<TModel, TContext, TOptions>,
   dependencies: ExpiredCredentialRetryDependencies = {},
-): ProviderStream<TModel, TContext, TOptions> {
+) {
   const wait = dependencies.wait ?? waitUnlessAborted
   const delayMs = dependencies.delayMs ?? EXPIRED_CREDENTIAL_RETRY_DELAY_MS
   /** A failure to close clients must not replace the provider's error the Run classifies. */
@@ -209,7 +214,7 @@ export function withExpiredCredentialRetry<
       logger.warn('Could not drop the cached Amazon Bedrock clients', { error: String(error) })
     }
   }
-  return (model, context, options) => {
+  return ((model, context, options) => {
     const target = createAssistantMessageEventStream()
     const run = async () => {
       const first = await relayUnlessCredentialsExpired(
@@ -252,5 +257,5 @@ export function withExpiredCredentialRetry<
       target.end()
     })
     return target
-  }
+  }) satisfies ProviderStream<TModel, TContext, TOptions>
 }

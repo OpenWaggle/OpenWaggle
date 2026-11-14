@@ -1,3 +1,4 @@
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import type {
   WorkspaceEditorConfigPolicy,
   WorkspaceLineEnding,
@@ -30,18 +31,27 @@ function documentSessionKey(projectRoot: string, relativePath: string) {
   return `${projectRoot}\u0000${relativePath}`
 }
 
-export function resolveEditorConfigIndentStyle(
-  value: unknown,
-  fallback: 'space' | 'tab',
-): 'space' | 'tab' {
-  if (value === 'tab') return 'tab'
-  if (value === 'space') return 'space'
+export function resolveEditorConfigIndentStyle(value: unknown, fallback: 'space' | 'tab') {
+  if (value === 'tab') {
+    const result: 'space' | 'tab' = 'tab'
+    return result
+  }
+  if (value === 'space') {
+    const result: 'space' | 'tab' = 'space'
+    return result
+  }
   return fallback
 }
 
-export function resolveEditorConfigPolicy(
-  editorConfig: Readonly<Record<string, unknown>>,
-): WorkspaceEditorConfigPolicy {
+/** The EditorConfig properties a document session follows, as the parser returned them. */
+interface EditorConfigProperties {
+  readonly charset: string
+  readonly end_of_line: string
+  readonly insert_final_newline: boolean
+  readonly trim_trailing_whitespace: boolean
+}
+
+export function resolveEditorConfigPolicy(editorConfig: UncheckedFields<EditorConfigProperties>) {
   const charset = editorConfig.charset
   const encoding =
     charset === 'utf-8' ||
@@ -52,7 +62,7 @@ export function resolveEditorConfigPolicy(
       : undefined
   const endOfLine = editorConfig.end_of_line
   const lineEnding = endOfLine === 'lf' || endOfLine === 'crlf' ? endOfLine : undefined
-  return {
+  const policy: WorkspaceEditorConfigPolicy = {
     ...(encoding ? { encoding } : {}),
     ...(lineEnding ? { lineEnding } : {}),
     ...(typeof editorConfig.insert_final_newline === 'boolean'
@@ -62,6 +72,7 @@ export function resolveEditorConfigPolicy(
       ? { trimTrailingWhitespace: editorConfig.trim_trailing_whitespace }
       : {}),
   }
+  return policy
 }
 
 export function editorModelContent(content: string, lineEnding: WorkspaceLineEnding) {

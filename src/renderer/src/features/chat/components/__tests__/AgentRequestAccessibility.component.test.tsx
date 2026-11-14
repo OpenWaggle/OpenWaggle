@@ -21,24 +21,32 @@ function baseRequest(kind: 'select' | 'input' | 'editor') {
   } as const
 }
 
-function selectRequest(): AgentLoopInteraction {
+function selectRequest() {
   return {
     ...baseRequest('select'),
     kind: 'select',
     title: 'Which branch should I use?',
     choices: ['main', 'develop'],
-  }
+  } satisfies AgentLoopInteraction
 }
 
-function inputRequest(): AgentLoopInteraction {
-  return { ...baseRequest('input'), kind: 'input', title: 'Name the new branch' }
+function inputRequest() {
+  return {
+    ...baseRequest('input'),
+    kind: 'input',
+    title: 'Name the new branch',
+  } satisfies AgentLoopInteraction
 }
 
-function editorRequest(): AgentLoopInteraction {
-  return { ...baseRequest('editor'), kind: 'editor', title: 'Edit the commit message' }
+function editorRequest() {
+  return {
+    ...baseRequest('editor'),
+    kind: 'editor',
+    title: 'Edit the commit message',
+  } satisfies AgentLoopInteraction
 }
 
-function authorizationRequest(): AgentLoopInteraction {
+function authorizationRequest() {
   return {
     interactionId: 'auth-1',
     sessionId: SESSION_ID,
@@ -55,7 +63,7 @@ function authorizationRequest(): AgentLoopInteraction {
       capability: 'mcp.tool-call',
       resource: 'list_issues',
     },
-  }
+  } satisfies AgentLoopInteraction
 }
 
 const onRespond = vi.fn().mockResolvedValue(undefined)

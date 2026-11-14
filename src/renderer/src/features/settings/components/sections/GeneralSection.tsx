@@ -24,7 +24,6 @@ const COMPACTION_THRESHOLD_MAXIMUM = 100
 function useAppVersion() {
   const [version, setVersion] = useState('…')
   useEffect(() => {
-    if (typeof api.getAppVersion !== 'function') return
     api
       .getAppVersion()
       .then(setVersion)
@@ -39,7 +38,6 @@ function useUpdateStatus() {
   const [status, setStatus] = useState<UpdateStatus>({ type: 'idle' })
 
   useEffect(() => {
-    if (typeof api.getUpdateStatus !== 'function') return
     api
       .getUpdateStatus()
       .then(setStatus)
@@ -48,10 +46,7 @@ function useUpdateStatus() {
       })
   }, [])
 
-  useEffect(() => {
-    if (typeof api.onUpdateStatus !== 'function') return
-    return api.onUpdateStatus(setStatus)
-  }, [])
+  useEffect(() => api.onUpdateStatus(setStatus), [])
 
   return status
 }
@@ -213,11 +208,9 @@ export function GeneralSection() {
                   variant="secondary"
                   size="xs"
                   onClick={() => {
-                    if (typeof api.checkForUpdates === 'function') {
-                      api.checkForUpdates().catch((err: unknown) => {
-                        logger.warn('Failed to check for updates', { error: String(err) })
-                      })
-                    }
+                    api.checkForUpdates().catch((err: unknown) => {
+                      logger.warn('Failed to check for updates', { error: String(err) })
+                    })
                   }}
                   className="h-7 border-border-light bg-bg-secondary text-text-secondary hover:bg-bg-hover"
                 >
@@ -230,12 +223,10 @@ export function GeneralSection() {
                   variant="primary"
                   size="xs"
                   onClick={() => {
-                    const install = isWaitingForRuns ? api.installUpdateNow : api.installUpdate
-                    if (typeof install === 'function') {
-                      install().catch((err: unknown) => {
-                        logger.warn('Failed to install update', { error: String(err) })
-                      })
-                    }
+                    const install = isWaitingForRuns ? api.installUpdateNow() : api.installUpdate()
+                    install.catch((err: unknown) => {
+                      logger.warn('Failed to install update', { error: String(err) })
+                    })
                   }}
                   className="h-7 bg-accent text-bg hover:bg-accent-dim"
                 >

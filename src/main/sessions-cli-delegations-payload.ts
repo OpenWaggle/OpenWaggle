@@ -13,7 +13,7 @@ import {
 } from '@shared/types/session-query'
 import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
-import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
+import { positiveInteger, required, requiredSessionId, optionEntry } from './sessions-cli-arguments'
 
 const DELEGATION_QUERY_COMMANDS = [
   'delegations-list',
@@ -37,7 +37,7 @@ function sessionFilters(arguments_: ParsedArguments) {
   }
 }
 
-function selectedStates(arguments_: ParsedArguments): readonly DelegationState[] | undefined {
+function selectedStates(arguments_: ParsedArguments) {
   const values = arguments_.options.get('state')
   if (!values?.length) return undefined
   return [
@@ -48,16 +48,13 @@ function selectedStates(arguments_: ParsedArguments): readonly DelegationState[]
         return state
       }),
     ),
-  ]
+  ] satisfies readonly DelegationState[]
 }
 
-function listPayload(
-  arguments_: ParsedArguments,
-  workingDirectory: string,
-): LocalSessionCommandPayload {
+function listPayload(arguments_: ParsedArguments, workingDirectory: string) {
   const states = selectedStates(arguments_)
   const projectPath = option(arguments_, 'project')
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: {
       contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -67,7 +64,7 @@ function listPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         ...(hasFlag(arguments_, 'all')
           ? {}
           : projectPath
@@ -78,9 +75,10 @@ function listPayload(
       },
     },
   }
+  return payload
 }
 
-function readPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
+function readPayload(arguments_: ParsedArguments) {
   return {
     contract: 'session-query-v2',
     request: {
@@ -92,14 +90,14 @@ function readPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
         ...(option(arguments_, 'limit')
           ? { limit: positiveInteger(option(arguments_, 'limit'), '--limit') }
           : {}),
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
-function selectedConflictKinds(arguments_: ParsedArguments): readonly DelegationConflictKind[] {
-  return [
+function selectedConflictKinds(arguments_: ParsedArguments) {
+  const result: readonly DelegationConflictKind[] = [
     ...new Set(
       (arguments_.options.get('kind') ?? []).map((value) => {
         const kind = DELEGATION_CONFLICT_KINDS.find((candidate) => candidate === value)
@@ -108,12 +106,11 @@ function selectedConflictKinds(arguments_: ParsedArguments): readonly Delegation
       }),
     ),
   ]
+  return result
 }
 
-function selectedConflictStatuses(
-  arguments_: ParsedArguments,
-): readonly DelegationConflictStatus[] {
-  return [
+function selectedConflictStatuses(arguments_: ParsedArguments) {
+  const result: readonly DelegationConflictStatus[] = [
     ...new Set(
       (arguments_.options.get('status') ?? []).map((value) => {
         const status = DELEGATION_CONFLICT_STATUSES.find((candidate) => candidate === value)
@@ -122,16 +119,14 @@ function selectedConflictStatuses(
       }),
     ),
   ]
+  return result
 }
 
-function conflictsPayload(
-  arguments_: ParsedArguments,
-  workingDirectory: string,
-): LocalSessionCommandPayload {
+function conflictsPayload(arguments_: ParsedArguments, workingDirectory: string) {
   const kinds = selectedConflictKinds(arguments_)
   const statuses = selectedConflictStatuses(arguments_)
   const projectPath = option(arguments_, 'project')
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: {
       contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -141,21 +136,20 @@ function conflictsPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         ...(hasFlag(arguments_, 'all')
           ? {}
           : projectPath
             ? { projectPath: resolveCliProjectPath(projectPath, workingDirectory) }
             : { workingPath: workingDirectory }),
         ...sessionFilters(arguments_),
-        ...(option(arguments_, 'delegation')
-          ? { delegationId: option(arguments_, 'delegation') }
-          : {}),
+        ...optionEntry(arguments_, 'delegation', 'delegationId'),
         ...(kinds.length ? { kinds } : {}),
         ...(statuses.length ? { statuses } : {}),
       },
     },
   }
+  return payload
 }
 
 /** `hive delegations-list`, `delegations-read`, and `delegations-conflicts`. */
@@ -163,7 +157,7 @@ export function buildDelegationQueryCliPayload(
   command: (typeof DELEGATION_QUERY_COMMANDS)[number],
   arguments_: ParsedArguments,
   context: { readonly workingDirectory?: string } = {},
-): LocalSessionCommandPayload {
+) {
   const workingDirectory = context.workingDirectory ?? process.cwd()
   if (command === 'delegations-list') return listPayload(arguments_, workingDirectory)
   if (command === 'delegations-read') return readPayload(arguments_)

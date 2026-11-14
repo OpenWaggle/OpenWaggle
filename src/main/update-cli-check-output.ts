@@ -62,7 +62,7 @@ export function writeUpdateCheckError(
 export function withinUpdateCheckDeadline<T>(
   work: Promise<T>,
   timeoutMs = UPDATE_CHECK_JSON_TIMEOUT_MS,
-): Promise<T> {
+) {
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {

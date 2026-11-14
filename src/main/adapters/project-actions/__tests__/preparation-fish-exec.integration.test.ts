@@ -9,7 +9,9 @@ import { createActionProcessRunner } from '../action-process'
 import { createPreparationExecutor } from '../preparation-process'
 import { preparationCaptureInvocation } from '../preparation-shell-capture'
 
-const fish = getSessionHostChildEnv().OPENWAGGLE_QA_FISH ?? '/usr/bin/fish'
+/** A QA run may point at its own fish build. */
+const { OPENWAGGLE_QA_FISH: fish = '/usr/bin/fish' }: { readonly OPENWAGGLE_QA_FISH?: string } =
+  getSessionHostChildEnv()
 
 it.skipIf(process.platform === 'win32')(
   'preserves Fish arguments after a command substitution in Setup',

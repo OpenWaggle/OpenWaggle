@@ -10,7 +10,7 @@ import type {
   SidebarProjectRenderState,
   SidebarSessionActions,
 } from '../model'
-import { SessionListItem, type SessionRowHighlight } from './SessionListItem'
+import { SessionListItem } from './SessionListItem'
 import { SidebarBranchRows } from './SidebarBranchRows'
 import { SidebarProjectHeader } from './SidebarProjectHeader'
 
@@ -146,15 +146,12 @@ function ProjectSessionRows({
 }
 
 /** How one project row is emphasized: the open Session, its Queen's Hive home, or neither. */
-function projectRowHighlight(
-  session: SessionSummary,
-  state: SidebarProjectRenderState,
-): SessionRowHighlight {
-  if (session.id === state.activeSessionId) return 'active'
+function projectRowHighlight(session: SessionSummary, state: SidebarProjectRenderState) {
+  if (session.id === state.activeSessionId) return 'active' as const
   if (state.activeHiveRootId !== null && String(session.id) === state.activeHiveRootId) {
-    return 'hive-home'
+    return 'hive-home' as const
   }
-  return 'none'
+  return 'none' as const
 }
 
 function ProjectSessionRow({
@@ -173,7 +170,8 @@ function ProjectSessionRow({
     session,
     activeSessionTree: state.activeSessionTree,
     activeBranchId:
-      session.id === state.activeSessionId ? state.activeBranchId : session.lastActiveBranchId,
+      (session.id === state.activeSessionId ? state.activeBranchId : session.lastActiveBranchId) ??
+      null,
     branchesCollapsed: disclosure.rowsCollapsed,
     draftBranch: state.draftBranch,
   })

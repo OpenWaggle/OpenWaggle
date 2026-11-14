@@ -99,6 +99,17 @@ export function sessionHostLaunchCommandFor(input: {
   })
 }
 
+/** Client-scoped OpenWaggle credentials and Electron execution switches a Host must not keep. */
+const CLIENT_SCOPED_ENVIRONMENT_VARIABLES = [
+  'ELECTRON_RUN_AS_NODE',
+  'OPENWAGGLE_CLI_OUTPUT_FD',
+  'OPENWAGGLE_PROFILE',
+  'OPENWAGGLE_PROFILE_CREDENTIAL_FILE',
+  'OPENWAGGLE_AGENT_RUN',
+  'OPENWAGGLE_AUTOMATION_LEASE_TOKEN',
+  SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE,
+] as const
+
 /**
  * Detached Session Hosts are the user's durable Pi runtime and need provider credentials and shell
  * agent state. Strip only client-scoped OpenWaggle credentials and Electron execution switches,
@@ -107,18 +118,12 @@ export function sessionHostLaunchCommandFor(input: {
 export function sessionHostSafeEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
   npmCompatiblePath: string,
-): Record<string, string | undefined> {
+) {
   const childEnvironment: Record<string, string | undefined> = {
     ...environment,
     PATH: npmCompatiblePath,
   }
-  delete childEnvironment.ELECTRON_RUN_AS_NODE
-  delete childEnvironment.OPENWAGGLE_CLI_OUTPUT_FD
-  delete childEnvironment.OPENWAGGLE_PROFILE
-  delete childEnvironment.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
-  delete childEnvironment.OPENWAGGLE_AGENT_RUN
-  delete childEnvironment.OPENWAGGLE_AUTOMATION_LEASE_TOKEN
-  delete childEnvironment[SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE]
+  for (const name of CLIENT_SCOPED_ENVIRONMENT_VARIABLES) delete childEnvironment[name]
   return childEnvironment
 }
 

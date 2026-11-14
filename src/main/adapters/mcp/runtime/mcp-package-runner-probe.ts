@@ -1,5 +1,6 @@
 /** How the package-runner probe is spawned (D1.2, review R5 P1-2). */
 import { type ChildProcess, spawn } from 'node:child_process'
+import { readEnvironmentValue } from '../../../environment-paths'
 import { windowsCommandLine } from './mcp-package-runner-launch'
 
 const PROBE_TIMEOUT_MS = 180_000
@@ -25,7 +26,7 @@ export function probeSpawnOf(
   // `npx.cmd` needs `cmd.exe` (Node refuses to spawn a `.cmd` without it), which gets one line
   // escaped for it.
   return {
-    file: input.env.ComSpec ?? input.env.COMSPEC ?? 'cmd.exe',
+    file: readEnvironmentValue(input.env, 'ComSpec') ?? 'cmd.exe',
     args: ['/d', '/s', '/c', windowsCommandLine(input.command, input.args)],
     windowsVerbatimArguments: true,
   }
@@ -82,10 +83,10 @@ function killProbeTree(child: ChildProcess, platform: NodeJS.Platform) {
 /** A probe with its bound: tests pass a short one. */
 export function createExecProbe(
   options: { readonly timeoutMs?: number; readonly platform?: NodeJS.Platform } = {},
-): PackageRunnerProbe {
+) {
   const timeoutMs = options.timeoutMs ?? PROBE_TIMEOUT_MS
   const platform = options.platform ?? process.platform
-  return (input) =>
+  return ((input) =>
     new Promise((resolve, reject) => {
       const spawned = probeSpawnOf(input, platform)
       const child = spawn(spawned.file, spawned.args, {
@@ -130,7 +131,7 @@ export function createExecProbe(
           )
         }
       })
-    })
+    })) satisfies PackageRunnerProbe
 }
 
 export const execProbe: PackageRunnerProbe = createExecProbe()

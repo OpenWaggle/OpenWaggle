@@ -19,6 +19,21 @@ import {
 } from './session-resource-capture-shared'
 import type { CapturedGeneratedImage, CapturedImage } from './session-resource-extraction'
 
+/** The optional occurrence fields of a generated image capture, each left out when absent. */
+function imageOccurrenceFields(input: {
+  readonly branchId?: string | null
+  readonly label?: string | null
+  readonly sourcePath?: string
+  readonly displayOrder?: number | null
+}) {
+  return {
+    ...(input.branchId === undefined ? {} : { branchId: input.branchId }),
+    ...(input.label === undefined ? {} : { label: input.label }),
+    ...(input.sourcePath === undefined ? {} : { locator: input.sourcePath }),
+    ...(input.displayOrder === undefined ? {} : { displayOrder: input.displayOrder }),
+  }
+}
+
 export function captureGeneratedImage(input: {
   readonly sessionId: SessionId
   readonly runId: string
@@ -64,13 +79,10 @@ export function captureGeneratedImage(input: {
         occurrence: occurrence({
           id,
           nodeId: input.nodeId,
-          branchId: input.branchId,
+          ...imageOccurrenceFields(input),
           actor: input.actor ?? 'agent',
           activity: 'created',
-          label: input.label,
-          locator: input.sourcePath,
           displayName: fileName,
-          displayOrder: input.displayOrder,
           createdAt: input.createdAt,
         }),
         createdAt: existing.createdAt,
@@ -100,13 +112,10 @@ export function captureGeneratedImage(input: {
         occurrence: occurrence({
           id,
           nodeId: input.nodeId,
-          branchId: input.branchId,
+          ...imageOccurrenceFields(input),
           actor: input.actor ?? 'agent',
           activity: 'created',
-          label: input.label,
-          locator: input.sourcePath,
           displayName: fileName,
-          displayOrder: input.displayOrder,
           createdAt: input.createdAt,
         }),
         createdAt: input.createdAt,
@@ -160,13 +169,11 @@ export function captureUnavailableGeneratedImage(input: {
       occurrence: occurrence({
         id: `${generatedImageOccurrencePrefix(input)}unavailable`,
         nodeId: input.nodeId,
-        branchId: input.branchId,
+        ...imageOccurrenceFields(input),
         actor: input.actor ?? 'agent',
         activity: 'created',
-        label: input.label,
         locator: 'filePath' in input.image ? input.image.filePath : null,
         displayName: input.image.title,
-        displayOrder: input.displayOrder,
         createdAt: input.createdAt,
       }),
       createdAt: existing?.createdAt ?? input.createdAt,

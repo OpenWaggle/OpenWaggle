@@ -27,10 +27,10 @@ function makeRecord(options: {
   readonly exitCode?: number | null
   readonly env?: Readonly<Record<string, string>>
   readonly scrollback?: string
-}): TerminalRecord {
+}) {
   const scrollback = createTerminalScrollback()
   if (options.scrollback !== undefined) scrollback.append(options.scrollback)
-  return {
+  const record: TerminalRecord = {
     inputIncarnation: '6fdd25b5-6b0a-4948-bd58-b3a82c8ee580',
     key: terminalKeyOf(OWNER_KEY, TERMINAL_ID),
     ownerKey: OWNER_KEY,
@@ -91,6 +91,7 @@ function makeRecord(options: {
     activity: null,
     ownerMigration: null,
   }
+  return record
 }
 
 describe('decideTerminalOpen', () => {

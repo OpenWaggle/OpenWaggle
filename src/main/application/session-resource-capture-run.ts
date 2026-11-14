@@ -63,10 +63,7 @@ interface MessageCaptureContext {
   linkIndex: number
 }
 
-function messageCaptureContext(
-  input: SuccessfulRunResourceInput,
-  message: Message,
-): MessageCaptureContext {
+function messageCaptureContext(input: SuccessfulRunResourceInput, message: Message) {
   const messageId = String(message.id)
   return {
     message,
@@ -74,7 +71,7 @@ function messageCaptureContext(
     branchId: input.branchIdByMessageId?.[messageId] ?? null,
     imageIndex: 0,
     linkIndex: 0,
-  }
+  } satisfies MessageCaptureContext
 }
 
 function captureImages(input: {
@@ -112,8 +109,10 @@ function captureImages(input: {
         validatedImage: prepared.image,
         actor: input.actor,
         label: input.label,
-        displayOrder: input.displayOrders[localIndex],
-        sourcePath: capturedImageSourcePath(image),
+        ...(input.displayOrders[localIndex] === undefined
+          ? {}
+          : { displayOrder: input.displayOrders[localIndex] }),
+        ...capturedImageSourcePath(image),
       }).pipe(Effect.catchAll(() => Effect.void))
     }
   })
@@ -145,7 +144,9 @@ function captureLinks(input: {
         actor: input.actor,
         activity: input.activity,
         label: input.label,
-        displayOrder: input.displayOrders[localIndex],
+        ...(input.displayOrders[localIndex] === undefined
+          ? {}
+          : { displayOrder: input.displayOrders[localIndex] }),
         createdAt: input.context.message.createdAt,
       }).pipe(Effect.catchAll(() => Effect.void))
     }

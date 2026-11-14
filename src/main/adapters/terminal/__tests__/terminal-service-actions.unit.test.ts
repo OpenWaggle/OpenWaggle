@@ -32,7 +32,7 @@ describe('makeNodePtyTerminalService', () => {
     await settle()
 
     expect(result).toEqual({
-      inputIncarnation: service.records.get(TERMINAL_KEY)?.inputIncarnation,
+      inputIncarnation: expect.any(String),
       history: '',
       outputBytes: 0,
       outputGeneration: 1,
@@ -51,7 +51,6 @@ describe('makeNodePtyTerminalService', () => {
       env: {},
       readinessNonce: expect.any(String),
     })
-    expect(service.records.get(TERMINAL_KEY)?.cwd).toBe(workDirA)
 
     feed(0, 'hello')
     await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
@@ -66,7 +65,7 @@ describe('makeNodePtyTerminalService', () => {
   })
 
   it('reuses the live shell for a second open with the same working path', async () => {
-    await open(workDirA)
+    const first = await open(workDirA)
     await settle()
     feed(0, 'hello')
     await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
@@ -74,7 +73,7 @@ describe('makeNodePtyTerminalService', () => {
     const result = await open(workDirA)
 
     expect(result).toEqual({
-      inputIncarnation: service.records.get(TERMINAL_KEY)?.inputIncarnation,
+      inputIncarnation: first.inputIncarnation,
       history: 'hello',
       outputBytes: 5,
       outputGeneration: 1,
@@ -94,11 +93,9 @@ describe('makeNodePtyTerminalService', () => {
     await settle()
     feed(0, 'before reload')
     await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
-    expect(service.records.get(TERMINAL_KEY)?.inFlightOutput).not.toBeNull()
 
     const replacement = await open(workDirA)
     expect(replacement.history).toBe('before reload')
-    expect(service.records.get(TERMINAL_KEY)?.inFlightOutput).toBeNull()
 
     feed(0, ' after reload')
     await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
@@ -127,7 +124,6 @@ describe('makeNodePtyTerminalService', () => {
 
     expect(spawn).toHaveBeenCalledOnce()
     expect(spawn.mock.calls[0]?.[0].env).toEqual(env)
-    expect(service.records.get(TERMINAL_KEY)?.env).toEqual(env)
   })
 
   it('restarts and clears history when an explicit environment context changes', async () => {
@@ -138,15 +134,15 @@ describe('makeNodePtyTerminalService', () => {
     feed(0, 'old output')
     await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
 
-    await Effect.runPromise(
+    const restarted = await Effect.runPromise(
       service.open({ ...openInput(workDirA), env: { ACTION_CONTEXT: 'second' } }),
     )
 
+    expect(restarted).toMatchObject({ history: '', outputBytes: 0, outputGeneration: 2 })
     expect(spawn).toHaveBeenCalledTimes(2)
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
     expect(spawn.mock.calls[1]?.[0].env).toEqual({ ACTION_CONTEXT: 'second' })
-    expect(service.records.get(TERMINAL_KEY)?.scrollback.toString()).toBe('')
   })
 
   it('restarts the shell and resets scrollback when the working path changes', async () => {
@@ -164,12 +160,9 @@ describe('makeNodePtyTerminalService', () => {
       running: true,
     })
     expect(spawn).toHaveBeenCalledTimes(2)
+    expect(spawn.mock.calls[1]?.[0].cwd).toBe(workDirB)
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
-    const record = service.records.get(TERMINAL_KEY)
-    expect(record?.cwd).toBe(workDirB)
-    expect(record?.scrollback.toString()).toBe('')
-    expect(record?.outputBytes).toBe(0)
     // Truncate is enqueued on the key's write chain; flush is the barrier.
     await service.history.flush()
     await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('')
@@ -188,7 +181,10 @@ describe('makeNodePtyTerminalService', () => {
     if (held === undefined) throw new Error('Expected a held fake pty')
     heldSpawns[0]?.(successfulOutcome(held))
     await settle()
-    expect(service.records.get(TERMINAL_KEY)?.live?.pty).toBe(held.pty)
+    // The held shell is the live one: a later open reuses it instead of spawning again.
+    await expect(open(workDirA)).resolves.toMatchObject({ running: true })
+    expect(spawn).toHaveBeenCalledOnce()
+    expect(held.closeDescriptor).not.toHaveBeenCalled()
   })
 
   it('applies a later renderer nonce while a same-context shell is still spawning', async () => {
@@ -203,11 +199,17 @@ describe('makeNodePtyTerminalService', () => {
     await Promise.all([first, second])
 
     expect(spawn).toHaveBeenCalledOnce()
-    expect(service.records.get(TERMINAL_KEY)?.inputGeneration).toBe('renderer-b')
     const held = ptys[0]
     if (held === undefined) throw new Error('Expected a held fake PTY')
     heldSpawns[0]?.(successfulOutcome(held))
     await settle()
+    const write = (generation: string) =>
+      Effect.runPromise(service.write(OWNER, TERMINAL_ID, 'x', { generation, sequence: 0 }))
+    await expect(write('renderer-a')).resolves.toMatchObject({
+      status: 'rejected',
+      reason: 'stale-generation',
+    })
+    await expect(write('renderer-b')).resolves.toMatchObject({ status: 'queued' })
   })
 
   it('does not collapse a later launch context into an overlapping open', async () => {
@@ -226,7 +228,7 @@ describe('makeNodePtyTerminalService', () => {
     await second
 
     expect(spawn).toHaveBeenCalledTimes(2)
-    expect(service.records.get(TERMINAL_KEY)).toMatchObject({
+    expect(spawn.mock.calls[1]?.[0]).toMatchObject({
       cwd: workDirB,
       env: { ACTION_CONTEXT: 'second' },
     })
@@ -244,7 +246,6 @@ describe('makeNodePtyTerminalService', () => {
 
     const closing = Effect.runPromise(service.close(OWNER, TERMINAL_ID, false))
     await vi.advanceTimersByTimeAsync(0)
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
     expect(spawned.closeDescriptor).not.toHaveBeenCalled()
     expect(events.some((payload) => payload.event.type === 'closed')).toBe(false)
 
@@ -253,7 +254,6 @@ describe('makeNodePtyTerminalService', () => {
 
     expect(spawned.closeDescriptor).toHaveBeenCalledOnce()
     expect(spawned.kill).not.toHaveBeenCalled()
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
     expectEvent({ type: 'closed' })
   })
 
@@ -277,7 +277,6 @@ describe('makeNodePtyTerminalService', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(spawn).not.toHaveBeenCalled()
-    expect(service.records.size).toBe(0)
 
     finishRead?.('')
     await opening
@@ -287,7 +286,6 @@ describe('makeNodePtyTerminalService', () => {
     expect(spawn).toHaveBeenCalledOnce()
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
-    expect(service.records.size).toBe(0)
     expectEvent({ type: 'closed' })
   })
 
@@ -319,7 +317,8 @@ describe('makeNodePtyTerminalService', () => {
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
     expect(ptys[1]?.closeDescriptor).not.toHaveBeenCalled()
-    expect(service.records.size).toBe(1)
-    expect(service.records.get(TERMINAL_KEY)?.live?.pty).toBe(ptys[1]?.pty)
+    // The restarted shell is the one left reachable: opening again reuses it.
+    await expect(open(workDirA)).resolves.toMatchObject({ running: true })
+    expect(spawn).toHaveBeenCalledTimes(2)
   })
 })

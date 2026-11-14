@@ -1,6 +1,6 @@
 import type { WorkspaceFilesChangedEvent } from '@shared/types/workspace-files'
-import type { WebContents } from 'electron'
 import { createLogger } from '../logger'
+import type { RendererSurface } from '../ports/desktop-shell/renderer-surfaces'
 import { invalidateWorkspaceFileIndex } from './filesystem-workspace-file-service'
 import {
   type BackendEvents,
@@ -20,7 +20,7 @@ const logger = createLogger('workspace-file-watcher')
 
 interface WorkspaceWatcher {
   readonly backend: WatchBackend
-  readonly subscribers: Map<number, WebContents>
+  readonly subscribers: Map<number, RendererSurface>
   readonly changedPaths: Set<string>
   readonly gitIgnore: WorkspaceGitIgnoreFilter | undefined
   timeout: NodeJS.Timeout | null
@@ -29,7 +29,7 @@ interface WorkspaceWatcher {
 
 const watchers = new Map<string, WorkspaceWatcher>()
 const pendingWatchers = new Map<string, Promise<WorkspaceWatcher>>()
-const subscribersByProject = new Map<string, Map<number, WebContents>>()
+const subscribersByProject = new Map<string, Map<number, RendererSurface>>()
 
 let watchPlatform: NodeJS.Platform = process.platform
 
@@ -71,8 +71,9 @@ function queueChange(projectRoot: string, entry: WorkspaceWatcher, changedPath: 
   if (
     relative !== GIT_EXCLUDE_PATH &&
     (ignored(relative) || entry.gitIgnore?.isKnownIgnored(relative))
-  )
+  ) {
     return
+  }
   if (entry.changedPaths.size < WATCH_BATCH_PATH_LIMIT) entry.changedPaths.add(relative)
   else entry.overflow = true
   scheduleFlush(projectRoot, entry)
@@ -98,7 +99,7 @@ async function closeWatcher(entry: WorkspaceWatcher) {
   entry.backend.stopErrors()
 }
 
-async function createWatcher(projectRoot: string, subscribers: Map<number, WebContents>) {
+async function createWatcher(projectRoot: string, subscribers: Map<number, RendererSurface>) {
   const gitIgnore = await WorkspaceGitIgnoreFilter.create(projectRoot)
   const pending: { entry?: WorkspaceWatcher } = {}
   const events: BackendEvents = {
@@ -140,7 +141,7 @@ async function createWatcher(projectRoot: string, subscribers: Map<number, WebCo
   return entry
 }
 
-export async function watchWorkspaceFiles(projectRoot: string, subscriber: WebContents) {
+export async function watchWorkspaceFiles(projectRoot: string, subscriber: RendererSurface) {
   let subscribers = subscribersByProject.get(projectRoot)
   if (!subscribers) {
     subscribers = new Map()

@@ -2,15 +2,21 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import { appendUnpersistedAssistantTail } from '../chat-message-reconciliation'
 
-function userMessage(id: string, content: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content }], createdAt: new Date(1) }
+function userMessage(id: string, content: string) {
+  return {
+    id,
+    role: 'user',
+    parts: [{ type: 'text', content }],
+    createdAt: new Date(1),
+  } satisfies UIMessage
 }
 
 describe('appendUnpersistedAssistantTail with user rows Pi incorporated', () => {
-  const at = (message: UIMessage, order: number): UIMessage => ({
-    ...message,
-    metadata: { sessionNodeCreatedOrder: order },
-  })
+  const at = (message: UIMessage, order: number) =>
+    ({
+      ...message,
+      metadata: { sessionNodeCreatedOrder: order },
+    }) satisfies UIMessage
   const prompt = at(userMessage('pi-user-1', 'fix it'), 1)
   const answer = at(
     { id: 'pi-answer-1', role: 'assistant', parts: [{ type: 'text', content: 'done' }] },

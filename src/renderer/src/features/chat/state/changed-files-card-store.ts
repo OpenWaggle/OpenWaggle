@@ -8,8 +8,8 @@ interface ChangedFilesCardState {
 }
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
-function resolveStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+function resolveStorage() {
+  if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
     getItem: (key) => memory.get(key) ?? null,
@@ -19,7 +19,7 @@ function resolveStorage(): StateStorage {
     removeItem: (key) => {
       memory.delete(key)
     },
-  }
+  } satisfies StateStorage
 }
 
 export function changedFilesCardKey(sessionId: string | null, turnId: string) {

@@ -133,7 +133,7 @@ function withSearchAddon(
   current: ReadonlyMap<string, SearchAddon>,
   key: string,
   addon: SearchAddon | null,
-): ReadonlyMap<string, SearchAddon> {
+) {
   if (current.get(key) === addon || (addon === null && !current.has(key))) return current
   const next = new Map(current)
   if (addon === null) next.delete(key)
@@ -147,7 +147,7 @@ function focusTerminalSurface(panel: HTMLElement | null, paneId: string | null) 
     paneId === null
       ? panel?.querySelector<HTMLElement>('[data-action-output-view]')
       : [...(panel?.querySelectorAll<HTMLElement>('[data-terminal-pane]') ?? [])].find(
-          (candidate) => candidate.dataset.terminalPane === paneId,
+          (candidate) => candidate.getAttribute('data-terminal-pane') === paneId,
         )
   surface?.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea')?.focus()
 }
@@ -194,7 +194,7 @@ function resolveSearchTarget(activeTab: TerminalTabState | null, focusedPaneId: 
   return activeTab?.panes[0]?.terminalId ?? null
 }
 
-function resolveActiveTab(group: TerminalGroupState | undefined): TerminalTabState | null {
+function resolveActiveTab(group: TerminalGroupState | undefined) {
   if (group === undefined || group.tabs.length === 0) return null
   return (
     group.tabs.find((tab) => tab.id === group.activeTabId) ??

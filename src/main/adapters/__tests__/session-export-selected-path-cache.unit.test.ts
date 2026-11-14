@@ -4,13 +4,13 @@ import {
   SessionExportSelectedPathCache,
 } from '../session-export-selected-path-cache'
 
-function identity(selectedHeadNodeId: string): ExportSelectedPathSnapshotIdentity {
+function identity(selectedHeadNodeId: string) {
   return {
     sessionId: 'session-1',
     selectedBranchId: 'branch-1',
     selectedHeadNodeId,
     nodeMutationRevision: 4,
-  }
+  } satisfies ExportSelectedPathSnapshotIdentity
 }
 
 describe('Session export selected-path cache', () => {

@@ -77,7 +77,7 @@ export function requestRecord(
   path: LoggedPath,
   summary: RequestSummary & { readonly status: number },
   latencyMs: number,
-): RequestRecord {
+) {
   return {
     path,
     outcome: summary.outcome,
@@ -98,12 +98,17 @@ export function requestLogLine(record: RequestRecord) {
  * The record as a PostHog event. Besides the record it carries only the constant
  * `distinct_id` and the flags that keep PostHog from creating a person or geolocating it.
  */
-export function requestEvent(record: RequestRecord, now: number): PostHogEvent {
+export function requestEvent(record: RequestRecord, now: number) {
   const properties: Record<string, PostHogPropertyValue> = {
     ...personlessProperties(ANONYMOUS_DISTINCT_ID),
     ...record,
   }
-  return { event: REQUEST_EVENT_NAME, timestamp: new Date(now).toISOString(), properties }
+  const result: PostHogEvent = {
+    event: REQUEST_EVENT_NAME,
+    timestamp: new Date(now).toISOString(),
+    properties,
+  }
+  return result
 }
 
 const LATENCY_BUCKETS: readonly (readonly [number, string])[] = [

@@ -1,20 +1,28 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../../support/object-fields'
 
 /**
  * A local OpenAI-compatible chat-completions endpoint for measurements: no network, no cost, and
  * every request body is kept. A responder decides what each request streams back.
  */
+/** The chat-completions body fields measurements read; each is checked where it is read. */
+const chatCompletionsBodySchema = Schema.Struct({ messages: unknownField, tools: unknownField })
+export type ChatCompletionsBody = Schema.Schema.Type<typeof chatCompletionsBodySchema>
+
 export interface FakeProviderRequest {
-  readonly body: Record<string, unknown>
+  readonly body: ChatCompletionsBody
   readonly rawLength: number
   readonly receivedAt: number
 }
 
 export interface StreamWriter {
   readonly text: (chunk: string) => void
-  readonly toolCalls: (calls: readonly { readonly name: string; readonly arguments: object }[]) => void
+  readonly toolCalls: (
+    calls: readonly { readonly name: string; readonly arguments: object }[],
+  ) => void
   readonly end: () => void
 }
 
@@ -44,16 +52,21 @@ function chunk(delta: object, finishReason: string | null) {
   return `data: ${JSON.stringify(payload)}\n\n`
 }
 
-function writer(response: ServerResponse): StreamWriter {
+function writer(response: ServerResponse) {
   let finish = 'stop'
   response.writeHead(HTTP_OK, { 'content-type': 'text/event-stream' })
   response.write(chunk({ role: 'assistant', content: '' }, null))
-  return {
+  const result: StreamWriter = {
     text: (text) => response.write(chunk({ content: text }, null)),
     toolCalls: (calls) => {
       finish = 'tool_calls'
       calls.forEach((call, index) => {
-        const toolCall = { index, id: `call_${String(Date.now())}_${String(index)}`, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments) } }
+        const toolCall = {
+          index,
+          id: `call_${String(Date.now())}_${String(index)}`,
+          type: 'function',
+          function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+        }
         response.write(chunk({ tool_calls: [toolCall] }, null))
       })
     },
@@ -62,6 +75,7 @@ function writer(response: ServerResponse): StreamWriter {
       response.end('data: [DONE]\n\n')
     },
   }
+  return result
 }
 
 function readBody(request: IncomingMessage) {
@@ -72,12 +86,14 @@ function readBody(request: IncomingMessage) {
   })
 }
 
-function parsedBody(raw: string): Record<string, unknown> {
+function parsedBody(raw: string) {
   try {
     const parsed: unknown = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? { ...parsed } : {}
+    const body: ChatCompletionsBody = objectFields(chatCompletionsBodySchema, parsed) ?? {}
+    return body
   } catch {
-    return {}
+    const body: ChatCompletionsBody = {}
+    return body
   }
 }
 
@@ -111,13 +127,21 @@ export async function configureFakeProvider(agentDir: string, baseUrl: string) {
         baseUrl,
         api: 'openai-completions',
         apiKey: 'perf-key',
-        models: [{ id: FAKE_MODEL_ID, contextWindow: FAKE_CONTEXT_WINDOW, maxTokens: FAKE_MAX_TOKENS }],
+        models: [
+          { id: FAKE_MODEL_ID, contextWindow: FAKE_CONTEXT_WINDOW, maxTokens: FAKE_MAX_TOKENS },
+        ],
       },
     },
   }
-  await writeFile(path.join(agentDir, 'models.json'), `${JSON.stringify(models, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(agentDir, 'models.json'),
+    `${JSON.stringify(models, null, JSON_INDENT)}\n`,
+  )
   const settings = { defaultProvider: FAKE_PROVIDER_ID, defaultModel: FAKE_MODEL_ID }
-  await writeFile(path.join(agentDir, 'settings.json'), `${JSON.stringify(settings, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(agentDir, 'settings.json'),
+    `${JSON.stringify(settings, null, JSON_INDENT)}\n`,
+  )
 }
 
 /** Whether a request is OpenWaggle's Session title generation rather than an agent turn. */

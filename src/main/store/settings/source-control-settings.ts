@@ -46,7 +46,7 @@ function storedOrDefault<K extends keyof SourceControlSettings>(
   storedSettings: Readonly<Record<string, unknown>>,
   name: K,
   isValue: (value: unknown) => value is SourceControlSettings[K],
-): SourceControlSettings[K] {
+) {
   const key = SOURCE_CONTROL_SETTING_KEYS[name]
   const stored = Object.hasOwn(storedSettings, key) ? storedSettings[key] : undefined
   return isValue(stored) ? stored : DEFAULT_SETTINGS[name]
@@ -63,7 +63,7 @@ function isDestination(value: unknown): value is Settings['changeRequestOpenDest
 /** Persisted validation already proved the shape; absent keys read as their defaults. */
 export function resolveStoredSourceControlSettings(
   storedSettings: Readonly<Record<string, unknown>>,
-): SourceControlSettings {
+) {
   return {
     changeRequestOpenDestination: storedOrDefault(
       storedSettings,
@@ -103,10 +103,7 @@ export function resolveStoredSourceControlSettings(
   }
 }
 
-export function resolveNextSourceControlSettings(
-  current: Settings,
-  partial: Partial<Settings>,
-): SourceControlSettings {
+export function resolveNextSourceControlSettings(current: Settings, partial: Partial<Settings>) {
   return {
     changeRequestOpenDestination:
       partial.changeRequestOpenDestination === undefined

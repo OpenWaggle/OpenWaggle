@@ -1,11 +1,14 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { Schema } from '@shared/schema'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionHostRuntime, startLocalSessionHost } from '../local-session-host-runtime'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+
+const localHostContractSchema = Schema.Struct({ contract: Schema.Literal('local-host-v1') })
 
 const STOP_TIMEOUT_MS = 2_000
 
@@ -58,7 +61,7 @@ describe('stopping a live Session Host', () => {
       idleGracePeriodMs: 60_000,
       authenticate: async () => ({ callerId: 'local-user:test' }),
       dispatch: async (input) =>
-        Reflect.get(Object(input.payload), 'contract') === 'local-host-v1'
+        Schema.is(localHostContractSchema)(input.payload)
           ? { stopping: input.requestHostStop() }
           : { accepted: true },
     })

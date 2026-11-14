@@ -1,9 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import {
-  type InfiniteData,
-  infiniteQueryOptions,
-  type UseInfiniteQueryOptions,
-} from '@tanstack/react-query'
+import { type InfiniteData, infiniteQueryOptions } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { queryKeys } from './query-keys'
 import type { HiveSession } from './session-hive-contract'
@@ -24,10 +20,7 @@ export interface HiveTreePage {
 
 const HIVE_TREE_PAGE_SIZE = 50
 
-export async function readSessionHiveTreePage(
-  sessionId: SessionId,
-  cursor?: string,
-): Promise<HiveTreePage> {
+export async function readSessionHiveTreePage(sessionId: SessionId, cursor?: string) {
   const page = await api.listHiveTreeSessionCatalogPage(sessionId, HIVE_TREE_PAGE_SIZE, cursor)
   // A Host that answers with members but no root cannot render a Hive; refuse the page rather
   // than silently showing a Queenless list.
@@ -37,15 +30,7 @@ export async function readSessionHiveTreePage(
   return page
 }
 
-export function sessionHiveTreeQueryOptions(
-  sessionId: SessionId,
-): UseInfiniteQueryOptions<
-  HiveTreePage,
-  Error,
-  InfiniteData<HiveTreePage>,
-  ReturnType<typeof queryKeys.sessionHiveTree>,
-  string | undefined
-> {
+export function sessionHiveTreeQueryOptions(sessionId: SessionId) {
   return infiniteQueryOptions<
     HiveTreePage,
     Error,
@@ -61,10 +46,9 @@ export function sessionHiveTreeQueryOptions(
 }
 
 /** All members read so far, Queen excluded. */
-export function hiveTreeMembers(
-  pages: readonly HiveTreePage[] | undefined,
-): readonly HiveSession[] {
-  return pages?.flatMap((page) => page.members) ?? []
+export function hiveTreeMembers(pages: readonly HiveTreePage[] | undefined) {
+  const session: readonly HiveSession[] = pages?.flatMap((page) => page.members) ?? []
+  return session
 }
 
 /**
@@ -72,10 +56,10 @@ export function hiveTreeMembers(
  * Hive-wide total as of its own read; the last page is the most recently read, so its total is
  * the freshest.
  */
-export function hiveTreeNeedsYou(pages: readonly HiveTreePage[] | undefined): boolean {
+export function hiveTreeNeedsYou(pages: readonly HiveTreePage[] | undefined) {
   return (pages?.at(-1)?.needsYouCount ?? 0) > 0
 }
 
-export function hiveTreeRoot(pages: readonly HiveTreePage[] | undefined): HiveSession | null {
+export function hiveTreeRoot(pages: readonly HiveTreePage[] | undefined) {
   return pages?.[0]?.root ?? null
 }

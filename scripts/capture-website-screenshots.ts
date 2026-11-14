@@ -31,6 +31,7 @@ import {
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
 import { type CaptureContext, recordFailureEvidence, WINDOW_SIZE } from './website-screenshot-ui'
 import { WAGGLE_SCENARIO } from './website-screenshot-waggle-captures'
+import { scriptEnv } from './support/env'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')
@@ -89,7 +90,7 @@ async function configureProject(page: Page, projectPath: string) {
  * Runs `step` with a launched app and closes the app if the step throws, so `main()`'s `finally`
  * never stops the Session Host while an Electron it does not know about could start another one.
  */
-async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise<T>): Promise<T> {
+async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise<T>) {
   try {
     return await step()
   } catch (error) {
@@ -147,7 +148,7 @@ function scratchBase() {
 }
 
 async function evidenceDirectory() {
-  const base = process.env.OPENWAGGLE_EVIDENCE_DIR
+  const base = scriptEnv().OPENWAGGLE_EVIDENCE_DIR
   if (base) {
     const directory = path.join(base, `website-screenshots-${Date.now()}`)
     await fs.mkdir(directory, { recursive: true })

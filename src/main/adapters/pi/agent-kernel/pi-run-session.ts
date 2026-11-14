@@ -7,12 +7,12 @@ import {
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import type { ThinkingLevel } from '@shared/types/settings'
+import { desktopShellEnvironmentReady } from '../../../desktop-shell-environment-process'
 import {
   applyPreparedEnvironment,
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
-import { desktopShellEnvironmentReady } from '../../../env'
 import { withShellPiPackageDirectory } from '../../../pi-package-directory-environment'
 import {
   preparedSessionEvidenceDirectory,
@@ -35,7 +35,7 @@ import { rememberRunExtensionCommands } from './run-extension-commands'
 function withoutInheritedEvidenceDirectory(
   environment: NodeJS.ProcessEnv,
   evidenceDirectory: string | undefined,
-): NodeJS.ProcessEnv {
+) {
   if (evidenceDirectory) return environment
   const { [SESSION_EVIDENCE_DIRECTORY_ENV]: _inherited, ...rest } = environment
   return rest
@@ -108,7 +108,7 @@ export async function createPiSessionForRun(input: {
     services: input.services,
     model: input.model,
     sessionManager: input.sessionManager,
-    openWaggleUi: input.openWaggleUi,
+    ...(input.openWaggleUi === undefined ? {} : { openWaggleUi: input.openWaggleUi }),
     customTools,
     ...(!hasExistingMessages && input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
   })

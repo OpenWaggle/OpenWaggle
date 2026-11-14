@@ -50,7 +50,7 @@ function NativeViewHarness({ tab = TAB }: { readonly tab?: BrowserPreviewMateria
   return <div ref={viewportRef} />
 }
 
-function nativeState(): BrowserPreviewState {
+function nativeState() {
   return { ...TAB, previewId: TAB.id, error: null, controls: DEFAULT_BROWSER_PREVIEW_CONTROL_STATE }
 }
 

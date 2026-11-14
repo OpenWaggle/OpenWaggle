@@ -2,7 +2,7 @@ import { createServer } from 'node:net'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { type Browser, chromium, type Page } from '@playwright/test'
+import { type Browser, chromium } from '@playwright/test'
 import { AUTOMATION_IDENTITY_QUERY_PARAM } from '../../src/shared/constants/electron-automation'
 
 const CDP_RETRY_DELAY_MS = 250
@@ -53,7 +53,7 @@ async function waitForRendererPage(
   browser: Browser,
   timeoutMs: number,
   automationIdentity: string,
-): Promise<Page> {
+) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const page = browser
@@ -91,11 +91,7 @@ export async function verifyLiveHiveGui(input: {
 }) {
   const browser = await connectToElectron(input.debugPort, input.timeoutMs)
   try {
-    const page = await waitForRendererPage(
-      browser,
-      input.timeoutMs,
-      input.automationIdentity,
-    )
+    const page = await waitForRendererPage(browser, input.timeoutMs, input.automationIdentity)
     const consoleErrors: string[] = []
     page.on('pageerror', (error) => consoleErrors.push(error.message))
     page.on('console', (message) => {

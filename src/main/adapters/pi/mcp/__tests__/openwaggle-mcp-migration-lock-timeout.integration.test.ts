@@ -50,9 +50,8 @@ vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
   },
 }))
 
-const { migrateOpenWaggleMcpFilesAtHostStart, migrateOpenWaggleMcpFilesOnce } = await import(
-  '../openwaggle-mcp-migration'
-)
+const { migrateOpenWaggleMcpFilesAtHostStart, migrateOpenWaggleMcpFilesOnce } =
+  await import('../openwaggle-mcp-migration')
 const { withProcessFileLock } = await import('../../../mcp/process-file-lock')
 
 describe('the MCP file migration when another process keeps the lock', () => {

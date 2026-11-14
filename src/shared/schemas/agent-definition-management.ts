@@ -18,7 +18,7 @@ const sourceToolSchema = Schema.Union(importSourceSchema, Schema.Literal('auto')
 const importProvenanceSchema = Schema.Struct({
   sourceTool: importSourceSchema,
   sourcePath: Schema.String,
-  sourceName: Schema.optional(Schema.String),
+  sourceName: Schema.optionalWith(Schema.String, { exact: true }),
   sourceDigest: Schema.String,
   importerVersion: Schema.Literal(1),
   baselineDigest: Schema.String,
@@ -27,18 +27,24 @@ const importProvenanceSchema = Schema.Struct({
 
 const agentDefinitionDocumentSchema = Schema.Struct({
   schemaVersion: Schema.Literal(1),
-  $schema: Schema.optional(Schema.String),
+  $schema: Schema.optionalWith(Schema.String, { exact: true }),
   name: Schema.String,
   description: Schema.String,
-  model: Schema.optional(Schema.String),
-  reasoning: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  tools: Schema.optional(Schema.Array(Schema.String)),
-  skills: Schema.optional(Schema.Array(Schema.String)),
-  mcpServers: Schema.optional(Schema.Array(Schema.String)),
-  sessionCapabilities: Schema.optional(Schema.Array(Schema.Literal(...SESSION_CAPABILITIES))),
-  authorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  workspace: Schema.optional(Schema.Literal('share-parent', 'local', 'new-worktree')),
-  import: Schema.optional(importProvenanceSchema),
+  model: Schema.optionalWith(Schema.String, { exact: true }),
+  reasoning: Schema.optionalWith(Schema.Literal(...THINKING_LEVELS), { exact: true }),
+  tools: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  skills: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  mcpServers: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  sessionCapabilities: Schema.optionalWith(Schema.Array(Schema.Literal(...SESSION_CAPABILITIES)), {
+    exact: true,
+  }),
+  authorizationMode: Schema.optionalWith(Schema.Literal(...AGENT_AUTHORIZATION_MODES), {
+    exact: true,
+  }),
+  workspace: Schema.optionalWith(Schema.Literal('share-parent', 'local', 'new-worktree'), {
+    exact: true,
+  }),
+  import: Schema.optionalWith(importProvenanceSchema, { exact: true }),
   instructions: Schema.String,
 })
 
@@ -46,8 +52,8 @@ const projectPathSchema = { projectPath: Schema.String }
 const sourceImportSchema = {
   ...projectPathSchema,
   sourcePath: Schema.String,
-  sourceTool: Schema.optional(sourceToolSchema),
-  sourceName: Schema.optional(Schema.String),
+  sourceTool: Schema.optionalWith(sourceToolSchema, { exact: true }),
+  sourceName: Schema.optionalWith(Schema.String, { exact: true }),
   targetScope: scopeSchema,
 }
 
@@ -63,8 +69,8 @@ const importApplySchema = Schema.Union(
     operation: Schema.Literal('import-apply'),
     ...sourceImportSchema,
     expectedSourceDigest: Schema.String,
-    replaceExisting: Schema.optional(Schema.Literal(false)),
-    expectedContentDigest: Schema.optional(Schema.String),
+    replaceExisting: Schema.optionalWith(Schema.Literal(false), { exact: true }),
+    expectedContentDigest: Schema.optionalWith(Schema.String, { exact: true }),
   }),
 )
 
@@ -75,8 +81,8 @@ export const agentDefinitionManagementCommandSchema = Schema.Union(
     ...projectPathSchema,
     scope: scopeSchema,
     document: agentDefinitionDocumentSchema,
-    replaceExisting: Schema.optional(Schema.Boolean),
-    expectedContentDigest: Schema.optional(Schema.String),
+    replaceExisting: Schema.optionalWith(Schema.Boolean, { exact: true }),
+    expectedContentDigest: Schema.optionalWith(Schema.String, { exact: true }),
   }),
   Schema.Struct({
     operation: Schema.Literal('duplicate'),
@@ -90,7 +96,7 @@ export const agentDefinitionManagementCommandSchema = Schema.Union(
     ...projectPathSchema,
     name: Schema.String,
     scope: scopeSchema,
-    expectedContentDigest: Schema.optional(Schema.String),
+    expectedContentDigest: Schema.optionalWith(Schema.String, { exact: true }),
   }),
   Schema.Struct({ operation: Schema.Literal('import-plan'), ...sourceImportSchema }),
   importApplySchema,
@@ -98,15 +104,15 @@ export const agentDefinitionManagementCommandSchema = Schema.Union(
     operation: Schema.Literal('refresh-plan'),
     ...projectPathSchema,
     name: Schema.String,
-    scope: Schema.optional(scopeSchema),
+    scope: Schema.optionalWith(scopeSchema, { exact: true }),
   }),
   Schema.Struct({
     operation: Schema.Literal('refresh-apply'),
     ...projectPathSchema,
     name: Schema.String,
-    scope: Schema.optional(scopeSchema),
+    scope: Schema.optionalWith(scopeSchema, { exact: true }),
     expectedSourceDigest: Schema.String,
     expectedContentDigest: Schema.String,
-    replaceModified: Schema.optional(Schema.Boolean),
+    replaceModified: Schema.optionalWith(Schema.Boolean, { exact: true }),
   }),
 )

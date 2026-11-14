@@ -8,7 +8,7 @@ import { useComposerActionStore } from '@/features/composer/state'
 export async function runBranchMutation(
   run: () => Promise<GitBranchMutationResult>,
   onToast?: (message: string) => void,
-): Promise<GitBranchMutationResult> {
+) {
   useComposerActionStore.getState().setBranchMessage(null)
   try {
     const result = await run()
@@ -19,6 +19,6 @@ export async function runBranchMutation(
     const message = error instanceof Error ? error.message : 'Branch operation failed.'
     useComposerActionStore.getState().setBranchMessage(message)
     onToast?.(message)
-    return { ok: false, code: 'unknown', message }
+    return { ok: false, code: 'unknown', message } satisfies GitBranchMutationResult
   }
 }

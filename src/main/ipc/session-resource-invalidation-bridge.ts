@@ -7,7 +7,7 @@ import { broadcastToWindows } from '../utils/broadcast'
 
 let disposeBridge: (() => void) | null = null
 
-export function registerSessionResourceInvalidationBridge(): void {
+export function registerSessionResourceInvalidationBridge() {
   disposeBridge?.()
   disposeBridge = subscribeToSessionResourceInvalidations((event: SessionResourceInvalidation) => {
     const payload = event satisfies IpcEventPayload<'sessions:resources-invalidated'>
@@ -15,7 +15,7 @@ export function registerSessionResourceInvalidationBridge(): void {
   })
 }
 
-export function disposeSessionResourceInvalidationBridge(): void {
+export function disposeSessionResourceInvalidationBridge() {
   disposeBridge?.()
   disposeBridge = null
 }

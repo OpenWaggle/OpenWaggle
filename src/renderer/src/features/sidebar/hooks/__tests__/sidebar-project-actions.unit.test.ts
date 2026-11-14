@@ -26,7 +26,7 @@ vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
 
 const PROJECT_PATH = '/repo/project'
 
-function summary(id: SessionId, archived = false): SessionSummary {
+function summary(id: SessionId, archived = false) {
   return {
     id,
     title: String(id),
@@ -34,7 +34,7 @@ function summary(id: SessionId, archived = false): SessionSummary {
     archived,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies SessionSummary
 }
 
 function deps() {
@@ -229,7 +229,7 @@ describe('sidebar project actions over paged catalogs', () => {
 
   it('orders an unlimited-depth Worker chain without using the call stack', () => {
     const depth = 20_000
-    const sessions = Array.from({ length: depth }, (_, index): SessionSummary => {
+    const sessions = Array.from({ length: depth }, (_, index) => {
       const id = SessionId(`deep-${index}`)
       return {
         ...summary(id),
@@ -244,7 +244,7 @@ describe('sidebar project actions over paged catalogs', () => {
                 activeDirectWorkerCount: 0,
               },
             }),
-      }
+      } satisfies SessionSummary
     })
 
     const ordered = sessionsInDeletionOrder(sessions)

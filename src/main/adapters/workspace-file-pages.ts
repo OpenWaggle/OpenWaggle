@@ -56,7 +56,7 @@ export async function readWorkspaceFilePage(input: {
   readonly path: string
   readonly offset: number
   readonly limit: number
-}): Promise<WorkspaceFilePage> {
+}) {
   const resolved = await resolveExistingWorkspaceFile(input)
   const requestedOffset = Math.min(input.offset, resolved.stats.size)
   const handle = await fs.open(resolved.realFilePath, 'r')
@@ -117,7 +117,7 @@ export async function readWorkspaceFilePage(input: {
       content: decoded.content,
       encoding: marker.encoding,
       ...(language ? { language } : {}),
-    }
+    } satisfies WorkspaceFilePage
   } finally {
     await handle.close()
   }

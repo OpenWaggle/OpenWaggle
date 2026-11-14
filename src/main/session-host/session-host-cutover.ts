@@ -232,7 +232,7 @@ export async function runSessionHostCutover(
   paths: SessionHostCutoverPaths,
   now = Date.now(),
   model: SessionEmbeddingModel = defaultSessionEmbeddingModel,
-): Promise<SessionHostCutoverResult> {
+) {
   const stagingPath = `${paths.targetDatabasePath}.partial`
   await mkdir(path.dirname(paths.targetDatabasePath), {
     recursive: true,
@@ -240,25 +240,36 @@ export async function runSessionHostCutover(
   })
   if (await exists(paths.targetDatabasePath)) {
     validateCompletedTarget(paths.targetDatabasePath)
-    return { status: 'already-complete', targetDatabasePath: paths.targetDatabasePath }
+    return {
+      status: 'already-complete',
+      targetDatabasePath: paths.targetDatabasePath,
+    } satisfies SessionHostCutoverResult
   }
   const ownership = await acquireSessionHostOwnership(`${paths.targetDatabasePath}.cutover`)
   try {
     if (await exists(paths.targetDatabasePath)) {
       validateCompletedTarget(paths.targetDatabasePath)
-      return { status: 'already-complete', targetDatabasePath: paths.targetDatabasePath }
+      return {
+        status: 'already-complete',
+        targetDatabasePath: paths.targetDatabasePath,
+      } satisfies SessionHostCutoverResult
     }
     if (await exists(paths.recoveryDatabasePath)) {
       if (await exists(stagingPath)) {
         validateStagedTarget(stagingPath, model)
         await rename(stagingPath, paths.targetDatabasePath)
-        return { status: 'already-complete', targetDatabasePath: paths.targetDatabasePath }
+        return {
+          status: 'already-complete',
+          targetDatabasePath: paths.targetDatabasePath,
+        } satisfies SessionHostCutoverResult
       }
       throw new Error(
         `Session Host cutover is incomplete: recovery database exists without an active or staged database: ${paths.recoveryDatabasePath}`,
       )
     }
-    if (!(await sessionHostSourceExists(paths))) return { status: 'fresh-install' }
+    if (!(await sessionHostSourceExists(paths))) {
+      return { status: 'fresh-install' } satisfies SessionHostCutoverResult
+    }
     await rm(stagingPath, { force: true })
     await copySourceToStaging(paths.sourceDatabasePath, stagingPath)
     const prepared = prepareStagingDatabase(stagingPath, now)
@@ -270,7 +281,7 @@ export async function runSessionHostCutover(
       recoveryDatabasePath: paths.recoveryDatabasePath,
       sessionCount: validation.sessions,
       nodeCount: validation.nodes,
-    }
+    } satisfies SessionHostCutoverResult
   } catch (error) {
     await rm(stagingPath, { force: true })
     throw error

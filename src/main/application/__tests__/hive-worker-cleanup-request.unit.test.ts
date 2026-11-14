@@ -29,8 +29,12 @@ function envelope<C>(command: C) {
 function responseWith(
   outcome: Partial<SessionControlMutationResponse['outcome']>,
   replayed = false,
-): SessionControlMutationResponse {
-  return fromPartial({ ...envelope(undefined), replayed, outcome })
+) {
+  return fromPartial({
+    ...envelope(undefined),
+    replayed,
+    outcome,
+  }) satisfies SessionControlMutationResponse
 }
 
 function capture<A, E>(effect: Effect.Effect<A, E, HiveWorkerCleanup>) {
@@ -98,10 +102,10 @@ describe('restoreHiveWorkerAfterCommand', () => {
 })
 
 describe('restoreHiveWorkerAfterDelegationReview', () => {
-  const review = (
-    operation: SessionControlDelegationMutationRequest['command']['operation'],
-  ): SessionControlDelegationMutationRequest =>
-    envelope(fromPartial({ operation, sessionId: 'queen', delegationId: 'delegation-worker' }))
+  const review = (operation: SessionControlDelegationMutationRequest['command']['operation']) =>
+    envelope(
+      fromPartial({ operation, sessionId: 'queen', delegationId: 'delegation-worker' }),
+    ) satisfies SessionControlDelegationMutationRequest
 
   it.each([
     ['delegation-reopen', AGENT],

@@ -10,13 +10,11 @@ const { typedHandleMock, showOpenDialogMock, fromWebContentsMock } = vi.hoisted(
   fromWebContentsMock: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  BrowserWindow: {
-    fromWebContents: fromWebContentsMock,
-  },
-  dialog: {
-    showOpenDialog: showOpenDialogMock,
-  },
+vi.mock('../../desktop-shell/desktop-windows', () => ({
+  desktopWindows: { fromSurface: fromWebContentsMock },
+}))
+vi.mock('../../desktop-shell/dialogs', () => ({
+  desktopDialogs: { showOpenDialog: showOpenDialogMock },
 }))
 
 vi.mock('../typed-ipc', async () => {
@@ -129,7 +127,7 @@ describe('registerProjectHandlers', () => {
     const result = await handler?.({ sender })
 
     expect(fromWebContentsMock).toHaveBeenCalledWith(sender)
-    expect(showOpenDialogMock).toHaveBeenCalledWith({
+    expect(showOpenDialogMock).toHaveBeenCalledWith(null, {
       properties: ['openDirectory'],
       title: 'Select Project Folder',
     })

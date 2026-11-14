@@ -53,14 +53,14 @@ function sessionIdentity(
   }
 }
 
-function directCommitToast(result: GitCommitSuccess): {
-  readonly message: string
-  readonly variant: 'error' | undefined
-} {
+function directCommitToast(result: GitCommitSuccess) {
   const outputFailure = result.commitOutput?.ok === false ? result.commitOutput : null
   return {
     message: outputFailure?.message ?? `Commit created: ${result.summary}`,
     variant: outputFailure ? 'error' : undefined,
+  } satisfies {
+    readonly message: string
+    readonly variant: 'error' | undefined
   }
 }
 
@@ -72,8 +72,9 @@ function useSessionSummaryToggleFocus(
   const clearToggleFocus = useSessionSummaryUIStore((state) => state.clearToggleFocus)
   const panelAvailable = panel?.available
   useLayoutEffect(() => {
-    if (!activeSessionId || targetSessionId !== activeSessionId || panelAvailable === undefined)
+    if (!activeSessionId || targetSessionId !== activeSessionId || panelAvailable === undefined) {
       return
+    }
     if (panelAvailable) {
       document.getElementById(`session-summary-${activeSessionId}-toggle`)?.focus()
     }
@@ -106,7 +107,7 @@ function useHeaderGit(activeSessionId: SessionId | null) {
     return match
       .promise(
         git.commit(git.workingPath, {
-          sessionId: activeSessionId ?? undefined,
+          ...(activeSessionId === null ? {} : { sessionId: activeSessionId }),
           message,
           amend,
           paths,
@@ -195,7 +196,9 @@ export function Header() {
           sidebarOpen={sidebarOpen}
           sessionId={activeSessionId}
           title={title}
-          sessionIdentity={currentSessionIdentity}
+          {...(currentSessionIdentity === undefined
+            ? {}
+            : { sessionIdentity: currentSessionIdentity })}
           onToggleSidebar={toggleSidebar}
         />
 

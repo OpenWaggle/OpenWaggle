@@ -78,11 +78,13 @@ const createCheckpointWorker: WalCheckpointWorkerFactory = (input) =>
     },
   })
 
-function decodeMessage(value: unknown): CheckpointWorkerMessage {
+function decodeMessage(value: unknown) {
   const decoded = safeDecodeUnknown(CheckpointWorkerMessage, value)
-  return decoded.success
-    ? decoded.data
-    : { type: 'failed', error: 'The WAL checkpoint worker sent an unknown message.' }
+  return (
+    decoded.success
+      ? decoded.data
+      : { type: 'failed', error: 'The WAL checkpoint worker sent an unknown message.' }
+  ) satisfies CheckpointWorkerMessage
 }
 
 function setAutocheckpoint(sql: SqlClient.SqlClient, pages: number) {

@@ -4,7 +4,6 @@ import {
   decodeLocalSessionProfileCapabilities,
   decodeLocalSessionProfileScope,
 } from '@shared/schemas/local-session-profile'
-import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import type { SessionControlFollowUp } from '../domain/session-control/message-aggregate'
@@ -37,19 +36,24 @@ export function sourceSessionId(callerId: string) {
   return lastSeparator > prefix.length ? callerId.slice(prefix.length, lastSeparator) : undefined
 }
 
-export function decodedCapabilities(value: string | null): readonly SessionCapability[] {
-  if (!value) return []
+export function decodedCapabilities(value: string | null) {
+  if (!value) {
+    const result: readonly SessionCapability[] = []
+    return result
+  }
   try {
     const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed)
+    const result: readonly SessionCapability[] = Array.isArray(parsed)
       ? parsed.filter(
           (candidate): candidate is SessionCapability =>
             typeof candidate === 'string' &&
             SESSION_CAPABILITIES.some((capability) => capability === candidate),
         )
       : []
+    return result
   } catch {
-    return []
+    const result: readonly SessionCapability[] = []
+    return result
   }
 }
 
@@ -67,7 +71,7 @@ export function loadProfile(sql: SqlClient.SqlClient, callerId: string) {
   })
 }
 
-export function profileAuthority(row: QueuedFollowUpProfileRow): LocalSessionProfileAuthority {
+export function profileAuthority(row: QueuedFollowUpProfileRow) {
   return {
     profileId: row.id,
     profileName: row.id,

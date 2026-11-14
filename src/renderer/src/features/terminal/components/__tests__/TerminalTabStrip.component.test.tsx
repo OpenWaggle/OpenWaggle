@@ -5,14 +5,14 @@ import { TerminalTabStrip } from '../TerminalTabStrip'
 
 const OWNER = 'session-1'
 
-function tab(id: string, terminalId: string, customName: string | null): TerminalTabState {
+function tab(id: string, terminalId: string, customName: string | null) {
   return {
     id,
     panes: [{ terminalId, cwd: '/repo' }],
     activePaneId: terminalId,
     splitDirection: 'side-by-side',
     customName,
-  }
+  } satisfies TerminalTabState
 }
 
 function renderStrip(overrides: { activeTabId?: string } = {}) {

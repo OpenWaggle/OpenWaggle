@@ -82,8 +82,8 @@ vi.mock('../terminal-process-probes', () => ({
 
 export interface FakePty {
   readonly pty: IPty
-  readonly dataListeners: Array<(data: string) => void>
-  readonly exitListeners: Array<(event: { readonly exitCode: number }) => void>
+  readonly dataListeners: ((data: string) => void)[]
+  readonly exitListeners: ((event: { readonly exitCode: number }) => void)[]
   readonly emitExit: (exitCode?: number) => void
   readonly emitProcessTreeExit: (exitCode?: number) => void
   readonly resolveResourceDrain: () => void
@@ -104,8 +104,8 @@ export interface FakePty {
   >['resourceDrain']
 }
 
-function makeFakePty(pid: number): FakePty {
-  const dataListeners: Array<(data: string) => void> = []
+function makeFakePty(pid: number) {
+  const dataListeners: ((data: string) => void)[] = []
   const nativeLifecycle = makeTerminalLifecycleHarness()
   const { exitListeners } = nativeLifecycle
   const write = vi.fn()
@@ -129,7 +129,7 @@ function makeFakePty(pid: number): FakePty {
     kill,
     clear,
   })
-  Reflect.set(pty, 'closeDescriptor', closeDescriptor)
+  Object.assign(pty, { closeDescriptor: closeDescriptor })
   const lifecycle = nativeLifecycle.install(pty)
   return {
     pty,
@@ -150,7 +150,7 @@ function makeFakePty(pid: number): FakePty {
   }
 }
 
-export function successfulOutcome(fake: FakePty): PtySpawnOutcome {
+export function successfulOutcome(fake: FakePty) {
   return {
     ok: true,
     pty: fake.pty,
@@ -170,12 +170,12 @@ export function successfulOutcome(fake: FakePty): PtySpawnOutcome {
     resourceDrain: fake.resourceDrain,
     pauseOutput: fake.pauseOutput,
     resumeOutput: fake.resumeOutput,
-  }
+  } satisfies PtySpawnOutcome
 }
 
 function makeRecordingSink() {
   const recordedEvents: TerminalEventPayload[] = []
-  const recordedMoves: Array<readonly [string, string]> = []
+  const recordedMoves: (readonly [string, string])[] = []
   let nextMoveError: Error | null = null
   let deliveryCount = 1
   const sink: TerminalEventSinkShape = {
@@ -219,21 +219,22 @@ export let workDirA: string
 export let workDirB: string
 export let service: Service
 export let events: TerminalEventPayload[]
-export let moves: Array<readonly [string, string]>
+export let moves: (readonly [string, string])[]
 export let failNextMove: (error: Error) => void
 export let setDeliveryCount: (count: number) => void
 export let spawn: Mock<PtyRunner['spawn']>
 export let ptys: FakePty[]
-export let heldSpawns: Array<(outcome: PtySpawnOutcome) => void>
+export let heldSpawns: ((outcome: PtySpawnOutcome) => void)[]
 export let activitySnapshots: TerminalActivitySnapshot[]
 
-export const openInput = (cwd: string): TerminalOpenInput => ({
-  ownerKey: OWNER,
-  terminalId: TERMINAL_ID,
-  cwd,
-  cols: 120,
-  rows: 40,
-})
+export const openInput = (cwd: string) =>
+  ({
+    ownerKey: OWNER,
+    terminalId: TERMINAL_ID,
+    cwd,
+    cols: 120,
+    rows: 40,
+  }) satisfies TerminalOpenInput
 
 export const open = (cwd: string) => Effect.runPromise(service.open(openInput(cwd)))
 export const settle = () => vi.advanceTimersByTimeAsync(0)
@@ -269,16 +270,18 @@ export async function setupTerminalServiceActionsTest(options: RetentionOptions 
   ptys = []
   heldSpawns = []
   holdSpawns = false
-  spawn = vi.fn((_request: PtySpawnRequest): Promise<PtySpawnOutcome> => {
-    const fake = makeFakePty(FAKE_PID + ptys.length)
-    ptys.push(fake)
-    if (holdSpawns) {
-      return new Promise<PtySpawnOutcome>((resolve) => {
-        heldSpawns.push(resolve)
-      })
-    }
-    return Promise.resolve(successfulOutcome(fake))
-  })
+  spawn = vi.fn<(_request: PtySpawnRequest) => Promise<PtySpawnOutcome>>(
+    (_request: PtySpawnRequest) => {
+      const fake = makeFakePty(FAKE_PID + ptys.length)
+      ptys.push(fake)
+      if (holdSpawns) {
+        return new Promise<PtySpawnOutcome>((resolve) => {
+          heldSpawns.push(resolve)
+        })
+      }
+      return Promise.resolve(successfulOutcome(fake))
+    },
+  )
   runnerRef.current = {
     spawn,
     load: () => new Promise<never>(() => undefined),

@@ -17,7 +17,7 @@ export function required(value: string | undefined, label: string) {
 export function destination(
   arguments_: ReturnType<typeof parseMcpCliArguments>,
   stateRoot: string,
-): ProfileCredentialDestination {
+) {
   const store = hasFlag(arguments_, 'credential-store')
   const file = option(arguments_, 'credential-file')
   if (store === Boolean(file)) {
@@ -25,9 +25,11 @@ export function destination(
       'Choose exactly one --credential-store or --credential-file <path>.',
     )
   }
-  return store
-    ? { kind: 'credential-store', stateRoot }
-    : { kind: 'file', path: required(file, '--credential-file') }
+  return (
+    store
+      ? { kind: 'credential-store', stateRoot }
+      : { kind: 'file', path: required(file, '--credential-file') }
+  ) satisfies ProfileCredentialDestination
 }
 
 export function request(command: LocalSessionProfileManagementCommand, idempotencyKey: string) {
@@ -43,8 +45,8 @@ export function buildCommand(
   operation: string,
   arguments_: ReturnType<typeof parseMcpCliArguments>,
   credential?: string,
-): LocalSessionProfileManagementCommand {
-  if (operation === 'list') return { operation }
+) {
+  if (operation === 'list') return { operation } satisfies LocalSessionProfileManagementCommand
   const profileName = required(arguments_.positionals[0], 'Profile name')
   if (operation === 'create') {
     return {
@@ -52,12 +54,24 @@ export function buildCommand(
       name: profileName,
       credential: required(credential, 'Credential'),
       ...parseProfilePolicy(arguments_),
-    }
+    } satisfies LocalSessionProfileManagementCommand
   }
-  if (operation === 'update') return { operation, profileName, ...parseProfilePolicy(arguments_) }
+  if (operation === 'update') {
+    return {
+      operation,
+      profileName,
+      ...parseProfilePolicy(arguments_),
+    } satisfies LocalSessionProfileManagementCommand
+  }
   if (operation === 'rotate') {
-    return { operation, profileName, credential: required(credential, 'Credential') }
+    return {
+      operation,
+      profileName,
+      credential: required(credential, 'Credential'),
+    } satisfies LocalSessionProfileManagementCommand
   }
-  if (operation === 'revoke') return { operation, profileName }
+  if (operation === 'revoke') {
+    return { operation, profileName } satisfies LocalSessionProfileManagementCommand
+  }
   throw new CommandCliUsageError(`Unsupported profile operation: ${operation}.`)
 }

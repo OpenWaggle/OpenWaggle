@@ -1,9 +1,5 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
-import {
-  worktreeLaunchEnvironmentSchema,
-  worktreeLaunchStageSchema,
-  worktreeLaunchStepSchema,
-} from '@shared/schemas/background-run'
+import { worktreeLaunchSnapshotSchema } from '@shared/schemas/background-run'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import { toWaggleConfig, waggleConfigSchema } from '@shared/schemas/waggle'
 import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
@@ -20,33 +16,9 @@ const LEGACY_BACKGROUND_RUN_RECOVERY_STORAGE_KEY = 'openwaggle:background-run-re
 const LEGACY_RECOVERY_STORAGE_VERSION = 1
 const RECOVERY_STORAGE_VERSION = 2
 
-const setupActionSchema = Schema.Struct({
-  terminalId: Schema.String,
-  actionId: Schema.String,
-  actionName: Schema.String,
-  projectRoot: Schema.String,
-  cwd: Schema.String,
-})
-
-const worktreeLaunchSchema = Schema.Struct({
-  status: Schema.Literal('running', 'complete', 'failed'),
-  stage: worktreeLaunchStageSchema,
-  startedAt: Schema.Number,
-  updatedAt: Schema.Number,
-  details: Schema.mutable(Schema.Array(Schema.String)),
-  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
-  steps: Schema.optional(Schema.mutable(Schema.Array(worktreeLaunchStepSchema))),
-  progressPercentage: Schema.optional(Schema.Number),
-  worktreePath: Schema.optional(Schema.String),
-  branch: Schema.optional(Schema.String),
-  baseRef: Schema.optional(Schema.String),
-  setupAction: Schema.optional(setupActionSchema),
-  errorMessage: Schema.optional(Schema.String),
-})
-
 const persistedLaunchSchema = Schema.Struct({
   sessionId: Schema.String,
-  launch: worktreeLaunchSchema,
+  launch: worktreeLaunchSnapshotSchema,
 })
 
 const persistedFirstSendSchema = Schema.Struct({
@@ -83,7 +55,7 @@ function storage() {
   }
 }
 
-function compactRecoveryPayload(recovery: FirstSendRecovery): FirstSendRecovery {
+function compactRecoveryPayload(recovery: FirstSendRecovery) {
   return {
     ...recovery,
     payload: {
@@ -98,8 +70,8 @@ function compactRecoveryPayload(recovery: FirstSendRecovery): FirstSendRecovery 
   }
 }
 
-export function loadRecoverableBackgroundRuns(): RecoverableBackgroundRuns {
-  const empty = {
+export function loadRecoverableBackgroundRuns() {
+  const empty: RecoverableBackgroundRuns = {
     launches: new Map<SessionId, WorktreeLaunchSnapshot>(),
     recoveries: new Map<SessionId, FirstSendRecovery>(),
   }
@@ -136,7 +108,7 @@ export function loadRecoverableBackgroundRuns(): RecoverableBackgroundRuns {
           ],
         ),
       ),
-    }
+    } satisfies RecoverableBackgroundRuns
   } catch {
     target.removeItem(key)
     return empty

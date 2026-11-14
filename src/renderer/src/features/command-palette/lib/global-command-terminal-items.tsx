@@ -4,10 +4,7 @@ import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import type { CommandPaletteItem } from '../model'
 import type { CoreCommandActions } from './global-command-core-items'
 
-export function createTerminalCommandItems(
-  settings: Settings,
-  actions: CoreCommandActions,
-): CommandPaletteItem[] {
+export function createTerminalCommandItems(settings: Settings, actions: CoreCommandActions) {
   return [
     {
       id: 'toggle-terminal',
@@ -65,5 +62,5 @@ export function createTerminalCommandItems(
       trailing: formatShortcutBinding(settings.shortcutBindings['terminal.close']),
       action: () => actions.finish(() => void actions.closeActiveTerminal()),
     },
-  ]
+  ] satisfies CommandPaletteItem[]
 }

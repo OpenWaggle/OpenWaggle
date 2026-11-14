@@ -190,8 +190,8 @@ function rebuildStep(
   revision: number,
   sliceNodes: number,
   publishChunk: number,
-): Effect.Effect<RebuildStep, SqlError> {
-  return Effect.gen(function* () {
+) {
+  const effect: Effect.Effect<RebuildStep, SqlError> = Effect.gen(function* () {
     if ((yield* nodeMutationRevision(sql, sessionId)) !== revision) return { kind: 'changed' }
     let countedThrough: number
     if (current.kind === 'accumulate') {
@@ -215,6 +215,7 @@ function rebuildStep(
     const next = yield* publishAccumulatedTermsStep(sql, sessionId, cursor, publishChunk)
     return next === null ? { kind: 'done' } : { kind: 'publish', cursor: next, countedThrough }
   })
+  return effect
 }
 
 /**

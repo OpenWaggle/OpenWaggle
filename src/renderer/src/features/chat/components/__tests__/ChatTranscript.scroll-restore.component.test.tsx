@@ -29,23 +29,23 @@ vi.mock('../WelcomeScreen', () => ({ WelcomeScreen: () => <div>welcome</div> }))
 vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
 vi.mock('@/features/extensions', () => ({ ExtensionAgentLoopSurface: () => null }))
 
-function message(id: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content: id }] }
+function message(id: string) {
+  return { id, role: 'user', parts: [{ type: 'text', content: id }] } satisfies UIMessage
 }
 
-function row(id: string): ChatRow {
+function row(id: string) {
   return {
     type: 'message',
     message: message(id),
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-  }
+  } satisfies ChatRow
 }
 
-function createSection(): ChatTranscriptSectionState {
+function createSection() {
   const rows = Array.from({ length: ROW_COUNT }, (_, index) => row(`msg-${index}`))
-  return {
+  const state: ChatTranscriptSectionState = {
     messages: rows.map((r) => (r.type === 'message' ? r.message : message('x'))),
     isLoading: false,
     projectPath: '/repo',
@@ -75,6 +75,7 @@ function createSection(): ChatTranscriptSectionState {
     onViewTurnDiff: vi.fn(),
     turnAnchorMessageIds: new Set<string>(),
   }
+  return state
 }
 
 /** jsdom has no layout; a tall scroller makes a restored row sit mid-history, not at the end. */

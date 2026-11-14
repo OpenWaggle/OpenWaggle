@@ -59,11 +59,10 @@ function rowFor(
   session: HiveSession,
   rootId: string | null,
   lineage: ReadonlyMap<string, HiveLineageEntry>,
-): HiveTreeRow {
+) {
   const entry = lineage.get(String(session.id))
-  if (rootId === null || entry === undefined || entry.parentId === null) {
-    return { session, parent: null }
-  }
+  if (rootId === null || entry === undefined) return { session, parent: null } satisfies HiveTreeRow
+  if (entry.parentId === null) return { session, parent: null } satisfies HiveTreeRow
   return {
     session,
     parent: {
@@ -73,7 +72,7 @@ function rowFor(
       isQueen: entry.parentId === rootId,
       ancestry: entry.ancestry,
     },
-  }
+  } satisfies HiveTreeRow
 }
 
 /**
@@ -88,7 +87,7 @@ export function buildHiveTreeModel(input: {
   readonly members: readonly HiveSession[]
   readonly currentSessionId: string | null
   readonly statusOf?: HiveStatusOf
-}): HiveTreeModel {
+}) {
   const rootId = input.root === null ? null : String(input.root.id)
   const statusOf = input.statusOf ?? (() => undefined)
   const lineage = buildHiveLineageIndex({ root: input.root, members: input.members })
@@ -142,19 +141,25 @@ export function hiveRowStateLabel(
   session: HiveSession,
   fallback: string,
   liveStatus?: SessionStatus,
-): {
-  readonly label: string
-  /** Only the person can unblock it: the row reads in the attention colour. */
-  readonly needsYou: boolean
-  /** Plain-language explanation of the label, for the row's tooltip. */
-  readonly hint: string
-} {
+) {
   const next = hiveMemberNextActor(session, liveStatus)
   if (next !== null) {
     return {
       ...hiveNextActorLabel(next.reason, hiveParentName(session)),
       needsYou: next.nextActor === 'user',
+    } satisfies {
+      readonly label: string
+      /** Only the person can unblock it: the row reads in the attention colour. */
+      readonly needsYou: boolean
+      /** Plain-language explanation of the label, for the row's tooltip. */
+      readonly hint: string
     }
   }
-  return { label: fallback, needsYou: false, hint: `Live Session status: ${fallback}` }
+  return { label: fallback, needsYou: false, hint: `Live Session status: ${fallback}` } satisfies {
+    readonly label: string
+    /** Only the person can unblock it: the row reads in the attention colour. */
+    readonly needsYou: boolean
+    /** Plain-language explanation of the label, for the row's tooltip. */
+    readonly hint: string
+  }
 }

@@ -40,11 +40,10 @@ describe('makeNodePtyTerminalService lifecycle', () => {
       running: true,
     })
     expect(spawn).toHaveBeenCalledTimes(2)
-    const record = service.records.get(TERMINAL_KEY)
-    expect(record?.scrollback.toString()).toBe('')
-    expect(record?.outputBytes).toBe(0)
     await settle()
-    expect(record?.live?.pty).toBe(ptys[1]?.pty)
+    // The restarted shell is live: opening again reuses it without another spawn.
+    await expect(open(workDirA)).resolves.toMatchObject({ history: '', running: true })
+    expect(spawn).toHaveBeenCalledTimes(2)
   })
 
   it('restart without env preserves the terminal record overrides', async () => {
@@ -57,7 +56,6 @@ describe('makeNodePtyTerminalService lifecycle', () => {
 
     await Effect.runPromise(service.restart(openInput(workDirA)))
 
-    expect(service.records.get(TERMINAL_KEY)?.env).toEqual(env)
     expect(spawn.mock.calls[1]?.[0].env).toEqual(env)
   })
 
@@ -167,8 +165,10 @@ describe('makeNodePtyTerminalService lifecycle', () => {
 
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
-    expect(service.records.get(TERMINAL_KEY)?.live).toBeNull()
     expect(spawn).toHaveBeenCalledOnce()
+    await expect(
+      Effect.runPromise(service.write(OWNER, TERMINAL_ID, 'into the stopped shell')),
+    ).resolves.toMatchObject({ status: 'rejected', reason: 'terminal-not-open' })
   })
 
   it('preserves acknowledged startup input across a restart', async () => {

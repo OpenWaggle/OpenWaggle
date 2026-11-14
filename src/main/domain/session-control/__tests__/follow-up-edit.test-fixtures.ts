@@ -17,8 +17,8 @@ export function followUp(
   id: string,
   overrides: Partial<SessionControlFollowUp['intent']> = {},
   item: Partial<SessionControlFollowUp> = {},
-): SessionControlFollowUp {
-  return {
+) {
+  const result: SessionControlFollowUp = {
     id: FollowUpId(id),
     deliveryState: 'pending',
     intent: {
@@ -31,6 +31,7 @@ export function followUp(
     },
     ...item,
   }
+  return result
 }
 
 export function state(
@@ -38,13 +39,14 @@ export function state(
   run: SessionControlSessionState['run'] = { state: 'active', runId: RunId('run-active') },
   queueState: 'running' | 'paused' = 'running',
   queue: Partial<SessionControlSessionState['followUpQueue']> = {},
-): SessionControlSessionState {
-  return {
+) {
+  const result: SessionControlSessionState = {
     sessionId: SESSION_ID,
     revision: 10,
     run,
     followUpQueue: { state: queueState, revision: 4, items, ...queue },
   }
+  return result
 }
 
 export const IDLE = { state: 'idle' } as const

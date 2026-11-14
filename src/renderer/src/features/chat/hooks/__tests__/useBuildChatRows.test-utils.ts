@@ -4,15 +4,15 @@ import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { MessageChatRow, WaggleTurnChatRow } from '../../lib/types-chat-row'
 import { buildChatRows } from '../useBuildChatRows'
 
-function createUserMessage(id: string, text: string): UIMessage {
+function createUserMessage(id: string, text: string) {
   return {
     id,
     role: 'user',
     parts: [{ type: 'text', content: text }],
-  }
+  } satisfies UIMessage
 }
 
-function createAssistantToolMessage(id: string, toolCallId: string): UIMessage {
+function createAssistantToolMessage(id: string, toolCallId: string) {
   return {
     id,
     role: 'assistant',
@@ -31,10 +31,10 @@ function createAssistantToolMessage(id: string, toolCallId: string): UIMessage {
         state: 'output-available',
       },
     ],
-  }
+  } satisfies UIMessage
 }
 
-function createToolResultMessage(id: string, toolCallId: string): UIMessage {
+function createToolResultMessage(id: string, toolCallId: string) {
   return {
     id,
     role: 'assistant',
@@ -46,14 +46,10 @@ function createToolResultMessage(id: string, toolCallId: string): UIMessage {
         state: 'complete',
       },
     ],
-  }
+  } satisfies UIMessage
 }
 
-function createAssistantPendingToolMessage(
-  id: string,
-  toolCallId: string,
-  text: string,
-): UIMessage {
+function createAssistantPendingToolMessage(id: string, toolCallId: string, text: string) {
   return {
     id,
     role: 'assistant',
@@ -67,14 +63,10 @@ function createAssistantPendingToolMessage(
         state: 'input-complete',
       },
     ],
-  }
+  } satisfies UIMessage
 }
 
-function createAssistantTerminalToolMessage(
-  id: string,
-  toolCallId: string,
-  text: string,
-): UIMessage {
+function createAssistantTerminalToolMessage(id: string, toolCallId: string, text: string) {
   return {
     id,
     role: 'assistant',
@@ -94,7 +86,7 @@ function createAssistantTerminalToolMessage(
       },
       { type: 'text', content: text },
     ],
-  }
+  } satisfies UIMessage
 }
 
 function getAssistantMessageRows(

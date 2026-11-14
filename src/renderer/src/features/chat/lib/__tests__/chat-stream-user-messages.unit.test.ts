@@ -6,11 +6,7 @@ import { placeReconnectedRunMessages } from '../chat-stream-user-messages'
 
 const DIGEST = 'e'.repeat(64)
 
-function userMessageStart(
-  messageId: string,
-  text: string,
-  sessionNodeCreatedOrder: number,
-): AgentTransportEvent {
+function userMessageStart(messageId: string, text: string, sessionNodeCreatedOrder: number) {
   return {
     type: 'message_start',
     messageId,
@@ -21,7 +17,7 @@ function userMessageStart(
       durableTextSha256: DIGEST,
     },
     timestamp: 1_000,
-  }
+  } satisfies AgentTransportEvent
 }
 
 const answered: UIMessage[] = [

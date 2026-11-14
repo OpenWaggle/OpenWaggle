@@ -15,9 +15,8 @@ vi.mock('../session-host/local-session-client', () => ({
 }))
 
 const { runRunCli, RUN_CLI_INTERRUPTED_EXIT } = await import('../run-cli')
-const { harness, launchedResult, resetSequence, RUN, settled, textDelta, transport } = await import(
-  './run-cli-harness'
-)
+const { harness, launchedResult, resetSequence, RUN, settled, textDelta, transport } =
+  await import('./run-cli-harness')
 
 beforeEach(() => resetSequence())
 

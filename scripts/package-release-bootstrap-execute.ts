@@ -1,7 +1,4 @@
-import {
-  redactBootstrapDiagnostic,
-  runRequired,
-} from './package-release-bootstrap-commands'
+import { redactBootstrapDiagnostic, runRequired } from './package-release-bootstrap-commands'
 import {
   createAndVerifyGithubEnvironment,
   createAndVerifyRuleset,
@@ -32,17 +29,18 @@ function failureResult(
   dependencies: BootstrapDependencies,
   packages: readonly BootstrapPackageProgress[],
   github: BootstrapGithubProgress,
-): PackageReleaseBootstrapResult {
+) {
   const message = redactBootstrapDiagnostic(error instanceof Error ? error.message : String(error))
   dependencies.writeLine(`[blocked] ${message}`)
-  return {
+  const result: PackageReleaseBootstrapResult = {
     blockers: [message],
     github,
     mode: 'execute',
-    nextAction: 'Rerun pnpm package-release:bootstrap to inspect and resume partial state.',
+    nextAction: 'Rerun bun run package-release:bootstrap to inspect and resume partial state.',
     ok: false,
     packages,
   }
+  return result
 }
 
 async function securePackages(
@@ -63,17 +61,16 @@ async function recoverPublishingRestriction(
   packageName: string,
   dependencies: BootstrapDependencies,
   cause: unknown,
-): Promise<never> {
+) {
   try {
     await restrictPackagePublishing(projectRoot, packageName, dependencies)
   } catch (recoveryError) {
     const causeMessage = cause instanceof Error ? cause.message : String(cause)
     const recoveryMessage =
       recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
-    throw new Error(
-      `${causeMessage} Restrictive MFA recovery also failed: ${recoveryMessage}`,
-      { cause: recoveryError },
-    )
+    throw new Error(`${causeMessage} Restrictive MFA recovery also failed: ${recoveryMessage}`, {
+      cause: recoveryError,
+    })
   }
   throw cause
 }
@@ -112,12 +109,7 @@ async function securePackage(
     packageProgress.state = 'complete'
   } catch (error) {
     if (packageMayExist) {
-      await recoverPublishingRestriction(
-        projectRoot,
-        packageProgress.name,
-        dependencies,
-        error,
-      )
+      await recoverPublishingRestriction(projectRoot, packageProgress.name, dependencies, error)
     }
     throw error
   }
@@ -128,14 +120,14 @@ export async function executeBootstrap(
   dependencies: BootstrapDependencies,
   initialPackages: readonly BootstrapPackageProgress[],
   initialGithub: BootstrapGithubProgress,
-): Promise<PackageReleaseBootstrapResult> {
+) {
   let packages: MutablePackageProgress[] = initialPackages.map((item) => ({ ...item }))
   let github = initialGithub
   try {
-    dependencies.writeLine('[validate] pnpm check')
+    dependencies.writeLine('[validate] bun run check')
     await runRequired(dependencies, {
-      args: ['check'],
-      command: 'pnpm',
+      args: ['run', 'check'],
+      command: 'bun',
       cwd: input.projectRoot,
     })
     const preflight = await inspectBootstrapPreflight(input.projectRoot, dependencies)
@@ -148,12 +140,13 @@ export async function executeBootstrap(
       github.environment === 'conflict' ||
       github.ruleset === 'conflict'
     ) {
-      return {
+      const result: PackageReleaseBootstrapResult = {
         ...preflight,
         mode: 'execute',
         nextAction: 'Resolve every blocker and rerun the preflight.',
         ok: false,
       }
+      return result
     }
     const username = await runRequired(dependencies, {
       args: ['whoami'],
@@ -164,12 +157,7 @@ export async function executeBootstrap(
       .filter((packageProgress) => packageProgress.nextAction !== NEXT_PUBLISH)
       .map((packageProgress) => packageProgress.name)
     if (existingPackageNames.length > 0) {
-      await verifyWriteAccess(
-        input.projectRoot,
-        username,
-        dependencies,
-        existingPackageNames,
-      )
+      await verifyWriteAccess(input.projectRoot, username, dependencies, existingPackageNames)
     }
     await securePackages(input.projectRoot, username, packages, dependencies)
     if (github.environment === 'pending') {
@@ -180,7 +168,7 @@ export async function executeBootstrap(
       await createAndVerifyRuleset(input.projectRoot, dependencies)
     }
     github = { environment: 'complete', ruleset: 'complete' }
-    return {
+    const result: PackageReleaseBootstrapResult = {
       blockers: [],
       github,
       mode: 'execute',
@@ -188,6 +176,7 @@ export async function executeBootstrap(
       ok: true,
       packages,
     }
+    return result
   } catch (error) {
     return failureResult(error, dependencies, packages, github)
   }

@@ -1,21 +1,27 @@
 import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
+import {
+  terminalBackendModule,
+  type TerminalBackendNative,
+  terminalBackendProcess,
+} from './terminal-pty-backend-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 function spawnProcessIdentity(spawned: IPty, pid: number) {
-  const value: unknown = Reflect.get(spawned, 'spawnProcessIdentity')
+  const value: unknown = terminalBackendProcess(spawned).spawnProcessIdentity
   return typeof value === 'string' && value.length > 0 ? { pid, startedAt: value } : null
 }
 
 function controllingTtyIdentity(spawned: IPty) {
-  const value: unknown = Reflect.get(spawned, 'ttyIdentity')
+  const value: unknown = terminalBackendProcess(spawned).ttyIdentity
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 export function assertTerminalModuleContract(pty: typeof NodePtyModule) {
   if (process.platform === 'win32') {
     if (
-      typeof Reflect.get(pty, 'processTable') !== 'function' ||
-      typeof Reflect.get(pty, 'listeningPorts') !== 'function'
+      typeof terminalBackendModule(pty).processTable !== 'function' ||
+      typeof terminalBackendModule(pty).listeningPorts !== 'function'
     ) {
       throw new Error(
         'The installed Windows terminal backend cannot query native process and listener metadata.',
@@ -23,13 +29,14 @@ export function assertTerminalModuleContract(pty: typeof NodePtyModule) {
     }
     return
   }
-  const native: unknown = Reflect.get(pty, 'native')
+  const native: unknown = terminalBackendModule(pty).native
+  const nativeFields = uncheckedFields<TerminalBackendNative>(native)
   if (
     native !== null &&
     typeof native === 'object' &&
-    typeof Reflect.get(native, 'processInfos') === 'function' &&
-    typeof Reflect.get(native, 'signalProcess') === 'function' &&
-    typeof Reflect.get(native, 'signalByTty') === 'function'
+    typeof nativeFields.processInfos === 'function' &&
+    typeof nativeFields.signalProcess === 'function' &&
+    typeof nativeFields.signalByTty === 'function'
   ) {
     return
   }
@@ -40,7 +47,7 @@ export function assertTerminalModuleContract(pty: typeof NodePtyModule) {
 
 export function captureDescriptorClose(spawned: IPty) {
   try {
-    const closeDescriptor: unknown = Reflect.get(spawned, 'closeDescriptor')
+    const closeDescriptor: unknown = terminalBackendProcess(spawned).closeDescriptor
     return typeof closeDescriptor === 'function'
       ? () => {
           Reflect.apply(closeDescriptor, spawned, [])
@@ -67,19 +74,19 @@ export function closeRejectedSpawn(spawned: IPty, closeDescriptor: (() => void) 
 }
 
 export function assertSpawnLifecycleContract(spawned: IPty, closeDescriptor: (() => void) | null) {
-  const pid: unknown = Reflect.get(spawned, 'pid')
+  const pid: unknown = terminalBackendProcess(spawned).pid
   if (!Number.isSafeInteger(pid) || Number(pid) <= 0) {
     throw new Error('Terminal backend returned an invalid root process id.')
   }
   if (
     closeDescriptor === null ||
-    typeof Reflect.get(spawned, 'waitForResourceDrain') !== 'function'
+    typeof terminalBackendProcess(spawned).waitForResourceDrain !== 'function'
   ) {
     throw new Error('The installed terminal backend cannot close and drain PTY resources safely.')
   }
 
   if (process.platform === 'win32') {
-    if (typeof Reflect.get(spawned, 'onProcessTreeExit') !== 'function') {
+    if (typeof terminalBackendProcess(spawned).onProcessTreeExit !== 'function') {
       throw new Error(
         'The installed Windows terminal backend cannot prove process-tree exit and resource drain.',
       )
@@ -94,7 +101,7 @@ export function assertSpawnLifecycleContract(spawned: IPty, closeDescriptor: (()
 
   const processIdentity = spawnProcessIdentity(spawned, Number(pid))
   const ttyIdentity = controllingTtyIdentity(spawned)
-  const fd: unknown = Reflect.get(spawned, 'fd')
+  const fd: unknown = terminalBackendProcess(spawned).fd
   if (
     processIdentity === null ||
     ttyIdentity === null ||

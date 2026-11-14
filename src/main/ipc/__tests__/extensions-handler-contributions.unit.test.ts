@@ -25,10 +25,8 @@ vi.mock('../typed-ipc', async () => {
 import { registerExtensionsHandlers } from '../extensions-handler'
 import { setLegacyHostOperationDependencies } from './legacy-host-operations'
 
-function makeContributionsView(
-  input: ExtensionListContributionsInput,
-): ExtensionContributionRegistryView {
-  return {
+function makeContributionsView(input: ExtensionListContributionsInput) {
+  const view: ExtensionContributionRegistryView = {
     projectPaths: input.projectPaths ?? [],
     entries: [
       {
@@ -60,6 +58,7 @@ function makeContributionsView(
       },
     ],
   }
+  return view
 }
 
 function registerContributionsHandler() {

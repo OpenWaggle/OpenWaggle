@@ -3,7 +3,9 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { APP_ID, PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { BackgroundStartStatus } from '@shared/types/ipc-invoke-scheduled-tasks'
-import { app } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
+import { systemIntegration } from './desktop-shell/system-integration'
 import { isAutomationMode } from './desktop-ui'
 import { env } from './env'
 
@@ -12,14 +14,14 @@ import { env } from './env'
  * window, so enabled Scheduled tasks keep firing after a reboot or logout. The operating system's
  * registration is the setting; there is no second copy to drift. macOS uses a LaunchAgent (its
  * login items cannot pass arguments), Linux an XDG autostart entry, and Windows the Run key
- * Electron manages. Every form runs `<app> -- host start`, which starts the Host and exits.
+ * the desktop shell manages. Every form runs `<app> -- host start`, which starts the Host and exits.
  */
 const HOST_START_ARGUMENTS = ['--', 'host', 'start'] as const
 /** Login items are read by the system, written only by their user. */
 const LOGIN_ITEM_FILE_MODE = 0o644
 
-function unsupported(reason: string): BackgroundStartStatus {
-  return { supported: false, enabled: false, reason }
+function unsupported(reason: string) {
+  return { supported: false, enabled: false, reason } satisfies BackgroundStartStatus
 }
 
 function launchExecutable() {
@@ -31,8 +33,8 @@ function macLaunchAgentPath() {
 }
 
 function linuxAutostartPath() {
-  // On Linux, Electron's appData is $XDG_CONFIG_HOME or ~/.config.
-  return path.join(app.getPath('appData'), 'autostart', `${APP_ID}.background-start.desktop`)
+  // On Linux, appData is $XDG_CONFIG_HOME or ~/.config.
+  return path.join(appPaths.appData(), 'autostart', `${APP_ID}.background-start.desktop`)
 }
 
 function xmlEscape(value: string) {
@@ -99,7 +101,7 @@ function windowsLoginItem() {
 }
 
 function unavailableReason() {
-  if (!app.isPackaged) return 'Background start is available in installed builds only.'
+  if (!appLifecycle.isPackaged()) return 'Background start is available in installed builds only.'
   if (isAutomationMode()) return 'Background start is off during automated runs.'
   if (!['darwin', 'linux', 'win32'].includes(process.platform)) {
     return 'Background start is not available on this platform.'
@@ -107,7 +109,7 @@ function unavailableReason() {
   return null
 }
 
-export async function readBackgroundStart(): Promise<BackgroundStartStatus> {
+export async function readBackgroundStart() {
   const reason = unavailableReason()
   if (reason) return unsupported(reason)
   const executable = launchExecutable()
@@ -115,15 +117,18 @@ export async function readBackgroundStart(): Promise<BackgroundStartStatus> {
     return {
       supported: true,
       enabled: await fileHas(macLaunchAgentPath(), macLaunchAgentPlist(executable)),
-    }
+    } satisfies BackgroundStartStatus
   }
   if (process.platform === 'linux') {
     return {
       supported: true,
       enabled: await fileHas(linuxAutostartPath(), linuxAutostartEntry(executable)),
-    }
+    } satisfies BackgroundStartStatus
   }
-  return { supported: true, enabled: app.getLoginItemSettings(windowsLoginItem()).openAtLogin }
+  return {
+    supported: true,
+    enabled: systemIntegration.loginItemOpensAtLogin(windowsLoginItem()),
+  } satisfies BackgroundStartStatus
 }
 
 async function registerFile(filePath: string, contents: string, enabled: boolean) {
@@ -141,10 +146,10 @@ async function register(enabled: boolean) {
     await registerFile(linuxAutostartPath(), linuxAutostartEntry(executable), enabled)
     return
   }
-  app.setLoginItemSettings({ ...windowsLoginItem(), openAtLogin: enabled })
+  systemIntegration.setLoginItemOpensAtLogin(windowsLoginItem(), enabled)
 }
 
-export async function writeBackgroundStart(enabled: boolean): Promise<BackgroundStartStatus> {
+export async function writeBackgroundStart(enabled: boolean) {
   const reason = unavailableReason()
   if (reason) return unsupported(reason)
   await register(enabled)

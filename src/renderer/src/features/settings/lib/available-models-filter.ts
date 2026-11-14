@@ -22,8 +22,8 @@ export type ProviderScope =
 
 export const ALL_PROVIDERS: ProviderScope = { kind: 'all' }
 
-export function providerScope(provider: Provider): ProviderScope {
-  return { kind: 'provider', provider }
+export function providerScope(provider: Provider) {
+  return { kind: 'provider', provider } satisfies ProviderScope
 }
 
 /** The provider a scope narrows to, or null for every provider. */
@@ -86,10 +86,10 @@ function matchingModelsByProvider(
   query: AvailableModelsQuery,
   enabled: ReadonlySet<string>,
   exceptFilter?: ModelFilterId,
-): ReadonlyMap<Provider, readonly ModelDisplayInfo[]> {
+) {
   const tokens = searchTokens(query.search)
   const activeFilters = [...query.filters].filter((filter) => filter !== exceptFilter)
-  return new Map(
+  return new Map<Provider, readonly ModelDisplayInfo[]>(
     providers.map((group) => [
       group.provider,
       group.models.filter(
@@ -107,7 +107,7 @@ function filterCounts(
   query: AvailableModelsQuery,
   enabled: ReadonlySet<string>,
   inProvider: Provider | null,
-): Readonly<Record<ModelFilterId, number>> {
+) {
   const count = (filter: ModelFilterId) => {
     const matches = matchingModelsByProvider(providers, query, enabled, filter)
     let total = 0
@@ -133,11 +133,13 @@ interface HighlightSegment {
 }
 
 /** Splits `text` into runs that do or do not match any search word, for highlighting. */
-export function highlightSegments(text: string, search: string): readonly HighlightSegment[] {
+export function highlightSegments(text: string, search: string) {
   const tokens = searchTokens(search)
-  if (tokens.length === 0 || text.length === 0) return [{ start: 0, text, match: false }]
+  if (tokens.length === 0 || text.length === 0) {
+    return [{ start: 0, text, match: false }] satisfies readonly HighlightSegment[]
+  }
   const lower = text.toLowerCase()
-  const marked = new Array<boolean>(text.length).fill(false)
+  const marked = Array.from({ length: text.length }, () => false)
   for (const token of tokens) {
     let index = lower.indexOf(token)
     while (index !== -1) {

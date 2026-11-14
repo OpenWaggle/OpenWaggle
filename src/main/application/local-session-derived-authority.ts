@@ -22,6 +22,18 @@ export interface LocalSessionAuthorizationTarget {
   readonly hiveRootSessionId?: string
 }
 
+/** A target naming a project, or no target when the request names none. */
+export function projectAuthorizationTarget(projectPath: string | undefined) {
+  const target: LocalSessionAuthorizationTarget = projectPath === undefined ? {} : { projectPath }
+  return target
+}
+
+/** A target naming a Session, or no target when the request names none. */
+export function sessionAuthorizationTarget(sessionId: string | undefined) {
+  const target: LocalSessionAuthorizationTarget = sessionId === undefined ? {} : { sessionId }
+  return target
+}
+
 function expandTransientWorkspaceScope(caller: LocalSessionCallerIdentity) {
   const authority = caller.profileAuthority
   const roots = authority?.scope.workspaceRoots
@@ -72,9 +84,7 @@ type RefreshedProfileCallerEffect = Effect.Effect<
   LocalSessionProfileRepository | SessionAuthorizationTargetRepository
 >
 
-export function refreshNamedProfileCaller(
-  caller: LocalSessionCallerIdentity,
-): RefreshedProfileCallerEffect {
+export function refreshNamedProfileCaller(caller: LocalSessionCallerIdentity) {
   const connectedAuthority = caller.profileAuthority
   const refreshed: RefreshedProfileCallerEffect =
     !connectedAuthority || !caller.callerId.startsWith('profile:')
@@ -113,7 +123,7 @@ export function refreshNamedProfileCaller(
             },
           } satisfies LocalSessionCallerIdentity
         })
-  return refreshed.pipe(
+  const effect: RefreshedProfileCallerEffect = refreshed.pipe(
     Effect.flatMap((resolved: LocalSessionCallerIdentity) => {
       const scope = resolved.profileAuthority?.scope
       if (!scope) return Effect.succeed(resolved)
@@ -132,6 +142,7 @@ export function refreshNamedProfileCaller(
     Effect.flatMap(applyAuthorityLimits),
     Effect.flatMap(refreshEventAdmissionSessionIds),
   )
+  return effect
 }
 
 function hasEveryCapability(
@@ -155,24 +166,26 @@ function projectedSessionIds(
   return [...sessionIds]
 }
 
-function fileScopeFrom(baseScope: LocalSessionProfileScope): LocalSessionProfileScope {
-  return {
+function fileScopeFrom(baseScope: LocalSessionProfileScope) {
+  const scope: LocalSessionProfileScope = {
     ...(baseScope.workspaceRoots ? { workspaceRoots: baseScope.workspaceRoots } : {}),
     ...(baseScope.exportRoots ? { exportRoots: baseScope.exportRoots } : {}),
     ...(baseScope.attachmentRoots ? { attachmentRoots: baseScope.attachmentRoots } : {}),
   }
+  return scope
 }
 
-function targetScopeFrom(
-  baseScope: LocalSessionProfileScope,
-  includeBaseScope: boolean,
-): LocalSessionProfileScope {
-  if (!includeBaseScope) return {}
-  return {
+function targetScopeFrom(baseScope: LocalSessionProfileScope, includeBaseScope: boolean) {
+  if (!includeBaseScope) {
+    const scope: LocalSessionProfileScope = {}
+    return scope
+  }
+  const scope: LocalSessionProfileScope = {
     ...(baseScope.all !== undefined ? { all: baseScope.all } : {}),
     ...(baseScope.projectPaths ? { projectPaths: baseScope.projectPaths } : {}),
     ...(baseScope.hiveRootSessionIds ? { hiveRootSessionIds: baseScope.hiveRootSessionIds } : {}),
   }
+  return scope
 }
 
 export function profileAuthorityForCapabilities(

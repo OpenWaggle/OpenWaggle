@@ -73,7 +73,7 @@ function dependencyCommand(input: {
   readonly delegationId: string
   readonly dependencyDelegationId: string
   readonly action: 'add' | 'remove'
-}): SessionControlDelegationDependencyCommand {
+}) {
   return {
     operation: 'delegation-dependency',
     sessionId: 'session-parent',
@@ -82,7 +82,7 @@ function dependencyCommand(input: {
     dependencyDelegationId: input.dependencyDelegationId,
     requiredState: 'accepted',
     reason: `${input.action} prerequisite`,
-  }
+  } satisfies SessionControlDelegationDependencyCommand
 }
 
 describe('SQLite Delegation dependencies', () => {

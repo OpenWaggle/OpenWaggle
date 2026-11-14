@@ -28,7 +28,7 @@ export const NEW_HEARTBEAT_DRAFT_FIELDS: HeartbeatDraftFields = {
   wakeOnFailure: 'wake',
 }
 
-export function heartbeatDraftFields(task: ScheduledTask): HeartbeatDraftFields {
+export function heartbeatDraftFields(task: ScheduledTask) {
   const heartbeat = task.heartbeat
   if (!heartbeat) return NEW_HEARTBEAT_DRAFT_FIELDS
   return {
@@ -37,7 +37,7 @@ export function heartbeatDraftFields(task: ScheduledTask): HeartbeatDraftFields 
     idlePauseAfter: String(heartbeat.idlePauseAfter),
     wakeCommand: heartbeat.wakeCheck?.command ?? '',
     wakeOnFailure: heartbeat.wakeCheck?.onFailure ?? 'wake',
-  }
+  } satisfies HeartbeatDraftFields
 }
 
 const INTEGER_PATTERN = /^\d+$/
@@ -75,17 +75,22 @@ export function heartbeatSettingsFromDraft(
   draft: HeartbeatDraftFields,
   end: { readonly endsAt: number | null; readonly maxRuns: number | null },
   original?: ScheduledTask | null,
-): HeartbeatDraftResult {
+) {
   const stopWhen = draft.stopWhen.trim()
   const idlePauseAfter = idlePauseAfterOf(draft)
   if (idlePauseAfter === null) {
-    return { ok: false, error: 'Pause after idle runs must be a whole number from 1 to 20.' }
+    const result: HeartbeatDraftResult = {
+      ok: false,
+      error: 'Pause after idle runs must be a whole number from 1 to 20.',
+    }
+    return result
   }
   if (!heartbeatHasStopCondition({ stopWhen, indefinite: draft.indefinite, ...end })) {
-    return { ok: false, error: STOP_CONDITION_DRAFT_ERROR }
+    const result: HeartbeatDraftResult = { ok: false, error: STOP_CONDITION_DRAFT_ERROR }
+    return result
   }
   const wakeCheck = wakeCheckOf(draft, original)
-  return {
+  const result: HeartbeatDraftResult = {
     ok: true,
     value: {
       stopWhen: stopWhen || null,
@@ -94,4 +99,5 @@ export function heartbeatSettingsFromDraft(
       ...(wakeCheck !== undefined ? { wakeCheck } : {}),
     },
   }
+  return result
 }

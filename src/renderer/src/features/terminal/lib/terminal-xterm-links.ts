@@ -32,7 +32,7 @@ interface TerminalLinkProviderOptions {
  * Creates the plain-text provider without taking ownership of xterm. Keeping
  * this pure makes wrapped-line and modifier behavior independently testable.
  */
-export function createTerminalLinkProvider(options: TerminalLinkProviderOptions): ILinkProvider {
+export function createTerminalLinkProvider(options: TerminalLinkProviderOptions) {
   return {
     provideLinks(bufferLineNumber, callback) {
       const logicalLine = collectWrappedTerminalLinkLine(bufferLineNumber, (index) =>
@@ -60,7 +60,7 @@ export function createTerminalLinkProvider(options: TerminalLinkProviderOptions)
       }
       callback(links.length > 0 ? links : undefined)
     },
-  }
+  } satisfies ILinkProvider
 }
 
 /** Safe OSC 8 handler. Non-HTTP protocols reach it only so validated file: URIs can work. */
@@ -68,8 +68,8 @@ export function createTerminalOsc8LinkHandler(
   context: TerminalLinkResolutionContext,
   platform: string,
   onActivate: ActivateTerminalLink,
-): ILinkHandler {
-  return {
+) {
+  const handler: ILinkHandler = {
     allowNonHttpProtocols: true,
     activate(event, uri) {
       if (!isTerminalLinkActivation(event, platform)) return
@@ -77,4 +77,5 @@ export function createTerminalOsc8LinkHandler(
       if (target !== null) onActivate(target)
     },
   }
+  return handler
 }

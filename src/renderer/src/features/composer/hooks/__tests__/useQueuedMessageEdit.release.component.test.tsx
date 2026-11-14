@@ -46,7 +46,7 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) 
       beginEdit: queueMock.beginEdit,
       saveEdit: queueMock.saveEdit,
       cancelEdit: queueMock.cancelEdit,
-      ...resumeFrom(queueMock.snapshot, actual.heldEdit),
+      ...resumeFrom(queueMock.snapshot),
       adoptEdit: queueMock.adoptEdit,
     }),
   }

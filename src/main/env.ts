@@ -1,10 +1,6 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
-import {
-  installProcessDesktopShellEnvironment,
-  type ProcessDesktopShellEnvironmentOptions,
-} from './desktop-shell-environment-process'
 import { applyPreparedEnvironment, type PreparedEnvironment } from './domain/prepared-environment'
 import {
   buildNpmCompatiblePath,
@@ -13,6 +9,7 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
+import { liveEnvSchema, SOURCE_CONTROL_CLI_STRIPPED_VARIABLES } from './env-live-schema'
 import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 import {
   applyPiPackageDirectoryTo,
@@ -23,7 +20,7 @@ import {
   sessionHostSafeEnvironment,
 } from './session-host/session-host-launch-command'
 
-const optionalUrlSchema = Schema.optional(
+const optionalUrlSchema = Schema.optionalWith(
   Schema.String.pipe(
     Schema.filter((value) => {
       try {
@@ -34,42 +31,51 @@ const optionalUrlSchema = Schema.optional(
       }
     }),
   ),
+  { exact: true },
 )
 
+const optionalString = Schema.optionalWith(Schema.String, { exact: true })
+const optionalFlag = Schema.optionalWith(Schema.Literal('1'), { exact: true })
+const LOG_LEVEL = Schema.Literal('debug', 'info', 'warn', 'error')
+
 const envSchema = Schema.Struct({
-  PATH: Schema.optional(Schema.String),
-  APPIMAGE: Schema.optional(Schema.String),
+  PATH: optionalString,
+  APPIMAGE: optionalString,
   ELECTRON_RENDERER_URL: optionalUrlSchema,
-  OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
-  OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: Schema.optional(Schema.Literal('1')),
-  OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: Schema.optional(Schema.String), // Hidden QA Pi fixtures
-  OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),
-  OPENWAGGLE_AUTOMATION_PROJECT_PATH: Schema.optional(Schema.String),
-  OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
-  OPENWAGGLE_DISABLE_SINGLE_INSTANCE: Schema.optional(Schema.String),
-  OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
-  OPENWAGGLE_CLI_OUTPUT_FD: Schema.optional(Schema.String),
-  OPENWAGGLE_PROFILE: Schema.optional(Schema.String),
-  OPENWAGGLE_PROFILE_CREDENTIAL_FILE: Schema.optional(Schema.String),
-  OPENWAGGLE_AGENT_RUN: Schema.optional(Schema.Literal('1')),
+  OPENWAGGLE_AUTOMATION: optionalFlag,
+  OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: optionalFlag,
+  OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: optionalString, // Hidden QA Pi fixtures
+  OPENWAGGLE_AUTOMATION_LEASE_TOKEN: optionalString,
+  OPENWAGGLE_AUTOMATION_PROJECT_PATH: optionalString,
+  OPENWAGGLE_USER_DATA_DIR: optionalString,
+  OPENWAGGLE_DISABLE_SINGLE_INSTANCE: optionalString,
+  OPENWAGGLE_LOG_LEVEL: Schema.optionalWith(LOG_LEVEL, { exact: true }),
+  OPENWAGGLE_CLI_OUTPUT_FD: optionalString,
+  OPENWAGGLE_PROFILE: optionalString,
+  OPENWAGGLE_PROFILE_CREDENTIAL_FILE: optionalString,
+  OPENWAGGLE_AGENT_RUN: optionalFlag,
   /** The Host's own temp directory, preserved in agent tool processes whose TMPDIR is a scratch dir. */
-  OPENWAGGLE_HOST_TMPDIR: Schema.optional(Schema.String),
+  OPENWAGGLE_HOST_TMPDIR: optionalString,
   /** Usage statistics opt-outs (ADR 0046), interpreted by `resolveUsageStatisticsEnablement`. */
-  DO_NOT_TRACK: Schema.optional(Schema.String),
-  PI_TELEMETRY: Schema.optional(Schema.String),
-  CI: Schema.optional(Schema.String),
-  SystemRoot: Schema.optional(Schema.String),
-  TEMP: Schema.optional(Schema.String),
-  TMP: Schema.optional(Schema.String),
-  USERPROFILE: Schema.optional(Schema.String),
-  LOCALAPPDATA: Schema.optional(Schema.String),
+  DO_NOT_TRACK: optionalString,
+  PI_TELEMETRY: optionalString,
+  CI: optionalString,
+  SystemRoot: optionalString,
+  TEMP: optionalString,
+  TMP: optionalString,
+  USERPROFILE: optionalString,
+  LOCALAPPDATA: optionalString,
 })
 
-export {
-  desktopShellEnvironmentReady,
-  desktopShellEnvironmentRefreshStartedAt,
-} from './desktop-shell-environment-process'
 export type Env = SchemaType<typeof envSchema>
+
+/**
+ * The live process environment, decoded now (unlike the startup {@link env} snapshot):
+ * desktop-shell hydration and `withTemporaryProcessEnv` change `process.env` while the app runs.
+ */
+export function readLiveEnv() {
+  return decodeUnknownOrThrow(liveEnvSchema, process.env)
+}
 
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
@@ -78,7 +84,7 @@ export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 const TEMPORARY_DIRECTORY_VARIABLES = ['TMPDIR', 'TMP', 'TEMP'] as const
 
 /**
- * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `pnpm dev`)
+ * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `bun run dev`)
  * inherits that Session's scratch directory as TMPDIR, TMP, and TEMP. Its own temp files belong in
  * the Host temp directory the agent environment keeps in OPENWAGGLE_HOST_TMPDIR, or archiving the
  * Session would delete them under the running process.
@@ -92,9 +98,17 @@ export function restoreHostTemporaryDirectory(
 }
 
 /** Unlike the startup snapshot above, PATH can change after desktop-shell hydration. */
-export function getCurrentProcessPath(): string | undefined {
-  return process.env.PATH
+export function getCurrentProcessPath() {
+  return readLiveEnv().PATH
 }
+
+const livePiEnvSchema = Schema.Struct({
+  PI_CODING_AGENT_SESSION_DIR: optionalString,
+})
+
+/** Pi's session directory override, read live like PATH: Pi reads it when it opens a session. */
+export const getPiSessionDirectoryOverride = () =>
+  decodeUnknownOrThrow(livePiEnvSchema, process.env).PI_CODING_AGENT_SESSION_DIR
 
 const TERMINAL_PROGRAM_NAME = 'OpenWaggle'
 const TERMINAL_TYPE = 'xterm-256color'
@@ -102,13 +116,16 @@ const TERMINAL_COLOR_TYPE = 'truecolor'
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 
-/** Hydrates this process's environment from the login shell (`desktop-shell-environment-process`). */
-export const installDesktopShellEnvironment = (
-  options: ProcessDesktopShellEnvironmentOptions = {},
-) => installProcessDesktopShellEnvironment(process.env, options)
+/**
+ * This process's own environment, which `desktop-shell-environment-process` hydrates in place
+ * from the login shell.
+ */
+export function liveProcessEnvironment() {
+  return process.env
+}
 
 /** The launching app's login-shell refresh time, removed so no child of this Host inherits it. */
-export function takeShellEnvironmentRefreshedSince(): number | undefined {
+export function takeShellEnvironmentRefreshedSince() {
   const since = Number(process.env[SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE])
   Reflect.deleteProperty(process.env, SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE)
   return Number.isSafeInteger(since) && since > 0 ? since : undefined
@@ -128,31 +145,33 @@ export const applyPiPackageDirectory = (directory?: string) =>
 
 /** Safe environment for child processes: essential variables only, so no API key or other
  * secret of the parent process leaks. */
-export function getSafeChildEnv(): Record<string, string | undefined> {
+export function getSafeChildEnv() {
+  const live = readLiveEnv()
   return {
     PATH: getNpmCompatiblePath(),
-    HOME: process.env.HOME,
-    SHELL: process.env.SHELL,
-    TERM: process.env.TERM,
-    LANG: process.env.LANG,
-    USER: process.env.USER,
-    TMPDIR: process.env.TMPDIR,
+    HOME: live.HOME,
+    SHELL: live.SHELL,
+    TERM: live.TERM,
+    LANG: live.LANG,
+    USER: live.USER,
+    TMPDIR: live.TMPDIR,
   }
 }
 
 /** Minimum environment required by the built-in Windows PowerShell security helper. */
-export function getWindowsSecurityChildEnv(): Record<string, string | undefined> {
+export function getWindowsSecurityChildEnv() {
+  const live = readLiveEnv()
   return {
     PATH: getNpmCompatiblePath(),
-    SystemRoot: process.env.SystemRoot,
-    TEMP: process.env.TEMP,
-    TMP: process.env.TMP,
-    USERPROFILE: process.env.USERPROFILE,
+    SystemRoot: live.SystemRoot,
+    TEMP: live.TEMP,
+    TMP: live.TMP,
+    USERPROFILE: live.USERPROFILE,
   }
 }
 
 /** The environment a detached Session Host starts with (see `sessionHostSafeEnvironment`). */
-export function getSessionHostChildEnv(): Record<string, string | undefined> {
+export function getSessionHostChildEnv() {
   return sessionHostSafeEnvironment(
     withShellPiPackageDirectory(process.env),
     getNpmCompatiblePath(),
@@ -165,29 +184,28 @@ export function getSessionHostChildEnv(): Record<string, string | undefined> {
  * PowerShell needs the Windows root/temp variables. No unrelated secrets pass
  * through to either subprocess.
  */
-export function getBrowserCredentialChildEnv(): Record<string, string | undefined> {
+export function getBrowserCredentialChildEnv() {
+  const live = readLiveEnv()
   return {
     ...getSafeChildEnv(),
-    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
-    DISPLAY: process.env.DISPLAY,
-    LC_ALL: process.env.LC_ALL,
-    SystemRoot: process.env.SystemRoot,
-    TEMP: process.env.TEMP,
-    TMP: process.env.TMP,
-    USERNAME: process.env.USERNAME,
-    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
-    WINDIR: process.env.WINDIR,
-    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+    DBUS_SESSION_BUS_ADDRESS: live.DBUS_SESSION_BUS_ADDRESS,
+    DISPLAY: live.DISPLAY,
+    LC_ALL: live.LC_ALL,
+    SystemRoot: live.SystemRoot,
+    TEMP: live.TEMP,
+    TMP: live.TMP,
+    USERNAME: live.USERNAME,
+    WAYLAND_DISPLAY: live.WAYLAND_DISPLAY,
+    WINDIR: live.WINDIR,
+    XDG_RUNTIME_DIR: live.XDG_RUNTIME_DIR,
   }
 }
 
 /** Windows profile roots used only for installed-browser discovery. */
-export function getBrowserImportPathEnv(): {
-  readonly appData?: string
-  readonly localAppData?: string
-} {
-  const appData = process.env.APPDATA?.trim()
-  const localAppData = process.env.LOCALAPPDATA?.trim()
+export function getBrowserImportPathEnv() {
+  const live = readLiveEnv()
+  const appData = live.APPDATA?.trim()
+  const localAppData = live.LOCALAPPDATA?.trim()
   return {
     ...(appData ? { appData } : {}),
     ...(localAppData ? { localAppData } : {}),
@@ -203,10 +221,7 @@ export function getBrowserImportPathEnv(): {
  * injection controls are removed. A new snapshot is built for every terminal
  * spawn so environment changes made while OpenWaggle is running are observed.
  */
-export function getInteractiveTerminalEnv(
-  appVersion: string,
-  overrides: PreparedEnvironment = {},
-): Record<string, string> {
+export function getInteractiveTerminalEnv(appVersion: string, overrides: PreparedEnvironment = {}) {
   const inherited: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value !== 'string' || shouldExcludeInteractiveTerminalEnvKey(key)) continue
@@ -237,33 +252,12 @@ export function getInteractiveTerminalEnv(
  * host selected by the validated Git remote. Inherited tokens from CI or developer tooling can
  * silently select a different identity or be disclosed to an attacker-controlled custom host.
  */
-export function getSourceControlCliEnv(): Record<string, string | undefined> {
+export function getSourceControlCliEnv() {
   const env: Record<string, string | undefined> = {
     ...process.env,
     PATH: getNpmCompatiblePath(),
   }
-  delete env.GITHUB_TOKEN
-  delete env.GH_TOKEN
-  delete env.GITHUB_ENTERPRISE_TOKEN
-  delete env.GH_ENTERPRISE_TOKEN
-  delete env.GITLAB_TOKEN
-  delete env.GITLAB_ACCESS_TOKEN
-  delete env.GITLAB_PRIVATE_TOKEN
-  delete env.OAUTH_TOKEN
-  delete env.CI_JOB_TOKEN
-  // Repository/host selection is supplied explicitly on every gh/glab invocation. Ambient
-  // overrides would otherwise be able to retarget a command despite the validated Git remote.
-  delete env.GH_REPO
-  delete env.GH_HOST
-  delete env.GITLAB_REPO
-  delete env.GITLAB_HOST
-  delete env.GITLAB_API_HOST
-  delete env.GITLAB_SSH_HOST
-  delete env.GITLAB_HEAD_REPO
-  delete env.GITLAB_URI
-  delete env.GITLAB_URL
-  delete env.GLAB_REPO
-  delete env.GLAB_HOST
+  for (const name of SOURCE_CONTROL_CLI_STRIPPED_VARIABLES) delete env[name]
   return env
 }
 
@@ -278,24 +272,22 @@ export function readEnvironmentVariables<N extends string>(names: readonly N[]) 
  * The current environment plus explicit overrides, for child git invocations that need extra
  * variables (e.g. `GIT_INDEX_FILE`) while still inheriting PATH/HOME. Only `env.ts` reads it.
  */
-export function getEnvWithOverrides(
-  overrides: Readonly<Record<string, string>>,
-): Record<string, string | undefined> {
+export function getEnvWithOverrides(overrides: Readonly<Record<string, string>>) {
   return { ...withShellPiPackageDirectory(process.env), ...overrides }
 }
 
-export function getNpmCompatiblePath(): string {
-  return buildNpmCompatiblePath(process.env.PATH, process.platform, homedir())
+export function getNpmCompatiblePath() {
+  return buildNpmCompatiblePath(readLiveEnv().PATH, process.platform, homedir())
 }
 
-export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {
+export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>) {
   return withTemporaryProcessEnv({ PATH: getNpmCompatiblePath() }, operation)
 }
 
 export async function withTemporaryProcessEnv<T>(
   overrides: Readonly<Record<string, string>>,
   operation: () => Promise<T>,
-): Promise<T> {
+) {
   const release = await acquireTemporaryProcessEnvLock()
   const previousValues = new Map<string, string | undefined>()
 

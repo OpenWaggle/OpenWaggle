@@ -12,21 +12,20 @@ const PACKAGE_JSON_FILE = 'package.json'
 const ELECTRON_REBUILD_METADATA_FILE = '.forge-meta'
 const EXECUTABLE_MODE_MASK = 0o111
 
-interface NativePackageMetadata {
-  readonly name: string
-  readonly version?: string
-}
-
-export type NativeArtifactSignature = {
+export interface NativeArtifactSignature {
   readonly packageName: string
   readonly path: string
   readonly size: number
   readonly mtimeMs: number
 }
 
-export type NativeArtifactPaths = {
+export interface NativeArtifactPaths {
   readonly projectRoot: string
-  readonly pnpmPackageDirectory: string
+  /**
+   * Bun's isolated store, `node_modules/.bun`. Its `node_modules` holds a link to every installed
+   * package, so a native package that is not a direct dependency is still found there.
+   */
+  readonly storeDirectory: string
 }
 
 export function isNativeArtifactSignature(value: unknown): value is NativeArtifactSignature {
@@ -99,7 +98,9 @@ export async function collectNativeArtifactSignatures(
       }
       const artifactStat = await stat(artifactPath)
       if (!artifactStat.isFile()) {
-        throw new Error(`${packageName} ${requirement.label} is not a regular file: ${artifactPath}.`)
+        throw new Error(
+          `${packageName} ${requirement.label} is not a regular file: ${artifactPath}.`,
+        )
       }
       if (
         requirement.executable &&
@@ -157,7 +158,7 @@ function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
-async function readPackageMetadata(packageRoot: string): Promise<NativePackageMetadata | null> {
+async function readPackageMetadata(packageRoot: string) {
   let packageJson: unknown
   try {
     packageJson = JSON.parse(await readFile(join(packageRoot, PACKAGE_JSON_FILE), 'utf8'))
@@ -171,10 +172,9 @@ async function readPackageMetadata(packageRoot: string): Promise<NativePackageMe
 
   return {
     name: packageJson.name,
-    version:
-      'version' in packageJson && typeof packageJson.version === 'string'
-        ? packageJson.version
-        : undefined,
+    ...('version' in packageJson && typeof packageJson.version === 'string'
+      ? { version: packageJson.version }
+      : {}),
   }
 }
 
@@ -190,11 +190,11 @@ function activePackageRootCandidates(paths: NativeArtifactPaths, packageName: st
   const packagePathSegments = packageName.split('/')
   return [
     join(paths.projectRoot, NODE_MODULES_SEGMENT, ...packagePathSegments),
-    join(paths.pnpmPackageDirectory, NODE_MODULES_SEGMENT, ...packagePathSegments),
+    join(paths.storeDirectory, NODE_MODULES_SEGMENT, ...packagePathSegments),
   ]
 }
 
-async function findActivePackageRoots(paths: NativeArtifactPaths, packageName: string) {
+export async function findActivePackageRoots(paths: NativeArtifactPaths, packageName: string) {
   const packageRoots = new Set<string>()
 
   for (const candidateRoot of activePackageRootCandidates(paths, packageName)) {

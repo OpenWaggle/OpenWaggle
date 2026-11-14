@@ -1,5 +1,11 @@
-import { PROVIDER_CATALOG_SCOPES } from '@shared/types/llm'
 import * as Effect from 'effect/Effect'
+import {
+  hostUiNonBlankStringSchema,
+  hostUiStringSchema,
+  optionalProjectPathArgumentSchema,
+  providerCatalogScopeArgumentSchema,
+} from './host-ui-argument-schemas'
+import { decodeSessionOperationArgument } from './host-ui-session-operation-validation'
 
 export function invalidHostUiInput(message: string) {
   return Effect.fail(new Error(message))
@@ -20,31 +26,21 @@ export function requireHostUiArgCount(
 }
 
 export function requiredHostUiString(value: unknown, label: string) {
-  return typeof value === 'string' && value.trim().length > 0
-    ? Effect.succeed(value)
-    : invalidHostUiInput(`${label} must be a non-empty string.`)
+  return decodeSessionOperationArgument(hostUiNonBlankStringSchema(label), value)
 }
 
 export function hostUiStringValue(value: unknown, label: string) {
-  return typeof value === 'string'
-    ? Effect.succeed(value)
-    : invalidHostUiInput(`${label} must be a string.`)
+  return decodeSessionOperationArgument(hostUiStringSchema(label), value)
 }
 
 export function optionalHostUiProjectPath(value: unknown) {
-  return value === undefined || value === null || typeof value === 'string'
-    ? Effect.succeed(value)
-    : invalidHostUiInput('Project path must be a string, null, or omitted.')
+  return decodeSessionOperationArgument(optionalProjectPathArgumentSchema, value)
 }
 
 export function optionalHostUiProviderCatalogScope(value: unknown) {
-  if (value === undefined) return Effect.succeed(undefined)
-  const scope = PROVIDER_CATALOG_SCOPES.find((candidate) => candidate === value)
-  return scope === undefined
-    ? invalidHostUiInput(
-        `Provider catalog scope must be one of ${PROVIDER_CATALOG_SCOPES.join(', ')}.`,
-      )
-    : Effect.succeed(scope)
+  return value === undefined
+    ? Effect.succeed(undefined)
+    : decodeSessionOperationArgument(providerCatalogScopeArgumentSchema, value)
 }
 
 export function oneInput<A, E, R>(

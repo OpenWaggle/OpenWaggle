@@ -48,7 +48,7 @@ describe('createTerminalPromptReadinessDetector', () => {
     const detector = createTerminalPromptReadinessDetector()
     const marker = `${ESC}]633;B${ST}`
 
-    const matches = [...marker].map((character) => detector.feed(character))
+    const matches = Array.from(marker, (character) => detector.feed(character))
 
     expect(matches.filter(Boolean)).toHaveLength(1)
     expect(matches.at(-1)).toBe(1)

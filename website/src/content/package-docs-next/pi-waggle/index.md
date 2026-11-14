@@ -1,0 +1,189 @@
+---
+title: "@openwaggle/pi-waggle"
+description: "Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit."
+order: 5
+section: "Packages"
+kind: "guide"
+---
+
+`@openwaggle/pi-waggle` adds a structured two-agent collaboration loop to Pi.
+
+## What Waggle mode does
+
+Waggle mode gives the same task to two configurable agents and lets them alternate turns in one Pi session. Each agent sees the work already produced, can use Pi's normal tools, and contributes from a different role. The loop stops when the agents reach consensus, the configured turn safety limit is reached, the user stops it, or an error prevents another turn.
+
+For example, one agent can implement a change while another reviews it, an attacker can probe a design while a defender hardens it, or an advocate and critic can test competing approaches. Use Waggle mode when a task benefits from iteration and opposing viewpoints. Standard Pi mode is usually faster and cheaper for simple questions or one-step edits.
+
+The package depends on `@openwaggle/waggle-core`. It registers the `/waggle` and `/standard` commands and a `waggle_invoke` tool, renders each turn with Pi-native UI, and saves mode state as Pi custom entries.
+
+## Install in Pi
+
+Install the extension for your user:
+
+```bash
+pi install npm:@openwaggle/pi-waggle
+```
+
+Install it only for the current project:
+
+```bash
+pi install npm:@openwaggle/pi-waggle -l
+```
+
+Try it for one run without keeping it installed:
+
+```bash
+pi -e npm:@openwaggle/pi-waggle
+```
+
+Pi installs the package and provides its Pi SDK and `typebox` peer dependencies. After installation, run `/waggle` to choose or configure a preset.
+
+If you are importing the package APIs into another project instead of installing the Pi extension, use your package manager:
+
+<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui typebox"></package-install>
+
+`@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox` are host-provided peer dependencies. Application developers should install the versions their Pi host uses.
+
+Pi users normally install `@openwaggle/pi-waggle` alone for Waggle mode. Install `@openwaggle/waggle-core` directly only when your code imports core helpers itself.
+
+## Pi extension entry
+
+The `./extension` subpath exposes the default Pi extension factory:
+
+```ts
+import piWaggle from '@openwaggle/pi-waggle/extension'
+
+export default piWaggle
+```
+
+The package manifest also declares the built Pi extension entry so Pi package loading can discover it from the installed package.
+
+## Commands
+
+The default extension registers:
+
+| Command | Behavior |
+|---------|----------|
+| `/waggle` | Opens the default Waggle control flow or enables a preset. |
+| `/waggle <preset-id> <prompt>` | Enables the preset and starts from the provided prompt. |
+| `/waggle new` | Creates a custom preset. |
+| `/waggle edit <preset-id>` | Edits a preset. Without an id, you pick one. |
+| `/waggle config` | Edits the active Waggle configuration. |
+| `/waggle turns <count>` | Sets the active turn safety limit. `max-turns` works too. |
+| `/waggle off` | Disables Waggle mode for the current branch. |
+| `/standard` | Disables Waggle mode for the current branch. |
+
+While a Waggle runs, anything you type ends it, including a slash command. Pi then handles your message as it normally would. Pressing Escape to abort the current turn also ends the Waggle.
+
+Command parsing helpers are also exported:
+
+```ts
+import { parsePiWaggleCommandArgs } from '@openwaggle/pi-waggle/commands'
+
+const intent = parsePiWaggleCommandArgs('code-review review this diff')
+```
+
+## Let the agent start a Waggle
+
+The default extension registers a `waggle_invoke` tool for the standard Pi agent. The agent calls it with a preset, given as its id or name (case does not matter), and a self-contained prompt. The built-in presets are `code-review`, `debate` and `red-team`.
+
+The tool checks the preset and returns a `waggle-handoff` request in its result details, then ends the agent's turn. A host that reads that request, such as OpenWaggle, starts the Waggle from it. Pi on its own does not act on the request, so in plain Pi the agent's turn ends without starting a Waggle. Use `/waggle` there instead. The tool refuses to run inside a Waggle that is already running.
+
+## Runtime state and messages
+
+Pi Waggle persists branch mode state in a `pi-waggle.mode-state` custom entry. Turn and user-request content use custom messages. Both use identifiers under the `pi-waggle.*` namespace:
+
+```ts
+import {
+  PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
+  PI_WAGGLE_TURN_CUSTOM_TYPE,
+  PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+  parsePiWaggleModeState,
+  parsePiWaggleTurnDetails,
+} from '@openwaggle/pi-waggle/protocol'
+```
+
+Use these helpers when projecting or rendering Pi Waggle state. Do not seed a parallel metadata tree outside Pi session data.
+
+## Custom loop integration
+
+Advanced Pi integrations can use the loop helpers directly when they need custom metadata, message creation, or completion handling:
+
+```ts
+import { createPiWaggleExtension } from '@openwaggle/pi-waggle/loop'
+import type { WaggleConfig } from '@openwaggle/waggle-core'
+
+export function createCustomWaggle(config: WaggleConfig) {
+  return createPiWaggleExtension({
+    config,
+    createTurnMetadata: ({ turnNumber, agentIndex }) => ({ turnNumber, agentIndex }),
+    buildTurnMessage: ({ turn }) => ({
+      customType: 'example.waggle-turn',
+      content: `Turn ${String(turn.turnNumber + 1)}: ${turn.agent.label}`,
+      display: false,
+      details: { turnNumber: turn.turnNumber, agentLabel: turn.agent.label },
+    }),
+    onTurnComplete: () => ({ continue: true }),
+  })
+}
+```
+
+The helper returns a controller. Register its `factory` as a Pi extension factory and await `done` for loop completion. Call `fail` with an error to end the loop with that error, for example when your host cannot start a turn. The default turn-model resolver requires an explicit provider-qualified model. To handle `$inherit`, provide your own `resolveTurnModel` callback.
+
+A turn ends when Pi settles its run, not at each `agent_end`. Pi sends `agent_end` for a failed attempt it is about to retry, so the loop collects the run's messages until `agent_settled` and leaves out the attempts Pi retried. A run the user aborts ends the loop without judging that turn. `onPiWaggleSettledAgentEnd` from `@openwaggle/pi-waggle/loop` gives your own handlers the same behavior.
+
+Most users should start with the default extension export, which handles inherited model selection. Use loop helpers when embedding Waggle into a custom Pi package.
+
+## Stop on errors
+
+`summarizePiWaggleTurnMessages` from `@openwaggle/pi-waggle/stop-policy` takes an optional `isRecoverableError` callback. When the callback returns `false` for a turn's final error, the summary sets `terminalErrorRecoverable: false` and `evaluatePiWaggleStopPolicy` stops the Waggle at once with that error. Other errors stop the Waggle after two turns in a row fail.
+
+The default extension uses Pi's own rules from `@earendil-works/pi-ai`. A rate limit, an overload or a dropped connection counts as recoverable. A rejected sign-in, a missing model, exhausted quota or a context overflow that Pi could not compact stops the Waggle. If `@earendil-works/pi-ai` cannot load, every error counts as recoverable.
+
+## Boundary rules
+
+`@openwaggle/pi-waggle` is Pi-specific. It may import Pi SDK packages and `@openwaggle/waggle-core`, but it should not be used as an OpenWaggle renderer dependency or browser-only extension UI package.
+
+For runtime-neutral policy, use [`@openwaggle/waggle-core`](/docs/packages/waggle-core). For OpenWaggle visual extensions, use [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk).
+
+## Compatibility
+
+| Requirement | Supported line |
+|-------------|----------------|
+| Node.js | 22.19 and newer |
+| Pi AI | Host-provided peer. Match your host's SDK version |
+| Pi coding agent | Host-provided peer, 1.1.0 or newer. Match your host's SDK version |
+| Pi TUI | Host-provided peer. Match your host's TUI version |
+| TypeBox (`typebox`) | Host-provided peer. Match the version your Pi host supplies |
+| Module format | ESM and CommonJS |
+| Pi Waggle documentation | 0.2 |
+
+The peer declarations accept any version, but that is not a guarantee of compatibility with every Pi release. Version 0.2 needs Pi 1.1.0 or newer, as the troubleshooting section explains. The [repository dependency catalog](https://github.com/OpenWaggle/OpenWaggle/blob/main/package.json) records the versions used by the current source integration.
+
+## Reference and support
+
+- [Complete API reference](./api-reference)
+- [npm package](https://www.npmjs.com/package/@openwaggle/pi-waggle)
+- [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/pi-waggle/CHANGELOG.md)
+- [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
+
+## Troubleshooting
+
+**Pi does not discover the extension.** Install the package in the Pi package environment and confirm the package manifest exposes `./dist/extension.js` through its `pi.extensions` entry.
+
+**Commands render but state does not persist.** Preserve `pi-waggle.mode-state` custom entries as well as turn and user-request custom messages in Pi session data. Saving only messages loses the persisted mode state.
+
+**Peer dependency warnings appear.** Install the Pi AI, coding-agent, TUI and `typebox` versions used by your host. The package's wildcard peer declarations do not select those versions for you.
+
+**A Waggle never moves to the next turn.** Version 0.2 starts the next turn on Pi's `agent_settled` event, which Pi added in 0.80.4. It reads the event's `aborted` flag, added in Pi 1.1.0, to end the Waggle when you press Escape. Use Pi 1.1.0 or newer.
+
+## Migrating from 0.1
+
+Most code written for 0.1 works without changes. These are the differences you may notice:
+
+- **Peer dependencies.** 0.1 required `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` `^0.80.6`. 0.2 accepts any version of `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`, and expects your Pi host to supply them. Use Pi 1.1.0 or newer.
+- **Turn timing.** A turn now ends when Pi settles its run, after any retries, instead of at the first `agent_end`. Loops built with `createPiWaggleExtension` get this automatically. If the user aborts a turn, the loop ends and `done` resolves without calling `onTurnComplete`. In 0.1 the aborted turn's messages went to `onTurnComplete`. When the loop schedules the next turn itself and `canStartNextTurn` returns false, `done` now resolves. In 0.1 it never settled. If you wire `registerPiWaggleLoop` or `createPiWaggleLoopHandler` to `agent_end` yourself, wrap your handler with `onPiWaggleSettledAgentEnd`, or it still runs once per attempt.
+- **Errors.** In the default extension, an error that no later turn can recover from now stops the Waggle at once. Before, every error counted as recoverable, and the Waggle stopped after two failed turns in a row.
+- **Typing during a Waggle.** Your message, or a slash command, ends the Waggle and goes to Pi as normal input. In 0.1 the extension sent the message to Pi as steering itself, and a slash command left the Waggle running.
+- **New API.** `waggle_invoke`, `onPiWaggleSettledAgentEnd`, the controller's `fail`, and `isRecoverableError` with `terminalErrorRecoverable` are new. Nothing was removed.
+- **Editors.** The model picker fits short terminals, and editors that open with a value put the cursor after it.

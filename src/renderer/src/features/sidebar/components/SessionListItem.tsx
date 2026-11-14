@@ -133,12 +133,12 @@ function useRowContextMenu() {
     menuOpen,
     menuPos,
     close: () => setMenuOpen(false),
-    openAtPointer(event: React.MouseEvent) {
+    openAtPointer: (event: React.MouseEvent) => {
       event.preventDefault()
       setMenuPos({ x: event.clientX, y: event.clientY })
       setMenuOpen(true)
     },
-    openUnderButton(event: React.MouseEvent<HTMLButtonElement>) {
+    openUnderButton: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation()
       const rect = event.currentTarget.getBoundingClientRect()
       setMenuPos({ x: rect.left, y: rect.bottom })

@@ -109,7 +109,7 @@ describe('mergeExactTerminalCounts', () => {
   })
 })
 
-describe('a parent row follows its Workers (ADR 0063)', () => {
+describe('a parent row follows its Workers (ADR 0065)', () => {
   const lineage = (facts: { runningWorkerCount?: number; workersLastRunEndedAt?: number }) => ({
     role: 'queen' as const,
     directWorkerCount: 3,

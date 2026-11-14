@@ -8,7 +8,6 @@ import type {
   McpServerInspection,
   McpServerStatusSource,
   McpServerStatusView,
-  McpWriteDestination,
 } from '@shared/types/mcp-configuration'
 import type {
   McpImportCandidateStatus,
@@ -26,7 +25,7 @@ import {
  * The exposure Settings shows for a configured one. OpenWaggle runs a file's `direct` as codemode
  * (ADR 0051 amendment), so it shows as codemode; the file keeps `direct` for the `pi` command.
  */
-export function mcpShownExposure(exposure: McpServerExposure): McpRuntimeExposure {
+export function mcpShownExposure(exposure: McpServerExposure) {
   return openWaggleMcpExposure(exposure)
 }
 
@@ -34,8 +33,10 @@ export function mcpShownExposure(exposure: McpServerExposure): McpRuntimeExposur
  * The choices Settings offers: codemode or hidden. A file's `deferred`, which Settings does not
  * offer, is listed while it is the current value, so the choice shown is always the one in use.
  */
-export function mcpExposureChoices(current: McpRuntimeExposure): readonly McpRuntimeExposure[] {
-  return current === 'deferred' ? ['codemode', 'deferred', 'hidden'] : MCP_SETTINGS_EXPOSURE_CHOICES
+export function mcpExposureChoices(current: McpRuntimeExposure) {
+  return (
+    current === 'deferred' ? ['codemode', 'deferred', 'hidden'] : MCP_SETTINGS_EXPOSURE_CHOICES
+  ) satisfies readonly McpRuntimeExposure[]
 }
 
 export const MCP_EXPOSURE_COPY: Readonly<
@@ -121,11 +122,11 @@ export function mcpServerStatus(
   server: McpConfiguredServerView,
   known: McpServerStatusView | undefined,
   checking: boolean,
-): McpServerStatus {
-  if (!server.enabled) return 'disabled'
-  if (checking) return 'checking'
-  if (known?.needsSecret) return 'needs-secret'
-  return known?.inspection?.state ?? 'not-checked'
+) {
+  if (!server.enabled) return 'disabled' as const
+  if (checking) return 'checking' as const
+  if (known?.needsSecret) return 'needs-secret' as const
+  return (known?.inspection?.state ?? 'not-checked') satisfies McpServerStatus
 }
 
 export interface McpServerRow {
@@ -144,9 +145,9 @@ export function mcpServerRow(
   server: McpConfiguredServerView,
   known: McpServerStatusView | undefined,
   checking: boolean,
-): McpServerRow {
+) {
   const signedIn = known?.signedIn ?? known?.inspection?.signedIn
-  return {
+  const row: McpServerRow = {
     server,
     status: mcpServerStatus(server, known, checking),
     ...(known?.inspection ? { inspection: known.inspection } : {}),
@@ -154,9 +155,10 @@ export function mcpServerRow(
     ...(known?.checkedAt === undefined ? {} : { checkedAt: known.checkedAt }),
     ...(signedIn === undefined ? {} : { signedIn }),
   }
+  return row
 }
 
-export function sortMcpServersByAttention(rows: readonly McpServerRow[]): McpServerRow[] {
+export function sortMcpServersByAttention(rows: readonly McpServerRow[]) {
   return [...rows].sort(
     (left, right) =>
       ATTENTION_RANK[left.status] - ATTENTION_RANK[right.status] ||
@@ -177,7 +179,7 @@ export function mcpToolCountLabel(row: McpServerRow) {
 export function mcpDefaultDestination(
   scope: McpConfigFileScope,
   files?: readonly McpConfigFileView[],
-): McpWriteDestination {
+) {
   const preferred = scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
   if (!files) return preferred
   return mcpDestinationFiles(files, scope)[0]?.fileId ?? preferred
@@ -187,7 +189,7 @@ export function mcpDefaultDestination(
 export function mcpDestinationFiles(
   files: readonly McpConfigFileView[],
   scope: McpConfigFileScope,
-): McpConfigFileView[] {
+) {
   return files
     .filter((file) => file.scope === scope)
     .sort((left, right) => Number(right.openWaggleOwned) - Number(left.openWaggleOwned))
@@ -197,8 +199,10 @@ export function isOpenWaggleMcpFile(fileId: McpConfigFileKind) {
   return fileId === 'openwaggle-global' || fileId === 'project-openwaggle'
 }
 
-export function mcpFileScope(fileId: McpConfigFileKind): McpConfigFileScope {
-  return fileId === 'pi-global' || fileId === 'openwaggle-global' ? 'global' : 'project'
+export function mcpFileScope(fileId: McpConfigFileKind) {
+  return fileId === 'pi-global' || fileId === 'openwaggle-global'
+    ? ('global' as const)
+    : ('project' as const)
 }
 
 /** A project file overrides this global server, so its switches already apply to the project. */
@@ -233,7 +237,7 @@ export type McpOverrideNote =
  * `.mcp.json`) turns on but OpenWaggle's file keeps off is "Off in OpenWaggle": after the upgrade,
  * that is a server the old OpenWaggle never connected, which the migration kept off.
  */
-export function mcpOverrideNote(server: McpConfiguredServerView): McpOverrideNote | undefined {
+export function mcpOverrideNote(server: McpConfiguredServerView) {
   const { override } = server
   if (!override) return undefined
   const offInOpenWaggle =
@@ -241,7 +245,10 @@ export function mcpOverrideNote(server: McpConfiguredServerView): McpOverrideNot
     server.offByOverride === true &&
     isOpenWaggleMcpFile(override.fileId) &&
     !isOpenWaggleMcpFile(server.source.fileId)
-  return { kind: offInOpenWaggle ? 'off-in-openwaggle' : 'overridden', path: override.path }
+  return {
+    kind: offInOpenWaggle ? 'off-in-openwaggle' : 'overridden',
+    path: override.path,
+  } satisfies McpOverrideNote
 }
 
 /** The vault secrets a server reads that the vault does not hold: it is left out of Runs. */

@@ -1,7 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import {
   CROP_MARGIN_PX,
-  type Region,
   regionOf,
   shootRegion,
   unionRegion,
@@ -25,7 +24,7 @@ function dock(page: Page) {
 }
 
 /** The draft's composer with its project, environment and branch row above it. */
-async function composerRegion(page: Page): Promise<Region> {
+async function composerRegion(page: Page) {
   const environment = await regionOf(
     page.getByRole('button', { name: /^Session environment mode/ }),
   )

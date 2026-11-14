@@ -48,7 +48,7 @@ export const browserPreviewOpenRequestAckSchema = Schema.Struct({
   ownerKey: browserPreviewOwnerKeySchema,
   previewId: browserPreviewIdSchema,
   success: Schema.Boolean,
-  error: Schema.optional(acknowledgmentErrorSchema),
+  error: Schema.optionalWith(acknowledgmentErrorSchema, { exact: true }),
 })
 
 export const browserPreviewOwnerSelectionSchema = Schema.Tuple(

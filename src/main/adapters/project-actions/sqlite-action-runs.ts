@@ -9,10 +9,10 @@ interface ActionRunRow {
   readonly record_json: string
 }
 const RECENT_TERMINAL_RUN_LIMIT = 50
-const decodeRun = (row: ActionRunRow): ActionRun =>
+const decodeRun = (row: ActionRunRow) =>
   decodeUnknownExactOrThrow(actionRunSchema, parseJsonUnknown(row.record_json))
 
-export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient): ActionRunPersistence {
+export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient) {
   return {
     get: (id) =>
       Effect.runPromise(
@@ -58,10 +58,11 @@ export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient): Acti
             readonly run_id: string
           }>`SELECT run_id FROM project_action_run_requests
         WHERE workspace_id = ${workspaceId} AND action_id = ${actionId} AND request_id = ${requestId}`
-          if (rows[0]?.run_id !== runId)
+          if (rows[0]?.run_id !== runId) {
             return yield* Effect.fail(
               new Error('Action request identity already belongs to another run.'),
             )
+          }
         }),
       ),
     save: (input) =>
@@ -92,5 +93,5 @@ export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient): Acti
           }),
         ),
       ),
-  }
+  } satisfies ActionRunPersistence
 }

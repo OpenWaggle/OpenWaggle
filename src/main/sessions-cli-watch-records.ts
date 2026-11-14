@@ -1,8 +1,9 @@
-import type {
-  SessionHostEventCursor,
-  SessionHostEventEnvelope,
-  SessionHostEventPayload,
-  SessionHostEventResyncReason,
+import {
+  isSessionlessHostEvent,
+  type SessionHostEventCursor,
+  type SessionHostEventEnvelope,
+  type SessionHostEventPayload,
+  type SessionHostEventResyncReason,
 } from '@shared/types/session-host-event'
 import type { LocalSessionWatchResult } from './session-host/local-session-event-client'
 
@@ -26,21 +27,30 @@ export type SessionsCliWatchRecord =
       readonly cursor: SessionHostEventCursor
     }
 
-export function watchCursorRecord(cursor: SessionHostEventCursor): SessionsCliWatchRecord {
-  return { kind: 'cursor', cursor }
+/** The Session an event belongs to; Host-wide events belong to none. */
+export function watchEventSessionId(envelope: SessionHostEventEnvelope) {
+  return isSessionlessHostEvent(envelope.payload) ? undefined : envelope.payload.sessionId
 }
 
-export function watchEventRecord(envelope: SessionHostEventEnvelope): SessionsCliWatchRecord {
+export function watchCursorRecord(cursor: SessionHostEventCursor) {
+  return { kind: 'cursor', cursor } satisfies SessionsCliWatchRecord
+}
+
+export function watchEventRecord(envelope: SessionHostEventEnvelope) {
   return {
     kind: 'event',
     cursor: envelope.cursor,
     timestamp: envelope.timestamp,
     event: envelope.payload,
-  }
+  } satisfies SessionsCliWatchRecord
 }
 
 export function watchResyncRecord(
   result: Extract<LocalSessionWatchResult, { readonly status: 'resync-required' }>,
-): SessionsCliWatchRecord {
-  return { kind: 'resync-required', reason: result.reason, cursor: result.cursor }
+) {
+  return {
+    kind: 'resync-required',
+    reason: result.reason,
+    cursor: result.cursor,
+  } satisfies SessionsCliWatchRecord
 }

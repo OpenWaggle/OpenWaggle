@@ -4,7 +4,9 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpSecretSummary } from '@shared/types/mcp'
+import { Schema } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 import { McpVaultError } from '../../ports/mcp-errors'
 
 export interface VaultEntry {
@@ -25,7 +27,7 @@ export function isEnoent(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
-function parseVaultEntry(name: string, value: unknown): VaultEntry {
+function parseVaultEntry(name: string, value: unknown) {
   if (!isRecord(value)) {
     throw new McpVaultError({
       reason: 'io',
@@ -43,34 +45,42 @@ function parseVaultEntry(name: string, value: unknown): VaultEntry {
       message: `OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`,
     })
   }
-  return { encryptedValue, createdAt, updatedAt }
+  const entry: VaultEntry = { encryptedValue, createdAt, updatedAt }
+  return entry
 }
 
-function parseVault(raw: string): VaultFile {
-  const parsed: unknown = JSON.parse(raw)
-  if (!isRecord(parsed) || parsed.version !== 1) {
+const vaultFileSchema = Schema.Struct({
+  version: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  secrets: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+function parseVault(raw: string) {
+  const parsed = Schema.decodeUnknownOption(vaultFileSchema)(JSON.parse(raw))
+  if (Option.isNone(parsed) || parsed.value.version !== 1) {
     throw new McpVaultError({
       reason: 'io',
       message: 'OpenWaggle MCP vault has an unsupported format.',
     })
   }
-  if (!isRecord(parsed.secrets)) {
+  const encryptedSecrets = parsed.value.secrets
+  if (!isRecord(encryptedSecrets)) {
     throw new McpVaultError({
       reason: 'io',
       message: 'OpenWaggle MCP vault is missing its encrypted secret map.',
     })
   }
   const secrets: Record<string, VaultEntry> = {}
-  for (const [name, value] of Object.entries(parsed.secrets)) {
+  for (const [name, value] of Object.entries(encryptedSecrets)) {
     secrets[name] = parseVaultEntry(name, value)
   }
-  return { version: 1, secrets }
+  const file: VaultFile = { version: 1, secrets }
+  return file
 }
 
 export const EMPTY_VAULT: VaultFile = { version: 1, secrets: {} }
 
 /** The vault at `filePath`, or undefined when there is none yet. */
-export async function readVaultFile(filePath: string): Promise<VaultFile | undefined> {
+export async function readVaultFile(filePath: string) {
   try {
     return parseVault(await readFile(filePath, 'utf8'))
   } catch (error) {
@@ -95,8 +105,9 @@ export async function writeVault(filePath: string, vault: VaultFile) {
   }
 }
 
-export function summaries(vault: VaultFile): McpSecretSummary[] {
-  return Object.entries(vault.secrets)
+export function summaries(vault: VaultFile) {
+  const summary: McpSecretSummary[] = Object.entries(vault.secrets)
     .map(([name, entry]) => ({ name, createdAt: entry.createdAt, updatedAt: entry.updatedAt }))
     .sort((left, right) => left.name.localeCompare(right.name))
+  return summary
 }

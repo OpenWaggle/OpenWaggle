@@ -4,7 +4,6 @@ import type { SessionSummary } from '@shared/types/session'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
-import type { SidebarSessionActions } from '../../model'
 import { SessionListItem } from '../SessionListItem'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -19,8 +18,8 @@ const PROJECT = '/repo'
 const WORKTREE_A = '/home/dev/.openwaggle/worktrees/repo/session-a'
 const WORKTREE_B = '/home/dev/.openwaggle/worktrees/repo/session-b'
 
-function status(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
-  return {
+function status(overrides: Partial<GitStatusSummary> = {}) {
+  const summary: GitStatusSummary = {
     branch: 'main',
     additions: 0,
     deletions: 0,
@@ -31,9 +30,10 @@ function status(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
     behind: 0,
     ...overrides,
   }
+  return summary
 }
 
-function session(id: string, extra: Partial<SessionSummary> = {}): SessionSummary {
+function session(id: string, extra: Partial<SessionSummary> = {}) {
   return {
     id: SessionId(id),
     title: `Session ${id}`,
@@ -41,12 +41,12 @@ function session(id: string, extra: Partial<SessionSummary> = {}): SessionSummar
     createdAt: 1,
     updatedAt: 2,
     ...extra,
-  }
+  } satisfies SessionSummary
 }
 
 // The real SidebarSessionActions shape. Renderer tests run with noCheck, so a
 // made-up shape would compile and hand the component undefined callbacks.
-function actions(): SidebarSessionActions {
+function actions() {
   return {
     select: vi.fn(),
     delete: vi.fn(),

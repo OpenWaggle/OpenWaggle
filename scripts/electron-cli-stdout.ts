@@ -93,15 +93,12 @@ function invalidStdout(stdout: string) {
   )
 }
 
-export function applicationCliStdout(
-  stdout: string,
-  platform: NodeJS.Platform = process.platform,
-) {
+export function applicationCliStdout(stdout: string, platform: NodeJS.Platform = process.platform) {
   if (platform !== 'linux') return stdout
 
   let cursor = formattingEnd(stdout, 0)
 
-  for (let payloadEnd = emptyPayloadEnd(stdout, cursor); payloadEnd !== null; ) {
+  for (let payloadEnd = emptyPayloadEnd(stdout, cursor); payloadEnd !== null;) {
     cursor = formattingEnd(stdout, payloadEnd)
     payloadEnd = emptyPayloadEnd(stdout, cursor)
   }
@@ -122,7 +119,7 @@ export function applicationCliStdout(
   while (WHITESPACE.test(stdout[whitespaceEnd] ?? '')) whitespaceEnd += 1
 
   let trailingCursor = formattingEnd(stdout, responseEnd)
-  for (let payloadEnd = emptyPayloadEnd(stdout, trailingCursor); payloadEnd !== null; ) {
+  for (let payloadEnd = emptyPayloadEnd(stdout, trailingCursor); payloadEnd !== null;) {
     trailingCursor = formattingEnd(stdout, payloadEnd)
     payloadEnd = emptyPayloadEnd(stdout, trailingCursor)
   }

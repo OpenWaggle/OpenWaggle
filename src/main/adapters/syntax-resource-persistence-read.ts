@@ -2,6 +2,8 @@ import { constants as fsConstants } from 'node:fs'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import { Schema } from '@shared/schema'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import { isSyntaxLanguageConfiguration } from '@shared/syntax-language-configuration'
 import type {
   SyntaxAppearanceResource,
@@ -9,7 +11,6 @@ import type {
   SyntaxThemeResource,
 } from '@shared/types/syntax-resources'
 import { createLogger } from '../logger'
-import { isRecord } from './syntax-resource-import-utils'
 
 export const INSTALLED_RESOURCE_FILE_LIMIT = 20
 export const INSTALLED_RESOURCE_CATALOG_MAX_BYTES = 8 * 1024 * 1024
@@ -138,60 +139,56 @@ export function isSyntaxThemeResource(value: unknown): value is SyntaxThemeResou
   )
 }
 
-function hasPersistedResourceIdentity(value: Readonly<Record<string, unknown>>) {
-  return (
-    typeof value.id === 'string' &&
-    typeof value.packageId === 'string' &&
-    typeof value.revision === 'string' &&
-    typeof value.label === 'string' &&
-    isMatching(syntaxResourceScopePattern, value.scope) &&
-    isMatching(syntaxImportFormatPattern, value.format) &&
-    typeof value.sourcePath === 'string' &&
-    isRecord(value.original)
-  )
+const persistedResourceIdentity = {
+  id: Schema.String,
+  packageId: Schema.String,
+  revision: Schema.String,
+  label: Schema.String,
+  scope: Schema.Literal('bundled', 'user', 'project'),
+  sourcePath: Schema.String,
+  original: jsonObjectSchema,
 }
 
-function isStringList(value: unknown) {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
-}
+const stringListSchema = Schema.Array(Schema.String)
 
-function isPersistedLanguageRegistration(value: unknown) {
-  if (!isRecord(value)) return false
-  return (
-    typeof value.name === 'string' &&
-    typeof value.displayName === 'string' &&
-    typeof value.scopeName === 'string' &&
-    isStringList(value.aliases) &&
-    isStringList(value.fileExtensions) &&
-    isStringList(value.fileNames) &&
-    isRecord(value.embeddedLanguages) &&
-    Object.values(value.embeddedLanguages).every((entry) => typeof entry === 'string') &&
-    isStringList(value.injectTo) &&
-    isRecord(value.grammar) &&
-    (value.configuration === undefined || isSyntaxLanguageConfiguration(value.configuration))
-  )
-}
+const syntaxLanguageResourceSchema: Schema.Schema<SyntaxLanguageResource> = Schema.Struct({
+  ...persistedResourceIdentity,
+  format: Schema.Literal(
+    'vscode-json',
+    'textmate-plist',
+    'vscode-vsix',
+    'vscode-extension',
+    'openwaggle',
+  ),
+  languageId: Schema.String,
+  engine: Schema.Literal('javascript', 'oniguruma'),
+  registration: Schema.Struct({
+    name: Schema.String,
+    displayName: Schema.String,
+    scopeName: Schema.String,
+    aliases: stringListSchema,
+    fileExtensions: stringListSchema,
+    fileNames: stringListSchema,
+    embeddedLanguages: Schema.Record({ key: Schema.String, value: Schema.String }),
+    injectTo: stringListSchema,
+    grammar: jsonObjectSchema,
+    configuration: Schema.optionalWith(
+      Schema.declare((value) => isSyntaxLanguageConfiguration(value)),
+      { exact: true },
+    ),
+  }),
+})
 
-export function isSyntaxLanguageResource(value: unknown): value is SyntaxLanguageResource {
-  return (
-    isRecord(value) &&
-    hasPersistedResourceIdentity(value) &&
-    typeof value.languageId === 'string' &&
-    (value.engine === 'javascript' || value.engine === 'oniguruma') &&
-    isPersistedLanguageRegistration(value.registration)
-  )
-}
+const syntaxAppearanceResourceSchema: Schema.Schema<SyntaxAppearanceResource> = Schema.Struct({
+  ...persistedResourceIdentity,
+  format: Schema.Literal('openwaggle'),
+  variant: Schema.Literal('light', 'dark', 'high-contrast-light', 'high-contrast-dark'),
+  tokens: jsonObjectSchema,
+})
 
-export function isSyntaxAppearanceResource(value: unknown): value is SyntaxAppearanceResource {
-  return (
-    isRecord(value) &&
-    hasPersistedResourceIdentity(value) &&
-    value.format === 'openwaggle' &&
-    isMatching(syntaxAppearanceVariantPattern, value.variant) &&
-    isRecord(value.tokens) &&
-    isRecord(value.original)
-  )
-}
+export const isSyntaxLanguageResource = Schema.is(syntaxLanguageResourceSchema)
+
+export const isSyntaxAppearanceResource = Schema.is(syntaxAppearanceResourceSchema)
 
 export async function readPersistedResources<T>(
   directory: string,

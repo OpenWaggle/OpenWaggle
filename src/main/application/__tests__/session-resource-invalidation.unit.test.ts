@@ -16,7 +16,7 @@ import {
 
 const SESSION_ID = SessionId('session-one')
 
-function input(id: string): UpsertSessionResourceInput {
+function input(id: string) {
   return {
     id,
     sessionId: SESSION_ID,
@@ -39,7 +39,7 @@ function input(id: string): UpsertSessionResourceInput {
     },
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies UpsertSessionResourceInput
 }
 
 const repositoryLayer = Layer.succeed(

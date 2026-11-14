@@ -1,4 +1,5 @@
-import { isRecord } from './validation'
+import type { UncheckedFields } from '../types/unchecked-fields'
+import { isObjectValue } from './object-shape'
 
 /**
  * Removes binary payloads from MCP results before they become model-visible or draft text.
@@ -117,25 +118,34 @@ function imageMarker(data: string, mimeType: unknown, state: ImageState) {
     : omittedMarker('image', data.length)
 }
 
+/** The MCP content block fields that carry binary data (image, audio, resource blob). */
+interface McpContentBlock {
+  readonly type: 'image' | 'audio'
+  readonly data: string
+  readonly mimeType: string
+  readonly uri: string
+}
+
 function replacePayloads(value: unknown, state: ImageState): unknown {
   if (typeof value === 'string') return replaceStringPayloads(value)
   if (Array.isArray(value)) return value.map((item) => replacePayloads(item, state))
-  if (!isRecord(value)) return value
+  if (!isObjectValue(value)) return value
 
-  if (value.type === 'image' && typeof value.data === 'string') {
-    const { mimeType } = imagePayload(value.data, value.mimeType)
+  const block: UncheckedFields<McpContentBlock> = value
+  if (block.type === 'image' && typeof block.data === 'string') {
+    const { mimeType } = imagePayload(block.data, block.mimeType)
     return {
       ...value,
-      data: imageMarker(value.data, value.mimeType, state),
+      data: imageMarker(block.data, block.mimeType, state),
       ...(mimeType ? { mimeType } : {}),
     }
   }
-  if (value.type === 'audio' && typeof value.data === 'string') {
-    return { ...value, data: omittedMarker('audio', value.data.length) }
+  if (block.type === 'audio' && typeof block.data === 'string') {
+    return { ...value, data: omittedMarker('audio', block.data.length) }
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) =>
-      key === 'blob' && typeof entry === 'string' && typeof value.uri === 'string'
+      key === 'blob' && typeof entry === 'string' && typeof block.uri === 'string'
         ? [key, omittedMarker('resource blob', entry.length)]
         : [key, replacePayloads(entry, state)],
     ),

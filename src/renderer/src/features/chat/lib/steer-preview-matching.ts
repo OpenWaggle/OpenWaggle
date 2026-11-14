@@ -1,5 +1,5 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { OptimisticSteerPreview, SteerIncorporatedContent } from '@/features/chat/state'
+import type { OptimisticSteerPreview } from '@/features/chat/state'
 import { ATTACHMENT_TEXT_PREFIX } from './chat-attachment-preview'
 
 function getUIMessagePrimaryText(message: UIMessage) {
@@ -66,7 +66,7 @@ function receiptMessageIndex(
 }
 
 /** What a user row shows, split as a steer preview knows it: typed text and attachment count. */
-export function incorporatedContentOf(message: UIMessage): SteerIncorporatedContent {
+export function incorporatedContentOf(message: UIMessage) {
   const textParts = message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
   const attachments = textParts.filter((text) => text.startsWith(ATTACHMENT_TEXT_PREFIX))
   return {
@@ -132,11 +132,7 @@ function awaitingReceiptMessageIndex(
   return index >= 0 ? index : undefined
 }
 
-function matchedMessage(
-  messages: readonly UIMessage[],
-  index: number,
-  provisional?: true,
-): SteeredUserTurnMatch | null {
+function matchedMessage(messages: readonly UIMessage[], index: number, provisional?: true) {
   const message = messages[index]
   if (!message) return null
   const createdOrder = message.metadata?.sessionNodeCreatedOrder
@@ -211,7 +207,7 @@ function matchLocallyKnownTurns(context: MatchContext, turns: readonly Optimisti
 export function matchSteeredUserTurns(
   messages: readonly UIMessage[],
   turns: readonly OptimisticSteerPreview[],
-): ReadonlyMap<string, SteeredUserTurnMatch> {
+) {
   const context: MatchContext = { messages, matches: new Map(), consumedMessageIndexes: new Set() }
   if (turns.length === 0) return context.matches
   matchRecordedTurns(context, turns)
@@ -251,7 +247,7 @@ export function matchSteeredUserTurns(
 export function insertOptimisticSteeredUserTurn(
   messages: UIMessage[],
   optimisticSteeredUserTurns: readonly OptimisticSteerPreview[],
-): UIMessage[] {
+) {
   if (optimisticSteeredUserTurns.length === 0) {
     return messages
   }
@@ -266,7 +262,7 @@ export function insertOptimisticSteeredUserTurn(
     if (index < 0) pending.push(turn.message)
     else placed.splice(index, 0, turn.message)
   }
-  return [...placed, ...pending]
+  return [...placed, ...pending] satisfies UIMessage[]
 }
 
 function firstMessageAfter(messages: readonly UIMessage[], time: number) {

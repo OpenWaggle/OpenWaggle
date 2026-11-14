@@ -13,8 +13,14 @@ function call(
   name: string,
   args: object,
   state: 'input-streaming' | 'input-complete' = 'input-complete',
-): Part {
-  return { type: 'tool-call', id: `${name}-1`, name, arguments: JSON.stringify(args), state }
+) {
+  return {
+    type: 'tool-call',
+    id: `${name}-1`,
+    name,
+    arguments: JSON.stringify(args),
+    state,
+  } satisfies Part
 }
 
 const WAIT = call('hive', { action: 'wait' })

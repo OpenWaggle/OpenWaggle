@@ -7,13 +7,10 @@ import {
 } from './mcp-config-files'
 import { clearMcpServerOverrideEnabled, updateMcpServerSettings } from './mcp-config-writer'
 import { loadMcpMergedConfig } from './mcp-runtime-config'
+import { writtenMcpServers } from '../mcp-config-server-maps'
 
 /** The files as they would read without `name`'s entry in `filePath`. */
-function readerWithoutEntry(
-  reader: McpConfigFileReader,
-  filePath: string,
-  name: string,
-): McpConfigFileReader {
+function readerWithoutEntry(reader: McpConfigFileReader, filePath: string, name: string) {
   const target = path.resolve(filePath)
   return {
     readText(candidate) {
@@ -21,14 +18,15 @@ function readerWithoutEntry(
       if (text === undefined || path.resolve(candidate) !== target) return text
       try {
         const parsed: unknown = JSON.parse(text)
-        if (!isJsonRecord(parsed) || !isJsonRecord(parsed.mcpServers)) return text
-        const { [name]: _removed, ...servers } = parsed.mcpServers
+        const written = writtenMcpServers(parsed)
+        if (!isJsonRecord(parsed) || !isJsonRecord(written)) return text
+        const { [name]: _removed, ...servers } = written
         return JSON.stringify({ ...parsed, mcpServers: servers })
       } catch {
         return text
       }
     },
-  }
+  } satisfies McpConfigFileReader
 }
 
 /**

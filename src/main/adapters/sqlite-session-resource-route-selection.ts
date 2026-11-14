@@ -29,7 +29,7 @@ function routePathIdentity(pathNodeIds: readonly string[]) {
 function resolvedCatalogIdentity(
   row: SessionActiveBranchRow | undefined,
   selection: SessionResourceRouteSelection | null,
-): SessionResourceCatalogIdentity {
+) {
   const branch = selection
     ? (row?.selected_branch_id ?? null)
     : (row?.last_active_branch_id ?? null)
@@ -39,13 +39,13 @@ function resolvedCatalogIdentity(
       branch,
       pathNodeIds: [...selection.pathNodeIds],
       revision: `${branch ?? 'none'}:path:${routePathIdentity(selection.pathNodeIds)}:${catalogRevision}`,
-    }
+    } satisfies SessionResourceCatalogIdentity
   }
   return {
     branch,
     pathNodeIds: null,
     revision: `${branch ?? 'none'}:${row?.last_active_node_id ?? 'none'}:${catalogRevision}`,
-  }
+  } satisfies SessionResourceCatalogIdentity
 }
 
 export function catalogIdentity(

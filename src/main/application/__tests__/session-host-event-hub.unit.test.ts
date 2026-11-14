@@ -130,30 +130,36 @@ describe('Session Host event hub', () => {
     })
   })
 
-  it('resolves a pending read when a live event requires resynchronization', async () => {
-    const hub = new SessionHostEventHub({
-      hostInstanceId: 'host-current',
-      subscriberCapacity: 10,
-      subscriberByteCapacity: 256,
-    })
-    const result = hub.subscribeAfter()
-    expect(result.status).toBe('ready')
-    if (result.status !== 'ready') return
-    const pending = result.subscription.next()
+  it.each([
+    ['resolves a pending read', true],
+    ['disconnects a subscriber before retaining', false],
+  ])(
+    '%s when an oversized live event requires resynchronization',
+    async (_label, readBeforePublish) => {
+      const hub = new SessionHostEventHub({
+        hostInstanceId: 'host-current',
+        subscriberCapacity: 10,
+        subscriberByteCapacity: 256,
+      })
+      const result = hub.subscribeAfter()
+      expect(result.status).toBe('ready')
+      if (result.status !== 'ready') return
+      const pending = readBeforePublish ? result.subscription.next() : undefined
 
-    hub.publish({
-      kind: 'session-state-changed',
-      sessionId: `session-${'x'.repeat(512)}`,
-      stateRevision: 1,
-      operation: 'message',
-    })
+      hub.publish({
+        kind: 'session-state-changed',
+        sessionId: `session-${'x'.repeat(512)}`,
+        stateRevision: 1,
+        operation: 'message',
+      })
 
-    await expect(pending).resolves.toMatchObject({
-      status: 'resync-required',
-      reason: 'slow-consumer',
-    })
-    expect(hub.subscriberCount()).toBe(0)
-  })
+      expect(hub.subscriberCount()).toBe(0)
+      await expect(pending ?? result.subscription.next()).resolves.toMatchObject({
+        status: 'resync-required',
+        reason: 'slow-consumer',
+      })
+    },
+  )
 
   it('does not charge filtered events against a restricted subscriber', async () => {
     const hub = new SessionHostEventHub({

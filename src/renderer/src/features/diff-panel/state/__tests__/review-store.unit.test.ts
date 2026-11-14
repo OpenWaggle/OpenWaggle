@@ -10,7 +10,7 @@ import {
 /** Every pending review belongs to a tree and scope; these tests use one key throughout. */
 const KEY = reviewKeyFor('thread', { kind: 'unstaged' })
 
-function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewCommentWithSnippet {
+function makeComment(id: string, filePath = 'src/index.ts', line = 10) {
   return {
     id,
     filePath,
@@ -19,7 +19,7 @@ function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewCo
     content: `comment-${id}`,
     createdAt: Date.now(),
     diff: '',
-  }
+  } satisfies ReviewCommentWithSnippet
 }
 
 describe('review-store', () => {
@@ -78,9 +78,9 @@ describe('review-store', () => {
     const c2 = makeComment('c2')
     useReviewStore.getState().addComment(KEY, c1)
     useReviewStore.getState().addComment(KEY, c2)
-    expect(selectReviewThread(useReviewStore.getState(), KEY).comments).toHaveLength(2)
-    expect(selectReviewThread(useReviewStore.getState(), KEY).comments[0].id).toBe('c1')
-    expect(selectReviewThread(useReviewStore.getState(), KEY).comments[1].id).toBe('c2')
+    expect(
+      selectReviewThread(useReviewStore.getState(), KEY).comments.map((comment) => comment.id),
+    ).toEqual(['c1', 'c2'])
   })
 
   it('removeComment removes only the targeted comment', () => {
@@ -92,7 +92,7 @@ describe('review-store', () => {
     useReviewStore.getState().removeComment(KEY, 'c1')
     const remaining = selectReviewThread(useReviewStore.getState(), KEY).comments
     expect(remaining).toHaveLength(1)
-    expect(remaining[0].id).toBe('c2')
+    expect(remaining[0]?.id).toBe('c2')
   })
 
   it('clearComments resets comments and activeCommentLocation', () => {

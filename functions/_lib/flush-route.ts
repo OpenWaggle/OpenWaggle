@@ -57,8 +57,9 @@ interface FlushCounts {
   readonly cursor?: string
 }
 
-function answer(status: number, body: object, outcome: RouteResult['outcome']): RouteResult {
-  return { response: jsonResponse(status, body), outcome }
+function answer(status: number, body: object, outcome: RouteResult['outcome']) {
+  const result: RouteResult = { response: jsonResponse(status, body), outcome }
+  return result
 }
 
 /**
@@ -104,7 +105,7 @@ async function publish(
   manifest: FlushManifest,
   entries: readonly BufferEntry[],
   counts: FlushCounts,
-): Promise<RouteResult> {
+) {
   const summary = { outcome: 'accepted', accepted: entries.length } as const
   const events = [
     ...(await aggregatedEvents(addUpEntries(manifest.day, entries), manifest.keys)),
@@ -113,7 +114,12 @@ async function publish(
   const forwarded = await sendPostHogEvents(events, call.target, call.context.dependencies.fetch)
   if (!forwarded.ok) {
     const response = jsonResponse(HTTP_STATUS.badGateway, { error: forwarded.reason })
-    return { response, outcome: 'forward_failed', accepted: 0, accounted: true }
+    return {
+      response,
+      outcome: 'forward_failed',
+      accepted: 0,
+      accounted: true,
+    } satisfies RouteResult
   }
   const finished = await finishManifest(call, manifest, manifest.keys)
   const body = {
@@ -179,7 +185,7 @@ type OpenedCall =
   | { readonly ok: false; readonly result: RouteResult }
 
 /** Admits the job, reads its cursor, and takes the lease, counting every KV operation. */
-async function openCall(context: RouteContext): Promise<OpenedCall> {
+async function openCall(context: RouteContext) {
   const admission = await admitJobRequest(context)
   if (!admission.ok) return admission
   const start = await readFlushCursor(context.request)
@@ -189,7 +195,7 @@ async function openCall(context: RouteContext): Promise<OpenedCall> {
       { error: 'expected {"cursor"?: string}' },
       'rejected',
     )
-    return { ok: false, result }
+    return { ok: false, result } satisfies OpenedCall
   }
   const budget = new OperationBudget(FLUSH_KV_OPERATIONS, PUBLISH_RESERVE)
   const store = budgetedStore(admission.store, budget)
@@ -201,9 +207,14 @@ async function openCall(context: RouteContext): Promise<OpenedCall> {
       { error: 'the flush lease could not be taken' },
       'forward_failed',
     )
-    return { ok: false, result }
+    return { ok: false, result } satisfies OpenedCall
   }
-  return { ok: true, call, budget, ...(start.cursor === undefined ? {} : { cursor: start.cursor }) }
+  return {
+    ok: true,
+    call,
+    budget,
+    ...(start.cursor === undefined ? {} : { cursor: start.cursor }),
+  } satisfies OpenedCall
 }
 
 /**
@@ -216,7 +227,7 @@ function flushCounts(
   selection: FlushSelection,
   cleanup: { readonly cleaned: number; readonly failed: number },
   carriedUndeleted: number,
-): FlushCounts {
+) {
   const uncleaned =
     selection.published.length + selection.corrupt.length - cleanup.cleaned - cleanup.failed
   const listed = listing.complete ? selection.remaining : Math.max(selection.remaining, 1)
@@ -233,11 +244,7 @@ function flushCounts(
 }
 
 /** Records the selected set, checks the lease once more, and publishes it. */
-async function publishSelection(
-  call: FlushCall,
-  selection: FlushSelection,
-  counts: FlushCounts,
-): Promise<RouteResult> {
+async function publishSelection(call: FlushCall, selection: FlushSelection, counts: FlushCounts) {
   if (selection.day === undefined || selection.entries.length === 0) {
     return { ...answer(HTTP_STATUS.ok, { processed: 0, ...counts }, 'skipped'), accepted: 0 }
   }
@@ -286,7 +293,7 @@ async function publishSelection(
  * or returned a `cursor`, which it passes back to list on from there; it fails when `undeleted`
  * is above zero.
  */
-export async function handleFlushRequest(context: RouteContext): Promise<RouteResult> {
+export async function handleFlushRequest(context: RouteContext) {
   const opened = await openCall(context)
   if (!opened.ok) return opened.result
   const { call, budget } = opened

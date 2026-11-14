@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { chatRowKeys } from '../transcript-row-keys'
 import type { ChatRow } from '../types-chat-row'
 
-const custom = (timestamp: number, name: string): ChatRow => ({
-  type: 'agent-loop-custom-message',
-  event: { type: 'custom', name, timestamp },
-})
+const custom = (timestamp: number, name: string) =>
+  ({
+    type: 'agent-loop-custom-message',
+    event: { type: 'custom', name, timestamp },
+  }) satisfies ChatRow
 
 describe('chatRowKeys', () => {
   it('gives every row a unique key, suffixing repeats by occurrence', () => {

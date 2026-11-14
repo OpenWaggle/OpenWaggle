@@ -46,8 +46,8 @@ interface HiveRowMetaPart {
 }
 
 /** "1 needs you · 2 waiting": Needs you first; the Waiting count is muted (ADR 0059). */
-function rollUpParts(rollUp: HiveTreeRollUp | null): readonly HiveRowMetaPart[] {
-  if (rollUp === null) return []
+function rollUpParts(rollUp: HiveTreeRollUp | null) {
+  if (rollUp === null) return [] satisfies readonly HiveRowMetaPart[]
   return [
     ...(rollUp.needsYou > 0
       ? [
@@ -58,16 +58,17 @@ function rollUpParts(rollUp: HiveTreeRollUp | null): readonly HiveRowMetaPart[] 
         ]
       : []),
     ...(rollUp.waiting > 0 ? [{ text: `${String(rollUp.waiting)} waiting` }] : []),
-  ]
+  ] satisfies readonly HiveRowMetaPart[]
 }
 
 /** What a row says about the rows below it, visibly and in its accessible name. */
-function rowMeta(item: HiveTreeItem): readonly HiveRowMetaPart[] {
-  return [
+function rowMeta(item: HiveTreeItem) {
+  const part: readonly HiveRowMetaPart[] = [
     ...(item.childCount > 0 ? [{ text: workersLabel(item.childCount) }] : []),
     ...(item.archivedCount > 0 ? [{ text: `${String(item.archivedCount)} archived` }] : []),
     ...rollUpParts(item.rollUp),
   ]
+  return part
 }
 
 /**

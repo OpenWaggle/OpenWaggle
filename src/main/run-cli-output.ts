@@ -19,10 +19,13 @@ export class RunCliOutput {
   private queue = Promise.resolve()
   private stdoutFailed = false
 
-  constructor(
-    private readonly sinks: RunCliOutputSinks,
-    private readonly onStdoutFailure: (error: unknown) => void,
-  ) {}
+  private readonly sinks: RunCliOutputSinks
+  private readonly onStdoutFailure: (error: unknown) => void
+
+  constructor(sinks: RunCliOutputSinks, onStdoutFailure: (error: unknown) => void) {
+    this.sinks = sinks
+    this.onStdoutFailure = onStdoutFailure
+  }
 
   private heldGrapheme = ''
 

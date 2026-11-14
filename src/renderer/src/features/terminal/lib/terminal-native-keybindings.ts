@@ -1,3 +1,5 @@
+import { codePointLength } from '@shared/utils/code-point-length'
+
 interface TerminalNativeKeyEvent {
   readonly type?: string
   readonly key: string
@@ -23,7 +25,7 @@ function isMacPlatform(platform: string) {
 }
 
 function isAltGraphPrintable(event: TerminalNativeKeyEvent) {
-  return event.getModifierState?.('AltGraph') === true && [...event.key].length === 1
+  return event.getModifierState?.('AltGraph') === true && codePointLength(event.key) === 1
 }
 
 function hasOnlyControl(event: TerminalNativeKeyEvent) {
@@ -44,8 +46,9 @@ function isCopyGesture(event: TerminalNativeKeyEvent, key: string, isMac: boolea
 }
 
 function isPasteGesture(event: TerminalNativeKeyEvent, key: string, isMac: boolean) {
-  if (key === 'insert')
+  if (key === 'insert') {
     return !isMac && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+  }
   if (key !== 'v') return false
   if (isMac) return event.metaKey
   return event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey
@@ -59,16 +62,16 @@ export function terminalCopyClearsSelection(event: TerminalNativeKeyEvent, platf
 }
 
 /** Clipboard gestures that a canvas/terminal surface must own explicitly. */
-export function terminalClipboardShortcutAction(
-  event: TerminalNativeKeyEvent,
-  platform: string,
-): TerminalClipboardShortcutAction | null {
+export function terminalClipboardShortcutAction(event: TerminalNativeKeyEvent, platform: string) {
   if (event.type !== undefined && event.type !== 'keydown') return null
   if (isAltGraphPrintable(event)) return null
   const key = event.key.toLocaleLowerCase()
   const isMac = isMacPlatform(platform)
-  if (isCopyGesture(event, key, isMac)) return 'copy'
-  return isPasteGesture(event, key, isMac) ? 'paste' : null
+  if (isCopyGesture(event, key, isMac)) return 'copy' as const
+  const action: TerminalClipboardShortcutAction | null = isPasteGesture(event, key, isMac)
+    ? ('paste' as const)
+    : null
+  return action
 }
 
 function terminalEditingShortcutData(event: TerminalNativeKeyEvent, key: string, isMac: boolean) {
@@ -102,10 +105,7 @@ function terminalNavigationShortcutData(
 }
 
 /** Maps desktop-native editing gestures to shell control sequences before xterm consumes them. */
-export function terminalNativeShortcutData(
-  event: TerminalNativeKeyEvent,
-  platform: string,
-): string | null {
+export function terminalNativeShortcutData(event: TerminalNativeKeyEvent, platform: string) {
   if (event.type !== undefined && event.type !== 'keydown') return null
   if (isAltGraphPrintable(event)) return null
   const key = event.key.toLocaleLowerCase()

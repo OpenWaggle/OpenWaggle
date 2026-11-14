@@ -7,6 +7,8 @@
  * JSON length, JSON). File data starts right after the header pickle, at the offsets the JSON gives.
  */
 import fs from 'node:fs/promises'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 interface AsarFileEntry {
   readonly size: number
@@ -24,44 +26,64 @@ const JSON_OFFSET = 16
 const DATA_BASE_OFFSET = 8
 const MAX_HEADER_BYTES = 256 * 1024 * 1024
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function fileEntry(node: { readonly [key: string]: unknown }, location: string): AsarFileEntry {
-  if (typeof node.size !== 'number') throw new Error(`asar entry ${location} has no size.`)
-  if (node.unpacked === true) return { size: node.size, offset: null }
-  const offset = Number(node.offset)
-  if (typeof node.offset !== 'string' || !Number.isSafeInteger(offset)) {
+/** One asar header node: a file (`size`, `offset`, `unpacked`), a link, or a directory (`files`). */
+const headerNodeSchema = Schema.Struct({
+  size: unknownField,
+  offset: unknownField,
+  unpacked: unknownField,
+  link: unknownField,
+  files: unknownField,
+})
+type HeaderNode = Schema.Schema.Type<typeof headerNodeSchema>
+
+function fileEntry(node: HeaderNode, location: string) {
+  const { size, offset: offsetText } = node
+  if (typeof size !== 'number') throw new Error(`asar entry ${location} has no size.`)
+  if (node.unpacked === true) {
+    const entry: AsarFileEntry = { size, offset: null }
+    return entry
+  }
+  const offset = Number(offsetText)
+  if (typeof offsetText !== 'string' || !Number.isSafeInteger(offset)) {
     throw new Error(`asar entry ${location} has no valid offset.`)
   }
-  return { size: node.size, offset }
+  const entry: AsarFileEntry = { size, offset }
+  return entry
 }
 
-function collectFiles(node: unknown, location: string, files: Map<string, AsarFileEntry>) {
-  if (!isRecord(node)) throw new Error(`asar entry ${location || '/'} is malformed.`)
+function collectFiles(value: unknown, location: string, files: Map<string, AsarFileEntry>) {
+  const node = objectFields(headerNodeSchema, value)
+  if (node === undefined) throw new Error(`asar entry ${location || '/'} is malformed.`)
   if (node.link !== undefined) return
   if (node.files === undefined) {
     files.set(location, fileEntry(node, location))
     return
   }
   if (!isRecord(node.files)) throw new Error(`asar directory ${location || '/'} is malformed.`)
-  for (const [name, child] of Object.entries(node.files)) collectFiles(child, `${location}/${name}`, files)
+  for (const [name, child] of Object.entries(node.files)) {
+    collectFiles(child, `${location}/${name}`, files)
+  }
 }
 
-export async function readAsarArchive(asarPath: string): Promise<AsarArchive> {
+export async function readAsarArchive(asarPath: string) {
   const handle = await fs.open(asarPath, 'r')
   try {
     const prefix = Buffer.alloc(JSON_OFFSET)
     await handle.read(prefix, 0, JSON_OFFSET, 0)
     const jsonLength = prefix.readUInt32LE(JSON_LENGTH_OFFSET)
-    if (jsonLength > MAX_HEADER_BYTES) throw new Error(`${asarPath} has an implausible header size.`)
+    if (jsonLength > MAX_HEADER_BYTES) {
+      throw new Error(`${asarPath} has an implausible header size.`)
+    }
     const json = Buffer.alloc(jsonLength)
     await handle.read(json, 0, jsonLength, JSON_OFFSET)
     const dataBase = DATA_BASE_OFFSET + prefix.readUInt32LE(HEADER_PICKLE_SIZE_OFFSET)
     const files = new Map<string, AsarFileEntry>()
     collectFiles(JSON.parse(json.toString('utf8')), '', files)
-    return {
+    const archive: AsarArchive = {
       files,
       async readFile(archivePath) {
         const entry = files.get(archivePath)
@@ -77,6 +99,7 @@ export async function readAsarArchive(asarPath: string): Promise<AsarArchive> {
         return contents
       },
     }
+    return archive
   } finally {
     await handle.close()
   }

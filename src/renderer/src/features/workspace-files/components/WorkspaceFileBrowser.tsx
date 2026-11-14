@@ -27,8 +27,9 @@ export function workspaceExplorerSearch(query: string) {
 const TREE_INDENT_PX = 12
 const DIRECTORY_OFFSET_PX = 6
 const FILE_OFFSET_PX = 22
-function createTreeNode(name: string, path: string): FileTreeNode {
-  return { name, path, directories: new Map(), files: [] }
+function createTreeNode(name: string, path: string) {
+  const node: FileTreeNode = { name, path, directories: new Map(), files: [] }
+  return node
 }
 
 function buildTree(files: readonly WorkspaceFileEntry[]) {

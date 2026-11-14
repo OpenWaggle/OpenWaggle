@@ -37,8 +37,9 @@ async function readCurrentSession(cached: SessionDetail) {
     const session = await api.getSessionDetail(cached.id)
     if (!session) return cached
     const shown = useChatStore.getState().sessionById.get(cached.id)
-    if (!shown || session.updatedAt >= shown.updatedAt)
+    if (!shown || session.updatedAt >= shown.updatedAt) {
       useChatStore.getState().upsertSession(session)
+    }
     return session
   } catch (cause) {
     logger.warn('Could not read the Session again before sending', { error: String(cause) })
@@ -84,7 +85,7 @@ function sendNow(send: Send, payload: AgentSendPayload) {
  * (ADR 0051), unless the person remembered a choice for the project. A held send rejects with
  * `PiSessionContinuationHeld`, which puts the message back in the composer.
  */
-export function usePiSessionContinuationGate(input: UsePiSessionContinuationGateInput): Send {
+export function usePiSessionContinuationGate(input: UsePiSessionContinuationGateInput) {
   const rememberedByProject = usePreferencesStore(
     (state) => state.settings.piSessionContinuationByProject,
   )
@@ -112,7 +113,7 @@ export function usePiSessionContinuationGate(input: UsePiSessionContinuationGate
     throw new PiSessionContinuationHeld(keepRunningInPi(current, openedProjectPath))
   }
 
-  return (payload) => {
+  return ((payload) => {
     const session = input.session
     if (
       !session ||
@@ -123,5 +124,5 @@ export function usePiSessionContinuationGate(input: UsePiSessionContinuationGate
       return input.send(payload)
     }
     return continueOrHold(session, payload)
-  }
+  }) satisfies Send
 }

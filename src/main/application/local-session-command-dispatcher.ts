@@ -51,13 +51,9 @@ import {
 import { requestLifecycleTitle } from './session-title-scheduler'
 
 export {
-  type ConfiguredHostUiInvocation,
   configureGuiSessionCommandClient,
   dispatchConfiguredGuiSessionCommand,
-  type GuiSessionCommandDependencies,
   GuiSessionHostRetiredForUpgradeError,
-  invokeConfiguredHostUi,
-  invokeConfiguredHostUiRaw,
   retireGuiSessionCommandClientForUpgrade,
 } from './gui-session-command-router'
 export {
@@ -305,7 +301,4 @@ export {
   canonicalizeNamedProfileProjectPayload,
   scopeNamedProfileExport,
 } from './local-session-command-scoping'
-export {
-  dispatchSessionQuery,
-  dispatchSessionWaitQuery,
-} from './local-session-query-dispatcher'
+export { dispatchSessionWaitQuery } from './local-session-query-dispatcher'

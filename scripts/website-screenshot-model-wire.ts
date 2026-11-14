@@ -92,10 +92,7 @@ function keepAlive(response: http.ServerResponse, ping: () => void) {
 export type FinishHeldReply = () => void
 
 /** Streams a reply as Chat Completions chunks; a held reply returns its finish. */
-export async function streamOpenAiReply(
-  response: http.ServerResponse,
-  reply: StreamedReply,
-): Promise<FinishHeldReply | null> {
+export async function streamOpenAiReply(response: http.ServerResponse, reply: StreamedReply) {
   const chunk = (delta: Readonly<Record<string, unknown>>, finishReason: string | null = null) => ({
     id: 'chatcmpl-website-fixture',
     object: 'chat.completion.chunk',
@@ -154,7 +151,7 @@ export async function streamAnthropicReply(
   response: http.ServerResponse,
   model: string,
   reply: StreamedReply,
-): Promise<FinishHeldReply | null> {
+) {
   const send = (event: string, data: Readonly<Record<string, unknown>>) =>
     response.write(`event: ${event}\ndata: ${JSON.stringify({ type: event, ...data })}\n\n`)
   let index = -1

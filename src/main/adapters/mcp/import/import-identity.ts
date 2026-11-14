@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto'
+import { Schema } from '@shared/schema'
+import { lenientOptional } from '@shared/schemas/lenient'
 import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 import type { ExternalMcpImportSource, PiMcpEntry } from './import-types'
 
 function sha256(value: string) {
@@ -40,4 +43,36 @@ export function piServerName(name: string) {
 /** Pi treats names that differ only in `-` and `_` as the same server. */
 export function sameServerName(left: string, right: string) {
   return left.replace(/-/g, '_') === right.replace(/-/g, '_')
+}
+
+/** The provenance fields an earlier import wrote on a configured server (`McpImportProvenance`). */
+const storedProvenanceSchema = Schema.Struct({
+  provenance: lenientOptional(
+    Schema.Struct({
+      source: lenientOptional(Schema.String),
+      sourcePath: lenientOptional(Schema.String),
+      sourceName: lenientOptional(Schema.String),
+      fingerprint: lenientOptional(Schema.String),
+    }),
+  ),
+})
+
+const decodeStoredProvenance = Schema.decodeUnknownOption(storedProvenanceSchema)
+
+/** The provenance of a configured server, when an earlier import wrote one. */
+export function storedImportProvenance(server: unknown) {
+  return Option.getOrUndefined(decodeStoredProvenance(server))?.provenance
+}
+
+/** Whether a configured server is an earlier import of this server of this source file. */
+export function isEarlierImportOf(
+  server: unknown,
+  candidate: { readonly source: string; readonly sourcePath: string; readonly name: string },
+) {
+  const provenance = storedImportProvenance(server)
+  return (
+    provenance?.source === candidate.source &&
+    provenance.sourcePath === candidate.sourcePath &&
+    provenance.sourceName === candidate.name
+  )
 }

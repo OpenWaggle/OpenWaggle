@@ -4,7 +4,6 @@ import {
 } from '@shared/domain/scheduled-tasks/heartbeat-rules'
 import type {
   HeartbeatRunOutcome,
-  HeartbeatSettingsInput,
   ScheduledTasksCommand,
   ScheduledTaskTarget,
 } from '@shared/types/scheduled-task'
@@ -35,7 +34,7 @@ export function givenHeartbeatSettings(fields: HeartbeatCommandFields) {
   return HEARTBEAT_SETTING_FIELDS.filter((field) => fields[field] !== undefined)
 }
 
-function wakeCheck(fields: HeartbeatCommandFields): HeartbeatSettingsInput['wakeCheck'] {
+function wakeCheck(fields: HeartbeatCommandFields) {
   if (fields.wakeIf === null) return null
   if (fields.wakeIf !== undefined) {
     return {
@@ -50,9 +49,7 @@ function wakeCheck(fields: HeartbeatCommandFields): HeartbeatSettingsInput['wake
 }
 
 /** The Heartbeat settings the flat fields set, or undefined when they set none. */
-export function heartbeatSettingsInput(
-  fields: HeartbeatCommandFields,
-): HeartbeatSettingsInput | undefined {
+export function heartbeatSettingsInput(fields: HeartbeatCommandFields) {
   if (givenHeartbeatSettings(fields).length === 0) return undefined
   const check = wakeCheck(fields)
   return {
@@ -75,7 +72,7 @@ export function heartbeatTarget(
   sessionId: string,
   fields: HeartbeatCommandFields,
   base?: HeartbeatTarget,
-): HeartbeatTarget {
+) {
   const modelId = fields.model ?? base?.modelId
   const thinkingLevel = sessionsToolThinkingLevel(fields.thinking) ?? base?.thinkingLevel
   return {
@@ -83,14 +80,11 @@ export function heartbeatTarget(
     sessionId,
     ...(modelId ? { modelId } : {}),
     ...(thinkingLevel ? { thinkingLevel } : {}),
-  }
+  } satisfies HeartbeatTarget
 }
 
 /** The Run outcome a Heartbeat Run reports about itself; the Run is the calling one. */
-export function reportOutcomeCommand(
-  fields: HeartbeatCommandFields,
-  runId: string | undefined,
-): ScheduledTasksCommand {
+export function reportOutcomeCommand(fields: HeartbeatCommandFields, runId: string | undefined) {
   if (!fields.outcome) throw new Error('schedule_outcome requires outcome acted, idle, or done.')
   if (!runId) throw new Error('schedule_outcome reports on the calling Heartbeat Run.')
   return {
@@ -98,5 +92,5 @@ export function reportOutcomeCommand(
     runId,
     outcome: fields.outcome,
     ...(fields.note?.trim() ? { note: fields.note.trim() } : {}),
-  }
+  } satisfies ScheduledTasksCommand
 }

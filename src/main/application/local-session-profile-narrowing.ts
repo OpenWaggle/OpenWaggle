@@ -4,7 +4,6 @@ import type {
   LocalSessionProfileAuthority,
   LocalSessionProfileScope,
 } from '@shared/types/local-session-profile'
-import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import {
   LocalSessionCommandAuthorizationError,
@@ -24,16 +23,21 @@ import { isPathInside } from '../utils/paths'
  * scopes admit. A hive grant becomes the members both admit; a Worker started later in that
  * hive is reached from the next connection, and the MCP server opens one for every call.
  */
-export function narrowNamedProfileCaller(
-  caller: LocalSessionCallerIdentity,
-): Effect.Effect<
-  LocalSessionCallerIdentity,
-  LocalSessionCommandAuthorizationError | SessionAuthorizationTargetRepositoryError,
-  SessionAuthorizationTargetRepository
-> {
+export function narrowNamedProfileCaller(caller: LocalSessionCallerIdentity) {
   const narrowing = caller.profileNarrowing
-  if (!narrowing) return Effect.succeed(caller)
-  return Effect.gen(function* () {
+  if (!narrowing) {
+    const effect: Effect.Effect<
+      LocalSessionCallerIdentity,
+      LocalSessionCommandAuthorizationError | SessionAuthorizationTargetRepositoryError,
+      SessionAuthorizationTargetRepository
+    > = Effect.succeed(caller)
+    return effect
+  }
+  const effect: Effect.Effect<
+    LocalSessionCallerIdentity,
+    LocalSessionCommandAuthorizationError | SessionAuthorizationTargetRepositoryError,
+    SessionAuthorizationTargetRepository
+  > = Effect.gen(function* () {
     const authority = caller.profileAuthority
     if (!authority) return yield* denied('A narrowed MCP caller needs a named profile.')
     if (!hasExplicitTargetScope(narrowing.scope)) {
@@ -79,6 +83,7 @@ export function narrowNamedProfileCaller(
         : {}),
     } satisfies LocalSessionCallerIdentity
   })
+  return effect
 }
 
 function hasExplicitTargetScope(scope: LocalSessionProfileScope) {
@@ -115,10 +120,11 @@ function intersectTargets(
       }
     }
     const profileSessionIds = yield* listAuthorizedSessionIds(profileScope)
+    const narrowingProjectSet = new Set(narrowingProjects)
     return {
       projectPaths: (profileScope.projectPaths ?? []).filter(
         (projectPath) =>
-          narrowingProjects.includes(projectPath) ||
+          narrowingProjectSet.has(projectPath) ||
           roots.some((root) => isPathInside(root, projectPath)),
       ),
       sessionIds: unique(profileSessionIds.filter((id) => reachableSessionIds.has(id))),
@@ -154,7 +160,7 @@ function unique<T>(values: readonly T[]) {
   return [...new Set(values)]
 }
 
-function intersect<T extends string | SessionCapability>(left: readonly T[], right: readonly T[]) {
+function intersect<T extends string>(left: readonly T[], right: readonly T[]) {
   const allowed = new Set(right)
   return unique(left.filter((value) => allowed.has(value)))
 }
@@ -172,9 +178,6 @@ function narrowRoots(
   )
 }
 
-function lowerCeiling(
-  left: AgentAuthorizationMode,
-  right: AgentAuthorizationMode,
-): AgentAuthorizationMode {
-  return left === 'yolo' && right === 'yolo' ? 'yolo' : 'ask-for-approval'
+function lowerCeiling(left: AgentAuthorizationMode, right: AgentAuthorizationMode) {
+  return left === 'yolo' && right === 'yolo' ? ('yolo' as const) : ('ask-for-approval' as const)
 }

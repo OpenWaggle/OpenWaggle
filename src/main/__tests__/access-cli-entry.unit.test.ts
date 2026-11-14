@@ -4,9 +4,8 @@ const mocks = vi.hoisted(() => ({
   exit: vi.fn(),
   flush: vi.fn(async () => undefined),
   run: vi.fn(async () => {
-    const { LocalSessionHostUnavailableError } = await import(
-      '../session-host/local-session-client-protocol-error'
-    )
+    const { LocalSessionHostUnavailableError } =
+      await import('../session-host/local-session-client-protocol-error')
     throw new LocalSessionHostUnavailableError('Session Host unavailable')
   }),
   whenReady: vi.fn(async () => undefined),

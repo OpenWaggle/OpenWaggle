@@ -5,7 +5,7 @@ import {
   extensionInvokeFailureCodeSchema,
   extensionInvokeInputSchema,
   extensionInvokeOutcomeSchema,
-  extensionInvokeResultSchema,
+  extensionInvokeDeclaredResultSchema,
 } from '@shared/schemas/extension-broker'
 import { extensionSessionResourcePublishPayloadSchema } from '@shared/schemas/extension-broker-resources'
 import { describe, expect, it } from 'vitest'
@@ -39,7 +39,7 @@ describe('extension broker schemas', () => {
   })
 
   it('accepts audited extension invocation results', () => {
-    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+    const result = safeDecodeUnknown(extensionInvokeDeclaredResultSchema, {
       ok: false,
       error: {
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
@@ -60,8 +60,24 @@ describe('extension broker schemas', () => {
     expect(result.success).toBe(true)
   })
 
+  it('reads a missing failure audit, code or issue list as an absent key, never as undefined', () => {
+    const failure = {
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
+        message: 'Outside scope.',
+      },
+    }
+    const decodes = (value: object) =>
+      safeDecodeUnknown(extensionInvokeDeclaredResultSchema, value).success
+
+    expect(decodes(failure)).toBe(true)
+    expect(decodes({ ...failure, audit: undefined })).toBe(false)
+    expect(decodes({ ...failure, error: { ...failure.error, issues: undefined } })).toBe(false)
+  })
+
   it('accepts audited extension storage invocation results', () => {
-    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+    const result = safeDecodeUnknown(extensionInvokeDeclaredResultSchema, {
       ok: true,
       value: {
         extensionId: 'sample-extension',
@@ -90,7 +106,7 @@ describe('extension broker schemas', () => {
   })
 
   it('accepts typed OpenWaggle state selector results', () => {
-    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+    const result = safeDecodeUnknown(extensionInvokeDeclaredResultSchema, {
       ok: true,
       value: {
         extensionId: 'sample-extension',
@@ -120,7 +136,7 @@ describe('extension broker schemas', () => {
   })
 
   it('accepts typed OpenWaggle setting key results', () => {
-    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+    const result = safeDecodeUnknown(extensionInvokeDeclaredResultSchema, {
       ok: true,
       value: {
         extensionId: 'sample-extension',
@@ -148,7 +164,7 @@ describe('extension broker schemas', () => {
   })
 
   it('accepts runtime contribution registration results', () => {
-    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+    const result = safeDecodeUnknown(extensionInvokeDeclaredResultSchema, {
       ok: true,
       value: {
         extensionId: 'sample-extension',

@@ -96,7 +96,11 @@ export function isJsonRecord(value: unknown): value is JsonRecord {
 }
 
 /** Whether an entry overrides a server defined in an earlier file instead of defining one. */
-export function isMcpOverrideEntry(value: JsonRecord) {
+export function isMcpOverrideEntry(value: {
+  readonly command?: unknown
+  readonly url?: unknown
+  readonly type?: unknown
+}) {
   return value.command === undefined && value.url === undefined && value.type === undefined
 }
 
@@ -117,14 +121,14 @@ function toolPatternRegExp(pattern: string) {
 export function getMcpToolExposure(
   config: Pick<McpServerConfigBase, 'exposure' | 'toolExposure'>,
   toolName: string,
-): McpExposure {
+) {
   const overrides = config.toolExposure ?? {}
   const exact = overrides[toolName]
   if (exact !== undefined) return exact
   for (const [pattern, exposure] of Object.entries(overrides)) {
     if (pattern.includes('*') && toolPatternRegExp(pattern).test(toolName)) return exposure
   }
-  return config.exposure ?? 'codemode'
+  return (config.exposure ?? 'codemode') satisfies McpExposure
 }
 
 export function isMcpExposure(value: unknown): value is McpExposure {

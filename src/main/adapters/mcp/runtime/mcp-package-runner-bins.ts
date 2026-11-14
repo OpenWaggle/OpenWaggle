@@ -22,9 +22,11 @@ export const PACKAGE_BIN_UNPINNED_TTL_MS = 24 * 60 * 60 * 1_000
 export const PACKAGE_BIN_PINNED_TTL_MS = 7 * PACKAGE_BIN_UNPINNED_TTL_MS
 const SHEBANG_BYTES = 256
 
-const PackageJsonSchema = Schema.Struct({ bin: Schema.optional(Schema.Unknown) })
+const PackageJsonSchema = Schema.Struct({
+  bin: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
-export function readJson(text: string): unknown {
+export function readJson(text: string) {
   try {
     return parseJsonUnknown(text)
   } catch {
@@ -64,17 +66,14 @@ const PLAIN_NODE_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+node|\/\S*\/node)\s*$/u
  * another runtime (`bun`) runs the file itself, as the runner's `.bin` link does, which only POSIX
  * can; on Windows such a bin keeps the runner. A bin that is not JavaScript is spawned itself.
  */
-export function binLaunchOf(
-  file: string,
-  platform: NodeJS.Platform = process.platform,
-): 'node' | 'self' | undefined {
+export function binLaunchOf(file: string, platform: NodeJS.Platform = process.platform) {
   const firstLine = firstLineOf(file)
   if (firstLine === undefined) return undefined
   if (firstLine.startsWith('#!')) {
-    if (PLAIN_NODE_SHEBANG.test(firstLine)) return 'node'
-    return platform !== 'win32' && isExecutable(file) ? 'self' : undefined
+    if (PLAIN_NODE_SHEBANG.test(firstLine)) return 'node' as const
+    return platform !== 'win32' && isExecutable(file) ? ('self' as const) : undefined
   }
-  return /\.[cm]?js$/u.test(file) ? 'node' : 'self'
+  return /\.[cm]?js$/u.test(file) ? ('node' as const) : ('self' as const)
 }
 
 /**
@@ -85,7 +84,7 @@ export async function resolveBinFromProbe(
   probe: { readonly path: string; readonly node: string },
   launch: PackageRunnerLaunch,
   now: number,
-): Promise<ResolvedPackageBin | undefined> {
+) {
   for (const entry of probe.path.split(path.delimiter)) {
     if (!/node_modules[\\/]\.bin[\\/]?$/u.test(entry)) continue
     const packageDir = path.join(entry, '..', ...launch.packageName.split('/'))
@@ -104,13 +103,14 @@ export async function resolveBinFromProbe(
     const how = binLaunchOf(file)
     if (!how) return undefined
     const javascript = how === 'node'
-    return {
+    const bin: ResolvedPackageBin = {
       command: javascript ? probe.node : file,
       prefixArgs: javascript ? [file] : [],
       binDirectory: entry,
       resolvedAt: now,
       pinned: launch.pinned,
     }
+    return bin
   }
   return undefined
 }

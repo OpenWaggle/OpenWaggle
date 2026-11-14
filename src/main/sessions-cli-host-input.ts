@@ -6,7 +6,6 @@ import type {
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import type { DelegationReadQueryOutcome } from '@shared/types/session-delegation-query'
-import type { DelegationSpecificationInput } from '@shared/types/session-lifecycle'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { CliError } from './cli-error'
 import { CommandCliUsageError } from './command-cli-option-contract'
@@ -56,13 +55,14 @@ export async function prepareHiveHostInput(
     readonly stdin: () => Promise<string>
     readonly file: (filePath: string) => Promise<string>
   },
-): Promise<PreparedHiveHostInput | undefined> {
+) {
   if (command === 'request-respond') {
-    return { kind: 'interaction-answer', answer: await readInteractionAnswer(arguments_, read) }
+    return {
+      kind: 'interaction-answer',
+      answer: await readInteractionAnswer(arguments_, read),
+    } satisfies PreparedHiveHostInput
   }
-  if (command !== 'delegation-amend' && command !== 'delegation-propose-amendment') {
-    return undefined
-  }
+  if (command !== 'delegation-amend' && command !== 'delegation-propose-amendment') return undefined
   const edits = delegationSpecificationEdits(arguments_)
   const appliesProposal = command === 'delegation-amend' && option(arguments_, 'proposal')
   // The Session Host applies a proposal only exactly as proposed.
@@ -74,10 +74,10 @@ export async function prepareHiveHostInput(
   if (!hasDelegationSpecificationEdits(edits) && !appliesProposal) {
     throw new CommandCliUsageError(`Change at least one field with ${SPECIFICATION_OPTION_LIST}.`)
   }
-  return { kind: 'specification-edits', edits }
+  return { kind: 'specification-edits', edits } satisfies PreparedHiveHostInput
 }
 
-function requestsListPayload(sessionId: string): LocalSessionCommandPayload {
+function requestsListPayload(sessionId: string) {
   return {
     contract: 'session-query-v2',
     request: {
@@ -85,10 +85,10 @@ function requestsListPayload(sessionId: string): LocalSessionCommandPayload {
       requestId: randomUUID(),
       query: { operation: 'requests-list', sessionId },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
-function delegationReadPayload(delegationId: string, cursor?: string): LocalSessionCommandPayload {
+function delegationReadPayload(delegationId: string, cursor?: string) {
   return {
     contract: 'session-query-v2',
     request: {
@@ -96,7 +96,7 @@ function delegationReadPayload(delegationId: string, cursor?: string): LocalSess
       requestId: randomUUID(),
       query: { operation: 'delegations-read', delegationId, ...(cursor ? { cursor } : {}) },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 /**
@@ -120,7 +120,7 @@ async function resolveInteractionResponse(
   answer: InteractionAnswer,
   arguments_: ParsedArguments,
   execute: ExecuteHostCommand,
-): Promise<SessionsCliStructuredInput> {
+) {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   const runId = required(arguments_.positionals[RUN_POSITIONAL], 'Run ID')
   const interactionId = required(arguments_.positionals[INTERACTION_POSITIONAL], 'Interaction ID')
@@ -158,7 +158,7 @@ function delegationReadOutcome(result: LocalSessionCommandResult) {
   return outcome
 }
 
-function storedSpecification(value: unknown): DelegationSpecificationInput {
+function storedSpecification(value: unknown) {
   return decodeUnknownOrThrow(delegationSpecificationSchema, value)
 }
 
@@ -175,7 +175,7 @@ async function baseSpecification(input: {
   readonly revision: number
   readonly proposalId: string | undefined
   readonly execute: ExecuteHostCommand
-}): Promise<unknown> {
+}) {
   const { delegationId, revision, proposalId } = input
   let cursor: string | undefined
   let base: unknown
@@ -209,7 +209,7 @@ async function resolveSpecification(
   edits: DelegationSpecificationEdits,
   arguments_: ParsedArguments,
   execute: ExecuteHostCommand,
-): Promise<SessionsCliStructuredInput> {
+) {
   const delegationId = required(arguments_.positionals[DELEGATION_POSITIONAL], 'Delegation ID')
   const base = await baseSpecification({
     delegationId,
@@ -233,7 +233,7 @@ export function resolveHiveHostInput(
   prepared: PreparedHiveHostInput,
   arguments_: ParsedArguments,
   execute: ExecuteHostCommand,
-): Promise<SessionsCliStructuredInput> {
+) {
   return prepared.kind === 'interaction-answer'
     ? resolveInteractionResponse(prepared.answer, arguments_, execute)
     : resolveSpecification(prepared.edits, arguments_, execute)
@@ -243,12 +243,15 @@ export function resolveHiveHostInput(
  * Structured input that stands in for what the Session Host read will supply, so the CLI checks
  * the rest of the command line (positionals, Session links, revisions) before it connects.
  */
-export function hiveHostInputPlaceholder(command: string): SessionsCliStructuredInput | undefined {
+export function hiveHostInputPlaceholder(command: string) {
   if (command === 'request-respond') {
-    return { interactionResponse: { kind: 'notify', acknowledged: true } }
+    const input: SessionsCliStructuredInput = {
+      interactionResponse: { kind: 'notify', acknowledged: true },
+    }
+    return input
   }
   if (command !== 'delegation-amend' && command !== 'delegation-propose-amendment') return undefined
-  return {
+  const input: SessionsCliStructuredInput = {
     specification: {
       objective: 'placeholder',
       deliverables: [],
@@ -257,4 +260,5 @@ export function hiveHostInputPlaceholder(command: string): SessionsCliStructured
       resourceReferences: [],
     },
   }
+  return input
 }

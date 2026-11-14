@@ -37,7 +37,7 @@ function mergeMissingOptimisticMessagesByTime(
 export function appendMissingOptimisticUserMessages(
   snapshotMessages: UIMessage[],
   optimisticUserMessages: readonly UIMessage[],
-): UIMessage[] {
+) {
   if (optimisticUserMessages.length === 0) {
     return snapshotMessages
   }
@@ -79,7 +79,7 @@ interface SnapshotLogIdentity {
   readonly liveIncorporated?: true
 }
 
-function snapshotLogIdentity(current: UIMessage, snapshot: UIMessage): SnapshotLogIdentity {
+function snapshotLogIdentity(current: UIMessage, snapshot: UIMessage) {
   const snapshotIsLive = snapshot.metadata?.liveIncorporated === true
   const sessionNodeId =
     snapshot.metadata?.sessionNodeId ??
@@ -91,7 +91,7 @@ function snapshotLogIdentity(current: UIMessage, snapshot: UIMessage): SnapshotL
     ...(durableTextSha256 === undefined ? {} : { durableTextSha256 }),
     // Still only live: no persisted node is known yet, so the row's id must not become one later.
     ...(snapshotIsLive && sessionNodeId === undefined ? { liveIncorporated: true } : {}),
-  }
+  } satisfies SnapshotLogIdentity
 }
 
 function hasLogIdentity(message: UIMessage, identity: SnapshotLogIdentity) {
@@ -109,7 +109,7 @@ function hasLogIdentity(message: UIMessage, identity: SnapshotLogIdentity) {
  * its Session node by id; a live incorporated row has only a stream id, so it contributes its log
  * order and digest but never a node id.
  */
-export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessage): UIMessage {
+export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessage) {
   const identity = snapshotLogIdentity(current, snapshot)
   if (hasLogIdentity(current, identity)) return current
   const { liveIncorporated: _live, sessionNodeId: _nodeId, ...metadata } = current.metadata ?? {}
@@ -146,7 +146,7 @@ function takeMatchingUserMessage(candidates: UIMessage[], message: UIMessage) {
 export function reconcileSnapshotUserMessages(
   snapshotMessages: UIMessage[],
   existingMessages: UIMessage[],
-): UIMessage[] {
+) {
   const existingUserQueuesByText = buildExistingUserQueuesByText(existingMessages)
   if (existingUserQueuesByText.size === 0) {
     return snapshotMessages
@@ -172,7 +172,7 @@ export function reconcileSnapshotUserMessages(
     return retainSnapshotMessageOrder(replacement, message)
   })
 
-  return didReplace ? reconciled : snapshotMessages
+  return (didReplace ? reconciled : snapshotMessages) satisfies UIMessage[]
 }
 
 function messagesRepresentSameTurn(snapshotMessage: UIMessage, existingMessage: UIMessage) {
@@ -219,7 +219,7 @@ function indexOfTurnFrom(messages: readonly UIMessage[], message: UIMessage, fro
 export function appendUnpersistedAssistantTail(
   snapshotMessages: UIMessage[],
   existingMessages: readonly UIMessage[],
-): UIMessage[] {
+) {
   if (snapshotMessages.length === 0 || existingMessages.length <= snapshotMessages.length) {
     return snapshotMessages
   }
@@ -249,5 +249,5 @@ export function appendUnpersistedAssistantTail(
         !snapshotMessageIds.has(message.id),
     )
 
-  return tail.length > 0 ? [...snapshotMessages, ...tail] : snapshotMessages
+  return (tail.length > 0 ? [...snapshotMessages, ...tail] : snapshotMessages) satisfies UIMessage[]
 }

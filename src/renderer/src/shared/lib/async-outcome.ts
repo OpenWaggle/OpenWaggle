@@ -5,10 +5,7 @@
  * clause. A component or hook containing one, even inside a nested event handler, is emitted
  * uncompiled, so it loses its memoization on every render. Keep the `finally` here instead.
  */
-export async function withFinally<T>(
-  operation: () => Promise<T> | T,
-  after: () => unknown,
-): Promise<T> {
+export async function withFinally<T>(operation: () => Promise<T> | T, after: () => unknown) {
   try {
     return await operation()
   } finally {
@@ -26,10 +23,10 @@ export type AsyncOutcome<T> =
  * React Compiler 1.0 cannot lower conditionals, logical or optional-chaining expressions inside a
  * `try` block, and bails out of the whole component or hook. Branch on the outcome instead.
  */
-export async function attempt<T>(operation: () => Promise<T> | T): Promise<AsyncOutcome<T>> {
+export async function attempt<T>(operation: () => Promise<T> | T) {
   try {
-    return { ok: true, value: await operation() }
+    return { ok: true, value: await operation() } satisfies AsyncOutcome<T>
   } catch (error) {
-    return { ok: false, error }
+    return { ok: false, error } satisfies AsyncOutcome<T>
   }
 }

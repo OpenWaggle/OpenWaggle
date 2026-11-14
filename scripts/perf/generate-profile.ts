@@ -6,7 +6,7 @@
  * Sessions and 300,000 transcript nodes, most of them archived as in a long-used profile, plus a
  * few multi-megabyte Sessions. Measurements clone it instead of touching anyone's real profile.
  *
- *   pnpm perf:generate-profile --app <OpenWaggle.app> --out <dir>
+ *   bun run perf:generate-profile --app <OpenWaggle.app> --out <dir>
  *
  * The app only creates the empty Session Host database (its schema and migrations); the Sessions
  * are then written with the same fixture writer the QA seeds use, with the Host stopped.
@@ -22,7 +22,12 @@ import {
   transcript,
 } from './lib/large-profile-content'
 import { launchApp, resolvePerfApp, stopProcessGroup } from './lib/perf-app'
-import { createGitProject, type PerfProfile, profileEnvironment, stopProfileHost } from './lib/perf-profile'
+import {
+  createGitProject,
+  type PerfProfile,
+  profileEnvironment,
+  stopProfileHost,
+} from './lib/perf-profile'
 import { log, exitWhenFlushed } from './lib/perf-results'
 
 const DEFAULTS = {
@@ -63,12 +68,20 @@ function count(raw: string | undefined, fallback: number) {
 
 async function createDatabase(profile: PerfProfile, appPath: string) {
   const app = resolvePerfApp(appPath)
-  const started = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain', 'host', 'start'])
+  const started = launchApp(app, profileEnvironment(profile), [
+    '--use-mock-keychain',
+    'host',
+    'start',
+  ])
   const exited = new Promise<number | null>((resolve) => started.child.once('exit', resolve))
-  const timeout = new Promise<number>((resolve) => setTimeout(() => resolve(-1), HOST_START_TIMEOUT_MS))
+  const timeout = new Promise<number>((resolve) =>
+    setTimeout(() => resolve(-1), HOST_START_TIMEOUT_MS),
+  )
   const code = await Promise.race([exited, timeout])
   await stopProcessGroup(started.child)
-  if (code !== 0) throw new Error(`host start failed: ${started.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
+  if (code !== 0) {
+    throw new Error(`host start failed: ${started.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
+  }
   await stopProfileHost(profile)
 }
 
@@ -77,12 +90,17 @@ function plannedSessions(projects: readonly string[]) {
   const sessions = count(values.sessions, DEFAULTS.sessions)
   const nodes = count(values.nodes, DEFAULTS.nodes)
   const largeNodes = DEFAULTS.largeSessions * DEFAULTS.largeSessionNodes
-  const ordinaryAverage = Math.max(1, Math.round((nodes - largeNodes) / (sessions - DEFAULTS.largeSessions)))
+  const ordinaryAverage = Math.max(
+    1,
+    Math.round((nodes - largeNodes) / (sessions - DEFAULTS.largeSessions)),
+  )
   const now = Date.now()
   return Array.from({ length: sessions }, (_, index) => {
     const large = index > 0 && index <= DEFAULTS.largeSessions
     const spread = random(ordinaryAverage + ordinaryAverage / SPREAD_DIVISOR)
-    const messageCount = large ? DEFAULTS.largeSessionNodes : Math.max(MINIMUM_MESSAGES, Math.round(ordinaryAverage / BASE_SHARE_DIVISOR + spread))
+    const messageCount = large
+      ? DEFAULTS.largeSessionNodes
+      : Math.max(MINIMUM_MESSAGES, Math.round(ordinaryAverage / BASE_SHARE_DIVISOR + spread))
     const updatedAt = now - index * HOUR_MS
     return {
       index,
@@ -97,7 +115,9 @@ function plannedSessions(projects: readonly string[]) {
 
 async function main() {
   if (!values.app || !values.out) {
-    process.stderr.write('Use --app <OpenWaggle.app> --out <directory> [--sessions N] [--nodes N] (macOS only)\n')
+    process.stderr.write(
+      'Use --app <OpenWaggle.app> --out <directory> [--sessions N] [--nodes N] (macOS only)\n',
+    )
     process.exit(USAGE_EXIT_CODE)
   }
   await mkdir(values.out, { recursive: true })
@@ -133,25 +153,34 @@ async function main() {
       }),
     }))
     await seedSessions(profile.userData, batch)
-    log(`seeded ${String(Math.min(start + BATCH_SIZE, plan.length))}/${String(plan.length)} Sessions`)
+    log(
+      `seeded ${String(Math.min(start + BATCH_SIZE, plan.length))}/${String(plan.length)} Sessions`,
+    )
   }
   const manifest = {
     sessions: plan.length,
     nodes: plan.reduce((total, session) => total + session.messageCount, 0),
     unarchived: plan.filter((session) => !session.archived).length,
-    largeSessions: plan.filter((session) => session.messageCount === DEFAULTS.largeSessionNodes).map((session) => sessionTitle(session.index)),
+    largeSessions: plan
+      .filter((session) => session.messageCount === DEFAULTS.largeSessionNodes)
+      .map((session) => sessionTitle(session.index)),
     projects: projects.length,
     databaseBytes: (await stat(getDatabasePath(profile.userData))).size,
     sessionListText: GENERATED_SESSION_TITLE_PREFIX,
   }
-  await writeFile(path.join(root, 'profile.json'), `${JSON.stringify(manifest, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(root, 'profile.json'),
+    `${JSON.stringify(manifest, null, JSON_INDENT)}\n`,
+  )
   log(JSON.stringify(manifest))
 }
 
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

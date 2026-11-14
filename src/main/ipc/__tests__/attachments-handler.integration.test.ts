@@ -56,124 +56,50 @@ describe('registerAttachmentHandlers extraction', () => {
     expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
-  it('prepares PDF attachments via parser', async () => {
-    registerFile('/tmp/repo/spec.pdf', Buffer.from('fake-pdf-data'))
+  it.each([
+    ['PDF', '/tmp/repo/spec.pdf', unpdfExtractTextMock, 'pdf', 'Extracted PDF text'],
+    ['image', '/tmp/repo/screenshot.png', ocrRecognizeMock, 'image', 'OCR extracted text'],
+    ['DOCX', '/tmp/repo/spec.docx', mammothExtractMock, 'text', 'Extracted DOCX text'],
+    ['ODT', '/tmp/repo/spec.odt', jszipLoadAsyncMock, 'text', 'Hello ODT'],
+  ] as const)(
+    'extracts the text of a %s attachment',
+    async (_format, file, extractor, kind, text) => {
+      registerFile(file, Buffer.from('fake-bytes'))
 
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/spec.pdf'])
+      registerAttachmentHandlers()
+      const result = await prepareFiles([file])
 
-    expect(unpdfExtractTextMock).toHaveBeenCalledOnce()
-    expect(result[0]).toMatchObject({
-      kind: 'pdf',
-      extractedText: 'Extracted PDF text',
-    })
-    expect(result[0]).not.toHaveProperty('source')
-  })
+      expect(extractor).toHaveBeenCalledOnce()
+      expect(result[0]).toMatchObject({ kind, extractedText: text })
+      expect(result[0]).not.toHaveProperty('source')
+    },
+  )
 
-  it('logs and degrades gracefully when PDF extraction fails', async () => {
-    registerFile('/tmp/repo/spec.pdf', Buffer.from('fake-pdf-data'))
-    unpdfExtractTextMock.mockRejectedValueOnce(new Error('pdf parser exploded'))
+  it.each([
+    ['/tmp/repo/spec.pdf', unpdfExtractTextMock, 'pdf', 'pdf'],
+    ['/tmp/repo/screenshot.png', ocrRecognizeMock, 'image', 'image-ocr'],
+    ['/tmp/repo/spec.docx', mammothExtractMock, 'text', 'docx'],
+    ['/tmp/repo/spec.odt', jszipLoadAsyncMock, 'text', 'odt'],
+  ] as const)(
+    'logs and degrades gracefully when extracting %s fails',
+    async (file, extractor, kind, extractorName) => {
+      registerFile(file, Buffer.from('fake-bytes'))
+      extractor.mockRejectedValueOnce(new Error(`${extractorName} exploded`))
 
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/spec.pdf'])
+      registerAttachmentHandlers()
+      const result = await prepareFiles([file])
 
-    expect(result[0]).toMatchObject({ kind: 'pdf', extractedText: '' })
-    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
-      'Attachment text extraction failed',
-      expect.objectContaining({
-        attachment: 'spec.pdf',
-        extractor: 'pdf',
-        error: 'pdf parser exploded',
-      }),
-    )
-  })
-
-  it('prepares image attachments with OCR fallback text', async () => {
-    registerFile('/tmp/repo/screenshot.png', Buffer.from('fake-image-data'))
-
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/screenshot.png'])
-
-    expect(ocrRecognizeMock).toHaveBeenCalledOnce()
-    expect(result[0]).toMatchObject({ kind: 'image', extractedText: 'OCR extracted text' })
-    expect(result[0]).not.toHaveProperty('source')
-  })
-
-  it('logs and degrades gracefully when image OCR fails', async () => {
-    registerFile('/tmp/repo/screenshot.png', Buffer.from('fake-image-data'))
-    ocrRecognizeMock.mockRejectedValueOnce(new Error('ocr exploded'))
-
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/screenshot.png'])
-
-    expect(result[0]).toMatchObject({ kind: 'image', extractedText: '' })
-    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
-      'Attachment text extraction failed',
-      expect.objectContaining({
-        attachment: 'screenshot.png',
-        extractor: 'image-ocr',
-        error: 'ocr exploded',
-      }),
-    )
-  })
-
-  it('extracts text from DOCX attachments', async () => {
-    registerFile('/tmp/repo/spec.docx', Buffer.from('fake-docx-bytes'))
-
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/spec.docx'])
-
-    expect(mammothExtractMock).toHaveBeenCalledOnce()
-    expect(result[0]).toMatchObject({ kind: 'text', extractedText: 'Extracted DOCX text' })
-    expect(result[0]).not.toHaveProperty('source')
-  })
-
-  it('logs and degrades gracefully when DOCX extraction fails', async () => {
-    registerFile('/tmp/repo/spec.docx', Buffer.from('fake-docx-bytes'))
-    mammothExtractMock.mockRejectedValueOnce(new Error('docx parser exploded'))
-
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/spec.docx'])
-
-    expect(result[0]).toMatchObject({ kind: 'text', extractedText: '' })
-    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
-      'Attachment text extraction failed',
-      expect.objectContaining({
-        attachment: 'spec.docx',
-        extractor: 'docx',
-        error: 'docx parser exploded',
-      }),
-    )
-  })
-
-  it('extracts text from ODT attachments', async () => {
-    registerFile('/tmp/repo/spec.odt', Buffer.from('fake-odt-bytes'))
-
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/spec.odt'])
-
-    expect(jszipLoadAsyncMock).toHaveBeenCalledOnce()
-    expect(result[0]).toMatchObject({ kind: 'text', extractedText: 'Hello ODT' })
-    expect(result[0]).not.toHaveProperty('source')
-  })
-
-  it('logs and degrades gracefully when ODT extraction fails', async () => {
-    registerFile('/tmp/repo/spec.odt', Buffer.from('fake-odt-bytes'))
-    jszipLoadAsyncMock.mockRejectedValueOnce(new Error('odt parser exploded'))
-
-    registerAttachmentHandlers()
-    const result = await prepareFiles(['/tmp/repo/spec.odt'])
-
-    expect(result[0]).toMatchObject({ kind: 'text', extractedText: '' })
-    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
-      'Attachment text extraction failed',
-      expect.objectContaining({
-        attachment: 'spec.odt',
-        extractor: 'odt',
-        error: 'odt parser exploded',
-      }),
-    )
-  })
+      expect(result[0]).toMatchObject({ kind, extractedText: '' })
+      expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
+        'Attachment text extraction failed',
+        expect.objectContaining({
+          attachment: file.slice(file.lastIndexOf('/') + 1),
+          extractor: extractorName,
+          error: `${extractorName} exploded`,
+        }),
+      )
+    },
+  )
 
   it('extracts text from RTF attachments', async () => {
     registerFile('/tmp/repo/spec.rtf', '{\\rtf1\\ansi Hello\\par world}')

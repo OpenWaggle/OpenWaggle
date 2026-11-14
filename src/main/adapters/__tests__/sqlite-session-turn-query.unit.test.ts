@@ -9,7 +9,7 @@ import {
 
 describe('SQLite Session Run query', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-turn-query-'))
@@ -35,7 +35,7 @@ describe('SQLite Session Run query', () => {
       operation: 'turns',
       sessionId: 'worker',
       limit: 1,
-      cursor: first.outcome.nextCursor,
+      ...(first.outcome.nextCursor ? { cursor: first.outcome.nextCursor } : {}),
     })
 
     expect(first.outcome).toMatchObject({

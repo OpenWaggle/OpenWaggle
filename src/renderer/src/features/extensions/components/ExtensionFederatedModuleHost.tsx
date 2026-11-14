@@ -1,7 +1,7 @@
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useId, useRef, useState } from 'react'
 import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { useAppearancePreferencesRuntimeStore } from '@/shared/lib/appearance-preferences-runtime'
@@ -11,6 +11,7 @@ import {
   federatedModuleMountKey,
   federatedModuleSurfacePayloadJson,
   initialMountStatus,
+  type MountStatus,
   mountExtensionFrame,
   type ReportedMountStatus,
   supportsExtensionExecutionPlacement,
@@ -26,6 +27,20 @@ const DEFAULT_FRAME_AUTO_MAX_HEIGHT = 520
 interface ReportedFrameHeight {
   readonly mountKey: string
   readonly height: number
+}
+
+/** Records a frame's reported height for this mount, keeping the same state when unchanged. */
+function heightReporter(
+  mountKey: string,
+  setReportedHeight: Dispatch<SetStateAction<ReportedFrameHeight | null>>,
+) {
+  return (height: number) => {
+    setReportedHeight((previous) =>
+      previous?.mountKey === mountKey && previous.height === height
+        ? previous
+        : { height, mountKey },
+    )
+  }
 }
 
 function clampFrameHeight(input: {
@@ -88,10 +103,7 @@ function useAppearanceMountKey(mountKey: string) {
   return JSON.stringify([mountKey, appearance, syntaxTheme.themeId, appearancePreferences])
 }
 
-function sameMountStatus(
-  left: ReturnType<typeof initialMountStatus>,
-  right: ReturnType<typeof initialMountStatus>,
-) {
+function sameMountStatus(left: MountStatus, right: MountStatus) {
   if (left.kind !== right.kind) {
     return false
   }
@@ -107,7 +119,7 @@ function MountStatusBanner({
   status,
   displayRoots,
 }: {
-  readonly status: ReturnType<typeof initialMountStatus>
+  readonly status: MountStatus
   readonly displayRoots: readonly string[]
 }) {
   if (status.kind === 'loading') {
@@ -192,15 +204,7 @@ export function ExtensionFederatedModuleHost({
       moduleUrl,
       mountKey,
       onSurfaceAction: (actionId, payload) => onSurfaceActionRef.current?.(actionId, payload),
-      reportHeight: shouldAutoHeight
-        ? (height) => {
-            setReportedHeight((previous) =>
-              previous?.mountKey === mountKey && previous.height === height
-                ? previous
-                : { height, mountKey },
-            )
-          }
-        : undefined,
+      ...(shouldAutoHeight ? { reportHeight: heightReporter(mountKey, setReportedHeight) } : {}),
       reportStatus: (status) => {
         setReportedStatus((previous) =>
           previous?.mountKey === status.mountKey && sameMountStatus(previous.status, status.status)
@@ -208,7 +212,7 @@ export function ExtensionFederatedModuleHost({
             : status,
         )
       },
-      surfacePayloadJson,
+      ...(surfacePayloadJson === undefined ? {} : { surfacePayloadJson }),
     })
   }, [frameId, frameRuntimeSupported, moduleUrl, mountKey, shouldAutoHeight, surfacePayloadJson])
 

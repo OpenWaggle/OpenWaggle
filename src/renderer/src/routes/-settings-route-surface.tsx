@@ -17,7 +17,7 @@ function isSettingsTab(value: string): value is SettingsTab {
   return SETTINGS_TABS.some((candidate) => candidate === value)
 }
 
-function settingsTabFromPathname(pathname: string): SettingsTab | null {
+function settingsTabFromPathname(pathname: string) {
   if (!pathname.startsWith(SETTINGS_PATH_PREFIX)) {
     return null
   }

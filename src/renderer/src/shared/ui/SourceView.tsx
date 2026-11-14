@@ -104,7 +104,7 @@ export function SourceView({
   const { containerRef, range, updateScroll } = useSourceViewViewport({
     lineCount: sourceAnalysis.lineStarts.length,
     lineHeight: codeLineHeight,
-    targetLine,
+    ...(targetLine === undefined ? {} : { targetLine }),
   })
   const lineRange = useMemo(
     () => ({ start: range.start, end: range.end }),
@@ -150,7 +150,7 @@ export function SourceView({
             range={range}
             highlighted={highlighted}
             loading={showLoading}
-            targetLine={targetLine}
+            {...(targetLine === undefined ? {} : { targetLine })}
             lineHeight={codeLineHeight}
             showLineNumbers={showLineNumbers}
           />

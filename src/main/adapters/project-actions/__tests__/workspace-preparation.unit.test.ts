@@ -43,8 +43,9 @@ function fixture() {
     read: async (id: string) => storage.get(id) ?? null,
     list: async () => [...storage.values()],
     write: async (state: StoredWorkspacePreparation, revision: number) => {
-      if ((storage.get(state.workspaceId)?.revision ?? 0) !== revision)
+      if ((storage.get(state.workspaceId)?.revision ?? 0) !== revision) {
         throw new Error('revision conflict')
+      }
       storage.set(state.workspaceId, structuredClone(state))
     },
   }

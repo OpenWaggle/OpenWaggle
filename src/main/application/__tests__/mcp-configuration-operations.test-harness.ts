@@ -148,7 +148,7 @@ export function createMcpOperationsHarness() {
       mkdirSync(path.dirname(filePath), { recursive: true })
       writeFileSync(filePath, JSON.stringify(value, null, 2))
     },
-    servers(filePath: string): Record<string, unknown> {
+    servers(filePath: string) {
       const parsed: { mcpServers: Record<string, unknown> } = JSON.parse(
         readFileSync(filePath, 'utf8'),
       )

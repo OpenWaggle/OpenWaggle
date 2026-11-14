@@ -21,14 +21,15 @@ const RUNTIME = {
   extensions: { registry: null, projectPaths: [] },
 }
 
-function userRow(metadata: UIMessage['metadata'], text: string): UIMessage {
-  return {
+function userRow(metadata: UIMessage['metadata'], text: string) {
+  const message: UIMessage = {
     id: 'u-row',
     role: 'user',
     parts: [{ type: 'text', content: text }],
     createdAt: CREATED_AT,
-    metadata,
+    ...(metadata === undefined ? {} : { metadata }),
   }
+  return message
 }
 
 describe('MessageBubble Hive wake notice', () => {

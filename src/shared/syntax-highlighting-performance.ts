@@ -19,16 +19,17 @@ export interface SourceViewAnalysis {
   readonly sourceFingerprint: string
 }
 
-function sourceLengthAdmission(source: string): SyntaxAdmissionResult | null {
+function sourceLengthAdmission(source: string) {
   if (source.length <= MAX_SYNTAX_SOURCE_CODE_UNITS) return null
-  return {
+  const result: SyntaxAdmissionResult = {
     admitted: false,
     diagnostic:
       'Syntax highlighting was skipped because this source exceeds the 1 MiB rendering budget.',
   }
+  return result
 }
 
-export function syntaxHighlightAdmission(source: string): SyntaxAdmissionResult {
+export function syntaxHighlightAdmission(source: string) {
   const sourceLengthResult = sourceLengthAdmission(source)
   if (sourceLengthResult) return sourceLengthResult
 
@@ -39,25 +40,28 @@ export function syntaxHighlightAdmission(source: string): SyntaxAdmissionResult 
       lineCount += 1
       currentLineLength = 0
       if (lineCount > MAX_SYNTAX_LINE_COUNT) {
-        return {
+        const result: SyntaxAdmissionResult = {
           admitted: false,
           diagnostic:
             'Syntax highlighting was skipped because this source exceeds the 50,000-line rendering budget.',
         }
+        return result
       }
       continue
     }
     currentLineLength += 1
     if (currentLineLength > MAX_SYNTAX_LINE_CODE_UNITS) {
-      return {
+      const result: SyntaxAdmissionResult = {
         admitted: false,
         diagnostic:
           'Syntax highlighting was skipped because this source contains a line longer than 50,000 characters.',
       }
+      return result
     }
   }
 
-  return { admitted: true }
+  const result: SyntaxAdmissionResult = { admitted: true }
+  return result
 }
 
 /**
@@ -65,7 +69,7 @@ export function syntaxHighlightAdmission(source: string): SyntaxAdmissionResult 
  * fingerprint in one source pass. Large file review uses the offsets to slice
  * only visible lines instead of allocating a string for every line up front.
  */
-export function analyzeSourceForView(source: string): SourceViewAnalysis {
+export function analyzeSourceForView(source: string) {
   const lineStarts = [0]
   let admission = sourceLengthAdmission(source)
   let currentLineLength = 0
@@ -104,7 +108,7 @@ export function analyzeSourceForView(source: string): SourceViewAnalysis {
     admission: admitted,
     lineStarts,
     sourceFingerprint: admitted.admitted ? (hash >>> 0).toString(HASH_RADIX) : '',
-  }
+  } satisfies SourceViewAnalysis
 }
 
 export function sourceViewLineAt(source: string, lineStarts: readonly number[], lineIndex: number) {

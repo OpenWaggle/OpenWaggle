@@ -28,8 +28,8 @@ export interface McpAddServerDraft {
 
 const SERVER_NAME = /^[A-Za-z0-9_-]+$/
 
-export function emptyMcpAddServerDraft(scope: McpConfigFileScope): McpAddServerDraft {
-  return {
+export function emptyMcpAddServerDraft(scope: McpConfigFileScope) {
+  const draft: McpAddServerDraft = {
     name: '',
     kind: 'command',
     command: '',
@@ -40,6 +40,7 @@ export function emptyMcpAddServerDraft(scope: McpConfigFileScope): McpAddServerD
     scope,
     destination: mcpDefaultDestination(scope),
   }
+  return draft
 }
 
 /** Secret values can only be saved in OpenWaggle's files, which Pi and other tools never read. */
@@ -55,19 +56,30 @@ type VariablesResult =
   | { readonly ok: true; readonly values: McpConfigObject }
   | { readonly ok: false; readonly error: string }
 
-function variablesRecord(draft: McpAddServerDraft): VariablesResult {
+function variablesRecord(draft: McpAddServerDraft) {
   const values: McpConfigObject = {}
   for (const row of draft.variables) {
     const key = row.key.trim()
     if (!key && !row.value.trim()) continue
-    if (!key) return { ok: false, error: 'Every value needs a name.' }
-    if (row.secret && !canUseVaultSecrets(draft)) {
-      return { ok: false, error: "Vault secrets can only be saved in OpenWaggle's files." }
+    if (!key) {
+      const result: VariablesResult = { ok: false, error: 'Every value needs a name.' }
+      return result
     }
-    if (row.secret && !row.value.trim()) return { ok: false, error: `Choose a secret for ${key}.` }
+    if (row.secret && !canUseVaultSecrets(draft)) {
+      const result: VariablesResult = {
+        ok: false,
+        error: "Vault secrets can only be saved in OpenWaggle's files.",
+      }
+      return result
+    }
+    if (row.secret && !row.value.trim()) {
+      const result: VariablesResult = { ok: false, error: `Choose a secret for ${key}.` }
+      return result
+    }
     values[key] = row.secret ? { secret: row.value.trim() } : row.value
   }
-  return { ok: true, values }
+  const result: VariablesResult = { ok: true, values }
+  return result
 }
 
 function isHttpUrl(value: string) {
@@ -79,31 +91,58 @@ function isHttpUrl(value: string) {
   }
 }
 
-export function buildMcpServerEntry(draft: McpAddServerDraft): McpDraftResult {
-  if (!SERVER_NAME.test(draft.name.trim())) {
-    return { ok: false, error: 'Name the server with letters, digits, - or _.' }
-  }
-  const variables = variablesRecord(draft)
-  if (!variables.ok) return variables
-  const hasValues = Object.keys(variables.values).length > 0
-  const entry: McpConfigObject = {}
+function transportEntry(draft: McpAddServerDraft, values: McpConfigObject | null) {
   if (draft.kind === 'url') {
     const url = draft.url.trim()
-    if (!isHttpUrl(url)) return { ok: false, error: 'Enter an http or https URL.' }
-    entry.url = url
-    if (hasValues) entry.headers = variables.values
-  } else {
-    const command = draft.command.trim()
-    if (!command) return { ok: false, error: 'Enter the command that starts the server.' }
-    const args = draft.args
-      .split('\n')
-      .map((arg) => arg.trim())
-      .filter((arg) => arg.length > 0)
-    entry.command = command
-    if (args.length > 0) entry.args = args
-    if (hasValues) entry.env = variables.values
+    if (!isHttpUrl(url)) {
+      const result: McpDraftResult = { ok: false, error: 'Enter an http or https URL.' }
+      return result
+    }
+    const result: McpDraftResult = {
+      ok: true,
+      entry: { url, ...(values ? { headers: values } : {}) },
+    }
+    return result
+  }
+  const command = draft.command.trim()
+  if (!command) {
+    const result: McpDraftResult = { ok: false, error: 'Enter the command that starts the server.' }
+    return result
+  }
+  const args = draft.args
+    .split('\n')
+    .map((arg) => arg.trim())
+    .filter((arg) => arg.length > 0)
+  const result: McpDraftResult = {
+    ok: true,
+    entry: { command, ...(args.length > 0 ? { args } : {}), ...(values ? { env: values } : {}) },
+  }
+  return result
+}
+
+export function buildMcpServerEntry(draft: McpAddServerDraft) {
+  if (!SERVER_NAME.test(draft.name.trim())) {
+    const result: McpDraftResult = {
+      ok: false,
+      error: 'Name the server with letters, digits, - or _.',
+    }
+    return result
+  }
+  const variables = variablesRecord(draft)
+  if (!variables.ok) {
+    const result: McpDraftResult = variables
+    return result
+  }
+  const hasValues = Object.keys(variables.values).length > 0
+  const transport = transportEntry(draft, hasValues ? variables.values : null)
+  if (!transport.ok) {
+    const result: McpDraftResult = transport
+    return result
   }
   const description = draft.description.trim()
-  if (description) entry.description = description
-  return { ok: true, entry }
+  const result: McpDraftResult = {
+    ok: true,
+    entry: { ...transport.entry, ...(description ? { description } : {}) },
+  }
+  return result
 }

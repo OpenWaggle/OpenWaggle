@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 function findRepoRoot(start: string) {
   let current = start
-  while (!existsSync(join(current, 'pnpm-workspace.yaml'))) {
+  while (!existsSync(join(current, 'bun.lock'))) {
     const parent = dirname(current)
     if (parent === current) throw new Error('Could not locate the repository root')
     current = parent
@@ -162,7 +162,7 @@ describe('no internal identifier is visible in renderer UI', () => {
     const offenders = sources
       .filter(({ source }) => {
         const text = renderableText(source)
-        return /\{interaction\.id\}/.test(text) || /\{interaction\.state\}/.test(text)
+        return text.includes('{interaction.id}') || text.includes('{interaction.state}')
       })
       .map(({ path }) => path)
 
@@ -171,7 +171,7 @@ describe('no internal identifier is visible in renderer UI', () => {
 
   it('never renders a raw interaction kind discriminant', () => {
     const offenders = sources
-      .filter(({ source }) => /\{interaction\.kind\}/.test(renderableText(source)))
+      .filter(({ source }) => renderableText(source).includes('{interaction.kind}'))
       .map(({ path }) => path)
 
     expect(offenders).toEqual([])

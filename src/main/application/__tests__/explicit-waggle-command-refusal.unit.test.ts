@@ -56,7 +56,7 @@ function runWaggleCommand() {
     },
   }
   return Effect.runPromise(
-    fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+    fromAny<Effect.Effect<unknown, Error>, unknown>(
       executeExplicitWaggleCommand({ caller: { callerId: 'gui:local-user' }, payload }).pipe(
         Effect.provideService(
           SessionControlAttachmentService,

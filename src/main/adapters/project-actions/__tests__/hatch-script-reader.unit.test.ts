@@ -13,11 +13,11 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-function invocation(environment: string, task: string): ActionInvocation {
+function invocation(environment: string, task: string) {
   return {
     type: 'task',
     task: { provider: 'hatch-script', source: 'hatch.toml', directory: '.', task, environment },
-  }
+  } satisfies ActionInvocation
 }
 
 it('keeps plain environments invocable when their template defines a matrix', async () => {

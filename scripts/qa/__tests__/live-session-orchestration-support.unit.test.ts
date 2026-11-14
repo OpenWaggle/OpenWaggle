@@ -77,11 +77,10 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
       let identity: ProcessIdentity | undefined
       let cleanupProven = false
       try {
-        const gui = await launchGui(
-          process.execPath,
-          {},
-          ['-e', processTreeScript(readinessPath, true)],
-        )
+        const gui = await launchGui(process.execPath, {}, [
+          '-e',
+          processTreeScript(readinessPath, true),
+        ])
         identity = await waitForProcessIdentity(readinessPath)
         await waitForExit(gui.child)
 
@@ -118,12 +117,14 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
         },
       )
       let processSettled = false
-      const settledResult = processResult.then(
-        () => ({ status: 'fulfilled' as const }),
-        (error: unknown) => ({ status: 'rejected' as const, error }),
-      ).finally(() => {
-        processSettled = true
-      })
+      const settledResult = processResult
+        .then(
+          () => ({ status: 'fulfilled' as const }),
+          (error: unknown) => ({ status: 'rejected' as const, error }),
+        )
+        .finally(() => {
+          processSettled = true
+        })
       try {
         await cleanupStarted.promise
         expect(processSettled).toBe(false)
@@ -147,14 +148,18 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
     })
 
     await expect(
-      waitForHost('/packaged/OpenWaggle', {}, {
-        timeoutMs: 1_000,
-        now: () => now,
-        runCli,
-        wait: async (milliseconds) => {
-          now += milliseconds
+      waitForHost(
+        '/packaged/OpenWaggle',
+        {},
+        {
+          timeoutMs: 1_000,
+          now: () => now,
+          runCli,
+          wait: async (milliseconds) => {
+            now += milliseconds
+          },
         },
-      }),
+      ),
     ).rejects.toThrow('Session Host did not become ready')
 
     expect(runCli).toHaveBeenNthCalledWith(

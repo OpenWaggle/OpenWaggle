@@ -3,7 +3,7 @@ import type { SessionBranch, SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { buildSessionProvenance, describeSessionRow } from '../session-provenance'
 
-function branch(id: string, overrides: Partial<SessionBranch> = {}): SessionBranch {
+function branch(id: string, overrides: Partial<SessionBranch> = {}) {
   return {
     id: SessionBranchId(id),
     sessionId: SessionId('session-a'),
@@ -14,10 +14,10 @@ function branch(id: string, overrides: Partial<SessionBranch> = {}): SessionBran
     createdAt: 0,
     updatedAt: 0,
     ...overrides,
-  }
+  } satisfies SessionBranch
 }
 
-function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
+function session(overrides: Partial<SessionSummary> = {}) {
   return {
     id: SessionId('session-a'),
     title: 'Sidebar remodel',
@@ -25,7 +25,7 @@ function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
     createdAt: 0,
     updatedAt: 0,
     ...overrides,
-  }
+  } satisfies SessionSummary
 }
 
 describe('buildSessionProvenance', () => {

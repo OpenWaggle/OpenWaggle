@@ -1,7 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { ChatToolCallPart } from '@shared/types/chat-ui'
 import { AlertTriangle, CheckCircle2, CircleDashed, MessagesSquare, Wrench } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
@@ -200,14 +199,20 @@ function renderTranscriptFallback(transcript: ExtensionTranscriptView) {
   )
 }
 
-function fallbackFor(input: ExtensionAgentLoopSurfaceInput): ReactNode {
+function fallbackFor(input: ExtensionAgentLoopSurfaceInput) {
   return matchBy(input, 'surface')
     .with('tool', (value) =>
-      renderToolFallback({ toolCall: value.toolCall, toolResult: value.toolResult }),
+      renderToolFallback({
+        toolCall: value.toolCall,
+        ...(value.toolResult === undefined ? {} : { toolResult: value.toolResult }),
+      }),
     )
     .with('custom-message', (value) => renderCustomMessageFallback(value.message))
     .with('interaction', (value) =>
-      renderInteractionFallback({ interaction: value.interaction, onAction: value.onAction }),
+      renderInteractionFallback({
+        interaction: value.interaction,
+        ...(value.onAction === undefined ? {} : { onAction: value.onAction }),
+      }),
     )
     .with('transcript', (value) => renderTranscriptFallback(value.transcript))
     .with('status', (value) => renderStatusFallback(value.status))

@@ -3,9 +3,9 @@ import type { SessionContentTree } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { sessionTreeReferencesWorktreeVisualization } from '../worktree-visualization-retention'
 
-function treeWithText(text: string): SessionContentTree {
+function treeWithText(text: string) {
   const sessionId = SessionId('session-1')
-  return {
+  const tree: SessionContentTree = {
     session: {
       id: sessionId,
       title: 'Visualization session',
@@ -38,6 +38,7 @@ function treeWithText(text: string): SessionContentTree {
     branchStates: [],
     uiState: null,
   }
+  return tree
 }
 
 describe('worktree visualization retention', () => {

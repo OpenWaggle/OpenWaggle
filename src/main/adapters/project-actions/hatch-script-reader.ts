@@ -2,7 +2,6 @@ import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import {
   ACTION_DEFINITION_LIMITS,
   type DiscoveredProjectTask,
-  type ProjectTaskDiscovery,
   type ProjectTaskReference,
 } from '@shared/types/action-definitions'
 import { parse } from 'smol-toml'
@@ -20,17 +19,22 @@ const scriptsSchema = Schema.Record({
   value: Schema.Union(Schema.String, Schema.Array(Schema.String)),
 })
 const envSchema = Schema.Struct({
-  template: Schema.optional(Schema.String),
-  detached: Schema.optional(Schema.Boolean),
-  scripts: Schema.optional(scriptsSchema),
-  'extra-scripts': Schema.optional(scriptsSchema),
-  matrix: Schema.optional(Schema.Unknown),
+  template: Schema.optionalWith(Schema.String, { exact: true }),
+  detached: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  scripts: Schema.optionalWith(scriptsSchema, { exact: true }),
+  'extra-scripts': Schema.optionalWith(scriptsSchema, { exact: true }),
+  matrix: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 const hatchSchema = Schema.Struct({
-  envs: Schema.optional(Schema.Record({ key: Schema.String, value: envSchema })),
+  envs: Schema.optionalWith(Schema.Record({ key: Schema.String, value: envSchema }), {
+    exact: true,
+  }),
 })
 const projectSchema = Schema.Struct({
-  tool: Schema.optional(Schema.Struct({ hatch: Schema.optional(hatchSchema) })),
+  tool: Schema.optionalWith(
+    Schema.Struct({ hatch: Schema.optionalWith(hatchSchema, { exact: true }) }),
+    { exact: true },
+  ),
 })
 type Environments = Readonly<Record<string, SchemaType<typeof envSchema>>>
 type Scripts = SchemaType<typeof scriptsSchema>
@@ -63,12 +67,13 @@ function scriptConfigurationFor(
   }
 }
 
-function scriptsFor(environments: Environments, name: string): Scripts {
+function scriptsFor(environments: Environments, name: string) {
   // Hatch inherits scripts from templates, but never their matrices.
-  if (environments[name]?.matrix !== undefined)
+  if (environments[name]?.matrix !== undefined) {
     throw new Error(
       `Hatch matrix environment ${name} needs a custom command with an explicit selector.`,
     )
+  }
   const { scripts, extraScripts } = scriptConfigurationFor(environments, name)
   return { ...extraScripts, ...scripts }
 }
@@ -82,8 +87,9 @@ function appendHatchEnvironmentTasks(
   requested?: ProjectTaskReference,
 ) {
   try {
-    if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(environment))
+    if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(environment)) {
       throw new Error(`Unsupported Hatch environment selector: ${environment}`)
+    }
     for (const [task, body] of Object.entries(scriptsFor(environments, environment))) {
       const reference = {
         provider: 'hatch-script' as const,
@@ -93,8 +99,9 @@ function appendHatchEnvironmentTasks(
         environment,
       }
       if (requested && !sameTaskReference(reference, requested)) continue
-      if (!isInvocableTaskName(task) || task.includes(':'))
+      if (!isInvocableTaskName(task) || task.includes(':')) {
         throw new Error(`Unsupported Hatch task name: ${task}`)
+      }
       tasks.push({
         reference,
         group: `Hatch · ${environment}`,
@@ -108,10 +115,7 @@ function appendHatchEnvironmentTasks(
   }
 }
 
-async function list(
-  workspace: string,
-  requested?: ProjectTaskReference,
-): Promise<ProjectTaskDiscovery> {
+async function list(workspace: string, requested?: ProjectTaskReference) {
   const tasks: DiscoveredProjectTask[] = []
   const diagnostics: { source: string; message: string }[] = []
   let source = 'hatch.toml'

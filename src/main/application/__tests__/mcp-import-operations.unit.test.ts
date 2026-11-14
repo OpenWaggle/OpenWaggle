@@ -44,7 +44,7 @@ describe('MCP import and runtime operations', () => {
 
     expect(result.imported.map((item) => item.targetName)).toEqual(['linear'])
     expect(result.view.servers.map((server) => server.name)).toEqual(['linear'])
-    expect(servers(owGlobal()).linear).toMatchObject({ url: 'https://mcp.linear.app/mcp' })
+    expect(servers(owGlobal())).toMatchObject({ linear: { url: 'https://mcp.linear.app/mcp' } })
     const again = await run(previewMcpImportsOperation({ projectPath: null }))
     expect(again.candidates.find((candidate) => candidate.name === 'linear')?.status).toBe(
       'imported',
@@ -79,10 +79,12 @@ describe('MCP import and runtime operations', () => {
       secrets: ['GITHUB_AUTHORIZATION', 'GITHUB_X_API_KEY'],
       existingSecrets: ['GITHUB_AUTHORIZATION'],
     })
-    expect(servers(owGlobal()).github).toMatchObject({
-      headers: {
-        Authorization: { secret: 'GITHUB_AUTHORIZATION' },
-        'X-Api-Key': { secret: 'GITHUB_X_API_KEY' },
+    expect(servers(owGlobal())).toMatchObject({
+      github: {
+        headers: {
+          Authorization: { secret: 'GITHUB_AUTHORIZATION' },
+          'X-Api-Key': { secret: 'GITHUB_X_API_KEY' },
+        },
       },
     })
   })

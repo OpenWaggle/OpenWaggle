@@ -11,7 +11,7 @@ export interface UsageStatisticsRunStart {
   readonly originCallerId: string
   readonly waggle: boolean
   readonly attachments: boolean
-  readonly runAuthorizationOverride?: AgentAuthorizationMode | undefined
+  readonly runAuthorizationOverride?: AgentAuthorizationMode
 }
 
 export interface UsageStatisticsRunFinish {

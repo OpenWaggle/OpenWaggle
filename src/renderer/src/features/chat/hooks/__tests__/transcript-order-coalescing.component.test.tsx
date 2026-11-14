@@ -52,7 +52,7 @@ describe('transcript order while the main process coalesces deltas', () => {
         (h) => h.send('Fix the cache', 'run-1'),
         async (h) => {
           // The resync comes before the flush timer: the chat never saw the held deltas.
-          h.answer('writing the fix', { open: true })
+          await h.answer('writing the fix', { open: true })
           await h.resync()
         },
         (h) => h.flushDeltas(),

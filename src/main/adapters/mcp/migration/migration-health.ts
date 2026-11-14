@@ -88,7 +88,7 @@ function failureOf(filePath: string) {
 }
 
 /** The file's failing migration with its cause, or undefined. */
-export function mcpFileMigrationPending(filePath: string): PendingMcpFileMigration | undefined {
+export function mcpFileMigrationPending(filePath: string) {
   const failure = failureOf(filePath)
   return failure ? pending(failure, path.resolve(filePath)) : undefined
 }
@@ -109,7 +109,7 @@ export interface PendingMcpFileMigration {
  */
 export type McpPendingScope = 'all' | 'global' | 'everywhere'
 
-function pending(failure: Failure, filePath = failure.path): PendingMcpFileMigration {
+function pending(failure: Failure, filePath = failure.path) {
   const { spellings: _spellings, path: _path, ...details } = failure
   return { path: filePath, ...details }
 }
@@ -133,7 +133,7 @@ export function pendingMcpFileMigration(
   homeDir: string,
   projectPath: string | null,
   scope: McpPendingScope = 'all',
-): PendingMcpFileMigration | undefined {
+) {
   const files = [
     globalMcpPaths(homeDir).openwaggleGlobal,
     ...(projectPath ? [projectMcpPaths(projectPath).openwaggle] : []),

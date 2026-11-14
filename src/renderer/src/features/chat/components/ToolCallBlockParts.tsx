@@ -17,6 +17,7 @@ import { SourceView } from '@/shared/ui/SourceView'
 import { StructuredPayload, serializeStructuredPayload } from '@/shared/ui/StructuredPayload'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export function CopyButton({ label, value }: { readonly label: string; readonly value: string }) {
   const { copied, copy } = useCopyToClipboard()
@@ -52,8 +53,9 @@ export function ToolArgs({
   path: string | null
 }) {
   const displayRawArgs = useChatDisplayText(rawArgs)
-  const displayCommand = useChatDisplayText(typeof args.command === 'string' ? args.command : '')
-  if (name === 'bash' && typeof args.command === 'string') {
+  const { command } = uncheckedFields<{ readonly command: string }>(args)
+  const displayCommand = useChatDisplayText(typeof command === 'string' ? command : '')
+  if (name === 'bash' && typeof command === 'string') {
     return (
       <SyntaxBlock
         source={`$ ${displayCommand}`}
@@ -145,7 +147,7 @@ function HighlightedFileContent({
         <div style={{ height: maxHeight, maxHeight }}>
           <SourceView
             source={content}
-            language={language}
+            {...(language === undefined ? {} : { language })}
             ariaLabel="Large file source preview"
             className="h-full rounded-md bg-bg text-sm leading-relaxed"
           />
@@ -157,7 +159,7 @@ function HighlightedFileContent({
     <div className="tool-result-code overflow-y-auto" style={{ maxHeight }}>
       <SyntaxBlock
         source={content}
-        language={language}
+        {...(language === undefined ? {} : { language })}
         className="rounded-md bg-bg text-sm leading-relaxed"
       />
     </div>

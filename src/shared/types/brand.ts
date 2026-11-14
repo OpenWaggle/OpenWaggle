@@ -1,4 +1,5 @@
 import { Brand } from 'effect'
+import * as Schema from 'effect/Schema'
 
 /**
  * Branded types — prevent mixing up strings that represent different things.
@@ -59,3 +60,13 @@ export const DelegationId = Brand.nominal<DelegationId>()
 export const DerivedGrantId = Brand.nominal<DerivedGrantId>()
 export const WorkingPath = Brand.nominal<WorkingPath>()
 export const RepositoryPath = Brand.nominal<RepositoryPath>()
+
+/**
+ * Schemas that decode a string into its branded id, so a type inferred from a schema carries the
+ * brand without a cast.
+ */
+export const sessionIdSchema = Schema.String.pipe(Schema.fromBrand(SessionId))
+export const supportedModelIdSchema = Schema.String.pipe(Schema.fromBrand(SupportedModelId))
+export const wagglePresetIdSchema = Schema.String.pipe(Schema.fromBrand(WagglePresetId))
+export const messageIdSchema = Schema.String.pipe(Schema.fromBrand(MessageId))
+export const toolCallIdSchema = Schema.String.pipe(Schema.fromBrand(ToolCallId))

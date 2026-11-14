@@ -41,80 +41,29 @@ describe('pinned session IPC handlers', () => {
     expect(listPinnedSessionsMock).toHaveBeenCalledTimes(1)
   })
 
-  it('pins a session by id', async () => {
-    await getInvokeHandler('sessions:pins:pin')?.({}, SessionId('session-a'))
-
-    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          request: expect.objectContaining({
-            command: { operation: 'pin', sessionId: 'session-a' },
-          }),
-        }),
-      }),
-    )
+  const move = (afterSessionId: SessionId | null, beforeSessionId: SessionId | null) => ({
+    sessionId: SessionId('session-c'),
+    afterSessionId,
+    beforeSessionId,
   })
 
-  it('unpins a session by id', async () => {
-    await getInvokeHandler('sessions:pins:unpin')?.({}, SessionId('session-a'))
+  it.each([
+    ['sessions:pins:pin', SessionId('session-a'), { operation: 'pin', sessionId: 'session-a' }],
+    ['sessions:pins:unpin', SessionId('session-a'), { operation: 'unpin', sessionId: 'session-a' }],
+    ...[
+      move(SessionId('session-a'), SessionId('session-b')),
+      move(null, SessionId('session-a')),
+      move(SessionId('session-b'), null),
+    ].map(
+      (bounds) => ['sessions:pins:move', bounds, { operation: 'move-pin', ...bounds }] as const,
+    ),
+  ] as const)('forwards %s %j to the Session Host', async (channel, argument, command) => {
+    await getInvokeHandler(channel)?.({}, argument)
 
-    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         payload: expect.objectContaining({
-          request: expect.objectContaining({
-            command: { operation: 'unpin', sessionId: 'session-a' },
-          }),
-        }),
-      }),
-    )
-  })
-
-  it('forwards a move with both neighbour bounds', async () => {
-    const move = {
-      sessionId: SessionId('session-c'),
-      afterSessionId: SessionId('session-a'),
-      beforeSessionId: SessionId('session-b'),
-    }
-
-    await getInvokeHandler('sessions:pins:move')?.({}, move)
-
-    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          request: expect.objectContaining({ command: { operation: 'move-pin', ...move } }),
-        }),
-      }),
-    )
-  })
-
-  it('forwards a move to either end, where a bound is null', async () => {
-    const toTop = {
-      sessionId: SessionId('session-c'),
-      afterSessionId: null,
-      beforeSessionId: SessionId('session-a'),
-    }
-    const toEnd = {
-      sessionId: SessionId('session-c'),
-      afterSessionId: SessionId('session-b'),
-      beforeSessionId: null,
-    }
-
-    await getInvokeHandler('sessions:pins:move')?.({}, toTop)
-    await getInvokeHandler('sessions:pins:move')?.({}, toEnd)
-
-    expect(dispatchLocalSessionCommandMock).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          request: expect.objectContaining({ command: { operation: 'move-pin', ...toTop } }),
-        }),
-      }),
-    )
-    expect(dispatchLocalSessionCommandMock).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          request: expect.objectContaining({ command: { operation: 'move-pin', ...toEnd } }),
+          request: expect.objectContaining({ command }),
         }),
       }),
     )

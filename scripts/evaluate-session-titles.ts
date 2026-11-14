@@ -2,9 +2,9 @@
  * Compares Title model output against a rubric, ported from T3 Code's
  * `apps/server/scripts/evaluate-thread-titles.ts` (MIT License) per ADR 0043.
  *
- *   pnpm evaluate:session-titles --model anthropic/claude-haiku-4-5 --out /tmp/title-eval
- *   pnpm evaluate:session-titles --model ... --out /tmp/next --baseline /tmp/title-eval/results.json
- *   pnpm evaluate:session-titles --model ... --out /tmp/first --initial
+ *   bun run evaluate:session-titles --model anthropic/claude-haiku-4-5 --out /tmp/title-eval
+ *   bun run evaluate:session-titles --model ... --out /tmp/next --baseline /tmp/title-eval/results.json
+ *   bun run evaluate:session-titles --model ... --out /tmp/first --initial
  *
  * `--initial` titles each case from its first user message only. Without it, each case is
  * regenerated from its whole history against its previous title, as Title regeneration does.
@@ -43,7 +43,9 @@ const { values } = parseArgs({
 })
 
 if (!values.model || !parseModelRef(values.model) || !values.out) {
-  process.stderr.write('Use --model <provider/model> --out <directory> [--baseline <results.json>] [--initial]\n')
+  process.stderr.write(
+    'Use --model <provider/model> --out <directory> [--baseline <results.json>] [--initial]\n',
+  )
   process.exit(USAGE_EXIT_CODE)
 }
 const modelReference = parseModelRef(values.model)
@@ -112,7 +114,8 @@ async function main() {
   const answerKey: unknown[] = []
   for (const fixture of SESSION_TITLE_EVALUATION_CASES) {
     const result = await evaluateCase(generate, fixture)
-    const previous = baseline.find((entry) => entry.id === fixture.id)?.title ?? fixture.previousTitle
+    const previous =
+      baseline.find((entry) => entry.id === fixture.id)?.title ?? fixture.previousTitle
     const newFirst = randomInt(COIN_SIDES) === 0
     results.push(result)
     review.push({
@@ -124,7 +127,9 @@ async function main() {
       preferred: '',
     })
     answerKey.push({ id: fixture.id, candidate: newFirst ? 'A' : 'B' })
-    process.stdout.write(`${fixture.id}: ${result.title ?? '(no title)'} (${result.latencyMs} ms)\n`)
+    process.stdout.write(
+      `${fixture.id}: ${result.title ?? '(no title)'} (${result.latencyMs} ms)\n`,
+    )
   }
 
   await mkdir(outputDirectory, { recursive: true })
@@ -133,7 +138,10 @@ async function main() {
     ['review', review],
     ['answer-key', answerKey],
   ] as const) {
-    await writeFile(path.join(outputDirectory, `${name}.json`), `${JSON.stringify(report, null, JSON_INDENT)}\n`)
+    await writeFile(
+      path.join(outputDirectory, `${name}.json`),
+      `${JSON.stringify(report, null, JSON_INDENT)}\n`,
+    )
   }
   process.stdout.write(`Wrote ${outputDirectory}\n`)
 }

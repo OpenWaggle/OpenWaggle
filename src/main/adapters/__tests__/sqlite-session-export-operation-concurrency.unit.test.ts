@@ -28,8 +28,8 @@ import {
 
 describe('SQLite Session export concurrency', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeSessionExportOperationRuntime>> = []
-  const runtimeReleases: Array<() => void> = []
+  const runtimes: ReturnType<typeof makeSessionExportOperationRuntime>[] = []
+  const runtimeReleases: (() => void)[] = []
   const livenessInstances: SessionHostLiveness[] = []
 
   beforeEach(async () => {
@@ -156,13 +156,14 @@ describe('SQLite Session export concurrency', () => {
           blockers.push(blocker.operation)
           yield* repository.claimExecution(blocker.operation.exportOperationId, 10 + index)
         }
-        const agentAuthority = (sessionId: string): LocalSessionProfileAuthority => ({
-          profileId: `session-agent:${sessionId}`,
-          profileName: `session-agent:${sessionId}`,
-          capabilities: ['sessions:export', 'sessions:read'],
-          scope: { all: true, exportRoots: [temporaryRoot] },
-          authorizationCeiling: 'ask-for-approval',
-        })
+        const agentAuthority = (sessionId: string) =>
+          ({
+            profileId: `session-agent:${sessionId}`,
+            profileName: `session-agent:${sessionId}`,
+            capabilities: ['sessions:export', 'sessions:read'],
+            scope: { all: true, exportRoots: [temporaryRoot] },
+            authorizationCeiling: 'ask-for-approval',
+          }) satisfies LocalSessionProfileAuthority
         const sessionIds = ['session-1', 'session-2', 'session-1']
         const createdIds = []
         for (const [index, sessionId] of sessionIds.entries()) {

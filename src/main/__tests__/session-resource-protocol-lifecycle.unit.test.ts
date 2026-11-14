@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events'
 import { SessionId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RendererSurface } from '../ports/desktop-shell/renderer-surfaces'
 
 const { handleMock } = vi.hoisted(() => ({ handleMock: vi.fn() }))
 
@@ -90,7 +90,7 @@ describe('Session resource protocol capability lifecycle', () => {
         body: new Blob(['session-a']).stream(),
       }),
     })
-    const sender = fromPartial<WebContents>(Object.assign(new EventEmitter(), { id: 57 }))
+    const sender = fromPartial<RendererSurface>(Object.assign(new EventEmitter(), { id: 57 }))
     const ownerLifecycle = await import('../session-resource-owner-lifecycle')
     ownerLifecycle.activateSessionResourceContentOwner(sender, SessionId('session-a'))
     const reference = subject.registerSessionResourceContentReference(
@@ -113,12 +113,11 @@ describe('Session resource protocol capability lifecycle', () => {
 
   it('retains an authorized download capability when Chromium announces its navigation', async () => {
     subject.registerSessionResourceProtocolOnce()
-    const sender = fromPartial<WebContents>(
-      Object.assign(new EventEmitter(), {
-        id: 59,
-        getURL: () => 'openwaggle://app/',
-      }),
-    )
+    const emitter = Object.assign(new EventEmitter(), {
+      id: 59,
+      getURL: () => 'openwaggle://app/',
+    })
+    const sender = fromPartial<RendererSurface>(emitter)
     const lifecycle = await import('../session-resource-owner-lifecycle')
     lifecycle.activateSessionResourceContentOwner(sender, SessionId('session-a'))
     const reference = subject.registerSessionResourceContentReference(
@@ -130,7 +129,7 @@ describe('Session resource protocol capability lifecycle', () => {
       },
       sender.id,
     )
-    sender.emit('did-start-navigation', {
+    emitter.emit('did-start-navigation', {
       isMainFrame: true,
       isSameDocument: false,
       url: reference.downloadUrl,
@@ -145,7 +144,7 @@ describe('Session resource protocol capability lifecycle', () => {
     expect(
       lifecycle.beginSessionResourceContentRequest(sender, SessionId('session-a')).isCurrent(),
     ).toBe(true)
-    sender.emit('did-start-navigation', {
+    emitter.emit('did-start-navigation', {
       isMainFrame: true,
       isSameDocument: false,
       url: 'https://example.com/',
@@ -166,7 +165,7 @@ describe('Session resource protocol capability lifecycle', () => {
       readonly body: ReadableStream<Uint8Array>
     }>()
     subject.registerSessionResourceProtocolOnce({ readContent: () => pendingContent.promise })
-    const sender = fromPartial<WebContents>(Object.assign(new EventEmitter(), { id: 58 }))
+    const sender = fromPartial<RendererSurface>(Object.assign(new EventEmitter(), { id: 58 }))
     const ownerLifecycle = await import('../session-resource-owner-lifecycle')
     ownerLifecycle.activateSessionResourceContentOwner(sender, SessionId('session-a'))
     const reference = subject.registerSessionResourceContentReference(
@@ -213,7 +212,7 @@ describe('Session resource protocol capability lifecycle', () => {
         }),
       }),
     })
-    const sender = fromPartial<WebContents>(Object.assign(new EventEmitter(), { id: 59 }))
+    const sender = fromPartial<RendererSurface>(Object.assign(new EventEmitter(), { id: 59 }))
     const ownerLifecycle = await import('../session-resource-owner-lifecycle')
     ownerLifecycle.activateSessionResourceContentOwner(sender, SessionId('session-a'))
     const reference = subject.registerSessionResourceContentReference(

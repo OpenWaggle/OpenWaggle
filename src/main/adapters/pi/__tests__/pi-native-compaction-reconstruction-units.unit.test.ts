@@ -4,18 +4,20 @@ import { describe, expect, it } from 'vitest'
 import {
   makeAssistant,
   makeNativeModel,
+  withoutCompat,
   NATIVE_DETAILS,
 } from './pi-native-compaction-test-fixtures'
 
-function makeTargetModel(): Model<'openai-responses'> {
-  return makeNativeModel({
-    id: 'target-model',
-    provider: 'target-provider',
-    baseUrl: 'https://target.test/v1',
-    contextWindow: 100,
-    maxTokens: 0,
-    compat: undefined,
-  })
+function makeTargetModel() {
+  return withoutCompat(
+    makeNativeModel({
+      id: 'target-model',
+      provider: 'target-provider',
+      baseUrl: 'https://target.test/v1',
+      contextWindow: 100,
+      maxTokens: 0,
+    }),
+  ) satisfies Model<'openai-responses'>
 }
 
 describe('Pi Native compaction reconstruction units', () => {

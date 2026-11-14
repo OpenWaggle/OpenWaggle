@@ -2,7 +2,7 @@ import { matchesSessionPerformanceWorkflowAstContract } from './package-release-
 
 export const SESSION_PERFORMANCE_WORKFLOW_PATH = '.github/workflows/session-performance.yml'
 
-export function validateSessionPerformanceCiPolicy(workflowText: string): string[] {
+export function validateSessionPerformanceCiPolicy(workflowText: string) {
   return matchesSessionPerformanceWorkflowAstContract(workflowText)
     ? []
     : ['Session Performance workflow must match its exact fail-closed AST contract.']

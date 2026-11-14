@@ -13,7 +13,7 @@ const execFileMock = vi.hoisted(() => vi.fn())
 
 vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
-function row(pid: number, ppid: number, pgid: number, tpgid: number, name: string): ProcessRow {
+function row(pid: number, ppid: number, pgid: number, tpgid: number, name: string) {
   return {
     pid,
     ppid,
@@ -25,7 +25,7 @@ function row(pid: number, ppid: number, pgid: number, tpgid: number, name: strin
     zombie: false,
     startedAt: `start-${pid}`,
     name,
-  }
+  } satisfies ProcessRow
 }
 
 function table(...rows: readonly ProcessRow[]) {

@@ -11,7 +11,6 @@ import {
   insertWagglePresetAtActiveSlash,
 } from '@/features/composer/lib'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
-import type { ChatComposerSectionState } from '../model'
 
 export interface ComposerSectionParams {
   readonly isLoading: boolean
@@ -55,7 +54,7 @@ function handleSelectSkill(skillId: string, skillName?: string) {
   insertSkillReferenceAtActiveSlash(skillId, skillName ?? skillId)
 }
 
-export function useComposerSection(params: ComposerSectionParams): ChatComposerSectionState {
+export function useComposerSection(params: ComposerSectionParams) {
   const {
     isLoading,
     isSteering,

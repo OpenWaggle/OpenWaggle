@@ -20,7 +20,7 @@ interface AgentLoopTranscriptEvents {
 function readAgentLoopEventsFromNodes(
   nodes: readonly AgentLoopTranscriptNode[],
   anchorMessageIdForNode: (node: AgentLoopTranscriptNode) => string | null,
-): AgentLoopTranscriptEvents {
+) {
   const customMessages: AgentTransportCustomEvent[] = []
   const interactionEvents: AgentInteractionEvent[] = []
   const anchorMessageIdByEventKey = new Map<string, string>()
@@ -40,7 +40,12 @@ function readAgentLoopEventsFromNodes(
     if (anchor !== null) anchorMessageIdByEventKey.set(agentLoopEventKey(event), anchor)
   }
 
-  return { customMessages, interactionEvents, anchorMessageIdByEventKey }
+  const events: AgentLoopTranscriptEvents = {
+    customMessages,
+    interactionEvents,
+    anchorMessageIdByEventKey,
+  }
+  return events
 }
 
 function compareWorkspaceNodes(left: AgentLoopTranscriptNode, right: AgentLoopTranscriptNode) {
@@ -84,9 +89,7 @@ function messageAtOrBefore(path: SessionWorkspace['transcriptPath'], index: numb
   return null
 }
 
-export function readAgentLoopEventsFromWorkspace(
-  workspace: SessionWorkspace,
-): AgentLoopTranscriptEvents {
+export function readAgentLoopEventsFromWorkspace(workspace: SessionWorkspace) {
   const path = workspace.transcriptPath
   const pathIndexById = new Map(path.map((entry, index) => [String(entry.node.id), index]))
   const nodeById = new Map(workspace.tree.nodes.map((node) => [String(node.id), node]))

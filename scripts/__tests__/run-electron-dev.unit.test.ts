@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { access } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { describe, expect, it } from 'vitest'
 import {
   electronDevInvocation,
@@ -11,16 +11,17 @@ import {
 
 const ROOT = path.join('/work', 'OpenWaggle')
 
-function packageScripts(): [string, string][] {
+const packageManifestScripts = Schema.Struct({
+  scripts: Schema.Record({ key: Schema.String, value: Schema.String }),
+})
+
+function packageScripts() {
   const manifest: unknown = JSON.parse(readFileSync('package.json', 'utf8'))
-  if (typeof manifest !== 'object' || manifest === null || !('scripts' in manifest)) return []
-  const { scripts } = manifest
-  if (typeof scripts !== 'object' || scripts === null) return []
-  return Object.entries(scripts).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  return Object.entries(decodeUnknownOrThrow(packageManifestScripts, manifest).scripts)
 }
 
 describe('run-electron-dev', () => {
-  it('starts electron-vite dev through this Node, without the run-as-Node switch', () => {
+  it('starts electron-vite dev on Node, without the run-as-Node switch', () => {
     const invocation = electronDevInvocation('vite', ['--', '--remote-debugging-port=9222'], {
       environment: { ELECTRON_RUN_AS_NODE: '1', PATH: '/bin' },
       nodeExecutable: '/usr/bin/node',
@@ -67,18 +68,17 @@ describe('run-electron-dev', () => {
     expect(isElectronDevTarget(undefined)).toBe(false)
   })
 
-  it('points at the electron-vite entry script that is installed', async () => {
-    await expect(access(electronViteEntryPath())).resolves.toBeUndefined()
+  it('points at the electron-vite entry script that is installed', () => {
+    expect(existsSync(electronViteEntryPath())).toBe(true)
   })
 
-  // pnpm runs package scripts with cmd.exe on Windows, which has no `env` and no `NAME=value`
-  // prefix, so a script written that way works on macOS and Linux and fails on Windows.
+  // Bun runs package scripts with its own shell on Windows, which takes a `NAME=value` prefix but
+  // has no `env`, so a script written with `env` works on macOS and Linux and fails on Windows.
   it.each(packageScripts())(
-    'keeps the %s script free of POSIX-only environment syntax',
+    'keeps the %s script free of the POSIX-only env command',
     (_name, script) => {
       for (const command of script.split(/&&|\|\||;/u).map((part) => part.trim())) {
         expect(command).not.toMatch(/^env\b/u)
-        expect(command).not.toMatch(/^[A-Za-z_][A-Za-z0-9_]*=/u)
       }
     },
   )

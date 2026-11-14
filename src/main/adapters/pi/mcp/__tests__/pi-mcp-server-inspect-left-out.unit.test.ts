@@ -7,9 +7,8 @@ vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 
 const { inspectMcpServer } = await import('../pi-mcp-server-runtime-service')
-const { forgetMcpFileMigrationOutcomes, recordMcpFileMigrationOutcome } = await import(
-  '../../../mcp/migration/migration-health'
-)
+const { forgetMcpFileMigrationOutcomes, recordMcpFileMigrationOutcome } =
+  await import('../../../mcp/migration/migration-health')
 
 const roots: string[] = []
 

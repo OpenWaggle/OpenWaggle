@@ -84,7 +84,7 @@ export interface UsageStatisticsRunStartFacts {
 }
 
 /** A Run became active. This alone makes today an Active install day. */
-export function recordUsageStatisticsRunStarted(start: UsageStatisticsRunStartFacts): void {
+export function recordUsageStatisticsRunStarted(start: UsageStatisticsRunStartFacts) {
   if (!isUsageStatisticsEnabled()) return
   const run = trackedRun(start.runId)
   run.startedAt ??= clock()
@@ -100,7 +100,7 @@ export function recordUsageStatisticsRunStarted(start: UsageStatisticsRunStartFa
 }
 
 /** The clock reading of a Run's start, taken before any lookup its start facts need. */
-export function markUsageStatisticsRunStart(runId: string): void {
+export function markUsageStatisticsRunStart(runId: string) {
   if (!isUsageStatisticsEnabled()) return
   trackedRun(runId).startedAt ??= clock()
 }
@@ -113,7 +113,7 @@ export function noteUsageStatisticsRunModel(
   runId: string,
   identity: { readonly provider: string; readonly model: string },
   thinkingLevel: ThinkingLevel,
-): void {
+) {
   if (!isUsageStatisticsEnabled()) return
   const run = trackedRunOf(runId)
   run.identity ??= identity
@@ -159,7 +159,7 @@ function reportedAccessMode(run: TrackedRun) {
 }
 
 /** Pi adapter hook: one completed model response's token usage. */
-export function addUsageStatisticsRunTokens(runId: string, input: number, output: number): void {
+export function addUsageStatisticsRunTokens(runId: string, input: number, output: number) {
   if (!isUsageStatisticsEnabled()) return
   const run = trackedRunOf(runId)
   run.inputTokens += usageStatisticsTokenCount(input)
@@ -183,7 +183,7 @@ export interface UsageStatisticsRunFinishFacts {
  * The Run settled. Synchronous: it reads only what the Run noted while it ran. A Run that never
  * reached a model has no provider or model to report and only counts through its start.
  */
-export function recordUsageStatisticsRunFinished(finish: UsageStatisticsRunFinishFacts): void {
+export function recordUsageStatisticsRunFinished(finish: UsageStatisticsRunFinishFacts) {
   const run = trackedRuns.get(finish.runId)
   trackedRuns.delete(finish.runId)
   if (!run?.identity || !isUsageStatisticsEnabled()) return
@@ -207,7 +207,7 @@ export function recordUsageStatisticsRunFinished(finish: UsageStatisticsRunFinis
   })
 }
 
-export function resetUsageStatisticsRunsForTests(now: () => number = Date.now): void {
+export function resetUsageStatisticsRunsForTests(now: () => number = Date.now) {
   trackedRuns.clear()
   clock = now
 }

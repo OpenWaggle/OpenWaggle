@@ -3,62 +3,51 @@ import {
   MCP_REGISTRY_PACKAGE_TYPES,
   type McpRegistryInstallMethod,
   type McpRegistryInstallOptionView,
-  type McpRegistryPackageType,
-  type McpRegistryServerView,
 } from '@shared/types/mcp-registry'
-import { isRecord } from '@shared/utils/validation'
 import type { McpRegistryEntry } from '../../../ports/mcp-registry-service'
 import { piServerName } from '../import/import-identity'
 import type { RegistryServerRecord } from './registry-client'
 import type { OciImageResolver } from './registry-oci-resolver'
 import { createRegistryPackageLauncher } from './registry-package-launchers'
 import type { RegistryResourceFetcher } from './registry-secure-download'
+import type { RegistryInputList, RegistryPackage } from './registry-server-schema'
 import {
-  arrayValue,
   declaredRegistryValues,
   optionalRegistrySecrets,
   referencedSecrets,
-  stringValue,
 } from './registry-values'
 
 /** Turns a Registry server into an ordinary Pi `mcpServers` entry (ADR 0051). */
 
-type RegistryRecord = Readonly<Record<string, unknown>>
-
 interface RegistryRemote {
   readonly url: string
   readonly type: 'streamable-http' | 'sse'
-  readonly headers: unknown
+  readonly headers: RegistryInputList
 }
 
-export function mcpRegistryPackageType(value: unknown): McpRegistryPackageType | undefined {
+export function mcpRegistryPackageType(value: unknown) {
   return MCP_REGISTRY_PACKAGE_TYPES.find((candidate) => candidate === value)
 }
 
-function remotes(server: RegistryServerRecord): RegistryRemote[] {
-  return arrayValue(server.raw.remotes).flatMap((candidate: unknown) => {
-    if (!isRecord(candidate)) return []
-    const url = stringValue(candidate.url)
-    const type =
-      candidate.type === 'sse' || candidate.type === 'streamable-http' ? candidate.type : undefined
+function remotes(server: RegistryServerRecord) {
+  return server.source.remotes.flatMap(({ url, type, headers }) =>
     // A URL with `{variables}` needs values the user types in; it is left to `mcp add`.
-    return url && type && !url.includes('{') ? [{ url, type, headers: candidate.headers }] : []
-  })
+    url && type && !url.includes('{') ? [{ url, type, headers }] : [],
+  )
 }
 
 function stdioPackages(server: RegistryServerRecord) {
-  return arrayValue(server.raw.packages).flatMap((candidate: unknown) => {
-    if (!isRecord(candidate) || !stringValue(candidate.identifier)) return []
+  return server.source.packages.flatMap((candidate) => {
+    if (!candidate.identifier) return []
     const type = mcpRegistryPackageType(candidate.registryType)
-    const stdio = isRecord(candidate.transport) && candidate.transport.type === 'stdio'
+    const stdio = candidate.transport?.type === 'stdio'
     return type && stdio ? [{ type, entry: candidate }] : []
   })
 }
 
-function packageTarget(entry: RegistryRecord) {
-  const identifier = stringValue(entry.identifier) ?? ''
-  const version = stringValue(entry.version)
-  return version ? `${identifier}@${version}` : identifier
+function packageTarget(entry: RegistryPackage) {
+  const identifier = entry.identifier ?? ''
+  return entry.version ? `${identifier}@${entry.version}` : identifier
 }
 
 /** The last segment of the Registry name (`io.github.acme/weather` → `weather`). */
@@ -66,7 +55,7 @@ export function suggestedServerName(server: RegistryServerRecord) {
   return piServerName(server.name.split('/').at(-1) ?? server.name)
 }
 
-export function registryServerView(server: RegistryServerRecord): McpRegistryServerView {
+export function registryServerView(server: RegistryServerRecord) {
   const installOptions: McpRegistryInstallOptionView[] = [
     ...remotes(server).map((remote) => ({
       method: 'remote' as const,
@@ -157,14 +146,14 @@ async function packageEntry(server: RegistryServerRecord, options: RegistryEntry
 export async function createRegistryEntry(
   server: RegistryServerRecord,
   options: RegistryEntryOptions,
-): Promise<McpRegistryEntry> {
+) {
   const remote =
     options.method === undefined || options.method === 'remote' ? remotes(server)[0] : undefined
   if (options.method === 'remote' && !remote) {
     throw new Error(`Registry server ${server.name} has no hosted URL.`)
   }
   const built = remote ? remoteEntry(remote) : await packageEntry(server, options)
-  return {
+  const result: McpRegistryEntry = {
     suggestedName: suggestedServerName(server),
     entry: {
       ...built.entry,
@@ -175,6 +164,7 @@ export async function createRegistryEntry(
     optionalSecretArguments: built.optionalSecretArguments,
     optionalSecretsNeedContainerEnv: built.optionalSecretsNeedContainerEnv,
   }
+  return result
 }
 
 /** `~/.openwaggle/mcp/registry-cache`, where verified MCPB bundles are unpacked. */

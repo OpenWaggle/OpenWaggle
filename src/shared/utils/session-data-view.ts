@@ -7,9 +7,9 @@ import type {
   SessionNode,
   SessionTranscriptEntry,
   SessionTranscriptNode,
-  SessionTree,
   SessionTreeNode,
   SessionWorkspace,
+  SessionTree,
 } from '@shared/types/session'
 import type {
   SessionDetailCursor,
@@ -29,8 +29,8 @@ import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 /** Characters of a node's message text kept for its tree label and the tree filter. */
 export const SESSION_TREE_PREVIEW_CHARACTERS = 160
 
-function treeNodeFields(node: SessionNode): SessionTreeNode {
-  return {
+function treeNodeFields(node: SessionNode) {
+  const result: SessionTreeNode = {
     id: node.id,
     sessionId: node.sessionId,
     parentId: node.parentId,
@@ -42,6 +42,7 @@ function treeNodeFields(node: SessionNode): SessionTreeNode {
     pathDepth: node.pathDepth,
     ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
   }
+  return result
 }
 
 /**
@@ -75,19 +76,26 @@ function auditContent(node: SessionNode) {
   return isAgentLoopAuditNode(node) ? { contentJson: node.contentJson } : {}
 }
 
-export function sessionTreeNodeView(node: SessionNode): SessionTreeNode {
-  return { ...treeNodeFields(node), ...messagePreview(node), ...auditContent(node) }
+export function sessionTreeNodeView(node: SessionNode) {
+  const result: SessionTreeNode = {
+    ...treeNodeFields(node),
+    ...messagePreview(node),
+    ...auditContent(node),
+  }
+  return result
 }
 
-export function sessionTreeView(tree: SessionContentTree): SessionTree {
-  return { ...tree, nodes: tree.nodes.map(sessionTreeNodeView) }
+export function sessionTreeView(tree: SessionContentTree) {
+  const result: SessionTree = { ...tree, nodes: tree.nodes.map(sessionTreeNodeView) }
+  return result
 }
 
-function transcriptNodeView(node: SessionNode): SessionTranscriptNode {
-  return {
+function transcriptNodeView(node: SessionNode) {
+  const result: SessionTranscriptNode = {
     ...sessionTreeNodeView(node),
     ...(node.message ? { message: node.message } : {}),
   }
+  return result
 }
 
 /** Where the requested window starts in a path of `pathLength` entries. */
@@ -134,14 +142,14 @@ export function sessionWorkspaceView(
   workspace: SessionContentWorkspace,
   request: SessionWorkspaceRequest | undefined,
   nodeMutationRevision: number | null,
-): SessionWorkspace {
+) {
   const path = workspace.transcriptPath
   const startIndex = request?.window ? transcriptWindowStart(path, request.window) : 0
   const reusable = reusableNodeIds(request, nodeMutationRevision)
   const transcriptPath = path
     .slice(startIndex)
     .map((entry) => (reusable?.has(String(entry.node.id)) ? omittedEntry(entry) : fullEntry(entry)))
-  return {
+  const result: SessionWorkspace = {
     tree: sessionTreeView(workspace.tree),
     activeBranchId: workspace.activeBranchId,
     activeNodeId: workspace.activeNodeId,
@@ -150,6 +158,7 @@ export function sessionWorkspaceView(
     ...(request?.window ? { transcriptWindow: { startIndex, pathLength: path.length } } : {}),
     ...(nodeMutationRevision === null ? {} : { nodeMutationRevision }),
   }
+  return result
 }
 
 function continuesCursor(detail: SessionDetail, cursor: SessionDetailCursor) {
@@ -160,15 +169,16 @@ function continuesCursor(detail: SessionDetail, cursor: SessionDetailCursor) {
 }
 
 /** The newest `maxMessages` of the detail's messages, and where they start. */
-function newestMessages(detail: SessionDetail, maxMessages: number | undefined): SessionDetail {
+function newestMessages(detail: SessionDetail, maxMessages: number | undefined) {
   if (maxMessages === undefined) return detail
   const pathLength = detail.messages.length
   const startIndex = Math.max(0, pathLength - maxMessages)
-  return {
+  const result: SessionDetail = {
     ...detail,
     messages: startIndex === 0 ? detail.messages : detail.messages.slice(startIndex),
     messagesWindow: { startIndex, pathLength },
   }
+  return result
 }
 
 /**
@@ -182,22 +192,27 @@ export function sessionDetailView(
   detail: SessionDetail | null,
   cursor: SessionDetailCursor | undefined,
   nodeMutationRevision: number | null,
-): SessionDetail | null {
+) {
   if (!detail) return null
-  if (nodeMutationRevision === null) return newestMessages(detail, cursor?.maxMessages)
+  if (nodeMutationRevision === null) {
+    const result: SessionDetail | null = newestMessages(detail, cursor?.maxMessages)
+    return result
+  }
   const revised = { ...detail, nodeMutationRevision }
   if (
     !cursor ||
     cursor.nodeMutationRevision !== nodeMutationRevision ||
     !continuesCursor(detail, cursor)
   ) {
-    return newestMessages(revised, cursor?.maxMessages)
+    const result: SessionDetail | null = newestMessages(revised, cursor?.maxMessages)
+    return result
   }
   const appended = detail.messages.slice(cursor.messageCount)
   if (cursor.maxMessages !== undefined && appended.length > cursor.maxMessages) {
-    return newestMessages(revised, cursor.maxMessages)
+    const result: SessionDetail | null = newestMessages(revised, cursor.maxMessages)
+    return result
   }
-  return {
+  const result: SessionDetail = {
     ...revised,
     messages: appended,
     messagesDelta: { baseMessageCount: cursor.messageCount },
@@ -210,4 +225,5 @@ export function sessionDetailView(
           },
         }),
   }
+  return result
 }

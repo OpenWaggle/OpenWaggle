@@ -9,9 +9,8 @@ vi.mock('../desktop-ui', () => ({
   launchExternalApplication: mocks.launch,
 }))
 
-const { desktopAppLaunchArguments, forwardSessionLinksFromBackgroundProcess } = await import(
-  '../session-link-forwarding'
-)
+const { desktopAppLaunchArguments, forwardSessionLinksFromBackgroundProcess } =
+  await import('../session-link-forwarding')
 
 beforeEach(() => mocks.launch.mockClear())
 
@@ -39,8 +38,9 @@ describe('forwardSessionLinksFromBackgroundProcess', () => {
     forwardSessionLinksFromBackgroundProcess(
       {
         isPackaged: true,
-        on: (_event, listener) => {
+        onOpenUrl: (listener) => {
           deliver = (url) => listener({ preventDefault: vi.fn() }, url)
+          return () => undefined
         },
       },
       { platform: 'darwin', channel: 'stable' },

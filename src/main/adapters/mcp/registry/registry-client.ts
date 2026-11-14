@@ -1,9 +1,18 @@
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
+import { anyObjectSchema } from '@shared/schemas/lenient'
+import { Option } from 'effect'
 import {
   fetchBoundedRegistryResource,
   type RegistryResourceFetcher,
 } from './registry-secure-download'
-import { arrayValue, stringValue } from './registry-values'
+import {
+  type RegistryServer,
+  registryListEntrySchema,
+  registryServerListSchema,
+  registryServerSchema,
+} from './registry-server-schema'
+
+const decodeServerList = Schema.decodeUnknownOption(registryServerListSchema)
 
 /** The official MCP Registry. Another registry with the same API can be named per request. */
 export const DEFAULT_MCP_REGISTRY_URL = 'https://registry.modelcontextprotocol.io'
@@ -20,7 +29,8 @@ export interface RegistryServerRecord {
   readonly description?: string
   readonly version: string
   readonly repositoryUrl?: string
-  readonly raw: Readonly<Record<string, unknown>>
+  /** The decoded `server.json`. */
+  readonly source: RegistryServer
 }
 
 export interface RegistryClientOptions {
@@ -54,30 +64,33 @@ async function fetchRegistryJson(url: URL, options: RegistryClientOptions) {
   }
 }
 
-function serverRecord(value: unknown): RegistryServerRecord | null {
-  if (!isRecord(value)) return null
-  const wrapped = isRecord(value.server) ? value.server : value
-  const name = stringValue(wrapped.name)
-  const version = stringValue(wrapped.version)
-  if (!name || !version) return null
-  const repository = isRecord(wrapped.repository) ? wrapped.repository : undefined
-  const title = stringValue(wrapped.title)
-  const description = stringValue(wrapped.description)
-  const repositoryUrl = stringValue(repository?.url)
-  return {
+const isObject = Schema.is(anyObjectSchema)
+const decodeListEntry = Schema.decodeUnknownOption(registryListEntrySchema)
+const decodeServer = Schema.decodeUnknownOption(registryServerSchema)
+
+function serverRecord(value: unknown) {
+  const listEntry = Option.getOrUndefined(decodeListEntry(value))
+  if (!listEntry) return null
+  const wrapped = isObject(listEntry.server) ? listEntry.server : value
+  const source = Option.getOrUndefined(decodeServer(wrapped))
+  const { name, version } = source ?? {}
+  if (!source || !name || !version) return null
+  const { title, description } = source
+  const repositoryUrl = source.repository?.url
+  const record: RegistryServerRecord | null = {
     name,
     version,
     ...(title ? { title } : {}),
     ...(description ? { description } : {}),
     ...(repositoryUrl ? { repositoryUrl } : {}),
-    raw: wrapped,
+    source,
   }
+  return record
 }
 
 function isLatest(value: unknown) {
-  if (!isRecord(value) || !isRecord(value._meta)) return false
-  const official = value._meta['io.modelcontextprotocol.registry/official']
-  return isRecord(official) && official.isLatest === true
+  const listEntry = Option.getOrUndefined(decodeListEntry(value))
+  return listEntry?._meta?.['io.modelcontextprotocol.registry/official']?.isLatest === true
 }
 
 function resultLimit(limit: number | undefined) {
@@ -92,10 +105,9 @@ export async function searchMcpRegistry(
   url.searchParams.set('search', input.query)
   url.searchParams.set('limit', String(resultLimit(input.limit)))
   const payload = await fetchRegistryJson(url, input)
-  if (!isRecord(payload) || !Array.isArray(payload.servers)) {
-    throw new Error('MCP registry returned an invalid server list.')
-  }
-  const all = arrayValue(payload.servers).flatMap((entry: unknown) => {
+  const list = Option.getOrUndefined(decodeServerList(payload))
+  if (!list) throw new Error('MCP registry returned an invalid server list.')
+  const all = list.servers.flatMap((entry: unknown) => {
     const server = serverRecord(entry)
     return server ? [{ server, latest: isLatest(entry) }] : []
   })

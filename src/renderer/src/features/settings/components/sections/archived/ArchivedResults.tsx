@@ -10,6 +10,7 @@ import type { ArchivedItemsSelection } from '../../../hooks/useArchivedItemsSele
 import { type ArchivedDateGroup, archivedDateGroup } from '../../../lib/archived-items-view'
 import { ArchivedErrorAlert } from '../ArchivedErrorAlert'
 import { ArchivedItemRow, type ArchivedItemRowActions } from './ArchivedItemRow'
+import { useNow } from '@/shared/hooks/useNow'
 
 interface ResultGroup {
   readonly label: ArchivedDateGroup | 'Best matches'
@@ -68,7 +69,8 @@ export function ArchivedResults({
   readonly actions: ArchivedItemRowActions
   readonly pending: boolean
 }) {
-  const groups = resultGroups(list.items, list.sort === 'match', Date.now())
+  const now = useNow()
+  const groups = resultGroups(list.items, list.sort === 'match', now)
 
   return (
     <div className="space-y-3" aria-busy={list.isPlaceholderData ? true : undefined}>

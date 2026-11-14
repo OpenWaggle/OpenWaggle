@@ -58,6 +58,9 @@ export function ComposerModelPicker() {
     })
   }
 
+  const fallbackLabel = composerModel.isSessionModel
+    ? catalogModelName(providerModels, composerModel.model)
+    : undefined
   return (
     <>
       <ModelSelector
@@ -66,12 +69,8 @@ export function ComposerModelPicker() {
         settings={settings}
         providerModels={providerModels}
         disabled={settingsLock.locked}
-        fallbackLabel={
-          composerModel.isSessionModel
-            ? catalogModelName(providerModels, composerModel.model)
-            : undefined
-        }
-        title={settingsLock.reason ?? undefined}
+        {...(fallbackLabel === undefined ? {} : { fallbackLabel })}
+        {...(settingsLock.reason === null ? {} : { title: settingsLock.reason })}
       />
       <RoutedModelLabel />
     </>

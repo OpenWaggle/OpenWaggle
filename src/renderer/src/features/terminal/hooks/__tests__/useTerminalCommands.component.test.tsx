@@ -1,81 +1,128 @@
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { usePreferencesStore } from '@/features/settings/state'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { useUIStore } from '@/shell/ui-store'
+import {
+  showWorkspaceSideTerminal,
+  useWorkspaceSideTerminalVisible,
+} from '@/shell/workspace-panel-actions'
+import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import {
   rememberTerminalLayoutFocus,
   resetTerminalLayoutFocusForTests,
 } from '../../lib/terminal-focus-location'
 import { terminalSidePanelLayoutKey } from '../../lib/terminal-owner'
+import { useActionOutputViewStore } from '../../state/action-output-view-store'
 import { useTerminalStore } from '../../state/terminal-store'
 
-const mocks = vi.hoisted(() => ({
-  closeTerminals: vi.fn(),
-  hideSideTerminal: vi.fn(),
-  sideTerminalVisible: false,
-  showSideTerminal: vi.fn(),
-  showToast: vi.fn(),
-  togglePanelMaximized: vi.fn(),
-  maximizeUnavailable: vi.fn((): string | null => null),
+const ipc = vi.hoisted(() => ({
+  assessTerminalClose: vi.fn(async () => ({ disposition: 'safe' as const, reason: 'idle' })),
+  closeTerminal: vi.fn(async () => undefined),
 }))
 
-vi.mock('@/features/chat/hooks', () => ({ useChat: () => ({ activeSession: null }) }))
-vi.mock('@/features/sessions/hooks', () => ({
-  useProject: () => ({ projectPath: '/repo' }),
-}))
-vi.mock('@/shell/workspace-panel-actions', () => ({
-  hideWorkspaceSideTerminal: mocks.hideSideTerminal,
-  rightPanelMaximizeUnavailableReason: mocks.maximizeUnavailable,
-  showWorkspaceSideTerminal: mocks.showSideTerminal,
-  toggleWorkspacePanelMaximized: mocks.togglePanelMaximized,
-  useWorkspaceSideTerminalVisible: () => mocks.sideTerminalVisible,
-}))
-vi.mock('@/shell/ui-store', () => ({
-  useUIStore: (selector: (state: { showToast: typeof mocks.showToast }) => unknown) =>
-    selector({ showToast: mocks.showToast }),
-}))
-vi.mock('../../lib/terminal-close', () => ({
-  confirmAndCloseTerminals: mocks.closeTerminals,
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(ipc),
 }))
 
 import { useTerminalCommands } from '../useTerminalCommands'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 
+/*
+ * Only the preload is replaced: the project, chat, terminal, Right panel and toast stores and the
+ * close confirmation are the real ones, so each case asserts where a command lands.
+ */
 const OWNER = 'draft:/repo'
 const SIDE_OWNER = terminalSidePanelLayoutKey(OWNER)
 
-describe('useTerminalCommands focused layout routing', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.sideTerminalVisible = false
-    resetTerminalLayoutFocusForTests()
-    useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
-    mocks.closeTerminals.mockResolvedValue('closed')
-    mocks.togglePanelMaximized.mockReturnValue(true)
+const terminals = () => useTerminalStore.getState().groups
+
+/** The part of the persisted Workspace panel layout these cases read. */
+const persistedWorkspacePanelSchema = Schema.parseJson(
+  Schema.Struct({
+    state: Schema.optionalWith(
+      Schema.Struct({
+        groups: Schema.optionalWith(
+          Schema.Record({
+            key: Schema.String,
+            value: Schema.Struct({
+              maximized: Schema.optionalWith(Schema.Boolean, { exact: true }),
+            }),
+          }),
+          { exact: true },
+        ),
+      }),
+      { exact: true },
+    ),
+  }),
+)
+
+/** Whether the Session's Right panel is maximized in the layout the app persists for relaunch. */
+function persistedMaximized() {
+  const stored = decodeUnknownOrThrow(
+    persistedWorkspacePanelSchema,
+    localStorage.getItem('openwaggle:workspace-panel:v1') ?? '{}',
+  )
+  return stored.state?.groups?.[OWNER]?.maximized === true
+}
+
+/** The commands, and whether the Right panel shows the Session's terminal. */
+function renderCommands() {
+  return renderHook(() => ({
+    ...useTerminalCommands(),
+    sideTerminalShown: useWorkspaceSideTerminalVisible(OWNER),
+  }))
+}
+
+async function resetStores() {
+  // Features may not read the shell's panel store (openwaggle/renderer-import-boundaries); its
+  // public cleanup drops the group.
+  await deleteWorkspaceOwner(OWNER)
+  localStorage.clear()
+  resetTerminalLayoutFocusForTests()
+  useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
+  useActionOutputViewStore.setState({ views: {}, active: {} })
+  useRightSidebarCoordinator.setState({ activeClaim: null })
+  useChatStore.setState(useChatStore.getInitialState())
+  useUIStore.getState().clearToast()
+  usePreferencesStore.setState({
+    settings: { ...DEFAULT_SETTINGS, projectPath: '/repo' },
+    isLoaded: true,
+    loadError: null,
   })
+}
+
+describe('useTerminalCommands focused layout routing', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await resetStores()
+  })
+
+  afterEach(resetStores)
 
   it('routes new, split, and close commands to the focused side terminal group', async () => {
     useTerminalStore.getState().createTerminal(OWNER, '/repo')
     useTerminalStore.getState().createTerminal(SIDE_OWNER, '/repo')
     rememberTerminalLayoutFocus(OWNER, SIDE_OWNER)
-    const { result } = renderHook(() => useTerminalCommands())
+    const { result } = renderCommands()
 
     act(() => result.current.newTerminal())
-    expect(useTerminalStore.getState().groups[SIDE_OWNER]?.tabs).toHaveLength(2)
-    expect(useTerminalStore.getState().groups[OWNER]?.tabs).toHaveLength(1)
-    expect(mocks.showSideTerminal).toHaveBeenCalledWith(OWNER)
+    expect(terminals()[SIDE_OWNER]?.tabs).toHaveLength(2)
+    expect(terminals()[OWNER]?.tabs).toHaveLength(1)
+    expect(result.current.sideTerminalShown).toBe(true)
 
     act(() => result.current.splitTerminalVertical())
-    expect(useTerminalStore.getState().groups[SIDE_OWNER]?.tabs[1]?.panes).toHaveLength(2)
-    expect(useTerminalStore.getState().groups[SIDE_OWNER]?.tabs[1]?.splitDirection).toBe('stacked')
+    expect(terminals()[SIDE_OWNER]?.tabs[1]?.panes).toHaveLength(2)
+    expect(terminals()[SIDE_OWNER]?.tabs[1]?.splitDirection).toBe('stacked')
 
-    const activePaneId = useTerminalStore.getState().groups[SIDE_OWNER]?.tabs[1]?.activePaneId
+    const activePaneId = terminals()[SIDE_OWNER]?.tabs[1]?.activePaneId
     await act(() => result.current.closeActiveTerminal())
-    expect(mocks.closeTerminals).toHaveBeenCalledWith(
-      OWNER,
-      expect.arrayContaining([expect.objectContaining({ terminalId: activePaneId })]),
-    )
+    // The runtime owner, not the side-panel layout key, owns the process.
+    expect(ipc.closeTerminal).toHaveBeenCalledWith(OWNER, activePaneId, true)
     expect(
-      useTerminalStore
-        .getState()
-        .groups[SIDE_OWNER]?.tabs[1]?.panes.some((pane) => pane.terminalId === activePaneId),
+      terminals()[SIDE_OWNER]?.tabs[1]?.panes.some((pane) => pane.terminalId === activePaneId),
     ).toBe(false)
   })
 
@@ -83,53 +130,57 @@ describe('useTerminalCommands focused layout routing', () => {
     useTerminalStore.getState().createTerminal(OWNER, '/repo')
     useTerminalStore.getState().setPanelOpen(OWNER, true)
     useTerminalStore.getState().createTerminal(SIDE_OWNER, '/repo')
-    const { result } = renderHook(() => useTerminalCommands())
+    const { result } = renderCommands()
 
     act(() => result.current.newTerminal())
 
-    expect(useTerminalStore.getState().groups[OWNER]?.tabs).toHaveLength(2)
-    expect(useTerminalStore.getState().groups[SIDE_OWNER]?.tabs).toHaveLength(1)
+    expect(terminals()[OWNER]?.tabs).toHaveLength(2)
+    expect(terminals()[SIDE_OWNER]?.tabs).toHaveLength(1)
   })
 
   it('toggles a visible docked terminal without creating a bottom terminal', () => {
     useTerminalStore.getState().createTerminal(SIDE_OWNER, '/repo')
     useTerminalStore.getState().setPanelOpen(SIDE_OWNER, true)
-    mocks.sideTerminalVisible = true
-    const { result } = renderHook(() => useTerminalCommands())
+    showWorkspaceSideTerminal(OWNER)
+    const { result } = renderCommands()
 
     expect(result.current.panelOpen).toBe(true)
     act(() => result.current.toggleTerminal())
 
-    expect(useTerminalStore.getState().groups[SIDE_OWNER]?.panelOpen).toBe(false)
-    expect(useTerminalStore.getState().groups[OWNER]).toBeUndefined()
-    expect(mocks.hideSideTerminal).toHaveBeenCalledWith(OWNER)
+    expect(terminals()[SIDE_OWNER]?.panelOpen).toBe(false)
+    expect(terminals()[OWNER]).toBeUndefined()
+    expect(result.current.sideTerminalShown).toBe(false)
+    expect(result.current.panelOpen).toBe(false)
   })
 
   it('creates, reveals, and retains command focus in a new side-panel terminal group', () => {
-    const { result } = renderHook(() => useTerminalCommands())
+    const { result } = renderCommands()
 
     act(() => result.current.newSideTerminal())
 
-    expect(useTerminalStore.getState().groups[SIDE_OWNER]).toMatchObject({
+    expect(terminals()[SIDE_OWNER]).toMatchObject({
       panelOpen: true,
       tabs: [expect.objectContaining({ panes: [expect.objectContaining({ cwd: '/repo' })] })],
     })
-    expect(mocks.showSideTerminal).toHaveBeenCalledWith(OWNER)
+    expect(result.current.sideTerminalShown).toBe(true)
 
     act(() => result.current.newTerminal())
-    expect(useTerminalStore.getState().groups[SIDE_OWNER]?.tabs).toHaveLength(2)
-    expect(useTerminalStore.getState().groups[OWNER]).toBeUndefined()
+    expect(terminals()[SIDE_OWNER]?.tabs).toHaveLength(2)
+    expect(terminals()[OWNER]).toBeUndefined()
   })
 
   it('reports why the Right panel cannot be maximized, and maximizes it otherwise', () => {
-    mocks.maximizeUnavailable.mockReturnValueOnce('Open a panel first.')
-    const { result } = renderHook(() => useTerminalCommands())
+    const { result } = renderCommands()
 
     act(() => result.current.toggleSidePanelMaximized())
-    expect(mocks.showToast).toHaveBeenCalledWith('Open a panel first.', 'error')
-    expect(mocks.togglePanelMaximized).not.toHaveBeenCalled()
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'Open a panel first.',
+      variant: 'error',
+    })
+    expect(persistedMaximized()).toBe(false)
 
+    act(() => result.current.newSideTerminal())
     act(() => result.current.toggleSidePanelMaximized())
-    expect(mocks.togglePanelMaximized).toHaveBeenCalledWith(OWNER)
+    expect(persistedMaximized()).toBe(true)
   })
 })

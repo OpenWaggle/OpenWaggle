@@ -53,9 +53,11 @@ function runAccessCheck(input: {
   readonly sessionId?: string
 }) {
   const lifecycle = makeLifecycle(input.extensionPackage, {
-    trusted: input.trusted,
-    enabled: input.enabled,
-    grantedCapabilities: input.grantedCapabilities,
+    ...(input.trusted === undefined ? {} : { trusted: input.trusted }),
+    ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+    ...(input.grantedCapabilities === undefined
+      ? {}
+      : { grantedCapabilities: input.grantedCapabilities }),
   })
   const projectOverrides =
     input.projectDisabled === true

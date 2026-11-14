@@ -2,10 +2,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import * as Effect from 'effect/Effect'
-import type {
-  HiveParentWakeCandidate,
-  HiveParentWakeQuery,
-} from '../ports/session-orchestration-update-repository'
+import type { HiveParentWakeQuery } from '../ports/session-orchestration-update-repository'
 import { localUserFollowUpSql } from './sqlite-local-user-follow-up'
 
 interface WakeCandidateRow {
@@ -17,13 +14,13 @@ interface WakeCandidateRow {
 }
 
 /** The decoded causes; anything unreadable counts as one no wake may act on. */
-function triggerCallerIds(value: string): readonly (string | null)[] {
+function triggerCallerIds(value: string) {
   const decoded: unknown = parseJsonUnknown(value)
-  if (!Array.isArray(decoded)) return []
+  if (!Array.isArray(decoded)) return [] satisfies readonly (string | null)[]
   const entries: readonly unknown[] = decoded
-  return entries.map((entry): string | null =>
+  return entries.map((entry) =>
     typeof entry === 'string' || entry === null ? entry : '',
-  )
+  ) satisfies readonly (string | null)[]
 }
 
 function runAuthorizationOverride(value: string | null) {
@@ -93,7 +90,7 @@ export function selectHiveParentWakeCandidate(
     WHERE json_array_length(trigger_caller_ids) > 0
     LIMIT 1
   `.pipe(
-    Effect.map((rows): HiveParentWakeCandidate | undefined => {
+    Effect.map((rows) => {
       const row = rows[0]
       if (!row?.caller_id) return undefined
       const override = runAuthorizationOverride(row.run_authorization_override)

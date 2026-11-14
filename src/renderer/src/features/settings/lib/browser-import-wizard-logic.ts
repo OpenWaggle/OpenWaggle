@@ -2,7 +2,6 @@ import { match, matchBy } from '@diegogbrisa/ts-match'
 import type {
   BrowserImportFailureReason,
   BrowserImportSource,
-  BrowserImportTarget,
   GuidedBrowserImportResult,
 } from '@shared/types/browser-import'
 
@@ -43,17 +42,19 @@ export type BrowserImportWizardStep =
 export function initialTargetSelection(
   canCreateProfile: boolean,
   targetProfiles: readonly WizardTargetProfile[],
-): WizardTargetSelection {
-  if (canCreateProfile) return { kind: 'new' }
+) {
+  if (canCreateProfile) return { kind: 'new' } satisfies WizardTargetSelection
   const first = targetProfiles[0]
-  return first ? { kind: 'existing', profileId: first.id } : { kind: 'new' }
+  return (
+    first ? { kind: 'existing', profileId: first.id } : { kind: 'new' }
+  ) satisfies WizardTargetSelection
 }
 
 export function resolveWizardTarget(
   selection: WizardTargetSelection,
   newProfileId: string,
   targetProfiles: readonly WizardTargetProfile[],
-): BrowserImportTarget | undefined {
+) {
   return matchBy(selection, 'kind')
     .with('new', () => ({ kind: 'new', profileId: newProfileId }))
     .with('existing', ({ profileId }) =>
@@ -69,25 +70,23 @@ export function canCloseBrowserImportWizard(step: BrowserImportWizardStep) {
   return step.step !== 'importing'
 }
 
-export function initialBrowserImportWizardStep(
-  source: BrowserImportSource,
-): BrowserImportWizardStep {
-  if (source.unavailable === 'browser-running') return { step: 'quit' }
+export function initialBrowserImportWizardStep(source: BrowserImportSource) {
+  if (source.unavailable === 'browser-running') {
+    return { step: 'quit' } satisfies BrowserImportWizardStep
+  }
   if (source.unavailable === 'needs-full-disk-access') {
-    return { step: 'full-disk-access', resume: 'configure' }
+    return { step: 'full-disk-access', resume: 'configure' } satisfies BrowserImportWizardStep
   }
   if (source.unavailable !== undefined) {
-    return { step: 'blocked', reason: source.unavailable }
+    return { step: 'blocked', reason: source.unavailable } satisfies BrowserImportWizardStep
   }
   if (source.profiles.length === 0) {
-    return { step: 'blocked', reason: 'unknown-source-profile' }
+    return { step: 'blocked', reason: 'unknown-source-profile' } satisfies BrowserImportWizardStep
   }
-  return { step: 'configure' }
+  return { step: 'configure' } satisfies BrowserImportWizardStep
 }
 
-export function guidedImportResultToStep(
-  outcome: GuidedBrowserImportResult,
-): BrowserImportWizardStep {
+export function guidedImportResultToStep(outcome: GuidedBrowserImportResult) {
   if (outcome.ok) {
     return {
       step: 'done',
@@ -96,28 +95,32 @@ export function guidedImportResultToStep(
       skippedDomains: outcome.result.skippedDomains,
       targetName: outcome.targetName,
       createdProfile: outcome.createdProfile !== null,
-    }
+    } satisfies BrowserImportWizardStep
   }
-  if (outcome.reason === 'browser-running') return { step: 'quit' }
+  if (outcome.reason === 'browser-running') {
+    return { step: 'quit' } satisfies BrowserImportWizardStep
+  }
   if (outcome.reason === 'needs-full-disk-access') {
-    return { step: 'full-disk-access', resume: 'import', checked: true }
+    return {
+      step: 'full-disk-access',
+      resume: 'import',
+      checked: true,
+    } satisfies BrowserImportWizardStep
   }
-  return { step: 'blocked', reason: outcome.reason }
+  return { step: 'blocked', reason: outcome.reason } satisfies BrowserImportWizardStep
 }
 
-export function refreshedBrowserImportSourceStep(
-  source: BrowserImportSource | undefined,
-): BrowserImportWizardStep {
-  return source
-    ? initialBrowserImportWizardStep(source)
-    : { step: 'blocked', reason: 'unknown-source' }
+export function refreshedBrowserImportSourceStep(source: BrowserImportSource | undefined) {
+  return (
+    source ? initialBrowserImportWizardStep(source) : { step: 'blocked', reason: 'unknown-source' }
+  ) satisfies BrowserImportWizardStep
 }
 
-export function fullDiskAccessRecheckStep(
-  source: BrowserImportSource | undefined,
-): BrowserImportWizardStep {
+export function fullDiskAccessRecheckStep(source: BrowserImportSource | undefined) {
   const next = refreshedBrowserImportSourceStep(source)
-  return next.step === 'full-disk-access' ? { ...next, checked: true } : next
+  return (
+    next.step === 'full-disk-access' ? { ...next, checked: true } : next
+  ) satisfies BrowserImportWizardStep
 }
 
 export function refreshedSourceProfileDirectory(
@@ -132,10 +135,8 @@ export function refreshedSourceProfileDirectory(
 export type BrowserImportBlockedAction = 'retry' | 'configure' | 'refresh' | 'none'
 
 /** Recovery affordance for each terminal failure, kept exhaustive as reasons evolve. */
-export function browserImportBlockedAction(
-  reason: BrowserImportFailureReason,
-): BrowserImportBlockedAction {
-  return match(reason)
+export function browserImportBlockedAction(reason: BrowserImportFailureReason) {
+  const action: BrowserImportBlockedAction = match(reason)
     .with(
       'needs-keychain-approval',
       'keychain-item-missing',
@@ -159,6 +160,7 @@ export function browserImportBlockedAction(
       () => 'none' as const,
     )
     .exhaustive()
+  return action
 }
 
 export function formatSkippedDomains(domains: readonly string[]) {

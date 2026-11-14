@@ -2,7 +2,7 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { createLogger } from '../logger'
 import { sweepOrphanedModelDownloads } from '../utils/model-download-temp-sweep'
 import { sessionScratchRoot } from '../utils/session-scratch-directory'
@@ -36,7 +36,7 @@ export function sweepOrphanedModelDownloadsOnce(
   options: { readonly root?: string; readonly now?: number } = {},
 ) {
   return Effect.gen(function* () {
-    const root = options.root ?? path.join(app.getPath('userData'), MODELS_DIRECTORY_NAME)
+    const root = options.root ?? path.join(appPaths.userData(), MODELS_DIRECTORY_NAME)
     const result = yield* Effect.tryPromise(() =>
       sweepOrphanedModelDownloads(root, options.now ?? Date.now()),
     )

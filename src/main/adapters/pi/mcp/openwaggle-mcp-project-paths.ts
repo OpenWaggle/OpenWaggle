@@ -2,9 +2,8 @@
 
 /** Session workspace roots, paged as `WorkspaceProjectAuthorization` reads them. */
 async function sessionWorkspaceRoots() {
-  const { listSessionWorkspaceRootPage } = await import(
-    '../../../store/session-details/workspace-root-authorization'
-  )
+  const { listSessionWorkspaceRootPage } =
+    await import('../../../store/session-details/workspace-root-authorization')
   const roots: string[] = []
   let afterRoot: string | undefined
   while (true) {
@@ -30,7 +29,7 @@ async function settingsProjectPaths() {
  * The projects OpenWaggle knows, so the first run keeps their servers' old on/off state: the
  * same sources as workspace authorization, settings plus every Session's workspace root.
  */
-export async function knownMcpProjectPaths(): Promise<readonly string[]> {
+export async function knownMcpProjectPaths() {
   return [...new Set([...(await settingsProjectPaths()), ...(await sessionWorkspaceRoots())])]
 }
 
@@ -39,9 +38,8 @@ export async function knownMcpProjectPaths(): Promise<readonly string[]> {
  * path. A managed worktree is not one; writing its `.openwaggle/mcp.json` would leave an
  * untracked file in the user's checkout.
  */
-export async function durableMcpProjectPaths(): Promise<readonly string[]> {
-  const { listSessionProjectRoots } = await import(
-    '../../../store/session-details/workspace-root-authorization'
-  )
+export async function durableMcpProjectPaths() {
+  const { listSessionProjectRoots } =
+    await import('../../../store/session-details/workspace-root-authorization')
   return [...new Set([...(await settingsProjectPaths()), ...(await listSessionProjectRoots())])]
 }

@@ -1,45 +1,21 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  modelDisplayInfoSchema,
+  providerApiKeyAuthSourceSchema,
+  providerAuthInfoSchema,
+  providerInfoSchema,
+  providerAuthSourceSchema,
+} from '@shared/schemas/llm'
 import { SupportedModelId } from './brand'
-import type { Provider, ThinkingLevel } from './settings'
 
 // Re-export branded SupportedModelId from the canonical brand module.
 export type { SupportedModelId } from './brand'
 
-export type ProviderAuthSource = 'none' | 'api-key' | 'oauth' | 'environment-or-custom'
-export type ProviderApiKeyAuthSource = 'none' | 'api-key' | 'environment-or-custom'
+export type ProviderAuthSource = SchemaType<typeof providerAuthSourceSchema>
 
-export interface ProviderAuthInfo {
-  /** Provider-level active auth source as Pi will resolve it for model availability. */
-  readonly configured: boolean
-  readonly source: ProviderAuthSource
-  /** API-key section state only. OAuth credentials must not make this true. */
-  readonly apiKeyConfigured: boolean
-  readonly apiKeySource: ProviderApiKeyAuthSource
-  /** OAuth section state only. API keys and environment credentials must not make this true. */
-  readonly oauthConnected: boolean
-  readonly supportsApiKey: boolean
-  readonly supportsOAuth: boolean
-  readonly apiKeyPreview?: string
-}
-
-// Display info for UI — generated dynamically from Pi model metadata.
-export interface ModelDisplayInfo {
-  /** Canonical Pi model reference: "provider/modelId". */
-  readonly id: SupportedModelId
-  /** Provider-local Pi model ID. This may itself contain slashes for hosted model routes. */
-  readonly modelId: string
-  readonly name: string
-  readonly provider: Provider
-  readonly available: boolean
-  /** Thinking levels available for this concrete provider/model selection. */
-  readonly availableThinkingLevels: readonly ThinkingLevel[]
-  /** Context window size in tokens (e.g., 200000, 1000000). Populated from provider metadata. */
-  readonly contextWindow?: number
-  /**
-   * A virtual model (a Pi router) picks a physical model for each request. Its own context window
-   * is often unknown, so the context meter uses the window of the model that answered.
-   */
-  readonly virtual?: boolean
-}
+export type ProviderApiKeyAuthSource = SchemaType<typeof providerApiKeyAuthSourceSchema>
+export type ProviderAuthInfo = SchemaType<typeof providerAuthInfoSchema>
+export type ModelDisplayInfo = SchemaType<typeof modelDisplayInfoSchema>
 
 /**
  * How much of Pi's model catalog `providers:get-models` returns. `available` keeps every
@@ -50,22 +26,14 @@ export interface ModelDisplayInfo {
 export const PROVIDER_CATALOG_SCOPES = ['available', 'all'] as const
 export type ProviderCatalogScope = (typeof PROVIDER_CATALOG_SCOPES)[number]
 
-/** Provider metadata exposed to the renderer via IPC */
-export interface ProviderInfo {
-  readonly provider: Provider
-  readonly displayName: string
-  readonly apiKeyManagementUrl?: string
-  readonly auth: ProviderAuthInfo
-  readonly models: ModelDisplayInfo[]
-}
+/** Provider metadata exposed to the renderer via IPC. */
+export type ProviderInfo = SchemaType<typeof providerInfoSchema>
 
-export function createModelRef(provider: string, modelId: string): SupportedModelId {
+export function createModelRef(provider: string, modelId: string) {
   return SupportedModelId(`${provider}/${modelId}`)
 }
 
-export function parseModelRef(
-  modelRef: string,
-): { readonly provider: string; readonly modelId: string } | null {
+export function parseModelRef(modelRef: string) {
   const separatorIndex = modelRef.indexOf('/')
   if (separatorIndex <= 0 || separatorIndex === modelRef.length - 1) {
     return null
@@ -78,7 +46,7 @@ export function parseModelRef(
 }
 
 /** Human-readable name generation from model IDs */
-export function generateDisplayName(modelId: string): string {
+export function generateDisplayName(modelId: string) {
   // Brand capitalization rules
   const brandMap: Record<string, string> = {
     claude: 'Claude',

@@ -89,7 +89,7 @@ describe('terminal shutdown rejects reused tty ownership', () => {
           target !== undefined &&
           typeof target === 'object' &&
           'ttyClosed' in target &&
-          target.ttyClosed === true,
+          target.ttyClosed,
       ),
     ).toBe(true)
     expect(record.live).toBeNull()

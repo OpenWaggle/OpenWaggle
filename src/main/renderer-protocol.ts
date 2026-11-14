@@ -1,19 +1,17 @@
 import { existsSync } from 'node:fs'
 import { extname, join, posix, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { is } from '@electron-toolkit/utils'
 import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-automation'
-import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
-import { MCP_APP_FRAME_PROTOCOL } from '@shared/constants/mcp-app-frame'
-import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
-import { app, net, protocol } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { networkFetch } from './desktop-shell/network-fetch'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { env } from './env'
+import { TRUSTED_ORIGIN_SCHEMES } from './trusted-origin-schemes'
 
 export { isTrustedRendererRequest } from './renderer-request-trust'
 
-export const RENDERER_PROTOCOL = 'openwaggle'
+export const RENDERER_PROTOCOL = TRUSTED_ORIGIN_SCHEMES.renderer
 export const RENDERER_PROTOCOL_HOST = 'app'
 export const RENDERER_PROTOCOL_ORIGIN = `${RENDERER_PROTOCOL}://${RENDERER_PROTOCOL_HOST}`
 export const EXTENSION_RUNTIME_PROTOCOL = OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME
@@ -25,75 +23,24 @@ const CORS_ANY_ORIGIN = '*'
 let rendererProtocolRegistered = false
 
 export function configureInlineVisualizationProcessIsolation() {
-  app.commandLine.appendSwitch('site-per-process')
+  appLifecycle.commandLine.appendSwitch('site-per-process')
 }
 
+/** Every trusted origin the app serves, declared before ready (A-F11 for `codeCache`). */
 export function registerRendererScheme() {
-  protocol.registerSchemesAsPrivileged([
-    // `codeCache` lets V8 keep compiled code for the app and extension modules between launches,
-    // as for http(s) pages; without it the renderer recompiled its 4.5 MB modulepreload graph on
-    // every start (A-F11). V8 checks each entry against the source, so an update recompiles once.
-    // Visualization and MCP App frames are not cached: each document has a fresh host.
-    {
-      scheme: RENDERER_PROTOCOL,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: true,
-        codeCache: true,
-      },
-    },
-    {
-      scheme: EXTENSION_RUNTIME_PROTOCOL,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: true,
-        codeCache: true,
-      },
-    },
-    {
-      scheme: OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: true,
-        codeCache: true,
-      },
-    },
-    {
-      scheme: INLINE_VISUALIZATION_PROTOCOL.SCHEME,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: false,
-      },
-    },
-    {
-      // Each App document has its own `frame-<id>` host, so the scheme is standard; the frame is
-      // same-origin with that host only, never with OpenWaggle, and nothing under it is fetched
-      // by CORS (ADR 0053).
-      scheme: MCP_APP_FRAME_PROTOCOL.SCHEME,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: false,
-      },
-    },
-    {
-      scheme: SESSION_RESOURCE_PROTOCOL.SCHEME,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: false,
-      },
-    },
+  // `codeCache` lets V8 keep compiled code for the app and extension modules between launches,
+  // as for http(s) pages; without it the renderer recompiled its 4.5 MB modulepreload graph on
+  // every start (A-F11). V8 checks each entry against the source, so an update recompiles once.
+  // Visualization and MCP App frames are not cached: each document has a fresh host. Each App
+  // document has its own `frame-<id>` host; the frame is same-origin with that host only, never
+  // with OpenWaggle, and nothing under it is fetched by CORS (ADR 0053).
+  trustedOrigins.declare([
+    { domain: 'renderer', corsEnabled: true, codeCache: true },
+    { domain: 'extension-runtime', corsEnabled: true, codeCache: true },
+    { domain: 'extension-frame', corsEnabled: true, codeCache: true },
+    { domain: 'inline-visualization', corsEnabled: false, codeCache: false },
+    { domain: 'mcp-app-frame', corsEnabled: false, codeCache: false },
+    { domain: 'session-resource', corsEnabled: false, codeCache: false },
   ])
 }
 
@@ -149,7 +96,7 @@ function resolveRendererFilePath(rendererRoot: string, requestUrl: string) {
 }
 
 export function devRendererUrl() {
-  return is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
+  return !appLifecycle.isPackaged() && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
 }
 
 export function rendererUrlWithAutomationIdentity(url: string) {
@@ -163,7 +110,7 @@ export function rendererUrlWithAutomationIdentity(url: string) {
 }
 
 async function fileResponse(filePath: string) {
-  const response = await net.fetch(pathToFileURL(filePath).toString())
+  const response = await networkFetch.fetch(pathToFileURL(filePath).toString())
   const headers = new Headers(response.headers)
   headers.set(ACCESS_CONTROL_ALLOW_ORIGIN_HEADER, CORS_ANY_ORIGIN)
   return new Response(response.body, {
@@ -186,7 +133,7 @@ export function registerRendererProtocolOnce() {
   const rendererRoot = rendererRootPath()
   const indexPath = join(rendererRoot, INDEX_HTML)
 
-  protocol.handle(RENDERER_PROTOCOL, (request) => {
+  trustedOrigins.serve('renderer', (request) => {
     try {
       const candidatePath = resolveRendererFilePath(rendererRoot, request.url)
       const isAssetRequest = isRendererStaticAssetRequest(request.url)

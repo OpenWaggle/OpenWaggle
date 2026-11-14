@@ -9,6 +9,7 @@ import type {
   ResolvedSessionExecutionProfile,
   SessionLifecycleCommand,
 } from '@shared/types/session-lifecycle'
+import { valuesIn } from '@shared/utils/set-membership'
 import * as Effect from 'effect/Effect'
 import { resolveAgentDefinition } from '../agents/agent-definition-catalog'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
@@ -60,9 +61,7 @@ function preparationError(operation: string, cause: unknown) {
   return new SessionLifecyclePreparationError({ operation, cause })
 }
 
-function parseParentProfile(
-  row: ParentExecutionRow | undefined,
-): ParentExecutionSelection | undefined {
+function parseParentProfile(row: ParentExecutionRow | undefined) {
   if (!row) return undefined
   const profile = decodeSessionExecutionProfile(row.profile_json)
   let resolvedAgentSnapshot: ResolvedAgentDefinitionSnapshot | undefined
@@ -111,13 +110,14 @@ function definitionForCommand(
   projectPath: string,
   command: SessionLifecycleCommand,
   parent: ParentExecutionSelection | undefined,
-  enabledByName: Readonly<Record<string, boolean>>,
+  enabledByName: Readonly<Partial<Record<string, boolean>>>,
 ) {
   const requestedName =
     command.operation === 'fork' ? undefined : command.specialization?.agentDefinitionName
   if (!requestedName) {
     return Effect.succeed(command.operation === 'fork' ? parent?.resolvedAgentSnapshot : undefined)
   }
+  // A definition missing from the map is not turned off; only an explicit `false` is.
   if (enabledByName[requestedName] === false) {
     return Effect.fail(
       preparationError(
@@ -162,9 +162,7 @@ export function resolveLifecycleSessionCapabilities(input: {
   const configured = input.profile.sessionCapabilities
   if (input.command.operation === 'spawn') return configured
   if (!configured) return callerSessionCapabilityRestriction(input.callerCapabilities)
-  return input.callerCapabilities
-    ? configured.filter((capability) => input.callerCapabilities?.includes(capability))
-    : [...configured]
+  return input.callerCapabilities ? valuesIn(configured, input.callerCapabilities) : [...configured]
 }
 
 export function reduceAuthorizationCeiling(
@@ -177,7 +175,7 @@ export function reduceAuthorizationCeiling(
 function intersectOptional<T>(
   inherited: readonly T[] | undefined,
   selected: readonly T[] | undefined,
-): readonly T[] | undefined {
+) {
   if (!inherited) return selected
   if (!selected) return inherited
   const allowed = new Set(selected)
@@ -189,7 +187,7 @@ function preferred<T>(
   defined: T | undefined,
   inherited: T | undefined,
   fallback: T,
-): T {
+) {
   return requested ?? defined ?? inherited ?? fallback
 }
 
@@ -221,7 +219,7 @@ export function buildLifecycleExecutionProfile(input: {
   }
   readonly parent: ParentExecutionSelection | undefined
   readonly definition: ResolvedAgentDefinitionSnapshot | undefined
-}): ResolvedSessionExecutionProfile {
+}) {
   const { command, defaults, parent, definition } = input
   const inherited = parent?.profile
   const specialization = command.operation === 'fork' ? undefined : command.specialization

@@ -35,11 +35,8 @@ type ResolvedPushRef =
  * such as EAGAIN. `for-each-ref` represents the ordinary missing case as a successful empty value,
  * so callers can abort rather than accidentally changing the push destination after a failed read.
  */
-export async function readUpstreamRef(
-  projectPath: string,
-  branchName: string | null,
-): Promise<GitUpstreamReadResult> {
-  if (branchName === null) return { ok: true, upstream: null }
+export async function readUpstreamRef(projectPath: string, branchName: string | null) {
+  if (branchName === null) return { ok: true, upstream: null } satisfies GitUpstreamReadResult
 
   const result = await runGit(projectPath, [
     'for-each-ref',
@@ -53,11 +50,13 @@ export async function readUpstreamRef(
       message: detail
         ? `Could not read the configured Git upstream: ${detail}`
         : 'Could not read the configured Git upstream.',
-    }
+    } satisfies GitUpstreamReadResult
   }
 
   const [remote = '', trackedRef = ''] = result.stdout.replace(/\r?\n$/u, '').split('\0')
-  if (remote.length === 0 && trackedRef.length === 0) return { ok: true, upstream: null }
+  if (remote.length === 0 && trackedRef.length === 0) {
+    return { ok: true, upstream: null } satisfies GitUpstreamReadResult
+  }
   const branchPrefix = 'refs/heads/'
   if (
     !remote ||
@@ -68,12 +67,13 @@ export async function readUpstreamRef(
       ok: false,
       message: 'Could not resolve the configured Git upstream.',
       recoverable: false,
-    }
+    } satisfies GitUpstreamReadResult
   }
-  return {
+  const value: GitUpstreamReadResult = {
     ok: true,
     upstream: { remote, branch: trackedRef.slice(branchPrefix.length) },
   }
+  return value
 }
 
 async function readOptionalConfig(projectPath: string, key: string) {
@@ -101,17 +101,13 @@ function isTrueGitBoolean(value: string | undefined) {
   return value !== undefined && ['true', 'yes', 'on', '1'].includes(value.toLowerCase())
 }
 
-function resolveConfiguredPushRef(
-  branchName: string,
-  remote: string,
-  refspecs: readonly string[],
-): GitUpstreamReadResult {
+function resolveConfiguredPushRef(branchName: string, remote: string, refspecs: readonly string[]) {
   if (refspecs.length !== 1) {
     return {
       ok: false,
       message: 'OpenWaggle cannot safely run a push configured to update multiple refs.',
       recoverable: false,
-    }
+    } satisfies GitUpstreamReadResult
   }
   const refspec = (refspecs[0] ?? '').replace(/^\+/u, '')
   const separator = refspec.indexOf(':')
@@ -129,30 +125,23 @@ function resolveConfiguredPushRef(
       ok: false,
       message: 'OpenWaggle cannot safely reduce the configured push refspec to the current branch.',
       recoverable: false,
-    }
+    } satisfies GitUpstreamReadResult
   }
-  return {
+  const result: GitUpstreamReadResult = {
     ok: true,
     upstream: { remote, branch: destination.slice(branchPrefix.length) },
   }
+  return result
 }
 
-async function resolvePushRefFromConfig(
-  projectPath: string,
-  branchName: string,
-  remote: string,
-): Promise<ResolvedPushRef> {
+async function resolvePushRefFromConfig(projectPath: string, branchName: string, remote: string) {
   const configuredPushRef = await resolveRemotePushRefspec(projectPath, branchName, remote)
-  if (configuredPushRef !== null) return configuredPushRef
-
-  return resolveDefaultPushRef(projectPath, branchName, remote)
+  const ref: ResolvedPushRef =
+    configuredPushRef ?? (await resolveDefaultPushRef(projectPath, branchName, remote))
+  return ref
 }
 
-async function resolveRemotePushRefspec(
-  projectPath: string,
-  branchName: string,
-  remote: string,
-): Promise<GitUpstreamReadResult | null> {
+async function resolveRemotePushRefspec(projectPath: string, branchName: string, remote: string) {
   const mirror = await readOptionalConfig(projectPath, `remote.${remote}.mirror`)
   if (!mirror.ok) return mirror
   if (isTrueGitBoolean(mirror.values.at(-1))) {
@@ -160,7 +149,7 @@ async function resolveRemotePushRefspec(
       ok: false,
       message: 'OpenWaggle cannot safely run a mirror push.',
       recoverable: false,
-    }
+    } satisfies GitUpstreamReadResult
   }
   const configured = await readOptionalConfig(projectPath, `remote.${remote}.push`)
   if (!configured.ok) return configured
@@ -171,11 +160,7 @@ async function resolveRemotePushRefspec(
   return null
 }
 
-async function resolveDefaultPushRef(
-  projectPath: string,
-  branchName: string,
-  remote: string,
-): Promise<ResolvedPushRef> {
+async function resolveDefaultPushRef(projectPath: string, branchName: string, remote: string) {
   const pushDefaultResult = await readOptionalConfig(projectPath, 'push.default')
   if (!pushDefaultResult.ok) return pushDefaultResult
   const pushDefault = pushDefaultResult.values.at(-1) ?? 'simple'
@@ -184,15 +169,21 @@ async function resolveDefaultPushRef(
       ok: false,
       message: `OpenWaggle cannot safely run push.default=${pushDefault} as a single-branch action.`,
       recoverable: false,
-    }
+    } satisfies ResolvedPushRef
   }
   if (pushDefault === 'current') {
-    return { ok: true, upstream: { remote, branch: branchName } }
+    return { ok: true, upstream: { remote, branch: branchName } } satisfies ResolvedPushRef
   }
 
   const upstreamResult = await readUpstreamRef(projectPath, branchName)
   if (!upstreamResult.ok) return upstreamResult
-  return resolveTrackedPushRef(pushDefault, branchName, remote, upstreamResult.upstream)
+  const ref: ResolvedPushRef = resolveTrackedPushRef(
+    pushDefault,
+    branchName,
+    remote,
+    upstreamResult.upstream,
+  )
+  return ref
 }
 
 /**
@@ -207,32 +198,34 @@ function resolveTrackedPushRef(
   branchName: string,
   remote: string,
   upstream: GitUpstreamRef | null,
-): ResolvedPushRef {
+) {
   const ownBranch = { remote, branch: branchName }
   if (pushDefault === 'upstream' || pushDefault === 'tracking') {
-    if (!upstream) return { ok: true, upstream: ownBranch }
+    if (!upstream) return { ok: true, upstream: ownBranch } satisfies ResolvedPushRef
     if (upstream.remote !== remote) {
       return {
         ok: false,
         message: 'The configured upstream push destination does not match the push remote.',
         recoverable: false,
-      }
+      } satisfies ResolvedPushRef
     }
-    return { ok: true, upstream }
+    const ref: ResolvedPushRef = { ok: true, upstream }
+    return ref
   }
   if (pushDefault !== 'simple') {
     return {
       ok: false,
       message: `Unsupported Git push.default value: ${pushDefault}.`,
       recoverable: false,
-    }
+    } satisfies ResolvedPushRef
   }
-  return {
+  const ref: ResolvedPushRef = {
     ok: true,
     upstream: ownBranch,
     replacesUpstream:
       upstream !== null && upstream.remote === remote && upstream.branch !== branchName,
   }
+  return ref
 }
 
 async function resolvePushRemoteFromConfig(
@@ -267,9 +260,14 @@ export async function readPushRef(
   projectPath: string,
   branchName: string | null,
   fallbackRemote: string | null = null,
-): Promise<GitPushRefReadResult> {
+) {
   if (branchName === null) {
-    return { ok: true, upstream: null, usedFallbackRemote: false, replacesUpstream: false }
+    return {
+      ok: true,
+      upstream: null,
+      usedFallbackRemote: false,
+      replacesUpstream: false,
+    } satisfies GitPushRefReadResult
   }
   const remoteResult = await runGit(projectPath, [
     'for-each-ref',
@@ -283,7 +281,7 @@ export async function readPushRef(
       message: detail
         ? `Could not read the Git push destination: ${detail}`
         : 'Could not read the Git push destination.',
-    }
+    } satisfies GitPushRefReadResult
   }
   const configuredRemote = remoteResult.stdout.trim()
   if (configuredRemote === '.') {
@@ -291,7 +289,7 @@ export async function readPushRef(
       ok: false,
       message: 'OpenWaggle cannot safely run a push configured for the local repository.',
       recoverable: false,
-    }
+    } satisfies GitPushRefReadResult
   }
   const fallbackResult = configuredRemote
     ? ({ ok: true, remote: configuredRemote, usedFallbackRemote: false } as const)
@@ -299,16 +297,23 @@ export async function readPushRef(
   if (!fallbackResult.ok) return fallbackResult
   const remote = fallbackResult.remote
   if (!remote) {
-    return { ok: true, upstream: null, usedFallbackRemote: false, replacesUpstream: false }
+    return {
+      ok: true,
+      upstream: null,
+      usedFallbackRemote: false,
+      replacesUpstream: false,
+    } satisfies GitPushRefReadResult
   }
 
   const resolved = await resolvePushRefFromConfig(projectPath, branchName, remote)
-  return resolved.ok
-    ? {
-        ok: true,
-        upstream: resolved.upstream,
-        usedFallbackRemote: fallbackResult.usedFallbackRemote,
-        replacesUpstream: resolved.replacesUpstream === true,
-      }
-    : resolved
+  return (
+    resolved.ok
+      ? {
+          ok: true,
+          upstream: resolved.upstream,
+          usedFallbackRemote: fallbackResult.usedFallbackRemote,
+          replacesUpstream: resolved.replacesUpstream === true,
+        }
+      : resolved
+  ) satisfies GitPushRefReadResult
 }

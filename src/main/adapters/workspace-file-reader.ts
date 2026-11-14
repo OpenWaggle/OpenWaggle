@@ -56,10 +56,10 @@ async function textReadResult(input: {
   readonly relativePath: string
   readonly previewKind: 'text' | 'markdown' | 'html' | 'binary'
   readonly forcedEncoding?: WorkspaceTextEncoding
-}): Promise<WorkspaceFileReadResult> {
+}) {
   const decoded = supportedText(input.data, input.forcedEncoding)
   if (!decoded) {
-    return {
+    const result: WorkspaceFileReadResult = {
       ...input.base,
       previewKind: 'binary',
       reason:
@@ -67,6 +67,7 @@ async function textReadResult(input: {
           ? 'Binary files cannot be edited as text.'
           : 'This file is not valid UTF-8 or supported BOM-marked UTF-16 text.',
     }
+    return result
   }
   const lineEnding = detectWorkspaceLineEnding(decoded.content)
   const content = editorModelContent(decoded.content, lineEnding)
@@ -105,7 +106,7 @@ async function textReadResult(input: {
     version: documentVersion,
     editorConfigPolicy,
   })
-  return {
+  const result: WorkspaceFileReadResult = {
     ...input.base,
     previewKind: input.previewKind === 'binary' ? 'text' : input.previewKind,
     content,
@@ -121,6 +122,7 @@ async function textReadResult(input: {
     },
     ...(language ? { language } : {}),
   }
+  return result
 }
 
 async function oversizedReadResult(input: {
@@ -129,7 +131,7 @@ async function oversizedReadResult(input: {
   readonly projectRoot: string
   readonly realFilePath: string
   readonly relativePath: string
-}): Promise<WorkspaceFileReadResult> {
+}) {
   const handle = await fs.open(input.realFilePath, 'r')
   let sample: Buffer
   try {
@@ -148,27 +150,29 @@ async function oversizedReadResult(input: {
     sampledKind === 'pdf' ||
     (hasBinaryBytes(sample) && marker.encoding === 'utf-8')
   ) {
-    return {
+    const result: WorkspaceFileReadResult = {
       ...input.base,
       previewKind: 'binary',
       reason: 'This binary file is too large to preview safely in memory.',
     }
+    return result
   }
   const language =
     (await vscodeLanguageAssociation(input.projectRoot, input.relativePath)) ??
     LANGUAGE_BY_EXTENSION[input.extension]
-  return {
+  const result: WorkspaceFileReadResult = {
     ...input.base,
     previewKind: 'oversized',
     reason: 'This text file is larger than 1 MiB. Browse it in paged source view.',
     ...(language ? { language } : {}),
   }
+  return result
 }
 
 export async function readWorkspaceFile(
   input: { readonly projectPath: string; readonly path: string },
   forcedEncoding?: WorkspaceTextEncoding,
-): Promise<WorkspaceFileReadResult> {
+) {
   const resolved = await resolveExistingWorkspaceFile(input)
   rememberWorkspaceFile(resolved.projectRoot, resolved.relativePath)
   const extension = path.extname(resolved.relativePath).toLowerCase()
@@ -202,7 +206,12 @@ export async function readWorkspaceFile(
   }
   const kind = workspaceFilePreviewKind(extension, data)
   if (kind === 'image' || kind === 'pdf') {
-    return { ...observedBase, previewKind: kind, data: new Uint8Array(data) }
+    const result: WorkspaceFileReadResult = {
+      ...observedBase,
+      previewKind: kind,
+      data: new Uint8Array(data),
+    }
+    return result
   }
   return textReadResult({
     base: observedBase,

@@ -86,7 +86,7 @@ export function readUsageStatisticsJsonFile<T>(input: {
   readonly label: string
   readonly decode: (value: unknown) => T
   readonly fallback: T
-}): T {
+}) {
   return loadValue({ ...input, initial: input.fallback, recover: () => input.fallback }).value
 }
 
@@ -167,7 +167,7 @@ function writeDurablySync(filePath: string, temporaryPath: string, serialized: s
 }
 
 /** Removes temporary files an earlier run of `filePath`'s owner left behind. Owner only. */
-export function removeStaleUsageStatisticsTemporaryFiles(filePath: string, label: string): void {
+export function removeStaleUsageStatisticsTemporaryFiles(filePath: string, label: string) {
   removeStaleTemporaryFiles(filePath, label)
 }
 
@@ -176,7 +176,7 @@ export function removeStaleUsageStatisticsTemporaryFiles(filePath: string, label
  * writes must finish before the caller returns. Throws when it cannot be written, and removes its
  * temporary file.
  */
-export function writeUsageStatisticsJsonFileSync(filePath: string, value: unknown): void {
+export function writeUsageStatisticsJsonFileSync(filePath: string, value: unknown) {
   const temporaryPath = `${filePath}.${process.pid}.sync.tmp`
   try {
     writeDurablySync(filePath, temporaryPath, JSON.stringify(value))
@@ -200,7 +200,7 @@ export function openUsageStatisticsJsonFile<T>(input: {
   /** The value that replaces an unreadable or undecodable file; `initial` when omitted. */
   readonly recover?: () => T
   readonly writeDelayMs?: number
-}): UsageStatisticsJsonFile<T> {
+}) {
   const writeDelayMs = input.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
   removeStaleTemporaryFiles(input.filePath, input.label)
   const loaded = loadValue({ ...input, recover: input.recover ?? (() => input.initial) })
@@ -289,5 +289,5 @@ export function openUsageStatisticsJsonFile<T>(input: {
     },
     flush,
     flushSync,
-  }
+  } satisfies UsageStatisticsJsonFile<T>
 }

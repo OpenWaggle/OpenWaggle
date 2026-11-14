@@ -16,8 +16,8 @@ export const GIT_STORE_RESET_STATE = {
   isBranchActionRunning: false,
 }
 
-export function makeGitStatus(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
-  return {
+export function makeGitStatus(overrides: Partial<GitStatusSummary> = {}) {
+  const summary: GitStatusSummary = {
     branch: 'main',
     additions: 0,
     deletions: 0,
@@ -28,6 +28,7 @@ export function makeGitStatus(overrides: Partial<GitStatusSummary> = {}): GitSta
     behind: 0,
     ...overrides,
   }
+  return summary
 }
 
 export function makeBranchList(overrides = {}) {

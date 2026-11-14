@@ -15,6 +15,10 @@ import {
 import { resolveExistingWorkspaceEntry, resolveNewWorkspaceEntry } from './workspace-file-paths'
 import { withWorkspacePathLocks } from './workspace-path-locks'
 
+type ProjectWorkspaceEntryMutationResult = WorkspaceEntryMutationResult & {
+  readonly projectRoot: string
+}
+
 async function removeExistingDestination(targetPath: string, overwrite: boolean | undefined) {
   try {
     await fs.lstat(targetPath)
@@ -95,9 +99,7 @@ function validateCanonicalDirectoryDestination(input: {
   }
 }
 
-export async function createWorkspaceEntry(
-  input: WorkspaceEntryCreateInput,
-): Promise<WorkspaceEntryMutationResult & { readonly projectRoot: string }> {
+export async function createWorkspaceEntry(input: WorkspaceEntryCreateInput) {
   const target = await resolveNewWorkspaceEntry(input)
   await withWorkspacePathLocks([target.targetPath], async () => {
     if (input.kind === 'directory') {
@@ -107,12 +109,14 @@ export async function createWorkspaceEntry(
       await handle.close()
     }
   })
-  return { path: target.relativePath, projectRoot: target.projectRoot }
+  const result: ProjectWorkspaceEntryMutationResult = {
+    path: target.relativePath,
+    projectRoot: target.projectRoot,
+  }
+  return result
 }
 
-export async function moveWorkspaceEntry(
-  input: WorkspaceEntryMutationInput,
-): Promise<WorkspaceEntryMutationResult & { readonly projectRoot: string }> {
+export async function moveWorkspaceEntry(input: WorkspaceEntryMutationInput) {
   if (!input.targetPath) throw new Error('A destination path is required.')
   const [source, target] = await Promise.all([
     resolveExistingWorkspaceEntry(input),
@@ -121,55 +125,60 @@ export async function moveWorkspaceEntry(
       path: input.targetPath,
     }),
   ])
-  return withWorkspacePathLocks([source.realPath, target.targetPath], async () => {
-    validateDistinctDestination({
-      operation: 'moved',
-      sourcePath: source.relativePath,
-      targetPath: target.relativePath,
-      sourceIsDirectory: source.stats.isDirectory(),
-    })
-    validateCanonicalDirectoryDestination({
-      operation: 'moved',
-      sourcePath: source.realPath,
-      targetPath: target.targetPath,
-      sourceIsDirectory: source.stats.isDirectory(),
-    })
-    if (await destinationRefersToSource(target.targetPath, source)) {
-      if (
-        source.realPath !== target.targetPath &&
-        source.realPath.toLowerCase() === target.targetPath.toLowerCase()
-      ) {
-        await renameCaseOnly(source.realPath, target.targetPath)
-        retargetWorkspaceDocumentSessions(
-          source.projectRoot,
-          source.relativePath,
-          target.relativePath,
-        )
-        return {
-          path: target.relativePath,
-          previousPath: source.relativePath,
-          projectRoot: source.projectRoot,
+  return withWorkspacePathLocks<ProjectWorkspaceEntryMutationResult>(
+    [source.realPath, target.targetPath],
+    async () => {
+      validateDistinctDestination({
+        operation: 'moved',
+        sourcePath: source.relativePath,
+        targetPath: target.relativePath,
+        sourceIsDirectory: source.stats.isDirectory(),
+      })
+      validateCanonicalDirectoryDestination({
+        operation: 'moved',
+        sourcePath: source.realPath,
+        targetPath: target.targetPath,
+        sourceIsDirectory: source.stats.isDirectory(),
+      })
+      if (await destinationRefersToSource(target.targetPath, source)) {
+        if (
+          source.realPath !== target.targetPath &&
+          source.realPath.toLowerCase() === target.targetPath.toLowerCase()
+        ) {
+          await renameCaseOnly(source.realPath, target.targetPath)
+          retargetWorkspaceDocumentSessions(
+            source.projectRoot,
+            source.relativePath,
+            target.relativePath,
+          )
+          return {
+            path: target.relativePath,
+            previousPath: source.relativePath,
+            projectRoot: source.projectRoot,
+          }
         }
+        throw new Error('The destination refers to the source entry.')
       }
-      throw new Error('The destination refers to the source entry.')
-    }
-    if (await destinationContainsSource(target.targetPath, source.realPath)) {
-      throw new Error('The destination cannot contain the source entry.')
-    }
-    await removeExistingDestination(target.targetPath, input.overwrite)
-    await fs.rename(source.realPath, target.targetPath)
-    retargetWorkspaceDocumentSessions(source.projectRoot, source.relativePath, target.relativePath)
-    return {
-      path: target.relativePath,
-      previousPath: source.relativePath,
-      projectRoot: source.projectRoot,
-    }
-  })
+      if (await destinationContainsSource(target.targetPath, source.realPath)) {
+        throw new Error('The destination cannot contain the source entry.')
+      }
+      await removeExistingDestination(target.targetPath, input.overwrite)
+      await fs.rename(source.realPath, target.targetPath)
+      retargetWorkspaceDocumentSessions(
+        source.projectRoot,
+        source.relativePath,
+        target.relativePath,
+      )
+      return {
+        path: target.relativePath,
+        previousPath: source.relativePath,
+        projectRoot: source.projectRoot,
+      }
+    },
+  )
 }
 
-export async function duplicateWorkspaceEntry(
-  input: WorkspaceEntryMutationInput,
-): Promise<WorkspaceEntryMutationResult & { readonly projectRoot: string }> {
+export async function duplicateWorkspaceEntry(input: WorkspaceEntryMutationInput) {
   if (!input.targetPath) throw new Error('A destination path is required.')
   const [source, target] = await Promise.all([
     resolveExistingWorkspaceEntry(input),
@@ -178,46 +187,50 @@ export async function duplicateWorkspaceEntry(
       path: input.targetPath,
     }),
   ])
-  return withWorkspacePathLocks([source.realPath, target.targetPath], async () => {
-    validateDistinctDestination({
-      operation: 'duplicated',
-      sourcePath: source.relativePath,
-      targetPath: target.relativePath,
-      sourceIsDirectory: source.stats.isDirectory(),
-    })
-    validateCanonicalDirectoryDestination({
-      operation: 'duplicated',
-      sourcePath: source.realPath,
-      targetPath: target.targetPath,
-      sourceIsDirectory: source.stats.isDirectory(),
-    })
-    if (await destinationRefersToSource(target.targetPath, source)) {
-      throw new Error('A file cannot be duplicated onto itself.')
-    }
-    if (await destinationContainsSource(target.targetPath, source.realPath)) {
-      throw new Error('The destination cannot contain the source entry.')
-    }
-    await removeExistingDestination(target.targetPath, input.overwrite)
-    await fs.cp(source.realPath, target.targetPath, {
-      recursive: source.stats.isDirectory(),
-      errorOnExist: true,
-      force: false,
-    })
-    return {
-      path: target.relativePath,
-      previousPath: source.relativePath,
-      projectRoot: source.projectRoot,
-    }
-  })
+  return withWorkspacePathLocks<ProjectWorkspaceEntryMutationResult>(
+    [source.realPath, target.targetPath],
+    async () => {
+      validateDistinctDestination({
+        operation: 'duplicated',
+        sourcePath: source.relativePath,
+        targetPath: target.relativePath,
+        sourceIsDirectory: source.stats.isDirectory(),
+      })
+      validateCanonicalDirectoryDestination({
+        operation: 'duplicated',
+        sourcePath: source.realPath,
+        targetPath: target.targetPath,
+        sourceIsDirectory: source.stats.isDirectory(),
+      })
+      if (await destinationRefersToSource(target.targetPath, source)) {
+        throw new Error('A file cannot be duplicated onto itself.')
+      }
+      if (await destinationContainsSource(target.targetPath, source.realPath)) {
+        throw new Error('The destination cannot contain the source entry.')
+      }
+      await removeExistingDestination(target.targetPath, input.overwrite)
+      await fs.cp(source.realPath, target.targetPath, {
+        recursive: source.stats.isDirectory(),
+        errorOnExist: true,
+        force: false,
+      })
+      return {
+        path: target.relativePath,
+        previousPath: source.relativePath,
+        projectRoot: source.projectRoot,
+      }
+    },
+  )
 }
 
-export async function trashWorkspaceEntry(
-  input: WorkspaceEntryMutationInput,
-): Promise<WorkspaceEntryMutationResult & { readonly projectRoot: string }> {
+export async function trashWorkspaceEntry(input: WorkspaceEntryMutationInput) {
   const source = await resolveExistingWorkspaceEntry(input)
-  return withWorkspacePathLocks([source.realPath], async () => {
-    await trashItem(source.realPath)
-    removeWorkspaceDocumentSessions(source.projectRoot, source.relativePath)
-    return { path: source.relativePath, projectRoot: source.projectRoot }
-  })
+  return withWorkspacePathLocks<ProjectWorkspaceEntryMutationResult>(
+    [source.realPath],
+    async () => {
+      await trashItem(source.realPath)
+      removeWorkspaceDocumentSessions(source.projectRoot, source.relativePath)
+      return { path: source.relativePath, projectRoot: source.projectRoot }
+    },
+  )
 }

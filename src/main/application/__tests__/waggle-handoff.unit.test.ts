@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { toJsonValue } from '../../adapters/pi/pi-message-mapper'
 import { findWaggleHandoffRequest } from '../waggle-handoff'
 
-function toolResultMessage(details: unknown, isError = false): Message {
+function toolResultMessage(details: unknown, isError = false) {
   return {
     id: MessageId('tool-result-message'),
     role: 'assistant',
@@ -24,7 +24,7 @@ function toolResultMessage(details: unknown, isError = false): Message {
       },
     ],
     createdAt: 1,
-  }
+  } satisfies Message
 }
 
 describe('findWaggleHandoffRequest', () => {

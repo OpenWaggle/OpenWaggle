@@ -32,9 +32,9 @@ export function sha256(content: string) {
 
 export function firstPartyTopic(
   overrides: Partial<FirstPartyDocsTopicSummary> & Pick<FirstPartyDocsTopicSummary, 'topic'>,
-): FirstPartyDocsTopicSummary {
+) {
   const relative = `topics/${overrides.topic.replace(':', '/')}.md`
-  return {
+  const summary: FirstPartyDocsTopicSummary = {
     source: 'openwaggle',
     group: 'OpenWaggle Docs',
     title: overrides.topic,
@@ -47,15 +47,16 @@ export function firstPartyTopic(
     contentHash: 'hash',
     ...overrides,
   }
+  return summary
 }
 
 export function extensionTopic(
   overrides: Partial<ExtensionDocsTopicSummary> = {},
   provenance: Partial<ExtensionDocsTopicSummary['provenance']> = {},
-): ExtensionDocsTopicSummary {
+) {
   const packagePath = path.join(root, 'acme-deploy')
   const docPath = path.join(packagePath, 'usage.md')
-  return {
+  const summary: ExtensionDocsTopicSummary = {
     topic: 'extension:acme.deploy/usage',
     localTopic: 'usage',
     title: 'Deploy usage',
@@ -79,10 +80,11 @@ export function extensionTopic(
       ...provenance,
     },
   }
+  return summary
 }
 
-export function discoveryView(extensionTopics = [extensionTopic()]): DocsDiscoveryView {
-  return {
+export function discoveryView(extensionTopics = [extensionTopic()]) {
+  const view: DocsDiscoveryView = {
     generatedAt: '2026-06-05T00:00:00.000Z',
     bundlePath: root,
     firstPartyTopics: [
@@ -134,10 +136,11 @@ export function discoveryView(extensionTopics = [extensionTopic()]): DocsDiscove
     extensionTopics,
     diagnostics: [],
   }
+  return view
 }
 
 /** Docs services for Runs that never look a topic up. */
-export function stubDocsToolServices(bundlePath: string): OpenWaggleDocsToolServices {
+export function stubDocsToolServices(bundlePath: string) {
   return {
     bundlePath: () => Effect.succeed(bundlePath),
     availableBundlePath: () => Effect.succeed(bundlePath),
@@ -148,7 +151,7 @@ export function stubDocsToolServices(bundlePath: string): OpenWaggleDocsToolServ
 export function registerTool(
   discover: OpenWaggleDocsToolServices['discover'] = () => Effect.succeed(discoveryView()),
   bundlePath: string | null = root,
-): ToolDefinition {
+) {
   let tool: ToolDefinition | undefined
   createOpenWaggleDocsToolExtension({
     services: {
@@ -175,7 +178,7 @@ export async function call(tool: ToolDefinition, params: unknown) {
   const [first] = result.content
   if (first?.type !== 'text') throw new Error('Expected a text result')
   return {
-    isError: 'isError' in result && result.isError === true,
+    isError: 'isError' in result && result.isError,
     text: first.text,
     details: result.details,
   }

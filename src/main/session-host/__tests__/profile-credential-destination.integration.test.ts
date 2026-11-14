@@ -164,8 +164,9 @@ describe('profile credential destination', () => {
 
     const failure = await staged.discard().catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(ProfileCredentialCleanupError)
-    if (!(failure instanceof ProfileCredentialCleanupError))
+    if (!(failure instanceof ProfileCredentialCleanupError)) {
       throw new Error('Expected cleanup failure.')
+    }
     expect(failure.recoveryLocation).toBe(pendingPath)
     expect(failure.message).toContain(pendingPath)
     expect(failure.message).not.toContain(credential)

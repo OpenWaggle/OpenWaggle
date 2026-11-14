@@ -1,9 +1,10 @@
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import type {
   ChangeRequestCheckoutResult,
   ChangeRequestPreflightPayload,
   ChangeRequestPreflightResult,
 } from '@shared/types/git'
+import { changeRequestPreflightPayloadSchema } from '@shared/schemas/git-requests'
 import { resolveAutoFeatureBranchName } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
 import { networkGitOptions } from '../../adapters/git/run-git'
@@ -27,15 +28,6 @@ const NO_PROVIDER = {
 
 /** Longer than a ref advertisement, because this transfers objects. */
 const CHANGE_REQUEST_FETCH_TIMEOUT_MS = 30_000
-
-const openChangeRequestPayloadSchema = Schema.Struct({
-  headRef: Schema.String,
-  baseRef: Schema.optional(Schema.String),
-  title: Schema.String,
-  body: Schema.optional(Schema.String),
-  draft: Schema.optional(Schema.Boolean),
-  createFeatureBranch: Schema.optional(Schema.Boolean),
-})
 
 async function planChangeRequestHead(projectPath: string, payload: ChangeRequestPreflightPayload) {
   if (!payload.createFeatureBranch) return payload.headRef
@@ -66,14 +58,14 @@ async function fetchChangeRequestRef(
   repositoryPath: string,
   remoteName: string,
   changeRequestUrl: string,
-): Promise<ChangeRequestCheckoutResult> {
+) {
   const plan = planChangeRequestFetch(changeRequestUrl)
   if (plan === null) {
     return {
       ok: false,
       code: 'unknown',
       message: `Could not tell which change request "${changeRequestUrl}" refers to.`,
-    }
+    } satisfies ChangeRequestCheckoutResult
   }
 
   const refspec = `+${plan.remoteRef}:${plan.localRef}`
@@ -88,20 +80,17 @@ async function fetchChangeRequestRef(
       ok: false,
       code: 'unknown',
       message: result.stderr.trim() || `Could not fetch ${plan.remoteRef}.`,
-    }
+    } satisfies ChangeRequestCheckoutResult
   }
   // The base ref the session should use: a local ref that exists regardless of forks.
-  return { ok: true, reference: plan.localRef }
+  return { ok: true, reference: plan.localRef } satisfies ChangeRequestCheckoutResult
 }
 
-export function registerGitChangeRequestHandlers(): void {
+export function registerGitChangeRequestHandlers() {
   typedHandle('git:change-request:preflight', (_event, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const payload = decodeUnknownOrThrow(
-        openChangeRequestPayloadSchema,
-        rawPayload,
-      ) satisfies ChangeRequestPreflightPayload
+      const payload = decodeUnknownOrThrow(changeRequestPreflightPayloadSchema, rawPayload)
       const plannedHeadRef = yield* Effect.promise(() =>
         planChangeRequestHead(projectPath, payload),
       )

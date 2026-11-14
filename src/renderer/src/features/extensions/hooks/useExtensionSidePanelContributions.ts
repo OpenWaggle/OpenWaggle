@@ -13,7 +13,7 @@ interface ExtensionSidePanelContributionsResult {
   readonly error: Error | null
   readonly loading: boolean
   readonly projectPaths: readonly string[]
-  readonly refetch: UseQueryResult<ExtensionContributionRegistryView, Error>['refetch']
+  readonly refetch: UseQueryResult<ExtensionContributionRegistryView>['refetch']
   readonly registry: ExtensionContributionRegistryView | null
 }
 
@@ -25,19 +25,22 @@ export function useExtensionSidePanelContributions({
   enabled,
   projectPath,
   sessionId,
-}: UseExtensionSidePanelContributionsInput): ExtensionSidePanelContributionsResult {
+}: UseExtensionSidePanelContributionsInput) {
   const projectPaths = activeProjectPaths(projectPath)
-  const queryOptions = extensionContributionsQueryOptions(projectPaths, { sessionId })
+  const queryOptions = extensionContributionsQueryOptions(projectPaths, {
+    ...(sessionId === undefined ? {} : { sessionId }),
+  })
   const query = useQuery({
     ...queryOptions,
     enabled,
   })
 
-  return {
+  const result: ExtensionSidePanelContributionsResult = {
     error: query.error,
     loading: query.isPending,
     projectPaths,
     refetch: query.refetch,
     registry: query.data ?? null,
   }
+  return result
 }

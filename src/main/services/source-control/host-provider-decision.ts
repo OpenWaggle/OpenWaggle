@@ -27,8 +27,9 @@ export interface SourceControlHostProviderDecision {
 function decided(
   provider: SourceControlProviderId | undefined,
   source: SourceControlProviderSource,
-): SourceControlHostProviderDecision | null {
-  return provider ? { provider, source } : null
+) {
+  const decision: SourceControlHostProviderDecision | null = provider ? { provider, source } : null
+  return decision
 }
 
 function cliSignInProvider(host: string, cliHosts: SourceControlCliHosts) {
@@ -38,9 +39,9 @@ function cliSignInProvider(host: string, cliHosts: SourceControlCliHosts) {
   return github ? 'github' : 'gitlab'
 }
 
-function hostNameProvider(host: string): SourceControlProviderId | undefined {
-  if (host.includes('github')) return 'github'
-  if (host.includes('gitlab')) return 'gitlab'
+function hostNameProvider(host: string) {
+  if (host.includes('github')) return 'github' as const
+  if (host.includes('gitlab')) return 'gitlab' as const
   return undefined
 }
 
@@ -53,8 +54,8 @@ export function decideSourceControlHostProvider(
   host: string,
   owner: string,
   signals: SourceControlHostSignals,
-): SourceControlHostProviderDecision | null {
-  return (
+) {
+  const decision: SourceControlHostProviderDecision | null =
     decided(signals.userChoices[host], 'user-choice') ??
     decided(signals.approvedDeclarations[host], 'project-declaration') ??
     decided(publicSourceControlProvider(host), 'public-host') ??
@@ -63,5 +64,5 @@ export function decideSourceControlHostProvider(
     decided(owner.includes('/') ? 'gitlab' : undefined, 'repository-path') ??
     decided(hostNameProvider(host), 'host-name') ??
     decided(signals.detectedHosts[host], 'remote-refs')
-  )
+  return decision
 }

@@ -29,7 +29,7 @@ import {
 } from './host-ui-session-lifecycle-operations'
 import { invalid, requireArgCount } from './host-ui-session-operation-validation'
 
-function decodeArgument<A, I>(schema: Schema.Schema<A, I, never>, value: unknown, label: string) {
+function decodeArgument<A, I>(schema: Schema.Schema<A, I>, value: unknown, label: string) {
   const decoded = safeDecodeUnknown(schema, value)
   return decoded.success
     ? Effect.succeed(decoded.data)

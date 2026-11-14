@@ -39,6 +39,7 @@ import {
 } from './transcript-order.replays'
 import { assertTranscriptOrder, createScenarioHarness } from './transcript-order.scenario'
 import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-order.test-harness'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 
 /*
  * Model-based exploration of the transcript-order invariant (`transcript-order.scenario.ts`):
@@ -49,9 +50,18 @@ import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-
  * its trace.
  */
 
-const SEEDS = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_SEEDS ?? 40)
-const FIRST_SEED = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_FIRST_SEED ?? 1)
-const STEPS = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_STEPS ?? 26)
+/** Optional overrides for a longer local run of the model. */
+const transcriptOrderEnv = decodeUnknownOrThrow(
+  Schema.Struct({
+    VITE_TRANSCRIPT_ORDER_SEEDS: Schema.optionalWith(Schema.NumberFromString, { exact: true }),
+    VITE_TRANSCRIPT_ORDER_FIRST_SEED: Schema.optionalWith(Schema.NumberFromString, { exact: true }),
+    VITE_TRANSCRIPT_ORDER_STEPS: Schema.optionalWith(Schema.NumberFromString, { exact: true }),
+  }),
+  import.meta.env,
+)
+const SEEDS = transcriptOrderEnv.VITE_TRANSCRIPT_ORDER_SEEDS ?? 40
+const FIRST_SEED = transcriptOrderEnv.VITE_TRANSCRIPT_ORDER_FIRST_SEED ?? 1
+const STEPS = transcriptOrderEnv.VITE_TRANSCRIPT_ORDER_STEPS ?? 26
 
 type ModelAction = (typeof MODEL_ACTIONS)[number]
 
@@ -97,8 +107,9 @@ async function exploreSeed(seed: number) {
 async function replayRun(name: string, viewing: 'session' | 'other', names: readonly string[]) {
   await exploreRun(name, viewing, names.length, (enabled, step) => {
     const action = enabled.find((candidate) => candidate.name === names[step])
-    if (!action)
+    if (!action) {
       throw new Error(`${name}: ${String(names[step])} is not enabled at ${String(step)}`)
+    }
     return action
   })
 }

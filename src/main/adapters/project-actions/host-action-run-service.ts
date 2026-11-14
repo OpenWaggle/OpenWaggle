@@ -2,7 +2,8 @@ import { join } from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appLifecycle } from '../../desktop-shell/app-lifecycle'
+import { appPaths } from '../../desktop-shell/app-paths'
 import { createLogger } from '../../logger'
 import { ActionCatalogService } from '../../ports/action-catalog-service'
 import { ActionRunService } from '../../ports/action-run-service'
@@ -31,7 +32,7 @@ export const HostActionRunServiceLive = Layer.scoped(
     const preparation = yield* WorkspacePreparationService
     const persistence = createSqliteActionRunPersistence(sql)
     const admission = yield* WorkspaceExecutionAdmission
-    const history = makeTerminalHistoryStore(join(app.getPath('userData'), 'action-logs'))
+    const history = makeTerminalHistoryStore(join(appPaths.userData(), 'action-logs'))
     const cleanupHistory = cleanupDeletedActionHistory(sql, history, (workspaceId, cause) =>
       logger.warn('Deleted workspace action history cleanup will be retried', {
         workspaceId,
@@ -40,7 +41,7 @@ export const HostActionRunServiceLive = Layer.scoped(
     )
     let processRunner: ActionProcessRunner | null = null
     const runner = () => {
-      processRunner ??= createActionProcessRunner(app.getVersion())
+      processRunner ??= createActionProcessRunner(appLifecycle.version())
       return processRunner
     }
     const runs = createManagedActionRuns({

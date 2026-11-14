@@ -9,22 +9,23 @@ function invocationProjectPath(input: ExtensionInvokeInput) {
   return input.scope.kind === 'app' ? null : input.scope.projectPath
 }
 
-function outOfScopeInvokeFailure(projectPath: string): ExtensionInvokeResult {
-  return {
+function outOfScopeInvokeFailure(projectPath: string) {
+  const result: ExtensionInvokeResult = {
     ok: false,
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
       message: `Project "${projectName(projectPath)}" is outside this extension contribution scope.`,
     },
   }
+  return result
 }
 
 function describeInvokeError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function transportInvokeFailure(error: unknown): ExtensionInvokeResult {
-  return {
+export function transportInvokeFailure(error: unknown) {
+  const result: ExtensionInvokeResult = {
     ok: false,
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
@@ -32,6 +33,7 @@ export function transportInvokeFailure(error: unknown): ExtensionInvokeResult {
       issues: [describeInvokeError(error)],
     },
   }
+  return result
 }
 
 export function invokeBoundExtension(

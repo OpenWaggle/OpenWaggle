@@ -27,7 +27,7 @@ export function admittedMutationDecision(
     readonly nextRunId: Parameters<typeof deliverAfterQueueDecision>[1]['nextRunId']
     readonly hostRunCeiling: number
   },
-): Effect.Effect<SessionControlMutationDecision, unknown> {
+) {
   return Effect.gen(function* () {
     const { decision, operation, hostRunCeiling } = input
     if (input.startsNewRun && decision.accepted) {

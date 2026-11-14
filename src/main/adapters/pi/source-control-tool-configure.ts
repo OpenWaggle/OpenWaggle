@@ -22,8 +22,8 @@ const SCOPE_NAMES = {
   'project-shared': "for everyone on this project (the project's shared settings file)",
 }
 
-function failure(message: string): SourceControlConfigureResult {
-  return { ok: false, message }
+function failure(message: string) {
+  return { ok: false, message } satisfies SourceControlConfigureResult
 }
 
 /** The Session's resolved repository key, which per-repository settings are stored under. */
@@ -43,7 +43,7 @@ async function sessionRequest(
   params: SourceControlChangeParameters,
   scope: SourceControlToolScope,
   backend: SourceControlToolBackend,
-): Promise<SourceControlConfigureRequest | string> {
+) {
   return match(params)
     .with({ change: 'set-host-provider' }, ({ host, provider }) => ({
       kind: 'set-host-provider' as const,
@@ -132,7 +132,7 @@ async function authorize(
         },
         ...(signal ? { signal } : {}),
       })
-    : await ctx.ui.confirm(title, message, { signal })
+    : await ctx.ui.confirm(title, message, signal ? { signal } : {})
   if (!approved) throw new Error('The source control change was not authorized.')
 }
 
@@ -143,14 +143,17 @@ export async function configureSessionSourceControl(
   backend: SourceControlToolBackend,
   ctx: ExtensionContext,
   signal?: AbortSignal,
-): Promise<SourceControlConfigureResult> {
+) {
   const filled = await sessionRequest(params, scope, backend)
   if (typeof filled === 'string') return failure(filled)
   const decoded = safeDecodeUnknown(sourceControlConfigureRequestSchema, filled)
-  if (!decoded.success)
+  if (!decoded.success) {
     return failure(`Invalid source control change: ${decoded.issues.join('; ')}`)
-  await authorize(ctx, decoded.data, signal)
+  }
+  // The schema only checks the filled change's bounds: `filled` is the typed change, while the
+  // decoded copy types its absent optional fields as `undefined`.
+  await authorize(ctx, filled, signal)
   signal?.throwIfAborted()
-  const result = await backend.configure(decoded.data, backend.access())
+  const result = await backend.configure(filled, backend.access())
   return result.ok ? result : failure(redactSourceControlText(result.message))
 }

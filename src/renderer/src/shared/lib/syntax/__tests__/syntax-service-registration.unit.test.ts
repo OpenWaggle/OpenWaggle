@@ -12,12 +12,7 @@ const TEST_THEME = {
   settings: [],
 } satisfies SyntaxThemeRegistration
 
-function highlightedTokens(
-  requestId: number,
-  content: string,
-  language: string,
-  theme: string,
-): SyntaxWorkerSuccessMessage {
+function highlightedTokens(requestId: number, content: string, language: string, theme: string) {
   return {
     type: 'highlighted',
     requestId,
@@ -28,7 +23,7 @@ function highlightedTokens(
       lines: [[{ content, color: 'var(--color-text-primary)' }]],
       elapsedMs: 1,
     },
-  }
+  } satisfies SyntaxWorkerSuccessMessage
 }
 
 describe('SyntaxService registration invalidation', () => {

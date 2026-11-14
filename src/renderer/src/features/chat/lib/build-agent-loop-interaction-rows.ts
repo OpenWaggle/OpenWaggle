@@ -22,7 +22,7 @@ function shouldSkipResolution(
 /** One transcript item per durable interaction, its resolution joined to its request, in order. */
 export function buildInteractionTranscriptItems(
   interactionEvents: readonly AgentInteractionEvent[],
-): AgentInteractionTranscriptItem[] {
+) {
   const itemsByInteractionId = new Map<string, AgentInteractionTranscriptItem>()
   const orderedInteractionIds: string[] = []
 
@@ -36,9 +36,10 @@ export function buildInteractionTranscriptItems(
       if (!itemsByInteractionId.has(interactionId)) {
         orderedInteractionIds.push(interactionId)
       }
+      const resolution = itemsByInteractionId.get(interactionId)?.resolution
       itemsByInteractionId.set(interactionId, {
         request: event,
-        resolution: itemsByInteractionId.get(interactionId)?.resolution,
+        ...(resolution === undefined ? {} : { resolution }),
       })
       continue
     }

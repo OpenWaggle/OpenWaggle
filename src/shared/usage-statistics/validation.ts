@@ -68,7 +68,7 @@ function includes<const T extends string>(values: readonly T[], value: unknown):
 
 type FieldCheck = (spec: UsageStatisticsFieldSpec, value: unknown) => string | undefined
 
-function allowedValues(spec: UsageStatisticsFieldSpec): readonly string[] {
+function allowedValues(spec: UsageStatisticsFieldSpec) {
   return 'values' in spec ? spec.values : []
 }
 
@@ -111,10 +111,10 @@ function isEventName(value: unknown): value is UsageStatisticsEventName {
   return typeof value === 'string' && Object.hasOwn(USAGE_STATISTICS_EVENT_FIELDS, value)
 }
 
-function fieldsOf(
-  name: UsageStatisticsEventName,
-): Readonly<Record<string, UsageStatisticsFieldSpec>> {
-  return USAGE_STATISTICS_EVENT_FIELDS[name]
+function fieldsOf(name: UsageStatisticsEventName) {
+  const readonly: Readonly<Record<string, UsageStatisticsFieldSpec>> =
+    USAGE_STATISTICS_EVENT_FIELDS[name]
+  return readonly
 }
 
 function isFieldOptional(name: UsageStatisticsEventName, field: string) {
@@ -133,33 +133,60 @@ function firstUnknownKey(
 }
 
 /** Validates request context. Unknown and missing fields are both rejected. */
-export function validateUsageStatisticsContext(
-  value: unknown,
-): UsageStatisticsValidation<UsageStatisticsContext> {
-  if (!isPlainObject(value)) return failure('context', 'expected an object')
+export function validateUsageStatisticsContext(value: unknown) {
+  if (!isPlainObject(value)) {
+    return failure(
+      'context',
+      'expected an object',
+    ) satisfies UsageStatisticsValidation<UsageStatisticsContext>
+  }
   const specs: Readonly<Record<string, UsageStatisticsFieldSpec>> = USAGE_STATISTICS_CONTEXT_FIELDS
   const unknownKey = firstUnknownKey(value, (key) => Object.hasOwn(specs, key))
-  if (unknownKey !== undefined) return failure(unknownKey, 'unknown field')
+  if (unknownKey !== undefined) {
+    return failure(
+      unknownKey,
+      'unknown field',
+    ) satisfies UsageStatisticsValidation<UsageStatisticsContext>
+  }
   const { version, build_channel, update_channel, os, arch } = value
-  if (!isVersion(version) || typeof version !== 'string')
-    return failure('version', 'expected a version')
+  if (!isVersion(version) || typeof version !== 'string') {
+    return failure(
+      'version',
+      'expected a version',
+    ) satisfies UsageStatisticsValidation<UsageStatisticsContext>
+  }
   if (!includes(USAGE_STATISTICS_BUILD_CHANNELS, build_channel)) {
-    return failure('build_channel', 'value is not in the published list')
+    return failure(
+      'build_channel',
+      'value is not in the published list',
+    ) satisfies UsageStatisticsValidation<UsageStatisticsContext>
   }
   if (!includes(USAGE_STATISTICS_UPDATE_CHANNELS, update_channel)) {
-    return failure('update_channel', 'value is not in the published list')
+    return failure(
+      'update_channel',
+      'value is not in the published list',
+    ) satisfies UsageStatisticsValidation<UsageStatisticsContext>
   }
   if (!includes(USAGE_STATISTICS_OPERATING_SYSTEMS, os)) {
-    return failure('os', 'value is not in the published list')
+    return failure(
+      'os',
+      'value is not in the published list',
+    ) satisfies UsageStatisticsValidation<UsageStatisticsContext>
   }
   if (!includes(USAGE_STATISTICS_ARCHITECTURES, arch)) {
-    return failure('arch', 'value is not in the published list')
+    return failure(
+      'arch',
+      'value is not in the published list',
+    ) satisfies UsageStatisticsValidation<UsageStatisticsContext>
   }
-  return { ok: true, value: { version, build_channel, update_channel, os, arch } }
+  return {
+    ok: true,
+    value: { version, build_channel, update_channel, os, arch },
+  } satisfies UsageStatisticsValidation<UsageStatisticsContext>
 }
 
 /** Converts a `YYYY-MM-DD` UTC day to its epoch day number, or `undefined` when invalid. */
-export function usageStatisticsEpochDay(day: string): number | undefined {
+export function usageStatisticsEpochDay(day: string) {
   if (!DAY_PATTERN.test(day)) return undefined
   const time = Date.parse(`${day}T00:00:00.000Z`)
   if (Number.isNaN(time)) return undefined
@@ -168,7 +195,7 @@ export function usageStatisticsEpochDay(day: string): number | undefined {
 }
 
 /** Formats a time as its UTC `YYYY-MM-DD` day. */
-export function usageStatisticsDay(time: number | Date): string {
+export function usageStatisticsDay(time: number | Date) {
   return new Date(time).toISOString().slice(0, ISO_DAY_LENGTH)
 }
 
@@ -180,49 +207,99 @@ function dayError(day: unknown, todayEpochDay: number) {
   return tooNew || tooOld ? 'day is outside the accepted window' : undefined
 }
 
-function acceptedValue(raw: unknown): UsageStatisticsValue | undefined {
+function acceptedValue(raw: unknown) {
   if (typeof raw === 'boolean' || typeof raw === 'number' || typeof raw === 'string') return raw
-  return isStringList(raw) ? [...raw] : undefined
+  return (isStringList(raw) ? [...raw] : undefined) satisfies UsageStatisticsValue | undefined
 }
 
 function validateProperties(
   name: UsageStatisticsEventName,
   properties: Readonly<Record<string, unknown>>,
-): UsageStatisticsValidation<Readonly<Record<string, UsageStatisticsValue>>> {
+) {
   const specs = fieldsOf(name)
   const accepted: Record<string, UsageStatisticsValue> = {}
   for (const [key, raw] of Object.entries(properties)) {
     const spec = Object.hasOwn(specs, key) ? specs[key] : undefined
-    if (!spec) return failure(key, 'unknown field')
+    if (!spec) {
+      const validation: UsageStatisticsValidation<Readonly<Record<string, UsageStatisticsValue>>> =
+        failure(key, 'unknown field')
+      return validation
+    }
     const error = usageStatisticsFieldError(spec, raw)
     const value = acceptedValue(raw)
-    if (error || value === undefined) return failure(key, error ?? 'unsupported value')
+    if (error || value === undefined) {
+      const validation: UsageStatisticsValidation<Readonly<Record<string, UsageStatisticsValue>>> =
+        failure(key, error ?? 'unsupported value')
+      return validation
+    }
     accepted[key] = value
   }
   const missing = Object.keys(specs).find(
     (key) => !Object.hasOwn(accepted, key) && !isFieldOptional(name, key),
   )
-  if (missing !== undefined) return failure(missing, 'missing field')
-  return { ok: true, value: accepted }
+  if (missing !== undefined) {
+    const validation: UsageStatisticsValidation<Readonly<Record<string, UsageStatisticsValue>>> =
+      failure(missing, 'missing field')
+    return validation
+  }
+  const validation: UsageStatisticsValidation<Readonly<Record<string, UsageStatisticsValue>>> = {
+    ok: true,
+    value: accepted,
+  }
+  return validation
 }
 
 /**
  * Validates one event. `todayEpochDay` bounds the accepted day to the last
  * {@link USAGE_STATISTICS_MAX_EVENT_AGE_DAYS} days and allows one day ahead for clock skew.
  */
-export function validateUsageStatisticsEvent(
-  value: unknown,
-  todayEpochDay: number,
-): UsageStatisticsValidation<UsageStatisticsEvent> {
-  if (!isPlainObject(value)) return failure('event', 'expected an object')
+export function validateUsageStatisticsEvent(value: unknown, todayEpochDay: number) {
+  if (!isPlainObject(value)) {
+    const validation: UsageStatisticsValidation<UsageStatisticsEvent> = failure(
+      'event',
+      'expected an object',
+    )
+    return validation
+  }
   const unknownKey = firstUnknownKey(value, (key) => EVENT_KEYS.has(key))
-  if (unknownKey !== undefined) return failure(unknownKey, 'unknown field')
+  if (unknownKey !== undefined) {
+    const validation: UsageStatisticsValidation<UsageStatisticsEvent> = failure(
+      unknownKey,
+      'unknown field',
+    )
+    return validation
+  }
   const { name, day, properties } = value
-  if (!isEventName(name)) return failure('name', 'unknown event')
+  if (!isEventName(name)) {
+    const validation: UsageStatisticsValidation<UsageStatisticsEvent> = failure(
+      'name',
+      'unknown event',
+    )
+    return validation
+  }
   const invalidDay = dayError(day, todayEpochDay)
-  if (invalidDay || typeof day !== 'string') return failure('day', invalidDay ?? 'expected a day')
-  if (!isPlainObject(properties)) return failure('properties', 'expected an object')
+  if (invalidDay || typeof day !== 'string') {
+    const validation: UsageStatisticsValidation<UsageStatisticsEvent> = failure(
+      'day',
+      invalidDay ?? 'expected a day',
+    )
+    return validation
+  }
+  if (!isPlainObject(properties)) {
+    const validation: UsageStatisticsValidation<UsageStatisticsEvent> = failure(
+      'properties',
+      'expected an object',
+    )
+    return validation
+  }
   const accepted = validateProperties(name, properties)
-  if (!accepted.ok) return accepted
-  return { ok: true, value: { name, day, properties: accepted.value } }
+  if (!accepted.ok) {
+    const validation: UsageStatisticsValidation<UsageStatisticsEvent> = accepted
+    return validation
+  }
+  const validation: UsageStatisticsValidation<UsageStatisticsEvent> = {
+    ok: true,
+    value: { name, day, properties: accepted.value },
+  }
+  return validation
 }

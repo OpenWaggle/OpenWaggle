@@ -1,4 +1,4 @@
-import { useChat } from '@/features/chat/hooks'
+import { useChatStore } from '@/features/chat/state'
 import { useProject } from '@/features/sessions/hooks'
 import { useUIStore } from '@/shell/ui-store'
 import {
@@ -44,18 +44,8 @@ export function createSidePanelTerminal(runtimeOwnerKey: string, cwd: string | n
  * palette. Each action opens the terminal panel if needed and then creates or
  * splits a terminal bound to the active session's Working path (ADR 0030).
  */
-export function useTerminalCommands(): {
-  readonly panelOpen: boolean
-  readonly toggleTerminal: () => void
-  readonly closeTerminal: () => void
-  readonly newTerminal: () => void
-  readonly newSideTerminal: () => void
-  readonly splitTerminal: () => void
-  readonly splitTerminalVertical: () => void
-  readonly toggleSidePanelMaximized: () => void
-  readonly closeActiveTerminal: () => Promise<void>
-} {
-  const { activeSession } = useChat()
+export function useTerminalCommands() {
+  const activeSession = useChatStore((state) => state.activeSession)
   const { projectPath } = useProject()
   const owner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
   const drawerOpen = useTerminalStore((state) => state.groups[owner.ownerKey]?.panelOpen ?? false)

@@ -14,7 +14,8 @@ export function nextEnabledCommandIndex(
   delta: 1 | -1,
 ) {
   let candidate = currentIndex
-  for (let attempts = 0; attempts < items.length; attempts += 1) {
+  // One attempt per item: a full wrap visits every other item once.
+  for (const _attempt of items) {
     candidate = wrappedIndex(candidate, delta, items.length)
     if (!items[candidate]?.disabled) return candidate
   }

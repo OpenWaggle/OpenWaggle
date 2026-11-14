@@ -102,7 +102,7 @@ function projectActionsStopTool(stoppedRunIds: string[]) {
 }
 
 /** Records every `tool_call` hook Pi runs, as an extension would see them. */
-function toolCallHookRecorder(calls: Array<{ toolName: string; parentToolCallId?: string }>) {
+function toolCallHookRecorder(calls: { toolName: string; parentToolCallId?: string }[]) {
   return (pi: ExtensionAPI) => {
     pi.on('tool_call', (event) => {
       calls.push({
@@ -160,7 +160,7 @@ describe('approval of codemode child calls', () => {
 
   it('asks for approval once per child call in Ask for Approval mode', async () => {
     const stopped: string[] = []
-    const hookCalls: Array<{ toolName: string; parentToolCallId?: string }> = []
+    const hookCalls: { toolName: string; parentToolCallId?: string }[] = []
     const { session, faux, events } = await createOpenWagglePiSession({
       authorizationMode: 'ask-for-approval',
       extensionFactories: [projectActionsStopTool(stopped), toolCallHookRecorder(hookCalls)],

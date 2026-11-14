@@ -50,8 +50,8 @@ const CONCURRENT_SESSION_WRITER = `
   parentPort.postMessage({ kind: 'done', inserted })
 `
 
-function waitForWorkerMessage<T>(worker: Worker, kind: string): Promise<T> {
-  return new Promise((resolve, reject) => {
+function waitForWorkerMessage<T>(worker: Worker, kind: string) {
+  return new Promise<T>((resolve, reject) => {
     const onMessage = (message: T & { readonly kind?: string }) => {
       if (message.kind !== kind) return
       cleanup()

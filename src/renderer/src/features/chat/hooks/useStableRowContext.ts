@@ -45,7 +45,7 @@ function useContentStable<T>(next: T, same: (left: T, right: T) => boolean) {
  * 1,100 re-rendered components per commit with 40 rows). Callbacks now go through the latest
  * section, and data is replaced only when its contents change.
  */
-export function useStableRowContext(section: Section): ChatRowRenderContext {
+export function useStableRowContext(section: Section) {
   const latest = useRef(section)
   useLayoutEffect(() => {
     latest.current = section
@@ -74,8 +74,7 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
 
   const [context, setContext] = useState<ChatRowRenderContext | null>(null)
   const current =
-    context &&
-    context.runtime.sessionId === sessionId &&
+    context?.runtime.sessionId === sessionId &&
     context.extensions.registry === registry &&
     context.extensions.projectPaths === projectPaths &&
     context.turnsByAnchorNodeId === turnsByAnchorNodeId &&

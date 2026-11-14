@@ -45,7 +45,7 @@ function describeSkillsError(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback
 }
 
-export function useSkills(projectPath: string | null): UseSkillsResult {
+export function useSkills(projectPath: string | null) {
   const queryClient = useQueryClient()
   const [explicitSkillId, setExplicitSkillId] = useState<string | null>(null)
   const skillResourcesQuery = useQuery(skillResourcesQueryOptions(projectPath))
@@ -154,5 +154,5 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
     refresh,
     selectSkill: setExplicitSkillId,
     toggleSkill,
-  }
+  } satisfies UseSkillsResult
 }

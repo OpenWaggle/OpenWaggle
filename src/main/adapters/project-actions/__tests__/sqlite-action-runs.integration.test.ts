@@ -26,7 +26,7 @@ it('polls all active runs and only the newest 50 terminal runs, retaining older 
       for (const statement of PROJECT_ACTION_MIGRATION.statements) yield* sql.unsafe(statement)
       const persistence = createSqliteActionRunPersistence(sql)
       yield* Effect.promise(async () => {
-        for (let index = 0; index < 200; index += 1)
+        for (let index = 0; index < 200; index += 1) {
           await persistence.save({
             ...run(`terminal-${index}`),
             status: 'completed',
@@ -34,14 +34,17 @@ it('polls all active runs and only the newest 50 terminal runs, retaining older 
             finishedAt: index + 11,
             exitCode: 0,
           })
-        for (const status of ['starting', 'running', 'stopping'] as const)
+        }
+        for (const status of ['starting', 'running', 'stopping'] as const) {
           await persistence.save({ ...run(status), status })
+        }
         await persistence.save({ ...run('other'), workspaceId: 'other', startedAt: 1_000 })
         await persistence.recordRequest('workspace', 'test', 'old-request', 'terminal-0')
       })
       // Apply the additive indexes to an already-populated native-actions database.
-      for (const statement of PROJECT_ACTION_RUN_POLLING_MIGRATION.statements)
+      for (const statement of PROJECT_ACTION_RUN_POLLING_MIGRATION.statements) {
         yield* sql.unsafe(statement)
+      }
       yield* Effect.promise(async () => {
         const recent = await persistence.list('workspace')
         expect(recent).toHaveLength(53)
@@ -63,7 +66,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-function run(id: string): ActionRun {
+function run(id: string) {
   return {
     id,
     requestId: `request-${id}`,
@@ -88,7 +91,7 @@ function run(id: string): ActionRun {
     previewUrl: null,
     ready: false,
     outputBytes: 8,
-  }
+  } satisfies ActionRun
 }
 
 it('retains request identities and history metadata after Host loss without replaying commands', async () => {

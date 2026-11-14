@@ -120,7 +120,7 @@ export function useComposerSubmission({
   onEnqueue,
   onSendFailure,
   isLoading,
-  disabled,
+  disabled = false,
   requiresText,
   clearOnSubmit,
   recordHistory,
@@ -225,7 +225,8 @@ export function useComposerSubmission({
     )
     pendingQueuedSubmissions.set(pendingKey, result)
     // A Follow-up edit waits for this: acknowledgement clears the draft that submitted it.
-    trackComposerSubmission(draftSnapshot.activeDraftContextKey, result)
+    // `result` settles to false on a refusal and never rejects.
+    void trackComposerSubmission(draftSnapshot.activeDraftContextKey, result)
     void result.then(() => {
       if (pendingQueuedSubmissions.get(pendingKey) === result) {
         pendingQueuedSubmissions.delete(pendingKey)
@@ -279,7 +280,7 @@ export function useComposerSubmission({
 
   function submitCurrentDraft() {
     const state = useComposerStore.getState()
-    submitPayload({
+    void submitPayload({
       text: state.input.trim(),
       attachments: state.attachments,
       ...(state.selectedWagglePreset

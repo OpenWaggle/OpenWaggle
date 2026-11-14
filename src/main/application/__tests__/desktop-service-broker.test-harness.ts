@@ -44,8 +44,12 @@ export function brokerHarness(
     activate: (owner) =>
       Effect.try({
         try: () => {
-          if (ownerRecord?.state === 'active' && ownerRecord.guiInstanceId !== owner.guiInstanceId)
+          if (
+            ownerRecord?.state === 'active' &&
+            ownerRecord.guiInstanceId !== owner.guiInstanceId
+          ) {
             throw new Error('The previous desktop has not confirmed native resource cleanup.')
+          }
           ownerRecord = { ...owner, state: 'active' }
         },
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
@@ -57,8 +61,9 @@ export function brokerHarness(
             ownerRecord?.state !== 'active' ||
             ownerRecord.guiInstanceId !== stale.guiInstanceId ||
             ownerRecord.hostInstanceId !== stale.hostInstanceId
-          )
+          ) {
             throw new Error('The desktop owner changed before recovery could replace it.')
+          }
           ownerRecord = { ...next, state: 'active' }
         },
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
@@ -70,29 +75,31 @@ export function brokerHarness(
             !ownerRecord ||
             ownerRecord.guiInstanceId !== guiInstanceId ||
             ownerRecord.hostInstanceId !== hostInstanceId
-          )
+          ) {
             throw new Error('The native cleanup receipt does not match the current desktop owner.')
+          }
           ownerRecord = { ...ownerRecord, state: 'closed' }
         },
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),
   }
   const offlineCommands: DesktopServiceCommand[] = []
-  const offlineExecute = (
-    command: DesktopServiceCommand,
-  ): Effect.Effect<DesktopServiceResult, Error> =>
+  const offlineExecute = (command: DesktopServiceCommand) =>
     Effect.suspend<DesktopServiceResult, Error, never>(() => {
       offlineCommands.push(command)
-      if (command.service === 'browser' && command.operation === 'deleteOwner')
+      if (command.service === 'browser' && command.operation === 'deleteOwner') {
         return Effect.succeed({ service: 'browser', operation: 'deleteOwner', value: null })
-      if (command.service === 'terminal' && command.operation === 'closeAllForOwner')
+      }
+      if (command.service === 'terminal' && command.operation === 'closeAllForOwner') {
         return Effect.succeed({ service: 'terminal', operation: 'closeAllForOwner', value: null })
-      if (command.service === 'browser' && command.operation === 'inspectOwner')
+      }
+      if (command.service === 'browser' && command.operation === 'inspectOwner') {
         return Effect.succeed({
           service: 'browser',
           operation: 'inspectOwner',
           value: { registered: false, previews: 0 },
         })
+      }
       return Effect.fail(new Error('No offline native implementation for this command.'))
     })
   const repository: DesktopFenceRepositoryShape = {
@@ -110,8 +117,9 @@ export function brokerHarness(
       Effect.try({
         try: () => {
           const record = records.get(token)
-          if (!record || record.hostInstanceId !== hostInstanceId)
+          if (!record || record.hostInstanceId !== hostInstanceId) {
             throw new Error('Unknown fence owner')
+          }
           records.set(token, { ...record, state: 'released' })
           writes.push(`released:${token}`)
         },
@@ -123,8 +131,9 @@ export function brokerHarness(
           const record = records.get(token)
           // SQLite removal is idempotent for an absent token, but never for a live wrong owner.
           if (!record) return
-          if (record.hostInstanceId !== hostInstanceId || record.state !== 'released')
+          if (record.hostInstanceId !== hostInstanceId || record.state !== 'released') {
             throw new Error('Fence is not released by this Host')
+          }
           records.delete(token)
           writes.push(`removed:${token}`)
         },
@@ -203,11 +212,11 @@ export function exitMessage<A, E>(exit: Exit.Exit<A, E>) {
   return Cause.pretty(exit.cause)
 }
 
-export function activeFence(token = 'fence-old'): DesktopFenceRecord {
+export function activeFence(token = 'fence-old') {
   return {
     token,
     hostInstanceId: 'host-one',
     scope: { kind: 'owner', ownerKey: 'session-one' },
     state: 'active',
-  }
+  } satisfies DesktopFenceRecord
 }

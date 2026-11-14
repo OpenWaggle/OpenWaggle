@@ -136,6 +136,7 @@ describe('a Scheduled task a Session agent created', () => {
     await setSessionModel(target)
     await setCeiling(target, 'ask-for-approval')
     const input = heartbeatInput(target)
+    if (!input.heartbeat) throw new Error('Expected heartbeat settings.')
     const created = await scheduledTasks({ operation: 'create', input }, caller)
     if (created.effect !== 'created') throw new Error(JSON.stringify(created))
     const limits = JSON.parse(
@@ -157,7 +158,11 @@ describe('a Scheduled task a Session agent created', () => {
         maxRuns: null,
         target: { kind: 'heartbeat', sessionId: target },
         notificationPolicy: 'failures-only',
-        heartbeat: { stopWhen: input.heartbeat.stopWhen, indefinite: false, idlePauseAfter: 3 },
+        heartbeat: {
+          ...(input.heartbeat.stopWhen === undefined ? {} : { stopWhen: input.heartbeat.stopWhen }),
+          indefinite: false,
+          idlePauseAfter: 3,
+        },
       },
     })
     expect(saved).toMatchObject({ effect: 'updated' })

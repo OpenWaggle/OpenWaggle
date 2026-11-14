@@ -15,14 +15,14 @@ function imageMetadata(
   title: string,
   mimeType: string,
   displayOrder: number | null | undefined,
-): SessionResourceDisplayMetadata | null {
+) {
   if (displayOrder == null) return null
   return {
     value: generatedImageOccurrencePrefix({ sessionId, nodeId, index }),
     prefix: true,
     displayName: imageFileName(title, mimeType),
     displayOrder,
-  }
+  } satisfies SessionResourceDisplayMetadata
 }
 
 function linkMetadata(
@@ -32,7 +32,7 @@ function linkMetadata(
   index: number,
   actor: 'user' | 'tool' | 'agent',
   displayOrder: number | null | undefined,
-): SessionResourceDisplayMetadata | null {
+) {
   if (!link.image || displayOrder == null) return null
   const { message, nodeId, branchId } = projected
   return {
@@ -50,7 +50,7 @@ function linkMetadata(
     prefix: false,
     displayName: link.title,
     displayOrder,
-  }
+  } satisfies SessionResourceDisplayMetadata
 }
 
 function userDisplayMetadata(sessionId: SessionId, projected: ProjectedResourceMessage) {
@@ -152,7 +152,7 @@ function assistantDisplayMetadata(sessionId: SessionId, projected: ProjectedReso
 export function backfillDisplayMetadata(
   sessionId: SessionId,
   projectedMessages: readonly ProjectedResourceMessage[],
-): readonly SessionResourceDisplayMetadata[] {
+) {
   const metadata: SessionResourceDisplayMetadata[] = []
   for (const projected of projectedMessages) {
     if (projected.message.role === 'user') {

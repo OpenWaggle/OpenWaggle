@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   getSourceControlHosts: vi.fn(),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({ api: mocks }))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(mocks),
+}))
 
 const OVERVIEW: SourceControlHostsOverview = {
   cliInstalled: { gh: true, glab: false },

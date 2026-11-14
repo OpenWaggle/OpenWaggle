@@ -37,11 +37,9 @@ interface TerminalServiceFacadeOptions {
   readonly notifyRecordChanged: () => void
 }
 
-export function makeTerminalServiceFacade(
-  options: TerminalServiceFacadeOptions,
-): TerminalServiceShape {
+export function makeTerminalServiceFacade(options: TerminalServiceFacadeOptions) {
   const { context } = options
-  return {
+  const shape: TerminalServiceShape = {
     getActivitySnapshot: () => Effect.sync(options.getActivitySnapshot),
     attachSurface: (terminalKey, surfaceId) =>
       Effect.gen(function* () {
@@ -105,4 +103,5 @@ export function makeTerminalServiceFacade(
         options.notifyRecordChanged()
       }),
   }
+  return shape
 }

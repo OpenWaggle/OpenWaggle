@@ -3,7 +3,7 @@ import { MessageId, ToolCallId } from '@shared/types/brand'
 import { SESSION_TOOL_CAPTURE_LIMIT } from '../session-resource-capture'
 import { assistantToolResultMessage } from './session-resource-capture.fixtures'
 
-export function toolMessages(messagePrefix: string, toolPrefix: string): Message[] {
+export function toolMessages(messagePrefix: string, toolPrefix: string) {
   return Array.from({ length: SESSION_TOOL_CAPTURE_LIMIT + 8 }, (_, index) => ({
     ...assistantToolResultMessage(),
     id: MessageId(`${messagePrefix}-${String(index)}`),
@@ -20,5 +20,5 @@ export function toolMessages(messagePrefix: string, toolPrefix: string): Message
         },
       },
     ],
-  }))
+  })) satisfies Message[]
 }

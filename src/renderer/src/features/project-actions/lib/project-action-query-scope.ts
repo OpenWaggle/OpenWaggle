@@ -1,5 +1,6 @@
 import type { QueryKey } from '@tanstack/react-query'
 import { queryKeys } from '@/queries/query-keys'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /** The Sessions a batch of Host events changed, and the projects they belong to. */
 export interface ProjectActionSessionChange {
@@ -20,8 +21,7 @@ const DISCOVERY_KIND = 'discovery'
 /** The Session a Project Actions query is scoped to: its id, or a scope object's `sessionId`. */
 function scopeSessionId(segment: unknown) {
   if (typeof segment === 'string') return segment
-  if (typeof segment !== 'object' || segment === null) return null
-  const sessionId: unknown = Reflect.get(segment, 'sessionId')
+  const { sessionId } = uncheckedFields<{ readonly sessionId: string }>(segment)
   return typeof sessionId === 'string' ? sessionId : null
 }
 

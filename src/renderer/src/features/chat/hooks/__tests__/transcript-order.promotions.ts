@@ -13,17 +13,17 @@ export function createPromotions(host: HostModel) {
    * Each promotion, with the count of user messages of its text the log holds once Pi took it in:
    * Pi takes promoted steers in promotion order, so several may wait with the same text.
    */
-  const previews: Array<{
+  const previews: {
     readonly text: string
     readonly controller: OptimisticSteerPreviewController
     readonly needed: number
-  }> = []
+  }[] = []
   const isIncorporated = (promotion: (typeof previews)[number]) =>
     host.userOrders(promotion.text).length >= promotion.needed
-  const deferred: Array<(typeof previews)[number]> = []
+  const deferred: (typeof previews)[number][] = []
   // In a stall: the promotions the renderer still waits on, whatever Pi took meanwhile.
   let stalledPending: Set<(typeof previews)[number]> | null = null
-  const forget = (promotions: ReadonlyArray<(typeof previews)[number]>) => {
+  const forget = (promotions: readonly (typeof previews)[number][]) => {
     const forgotten = new Set(promotions)
     const kept = previews.filter((item) => !forgotten.has(item) || isIncorporated(item))
     previews.splice(0, previews.length, ...kept)

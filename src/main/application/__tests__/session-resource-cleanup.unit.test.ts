@@ -70,7 +70,7 @@ describe('session resource cleanup reconciliation', () => {
       sessionId: SessionId(`session-${String(index).padStart(3, '0')}`),
       queuedAt: index,
     }))
-    const requestedCursors: Array<SessionResourceCleanupCursor | undefined> = []
+    const requestedCursors: (SessionResourceCleanupCursor | undefined)[] = []
     const removed: SessionId[] = []
     const completed: SessionId[] = []
     const layer = Layer.mergeAll(

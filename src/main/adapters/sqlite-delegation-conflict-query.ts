@@ -1,9 +1,7 @@
+import { Schema } from '@shared/schema'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
-import type {
-  DelegationConflictKind,
-  DelegationConflictStatus,
-} from '@shared/types/session-delegation-query'
+import type { DelegationConflictKind } from '@shared/types/session-delegation-query'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import {
@@ -38,17 +36,15 @@ interface ConflictCatalogRow {
 }
 
 function conflictCursor(request: ConflictRequest) {
-  const cursor = decodeSessionQueryCursor(request.query.cursor)
-  if (cursor === 'invalid') return 'invalid' as const
-  if (!cursor) return null
-  return typeof cursor.createdAt === 'number' && typeof cursor.conflictId === 'string'
-    ? { createdAt: cursor.createdAt, conflictId: cursor.conflictId }
-    : ('invalid' as const)
+  return decodeSessionQueryCursor(
+    request.query.cursor,
+    Schema.Struct({ createdAt: Schema.Number, conflictId: Schema.String }),
+  )
 }
 
-function conflictStatus(row: ConflictCatalogRow): DelegationConflictStatus {
-  if (row.resolved_at !== null) return 'resolved'
-  return row.acknowledged_by === null ? 'unacknowledged' : 'acknowledged'
+function conflictStatus(row: ConflictCatalogRow) {
+  if (row.resolved_at !== null) return 'resolved' as const
+  return row.acknowledged_by === null ? ('unacknowledged' as const) : ('acknowledged' as const)
 }
 
 function conflictSummary(row: ConflictCatalogRow) {

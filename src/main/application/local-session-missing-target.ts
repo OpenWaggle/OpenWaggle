@@ -8,10 +8,10 @@ import { SessionAuthorizationTargetRepositoryError } from '../errors'
 
 type MissingTargetCode = 'session_not_found' | 'delegation_not_found'
 
-function missingTargetCode(error: unknown): MissingTargetCode | undefined {
+function missingTargetCode(error: unknown) {
   if (!(error instanceof SessionAuthorizationTargetRepositoryError)) return undefined
-  if (error.operation === 'session-not-found') return 'session_not_found'
-  if (error.operation === 'delegation-not-found') return 'delegation_not_found'
+  if (error.operation === 'session-not-found') return 'session_not_found' as const
+  if (error.operation === 'delegation-not-found') return 'delegation_not_found' as const
   return undefined
 }
 
@@ -34,12 +34,9 @@ const MISSING_TARGET_MESSAGE: Readonly<Record<MissingTargetCode, string>> = {
  * Delegation IDs are random UUIDs, so telling the two apart reveals nothing about an ID the caller
  * did not already hold, and the precise answer tells a script whether to retry with more access.
  */
-export function missingTargetResult(
-  payload: LocalSessionCommandPayload,
-  code: MissingTargetCode,
-): LocalSessionCommandResult | undefined {
+export function missingTargetResult(payload: LocalSessionCommandPayload, code: MissingTargetCode) {
   if (payload.contract === 'session-query-v2') {
-    return {
+    const result: LocalSessionCommandResult = {
       contract: 'session-query-v2',
       response: {
         contractVersion: payload.request.contractVersion,
@@ -50,9 +47,10 @@ export function missingTargetResult(
         },
       },
     }
+    return result
   }
   if (payload.contract === 'session-control-v2') {
-    return {
+    const result: LocalSessionCommandResult = {
       contract: 'session-control-v2',
       response: {
         contractVersion: payload.request.contractVersion,
@@ -67,9 +65,10 @@ export function missingTargetResult(
         },
       },
     }
+    return result
   }
   if (payload.contract === 'session-lifecycle-v2') {
-    return {
+    const result: LocalSessionCommandResult = {
       contract: 'session-lifecycle-v2',
       response: {
         contractVersion: payload.request.contractVersion,
@@ -84,6 +83,7 @@ export function missingTargetResult(
         },
       },
     }
+    return result
   }
   return undefined
 }

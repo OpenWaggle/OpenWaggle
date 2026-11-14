@@ -17,9 +17,7 @@ export interface TerminalPromptReadinessDetector {
  * bind the marker to a spawn nonce so output replayed from an older generation
  * cannot release input queued for a new shell.
  */
-export function createTerminalPromptReadinessDetector(
-  expectedNonce?: string,
-): TerminalPromptReadinessDetector {
+export function createTerminalPromptReadinessDetector(expectedNonce?: string) {
   const acceptedPayloads = new Set(
     expectedNonce === undefined
       ? ['133;B', '633;B']

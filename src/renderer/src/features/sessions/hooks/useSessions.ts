@@ -1,6 +1,6 @@
+import { useSessionStore } from '@/features/sessions/state/session-store'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionWorkspaceSelection } from '@shared/types/session'
-import { useSessionStore } from '@/features/sessions/state/session-store'
 
 export interface SessionsReturn {
   sessions: ReturnType<typeof useSessionStore.getState>['sessions']
@@ -25,7 +25,7 @@ export interface SessionsReturn {
   clearDraftBranchForSession: (sessionId: SessionId) => void
 }
 
-export function useSessions(): SessionsReturn {
+export function useSessions() {
   const sessions = useSessionStore((s) => s.sessions)
   const archivedSessions = useSessionStore((s) => s.archivedSessions)
   const activeSessionTree = useSessionStore((s) => s.activeSessionTree)
@@ -41,7 +41,7 @@ export function useSessions(): SessionsReturn {
   const refreshSessionsAndWorkspace = useSessionStore((s) => s.refreshSessionsAndWorkspace)
   const clearDraftBranchForSession = useSessionStore((s) => s.clearDraftBranchForSession)
 
-  return {
+  const result: SessionsReturn = {
     sessions,
     archivedSessions,
     activeSessionTree,
@@ -57,4 +57,5 @@ export function useSessions(): SessionsReturn {
     refreshSessionsAndWorkspace,
     clearDraftBranchForSession,
   }
+  return result
 }

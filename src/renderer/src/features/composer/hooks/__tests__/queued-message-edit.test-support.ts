@@ -1,10 +1,11 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { WaggleInvocation, WagglePreset } from '@shared/types/waggle'
-import type {
-  SessionFollowUpEdit,
-  SessionFollowUpQueueItem,
-  SessionFollowUpQueueSnapshot,
+import {
+  heldEdit,
+  type SessionFollowUpEdit,
+  type SessionFollowUpQueueItem,
+  type SessionFollowUpQueueSnapshot,
 } from '@/features/chat/hooks'
 
 export const REVIEW_PRESET: WagglePreset = {
@@ -41,7 +42,7 @@ export const REVIEW_WAGGLE: WaggleInvocation = {
   config: REVIEW_PRESET.config,
 }
 
-export function preparedAttachment(id: string): PreparedAttachment {
+export function preparedAttachment(id: string) {
   return {
     id,
     kind: 'text',
@@ -50,13 +51,13 @@ export function preparedAttachment(id: string): PreparedAttachment {
     mimeType: 'text/plain',
     sizeBytes: 100,
     extractedText: 'content',
-  }
+  } satisfies PreparedAttachment
 }
 
 export function queueItem(
   overrides: Partial<SessionFollowUpQueueItem> & Pick<SessionFollowUpQueueItem, 'id'>,
-): SessionFollowUpQueueItem {
-  return {
+) {
+  const item: SessionFollowUpQueueItem = {
     text: `queued ${overrides.id}`,
     attachmentCount: overrides.attachments?.length ?? 0,
     createdAt: 1,
@@ -65,31 +66,29 @@ export function queueItem(
     editable: true,
     ...overrides,
   }
+  return item
 }
 
-export function snapshotOf(
-  items: readonly SessionFollowUpQueueItem[],
-  revision = 1,
-): SessionFollowUpQueueSnapshot {
+export function snapshotOf(items: readonly SessionFollowUpQueueItem[], revision = 1) {
   return {
     state: 'running',
     revision,
     activeRunId: 'run-1',
     items,
     waitingOnEdit: items.some((item) => item.editHold !== undefined),
-  }
+  } satisfies SessionFollowUpQueueSnapshot
 }
 
 export const BASE_QUEUE_REVISION = 7
 
-export function openedEdit(item: SessionFollowUpQueueItem, holdId = 'hold-1'): SessionFollowUpEdit {
+export function openedEdit(item: SessionFollowUpQueueItem, holdId = 'hold-1') {
   return {
     followUpId: item.id,
     holdId,
     queueRevision: BASE_QUEUE_REVISION,
     leaseExpiresAt: 30_000,
     item,
-  }
+  } satisfies SessionFollowUpEdit
 }
 
 /** The held form of an item, as the queue shows it to the user who holds it. */
@@ -107,16 +106,10 @@ export function heldItem(item: SessionFollowUpQueueItem, holdId = 'hold-1') {
 }
 
 /** What a test's `useSessionFollowUpQueue` mock needs to re-adopt held edits like the real hook. */
-export function resumeFrom(
-  snapshot: SessionFollowUpQueueSnapshot,
-  heldEditOf: (
-    snapshot: SessionFollowUpQueueSnapshot,
-    followUpId: string,
-  ) => SessionFollowUpEdit | null,
-) {
+export function resumeFrom(snapshot: SessionFollowUpQueueSnapshot) {
   return {
     refresh: () => Promise.resolve(snapshot),
-    resumeEdit: (followUpId: string) => heldEditOf(snapshot, followUpId),
+    resumeEdit: (followUpId: string) => heldEdit(snapshot, followUpId),
     adoptEdit: () => Promise.resolve(true),
   }
 }

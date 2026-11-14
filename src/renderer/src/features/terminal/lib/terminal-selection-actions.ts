@@ -31,7 +31,7 @@ export function resolveTerminalSelectionActionPosition(input: {
   readonly pointer: TerminalSelectionPoint | null
   readonly viewport: { readonly width: number; readonly height: number }
   readonly actionSize: TerminalSelectionActionSize
-}): TerminalSelectionPoint {
+}) {
   const { bounds, actionSize, viewport } = input
   const preferred = input.pointer ?? {
     x: input.selectionRect?.right ?? bounds.left + bounds.width - actionSize.width,
@@ -81,8 +81,8 @@ interface SelectionActionListeners {
   readonly dismiss: () => void
 }
 
-function createSelectionActionObserverState(): SelectionActionObserverState {
-  return {
+function createSelectionActionObserverState() {
+  const state: SelectionActionObserverState = {
     pointerDown: false,
     gestureActive: false,
     dismissed: false,
@@ -90,6 +90,7 @@ function createSelectionActionObserverState(): SelectionActionObserverState {
     timer: null,
     frame: null,
   }
+  return state
 }
 
 function listenForSelectionActions(

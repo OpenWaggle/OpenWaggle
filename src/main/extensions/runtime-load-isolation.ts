@@ -25,11 +25,14 @@ function packagePaths(selections: readonly RuntimeLoadSelection[]) {
 async function captureLoadResult<Result>(
   selections: readonly RuntimeLoadSelection[],
   load: (packagePaths: readonly string[]) => Promise<Result>,
-): Promise<LoadAttemptResult<Result>> {
+) {
   try {
-    return { ok: true, result: await load(packagePaths(selections)) }
+    return {
+      ok: true,
+      result: await load(packagePaths(selections)),
+    } satisfies LoadAttemptResult<Result>
   } catch (error) {
-    return { ok: false, error }
+    return { ok: false, error } satisfies LoadAttemptResult<Result>
   }
 }
 
@@ -172,7 +175,7 @@ export async function loadWithRuntimeFailureIsolation<
   readonly selections: readonly Selection[]
   readonly load: (packagePaths: readonly string[]) => Promise<Result>
   readonly recordFailure: (selection: Selection, error: unknown) => Promise<void>
-}): Promise<Result> {
+}) {
   const initialAttempt = await captureLoadResult(selections, load)
   if (initialAttempt.ok) {
     return initialAttempt.result

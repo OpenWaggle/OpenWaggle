@@ -115,7 +115,15 @@ export function setMcpServerExposureOperation(raw: unknown) {
   return Effect.gen(function* () {
     const input = yield* decode(mcpSetServerExposureRequestSchema, raw, 'exposure')
     const service = yield* McpConfigurationService
-    return yield* writeThenView(input.projectPath, service.setServerExposure(input))
+    const { exposure, toolExposure, ...server } = input
+    return yield* writeThenView(
+      input.projectPath,
+      service.setServerExposure({
+        ...server,
+        ...(exposure === undefined ? {} : { exposure }),
+        ...(toolExposure === undefined ? {} : { toolExposure }),
+      }),
+    )
   })
 }
 

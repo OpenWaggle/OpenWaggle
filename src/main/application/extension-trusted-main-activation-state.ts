@@ -83,9 +83,7 @@ export function listTrustedMainActivationKeys() {
   return [...activeTrustedMainExtensions.keys()]
 }
 
-export function deactivateTrustedMainActivationKeys(
-  activationKeys: readonly string[],
-): Effect.Effect<readonly DiscoveredExtensionPackage[]> {
+export function deactivateTrustedMainActivationKeys(activationKeys: readonly string[]) {
   return Effect.gen(function* () {
     const deactivatedPackages: DiscoveredExtensionPackage[] = []
 
@@ -107,7 +105,7 @@ export function deactivateTrustedMainActivationKeys(
 
 export function deactivateTrustedMainExtensionPackage(
   extensionPackage: DiscoveredExtensionPackage,
-): Effect.Effect<readonly DiscoveredExtensionPackage[]> {
+) {
   return Effect.gen(function* () {
     const packageActivationKeys: string[] = []
     for (const [activationKey, activation] of activeTrustedMainExtensions) {

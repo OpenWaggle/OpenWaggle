@@ -105,7 +105,7 @@ function makeInvocation(input: {
   readonly method: string
   readonly scope?: ExtensionInvokeInput['scope']
   readonly payload?: unknown
-}): ExtensionInvokeInput {
+}) {
   return {
     extensionId: BROKER_EXTENSION_ID,
     contributionId: input.contributionId,
@@ -113,7 +113,7 @@ function makeInvocation(input: {
     method: input.method,
     scope: input.scope ?? { kind: 'app' },
     ...(input.payload !== undefined ? { payload: input.payload } : { payload: {} }),
-  }
+  } satisfies ExtensionInvokeInput
 }
 
 describe('invokeExtensionCapability OpenWaggle capabilities', () => {

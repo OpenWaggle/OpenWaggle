@@ -31,8 +31,8 @@ const manifest: SessionExportManifest = {
 function scopedOperation(input: {
   readonly destinationPath: string
   readonly destinationRoot: string
-}): SessionExportOperationRecord {
-  return {
+}) {
+  const record: SessionExportOperationRecord = {
     exportOperationId: 'export-scoped-swap',
     callerId: 'caller-1',
     sessionId: 'session-1',
@@ -52,6 +52,7 @@ function scopedOperation(input: {
     createdAt: 1,
     updatedAt: 1,
   }
+  return record
 }
 
 describe('scoped filesystem Session export artifact writer', () => {
@@ -64,8 +65,9 @@ describe('scoped filesystem Session export artifact writer', () => {
 
   afterEach(async () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
-    if (legacyStagingDirectory)
+    if (legacyStagingDirectory) {
       await fs.rm(legacyStagingDirectory, { recursive: true, force: true })
+    }
     legacyStagingDirectory = null
   })
 

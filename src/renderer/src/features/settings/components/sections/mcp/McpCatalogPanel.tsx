@@ -6,10 +6,15 @@ import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { useMcpConfigurationActions } from '../../../hooks/useMcpConfiguration'
 import { McpInlineError } from './McpLabels'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 function entryCommand(entry: (typeof MCP_CATALOG_SERVERS)[number]['entry']) {
-  const args = Array.isArray(entry.args) ? entry.args.filter((arg) => typeof arg === 'string') : []
-  return typeof entry.command === 'string' ? [entry.command, ...args].join(' ') : ''
+  const { command, args } = uncheckedFields<{
+    readonly command: string
+    readonly args: readonly unknown[]
+  }>(entry)
+  const stringArgs = Array.isArray(args) ? args.filter((arg) => typeof arg === 'string') : []
+  return typeof command === 'string' ? [command, ...stringArgs].join(' ') : ''
 }
 
 /** One click saves an ordinary entry to OpenWaggle's file; it then works like any other server. */

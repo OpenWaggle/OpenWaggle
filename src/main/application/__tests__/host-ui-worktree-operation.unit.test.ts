@@ -162,6 +162,15 @@ describe('Host-backed worktree operations', () => {
     expect(mocks.remove).not.toHaveBeenCalled()
   })
 
+  it('refuses a relative worktree path, naming the field', async () => {
+    const effect = removeHostUiWorktree('/project', { path: 'worktrees/feature' }).pipe(
+      Effect.provide(operationLayer(workspaceRepository({}))),
+    )
+
+    await expect(Effect.runPromise(effect)).rejects.toThrow('Worktree path must be absolute.')
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
   it('rejects removal while an authoritative Workspace binding remains', async () => {
     const effect = removeHostUiWorktree('/project', {
       path: '/project/.openwaggle/worktrees/shared',

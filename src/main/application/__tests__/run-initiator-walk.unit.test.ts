@@ -14,10 +14,11 @@ type Catalog = Record<
 
 function decide(catalog: Catalog, runId: string) {
   const steps: string[] = []
-  const reference = (id: string): RunReference => {
+  const reference = (id: string) => {
     const run = catalog[id]
     if (!run) throw new Error(`No Run ${id} in the test catalog`)
-    return { sessionId: run.sessionId, runId: id }
+    const reference: RunReference = { sessionId: run.sessionId, runId: id }
+    return reference
   }
   const verdict = Effect.runSync(
     walkRunInitiators(
@@ -40,17 +41,24 @@ function decide(catalog: Catalog, runId: string) {
 }
 
 /** `r0` ... `r<length - 1>`, each following the previous one, all passing on their own. */
-function line(length: number, sessionOf: (index: number) => string, prefix = 'r'): Catalog {
-  return Object.fromEntries(
+/** A chain of Runs, each following the one before; the first follows `firstFollows`. */
+function line(
+  length: number,
+  sessionOf: (index: number) => string,
+  prefix = 'r',
+  firstFollows: readonly string[] = [],
+) {
+  const catalog: Catalog = Object.fromEntries(
     Array.from({ length }, (_, index) => [
       `${prefix}${index}`,
       {
         sessionId: sessionOf(index),
         verdict: true,
-        follows: index === 0 ? [] : [`${prefix}${index - 1}`],
+        follows: index === 0 ? firstFollows : [`${prefix}${index - 1}`],
       },
     ]),
   )
+  return catalog
 }
 
 const alternating = (index: number) => (index % 2 === 0 ? 'a' : 'b')
@@ -94,7 +102,7 @@ describe('walkRunInitiators', () => {
       const longRuns = limit - 2
       const catalog: Catalog = {
         ...line(2, () => 'a', 'shared'),
-        ...line(longRuns, alternating, 'long'),
+        ...line(longRuns, alternating, 'long', ['shared1']),
         short: { sessionId: 'a', verdict: true, follows: ['shared1'] },
         top: {
           sessionId: 'b',
@@ -102,9 +110,6 @@ describe('walkRunInitiators', () => {
           follows: order.map((branch) => (branch === 'short' ? 'short' : `long${longRuns - 1}`)),
         },
       }
-      const long0 = catalog.long0
-      if (!long0) throw new Error('The long branch has a first Run')
-      catalog.long0 = { ...long0, follows: ['shared1'] }
 
       expect(decide(catalog, 'top').verdict).toBe(false)
     },
@@ -120,12 +125,9 @@ describe('walkRunInitiators', () => {
       ...line(longRuns, alternating, 'a'),
       leaf: { sessionId: 'a', verdict: true, follows: [] },
       x: { sessionId: 'b', verdict: true, follows: [`a${longRuns - 1}`, 'leaf'] },
-      ...line(detourRuns, alternating, 'p'),
+      ...line(detourRuns, alternating, 'p', ['x']),
       top: { sessionId: 'a', verdict: true, follows: ['x', `p${detourRuns - 1}`] },
     }
-    const p0 = catalog.p0
-    if (!p0) throw new Error('The detour has a first Run')
-    catalog.p0 = { ...p0, follows: ['x'] }
     expect(1 + detourRuns + 1 + longRuns).toBeGreaterThan(limit)
 
     expect(decide(catalog, 'top').verdict).toBe(false)
@@ -135,8 +137,9 @@ describe('walkRunInitiators', () => {
     const others = MAX_RUN_INITIATOR_CHAIN_DEPTH
     // Each branch alone stays within the limit; together they span one Session too many.
     const firstHalf = Math.ceil(others / 2)
-    const branch = (name: string, from: number, count: number): Catalog =>
-      line(count, (index) => `s${from + index}`, name)
+    const branch = (name: string, from: number, count: number) => {
+      return line(count, (index) => `s${from + index}`, name)
+    }
     const catalog: Catalog = {
       ...branch('x', 1, firstHalf),
       ...branch('y', 1 + firstHalf, others + 1 - firstHalf),

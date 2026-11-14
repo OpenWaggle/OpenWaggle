@@ -29,11 +29,7 @@ function executeHandler() {
   const handler = call?.[1]
   if (typeof handler !== 'function') throw new Error('Expected scheduled-tasks:execute handler')
   return (...args: unknown[]) =>
-    Effect.runPromise(
-      Effect.either(
-        Effect.suspend((): Effect.Effect<ScheduledTasksOutcome, unknown> => handler({}, ...args)),
-      ),
-    )
+    Effect.runPromise(Effect.either(Effect.suspend(() => handler({}, ...args))))
 }
 
 function dispatchedRequest() {

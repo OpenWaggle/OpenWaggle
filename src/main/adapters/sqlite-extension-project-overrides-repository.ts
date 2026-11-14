@@ -1,15 +1,18 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { ExtensionProjectOverrideRepositoryError } from '../errors'
 import type {
-  ExtensionPackageScope,
   ExtensionProjectOverrideKey,
   ExtensionProjectOverrideState,
 } from '../extensions/types'
 import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
-import { SQLITE_BOOLEAN } from '../services/database-constants'
+import {
+  booleanToSqlite,
+  scopeFromColumns,
+  scopeToColumns,
+  sqliteToBoolean,
+} from './sqlite-extension-scope-columns'
 
 interface ExtensionProjectOverrideRow {
   readonly extension_id: string
@@ -21,39 +24,10 @@ interface ExtensionProjectOverrideRow {
   readonly updated_at: number
 }
 
-function booleanToSqlite(value: boolean) {
-  return value ? SQLITE_BOOLEAN.TRUE : SQLITE_BOOLEAN.FALSE
-}
-
-function sqliteToBoolean(value: number) {
-  return value === SQLITE_BOOLEAN.TRUE
-}
-
-function scopeToColumns(scope: ExtensionPackageScope) {
-  return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-    ? {
-        scopeKind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
-        scopeId: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_ID,
-      }
-    : { scopeKind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, scopeId: scope.projectPath }
-}
-
-function scopeFromColumns(scopeKind: string, scopeId: string): ExtensionPackageScope {
-  if (scopeKind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND }
-  }
-  if (scopeKind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: scopeId }
-  }
-  throw new Error(`Unknown extension project override scope kind "${scopeKind}".`)
-}
-
-function rowToProjectOverrideState(
-  row: ExtensionProjectOverrideRow,
-): ExtensionProjectOverrideState {
+function rowToProjectOverrideState(row: ExtensionProjectOverrideRow) {
   return {
     extensionId: row.extension_id,
-    scope: scopeFromColumns(row.scope_kind, row.scope_id),
+    scope: scopeFromColumns(row.scope_kind, row.scope_id, 'extension project override'),
     projectPath: row.project_path,
     disabled: sqliteToBoolean(row.disabled),
     createdAt: row.created_at,
@@ -61,10 +35,7 @@ function rowToProjectOverrideState(
   }
 }
 
-function mapRepositoryError(
-  operation: string,
-  cause: unknown,
-): ExtensionProjectOverrideRepositoryError {
+function mapRepositoryError(operation: string, cause: unknown) {
   return new ExtensionProjectOverrideRepositoryError({ operation, cause })
 }
 

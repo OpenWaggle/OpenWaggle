@@ -26,12 +26,10 @@ function unique<T>(values: readonly T[]) {
   return [...new Set(values)]
 }
 
-function intersectList(
-  left: readonly string[] | undefined,
-  right: readonly string[] | undefined,
-): readonly string[] {
+function intersectList(left: readonly string[] | undefined, right: readonly string[] | undefined) {
   const allowed = new Set(left ?? [])
-  return unique((right ?? []).filter((value) => allowed.has(value)))
+  const result: readonly string[] = unique((right ?? []).filter((value) => allowed.has(value)))
+  return result
 }
 
 /** A limited root counts only inside one of the live roots; no live roots, no roots. */
@@ -42,11 +40,9 @@ function narrowRoots(live: readonly string[] | undefined, limits: readonly strin
   )
 }
 
-function nonEmpty<K extends keyof LocalSessionProfileScope>(
-  key: K,
-  values: readonly string[],
-): Partial<LocalSessionProfileScope> {
-  return values.length > 0 ? { [key]: values } : {}
+function nonEmpty(key: keyof LocalSessionProfileScope, values: readonly string[]) {
+  const partial: Partial<LocalSessionProfileScope> = values.length > 0 ? { [key]: values } : {}
+  return partial
 }
 
 function lowerCeiling(left: AgentAuthorizationMode, right: AgentAuthorizationMode) {
@@ -60,13 +56,14 @@ function rootsOf(live: LocalSessionProfileScope, limits: LocalSessionProfileScop
   }
 }
 
-function targetsOf(scope: LocalSessionProfileScope): LocalSessionProfileScope {
-  return {
+function targetsOf(scope: LocalSessionProfileScope) {
+  const result: LocalSessionProfileScope = {
     ...(scope.all === true ? { all: true } : {}),
     ...(scope.projectPaths ? { projectPaths: scope.projectPaths } : {}),
     ...(scope.sessionIds ? { sessionIds: scope.sessionIds } : {}),
     ...(scope.hiveRootSessionIds ? { hiveRootSessionIds: scope.hiveRootSessionIds } : {}),
   }
+  return result
 }
 
 /**
@@ -77,11 +74,17 @@ function targetsOf(scope: LocalSessionProfileScope): LocalSessionProfileScope {
 export function intersectAuthorityScopes(
   left: LocalSessionProfileScope,
   right: LocalSessionProfileScope,
-): LocalSessionProfileScope {
+) {
   const roots = rootsOf(left, right)
-  if (left.all === true) return { ...targetsOf(right), ...roots }
-  if (right.all === true) return { ...targetsOf(left), ...roots }
-  return {
+  if (left.all === true) {
+    const scope: LocalSessionProfileScope = { ...targetsOf(right), ...roots }
+    return scope
+  }
+  if (right.all === true) {
+    const scope: LocalSessionProfileScope = { ...targetsOf(left), ...roots }
+    return scope
+  }
+  const scope: LocalSessionProfileScope = {
     ...nonEmpty('projectPaths', intersectList(left.projectPaths, right.projectPaths)),
     ...nonEmpty('sessionIds', intersectList(left.sessionIds, right.sessionIds)),
     ...nonEmpty(
@@ -90,21 +93,26 @@ export function intersectAuthorityScopes(
     ),
     ...roots,
   }
+  return scope
 }
 
 /** Limits that allow only what both allow; null stands for no limits at all. */
 export function intersectAuthorityLimits(
   left: LocalSessionAuthorityLimits | null,
   right: LocalSessionAuthorityLimits | null,
-): LocalSessionAuthorityLimits | null {
+) {
   if (!left) return right
-  if (!right) return left
+  if (!right) {
+    const limits: LocalSessionAuthorityLimits | null = left
+    return limits
+  }
   const allowed = new Set(right.capabilities)
-  return {
+  const limits: LocalSessionAuthorityLimits = {
     capabilities: left.capabilities.filter((capability) => allowed.has(capability)),
     scope: intersectAuthorityScopes(left.scope, right.scope),
     authorizationCeiling: lowerCeiling(left.authorizationCeiling, right.authorizationCeiling),
   }
+  return limits
 }
 
 /**
@@ -174,9 +182,9 @@ export function intersectReachableAuthorityLimits(
 function limitsAsAuthority(
   caller: LocalSessionCallerIdentity,
   limits: LocalSessionAuthorityLimits,
-): LocalSessionCallerIdentity {
+) {
   const { derivedSessionAuthorities: _, eventAdmissionSessionIds: __, ...rest } = caller
-  return {
+  const identity: LocalSessionCallerIdentity = {
     ...rest,
     profileAuthority: {
       profileId: AUTHORITY_LIMITS_PROFILE_ID,
@@ -187,6 +195,7 @@ function limitsAsAuthority(
     },
     baseProfileScope: limits.scope,
   }
+  return identity
 }
 
 /**
@@ -195,20 +204,30 @@ function limitsAsAuthority(
  * are dropped: the limits stand for one Session agent's own authority, not for Sessions it
  * managed. Applying the limits again changes nothing.
  */
-export function applyAuthorityLimits(
-  caller: LocalSessionCallerIdentity,
-): Effect.Effect<
-  LocalSessionCallerIdentity,
-  LocalSessionCommandAuthorizationError | SessionAuthorizationTargetRepositoryError,
-  SessionAuthorizationTargetRepository
-> {
+export function applyAuthorityLimits(caller: LocalSessionCallerIdentity) {
   const limits = caller.authorityLimits
-  if (!limits) return Effect.succeed(caller)
+  if (!limits) {
+    const effect: Effect.Effect<
+      LocalSessionCallerIdentity,
+      LocalSessionCommandAuthorizationError | SessionAuthorizationTargetRepositoryError,
+      SessionAuthorizationTargetRepository
+    > = Effect.succeed(caller)
+    return effect
+  }
   const authority = caller.profileAuthority
   if (!authority || authority.profileId === AUTHORITY_LIMITS_PROFILE_ID) {
-    return Effect.succeed(limitsAsAuthority(caller, limits))
+    const effect: Effect.Effect<
+      LocalSessionCallerIdentity,
+      LocalSessionCommandAuthorizationError | SessionAuthorizationTargetRepositoryError,
+      SessionAuthorizationTargetRepository
+    > = Effect.succeed(limitsAsAuthority(caller, limits))
+    return effect
   }
-  return Effect.gen(function* () {
+  const effect: Effect.Effect<
+    LocalSessionCallerIdentity,
+    LocalSessionCommandAuthorizationError | SessionAuthorizationTargetRepositoryError,
+    SessionAuthorizationTargetRepository
+  > = Effect.gen(function* () {
     const live = caller.baseProfileScope ?? authority.scope
     const targets = yield* intersectReachableTargets(live, limits.scope)
     const scope = { ...targets, ...rootsOf(live, limits.scope) }
@@ -229,12 +248,16 @@ export function applyAuthorityLimits(
       baseProfileScope: scope,
     } satisfies LocalSessionCallerIdentity
   })
+  return effect
 }
 
 /** The local user held to its limits, which needs no Session catalog. */
 export function localUserWithinLimits(
   caller: LocalSessionCallerIdentity,
   limits: LocalSessionAuthorityLimits | null,
-): LocalSessionCallerIdentity {
-  return limits ? limitsAsAuthority({ ...caller, authorityLimits: limits }, limits) : caller
+) {
+  const identity: LocalSessionCallerIdentity = limits
+    ? limitsAsAuthority({ ...caller, authorityLimits: limits }, limits)
+    : caller
+  return identity
 }

@@ -5,10 +5,7 @@ import {
   MCP_IDLE_CLOSE_MS,
   MCP_MAX_WARM_SESSIONS,
   type McpPoolClock,
-  type McpPoolConnectionState,
   type McpPooledServerSpec,
-  type McpPoolServerConnection,
-  type McpPoolServerStatus,
   type McpPoolTimer,
   type McpSessionConnectionPoolOptions,
   type PooledServer,
@@ -17,7 +14,6 @@ import {
 } from './mcp-session-connection-pool-types'
 import { connectionStatesOf, poolServerStatus } from './mcp-session-connection-pool-views'
 import { McpSessionIdleClose } from './mcp-session-idle-close'
-import type { McpWireTransport } from './mcp-wire'
 
 /**
  * Every Session's MCP server connections. A connection belongs to one Session and lasts across
@@ -43,7 +39,10 @@ export class McpSessionConnectionPool {
   /** One Session fills a missing catalog while the others of a cold wave wait (D1.3). */
   private readonly catalogFills = new McpCatalogFills()
 
-  constructor(private readonly options: McpSessionConnectionPoolOptions = {}) {
+  private readonly options: McpSessionConnectionPoolOptions
+
+  constructor(options: McpSessionConnectionPoolOptions = {}) {
+    this.options = options
     this.clock = options.clock ?? systemClock
     this.idleClose = new McpSessionIdleClose({
       clock: this.clock,
@@ -56,7 +55,7 @@ export class McpSessionConnectionPool {
   }
 
   /** The transport Pi's client gets for one server of one Session. */
-  lease(sessionId: string, spec: McpPooledServerSpec): McpWireTransport {
+  lease(sessionId: string, spec: McpPooledServerSpec) {
     if (this.sessions.get(sessionId)?.closedServers.has(spec.name)) {
       throw new Error(`The MCP server "${spec.name}" was turned off or removed.`)
     }
@@ -137,11 +136,8 @@ export class McpSessionConnectionPool {
   }
 
   private retireReplaced(session: SessionConnections, connection: McpPooledConnection) {
-    if (!connection.isClosed) {
-      void connection.close()
-      return
-    }
-    session.replaced.add(connection)
+    if (connection.isClosed) session.replaced.add(connection)
+    else void connection.close()
   }
 
   /**
@@ -236,7 +232,7 @@ export class McpSessionConnectionPool {
    * Every warm connection, and every server a running Run leased whose connection is gone (it
    * crashed or retired), without touching recency: a configuration change judges both.
    */
-  serverConnections(): McpPoolServerConnection[] {
+  serverConnections() {
     return [...this.sessions].flatMap(([sessionId, session]) => {
       const servers = new Map(session.leased)
       for (const [name, server] of session.servers) {
@@ -270,12 +266,12 @@ export class McpSessionConnectionPool {
     return [...this.sessions].filter(([, session]) => session.servers.size > 0).map(([id]) => id)
   }
 
-  status(sessionId: string): McpPoolServerStatus[] {
+  status(sessionId: string) {
     return poolServerStatus(this.sessions.get(sessionId))
   }
 
   /** The open connections to one server identity of the project's Sessions (`connectionStatesOf`). */
-  connectionStates(identity: string, projectPath: string | null): McpPoolConnectionState[] {
+  connectionStates(identity: string, projectPath: string | null) {
     return connectionStatesOf(this.sessions.values(), identity, projectPath)
   }
 

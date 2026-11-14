@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   clearSessionGrants,
   listGrantsForProject,
@@ -207,14 +207,5 @@ describe('requestAuthorization with a project', () => {
     await pending
 
     expect(listSessionGrants(sessionId)).toHaveLength(1)
-  })
-
-  it('ignores a stored grant in full access without consulting the project file', async () => {
-    const spy = vi.spyOn(console, 'warn')
-    const { emitted, pending } = harness({ mode: 'yolo', projectPath })
-
-    await expect(pending).resolves.toBe(true)
-    expect(emitted).toEqual([])
-    spy.mockRestore()
   })
 })

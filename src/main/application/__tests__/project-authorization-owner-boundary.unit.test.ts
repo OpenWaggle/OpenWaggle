@@ -34,9 +34,7 @@ function invoke(
     },
   })
   // Unrelated Host ports are intentionally absent: these filesystem-only operations need none.
-  return Effect.runPromise(
-    fromAny<Effect.Effect<unknown, unknown, never>, typeof operation>(operation),
-  )
+  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown>, typeof operation>(operation))
 }
 
 describe('Host-owned project authorization boundary', () => {

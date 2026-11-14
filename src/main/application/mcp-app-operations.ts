@@ -19,10 +19,10 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
  */
 const appServerFields = {
   // Accepted for older renderers; the Session's own project is used.
-  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  sessionId: Schema.optional(Schema.NullOr(Schema.String)),
+  projectPath: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
+  sessionId: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
   serverInstanceId: Schema.String,
-  serverConfigHash: Schema.optional(Schema.String),
+  serverConfigHash: Schema.optionalWith(Schema.String, { exact: true }),
 }
 
 const catalogInputSchema = Schema.Struct(appServerFields)

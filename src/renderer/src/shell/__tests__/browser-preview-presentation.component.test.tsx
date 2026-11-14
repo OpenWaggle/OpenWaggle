@@ -19,9 +19,9 @@ describe('browser preview presentation readiness', () => {
 
   it('applies visible floating geometry before reporting presentation ready', async () => {
     const player = document.createElement('section')
-    player.dataset.browserPreviewFloating = 'preview-1'
+    player.setAttribute('data-browser-preview-floating', 'preview-1')
     const viewport = document.createElement('div')
-    viewport.dataset.browserPreviewViewport = ''
+    viewport.setAttribute('data-browser-preview-viewport', '')
     player.append(viewport)
     document.body.append(player)
     vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({

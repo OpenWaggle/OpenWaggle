@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { StateStorage } from 'zustand/middleware'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { normalizeBrowserPreviewUrl } from '../lib/browser-preview-url'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const BROWSER_PREVIEW_RECENT_URL_LIMIT = 10
 export const BROWSER_PREVIEW_RECENT_STORAGE_KEY = 'openwaggle:browser-preview-recents:v1'
@@ -21,7 +22,7 @@ interface BrowserPreviewRecentState {
 
 const memoryStorage = new Map<string, string>()
 
-function fallbackStorage(): StateStorage {
+function fallbackStorage() {
   return {
     getItem: (key) => memoryStorage.get(key) ?? null,
     setItem: (key, value) => {
@@ -30,14 +31,14 @@ function fallbackStorage(): StateStorage {
     removeItem: (key) => {
       memoryStorage.delete(key)
     },
-  }
+  } satisfies StateStorage
 }
 
-function resolveStorage(): StateStorage {
+function resolveStorage() {
   return typeof window === 'undefined' ? fallbackStorage() : window.localStorage
 }
 
-function sanitizeEntry(value: unknown): BrowserPreviewRecentUrl | null {
+function sanitizeEntry(value: unknown) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
   const urlValue = 'url' in value ? value.url : undefined
   const titleValue = 'title' in value ? value.title : undefined
@@ -56,10 +57,8 @@ function sanitizeEntry(value: unknown): BrowserPreviewRecentUrl | null {
   return { url, title, visitedAt }
 }
 
-export function sanitizeBrowserPreviewRecentUrls(
-  value: unknown,
-): readonly BrowserPreviewRecentUrl[] {
-  if (!Array.isArray(value)) return []
+export function sanitizeBrowserPreviewRecentUrls(value: unknown) {
+  if (!Array.isArray(value)) return [] satisfies readonly BrowserPreviewRecentUrl[]
   const seen = new Set<string>()
   const entries: BrowserPreviewRecentUrl[] = []
   for (const candidate of value) {
@@ -95,9 +94,7 @@ export const useBrowserPreviewRecentStore = create<BrowserPreviewRecentState>()(
       merge: (persisted, current) => ({
         ...current,
         entries: sanitizeBrowserPreviewRecentUrls(
-          persisted !== null && typeof persisted === 'object'
-            ? Reflect.get(persisted, 'entries')
-            : undefined,
+          uncheckedFields<{ readonly entries: unknown }>(persisted).entries,
         ),
       }),
     },

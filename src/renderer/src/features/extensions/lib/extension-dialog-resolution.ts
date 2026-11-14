@@ -5,6 +5,7 @@ import type {
   ExtensionContributionRuntime,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 
 export interface ExtensionDialogTarget {
   readonly extensionId: string
@@ -64,37 +65,6 @@ function dialogEntriesForTargetPackage(
   )
 }
 
-function disabledForRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
-  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
-}
-
-function missingRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const availableProjectPaths = new Set(entry.projectPaths)
-  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
-}
-
-function isBlockedDialogEntry(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  return (
-    !entry.eligibility.runtimeEnabled ||
-    !entry.eligibility.enabled ||
-    !entry.eligibility.trusted ||
-    entry.eligibility.sdkCompatible === false ||
-    entry.eligibility.updateAvailable ||
-    disabledForRequestedProject(entry, requestedProjectPaths) ||
-    missingRequestedProject(entry, requestedProjectPaths)
-  )
-}
-
 export function resolveExtensionDialogContribution({
   registry,
   target,
@@ -103,7 +73,7 @@ export function resolveExtensionDialogContribution({
   readonly registry: ExtensionContributionRegistryView
   readonly target: ExtensionDialogTarget
   readonly requestedProjectPaths: readonly string[]
-}): ExtensionDialogResolution {
+}) {
   const extensionId = target.extensionId.trim()
   const dialogId = normalizeDialogId(target.dialogId)
   const packagePath = target.packagePath
@@ -120,7 +90,7 @@ export function resolveExtensionDialogContribution({
       title: 'Invalid extension dialog',
       message:
         'Extension dialog requests must include an extension id, dialog contribution id, package path, and content hash.',
-    }
+    } satisfies ExtensionDialogResolution
   }
 
   const extensionDialogEntries = dialogEntriesForTargetPackage(registry, {
@@ -134,7 +104,7 @@ export function resolveExtensionDialogContribution({
       title: 'Extension dialog not available',
       message:
         'No registered dialog contributions match this extension package in the active extension registry.',
-    }
+    } satisfies ExtensionDialogResolution
   }
 
   const entry = extensionDialogEntries.find((candidate) => candidate.contributionId === dialogId)
@@ -144,16 +114,16 @@ export function resolveExtensionDialogContribution({
       title: 'Dialog contribution not available',
       message:
         'The requested dialog id is not registered for this extension in the active extension registry.',
-    }
+    } satisfies ExtensionDialogResolution
   }
 
-  if (isBlockedDialogEntry(entry, requestedProjectPaths)) {
+  if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
     return {
       status: 'blocked',
       title: 'Extension dialog blocked',
       message:
         'This dialog is disabled, untrusted, SDK-incompatible, pending update approval, or outside the active project scope.',
-    }
+    } satisfies ExtensionDialogResolution
   }
 
   if (!entry.runtime || !entry.execution || !entry.entryPath) {
@@ -162,7 +132,7 @@ export function resolveExtensionDialogContribution({
       title: 'Dialog contribution incomplete',
       message:
         'The dialog contribution is missing its renderer runtime, execution placement, or entry path.',
-    }
+    } satisfies ExtensionDialogResolution
   }
 
   return {
@@ -173,5 +143,5 @@ export function resolveExtensionDialogContribution({
       execution: entry.execution,
       entryPath: entry.entryPath,
     },
-  }
+  } satisfies ExtensionDialogResolution
 }

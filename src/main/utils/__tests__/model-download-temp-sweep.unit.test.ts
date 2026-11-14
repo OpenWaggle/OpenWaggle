@@ -69,8 +69,9 @@ describe('sweepOrphanedModelDownloads', () => {
 
     expect(result).toEqual({ removedFiles: 1, removedBytes: 2048 })
     await expect(fs.stat(orphan)).rejects.toThrow()
-    for (const kept of [inProgress, ownProcess, model])
+    for (const kept of [inProgress, ownProcess, model]) {
       await expect(fs.stat(kept)).resolves.toBeTruthy()
+    }
   })
 
   it('never follows a symbolic link out of the models folder', async () => {

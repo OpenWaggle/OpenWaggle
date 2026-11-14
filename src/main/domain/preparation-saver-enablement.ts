@@ -35,7 +35,7 @@ interface SaverEnablementInput {
  */
 export function withSaverEnablement<T extends SaverEnablementInput['document']>(
   input: SaverEnablementInput & { readonly document: T },
-): T {
+) {
   const { definition } = input
   // Read the slot directly rather than resolving the whole catalog, so a save can still repair a
   // pre-existing invalid state such as two definitions in one slot.
@@ -64,5 +64,5 @@ export function withSaverEnablement<T extends SaverEnablementInput['document']>(
       ...input.document.reviews.filter((review) => review.definitionId !== definition.id),
       preparationReview(definition, true, profileName),
     ],
-  }
+  } satisfies T
 }

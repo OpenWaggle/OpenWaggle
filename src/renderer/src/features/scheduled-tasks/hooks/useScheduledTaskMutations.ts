@@ -54,8 +54,9 @@ export function useRunScheduledTaskNow() {
   return useMutation({
     mutationFn: async (taskId: string) => {
       const outcome = await executeScheduledTasksCommand({ operation: 'run-now', taskId })
-      if (outcome.effect !== 'run-requested')
+      if (outcome.effect !== 'run-requested') {
         throw new Error('The Session Host did not run the task.')
+      }
       return outcome.task
     },
     onSettled: invalidate,

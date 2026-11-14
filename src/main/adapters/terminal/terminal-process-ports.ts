@@ -56,12 +56,13 @@ export function parseListeningEndpoint(rawEndpoint: string) {
   if (separator < 0) return null
   const host = normalizeTerminalListenerHost(endpoint.slice(0, separator))
   const port = Number(endpoint.slice(separator + 1))
-  if (host === null || !Number.isInteger(port) || port <= 0 || port >= MAX_TCP_PORT_EXCLUSIVE)
+  if (host === null || !Number.isInteger(port) || port <= 0 || port >= MAX_TCP_PORT_EXCLUSIVE) {
     return null
+  }
   return { host, port }
 }
 
-export function parseWindowsListeningPortOutput(raw: string): TerminalListeningPortScan {
+export function parseWindowsListeningPortOutput(raw: string) {
   const scan = { candidates: [], portsByPid: new Map<number, number[]>() }
   for (const line of raw.split(/\r?\n/g)) {
     const [host, port, pid] = line.trim().split('|', WINDOWS_LISTENER_FIELD_COUNT)
@@ -72,7 +73,7 @@ export function parseWindowsListeningPortOutput(raw: string): TerminalListeningP
   return scan
 }
 
-export function parsePosixListeningPortOutput(raw: string): TerminalListeningPortScan {
+export function parsePosixListeningPortOutput(raw: string) {
   const scan = { candidates: [], portsByPid: new Map<number, number[]>() }
   let pid: number | null = null
   for (const line of raw.split('\n')) {
@@ -119,9 +120,7 @@ async function readPosixListeningPortScan(processPids: readonly number[] | undef
   return parsePosixListeningPortOutput(result.output)
 }
 
-export function terminalPortCandidatesForScan(
-  scan: TerminalListeningPortScan | null,
-): readonly TerminalPortCandidate[] {
+export function terminalPortCandidatesForScan(scan: TerminalListeningPortScan | null) {
   return scan === null ? commonDevPortCandidates() : scan.candidates
 }
 
@@ -136,9 +135,7 @@ async function updateTerminalPortPreviews(scan: TerminalListeningPortScan | null
  * Reads raw listeners for close safety and classifies browser-loadable endpoints
  * in the same bounded scan. A missing socket-table tool falls back to common dev ports.
  */
-export async function readListeningPorts(
-  processPids?: readonly number[],
-): Promise<Map<number, number[]> | null> {
+export async function readListeningPorts(processPids?: readonly number[]) {
   const scan =
     os.platform() === 'win32'
       ? await readWindowsListeningPortScan()
@@ -148,9 +145,7 @@ export async function readListeningPorts(
 }
 
 /** Returns the latest verified URLs without exposing fallback sockets as close-safety evidence. */
-export function terminalPortPreviewsForProcessPids(
-  processPids: readonly number[],
-): readonly TerminalPortPreview[] {
+export function terminalPortPreviewsForProcessPids(processPids: readonly number[]) {
   const processIds = new Set(processPids)
   const visible = latestPreviewSnapshot.listenerDiscoveryAvailable
     ? latestPreviewSnapshot.previews.filter(
@@ -158,9 +153,10 @@ export function terminalPortPreviewsForProcessPids(
       )
     : latestPreviewSnapshot.previews
   const seen = new Set<string>()
-  return visible.flatMap((preview) => {
+  const result: readonly TerminalPortPreview[] = visible.flatMap((preview) => {
     if (seen.has(preview.url)) return []
     seen.add(preview.url)
     return [{ host: preview.host, port: preview.port, url: preview.url }]
   })
+  return result
 }

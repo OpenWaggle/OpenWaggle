@@ -6,7 +6,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/features/chat/state'
 import { usePreferencesStore } from '@/features/settings/state'
-import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { renderHookWithQueryClient, renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const mocks = vi.hoisted(() => ({ manage: vi.fn() }))
 vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions: mocks.manage } }))
@@ -31,19 +31,17 @@ const SESSION_B = SessionId('session-b')
 const initialChat = useChatStore.getState()
 const initialPreferences = usePreferencesStore.getState()
 
-function runningRun(projectPath: string): ActionRun {
+function runningRun(projectPath: string) {
   return fromPartial<ActionRun>({ id: `run-${projectPath}`, projectPath, status: 'running' })
 }
 
-function ProjectActionsEntry({
-  onEntry,
-}: {
-  readonly onEntry: (entry: { running: boolean; disabledReason: string | null }) => void
-}) {
-  const model = useRightPanelModel(false)
-  const entry = model.surfaces.find((surface) => surface.id === 'project-actions')
-  if (entry) onEntry({ running: entry.running, disabledReason: entry.disabledReason })
-  return null
+function renderProjectActionsEntry() {
+  return renderHookWithQueryClient(() => {
+    const entry = useRightPanelModel(false).surfaces.find(
+      (surface) => surface.id === 'project-actions',
+    )
+    return entry ? { running: entry.running, disabledReason: entry.disabledReason } : undefined
+  })
 }
 
 beforeEach(() => {
@@ -78,10 +76,9 @@ function openSessionB(loaded: boolean) {
 describe("Project Actions rail entry follows the open Session's project", () => {
   it('shows the running dot for the open Session while the preference is stale', async () => {
     openSessionB(true)
-    const entries: { running: boolean; disabledReason: string | null }[] = []
-    renderWithQueryClient(<ProjectActionsEntry onEntry={(entry) => entries.push(entry)} />)
+    const { result } = renderProjectActionsEntry()
 
-    await waitFor(() => expect(entries.at(-1)).toEqual({ running: true, disabledReason: null }))
+    await waitFor(() => expect(result.current).toEqual({ running: true, disabledReason: null }))
     expect(
       mocks.manage.mock.calls.every(([request]) => request.scope.projectPath === PROJECT_B),
     ).toBe(true)
@@ -89,10 +86,9 @@ describe("Project Actions rail entry follows the open Session's project", () => 
 
   it('needs a project while the selected Session is unknown', () => {
     openSessionB(false)
-    const entries: { running: boolean; disabledReason: string | null }[] = []
-    renderWithQueryClient(<ProjectActionsEntry onEntry={(entry) => entries.push(entry)} />)
+    const { result } = renderProjectActionsEntry()
 
-    expect(entries.at(-1)).toEqual({ running: false, disabledReason: 'Open a project first' })
+    expect(result.current).toEqual({ running: false, disabledReason: 'Open a project first' })
     expect(mocks.manage).not.toHaveBeenCalled()
   })
 })

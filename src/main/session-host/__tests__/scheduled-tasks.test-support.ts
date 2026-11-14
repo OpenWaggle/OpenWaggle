@@ -19,9 +19,8 @@ export async function scheduledTasks(
   caller: LocalSessionCallerIdentity = LOCAL_USER,
   idempotencyKey?: string,
 ) {
-  const { dispatchLocalSessionCommand } = await import(
-    '../../application/local-session-command-dispatcher'
-  )
+  const { dispatchLocalSessionCommand } =
+    await import('../../application/local-session-command-dispatcher')
   requestCounter += 1
   const result = await run(
     dispatchLocalSessionCommand({
@@ -42,9 +41,8 @@ export async function scheduledTasks(
 }
 
 export async function createIdleSession(projectPath: string) {
-  const { dispatchLocalSessionCommand } = await import(
-    '../../application/local-session-command-dispatcher'
-  )
+  const { dispatchLocalSessionCommand } =
+    await import('../../application/local-session-command-dispatcher')
   requestCounter += 1
   const result = await run(
     dispatchLocalSessionCommand({

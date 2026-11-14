@@ -1,4 +1,9 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { SchemaType } from '@shared/schema'
+import type {
+  extensionListContributionsInputSchema,
+  extensionRuntimeModuleAccessInputSchema,
+} from '@shared/schemas/extensions'
 import type { ExtensionPackageScopeView } from './extension-package-scope'
 
 type ConstantValue<TObject> = TObject[keyof TObject]
@@ -17,17 +22,12 @@ interface ExtensionDiagnosticView {
   readonly path?: string
 }
 
-export interface ExtensionListContributionsInput {
-  readonly projectPaths?: readonly string[]
-  readonly sessionId?: string
-}
-
-export interface ExtensionRuntimeModuleAccessInput {
-  readonly packagePath: string
-  readonly contentHash: string
-  readonly projectPaths: readonly string[]
-  readonly sessionId?: string
-}
+export type ExtensionListContributionsInput = SchemaType<
+  typeof extensionListContributionsInputSchema
+>
+export type ExtensionRuntimeModuleAccessInput = SchemaType<
+  typeof extensionRuntimeModuleAccessInputSchema
+>
 
 export interface ExtensionContributionEligibilityView {
   readonly runtimeEnabled: boolean

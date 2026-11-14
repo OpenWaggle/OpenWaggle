@@ -13,20 +13,21 @@ import './apply-build-identity'
 import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
-import { app } from 'electron'
 import {
   enableMainCompileCache,
   flushMainCompileCacheAfterLoad,
   flushMainCompileCacheOnceStarted,
   type MainCompileCache,
 } from './boot/main-compile-cache'
+import type { BootEnvironment } from './boot/boot-environment'
 import { mainCompileCacheLocation } from './boot/main-compile-cache-location'
 import { startSessionHostPrelaunch } from './boot/session-host-prelaunch'
 import { answerTopLevelCliInBoot } from './boot-top-level-cli'
+import { bootShell } from './desktop-shell/boot-shell'
 
-function startCompileCache(): MainCompileCache | null {
+function startCompileCache() {
   try {
-    return enableMainCompileCache(
+    const cache: MainCompileCache | null = enableMainCompileCache(
       mainCompileCacheLocation({
         platform: process.platform,
         env: process.env,
@@ -34,22 +35,29 @@ function startCompileCache(): MainCompileCache | null {
         channel: BUILD_CHANNEL,
       }),
     )
+    return cache
   } catch {
     return null
   }
 }
 
+const bootEnvironment: BootEnvironment = process.env
 const compileCache = startCompileCache()
 const outcome = answerTopLevelCliInBoot({
   argv: process.argv,
-  cliOutputFd: process.env.OPENWAGGLE_CLI_OUTPUT_FD,
+  cliOutputFd: bootEnvironment.OPENWAGGLE_CLI_OUTPUT_FD,
   platform: process.platform,
 })
 if (outcome !== 'answered') {
   // The desktop app's Host starts now, while this process loads the main bundle.
   if (outcome === 'desktop-app') {
     startSessionHostPrelaunch({
-      app,
+      app: {
+        isPackaged: bootShell.isPackaged(),
+        getAppPath: () => bootShell.appRoot(),
+        getPath: () => bootShell.userData(),
+        commandLine: bootShell.commandLine,
+      },
       desktopApp: true,
       environment: process.env,
       platform: process.platform,

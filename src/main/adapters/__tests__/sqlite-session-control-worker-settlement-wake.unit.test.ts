@@ -126,8 +126,8 @@ describe('SQLite Worker settlement of a woken nested Queen', () => {
   })
 
   it.each([
-    { terminalStatus: 'failed' as const, finalResponse: undefined },
-    { terminalStatus: 'interrupted' as const, finalResponse: undefined },
+    { terminalStatus: 'failed' as const },
+    { terminalStatus: 'interrupted' as const },
     { terminalStatus: 'completed' as const, finalResponse: '  ' },
   ])(
     'leaves the result reviewable when the wake ends $terminalStatus without a reply',

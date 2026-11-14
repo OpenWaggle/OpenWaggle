@@ -37,7 +37,7 @@ function finishDrain(profileId: string, state: ProfileBackgroundWorkState) {
 export function acquireLocalSessionProfileBackgroundWork(
   profileId: string,
   options: { readonly cancelOnFence: boolean },
-): LocalSessionProfileBackgroundWorkLease | undefined {
+) {
   const state = stateFor(profileId)
   if (state.fenced) return undefined
   const work: ProfileBackgroundWork = options.cancelOnFence

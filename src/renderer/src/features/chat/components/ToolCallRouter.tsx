@@ -87,7 +87,7 @@ function ToolCallCard({
       <CodemodeToolCallBlock
         args={part.arguments}
         state={part.state}
-        result={result}
+        {...(result === undefined ? {} : { result })}
         isStreaming={isStreaming}
         nestedCallsShown={nestedCallsShown}
       />
@@ -99,7 +99,7 @@ function ToolCallCard({
       name={part.name}
       args={part.arguments}
       state={part.state}
-      result={result}
+      {...(result === undefined ? {} : { result })}
       isStreaming={isStreaming}
     />
   )

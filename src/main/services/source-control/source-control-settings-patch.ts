@@ -13,7 +13,7 @@ import type {
 function patchRecord<V>(
   current: Readonly<Record<string, V>>,
   changes: Readonly<Record<string, V | null>>,
-): Record<string, V> {
+) {
   const next: Record<string, V> = {}
   for (const [key, value] of Object.entries(current)) {
     if (!(key in changes)) next[key] = value
@@ -42,7 +42,7 @@ function patched<V>(
 export function applySourceControlSettingsPatch(
   current: SourceControlSettings,
   patch: SourceControlSettingsPatch,
-): Partial<SourceControlSettings> {
+) {
   const byProject = patched(
     current.changeRequestOpenDestinationByProject,
     patch.changeRequestOpenDestinationByProject,
@@ -90,9 +90,7 @@ export interface LocalSourceControlSettingsStore {
  * Settings access whose patches run one at a time, each against the latest stored value, so no
  * writer in this process loses another's change.
  */
-export function createSerialSourceControlSettingsAccess(
-  store: LocalSourceControlSettingsStore,
-): SourceControlSettingsAccess {
+export function createSerialSourceControlSettingsAccess(store: LocalSourceControlSettingsStore) {
   let tail: Promise<unknown> = Promise.resolve()
   return {
     read: store.read,
@@ -107,5 +105,5 @@ export function createSerialSourceControlSettingsAccess(
       tail = next.catch(() => undefined)
       return next
     },
-  }
+  } satisfies SourceControlSettingsAccess
 }

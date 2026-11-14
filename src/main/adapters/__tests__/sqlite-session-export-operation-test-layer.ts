@@ -42,7 +42,7 @@ export function makeSessionExportOperationRuntime(filename: string) {
 
 export function withSessionExportOperationRepository<A, E>(
   runtime: ReturnType<typeof makeSessionExportOperationRuntime>,
-  effect: (repository: SessionExportOperationRepositoryShape) => Effect.Effect<A, E, never>,
+  effect: (repository: SessionExportOperationRepositoryShape) => Effect.Effect<A, E>,
 ) {
   return runtime.runPromise(
     Effect.gen(function* () {

@@ -14,6 +14,10 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { nodeRuntime } from './support/node-runtime'
+import { Schema } from '@shared/schema'
+import { scriptEnv } from './support/env'
+import { unknownField } from './support/object-fields'
 
 /** External packages the main bundle may load while it starts. Node built-ins always may. */
 export const ALLOWED_STARTUP_EXTERNALS: readonly string[] = ['electron']
@@ -31,12 +35,47 @@ export const STARTUP_PROBE_ARGUMENTS: readonly (readonly string[])[] = [
 
 /** Electron's main-process exports, so `__toESM(require('electron'))` gets every name. */
 const ELECTRON_EXPORTS = [
-  'BaseWindow', 'BrowserView', 'BrowserWindow', 'ImageView', 'IpcMainServiceWorker', 'Menu', 'MenuItem',
-  'MessageChannelMain', 'Notification', 'ShareMenu', 'TouchBar', 'Tray', 'View', 'WebContentsView',
-  'WebSocket', 'app', 'autoUpdater', 'contentTracing', 'desktopCapturer', 'dialog', 'globalShortcut',
-  'inAppPurchase', 'ipcMain', 'nativeTheme', 'net', 'netLog', 'powerMonitor', 'powerSaveBlocker',
-  'protocol', 'pushNotifications', 'safeStorage', 'screen', 'session', 'systemPreferences',
-  'utilityProcess', 'webContents', 'webFrameMain', 'clipboard', 'crashReporter', 'nativeImage', 'shell',
+  'BaseWindow',
+  'BrowserView',
+  'BrowserWindow',
+  'ImageView',
+  'IpcMainServiceWorker',
+  'Menu',
+  'MenuItem',
+  'MessageChannelMain',
+  'Notification',
+  'ShareMenu',
+  'TouchBar',
+  'Tray',
+  'View',
+  'WebContentsView',
+  'WebSocket',
+  'app',
+  'autoUpdater',
+  'contentTracing',
+  'desktopCapturer',
+  'dialog',
+  'globalShortcut',
+  'inAppPurchase',
+  'ipcMain',
+  'nativeTheme',
+  'net',
+  'netLog',
+  'powerMonitor',
+  'powerSaveBlocker',
+  'protocol',
+  'pushNotifications',
+  'safeStorage',
+  'screen',
+  'session',
+  'systemPreferences',
+  'utilityProcess',
+  'webContents',
+  'webFrameMain',
+  'clipboard',
+  'crashReporter',
+  'nativeImage',
+  'shell',
 ]
 
 /** Runs as `node -e PROBE_SOURCE <bundle> <electron exports JSON> ...argv`. */
@@ -95,31 +134,35 @@ export interface StartupProbeResult {
 const PROBE_TIMEOUT_MS = 60_000
 const PROBE_MAX_BUFFER_BYTES = 1024 * 1024
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+/** The probe's last line: the modules the bundle loaded, and its load error if any. */
+const startupProbeOutputSchema = Schema.Struct({
+  loaded: Schema.Array(Schema.Unknown),
+  error: unknownField,
+})
 
 /** Evaluates `bundlePath` once per argument vector, in a throwaway HOME, and reports its loads. */
 export function probeStartupExternals(
   bundlePath: string,
   argumentVectors: readonly (readonly string[])[] = STARTUP_PROBE_ARGUMENTS,
-): StartupProbeResult[] {
+) {
   const home = mkdtempSync(path.join(tmpdir(), 'main-bundle-startup-'))
   try {
     return argumentVectors.map((argv) => {
       const output = execFileSync(
-        process.execPath,
+        nodeRuntime().execPath,
         ['-e', PROBE_SOURCE, path.resolve(bundlePath), JSON.stringify(ELECTRON_EXPORTS), ...argv],
         {
           encoding: 'utf8',
-          env: { PATH: process.env.PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
+          env: { PATH: scriptEnv().PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
           timeout: PROBE_TIMEOUT_MS,
           maxBuffer: PROBE_MAX_BUFFER_BYTES,
         },
       )
       const line = output.trim().split('\n').at(-1) ?? ''
       const parsed: unknown = JSON.parse(line)
-      if (!isRecord(parsed) || !Array.isArray(parsed.loaded)) throw new Error(`The startup probe printed ${line}.`)
+      if (!Schema.is(startupProbeOutputSchema)(parsed)) {
+        throw new Error(`The startup probe printed ${line}.`)
+      }
       return {
         argv,
         loaded: parsed.loaded.filter((entry): entry is string => typeof entry === 'string'),
@@ -149,7 +192,9 @@ export function startupExternalFailures(
               '(a module whose initializer runs at startup loads its imports then).',
           ]
         : []),
-      ...(result.error ? [`${command} threw while the main bundle started under the probe: ${result.error}`] : []),
+      ...(result.error
+        ? [`${command} threw while the main bundle started under the probe: ${result.error}`]
+        : []),
     ]
   })
 }

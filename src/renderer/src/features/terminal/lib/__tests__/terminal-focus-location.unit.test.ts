@@ -6,7 +6,7 @@ import {
   resolveTerminalCommandLayoutOwner,
 } from '../terminal-focus-location'
 
-function group(terminalId: string): TerminalGroupState {
+function group(terminalId: string) {
   return {
     tabs: [
       {
@@ -20,7 +20,7 @@ function group(terminalId: string): TerminalGroupState {
     activeTabId: `tab:${terminalId}`,
     panelOpen: true,
     panelHeight: 300,
-  }
+  } satisfies TerminalGroupState
 }
 
 describe('terminal focus location retention', () => {

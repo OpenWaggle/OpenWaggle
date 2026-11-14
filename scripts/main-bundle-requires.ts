@@ -1,5 +1,6 @@
 import { builtinModules } from 'node:module'
 import { parseSync } from 'vite'
+import { Schema } from '@shared/schema'
 
 /**
  * Packages the Electron main bundle may `require()` at its top level, before any OpenWaggle code
@@ -21,19 +22,23 @@ interface AstNode {
 }
 
 function isAstNode(value: unknown): value is AstNode {
-  return typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+  return (
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
+  )
 }
 
+/** `require('<specifier>')`: a call of the `require` identifier with a string literal first. */
+const requireCallSchema = Schema.Struct({
+  type: Schema.Literal('CallExpression'),
+  callee: Schema.Struct({ type: Schema.Literal('Identifier'), name: Schema.Literal('require') }),
+  arguments: Schema.NonEmptyArray(
+    Schema.Struct({ type: Schema.Literal('Literal'), value: Schema.Unknown }),
+  ),
+})
+
 function requiredSpecifier(node: AstNode) {
-  if (node.type !== 'CallExpression') return null
-  const callee: unknown = Reflect.get(node, 'callee')
-  const args: unknown = Reflect.get(node, 'arguments')
-  if (!isAstNode(callee) || callee.type !== 'Identifier' || Reflect.get(callee, 'name') !== 'require') {
-    return null
-  }
-  const first: unknown = Array.isArray(args) ? args[0] : undefined
-  if (!isAstNode(first) || first.type !== 'Literal') return null
-  const value: unknown = Reflect.get(first, 'value')
+  if (!Schema.is(requireCallSchema)(node)) return null
+  const [{ value }] = node.arguments
   return typeof value === 'string' ? value : null
 }
 
@@ -67,8 +72,17 @@ export function topLevelRequires(source: string) {
   return [...specifiers].sort()
 }
 
+/*
+ * Bun lists its own `bun:` modules and the npm packages it reimplements (`ws`, `undici`) among the
+ * built-ins. The main bundle loads those packages from node_modules, so they count as requires.
+ */
+const BUN_REIMPLEMENTED_PACKAGES = new Set(['undici', 'ws'])
+const NODE_BUILTIN_MODULES = builtinModules.filter(
+  (name) => name !== 'bun' && !name.startsWith('bun:') && !BUN_REIMPLEMENTED_PACKAGES.has(name),
+)
+
 function isNodeBuiltin(specifier: string) {
-  return specifier.startsWith('node:') || builtinModules.includes(specifier)
+  return specifier.startsWith('node:') || NODE_BUILTIN_MODULES.includes(specifier)
 }
 
 /** Another chunk of the same build, beside this file; budgeted as part of the chunk graph. */

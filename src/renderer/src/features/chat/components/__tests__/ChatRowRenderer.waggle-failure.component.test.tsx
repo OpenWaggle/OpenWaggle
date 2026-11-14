@@ -46,13 +46,17 @@ function liveMessages() {
   return events.reduce<readonly UIMessage[]>(applyAgentTransportEvent, [USER])
 }
 
-function refreshedMessages(): readonly UIMessage[] {
-  return [USER, { id: 'critic-1', role: 'assistant', parts: [], metadata: { error: ERROR } }]
+function refreshedMessages() {
+  const message: readonly UIMessage[] = [
+    USER,
+    { id: 'critic-1', role: 'assistant', parts: [], metadata: { error: ERROR } },
+  ]
+  return message
 }
 
 function rowKey(row: ChatRow) {
   if (row.type === 'message') return row.message.id
-  return 'id' in row ? String(row.id) : row.type
+  return 'id' in row ? row.id : row.type
 }
 
 function renderTranscript(

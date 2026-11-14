@@ -11,7 +11,7 @@ import {
 
 const SESSION = SessionId('session-live')
 
-function answer(text: string, thinking = ''): UIMessage {
+function answer(text: string, thinking = '') {
   return {
     id: 'answer',
     role: 'assistant',
@@ -19,7 +19,7 @@ function answer(text: string, thinking = ''): UIMessage {
       { type: 'thinking', content: thinking, stepId: 'answer:thinking:0' },
       { type: 'text', content: text },
     ],
-  }
+  } satisfies UIMessage
 }
 
 describe('live stream messages', () => {

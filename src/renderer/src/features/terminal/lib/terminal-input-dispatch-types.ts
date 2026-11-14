@@ -45,8 +45,8 @@ export interface TerminalInputDispatcherOptions {
 export interface TerminalInputClient {
   readonly generation: string
   readonly inputIncarnation: string | null
-  enqueue(data: string): TerminalInputEnqueueResult
-  enqueueAsync(resolveData: () => Promise<string>): Promise<TerminalInputEnqueueResult>
+  readonly enqueue: (data: string) => TerminalInputEnqueueResult
+  readonly enqueueAsync: (resolveData: () => Promise<string>) => Promise<TerminalInputEnqueueResult>
   /** Queue one whole Project Action command and resolve only after main accepts or rejects it. */
   enqueueProjectAction(
     data: string,

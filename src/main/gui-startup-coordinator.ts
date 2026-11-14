@@ -26,8 +26,11 @@ export const GUI_STARTUP_UPDATE_TIMEOUT_MESSAGE =
 
 /** Thrown by a start whose failure left this process unable to retry it in place. */
 export class GuiStartupRestartRequiredError extends Error {
-  constructor(readonly failure: unknown) {
+  readonly failure: unknown
+
+  constructor(failure: unknown) {
     super(failure instanceof Error ? failure.message : String(failure), { cause: failure })
+    this.failure = failure
     this.name = 'GuiStartupRestartRequiredError'
   }
 }
@@ -80,9 +83,7 @@ function defaultSetTimer(callback: () => void, milliseconds: number) {
   return () => clearTimeout(timer)
 }
 
-export function createGuiStartupCoordinator(
-  input: GuiStartupCoordinatorInput,
-): GuiStartupCoordinator {
+export function createGuiStartupCoordinator(input: GuiStartupCoordinatorInput) {
   const setTimer = input.setTimer ?? defaultSetTimer
   const slowAfterMs = input.slowAfterMs ?? GUI_STARTUP_SLOW_AFTER_MS
   const updateSlowAfterMs = input.updateSlowAfterMs ?? GUI_STARTUP_UPDATE_SLOW_AFTER_MS
@@ -145,15 +146,15 @@ export function createGuiStartupCoordinator(
         return input.start(progress, controller.signal)
       })
       .then(
-        (): AttemptOutcome => {
+        () => {
           if (isCurrent()) {
             attempt = null
             clearDeadline()
             publish({ state: 'ready' })
           }
-          return { kind: 'ready' }
+          return { kind: 'ready' } satisfies AttemptOutcome
         },
-        (error: unknown): AttemptOutcome => {
+        (error: unknown) => {
           if (isCurrent()) {
             attempt = null
             clearDeadline()
@@ -161,7 +162,7 @@ export function createGuiStartupCoordinator(
             input.onFailure(error instanceof GuiStartupRestartRequiredError ? error.failure : error)
             publish({ state: 'failed', reason: 'error', message: input.describeFailure(error) })
           }
-          return { kind: 'failed', error }
+          return { kind: 'failed', error } satisfies AttemptOutcome
         },
       )
     attempt = { controller, settled }

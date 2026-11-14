@@ -48,7 +48,7 @@ export const mcpServerNameRequestSchema: Schema.Schema<McpServerNameRequest> = S
 export const mcpRemoveServerRequestSchema: Schema.Schema<McpRemoveServerRequest> = Schema.Struct({
   projectPath,
   name: serverName,
-  orphanedOverride: Schema.optional(Schema.Struct({ fileId: destination })),
+  orphanedOverride: Schema.optionalWith(Schema.Struct({ fileId: destination }), { exact: true }),
 })
 
 export const mcpSetServerEnabledRequestSchema: Schema.Schema<McpSetServerEnabledRequest> =
@@ -57,16 +57,17 @@ export const mcpSetServerEnabledRequestSchema: Schema.Schema<McpSetServerEnabled
     name: serverName,
     enabled: Schema.Boolean,
     target: Schema.Literal('server', 'project'),
-    destination: Schema.optional(destination),
+    destination: Schema.optionalWith(destination, { exact: true }),
   })
 
 export const mcpSetServerExposureRequestSchema: Schema.Schema<McpSetServerExposureRequest> =
   Schema.Struct({
     projectPath,
     name: serverName,
-    exposure: Schema.optional(exposure),
-    toolExposure: Schema.optional(
+    exposure: Schema.optionalWith(exposure, { exact: true }),
+    toolExposure: Schema.optionalWith(
       Schema.Record({ key: nonEmpty(MAX_NAME_LENGTH), value: Schema.NullOr(exposure) }),
+      { exact: true },
     ),
   }).pipe(
     Schema.filter((input) =>
@@ -80,7 +81,7 @@ export const mcpAddServerRequestSchema: Schema.Schema<McpAddServerRequest> = Sch
   projectPath,
   name: serverName,
   scope,
-  destination: Schema.optional(destination),
+  destination: Schema.optionalWith(destination, { exact: true }),
   entry: Schema.Record({ key: Schema.String, value: mcpConfigValueSchema }),
 })
 
@@ -89,17 +90,17 @@ export const mcpInstallCatalogServerRequestSchema: Schema.Schema<McpInstallCatal
     projectPath,
     catalogName: serverName,
     scope,
-    destination: Schema.optional(destination),
+    destination: Schema.optionalWith(destination, { exact: true }),
   })
 
 export const mcpImportPreviewRequestSchema: Schema.Schema<McpImportPreviewRequest> = Schema.Struct({
   projectPath,
-  sources: Schema.optional(Schema.Array(importSource)),
+  sources: Schema.optionalWith(Schema.Array(importSource), { exact: true }),
 })
 
 export const mcpImportApplyRequestSchema: Schema.Schema<McpImportApplyRequest> = Schema.Struct({
   projectPath,
-  sources: Schema.optional(Schema.Array(importSource)),
+  sources: Schema.optionalWith(Schema.Array(importSource), { exact: true }),
   fingerprints: Schema.Array(nonEmpty(MAX_NAME_LENGTH)).pipe(Schema.maxItems(MAX_FINGERPRINTS)),
   target: scope,
   conflictPolicy: Schema.Literal('skip', 'replace', 'rename'),

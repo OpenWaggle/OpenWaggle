@@ -34,8 +34,8 @@ export function entry(overrides: Partial<WorktreeInventoryEntry> & { readonly pa
   } satisfies WorktreeInventoryEntry
 }
 
-export function inventory(entries: readonly WorktreeInventoryEntry[]): WorktreeInventory {
-  return {
+export function inventory(entries: readonly WorktreeInventoryEntry[]) {
+  const result: WorktreeInventory = {
     projects: [
       { projectPath: PROJECT, name: 'project', opened: true },
       { projectPath: OTHER_PROJECT, name: 'other', opened: false },
@@ -43,21 +43,23 @@ export function inventory(entries: readonly WorktreeInventoryEntry[]): WorktreeI
     entries,
     problems: [],
   }
+  return result
 }
 
 /** The preview the removal dialog reads, for a worktree nothing uses. */
 export function preview(
   request: ActionManagementRequest,
   overrides: Partial<WorktreeRemovalPreview> = {},
-): ActionManagementResult {
+) {
   const path = request.operation.type === 'worktree-removal-preview' ? request.operation.path : ''
-  return {
+  const result: ActionManagementResult = {
     type: 'worktree-removal-preview',
     usage: { path, sessions: [], blockers: [] },
     branch: 'ow/branch',
     unpublishedCommitCount: 0,
     ...overrides,
   }
+  return result
 }
 
 export function createWorktreeApiMocks() {

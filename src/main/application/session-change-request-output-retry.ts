@@ -30,7 +30,7 @@ export function pendingChangeRequestOutput(
   sessionId: SessionId,
   input: RecordSessionChangeRequestInput,
   occurrenceContext: SessionOutputOccurrenceContext,
-): PendingChangeRequestSessionOutput {
+) {
   return {
     id: pendingOutputId(sessionId, 'change-request', input.url),
     sessionId,
@@ -38,14 +38,14 @@ export function pendingChangeRequestOutput(
     ...input,
     ...occurrenceContext,
     updatedAt: occurrenceContext.createdAt,
-  }
+  } satisfies PendingChangeRequestSessionOutput
 }
 
 export function pendingCommitOutput(
   sessionId: SessionId,
   input: PendingCommitOutput,
   occurrenceContext: SessionOutputOccurrenceContext,
-): PendingCommitSessionOutput {
+) {
   return {
     id: pendingOutputId(sessionId, 'commit', input.commitHash),
     sessionId,
@@ -53,7 +53,7 @@ export function pendingCommitOutput(
     ...input,
     ...occurrenceContext,
     updatedAt: occurrenceContext.createdAt,
-  }
+  } satisfies PendingCommitSessionOutput
 }
 
 export function putPendingSessionOutput(output: PendingSessionOutput) {

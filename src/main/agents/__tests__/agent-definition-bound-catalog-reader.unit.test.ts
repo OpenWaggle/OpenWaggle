@@ -17,7 +17,7 @@ describe('descriptor-bound Agent definition catalog reads', () => {
   it('runs an Electron executable in Node mode without inheriting arbitrary secrets', () => {
     const environment = agentDefinitionCatalogChildEnvironment()
 
-    expect(environment.ELECTRON_RUN_AS_NODE).toBe('1')
+    expect(environment).toHaveProperty('ELECTRON_RUN_AS_NODE', '1')
     expect(environment).not.toHaveProperty('OPENAI_API_KEY')
     expect(Object.keys(environment)).toEqual(
       expect.arrayContaining(['PATH', 'HOME', 'ELECTRON_RUN_AS_NODE']),

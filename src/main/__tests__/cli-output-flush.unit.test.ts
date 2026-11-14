@@ -3,7 +3,7 @@ import { flushCliOutput } from '../cli-output-flush'
 
 describe('CLI output flush', () => {
   it('waits for both machine-output pipes to drain before resolving', async () => {
-    const callbacks: Array<(error?: Error | null) => void> = []
+    const callbacks: ((error?: Error | null) => void)[] = []
     const output = {
       stdout: {
         write: vi.fn((_chunk: string, callback: (error?: Error | null) => void) => {

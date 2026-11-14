@@ -15,7 +15,7 @@ const DEFAULT_UI_SCOPE_SELECTOR = `.${OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.root}`
 
 export function extensionThemeCssVariableDeclarations(
   theme: OpenWaggleExtensionTheme = createOpenWaggleExtensionTheme(),
-): string {
+) {
   const declarations: string[] = []
 
   for (const entry of extensionThemeCssVariableEntries(theme)) {
@@ -284,7 +284,7 @@ ${syntaxUiRules(selector)}`
 
 export function createOpenWaggleExtensionUiStylesheet(
   options: CreateOpenWaggleExtensionUiStylesheetOptions = {},
-): string {
+) {
   const theme = options.theme ?? createOpenWaggleExtensionTheme()
   const selector = options.scopeSelector ?? DEFAULT_UI_SCOPE_SELECTOR
   const rules = extensionUiRules(selector)

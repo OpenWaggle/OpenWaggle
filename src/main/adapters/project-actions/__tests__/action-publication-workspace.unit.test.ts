@@ -74,8 +74,9 @@ describe('publication workspace identity', () => {
     const workspacePath = await interruptPublication()
     const stored = rows.get(projectPath)
     const pending = stored?.state.pending
-    if (!stored || !pending?.publication || !pending.workspaceIdentity)
+    if (!stored || !pending?.publication || !pending.workspaceIdentity) {
       throw new Error('missing publication journal')
+    }
     // macOS renumbers APFS volumes at mount, so st_dev journaled before a reboot differs.
     rows.set(projectPath, {
       ...stored,
@@ -130,11 +131,12 @@ describe('publication workspace identity', () => {
     async (state) => {
       const workspacePath = await interruptPublication()
       if (state === 'deleted') workspaces.delete(workspacePath)
-      else
+      else {
         workspaces.set(workspacePath, {
           id: state === 'replaced' ? 'new-owner' : 'original',
           ready: state === 'replaced',
         })
+      }
       await expectRetainedDraft(workspacePath)
       await expect(lstat(join(workspacePath, '.openwaggle/actions.json'))).rejects.toMatchObject({
         code: 'ENOENT',

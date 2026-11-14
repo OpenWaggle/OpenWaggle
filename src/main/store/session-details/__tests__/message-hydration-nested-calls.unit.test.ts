@@ -10,7 +10,7 @@ const nestedCalls = {
   ],
 }
 
-function toolResultRow(): SessionNodeRow {
+function toolResultRow() {
   return {
     id: 'tool-result-node',
     session_id: 'session',
@@ -40,7 +40,7 @@ function toolResultRow(): SessionNodeRow {
     branch_hint_id: null,
     path_depth: 1,
     created_order: 3,
-  }
+  } satisfies SessionNodeRow
 }
 
 describe('tool result hydration', () => {

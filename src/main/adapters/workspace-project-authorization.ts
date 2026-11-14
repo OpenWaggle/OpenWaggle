@@ -49,8 +49,9 @@ export async function projectOfWorkspacePath(
   candidates: readonly string[],
   sources: WorkspaceProjectSources,
   options: { readonly insideManagedWorktrees?: boolean } = {},
-): Promise<string | null> {
-  const opened = candidates.find((candidate) => sources.userProjects.includes(candidate))
+) {
+  const userProjects = new Set(sources.userProjects)
+  const opened = candidates.find((candidate) => userProjects.has(candidate))
   if (opened) return opened
   for (const candidate of candidates) {
     const project = await sources.managedWorktreeProject(candidate)
@@ -59,7 +60,7 @@ export async function projectOfWorkspacePath(
   if (!options.insideManagedWorktrees) return null
   for (const candidate of candidates) {
     for (const ancestor of strictAncestors(candidate)) {
-      if (sources.userProjects.includes(ancestor)) break
+      if (userProjects.has(ancestor)) break
       const project = await sources.managedWorktreeProject(ancestor)
       if (project) return project
     }
@@ -108,10 +109,7 @@ export const WorkspaceProjectAuthorizationLive = Layer.succeed(
           settings.projectPath,
           ...settings.recentProjects,
           ...Object.keys(settings.projectDisplayNames),
-        ]).pipe(
-          Effect.map((authorizedPath): string | null => authorizedPath),
-          Effect.catchAll(() => Effect.succeed(null)),
-        )
+        ]).pipe(Effect.catchAll(() => Effect.succeed(null)))
         if (settingsAuthorization) return settingsAuthorization
         const canonicalPath = yield* validateRequiredProjectPath(projectPath)
         const root = yield* Effect.tryPromise({

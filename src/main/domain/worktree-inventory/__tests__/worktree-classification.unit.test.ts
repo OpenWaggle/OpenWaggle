@@ -6,7 +6,7 @@ import {
   worktreeArchivedAt,
 } from '../worktree-classification'
 
-function session(overrides: Partial<WorktreeInventorySession> = {}): WorktreeInventorySession {
+function session(overrides: Partial<WorktreeInventorySession> = {}) {
   return {
     sessionId: 's',
     title: 'A Session',
@@ -15,11 +15,11 @@ function session(overrides: Partial<WorktreeInventorySession> = {}): WorktreeInv
     running: false,
     owner: true,
     ...overrides,
-  }
+  } satisfies WorktreeInventorySession
 }
 
-function facts(overrides: Partial<WorktreeFacts> = {}): WorktreeFacts {
-  return {
+function facts(overrides: Partial<WorktreeFacts> = {}) {
+  const result: WorktreeFacts = {
     managed: true,
     underManagedRoot: true,
     locked: false,
@@ -30,6 +30,7 @@ function facts(overrides: Partial<WorktreeFacts> = {}): WorktreeFacts {
     cleanupFailed: false,
     ...overrides,
   }
+  return result
 }
 
 describe('Worktree archive time', () => {

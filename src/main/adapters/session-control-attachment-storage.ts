@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { AttachmentKind, AttachmentOrigin, PreparedAttachment } from '@shared/types/agent'
+import type { AttachmentKind, AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import type { SessionControlAttachmentServiceShape } from '../ports/session-control-attachment-service'
 import {
@@ -92,7 +92,7 @@ function stableAttachmentId(input: {
     .digest('hex')}`
 }
 
-function attachmentFromRow(row: PreparedAttachmentRow): PreparedAttachment {
+function attachmentFromRow(row: PreparedAttachmentRow) {
   return {
     id: row.id,
     kind: row.kind,
@@ -129,8 +129,9 @@ function bindAttachments(
       }
       const selectedIds = new Set(selected.map((row) => row.id))
       const missing = input.attachmentIds.find((id) => !selectedIds.has(id))
-      if (missing)
+      if (missing) {
         return yield* Effect.fail(new Error(`Attachment capability was not found: ${missing}`))
+      }
       yield* sql`
       UPDATE session_prepared_attachments
       SET session_id = ${input.sessionId}, bound_at = COALESCE(bound_at, ${now}), expires_at = ${null}
@@ -222,7 +223,7 @@ function resolveAttachments(
       if (!row) throw new Error(`Attachment capability was not found: ${id}`)
       const attachment = attachmentFromRow(row)
       // Auto-pastes are prompts: their bounded preview must not truncate the model input.
-      if (attachment.kind !== 'image' && attachment.kind !== 'pdf')
+      if (attachment.kind !== 'image' && attachment.kind !== 'pdf') {
         return {
           ...attachment,
           extractedText:
@@ -231,6 +232,7 @@ function resolveAttachments(
               : attachment.extractedText,
           source: null,
         }
+      }
       return {
         ...attachment,
         source: { type: 'data' as const, value: row.source_base64, mimeType: attachment.mimeType },

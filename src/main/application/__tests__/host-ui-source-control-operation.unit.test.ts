@@ -1,7 +1,10 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionOutputRetryRepository } from '../../ports/session-output-retry-repository'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
@@ -9,15 +12,14 @@ import { SessionResourceRepository } from '../../ports/session-resource-reposito
 
 const mocks = vi.hoisted(() => ({
   patch: vi.fn(),
-  verifySessionGitWorkingPath: vi.fn(),
   recordSessionGitOutputsOperation: vi.fn(),
 }))
 
-vi.mock('../session-git-outputs', async () => {
+vi.mock('../session-git-outputs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../session-git-outputs')>()
   const { succeed } = await import('effect/Effect')
   return {
-    verifySessionGitWorkingPath: (...args: unknown[]) =>
-      succeed(mocks.verifySessionGitWorkingPath(...args)),
+    ...actual,
     recordSessionGitOutputsOperation: (...args: unknown[]) =>
       succeed(mocks.recordSessionGitOutputsOperation(...args)),
   }
@@ -29,10 +31,25 @@ vi.mock('../../services/source-control/source-control-runtime', () => ({
 
 const { dispatchHostUiSourceControlOperation } = await import('../host-ui-source-control-operation')
 
-/** The settings patch needs none of these; they only satisfy the dispatcher's requirements. */
-const UNUSED_SESSION_SERVICES = Layer.mergeAll(
-  Layer.succeed(SessionProjectionRepository, fromPartial({})),
-  Layer.succeed(SessionRepository, fromPartial({})),
+let projectPath = ''
+
+/** Session A is a local Session in `projectPath`, on node n of branch b. */
+const SESSION_SERVICES = Layer.mergeAll(
+  Layer.succeed(
+    SessionProjectionRepository,
+    fromPartial({
+      getOptional: (sessionId: string) =>
+        Effect.succeed(
+          sessionId === 'session-a' ? { projectPath, environmentMode: 'local' } : null,
+        ),
+    }),
+  ),
+  Layer.succeed(
+    SessionRepository,
+    fromPartial({
+      getWorkspace: () => Effect.succeed({ activeNodeId: 'n', activeBranchId: 'b' }),
+    }),
+  ),
   Layer.succeed(SessionOutputRetryRepository, fromPartial({})),
   Layer.succeed(SessionResourceRepository, fromPartial({})),
 )
@@ -47,30 +64,44 @@ function run(
     | SessionResourceRepository
   >,
 ) {
-  return Effect.runPromiseExit(effect.pipe(Effect.provide(UNUSED_SESSION_SERVICES)))
+  return Effect.runPromiseExit(effect.pipe(Effect.provide(SESSION_SERVICES)))
 }
 
 describe('source-control operations the Session Host runs for the window', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-source-control-'))
     mocks.patch.mockReset().mockResolvedValue(undefined)
-    mocks.verifySessionGitWorkingPath.mockReset()
     mocks.recordSessionGitOutputsOperation.mockReset()
   })
 
-  it('checks a Session working path where Sessions live', async () => {
-    const verification = { owned: true, occurrence: { nodeId: 'n', branchId: 'b', createdAt: 1 } }
-    mocks.verifySessionGitWorkingPath.mockReturnValue(verification)
+  afterEach(async () => {
+    await fs.rm(projectPath, { recursive: true, force: true })
+  })
 
-    await expect(
+  it('checks a Session working path where Sessions live', async () => {
+    const verify = (sessionId: string, workingPath: string) =>
       run(
         dispatchHostUiSourceControlOperation(
           'git:session:verify-working-path',
-          ['session-a', '/repo/session-a'],
+          [sessionId, workingPath],
           23,
         ),
-      ),
-    ).resolves.toMatchObject({ _tag: 'Success', value: verification })
-    expect(mocks.verifySessionGitWorkingPath).toHaveBeenCalledWith('session-a', '/repo/session-a')
+      )
+    const otherFolder = path.join(projectPath, 'other')
+    await fs.mkdir(otherFolder)
+
+    await expect(verify('session-a', projectPath)).resolves.toMatchObject({
+      _tag: 'Success',
+      value: { owned: true, occurrence: { nodeId: 'n', branchId: 'b' } },
+    })
+    await expect(verify('session-a', otherFolder)).resolves.toMatchObject({
+      _tag: 'Success',
+      value: { owned: false },
+    })
+    await expect(verify('session-b', projectPath)).resolves.toMatchObject({
+      _tag: 'Success',
+      value: { owned: false },
+    })
   })
 
   it('records Session Git Outputs in the Host and rejects a relative working path', async () => {

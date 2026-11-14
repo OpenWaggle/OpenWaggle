@@ -44,17 +44,14 @@ interface SessionWorktreeSetupDispatchInput {
   readonly pending?: PendingSessionWorktreeSetup
 }
 
-function progressWithDetails(
-  input: SessionWorktreeSetupDispatchInput,
-  details: readonly string[],
-): WorktreeLaunchProgress {
+function progressWithDetails(input: SessionWorktreeSetupDispatchInput, details: readonly string[]) {
   return {
     stage: 'worktree-created',
     details,
     worktreePath: input.worktreePath,
     ...(input.branch ? { branch: input.branch } : {}),
     ...(input.baseRef ? { baseRef: input.baseRef } : {}),
-  }
+  } satisfies WorktreeLaunchProgress
 }
 
 function reportIndeterminateClaim(
@@ -73,10 +70,7 @@ function reportIndeterminateClaim(
   )
 }
 
-async function resolvePendingDispatch(
-  id: SessionId,
-  input: SessionWorktreeSetupDispatchInput,
-): Promise<PendingSessionWorktreeSetup | null> {
+async function resolvePendingDispatch(id: SessionId, input: SessionWorktreeSetupDispatchInput) {
   if (input.pending) return input.pending
   const persisted = await getSessionWorktreeSetupDispatch(id)
   if (!persisted || persisted.worktreePath !== input.worktreePath) return null
@@ -162,8 +156,9 @@ export async function dispatchPendingSessionWorktreeSetup(
 
   options.signal?.throwIfAborted()
   const claim = await claimSessionWorktreeSetup(id, pending)
-  if (!claim)
+  if (!claim) {
     throw new Error('Workspace preparation changed while it was being claimed. Retry the turn.')
+  }
 
   try {
     options.signal?.throwIfAborted()

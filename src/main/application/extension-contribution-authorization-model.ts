@@ -10,6 +10,7 @@ import {
   getManifestFamilyContributions,
   isEntryContribution,
   isSessionSummaryContribution,
+  type ManifestCommandContribution,
   type ManifestContribution,
 } from './extension-contribution-family-model'
 import {
@@ -19,10 +20,7 @@ import {
 
 const DEFAULT_DECLARED_SCOPES = ['app'] as const
 
-interface ContributionBrokerBinding {
-  readonly method?: string
-  readonly methods?: readonly string[]
-}
+type ContributionBrokerBinding = Pick<ManifestCommandContribution, 'method' | 'methods'>
 
 type ContributionCapabilityBinding =
   | {
@@ -60,14 +58,17 @@ function uniqueMethods(binding: ContributionBrokerBinding) {
   return methods
 }
 
-function contributionCapabilityBinding(
-  contribution: ManifestContribution,
-): ContributionCapabilityBinding {
-  if (isSessionSummaryContribution(contribution)) return { _tag: 'unbound', methods: [] }
+function contributionCapabilityBinding(contribution: ManifestContribution) {
+  if (isSessionSummaryContribution(contribution)) {
+    const binding: ContributionCapabilityBinding = { _tag: 'unbound', methods: [] }
+    return binding
+  }
   const methods = uniqueMethods(contribution)
-  return contribution.capability === undefined
-    ? { _tag: 'unbound', methods }
-    : { _tag: 'bound', capability: contribution.capability, methods }
+  const binding: ContributionCapabilityBinding =
+    contribution.capability === undefined
+      ? { _tag: 'unbound', methods }
+      : { _tag: 'bound', capability: contribution.capability, methods }
+  return binding
 }
 
 export function contributionDiagnostic(input: {
@@ -76,7 +77,7 @@ export function contributionDiagnostic(input: {
   readonly contributionId?: string
   readonly message: string
   readonly index?: number
-}): ExtensionDiagnostic {
+}) {
   const suffix =
     input.index === undefined
       ? `contributions.${input.family}`
@@ -84,12 +85,13 @@ export function contributionDiagnostic(input: {
   const contributionLabel =
     input.contributionId === undefined ? '' : ` Contribution "${input.contributionId}".`
 
-  return {
+  const diagnostic: ExtensionDiagnostic = {
     severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
     code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.CONTRIBUTION_REGISTRATION_FAILED,
     message: `${input.message}${contributionLabel}`,
     path: `${input.extensionPackage.manifestPath}#${suffix}`,
   }
+  return diagnostic
 }
 
 export function findManifestCapabilityDeclaration(input: {
@@ -101,10 +103,10 @@ export function findManifestCapabilityDeclaration(input: {
   )
 }
 
-export function getDeclaredScopes(
-  declaration: ExtensionCapabilityDeclaration,
-): readonly (typeof OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES)[number][] {
-  return declaration.scopes ?? DEFAULT_DECLARED_SCOPES
+export function getDeclaredScopes(declaration: ExtensionCapabilityDeclaration) {
+  const result: readonly (typeof OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES)[number][] =
+    declaration.scopes ?? DEFAULT_DECLARED_SCOPES
+  return result
 }
 
 export function methodIsDeclared(declaration: ExtensionCapabilityDeclaration, method: string) {
@@ -175,7 +177,7 @@ function undeclaredMethodDiagnostics(input: {
           extensionPackage: input.extensionPackage,
           family: input.family,
           contributionId: input.contributionId,
-          index: input.index,
+          ...(input.index === undefined ? {} : { index: input.index }),
           message: `Contribution requests method "${method}" for capability "${input.capability}", but the manifest capability does not declare that method.`,
         }),
       )
@@ -201,7 +203,7 @@ function capabilityDiagnostics(input: {
             extensionPackage: input.extensionPackage,
             family: input.family,
             contributionId: input.contribution.id,
-            index: input.index,
+            ...(input.index === undefined ? {} : { index: input.index }),
             message: EXTENSION_PACKAGE_MUTATION_CAPABILITY_REJECTION,
           }),
         ]
@@ -217,7 +219,7 @@ function capabilityDiagnostics(input: {
             extensionPackage: input.extensionPackage,
             family: input.family,
             contributionId: input.contribution.id,
-            index: input.index,
+            ...(input.index === undefined ? {} : { index: input.index }),
             message: `Contribution requests capability "${bound.capability}", but the manifest does not declare that capability.`,
           }),
         ]
@@ -227,7 +229,7 @@ function capabilityDiagnostics(input: {
         extensionPackage: input.extensionPackage,
         family: input.family,
         contributionId: input.contribution.id,
-        index: input.index,
+        ...(input.index === undefined ? {} : { index: input.index }),
         capability: bound.capability,
         declaration,
         methods: bound.methods,
@@ -255,7 +257,7 @@ function trustedRendererRuntimeDiagnostics(input: {
       extensionPackage: input.extensionPackage,
       family: input.family,
       contributionId: input.contribution.id,
-      index: input.index,
+      ...(input.index === undefined ? {} : { index: input.index }),
       message:
         'Trusted renderer contributions require trusted.renderer so privileged renderer runtime execution is explicitly consented.',
     }),
@@ -267,17 +269,19 @@ export function authorizeContributionRegistration(input: {
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestContribution
   readonly index?: number
-}): ContributionRegistrationAuthorization {
+}) {
   const diagnostics = [
     ...familyDiagnostics({
       extensionPackage: input.extensionPackage,
       family: input.family,
       contributionId: input.contribution.id,
-      index: input.index,
+      ...(input.index === undefined ? {} : { index: input.index }),
     }),
     ...capabilityDiagnostics(input),
     ...trustedRendererRuntimeDiagnostics(input),
   ]
 
-  return diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
+  const authorization: ContributionRegistrationAuthorization =
+    diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
+  return authorization
 }

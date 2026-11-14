@@ -30,10 +30,12 @@ import { CommandRepairProposalCard } from '../CommandRepairProposalCard'
 const scope = { projectPath: '/repo', sessionId: 'session' }
 function serve(catalog: ActionCatalog = actionCatalog()) {
   mocks.manage.mockImplementation(async ({ operation }) => {
-    if (operation.type === 'catalog' || operation.type === 'edit')
+    if (operation.type === 'catalog' || operation.type === 'edit') {
       return { type: 'catalog', catalog }
-    if (operation.type === 'discover')
+    }
+    if (operation.type === 'discover') {
       return { type: 'discovery', discovery: { tasks: [TEST_TASK], diagnostics: [] } }
+    }
     if (operation.type === 'runs') return { type: 'runs', runs: [] }
     throw new Error(`Unexpected operation ${operation.type}`)
   })

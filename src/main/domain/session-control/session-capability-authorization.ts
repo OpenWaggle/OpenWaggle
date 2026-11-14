@@ -7,10 +7,11 @@ import type { SessionCapability } from '@shared/types/session-capability'
 import type { SessionControlMutationRequest } from '@shared/types/session-control'
 import type { SessionLifecycleRequest } from '@shared/types/session-lifecycle'
 import type { SessionQueryRequest } from '@shared/types/session-query'
+import { includesEvery, valuesNotIn } from '@shared/utils/set-membership'
 
 export function requiredSessionControlCapabilities(
   command: SessionControlMutationRequest['command'],
-): readonly SessionCapability[] {
+) {
   return (
     matchBy(command, 'operation')
       .with('message', 'follow-up', () => ['sessions:message'])
@@ -62,9 +63,7 @@ export function requiredSessionControlCapabilities(
   )
 }
 
-export function requiredSessionLifecycleCapabilities(
-  command: SessionLifecycleRequest['command'],
-): readonly SessionCapability[] {
+export function requiredSessionLifecycleCapabilities(command: SessionLifecycleRequest['command']) {
   return matchBy(command, 'operation')
     .with('create', () => ['sessions:create'])
     .with('fork', () => ['sessions:create', 'sessions:read'])
@@ -73,9 +72,7 @@ export function requiredSessionLifecycleCapabilities(
     .exhaustive()
 }
 
-export function requiredSessionQueryCapabilities(
-  query: SessionQueryRequest['query'],
-): readonly SessionCapability[] {
+export function requiredSessionQueryCapabilities(query: SessionQueryRequest['query']) {
   return matchBy(query, 'operation')
     .with('list', () => ['sessions:discover'])
     .with('search', (query) =>
@@ -108,7 +105,7 @@ export function authorizeSessionCapabilities(
   required: readonly SessionCapability[],
 ) {
   if (!authority) return { authorized: true } as const
-  const missing = required.filter((capability) => !authority.capabilities.includes(capability))
+  const missing = valuesNotIn(required, authority.capabilities)
   return missing.length === 0
     ? ({ authorized: true } as const)
     : ({ authorized: false, code: 'capability_denied' as const, missing } as const)
@@ -158,7 +155,7 @@ export function authorizeSessionTargetForCaller(
       )
     : undefined
   if (!derived) return baseCapabilities.authorized ? baseScope : baseCapabilities
-  const missing = required.filter((capability) => !derived.capabilities.includes(capability))
+  const missing = valuesNotIn(required, derived.capabilities)
   return missing.length === 0
     ? ({ authorized: true, derived } as const)
     : ({ authorized: false, code: 'capability_denied' as const, missing } as const)
@@ -174,13 +171,11 @@ export function snapshotAuthorizesSessionCapabilities(
   const baseScope = caller.baseProfileScope ?? authority.scope
   const baseSessionIds = caller.eventAdmissionSessionIds ?? baseScope.sessionIds ?? []
   const baseAuthorized =
-    required.every((capability) => authority.capabilities.includes(capability)) &&
+    includesEvery(authority.capabilities, required) &&
     (baseScope.all === true || baseSessionIds.includes(sessionId))
   if (baseAuthorized) return true
   const derived = caller.derivedSessionAuthorities?.find(
     (candidate) => candidate.sessionId === sessionId,
   )
-  return Boolean(
-    derived && required.every((capability) => derived.capabilities.includes(capability)),
-  )
+  return Boolean(derived && includesEvery(derived.capabilities, required))
 }

@@ -38,18 +38,16 @@ function compactionReason(value: unknown) {
   return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : null
 }
 
-function rawProjection(value: JsonValue): PiEntryProjection {
+function rawProjection(value: JsonValue) {
   return {
     kind: 'custom',
     role: null,
     contentJson: buildRawNodeContentJson(value),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function systemMessageProjection(
-  value: Extract<PiMessageEntry['message'], { role: 'system' }>,
-): PiEntryProjection {
+function systemMessageProjection(value: Extract<PiMessageEntry['message'], { role: 'system' }>) {
   return rawProjection({
     role: value.role,
     content: toJsonValue(value.content),
@@ -57,10 +55,7 @@ function systemMessageProjection(
   })
 }
 
-function userMessageProjection(
-  value: PiUserMessage,
-  displayParts?: readonly MessagePart[],
-): PiEntryProjection {
+function userMessageProjection(value: PiUserMessage, displayParts?: readonly MessagePart[]) {
   return {
     kind: 'user_message',
     role: 'user',
@@ -69,10 +64,10 @@ function userMessageProjection(
       null,
     ),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function toolResultMessageProjection(value: PiToolResultMessage): PiEntryProjection {
+function toolResultMessageProjection(value: PiToolResultMessage) {
   return {
     kind: 'tool_result',
     role: null,
@@ -82,19 +77,19 @@ function toolResultMessageProjection(value: PiToolResultMessage): PiEntryProject
       toolName: value.toolName,
       isError: value.isError,
     }),
-  }
+  } satisfies PiEntryProjection
 }
 
-function branchSummaryMessageProjection(value: PiBranchSummaryMessage): PiEntryProjection {
+function branchSummaryMessageProjection(value: PiBranchSummaryMessage) {
   return {
     kind: 'branch_summary',
     role: null,
     contentJson: buildRawNodeContentJson({ summary: value.summary, fromId: value.fromId }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function compactionSummaryMessageProjection(value: PiCompactionSummaryMessage): PiEntryProjection {
+function compactionSummaryMessageProjection(value: PiCompactionSummaryMessage) {
   return {
     kind: 'compaction_summary',
     role: null,
@@ -104,10 +99,10 @@ function compactionSummaryMessageProjection(value: PiCompactionSummaryMessage): 
       reason: compactionReason(value),
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function bashExecutionMessageProjection(value: PiBashExecutionMessage): PiEntryProjection {
+function bashExecutionMessageProjection(value: PiBashExecutionMessage) {
   return {
     kind: 'custom',
     role: null,
@@ -122,10 +117,10 @@ function bashExecutionMessageProjection(value: PiBashExecutionMessage): PiEntryP
       excludeFromContext: value.excludeFromContext ?? false,
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function customMessageRoleProjection(value: PiCustomMessage): PiEntryProjection {
+function customMessageRoleProjection(value: PiCustomMessage) {
   return {
     kind: 'custom',
     role: null,
@@ -137,13 +132,13 @@ function customMessageRoleProjection(value: PiCustomMessage): PiEntryProjection 
       details: toJsonValue(value.details ?? null),
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
 function messageProjectionForEntry(
   entry: PiMessageEntry,
   userDisplayParts?: readonly MessagePart[],
-): PiEntryProjection {
+) {
   return matchBy(entry.message, 'role')
     .with('system', systemMessageProjection)
     .with('user', (message) => userMessageProjection(message, userDisplayParts))
@@ -156,9 +151,7 @@ function messageProjectionForEntry(
     .exhaustive()
 }
 
-function modelChangeProjection(
-  entry: Extract<SessionEntry, { type: 'model_change' }>,
-): PiEntryProjection {
+function modelChangeProjection(entry: Extract<SessionEntry, { type: 'model_change' }>) {
   return {
     kind: 'model_change',
     role: null,
@@ -168,23 +161,21 @@ function modelChangeProjection(
       modelRef: createModelRef(entry.provider, entry.modelId),
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
 function thinkingLevelChangeProjection(
   entry: Extract<SessionEntry, { type: 'thinking_level_change' }>,
-): PiEntryProjection {
+) {
   return {
     kind: 'thinking_level_change',
     role: null,
     contentJson: buildRawNodeContentJson({ thinkingLevel: entry.thinkingLevel }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function compactionEntryProjection(
-  entry: Extract<SessionEntry, { type: 'compaction' }>,
-): PiEntryProjection {
+function compactionEntryProjection(entry: Extract<SessionEntry, { type: 'compaction' }>) {
   return {
     kind: 'compaction_summary',
     role: null,
@@ -196,12 +187,10 @@ function compactionEntryProjection(
       reason: compactionReason(entry),
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function branchSummaryEntryProjection(
-  entry: Extract<SessionEntry, { type: 'branch_summary' }>,
-): PiEntryProjection {
+function branchSummaryEntryProjection(entry: Extract<SessionEntry, { type: 'branch_summary' }>) {
   return {
     kind: 'branch_summary',
     role: null,
@@ -212,12 +201,10 @@ function branchSummaryEntryProjection(
       fromHook: entry.fromHook ?? false,
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function customEntryProjection(
-  entry: Extract<SessionEntry, { type: 'custom' }>,
-): PiEntryProjection {
+function customEntryProjection(entry: Extract<SessionEntry, { type: 'custom' }>) {
   return {
     kind: 'custom',
     role: null,
@@ -226,11 +213,9 @@ function customEntryProjection(
       data: toJsonValue(entry.data ?? null),
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
-function hiddenOrCustomMessageProjection(
-  entry: Extract<SessionEntry, { type: 'custom_message' }>,
-): PiEntryProjection {
+function hiddenOrCustomMessageProjection(entry: Extract<SessionEntry, { type: 'custom_message' }>) {
   return {
     kind: 'custom',
     role: null,
@@ -245,12 +230,10 @@ function hiddenOrCustomMessageProjection(
       display: entry.display,
       details: toJsonValue(entry.details ?? null),
     }),
-  }
+  } satisfies PiEntryProjection
 }
 
-function customMessageProjection(
-  entry: Extract<SessionEntry, { type: 'custom_message' }>,
-): PiEntryProjection {
+function customMessageProjection(entry: Extract<SessionEntry, { type: 'custom_message' }>) {
   if (entry.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE && entry.display) {
     return visibleWaggleUserMessageProjection(entry)
   }
@@ -259,7 +242,7 @@ function customMessageProjection(
   return hiddenOrCustomMessageProjection(entry)
 }
 
-function labelEntryProjection(entry: Extract<SessionEntry, { type: 'label' }>): PiEntryProjection {
+function labelEntryProjection(entry: Extract<SessionEntry, { type: 'label' }>) {
   return {
     kind: 'label',
     role: null,
@@ -268,30 +251,26 @@ function labelEntryProjection(entry: Extract<SessionEntry, { type: 'label' }>): 
       label: entry.label ?? null,
     }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
-function stateEntryProjection(
-  entry: Extract<SessionEntry, { type: 'context_edit' | 'usage' }>,
-): PiEntryProjection {
+function stateEntryProjection(entry: Extract<SessionEntry, { type: 'context_edit' | 'usage' }>) {
   return rawProjection({ type: entry.type, entry: toJsonValue(entry) })
 }
 
-function sessionInfoEntryProjection(
-  entry: Extract<SessionEntry, { type: 'session_info' }>,
-): PiEntryProjection {
+function sessionInfoEntryProjection(entry: Extract<SessionEntry, { type: 'session_info' }>) {
   return {
     kind: 'session_info',
     role: null,
     contentJson: buildRawNodeContentJson({ name: entry.name ?? null }),
     metadataJson: '{}',
-  }
+  } satisfies PiEntryProjection
 }
 
 export function projectionForPiEntry(
   entry: SessionEntry,
   options: { readonly userDisplayParts?: readonly MessagePart[] } = {},
-): PiEntryProjection {
+) {
   return matchBy(entry, 'type')
     .with('message', (message) => messageProjectionForEntry(message, options.userDisplayParts))
     .with('model_change', modelChangeProjection)
@@ -303,5 +282,5 @@ export function projectionForPiEntry(
     .with('context_edit', 'usage', stateEntryProjection)
     .with('label', labelEntryProjection)
     .with('session_info', sessionInfoEntryProjection)
-    .exhaustive()
+    .exhaustive() satisfies PiEntryProjection
 }

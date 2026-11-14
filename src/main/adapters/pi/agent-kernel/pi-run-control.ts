@@ -90,7 +90,7 @@ export function createPiRunControl(
   session: PiSteeringSession,
   signal: AbortSignal,
   options: PiRunControlOptions = {},
-): AgentKernelRunControl {
+) {
   return {
     steer: async (payload) => {
       await waitForCompaction(session, signal)
@@ -134,5 +134,5 @@ export function createPiRunControl(
         throw cause
       }
     },
-  }
+  } satisfies AgentKernelRunControl
 }

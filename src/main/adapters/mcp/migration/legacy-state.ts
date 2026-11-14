@@ -4,18 +4,18 @@
  */
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
+import { mcpConfigServerMaps } from '../mcp-config-server-maps'
 
 const legacyServerStateSchema = Schema.Struct({
   instanceId: Schema.String,
   enabled: Schema.Boolean,
-  trustedConfigHash: Schema.optional(Schema.String),
+  trustedConfigHash: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 const stringRecordSchema = Schema.Record({ key: Schema.String, value: Schema.String })
 
 const legacyStateFileSchema = Schema.Struct({
-  globalState: Schema.optional(Schema.String),
+  globalState: Schema.optionalWith(Schema.String, { exact: true }),
   projectStates: Schema.optionalWith(stringRecordSchema, { default: () => ({}) }),
   sessionStates: Schema.optionalWith(stringRecordSchema, { default: () => ({}) }),
   projectServerStates: Schema.optionalWith(
@@ -38,7 +38,7 @@ export const EMPTY_LEGACY_STATE: LegacyStateFile = {
 }
 
 /** Parse `~/.openwaggle/mcp/state.json`. Throws on invalid content. */
-export function parseLegacyState(rawJson: string | undefined): LegacyStateFile {
+export function parseLegacyState(rawJson: string | undefined) {
   if (!rawJson?.trim()) return EMPTY_LEGACY_STATE
   const parsed: unknown = JSON.parse(rawJson)
   return decodeUnknownOrThrow(legacyStateFileSchema, parsed)
@@ -59,7 +59,6 @@ export function normalizeLegacyProjectPath(projectPath: string) {
 
 /** Server entries of an old OpenWaggle MCP file: `mcpServers`, else the `servers` alias. */
 export function legacyServerMap(config: Record<string, unknown>) {
-  if (isRecord(config.mcpServers)) return config.mcpServers
-  if (isRecord(config.servers)) return config.servers
-  return {}
+  const { mcpServers, servers } = mcpConfigServerMaps(config)
+  return mcpServers ?? servers ?? {}
 }

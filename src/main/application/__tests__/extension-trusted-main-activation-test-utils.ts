@@ -60,7 +60,7 @@ export function makeTrustedMainPackage(input: {
   readonly scope?: ExtensionPackageScope
   readonly capabilities?: NonNullable<DiscoveredExtensionPackage['manifest']>['capabilities']
   readonly contributions?: NonNullable<DiscoveredExtensionPackage['manifest']>['contributions']
-}): DiscoveredExtensionPackage {
+}) {
   const scope = input.scope ?? {
     kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
     projectPath: TRUSTED_MAIN_TEST_PROJECT_PATH,
@@ -84,7 +84,7 @@ export function makeTrustedMainPackage(input: {
     },
   } satisfies NonNullable<DiscoveredExtensionPackage['manifest']>
 
-  return {
+  const result: DiscoveredExtensionPackage = {
     id: input.id,
     scope,
     packagePath,
@@ -99,6 +99,7 @@ export function makeTrustedMainPackage(input: {
     },
     diagnostics: [],
   }
+  return result
 }
 
 export function makeTrustedMainLifecycle(
@@ -108,8 +109,8 @@ export function makeTrustedMainLifecycle(
     readonly trusted?: boolean
     readonly grantedCapabilities?: readonly string[]
   } = {},
-): ExtensionLifecycleState {
-  return {
+) {
+  const state: ExtensionLifecycleState = {
     extensionId: extensionPackage.id,
     scope: extensionPackage.scope,
     enabled: options.enabled ?? true,
@@ -128,6 +129,7 @@ export function makeTrustedMainLifecycle(
     installedAt: 1000,
     updatedAt: 2000,
   }
+  return state
 }
 
 function makeLoggerLayer(capturedLogs: CapturedLog[]) {
@@ -195,7 +197,10 @@ export function makeTrustedMainActivationHarness(input: {
     makeLoggerLayer(capturedLogs),
     makeDocsBundleLayer(),
     makeExtensionStorageRepositoryLayer([]),
-    makeSettingsLayer({ projectPath: settingsProjectPath, failure: input.settingsGetFailure }),
+    makeSettingsLayer({
+      projectPath: settingsProjectPath,
+      ...(input.settingsGetFailure === undefined ? {} : { failure: input.settingsGetFailure }),
+    }),
     makeTrustedMainSessionLayers(TRUSTED_MAIN_TEST_PROJECT_PATH),
     EmptySessionResourceRepositoryTestLayer,
     Layer.succeed(ExtensionManagerService, {

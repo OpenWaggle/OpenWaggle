@@ -21,21 +21,19 @@ vi.mock('../WelcomeScreen', () => ({ WelcomeScreen: () => <div>welcome</div> }))
 vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
 vi.mock('@/features/extensions', () => ({ ExtensionAgentLoopSurface: () => null }))
 
-function row(id: string): ChatRow {
-  return {
+function row(id: string) {
+  const result: ChatRow = {
     type: 'message',
     message: { id, role: 'user', parts: [{ type: 'text', content: id }] },
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
   }
+  return result
 }
 
-function section(
-  rows: ChatRow[],
-  overrides: Partial<ChatTranscriptSectionState>,
-): ChatTranscriptSectionState {
-  return {
+function section(rows: ChatRow[], overrides: Partial<ChatTranscriptSectionState>) {
+  const state: ChatTranscriptSectionState = {
     transcriptState: 'ready',
     messages: rows.flatMap((r) => (r.type === 'message' ? [r.message] : [])),
     isLoading: false,
@@ -68,6 +66,7 @@ function section(
     turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
+  return state
 }
 
 const rows = Array.from({ length: 5 }, (_, index) => row(`msg-${String(index)}`))

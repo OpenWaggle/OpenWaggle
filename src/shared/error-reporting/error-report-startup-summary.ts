@@ -43,7 +43,7 @@ const STARTUP_FAILURE_SUMMARY_MESSAGE = new RegExp(
 )
 
 /** Whether `message` is a startup failure summary in full, and so holds no user content. */
-export function isStartupFailureSummaryMessage(message: unknown): boolean {
+export function isStartupFailureSummaryMessage(message: unknown) {
   return typeof message === 'string' && STARTUP_FAILURE_SUMMARY_MESSAGE.test(message)
 }
 
@@ -55,7 +55,7 @@ function isObject(value: unknown): value is object {
  * Whether every message of a report is a startup failure summary in full, so none of them quotes
  * user content. A report without exceptions is not one.
  */
-export function isStartupFailureSummaryReport(event: unknown): boolean {
+export function isStartupFailureSummaryReport(event: unknown) {
   if (!isObject(event)) return false
   const exception: unknown = Reflect.get(event, 'exception')
   const values: unknown = isObject(exception) ? Reflect.get(exception, 'values') : undefined

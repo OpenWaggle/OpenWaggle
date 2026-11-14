@@ -10,7 +10,7 @@ export interface JsonDocument {
 }
 
 /** Parse a JSON object file, remembering its indentation the way Pi's writer does. */
-export function parseJsonDocument(filePath: string, text: string): JsonDocument {
+export function parseJsonDocument(filePath: string, text: string) {
   const parsed: unknown = text.trim() ? JSON.parse(text) : {}
   if (!isRecord(parsed)) throw new Error(`${filePath}: expected a JSON object`)
   return { value: parsed, indent: INDENT_PATTERN.exec(text)?.[1] ?? DEFAULT_INDENT }

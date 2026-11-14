@@ -45,7 +45,7 @@ vi.mock('../session-manager', () => ({
   requireSessionProjectPath: runMocks.resolveSessionWorkingPath,
 }))
 
-function mixedConfig(): WaggleConfig {
+function mixedConfig() {
   const baseConfig = waggleConfig()
   return {
     ...baseConfig,
@@ -53,7 +53,7 @@ function mixedConfig(): WaggleConfig {
       { ...baseConfig.agents[0], model: SECONDARY_MODEL },
       { ...baseConfig.agents[1], model: WAGGLE_INHERIT_MODEL },
     ],
-  }
+  } satisfies WaggleConfig
 }
 
 describe('Pi Waggle runtime model resolution', () => {

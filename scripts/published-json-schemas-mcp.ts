@@ -12,7 +12,7 @@ import {
   MCP_OVERRIDE_KEYS,
   MCP_SERVER_NAME,
 } from '../src/main/domain/mcp/config/mcp-server-config'
-import { type JsonSchemaNode, publishedSchemaRoot } from './published-json-schemas-effect'
+import { publishedSchemaRoot } from './published-json-schemas-effect'
 
 const MIN_PORT = 1
 const MAX_PORT = 65_535
@@ -182,7 +182,7 @@ const overrideEntry = {
 
 export const MCP_SCHEMA_FILE = 'mcp.schema.json'
 
-export function mcpConfigJsonSchema(): JsonSchemaNode {
+export function mcpConfigJsonSchema() {
   return publishedSchemaRoot(
     {
       fileName: MCP_SCHEMA_FILE,

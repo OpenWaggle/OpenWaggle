@@ -30,15 +30,13 @@ import {
 } from '../../session-run-execution-profile'
 import { createAgentRunContextExtension } from '../agent-run-context-extension'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()
 })
 
-function workerRow(
-  overrides: Partial<SessionRunExecutionProfileRow> = {},
-): SessionRunExecutionProfileRow {
+function workerRow(overrides: Partial<SessionRunExecutionProfileRow> = {}) {
   return {
     session_id: 'worker-1',
     title: 'Audit runtime',
@@ -66,7 +64,7 @@ function workerRow(
     delegation_id: 'delegation-1',
     delegation_state: 'working',
     ...overrides,
-  }
+  } satisfies SessionRunExecutionProfileRow
 }
 
 async function createSessionHarness() {

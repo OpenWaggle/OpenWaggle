@@ -5,10 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 const PROJECT_ROOT = process.cwd()
-const WORKFLOW = fs.readFileSync(
-  path.join(PROJECT_ROOT, '.github/workflows/release.yml'),
-  'utf8',
-)
+const WORKFLOW = fs.readFileSync(path.join(PROJECT_ROOT, '.github/workflows/release.yml'), 'utf8')
 describe('desktop app release workflow', () => {
   it('grants write permissions only to orchestration and publication jobs', () => {
     const parsed: unknown = parse(WORKFLOW)
@@ -48,19 +45,15 @@ describe('desktop app release workflow', () => {
 
   it('publishes only a verified human-merged release PR commit', () => {
     expect(WORKFLOW).toContain('git merge-base --is-ancestor "$commit_sha" origin/main')
-    expect(WORKFLOW).toContain(
-      'scripts/app-release-state.ts release-subject-version',
-    )
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts release-subject-version')
     expect(WORKFLOW).toContain('repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls')
-    expect(WORKFLOW).toContain(
-      'repos/${GITHUB_REPOSITORY}/pulls/${MATCHING_PR_NUMBER}',
-    )
+    expect(WORKFLOW).toContain('repos/${GITHUB_REPOSITORY}/pulls/${MATCHING_PR_NUMBER}')
     expect(WORKFLOW).not.toContain('.[0].merged_by')
     expect(WORKFLOW).toContain(`test "$(jq -er '.merged_by.type' <<<"$MATCHING_PR")" = "User"`)
     expect(WORKFLOW).toContain(
       `test "$(jq -er '.merged_by.login' <<<"$MATCHING_PR")" != "github-actions[bot]"`,
     )
-    expect(WORKFLOW).toContain('RELEASE_PR_HEAD_SHA=$(jq -er \'.head.sha\'')
+    expect(WORKFLOW).toContain("RELEASE_PR_HEAD_SHA=$(jq -er '.head.sha'")
     expect(WORKFLOW).toContain('.conclusion == "success"')
     expect(WORKFLOW).toContain('git tag -a "$TAG" "$MERGE_SHA"')
     expect(WORKFLOW).toContain('git push origin "refs/tags/${TAG}"')
@@ -96,9 +89,7 @@ describe('desktop app release workflow', () => {
       'RECOVERY_ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH"',
     )
     expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
-    expect(WORKFLOW).toContain(
-      'Adopted release PR after an ambiguous creation failure',
-    )
+    expect(WORKFLOW).toContain('Adopted release PR after an ambiguous creation failure')
     expect(WORKFLOW).toContain('sleep $((PR_CREATE_ATTEMPT * 5))')
     expect(WORKFLOW).toContain('test -n "$PR_URL"')
   })
@@ -110,9 +101,7 @@ describe('desktop app release workflow', () => {
       'cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"',
     )
     expect(WORKFLOW).toContain('verify_version_only_tree "$parent_sha" "$commit_sha"')
-    expect(WORKFLOW).toContain(
-      'verify_version_only_tree "$MAIN_SHA" "$HEAD_SHA"',
-    )
+    expect(WORKFLOW).toContain('verify_version_only_tree "$MAIN_SHA" "$HEAD_SHA"')
   })
 
   it('separates PR preparation from protected-merge publication', () => {
@@ -126,10 +115,17 @@ describe('desktop app release workflow', () => {
       "group: \"${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}\"",
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
-    expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
-    expect(WORKFLOW).toContain('if [[ "$CURRENT" =~ ^([0-9]+\\.[0-9]+\\.[0-9]+)-(alpha|beta|rc)\\.([0-9]+)$ ]]; then')
+    expect(WORKFLOW).toContain(
+      'NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"',
+    )
+    expect(WORKFLOW).toContain(
+      'if [[ "$CURRENT" =~ ^([0-9]+\\.[0-9]+\\.[0-9]+)-(alpha|beta|rc)\\.([0-9]+)$ ]]; then',
+    )
     expect(WORKFLOW).toContain('echo "Unrecognized desktop app version ${CURRENT}." >&2')
-    const bump = WORKFLOW.slice(WORKFLOW.indexOf('name: Determine bump'), WORKFLOW.indexOf('name: Prepare release PR'))
+    const bump = WORKFLOW.slice(
+      WORKFLOW.indexOf('name: Determine bump'),
+      WORKFLOW.indexOf('name: Prepare release PR'),
+    )
     expect(bump).toMatch(/CURRENT=\$\(node -p[\s\S]*Unrecognized desktop app version/u)
     expect(bump).not.toMatch(/\bsed ['"]/u) // GNU sed alternation fails on macOS, where the train harness runs it
   })
@@ -173,6 +169,13 @@ describe('desktop app release workflow', () => {
     )
   })
 
+  it('installs from the registry, never from a restored Bun package cache', () => {
+    // Bun does not check cached package files against bun.lock, and these jobs sign and publish.
+    expect(WORKFLOW).not.toMatch(/uses:\s*actions\/cache@/u)
+    expect(WORKFLOW).not.toContain('~/.bun/install/cache')
+    expect(WORKFLOW).not.toContain('./.github/actions/bun-install')
+  })
+
   it('pins every referenced action to an immutable commit', () => {
     const actionReferences = [...WORKFLOW.matchAll(/\buses:\s*([^\s#]+)/gu)].map(
       (match) => match[1],
@@ -198,22 +201,23 @@ describe('desktop app release workflow', () => {
     )
     const verifierSteps = parsed.jobs['verify-installers'].steps
     const windowsGuard = "matrix.platform == 'windows'"
-    const pnpmSetupPattern = {
+    const bunSetupPattern = {
       if: windowsGuard,
-      uses: P.regex(/^pnpm\/action-setup@[0-9a-f]{40}$/u),
+      uses: P.regex(/^oven-sh\/setup-bun@[0-9a-f]{40}$/u),
+      with: { 'bun-version-file': 'package.json' },
     }
     const nodeSetupPattern = {
       if: windowsGuard,
       uses: P.regex(/^actions\/setup-node@[0-9a-f]{40}$/u),
       with: {
-        cache: 'pnpm',
+        'package-manager-cache': false,
         'node-version': '24.14.0',
       },
     }
     const installPattern = {
       if: windowsGuard,
       name: 'Install Windows verifier dependencies',
-      run: 'pnpm install --frozen-lockfile --ignore-scripts',
+      run: 'bun install --frozen-lockfile --ignore-scripts',
     }
     const verifierPattern = {
       env: {
@@ -222,12 +226,12 @@ describe('desktop app release workflow', () => {
       },
       if: windowsGuard,
       name: 'Verify Windows installer',
-      run: 'pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+      run: 'bun scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
       shell: 'pwsh',
     }
 
-    const pnpmSetupSteps = verifierSteps.filter((step) =>
-      isMatching({ uses: P.regex(/^pnpm\/action-setup@/u) }, step),
+    const bunSetupSteps = verifierSteps.filter((step) =>
+      isMatching({ uses: P.regex(/^oven-sh\/setup-bun@/u) }, step),
     )
     const nodeSetupSteps = verifierSteps.filter((step) =>
       isMatching({ uses: P.regex(/^actions\/setup-node@/u) }, step),
@@ -239,29 +243,21 @@ describe('desktop app release workflow', () => {
       isMatching({ name: 'Verify Windows installer' }, step),
     )
 
-    expect(pnpmSetupSteps).toHaveLength(1)
+    expect(bunSetupSteps).toHaveLength(1)
     expect(nodeSetupSteps).toHaveLength(1)
     expect(installSteps).toHaveLength(1)
     expect(verifierCommandSteps).toHaveLength(1)
-    expect(isMatching(pnpmSetupPattern, pnpmSetupSteps[0])).toBe(true)
+    expect(isMatching(bunSetupPattern, bunSetupSteps[0])).toBe(true)
     expect(isMatching(nodeSetupPattern, nodeSetupSteps[0])).toBe(true)
     expect(isMatching(installPattern, installSteps[0])).toBe(true)
     expect(isMatching(verifierPattern, verifierCommandSteps[0])).toBe(true)
 
-    const pnpmSetupIndex = verifierSteps.findIndex((step) =>
-      isMatching(pnpmSetupPattern, step),
-    )
-    const nodeSetupIndex = verifierSteps.findIndex((step) =>
-      isMatching(nodeSetupPattern, step),
-    )
-    const installIndex = verifierSteps.findIndex((step) =>
-      isMatching(installPattern, step),
-    )
-    const verifierIndex = verifierSteps.findIndex((step) =>
-      isMatching(verifierPattern, step),
-    )
+    const bunSetupIndex = verifierSteps.findIndex((step) => isMatching(bunSetupPattern, step))
+    const nodeSetupIndex = verifierSteps.findIndex((step) => isMatching(nodeSetupPattern, step))
+    const installIndex = verifierSteps.findIndex((step) => isMatching(installPattern, step))
+    const verifierIndex = verifierSteps.findIndex((step) => isMatching(verifierPattern, step))
 
-    expect(pnpmSetupIndex).toBeLessThan(nodeSetupIndex)
+    expect(bunSetupIndex).toBeLessThan(nodeSetupIndex)
     expect(nodeSetupIndex).toBeLessThan(installIndex)
     expect(installIndex).toBeLessThan(verifierIndex)
     expect(WORKFLOW).not.toContain('node scripts/verify-windows-installer.ts')
@@ -270,9 +266,9 @@ describe('desktop app release workflow', () => {
 
   it('runs the semantic packaged PTY smoke after every platform build', () => {
     const buildCommands = [
-      'pnpm exec electron-builder --mac --arm64 --x64 --publish never',
-      'pnpm exec electron-builder --linux --publish never',
-      'pnpm exec electron-builder --win --publish never',
+      'bunx electron-builder --mac --arm64 --x64 --publish never',
+      'bunx electron-builder --linux --publish never',
+      'bunx electron-builder --win --publish never',
     ]
     const smokeStepNames = [
       'Smoke packaged macOS PTY runtime',
@@ -288,7 +284,7 @@ describe('desktop app release workflow', () => {
       expect(smokeIndex).toBeGreaterThan(buildIndex)
       expect(nextUploadIndex).toBeGreaterThan(smokeIndex)
     }
-    expect(WORKFLOW.match(/run: pnpm packaged-app:smoke/gu)).toHaveLength(3)
+    expect(WORKFLOW.match(/run: bun run packaged-app:smoke/gu)).toHaveLength(3)
   })
 
   it('rebuilds macOS at most twice, only for a transient runner failure', () => {

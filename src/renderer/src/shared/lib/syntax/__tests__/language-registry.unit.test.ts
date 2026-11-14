@@ -19,8 +19,8 @@ function languageResource({
   readonly aliases?: readonly string[]
   readonly fileExtensions?: readonly string[]
   readonly fileNames?: readonly string[]
-}): SyntaxLanguageResource {
-  return {
+}) {
+  const resource: SyntaxLanguageResource = {
     id,
     packageId: `package:${id}`,
     revision: 'revision-1',
@@ -43,6 +43,7 @@ function languageResource({
     },
     original: {},
   }
+  return resource
 }
 
 describe('syntax language resource activation', () => {

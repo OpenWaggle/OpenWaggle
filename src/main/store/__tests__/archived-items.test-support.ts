@@ -29,7 +29,7 @@ function messageNode(
   role: 'user' | 'assistant',
   text: string,
   order: number,
-): ProjectedSessionNodeInput {
+) {
   return {
     id,
     parentId,
@@ -44,7 +44,7 @@ function messageNode(
     metadataJson: '{}',
     pathDepth: order,
     createdOrder: order,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function runSql<A>(run: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>) {

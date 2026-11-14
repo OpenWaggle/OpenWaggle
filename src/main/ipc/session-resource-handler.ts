@@ -4,7 +4,7 @@ import { hostHandle } from './typed-ipc'
 
 export { SESSION_RESOURCE_BACKFILL_PAGE_SIZE } from '../application/session-resource-backfill-page'
 
-export function registerSessionResourceHandlers(): void {
+export function registerSessionResourceHandlers() {
   registerSessionResourceCatalogHandlers()
   registerSessionResourceImageHandlers()
   hostHandle('sessions:resources:list')

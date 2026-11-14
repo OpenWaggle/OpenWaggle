@@ -1,8 +1,10 @@
+import { errorCode } from '@shared/utils/node-error'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
 import { assertDesktopNativeAdmission } from '../../desktop-native-admission'
-import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
+import { getInteractiveTerminalEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { observeTerminalProcessLifecycle } from './terminal-process-exit-observation'
 import { installTerminalProcessKernelApi } from './terminal-process-kernel-api'
@@ -14,17 +16,9 @@ import {
   closeRejectedSpawn,
 } from './terminal-pty-contract'
 import { createNativeTtyMemberSignal } from './terminal-pty-native-signal'
-import type {
-  PtyRunner,
-  PtyRunnerOptions,
-  PtySpawnOutcome,
-  PtySpawnRequest,
-} from './terminal-pty-types'
+import type { PtyRunnerOptions, PtySpawnOutcome, PtySpawnRequest } from './terminal-pty-types'
 import { existingShells, type TerminalShellCandidate } from './terminal-shell'
-import {
-  type PreparedTerminalShellLaunch,
-  prepareTerminalShellLaunch,
-} from './terminal-shell-integration'
+import { prepareTerminalShellLaunch } from './terminal-shell-integration'
 
 export type {
   PtyRunner,
@@ -32,12 +26,12 @@ export type {
   PtySpawnOutcome,
   PtySpawnRequest,
 } from './terminal-pty-types'
+import { terminalBackendProcess } from './terminal-pty-backend-fields'
 
 const logger = createLogger('terminal-pty-runner')
 
 const MIN_SPAWN_COLS = TERMINAL.MIN_COLS
 const MIN_SPAWN_ROWS = TERMINAL.MIN_ROWS
-export const SPAWN_FAILURE_EXIT_CODE = -1
 
 /**
  * node-pty 1.1.0 creates the master-side tty.ReadStream without resuming it.
@@ -48,7 +42,7 @@ export const SPAWN_FAILURE_EXIT_CODE = -1
  * that already started the stream.
  */
 function createOutputFlowControl(spawned: IPty) {
-  const socket: unknown = Reflect.get(spawned, '_socket')
+  const socket: unknown = terminalBackendProcess(spawned)._socket
   let state: 'paused' | 'resumed' | 'unknown' = 'unknown'
 
   const invoke = (method: 'pause' | 'resume') => {
@@ -80,7 +74,7 @@ function createOutputFlowControl(spawned: IPty) {
 }
 
 function controllingTtyName(spawned: IPty) {
-  const value: unknown = Reflect.get(spawned, '_pty')
+  const value: unknown = terminalBackendProcess(spawned)._pty
   if (typeof value !== 'string' || !value.startsWith('/dev/')) return null
   const tty = value.slice('/dev/'.length)
   const segments = tty.split('/')
@@ -139,7 +133,7 @@ function preparePtyLaunch(
   request: PtySpawnRequest,
   candidate: TerminalShellCandidate,
   environment: Record<string, string>,
-): Promise<PreparedTerminalShellLaunch> {
+) {
   return request.execution
     ? Promise.resolve({
         args: candidate.args,
@@ -154,7 +148,7 @@ function assertLaunchNotCanceled(request: PtySpawnRequest) {
   if (request.signal?.aborted) throw new Error('Action launch canceled.')
 }
 
-export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
+export function makePtyRunner(options: PtyRunnerOptions) {
   const loadPtyModule = makePtyModuleLoader(options)
   const spawn = async (request: PtySpawnRequest) => {
     let pty: typeof NodePtyModule
@@ -278,7 +272,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
 
 function isMissingShellError(error: unknown) {
   if (error !== null && typeof error === 'object') {
-    const code: unknown = Reflect.get(error, 'code')
+    const code: unknown = errorCode(error)
     if (code === 'ENOENT') return true
   }
   if (!(error instanceof Error)) return false

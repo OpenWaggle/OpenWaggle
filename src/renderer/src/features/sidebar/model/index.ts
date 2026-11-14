@@ -3,5 +3,4 @@ export type {
   SidebarProjectActions,
   SidebarProjectRenderState,
   SidebarSessionActions,
-  SidebarView,
 } from './sidebar-types'

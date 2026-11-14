@@ -4,7 +4,7 @@ import type { GitRunStackedActionResult, SessionGitOutputsPayload } from '@share
 export function outputsPayloadFor(
   result: GitRunStackedActionResult,
   occurrence: SessionGitOutputsPayload['occurrence'],
-): SessionGitOutputsPayload {
+) {
   return {
     occurrence,
     ...(result.commit?.commitHash

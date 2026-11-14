@@ -120,21 +120,21 @@ async function importPiTool(relativePath: string) {
   return registeredTool
 }
 
-function successfulStorageResult(value: unknown): FixtureBrokerResult {
+function successfulStorageResult(value: unknown) {
   return {
     ok: true,
     value: { value },
-  }
+  } satisfies FixtureBrokerResult
 }
 
-function projectStorage(store: Map<string, unknown>): FixtureProjectStorage {
+function projectStorage(store: Map<string, unknown>) {
   return {
     get: async (_scope, key) => successfulStorageResult(store.get(key) ?? null),
     set: async (_scope, key, value) => {
       store.set(key, value)
       return successfulStorageResult(value)
     },
-  }
+  } satisfies FixtureProjectStorage
 }
 
 function createContext() {
@@ -225,8 +225,11 @@ describe('GitHub Issues Overview extension runtime fixture', () => {
     await sidePanelModule.mount(context)
 
     expect(fetchMock).toHaveBeenCalledOnce()
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
-      'https://api.github.com/repos/OpenWaggle/OpenWaggle/issues',
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        href: expect.stringContaining('https://api.github.com/repos/OpenWaggle/OpenWaggle/issues'),
+      }),
+      expect.anything(),
     )
     expect(metricValues(context.root)).toEqual(['2', '1', '1'])
     expect(context.root.textContent).toContain('Updated from GitHub')

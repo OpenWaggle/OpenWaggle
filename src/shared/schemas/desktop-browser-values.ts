@@ -61,14 +61,14 @@ const consoleSchema = Schema.Struct({
   level: textSchema,
   text: textSchema,
   timestamp: textSchema,
-  source: Schema.optional(textSchema),
+  source: Schema.optionalWith(textSchema, { exact: true }),
 })
 const networkSchema = Schema.Struct({
   url: textSchema,
   method: textSchema,
   status: Schema.NullOr(finiteSchema),
   failed: Schema.Boolean,
-  errorText: Schema.optional(textSchema),
+  errorText: Schema.optionalWith(textSchema, { exact: true }),
   timestamp: textSchema,
 })
 const actionSchema = Schema.Struct({
@@ -76,8 +76,8 @@ const actionSchema = Schema.Struct({
   action: textSchema,
   status: Schema.Literal('running', 'succeeded', 'failed', 'interrupted'),
   startedAt: textSchema,
-  completedAt: Schema.optional(textSchema),
-  error: Schema.optional(textSchema),
+  completedAt: Schema.optionalWith(textSchema, { exact: true }),
+  error: Schema.optionalWith(textSchema, { exact: true }),
 })
 const screenshotSchema = Schema.Struct({
   mimeType: Schema.Literal('image/png'),
@@ -107,5 +107,5 @@ export const desktopBrowserSnapshotSchema = Schema.Struct({
   networkEntries: Schema.Array(networkSchema).pipe(Schema.maxItems(LIMITS.NETWORK_ENTRIES)),
   actionTimeline: Schema.Array(actionSchema).pipe(Schema.maxItems(LIMITS.ACTION_EVENTS)),
   screenshot: Schema.NullOr(screenshotSchema),
-  screenshotUnavailable: Schema.optional(textSchema),
+  screenshotUnavailable: Schema.optionalWith(textSchema, { exact: true }),
 })

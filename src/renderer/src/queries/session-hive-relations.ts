@@ -6,15 +6,34 @@ import {
 } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { queryKeys } from './query-keys'
-import type { HiveRelationsPage, SessionHiveReader } from './session-hive-contract'
+import type {
+  HiveCatalogPage,
+  HiveRelationsPage,
+  HiveSession,
+  SessionHiveReader,
+} from './session-hive-contract'
 
 const HIVE_PAGE_SIZE = 50
+
+function relationsPage(
+  current: HiveSession | null,
+  parent: HiveSession | null,
+  page: HiveCatalogPage,
+) {
+  const result: HiveRelationsPage = {
+    current,
+    parent,
+    workers: page.workers,
+    ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+  }
+  return result
+}
 
 export async function readSessionHivePage(
   reader: SessionHiveReader,
   sessionId: SessionId,
   cursor?: string,
-): Promise<HiveRelationsPage> {
+) {
   if ('listHiveSessionCatalogPage' in reader && reader.listHiveSessionCatalogPage) {
     const page = await reader.listHiveSessionCatalogPage(sessionId, HIVE_PAGE_SIZE, cursor)
     const current = page.context.find((session) => session.id === sessionId) ?? null
@@ -41,23 +60,21 @@ export async function readSessionHivePage(
     if (parentContext.length > 0 && parent === null) {
       throw new Error('Hive catalog contains mismatched parent context.')
     }
-    return { current, parent, workers: page.workers, nextCursor: page.nextCursor }
+    return relationsPage(current, parent, page)
   }
   // Transitional projection only. A Host error must never fall back to stale legacy data.
   if (reader.getSessionHiveRelations) return reader.getSessionHiveRelations(sessionId)
   throw new Error('Session Hive reads are unavailable in this app version.')
 }
 
-export function sessionHiveRelationsQueryOptions(
-  sessionId: SessionId,
-): UseInfiniteQueryOptions<
-  HiveRelationsPage,
-  Error,
-  InfiniteData<HiveRelationsPage>,
-  ReturnType<typeof queryKeys.sessionHive>,
-  string | undefined
-> {
-  return infiniteQueryOptions<
+export function sessionHiveRelationsQueryOptions(sessionId: SessionId) {
+  const options: UseInfiniteQueryOptions<
+    HiveRelationsPage,
+    Error,
+    InfiniteData<HiveRelationsPage>,
+    ReturnType<typeof queryKeys.sessionHive>,
+    string | undefined
+  > = infiniteQueryOptions<
     HiveRelationsPage,
     Error,
     InfiniteData<HiveRelationsPage>,
@@ -69,4 +86,5 @@ export function sessionHiveRelationsQueryOptions(
     initialPageParam: undefined,
     getNextPageParam: (page) => page.nextCursor,
   })
+  return options
 }

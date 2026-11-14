@@ -14,7 +14,7 @@ interface Warning {
   readonly data?: object
 }
 
-const warnings = vi.hoisted((): { calls: Warning[] } => ({ calls: [] }))
+const warnings = vi.hoisted<{ calls: Warning[] }>(() => ({ calls: [] }))
 
 vi.mock('../../../logger', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../logger')>()
@@ -72,7 +72,7 @@ afterEach(async () => {
   await fs.rm(home, { recursive: true, force: true })
 })
 
-function handlers(overrides: Partial<OAuthLoginHandlers> = {}): OAuthLoginHandlers {
+function handlers(overrides: Partial<OAuthLoginHandlers> = {}) {
   return {
     onAuthUrl: vi.fn(),
     onDeviceCode: vi.fn(),

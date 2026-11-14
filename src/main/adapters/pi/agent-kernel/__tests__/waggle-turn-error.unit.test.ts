@@ -1,8 +1,8 @@
-import { type AssistantMessage, fauxAssistantMessage } from '@earendil-works/pi-ai'
+import { fauxAssistantMessage } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 import { isRecoverableWaggleTurnError } from '../waggle-turn-error'
 
-function failed(errorMessage: string): AssistantMessage {
+function failed(errorMessage: string) {
   return fauxAssistantMessage('', { stopReason: 'error', errorMessage })
 }
 

@@ -3,17 +3,18 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { makeTerminalHistoryFiles } from '../terminal-history-files'
 import {
-  OWNER,
   open,
+  OWNER,
   service,
   settle,
   setupTerminalServiceActionsTest,
+  teardownTerminalServiceActionsTest,
   TERMINAL_ID,
   TERMINAL_KEY,
-  teardownTerminalServiceActionsTest,
   terminalHistoryLogsDir,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 beforeEach(setupTerminalServiceActionsTest)
 afterEach(teardownTerminalServiceActionsTest)
@@ -36,7 +37,7 @@ it.each(['terminal', 'owner', 'path'] as const)(
         path: () => service.closeAllUnderPath(workDirA, true),
       }[scope]
       await expect(Effect.runPromise(close())).resolves.toBeUndefined()
-      expect(service.records.has(TERMINAL_KEY)).toBe(false)
+      expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
       await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('')
     } finally {
       await fs.rm(metadataFile, { recursive: true })

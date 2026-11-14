@@ -1,7 +1,4 @@
-import type {
-  BrowserPreviewRecordingGrant,
-  BrowserPreviewRecordingMimeType,
-} from '@shared/types/browser-preview-controls'
+import type { BrowserPreviewRecordingGrant } from '@shared/types/browser-preview-controls'
 import {
   BROWSER_PREVIEW_CAPTURE_LIMITS,
   BROWSER_PREVIEW_RECORDING_MIME_TYPES,
@@ -49,9 +46,7 @@ function boundedLimit(value: number, maximum: number, label: string) {
   return Math.max(1, Math.min(Math.floor(value), maximum))
 }
 
-export function boundedBrowserPreviewRecordingGrant(
-  grant: BrowserPreviewRecordingGrant,
-): BrowserPreviewRecordingGrant {
+export function boundedBrowserPreviewRecordingGrant(grant: BrowserPreviewRecordingGrant) {
   return {
     maxBytes: boundedLimit(
       grant.maxBytes,
@@ -73,23 +68,23 @@ export function boundedBrowserPreviewRecordingGrant(
 
 export function selectBrowserPreviewRecordingMimeType(
   isTypeSupported: BrowserPreviewRecordingEnvironment['isTypeSupported'],
-): BrowserPreviewRecordingMimeType {
+) {
   for (const candidate of BROWSER_PREVIEW_RECORDING_MIME_TYPES) {
     if (isTypeSupported(candidate)) return candidate
   }
   throw new Error('This Electron runtime does not support a browser preview recording format.')
 }
 
-export function stopBrowserPreviewRecordingTracks(stream: MediaStream): void {
+export function stopBrowserPreviewRecordingTracks(stream: MediaStream) {
   for (const track of stream.getTracks()) track.stop()
 }
 
 export function waitForBrowserPreviewRecorderActive(
   recorder: MediaRecorder,
   environment: BrowserPreviewRecordingEnvironment,
-): Promise<void> {
+) {
   if (recorder.state === 'recording') return Promise.resolve()
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const cleanup = () => {
       environment.clearTimer(timer)
       recorder.removeEventListener('start', handleStart)
@@ -114,6 +109,6 @@ export function waitForBrowserPreviewRecorderActive(
   })
 }
 
-export function describeBrowserPreviewRecordingError(error: unknown): string {
+export function describeBrowserPreviewRecordingError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }

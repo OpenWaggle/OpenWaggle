@@ -1,12 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import { DEFAULT_THINKING_LEVEL, type ThinkingLevel } from '@shared/types/settings'
-import {
-  type QueryClient,
-  queryOptions,
-  type UseQueryOptions,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { type QueryClient, queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { useForegroundSendStore } from '@/features/chat/state/foreground-send-store'
@@ -29,12 +23,7 @@ const DEFAULT_THINKING_LEVEL_QUERY_KEY = ['pi-default-thinking-level'] as const
  * Pi's global default thinking level, where every new Session starts. OpenWaggle never uses a
  * project-level Pi default, so the draft picker shows one value in every project.
  */
-export function defaultThinkingLevelQueryOptions(): UseQueryOptions<
-  ThinkingLevel,
-  Error,
-  ThinkingLevel,
-  typeof DEFAULT_THINKING_LEVEL_QUERY_KEY
-> {
+export function defaultThinkingLevelQueryOptions() {
   return queryOptions({
     queryKey: DEFAULT_THINKING_LEVEL_QUERY_KEY,
     queryFn: () => api.getDefaultThinkingLevel(),
@@ -49,6 +38,23 @@ export function invalidateDefaultThinkingLevel(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: DEFAULT_THINKING_LEVEL_QUERY_KEY })
 }
 
+export interface SessionThinkingLevel {
+  /**
+   * The thinking level the Session's next Run uses, before it is clamped to the model; for a
+   * draft (no Session yet), Pi's global default that the new Session will start from.
+   */
+  readonly level: ThinkingLevel
+  /**
+   * Sets it. For a Session the Host refuses while a Run is active, rejecting with a
+   * `SessionThinkingLevelRefusedError`; the desktop user's pick also becomes Pi's global default
+   * (never changing another Session). For a draft it sets Pi's global default, and first send
+   * stores it on the Session it creates.
+   */
+  readonly setLevel: (level: ThinkingLevel) => Promise<void>
+  /** `useSessionSettingsChangeable(sessionId)`: false while a Run is starting, active, or finishing. */
+  readonly canChange: boolean
+}
+
 /**
  * Whether the Session's settings (its model and thinking level) may change now: never while a Run
  * is starting (the first send, a composer send in flight, a worktree launch, a queue action that
@@ -57,7 +63,7 @@ export function invalidateDefaultThinkingLevel(queryClient: QueryClient) {
  * change, and so can a draft (`null`). The Host enforces the same rule; this keeps the pickers
  * from offering a change it would refuse.
  */
-export function useSessionSettingsChangeable(sessionId: SessionId | null): boolean {
+export function useSessionSettingsChangeable(sessionId: SessionId | null) {
   const hasActiveRun = useBackgroundRunStore((state) =>
     sessionId ? state.activeRunIds.has(sessionId) : false,
   )
@@ -85,28 +91,11 @@ export function useSessionSettingsChangeable(sessionId: SessionId | null): boole
   )
 }
 
-export interface SessionThinkingLevel {
-  /**
-   * The thinking level the Session's next Run uses, before it is clamped to the model; for a
-   * draft (no Session yet), Pi's global default that the new Session will start from.
-   */
-  readonly level: ThinkingLevel
-  /**
-   * Sets it. For a Session the Host refuses while a Run is active, rejecting with a
-   * `SessionThinkingLevelRefusedError`; the desktop user's pick also becomes Pi's global default
-   * (never changing another Session). For a draft it sets Pi's global default, and first send
-   * stores it on the Session it creates.
-   */
-  readonly setLevel: (level: ThinkingLevel) => Promise<void>
-  /** `useSessionSettingsChangeable(sessionId)`: false while a Run is starting, active, or finishing. */
-  readonly canChange: boolean
-}
-
 /**
  * The Session thinking level, kept by Pi with the Session like its model. Messages and queued
  * Follow-ups never carry one: a Run uses the Session's level when it starts.
  */
-export function useSessionThinkingLevel(sessionId: SessionId | null): SessionThinkingLevel {
+export function useSessionThinkingLevel(sessionId: SessionId | null) {
   const queryClient = useQueryClient()
   const defaultQuery = useQuery(defaultThinkingLevelQueryOptions())
   const storedSessionLevel = useChatStore((state) => {
@@ -147,5 +136,6 @@ export function useSessionThinkingLevel(sessionId: SessionId | null): SessionThi
     })
   }
 
-  return { level, setLevel, canChange }
+  const result: SessionThinkingLevel = { level, setLevel, canChange }
+  return result
 }

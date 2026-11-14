@@ -258,11 +258,9 @@ describe('CommitOrPushDialog', () => {
     await waitFor(() => expect(onRun).toHaveBeenCalledTimes(2))
     expect(onRun.mock.calls[1]).toEqual([
       'commit_push',
-      expect.objectContaining({
-        createFeatureBranch: false,
-        featureBranchName: undefined,
-      }),
+      expect.objectContaining({ createFeatureBranch: false }),
     ])
+    expect(onRun.mock.calls[1]?.[1]).not.toHaveProperty('featureBranchName')
   })
 
   it('shows phase progress and routes cancellation while an action is running', () => {

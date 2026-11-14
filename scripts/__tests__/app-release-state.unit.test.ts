@@ -7,9 +7,7 @@ import {
   type AppReleasePullRequest,
 } from '../app-release-state'
 
-function pullRequest(
-  overrides: Partial<AppReleasePullRequest> = {},
-): AppReleasePullRequest {
+function pullRequest(overrides: Partial<AppReleasePullRequest> = {}) {
   return {
     baseRefName: 'main',
     headRefName: 'app-release-v0.3.0-alpha.45',
@@ -23,7 +21,7 @@ function pullRequest(
     title: 'chore(release): v0.3.0-alpha.45',
     url: 'https://github.com/OpenWaggle/OpenWaggle/pull/123',
     ...overrides,
-  }
+  } satisfies AppReleasePullRequest
 }
 
 describe('app release state model', () => {
@@ -61,7 +59,8 @@ describe('app release state model', () => {
   })
 
   it('creates an exact manifest with only the version changed', () => {
-    const base = '{\n  "name": "openwaggle",\n  "version": "0.3.0-alpha.44",\n  "private": true\n}\n'
+    const base =
+      '{\n  "name": "openwaggle",\n  "version": "0.3.0-alpha.44",\n  "private": true\n}\n'
 
     expect(expectedVersionOnlyManifest(base, '0.3.0-alpha.45')).toBe(
       '{\n  "name": "openwaggle",\n  "version": "0.3.0-alpha.45",\n  "private": true\n}\n',
@@ -69,12 +68,8 @@ describe('app release state model', () => {
   })
 
   it('accepts exact and GitHub squash release subjects only', () => {
-    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45')).toBe(
-      '0.3.0-alpha.45',
-    )
-    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 (#123)')).toBe(
-      '0.3.0-alpha.45',
-    )
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45')).toBe('0.3.0-alpha.45')
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 (#123)')).toBe('0.3.0-alpha.45')
     expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 extra')).toBeNull()
     expect(releaseSubjectVersion('fix(release): v0.3.0-alpha.45 (#123)')).toBeNull()
   })

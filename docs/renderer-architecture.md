@@ -184,7 +184,7 @@ Renderer architecture is enforced through linting and verification:
 - `openwaggle/renderer-import-boundaries` protects feature boundaries.
 - `openwaggle/no-raw-renderer-buttons` pushes UI toward shared primitives.
 - `openwaggle/jsx-max-props` discourages prop-drilled components.
-- Type-aware ESLint and Biome enforce TypeScript and style constraints.
+- Type-aware `bun lint` (oxlint.config.mts) and oxfmt enforce TypeScript and style constraints.
 - React Doctor checks React Compiler compatibility and renderer anti-patterns.
 
-Run `pnpm lint`, `pnpm test:component`, and React Doctor for renderer changes according to `.agents/verification.md`.
+Run `bun run lint`, `bun run test:component`, and React Doctor for renderer changes according to `.agents/verification.md`.

@@ -14,9 +14,9 @@ export function isLocalLaunch(launch: WorktreeLaunchSnapshot) {
   return launch.environment === 'local'
 }
 
-function openStepState(launch: WorktreeLaunchSnapshot): LaunchStepState {
-  if (launch.status === 'complete') return 'complete'
-  return launch.status === 'failed' ? 'failed' : 'active'
+function openStepState(launch: WorktreeLaunchSnapshot) {
+  if (launch.status === 'complete') return 'complete' as const
+  return launch.status === 'failed' ? ('failed' as const) : ('active' as const)
 }
 
 /**
@@ -27,7 +27,7 @@ function openStepState(launch: WorktreeLaunchSnapshot): LaunchStepState {
  * Returns null for a snapshot without labelled steps (an older Host, or recovery state persisted
  * by an older renderer); the caller keeps the original two-stage presentation for those.
  */
-export function launchStepViews(launch: WorktreeLaunchSnapshot): readonly LaunchStepView[] | null {
+export function launchStepViews(launch: WorktreeLaunchSnapshot) {
   const steps = launch.steps ?? []
   if (steps.length === 0) return null
   const views: LaunchStepView[] = steps.map((step) => ({
@@ -38,7 +38,10 @@ export function launchStepViews(launch: WorktreeLaunchSnapshot): readonly Launch
   const anyOpen = steps.some((step) => step.completedAt === undefined)
   const finalState: LaunchStepState =
     launch.status === 'complete' ? 'complete' : anyOpen ? 'pending' : openStepState(launch)
-  return [...views, { key: 'starting-task', label: FINAL_STEP_LABEL, state: finalState }]
+  return [
+    ...views,
+    { key: 'starting-task', label: FINAL_STEP_LABEL, state: finalState },
+  ] satisfies readonly LaunchStepView[]
 }
 
 /** The sentence a screen reader hears for the step in progress, or for the failure. */

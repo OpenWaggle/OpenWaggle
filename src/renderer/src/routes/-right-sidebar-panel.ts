@@ -16,31 +16,36 @@ interface ChatRightSidebarSelection {
   readonly changeRequestUrl?: string | null
   readonly diffOpen: boolean
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
-  readonly resourcesTarget: unknown | null
+  readonly resourcesTarget: unknown
   readonly sessionTreeOpen: boolean
   readonly hiveOpen: boolean
-  readonly workspaceFile: unknown | null
+  readonly workspaceFile: unknown
 }
 
-export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): RightSidebarPanel {
+export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput) {
   if (input.changeRequestOpen) {
-    return 'change-request'
+    const panel: RightSidebarPanel = 'change-request'
+    return panel
   }
   if (input.fileOpen) {
-    return 'file'
+    const panel: RightSidebarPanel = 'file'
+    return panel
   }
   if (input.resourcesOpen) {
-    return 'resources'
+    const panel: RightSidebarPanel = 'resources'
+    return panel
   }
   if (input.sessionTreeOpen) {
-    return 'session-tree'
+    const panel: RightSidebarPanel = 'session-tree'
+    return panel
   }
   if (input.hiveOpen) {
-    return 'hive'
+    const panel: RightSidebarPanel = 'hive'
+    return panel
   }
 
   if (input.extensionSidePanel) {
-    return {
+    const panel: RightSidebarPanel = {
       kind: 'extension-side-panel',
       extensionId: input.extensionSidePanel.extensionId,
       sidePanelId: input.extensionSidePanel.sidePanelId,
@@ -51,10 +56,12 @@ export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): 
         ? { contentHash: input.extensionSidePanel.contentHash }
         : {}),
     }
+    return panel
   }
 
   if (input.diffOpen) {
-    return 'diff'
+    const panel: RightSidebarPanel = 'diff'
+    return panel
   }
 
   return input.lastPanel

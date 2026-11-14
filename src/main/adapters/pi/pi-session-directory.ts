@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { getAgentDir, SettingsManager } from '@earendil-works/pi-coding-agent'
-import { getEnvWithOverrides } from '../../env'
+import { getPiSessionDirectoryOverride } from '../../env'
 
 const HOME_PREFIX = /^~(?=$|[/\\])/
 
@@ -11,7 +11,7 @@ function expandHome(directory: string) {
 
 /** Pi's session directory override, read when it is needed, as Pi reads it. */
 function piSessionDirectoryFromEnvironment() {
-  return getEnvWithOverrides({}).PI_CODING_AGENT_SESSION_DIR?.trim() || undefined
+  return getPiSessionDirectoryOverride()?.trim() || undefined
 }
 
 /**
@@ -22,7 +22,7 @@ function piSessionDirectoryFromEnvironment() {
  * directly, for every working directory, so a session there is matched by its header's `cwd`.
  * A relative setting is taken from `cwd`, where the CLI is normally started.
  */
-export function resolvePiSessionDirectory(cwd: string): string | undefined {
+export function resolvePiSessionDirectory(cwd: string) {
   const configured = piSessionDirectoryFromEnvironment() ?? readSessionDirSetting(cwd)
   if (!configured) return undefined
   return path.resolve(cwd, expandHome(configured))

@@ -10,13 +10,13 @@ import { DesktopFenceRepository } from '../../ports/desktop-fence-repository'
 import { DESKTOP_FENCE_MIGRATION } from '../../services/desktop-fence-migration'
 import { SqliteDesktopFenceRepositoryLive } from '../sqlite-desktop-fence-repository'
 
-function record(token = 'fence-1'): DesktopFenceRecord & { readonly state: 'active' } {
+function record(token = 'fence-1') {
   return {
     token,
     hostInstanceId: 'host-1',
     scope: { kind: 'owner', ownerKey: 'session:one' },
     state: 'active',
-  }
+  } satisfies DesktopFenceRecord & { readonly state: 'active' }
 }
 
 function makeRuntime(filename: string) {
@@ -128,8 +128,9 @@ describe('durable desktop mutation fences', () => {
     await runtime().runPromise(
       Effect.gen(function* () {
         const repository = yield* DesktopFenceRepository
-        for (let index = 0; index < DESKTOP_SERVICE_LIMITS.fenceRecords; index += 1)
+        for (let index = 0; index < DESKTOP_SERVICE_LIMITS.fenceRecords; index += 1) {
           yield* repository.insert(record(`fence-${index}`))
+        }
         yield* repository.markReleased('fence-0', 'host-1')
         expect((yield* Effect.either(repository.insert(record('overflow'))))._tag).toBe('Left')
         expect(yield* repository.getAll()).toHaveLength(DESKTOP_SERVICE_LIMITS.fenceRecords)

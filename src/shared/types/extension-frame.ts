@@ -1,24 +1,20 @@
 import type { OpenWaggleExtensionSurfaceContext } from '@shared/extension-context'
+import type { SchemaType } from '@shared/schema'
+import type {
+  extensionFrameConfigSchema,
+  extensionFrameRegisterInputSchema,
+  extensionFrameUnregisterInputSchema,
+} from '@shared/schemas/extension-frame'
 
-export interface ExtensionFrameRegisterInput {
-  readonly frameId: string
-  readonly bootstrapUrl: string
-  readonly networkOrigins?: readonly string[]
-}
+export type ExtensionFrameRegisterInput = SchemaType<typeof extensionFrameRegisterInputSchema>
 
 export interface ExtensionFrameRegisterResult {
   readonly frameUrl: string
   readonly registrationId: string
 }
 
-export interface ExtensionFrameUnregisterInput {
-  readonly frameId: string
-  readonly registrationId: string
-}
+export type ExtensionFrameUnregisterInput = SchemaType<typeof extensionFrameUnregisterInputSchema>
 
 export type ExtensionFrameMountContext = OpenWaggleExtensionSurfaceContext
 
-export interface ExtensionFrameConfig {
-  readonly moduleUrl: string
-  readonly context: ExtensionFrameMountContext
-}
+export type ExtensionFrameConfig = SchemaType<typeof extensionFrameConfigSchema>

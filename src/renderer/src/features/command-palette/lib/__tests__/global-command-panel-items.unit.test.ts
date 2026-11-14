@@ -9,8 +9,8 @@ import { createPanelCommandItems, showPanelSurface } from '../global-command-pan
 
 const NOTES = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
 
-function sidePanelEntry(): ExtensionContributionRegistryEntry {
-  return {
+function sidePanelEntry() {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'acme.notes',
     extensionName: 'Acme Notes',
     extensionVersion: '1.0.0',
@@ -37,6 +37,7 @@ function sidePanelEntry(): ExtensionContributionRegistryEntry {
     },
     diagnostics: [],
   }
+  return entry
 }
 
 const PANELS = extensionSidePanelSurfaces({

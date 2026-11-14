@@ -5,7 +5,6 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionInterruptedRun } from '@shared/types/session'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
-import type { ChatRow } from '../lib/types-chat-row'
 import type { AgentCompactionStatus } from './useAgentChat.types'
 import { buildChatRows } from './useBuildChatRows'
 
@@ -13,7 +12,7 @@ export function useChatRows(inputs: {
   messages: UIMessage[]
   customMessages?: Parameters<typeof buildChatRows>[0]['customMessages']
   interactionEvents?: Parameters<typeof buildChatRows>[0]['interactionEvents']
-  agentLoopAnchorMessageIds?: ReadonlyMap<string, string>
+  agentLoopAnchorMessageIds: ReadonlyMap<string, string> | undefined
   isLoading: boolean
   isFinishing?: boolean
   error: Error | undefined
@@ -23,33 +22,37 @@ export function useChatRows(inputs: {
   model: SupportedModelId | undefined
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: ReturnType<typeof useStreamingPhase>
-  interruptedRun?: SessionInterruptedRun
+  interruptedRun: SessionInterruptedRun | undefined
   worktreeLaunch?: WorktreeLaunchSnapshot | null
   firstSendPending?: boolean
   compactionStatus?: AgentCompactionStatus | null
-  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  turnDurationsByAnchorMessageId: ReadonlyMap<string, number> | undefined
   expandedTurnKeys?: ReadonlySet<string>
   extensionStatus?: Parameters<typeof buildChatRows>[0]['extensionStatus']
-}): ChatRow[] {
+}) {
   return buildChatRows({
     messages: inputs.messages,
     customMessages: inputs.customMessages ?? [],
     interactionEvents: inputs.interactionEvents ?? [],
-    agentLoopAnchorMessageIds: inputs.agentLoopAnchorMessageIds,
+    ...(inputs.agentLoopAnchorMessageIds === undefined
+      ? {}
+      : { agentLoopAnchorMessageIds: inputs.agentLoopAnchorMessageIds }),
     isLoading: inputs.isLoading,
-    isFinishing: inputs.isFinishing,
+    ...(inputs.isFinishing === undefined ? {} : { isFinishing: inputs.isFinishing }),
     error: inputs.error,
     lastUserMessage: inputs.lastUserMessage,
     dismissedError: inputs.dismissedError,
     sessionId: inputs.sessionId,
     waggleMetadataLookup: inputs.waggleMetadataLookup,
     phase: inputs.phase,
-    interruptedRun: inputs.interruptedRun,
-    worktreeLaunch: inputs.worktreeLaunch,
-    firstSendPending: inputs.firstSendPending,
-    compactionStatus: inputs.compactionStatus,
-    turnDurationsByAnchorMessageId: inputs.turnDurationsByAnchorMessageId,
-    expandedTurnKeys: inputs.expandedTurnKeys,
-    extensionStatus: inputs.extensionStatus,
+    ...(inputs.interruptedRun === undefined ? {} : { interruptedRun: inputs.interruptedRun }),
+    ...(inputs.worktreeLaunch === undefined ? {} : { worktreeLaunch: inputs.worktreeLaunch }),
+    ...(inputs.firstSendPending === undefined ? {} : { firstSendPending: inputs.firstSendPending }),
+    ...(inputs.compactionStatus === undefined ? {} : { compactionStatus: inputs.compactionStatus }),
+    ...(inputs.turnDurationsByAnchorMessageId === undefined
+      ? {}
+      : { turnDurationsByAnchorMessageId: inputs.turnDurationsByAnchorMessageId }),
+    ...(inputs.expandedTurnKeys === undefined ? {} : { expandedTurnKeys: inputs.expandedTurnKeys }),
+    ...(inputs.extensionStatus === undefined ? {} : { extensionStatus: inputs.extensionStatus }),
   })
 }

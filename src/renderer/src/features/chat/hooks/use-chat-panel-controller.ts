@@ -28,7 +28,7 @@ import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
 import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
 
-export function useChatPanelSections(): ChatPanelSections {
+export function useChatPanelSections() {
   const env = useChatPanelEnvironment()
   const router = useRouter()
   const {
@@ -57,6 +57,10 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSessionWorkspace,
     showToast,
   } = env
+  // Reports its own failure in a toast, so the transcript and composer never await it.
+  const selectProjectPath = (path: string) => {
+    void handleSelectProjectPath(path)
+  }
 
   const {
     messages,
@@ -85,7 +89,7 @@ export function useChatPanelSections(): ChatPanelSections {
     model,
     projectPath,
     createSession,
-    defaultThinkingLevel,
+    ...(defaultThinkingLevel === undefined ? {} : { defaultThinkingLevel }),
     readDefaultThinkingLevel: () =>
       queryClient.getQueryData(defaultThinkingLevelQueryOptions().queryKey),
     sendMessage,
@@ -205,7 +209,7 @@ export function useChatPanelSections(): ChatPanelSections {
     extensionRegistry,
     extensionProjectPaths,
     handleOpenProject,
-    handleSelectProjectPath,
+    handleSelectProjectPath: selectProjectPath,
     handleSendText: (content) => sendStarterPrompt({ content, model, handleSendText, showToast }),
     openSettings,
     handleDismissInterruptedRun,
@@ -254,7 +258,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleSelectForkTarget: sessionCopy.selectForkTarget,
     handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
     handleOpenProject,
-    handleSelectProjectPath,
+    handleSelectProjectPath: selectProjectPath,
     handleSetAuthorizationMode: (authorizationMode) =>
       setComposerSessionAuthorizationMode({
         activeSessionId,
@@ -264,7 +268,7 @@ export function useChatPanelSections(): ChatPanelSections {
       }),
   })
 
-  return {
+  const sections: ChatPanelSections = {
     transcript,
     composer,
     agentInteractions,
@@ -280,4 +284,5 @@ export function useChatPanelSections(): ChatPanelSections {
       onSendMessage: handleSendText,
     }),
   }
+  return sections
 }

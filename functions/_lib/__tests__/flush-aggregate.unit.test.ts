@@ -48,15 +48,16 @@ const ONBOARDING = {
 type Contributors = ReadonlyMap<string, ReadonlySet<string>>
 
 /** The stored entries, by key, behind each value and each integer sum, as `[event, field, value]`. */
-function contributors(store: MemoryKeyValueStore): Contributors {
+function contributors(store: MemoryKeyValueStore) {
   const entries = new Map<string, Set<string>>()
   const add = (row: string, key: string) =>
     entries.set(row, new Set([...(entries.get(row) ?? []), key]))
   for (const [key, { value }] of store.entries) {
     const day = bufferKeyDay(key)
     const entry = day === undefined ? undefined : parseBufferEntry(value, day)
-    for (const [event, field, text] of entry?.counts ?? [])
+    for (const [event, field, text] of entry?.counts ?? []) {
       add(JSON.stringify([event, field, text]), key)
+    }
     for (const [event, field] of entry?.sums ?? []) add(JSON.stringify([event, field, SUM]), key)
   }
   return entries
@@ -71,8 +72,9 @@ function groupOf(
   counted: Contributors,
 ) {
   const field = String(record.properties.field)
-  if ('sum' in record.properties)
+  if ('sum' in record.properties) {
     return counted.get(JSON.stringify([record.event, field, SUM])) ?? new Set()
+  }
   if (record.properties.value !== OTHER_VALUE) {
     return (
       counted.get(JSON.stringify([record.event, field, String(record.properties.value)])) ??
@@ -100,7 +102,8 @@ function expectNoSmallCells(records: readonly PublishedRecord[], counted: Contri
   for (const record of records) {
     const field = String(record.properties.field)
     if (field === '_count') continue
-    const label = `${record.event} ${field} ${String(record.properties.value ?? SUM)}`
+    const value: unknown = record.properties.value ?? SUM
+    const label = `${record.event} ${field} ${String(value)}`
     const group = groupOf(record, records, counted)
     const eventEntries = counted.get(JSON.stringify([record.event, '_count', '1'])) ?? new Set()
     const lacking = [...eventEntries].filter((entry) => !group.has(entry)).length
@@ -294,14 +297,15 @@ describe('small-cell suppression', () => {
   })
 
   it('counts the entries behind each value, not its events', () => {
-    const entry = (os: string, runs: number): BufferEntry => ({
-      day: YESTERDAY,
-      counts: [
-        ['run.finished', '_count', '1', runs],
-        ['run.finished', 'os', os, runs],
-      ],
-      sums: [['run.finished', 'duration_s', runs * 10, runs]],
-    })
+    const entry = (os: string, runs: number) =>
+      ({
+        day: YESTERDAY,
+        counts: [
+          ['run.finished', '_count', '1', runs],
+          ['run.finished', 'os', os, runs],
+        ],
+        sums: [['run.finished', 'duration_s', runs * 10, runs]],
+      }) satisfies BufferEntry
     const totals = addUpEntries(YESTERDAY, [
       entry('linux', 37),
       ...Array.from({ length: 6 }, () => entry('darwin', 1)),

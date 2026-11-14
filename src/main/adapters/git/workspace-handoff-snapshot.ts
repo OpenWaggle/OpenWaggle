@@ -33,7 +33,7 @@ export async function captureWorkspaceHandoffSeed(input: {
   readonly projectPath: string
   readonly workingPath: string
   readonly workspaceId: string
-}): Promise<WorkspaceHandoffSeed> {
+}) {
   const retained = await existingSeed(input.projectPath, input.workspaceId)
   if (retained) return retained
   const sourceHead = await requiredGit(

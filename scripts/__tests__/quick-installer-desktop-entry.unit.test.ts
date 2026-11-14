@@ -50,10 +50,14 @@ async function writeDesktopEntry(options: { readonly xdgUtils: boolean }) {
 ${source.slice(start + DESKTOP_ENTRY_START.length, end)}
 write_linux_desktop_entry "$1" "$2"`
   const bash = await systemCommand('bash')
-  await execFileAsync(bash, ['-c', script, 'desktop-entry-test', desktopDir, '/opt/OpenWaggle.AppImage'], {
-    // Only the fake commands and the utilities the block needs, so a real xdg-mime never runs.
-    env: { PATH: bin },
-  })
+  await execFileAsync(
+    bash,
+    ['-c', script, 'desktop-entry-test', desktopDir, '/opt/OpenWaggle.AppImage'],
+    {
+      // Only the fake commands and the utilities the block needs, so a real xdg-mime never runs.
+      env: { PATH: bin },
+    },
+  )
   const entry = await fs.readFile(path.join(desktopDir, 'openwaggle.desktop'), 'utf8')
   const calls = await fs.readFile(log, 'utf8').catch(() => '')
   return { entry, calls: calls.trim().split('\n').filter(Boolean), desktopDir }

@@ -1,10 +1,7 @@
 import type {
   McpImportApplyRequest,
-  McpImportCandidateView,
   McpImportPreviewRequest,
-  McpImportPreviewView,
 } from '@shared/types/mcp-configuration-operations'
-import { isRecord } from '@shared/utils/validation'
 import { Cause, Effect, Exit } from 'effect'
 import { McpConfigurationError } from '../../ports/mcp-configuration-service'
 import type { McpImportEntryWriter, McpImportServiceShape } from '../../ports/mcp-import-service'
@@ -18,8 +15,13 @@ import {
 } from './config/mcp-config-files'
 import { loadMcpMergedConfig } from './config/mcp-runtime-config'
 import { applyMcpImports } from './import/import-apply'
-import { type McpImportTargetServers, previewMcpImports } from './import/import-preview'
-import type { ExternalMcpImportCandidate, ExternalMcpImportPreview } from './import/import-types'
+import { previewMcpImports } from './import/import-preview'
+import type {
+  ExternalMcpImportCandidate,
+  ExternalMcpImportPreview,
+  PiMcpEntry,
+} from './import/import-types'
+import { mcpConfigServerMaps } from './mcp-config-server-maps'
 
 export interface FilesystemMcpImportServiceOptions {
   readonly homeDir: string
@@ -41,21 +43,15 @@ function toConfigurationError(error: unknown) {
     : new McpConfigurationError({ reason: 'io', message: describe(error) })
 }
 
-function serversIn(
-  reader: McpConfigFileReader,
-  filePath: string,
-): Readonly<Record<string, unknown>> {
+function serversIn(reader: McpConfigFileReader, filePath: string) {
   const text = reader.readText(filePath)
   if (!text?.trim()) return {}
   const parsed: unknown = JSON.parse(text)
-  return isRecord(parsed) && isRecord(parsed.mcpServers) ? parsed.mcpServers : {}
+  return mcpConfigServerMaps(parsed).mcpServers ?? {}
 }
 
 /** Servers already in OpenWaggle's files, so earlier imports and taken names are recognised. */
-function targetServers(
-  reader: McpConfigFileReader,
-  roots: McpConfigFileRoots,
-): McpImportTargetServers {
+function targetServers(reader: McpConfigFileReader, roots: McpConfigFileRoots) {
   return {
     global: serversIn(reader, openWaggleMcpConfigPath(roots, 'global')),
     ...(roots.projectPath
@@ -64,15 +60,12 @@ function targetServers(
   }
 }
 
-function displayTarget(entry: Readonly<Record<string, unknown>>) {
-  if (typeof entry.url === 'string') return entry.url
-  const args = Array.isArray(entry.args)
-    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
-    : []
-  return typeof entry.command === 'string' ? [entry.command, ...args].join(' ') : ''
+function displayTarget(entry: PiMcpEntry) {
+  if (entry.url !== undefined) return entry.url
+  return entry.command === undefined ? '' : [entry.command, ...(entry.args ?? [])].join(' ')
 }
 
-function candidateView(candidate: ExternalMcpImportCandidate): McpImportCandidateView {
+function candidateView(candidate: ExternalMcpImportCandidate) {
   return {
     source: candidate.source,
     sourcePath: candidate.sourcePath,
@@ -86,7 +79,7 @@ function candidateView(candidate: ExternalMcpImportCandidate): McpImportCandidat
   }
 }
 
-function previewView(preview: ExternalMcpImportPreview): McpImportPreviewView {
+function previewView(preview: ExternalMcpImportPreview) {
   return {
     candidates: preview.candidates.map(candidateView),
     unavailableSources: preview.unavailableSources,
@@ -94,11 +87,9 @@ function previewView(preview: ExternalMcpImportPreview): McpImportPreviewView {
   }
 }
 
-export function createFilesystemMcpImportService(
-  options: FilesystemMcpImportServiceOptions,
-): McpImportServiceShape {
+export function createFilesystemMcpImportService(options: FilesystemMcpImportServiceOptions) {
   const reader = options.reader ?? nodeMcpConfigFileReader
-  const roots = (projectPath: string | null): McpConfigFileRoots => ({
+  const roots = (projectPath: string | null) => ({
     homeDir: options.homeDir,
     piAgentDir: options.piAgentDir,
     projectPath,
@@ -156,5 +147,5 @@ export function createFilesystemMcpImportService(
       ),
     apply: (input, write) =>
       Effect.tryPromise({ try: () => apply(input, write), catch: toConfigurationError }),
-  }
+  } satisfies McpImportServiceShape
 }

@@ -5,14 +5,12 @@ import type { AgentsResolutionResult, AgentsScopeItem } from '@shared/types/stan
 import { isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '../utils/paths'
 
-export async function resolveRootAgents(projectPath: string): Promise<AgentsScopeItem> {
-  return readAgentsScope(projectPath, projectPath)
+export async function resolveRootAgents(projectPath: string) {
+  const root: AgentsScopeItem = await readAgentsScope(projectPath, projectPath)
+  return root
 }
 
-export async function resolveAgentsChainForPath(
-  projectPath: string,
-  targetPath: string,
-): Promise<AgentsResolutionResult> {
+export async function resolveAgentsChainForPath(projectPath: string, targetPath: string) {
   const root = await resolveRootAgents(projectPath)
   const warnings: string[] = []
   matchBy(root, 'status')
@@ -55,9 +53,7 @@ export async function resolveAgentsChainForPath(
 }
 
 /** The project's root AGENTS.md as a resolution with no directory scopes, for Settings > Skills. */
-export async function resolveProjectRootAgents(
-  projectPath: string,
-): Promise<AgentsResolutionResult> {
+export async function resolveProjectRootAgents(projectPath: string) {
   const root = await resolveRootAgents(projectPath)
   const warnings = matchBy(root, 'status')
     .with('error', (value) =>
@@ -65,7 +61,8 @@ export async function resolveProjectRootAgents(
     )
     .with('found', 'missing', () => [])
     .exhaustive()
-  return { projectPath, root, scoped: [], warnings }
+  const result: AgentsResolutionResult = { projectPath, root, scoped: [], warnings }
+  return result
 }
 
 async function resolveTargetDirectoryWithinProject(projectPath: string, targetPath: string) {
@@ -133,31 +130,33 @@ function listScopeDirectories(projectPath: string, targetDir: string) {
   return dirs
 }
 
-async function readAgentsScope(projectPath: string, scopeDir: string): Promise<AgentsScopeItem> {
+async function readAgentsScope(projectPath: string, scopeDir: string) {
   const filePath = path.join(scopeDir, 'AGENTS.md')
   const scopeRelativeDir = toScopeRelativeDir(projectPath, scopeDir)
 
   try {
     const content = await fs.readFile(filePath, 'utf8')
-    return {
+    const item: AgentsScopeItem = {
       filePath,
       scopeDir,
       scopeRelativeDir,
       content,
       status: 'found',
     }
+    return item
   } catch (error) {
     if (isEnoent(error)) {
-      return {
+      const item: AgentsScopeItem = {
         filePath,
         scopeDir,
         scopeRelativeDir,
         content: '',
         status: 'missing',
       }
+      return item
     }
 
-    return {
+    const item: AgentsScopeItem = {
       filePath,
       scopeDir,
       scopeRelativeDir,
@@ -165,6 +164,7 @@ async function readAgentsScope(projectPath: string, scopeDir: string): Promise<A
       status: 'error',
       error: error instanceof Error ? error.message : String(error),
     }
+    return item
   }
 }
 

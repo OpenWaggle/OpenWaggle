@@ -6,7 +6,7 @@ import { useComposerStore } from '@/features/composer/state'
 export function appendBrowserPreviewAnnotationToComposer(
   annotation: BrowserPreviewAnnotation,
   expectedDraftContextKey: string | null,
-): void {
+) {
   const composer = useComposerStore.getState()
   if (composer.activeDraftContextKey !== expectedDraftContextKey) {
     throw new Error('The active draft changed before the browser annotation was attached.')
@@ -28,6 +28,6 @@ export function appendBrowserPreviewAnnotationToComposer(
   composer.lexicalEditor?.focus()
 }
 
-export function activeBrowserPreviewComposerDraft(): string | null {
+export function activeBrowserPreviewComposerDraft() {
   return useComposerStore.getState().activeDraftContextKey
 }

@@ -6,7 +6,7 @@ section: "Packages"
 kind: "reference"
 ---
 
-<!-- Generated from the checked public package declarations. -->
+<!-- Generated from the public declarations of @openwaggle/extension-react 0.2.0; content sha256 3788db75c499761faf3ebd920c03a8dfde95aa7f4e2d74cd6adef1ba6fcba2f2. -->
 
 This reference inventories every public entry point and named export in `@openwaggle/extension-react` 0.2.
 

@@ -8,7 +8,7 @@ export class SessionSemanticInferenceCapacityError extends Error {
   }
 }
 
-export function isSessionSemanticInferenceCapacityError(cause: unknown): boolean {
+export function isSessionSemanticInferenceCapacityError(cause: unknown) {
   let current = cause
   while (current instanceof Error) {
     if (current instanceof SessionSemanticInferenceCapacityError) return true
@@ -44,10 +44,15 @@ export class SessionSemanticInferenceGate {
   readonly #queue: PendingInference[] = []
   #active = 0
 
+  private readonly maxConcurrent: number
+  private readonly maxQueued: number
+
   constructor(
-    private readonly maxConcurrent = DEFAULT_MAX_CONCURRENT_QUERY_INFERENCES,
-    private readonly maxQueued = DEFAULT_MAX_QUEUED_QUERY_INFERENCES,
+    maxConcurrent = DEFAULT_MAX_CONCURRENT_QUERY_INFERENCES,
+    maxQueued = DEFAULT_MAX_QUEUED_QUERY_INFERENCES,
   ) {
+    this.maxConcurrent = maxConcurrent
+    this.maxQueued = maxQueued
     if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent <= 0) {
       throw new Error('Semantic inference concurrency must be a positive safe integer.')
     }
@@ -56,10 +61,10 @@ export class SessionSemanticInferenceGate {
     }
   }
 
-  run<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-    if (signal?.aborted) return Promise.reject(cancellationError(signal))
+  run<T>(task: () => Promise<T>, signal?: AbortSignal) {
+    if (signal?.aborted) return Promise.reject(cancellationError(signal)) satisfies Promise<T>
     if (this.#active >= this.maxConcurrent && this.#queue.length >= this.maxQueued) {
-      return Promise.reject(new SessionSemanticInferenceCapacityError())
+      return Promise.reject(new SessionSemanticInferenceCapacityError()) satisfies Promise<T>
     }
     return new Promise<T>((resolve, reject) => {
       const pending: PendingInference = {
@@ -79,7 +84,7 @@ export class SessionSemanticInferenceGate {
       signal?.addEventListener('abort', abort, { once: true })
       this.#queue.push(pending)
       this.#pump()
-    })
+    }) satisfies Promise<T>
   }
 
   #abort(pending: PendingInference) {
@@ -108,8 +113,9 @@ export class SessionSemanticInferenceGate {
           pending.reject(cause)
         })
         .finally(() => {
-          if (pending.abortListener)
+          if (pending.abortListener) {
             pending.signal?.removeEventListener('abort', pending.abortListener)
+          }
           this.#active -= 1
           this.#pump()
         })

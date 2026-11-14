@@ -35,10 +35,7 @@ const BUILD_DEFINE = {
 const UNPDF_DIST_PATH = 'unpdf/dist/index.mjs'
 const UNPDF_IMPORT_META_RESOLVE_LINE = 'import.meta.resolve("pdfjs-dist/package.json")'
 const UNPDF_CJS_RESOLVE_LINE = 'require.resolve("pdfjs-dist/package.json")'
-const MCP_CONFIG_WATCH_IGNORES = [
-  '**/.mcp.json',
-  '**/.openwaggle/mcp.json',
-]
+const MCP_CONFIG_WATCH_IGNORES = ['**/.mcp.json', '**/.openwaggle/mcp.json']
 
 /**
  * `unpdf` is bundled into the Electron main CJS output. Its Node defaults use
@@ -46,7 +43,7 @@ const MCP_CONFIG_WATCH_IGNORES = [
  * output and would otherwise erase to `{}`. Keep the transform scoped to the
  * known package metadata lookup instead of disabling import.meta diagnostics.
  */
-function unpdfCjsResolvePlugin(): Plugin {
+function unpdfCjsResolvePlugin() {
   return {
     name: 'openwaggle:unpdf-cjs-resolve',
     enforce: 'pre',
@@ -61,10 +58,10 @@ function unpdfCjsResolvePlugin(): Plugin {
 
       return code.replace(UNPDF_IMPORT_META_RESOLVE_LINE, UNPDF_CJS_RESOLVE_LINE)
     },
-  }
+  } satisfies Plugin
 }
 
-function disablePluginTimingWarningsPlugin(): Plugin {
+function disablePluginTimingWarningsPlugin() {
   return {
     name: 'openwaggle:disable-plugin-timing-warnings',
     enforce: 'post',
@@ -75,7 +72,7 @@ function disablePluginTimingWarningsPlugin(): Plugin {
         pluginTimings: false,
       }
 
-      const existingWorkerOptions = config.worker.rolldownOptions ?? {}
+      const existingWorkerOptions = config.worker.rolldownOptions
       const existingWorkerChecks = existingWorkerOptions.checks ?? {}
       config.worker.rolldownOptions = {
         ...existingWorkerOptions,
@@ -85,7 +82,7 @@ function disablePluginTimingWarningsPlugin(): Plugin {
         },
       }
     },
-  }
+  } satisfies Plugin
 }
 
 export default defineConfig({
@@ -136,16 +133,16 @@ export default defineConfig({
         '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
         '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
         '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
-      }
-    }
+      },
+    },
   },
   preload: {
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
-        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts')
-      }
-    }
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
+      },
+    },
   },
   renderer: {
     define: BUILD_DEFINE,
@@ -159,6 +156,20 @@ export default defineConfig({
       sourcemap: 'hidden',
       // The chunk graph scripts/check-syntax-bundle.ts budgets. Not packaged (electron-builder.ts).
       manifest: true,
+      rolldownOptions: {
+        // Setting rolldownOptions drops electron-vite's default renderer input.
+        input: resolve('src/renderer/index.html'),
+        experimental: {
+          chunkOptimization: {
+            // On, this pass moves every module that each importer of a lazy chunk already loaded
+            // into the entry. The eager shell sat in a preloaded shared chunk only while a
+            // chat store -> shell import cycle blocked the pass; breaking that cycle folded it into
+            // the entry (283 -> 467 KB) with the same initial bytes. Off keeps the entry within
+            // its budget; the initial graph budget guards what boot actually loads.
+            avoidRedundantChunkLoads: false,
+          },
+        },
+      },
     },
     worker: {
       // Module workers preserve Shiki's per-language dynamic imports. The IIFE
@@ -179,10 +190,7 @@ export default defineConfig({
       // starting. Without this warmup, opening the first syntax-eligible file
       // causes Vite to discover Shiki on demand and reload the renderer.
       warmup: {
-        clientFiles: [
-          './src/main.tsx',
-          './src/shared/lib/syntax/syntax.worker.ts',
-        ],
+        clientFiles: ['./src/main.tsx', './src/shared/lib/syntax/syntax.worker.ts'],
       },
     },
     optimizeDeps: {
@@ -213,6 +221,6 @@ export default defineConfig({
       babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
       disablePluginTimingWarningsPlugin(),
-    ]
-  }
+    ],
+  },
 })

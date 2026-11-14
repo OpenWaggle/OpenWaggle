@@ -17,6 +17,6 @@ export const MCP_SETTINGS_EXPOSURE_CHOICES = [
 ] as const satisfies readonly McpRuntimeExposure[]
 
 /** The exposure OpenWaggle runs for a configured one: `direct` runs as `codemode`. */
-export function openWaggleMcpExposure(exposure: McpServerExposure): McpRuntimeExposure {
-  return exposure === 'direct' ? 'codemode' : exposure
+export function openWaggleMcpExposure(exposure: McpServerExposure) {
+  return exposure === 'direct' ? ('codemode' as const) : exposure
 }

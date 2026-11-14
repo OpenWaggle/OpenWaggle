@@ -26,10 +26,7 @@ export interface MissingPiSessionFile {
  * What {@link deletedPiSessionFile} finds, with, for a created Session whose file was deleted,
  * the copy its Run continues.
  */
-export function inspectPiSessionFile(sessionId: SessionId): Effect.Effect<{
-  readonly missing?: MissingPiSessionFile
-  readonly continuedCopy?: string
-}> {
+export function inspectPiSessionFile(sessionId: SessionId) {
   return Effect.gen(function* () {
     const repository = yield* Effect.serviceOption(PiSessionDiscoveryRepository)
     const files = yield* Effect.serviceOption(PiSessionFiles)
@@ -54,23 +51,30 @@ export function inspectPiSessionFile(sessionId: SessionId): Effect.Effect<{
         repository: repository.value,
       },
     }
-  })
+  }) satisfies Effect.Effect<{
+    readonly missing?: MissingPiSessionFile
+    readonly continuedCopy?: string
+  }>
 }
 
 /**
  * A deleted file's Session: a created one's Run continues a copy under its Pi session id when
  * there is one, and cannot tell while a folder that may hold one cannot be read.
  */
-function deletedFileUnavailability(
-  sessionId: SessionId,
-  piEntryNodeIdPrefix?: string,
-): Effect.Effect<{
-  readonly unavailable?: 'continued' | 'copies'
-  readonly unreadableFolder?: string
-  readonly continuedCopy?: string
-}> {
-  if (piEntryNodeIdPrefix) return Effect.succeed({})
-  return createdSessionContinuation(sessionId).pipe(
+function deletedFileUnavailability(sessionId: SessionId, piEntryNodeIdPrefix?: string) {
+  if (piEntryNodeIdPrefix) {
+    const effect: Effect.Effect<{
+      readonly unavailable?: 'continued' | 'copies'
+      readonly unreadableFolder?: string
+      readonly continuedCopy?: string
+    }> = Effect.succeed({})
+    return effect
+  }
+  const effect: Effect.Effect<{
+    readonly unavailable?: 'continued' | 'copies'
+    readonly unreadableFolder?: string
+    readonly continuedCopy?: string
+  }> = createdSessionContinuation(sessionId).pipe(
     Effect.map((continuation) => {
       if (continuation?.kind === 'file') {
         return { unavailable: 'continued', continuedCopy: continuation.file }
@@ -79,6 +83,7 @@ function deletedFileUnavailability(
       return { unavailable: 'copies', unreadableFolder: continuation.folder }
     }),
   )
+  return effect
 }
 
 function createdSessionContinuation(sessionId: SessionId) {

@@ -231,9 +231,8 @@ function migrateOnce(projectPath: string | null, readOld: ReadOldSignIn | undefi
 
 /** An old MCP-off switch; a Session deleted since then has nothing to carry over. */
 async function carryOverSessionMcpOff(sessionId: string) {
-  const { disableSessionMcp, UnknownMcpSessionError } = await import(
-    '../../../store/session-mcp-switch'
-  )
+  const { disableSessionMcp, UnknownMcpSessionError } =
+    await import('../../../store/session-mcp-switch')
   await disableSessionMcp(sessionId).catch((error: unknown) => {
     if (!(error instanceof UnknownMcpSessionError)) throw error
   })
@@ -247,7 +246,7 @@ async function carryOverSessionMcpOff(sessionId: string) {
 async function migrateKnownScopes(migrate: (projectPath: string | null) => Promise<unknown>) {
   const timeoutBefore = lastLockTimeout
   await migrate(null)
-  const projects = await durableMcpProjectPaths().catch((error: unknown): readonly string[] => {
+  const projects = await durableMcpProjectPaths().catch((error: unknown) => {
     logger.error('MCP migration could not list the known projects at Host start', {
       error: describeError(error),
     })

@@ -23,14 +23,10 @@ import {
 import { sessionFollowUpQueueOptions } from './session-follow-up-queue-options'
 
 export {
-  heldEdit,
   isLostFollowUpEdit,
-  SessionControlRejectedError,
   type SessionFollowUpEdit,
-  type SessionFollowUpEditHold,
   type SessionFollowUpEditPayload,
   type SessionFollowUpQueueItem,
-  type SessionFollowUpQueueSnapshot,
 } from './session-follow-up-queue-model'
 
 import { withFinally } from '@/shared/lib/async-outcome'
@@ -185,7 +181,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
    * `SessionControlRejectedError` when the item is gone, not this user's, or already being edited.
    * If the content cannot be read after the hold was acquired, the hold is released again.
    */
-  async function beginEdit(followUpId: string): Promise<SessionFollowUpEdit> {
+  async function beginEdit(followUpId: string) {
     if (!sessionId) throw new Error('Select a Session before editing a queued message.')
     const response = await mutate({ operation: 'queue-edit-begin', sessionId, followUpId })
     if (response.outcome.effect !== 'follow-up-edit-held') {
@@ -215,7 +211,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
    * which case `beginEdit` starts a new edit. Reads the latest cached snapshot (not this render's),
    * so awaiting `refresh()` first is enough when it may be stale.
    */
-  function resumeEdit(followUpId: string): SessionFollowUpEdit | null {
+  function resumeEdit(followUpId: string) {
     const options = sessionFollowUpQueueOptions(sessionId)
     const latest =
       queryClient.getQueryData<SessionFollowUpQueueSnapshot>(options.queryKey) ??

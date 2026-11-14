@@ -20,7 +20,7 @@ import {
 import { verifyRevokedWorkspaceRootStopsExport } from './session-export-resource-authority.test-support'
 
 describe('Session export operation service', () => {
-  const runtimeReleases: Array<() => void> = []
+  const runtimeReleases: (() => void)[] = []
   const livenessInstances: SessionHostLiveness[] = []
 
   afterEach(() => {

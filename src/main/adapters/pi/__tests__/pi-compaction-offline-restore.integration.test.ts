@@ -11,7 +11,7 @@ import {
 import { afterEach, describe, expect, it } from 'vitest'
 
 const tempDirectories: string[] = []
-const sessions: Array<{ dispose: () => void }> = []
+const sessions: { dispose: () => void }[] = []
 
 describe('Pi compaction offline restoration', () => {
   afterEach(() => {

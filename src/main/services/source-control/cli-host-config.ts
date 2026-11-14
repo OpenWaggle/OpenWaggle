@@ -64,7 +64,20 @@ async function readFirstYaml(directories: readonly string[], fileName: string) {
   return null
 }
 
-function githubAccounts(entry: Readonly<Record<string, unknown>>) {
+/** A gh host entry's account members, each still unchecked. */
+interface GithubHostEntryFields {
+  readonly user?: unknown
+  readonly users?: unknown
+}
+
+/** A glab host entry's sign-in members, each still unchecked. */
+interface GitlabHostEntryFields {
+  readonly user?: unknown
+  readonly token?: unknown
+  readonly ssh_host?: unknown
+}
+
+function githubAccounts(entry: GithubHostEntryFields) {
   const active = nonEmptyString(entry.user)
   const logins = isRecord(entry.users) ? Object.keys(entry.users) : active ? [active] : []
   return logins
@@ -73,27 +86,37 @@ function githubAccounts(entry: Readonly<Record<string, unknown>>) {
 }
 
 /** gh writes one top-level key per host to `hosts.yml`. */
-function parseGithubHosts(config: Readonly<Record<string, unknown>> | null): GithubCliHost[] {
-  if (!config) return []
-  return Object.entries(config)
+function parseGithubHosts(config: Readonly<Record<string, unknown>> | null) {
+  if (!config) {
+    const result: GithubCliHost[] = []
+    return result
+  }
+  const result: GithubCliHost[] = Object.entries(config)
     .slice(0, MAX_CLI_HOSTS)
     .flatMap(([host, entry]) =>
       isRecord(entry)
         ? [{ host: sourceControlHostKey(host), accounts: githubAccounts(entry) }]
         : [],
     )
+  return result
 }
 
 /** glab keeps instances under `hosts:` in `config.yml`; a token or user means signed in. */
-function parseGitlabHosts(config: Readonly<Record<string, unknown>> | null): GitlabCliHost[] {
-  if (!config || !isRecord(config.hosts)) return []
-  return Object.entries(config.hosts)
+function parseGitlabHosts(config: Readonly<Record<string, unknown>> | null) {
+  const gitlabConfig: { readonly hosts?: unknown } | null = config
+  const hosts = gitlabConfig?.hosts
+  if (!isRecord(hosts)) {
+    const result: GitlabCliHost[] = []
+    return result
+  }
+  const result: GitlabCliHost[] = Object.entries(hosts)
     .slice(0, MAX_CLI_HOSTS)
     .flatMap(([host, entry]) => {
       if (!isRecord(entry) || !isSourceControlHostName(sourceControlHostKey(host))) return []
-      const user = nonEmptyString(entry.user)
-      const signedIn = user !== null || nonEmptyString(entry.token) !== null
-      const sshHost = nonEmptyString(entry.ssh_host)
+      const fields: GitlabHostEntryFields = entry
+      const user = nonEmptyString(fields.user)
+      const signedIn = user !== null || nonEmptyString(fields.token) !== null
+      const sshHost = nonEmptyString(fields.ssh_host)
       return [
         {
           host: sourceControlHostKey(host),
@@ -105,6 +128,7 @@ function parseGitlabHosts(config: Readonly<Record<string, unknown>> | null): Git
         },
       ]
     })
+  return result
 }
 
 /**
@@ -113,10 +137,14 @@ function parseGitlabHosts(config: Readonly<Record<string, unknown>> | null): Git
  */
 export async function readSourceControlCliHosts(
   directories: SourceControlCliConfigDirectories = getSourceControlCliConfigDirectories(),
-): Promise<SourceControlCliHosts> {
+) {
   const [gh, glab] = await Promise.all([
     readFirstYaml(directories.gh, 'hosts.yml'),
     readFirstYaml(directories.glab, 'config.yml'),
   ])
-  return { github: parseGithubHosts(gh), gitlab: parseGitlabHosts(glab) }
+  const hosts: SourceControlCliHosts = {
+    github: parseGithubHosts(gh),
+    gitlab: parseGitlabHosts(glab),
+  }
+  return hosts
 }

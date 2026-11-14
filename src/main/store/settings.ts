@@ -94,7 +94,7 @@ export function assertSettingsReady() {
   )
 }
 
-export async function initializeSettingsStore(): Promise<void> {
+export async function initializeSettingsStore() {
   if (initializationPromise) return initializationPromise
   if (settingsReady) return
 
@@ -129,7 +129,7 @@ export async function initializeSettingsStore(): Promise<void> {
 }
 
 /** Reload the durable snapshot so long-lived GUI and detached Host processes see each other's writes. */
-export function refreshSettingsStore(): Promise<void> {
+export function refreshSettingsStore() {
   return chainWriteQueue(async () => {
     try {
       const storedSettings = await listStoredSettings()
@@ -143,11 +143,11 @@ export function refreshSettingsStore(): Promise<void> {
       initializationPromise = null
       throw settingsReadError
     }
-  })
+  }) satisfies Promise<void>
 }
 
 /** Install the authoritative Host snapshot without writing to the attached GUI's isolated DB. */
-export function hydrateSettingsStoreFromHost(snapshot: unknown): void {
+export function hydrateSettingsStoreFromHost(snapshot: unknown) {
   if (!isRecord(snapshot)) throw new Error('Session Host returned an invalid settings snapshot.')
   for (const key of CURRENT_SETTINGS_KEYS) {
     if (!Object.hasOwn(snapshot, key) || snapshot[key] === undefined) {
@@ -165,7 +165,7 @@ export function hydrateSettingsStoreFromHost(snapshot: unknown): void {
   initializationPromise ??= Promise.resolve()
 }
 
-export async function flushSettingsStoreForTests(): Promise<void> {
+export async function flushSettingsStoreForTests() {
   await flushWriteQueue()
 }
 
@@ -178,7 +178,7 @@ export async function flushSettingsStoreForTests(): Promise<void> {
  * better-sqlite3 Database per test inside a worker vitest reuses across files, and
  * that accumulation crashed the addon at teardown (#151).
  */
-export async function resetSettingsStoreForTests(): Promise<void> {
+export async function resetSettingsStoreForTests() {
   await flushWriteQueue()
   initializationPromise = null
   settingsReadError = null
@@ -187,12 +187,12 @@ export async function resetSettingsStoreForTests(): Promise<void> {
   publishSettingsState({ ready: false })
 }
 
-export function getSettings(): Settings {
+export function getSettings() {
   assertSettingsReady()
   return settingsCache
 }
 
-export function updateSettings(partial: Partial<Settings>): void {
+export function updateSettings(partial: Partial<Settings>) {
   assertSettingsReady()
   const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
   publishSettingsState({ cache: nextSettings })
@@ -208,13 +208,13 @@ function updateProjectToggleMapDurably(
   projectPath: string,
   entryId: string,
   enabled: boolean,
-): Promise<void> {
+) {
   assertSettingsReady()
   return enqueueSettingsWrite(() => {
     const currentMap = settingsCache[mapKey]
     const nextMap = {
       ...currentMap,
-      [projectPath]: { ...(currentMap[projectPath] ?? {}), [entryId]: enabled },
+      [projectPath]: { ...currentMap[projectPath], [entryId]: enabled },
     }
     return mapKey === 'skillTogglesByProject'
       ? persistSettingsPatch({ skillTogglesByProject: nextMap })
@@ -222,11 +222,7 @@ function updateProjectToggleMapDurably(
   }, label)
 }
 
-export function updateSkillToggleDurably(
-  projectPath: string,
-  skillId: string,
-  enabled: boolean,
-): Promise<void> {
+export function updateSkillToggleDurably(projectPath: string, skillId: string, enabled: boolean) {
   return updateProjectToggleMapDurably(
     'skill toggle',
     'skillTogglesByProject',
@@ -240,7 +236,7 @@ export function updateAgentDefinitionToggleDurably(
   projectPath: string,
   agentName: string,
   enabled: boolean,
-): Promise<void> {
+) {
   return updateProjectToggleMapDurably(
     'Agent definition toggle',
     'agentDefinitionTogglesByProject',
@@ -255,10 +251,7 @@ export function updateAgentDefinitionToggleDurably(
  * empty-string tombstone so a later legacy migration can never resurrect a cleared value. The
  * model lives only in the app DB, never in the repo-local settings file.
  */
-export function updateSelectedModelDurably(
-  projectPath: string,
-  model: string | null,
-): Promise<void> {
+export function updateSelectedModelDurably(projectPath: string, model: string | null) {
   assertSettingsReady()
   return enqueueSettingsWrite(
     () =>
@@ -273,7 +266,7 @@ export function updateSelectedModelDurably(
 }
 
 /** Deletes one project's selected model entry in the write queue, so re-adding starts fresh. */
-export function deleteSelectedModelDurably(projectPath: string): Promise<void> {
+export function deleteSelectedModelDurably(projectPath: string) {
   assertSettingsReady()
   return enqueueSettingsWrite(() => {
     const { [projectPath]: _removed, ...rest } = settingsCache.selectedModelsByProject
@@ -286,7 +279,7 @@ export function deleteSelectedModelDurably(projectPath: string): Promise<void> {
  * the tombstone a queued clear writes, so a stale legacy read cannot resurrect it. Returns whether
  * it inserted.
  */
-export function migrateSelectedModelDurably(projectPath: string, model: string): Promise<boolean> {
+export function migrateSelectedModelDurably(projectPath: string, model: string) {
   assertSettingsReady()
   return enqueueSettingsWrite(async () => {
     if (Object.hasOwn(settingsCache.selectedModelsByProject, projectPath)) return false
@@ -301,12 +294,12 @@ export function migrateSelectedModelDurably(projectPath: string, model: string):
  * Persists one settings patch in queue order before publishing it to readers. Reserved for
  * workflows whose rollback depends on knowing the new identity is durable.
  */
-export function updateSettingsDurably(partial: Partial<Settings>): Promise<void> {
+export function updateSettingsDurably(partial: Partial<Settings>) {
   assertSettingsReady()
   return enqueueSettingsWrite(() => persistSettingsPatch(partial), 'durable settings patch')
 }
 
-export async function persistSettingsPatch(partial: Partial<Settings>): Promise<void> {
+export async function persistSettingsPatch(partial: Partial<Settings>) {
   assertSettingsReady()
   const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
   const writes = collectSettingsPatchWrites(partial, nextSettings)

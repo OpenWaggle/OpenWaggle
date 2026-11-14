@@ -39,7 +39,8 @@ export function measureLaunch(app: PerfApp, options: LaunchMeasurementOptions) {
     await delay(options.settleMs)
     const boot = await readRendererBoot(page, instrumentedFromStart)
     const { spawnedAt, marks } = launched
-    const at = (milestone: string) => sinceSpawn(spawnedAt, boot.timeOrigin, boot.milestones[milestone])
+    const at = (milestone: string) =>
+      sinceSpawn(spawnedAt, boot.timeOrigin, boot.milestones[milestone])
     return {
       app: app.label,
       mode: options.mode,

@@ -7,7 +7,11 @@ import { REQUEST_TIMEOUT_MS, type SnapshotJobOptions } from './usage-stats-snaps
 
 const hasCode = isMatching({ code: P.string })
 
-export async function getJson(options: SnapshotJobOptions, url: string, headers: Record<string, string>) {
+export async function getJson(
+  options: SnapshotJobOptions,
+  url: string,
+  headers: Record<string, string>,
+) {
   const response = await options.fetch(url, {
     headers,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -36,10 +40,12 @@ export async function readOptionalJson(
   options: SnapshotJobOptions,
   url: string,
   headers: Record<string, string>,
-): Promise<JsonRead> {
+) {
+  let read: JsonRead
   try {
-    return await getJson(options, url, headers)
+    read = await getJson(options, url, headers)
   } catch (error) {
-    return { failure: failureReason(error) }
+    read = { failure: failureReason(error) }
   }
+  return read
 }

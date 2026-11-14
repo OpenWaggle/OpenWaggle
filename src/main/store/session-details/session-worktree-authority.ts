@@ -89,7 +89,7 @@ export async function setSessionWorktree(
   environmentMode: SessionEnvironmentMode,
   worktreePath: string | null,
   worktreeBranch?: string,
-): Promise<void> {
+) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -121,7 +121,7 @@ export async function setSessionWorktree(
               ON session_execution_profiles.session_id = sessions.id
             WHERE source_binding.session_id = ${id}
           `
-          const refreshed: Array<{ readonly sessionId: string; readonly snapshot: string }> = []
+          const refreshed: { readonly sessionId: string; readonly snapshot: string }[] = []
           if (environmentMode === 'worktree' && worktreePath) {
             for (const peer of peers) {
               const snapshot = decodeSessionAuthoritySnapshot(peer.authority_scope_snapshot_json)

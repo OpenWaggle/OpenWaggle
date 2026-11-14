@@ -16,17 +16,7 @@ type PiCustomMessageEntry = Extract<SessionEntry, { type: 'custom_message' }>
 type PiUserMessage = Extract<PiMessageEntry['message'], { role: 'user' }>
 type PiCustomMessage = Extract<PiMessageEntry['message'], { role: 'custom' }>
 
-/** Where a just-incorporated message sits in the native Session log. */
-interface IncorporatedEntryPosition {
-  readonly createdOrder: number
-  readonly parentId: string | null
-  readonly entryById: ReadonlyMap<string, SessionEntry>
-}
-
-function logPosition(
-  source: PiUserMessageEntrySource,
-  appended: (entry: SessionEntry) => boolean,
-): IncorporatedEntryPosition & { readonly entry: SessionEntry | null } {
+function logPosition(source: PiUserMessageEntrySource, appended: (entry: SessionEntry) => boolean) {
   const entries = source.getEntries()
   const entryById = new Map<string, SessionEntry>(entries.map((entry) => [entry.id, entry]))
   for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -48,13 +38,13 @@ function logPosition(
 export function incorporatedUserMessageDisplay(
   source: PiUserMessageEntrySource,
   message: PiUserMessage,
-): AgentTransportUserMessage {
+) {
   const position = logPosition(
     source,
     (entry) => entry.type === 'message' && entry.message === message,
   )
   const projection = findUserInputProjection(position.parentId, position.entryById)
-  return {
+  const result: AgentTransportUserMessage = {
     // Without a recorded projection this is the snapshot's own fallback: the typed text only,
     // without synthesized attachment blocks, visualization context, or image payloads.
     parts: projection?.parts ?? piUserContentToDisplayParts(message.content),
@@ -62,6 +52,7 @@ export function incorporatedUserMessageDisplay(
     ...(projection?.durableTextSha256 ? { durableTextSha256: projection.durableTextSha256 } : {}),
     ...(projection?.scheduledTask ? { scheduledTask: projection.scheduledTask } : {}),
   }
+  return result
 }
 
 export function isVisibleWaggleUserRequest(message: PiMessageEntry['message']) {
@@ -89,7 +80,7 @@ function isEntryOfCustomMessage(entry: SessionEntry, message: PiCustomMessage) {
 export function incorporatedWaggleUserRequestDisplay(
   source: PiUserMessageEntrySource,
   message: PiCustomMessage,
-): AgentTransportUserMessage {
+) {
   const position = logPosition(source, (entry) => isEntryOfCustomMessage(entry, message))
   const entry: Pick<PiCustomMessageEntry, 'customType' | 'content' | 'display' | 'details'> =
     position.entry?.type === 'custom_message' ? position.entry : message
@@ -105,7 +96,7 @@ export function incorporatedWaggleUserRequestDisplay(
 export function incorporatedHiveWakeDisplay(
   source: PiUserMessageEntrySource,
   message: PiCustomMessage,
-): AgentTransportUserMessage {
+) {
   return hiveWakeDisplay(
     logPosition(source, (entry) => isEntryOfCustomMessage(entry, message)).createdOrder,
   )

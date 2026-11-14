@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 /** Provider ref namespaces that expose a change request's head commit, including from a fork. */
 const PROVIDER_HEAD_REF_PATTERNS = [
   // GitHub: https://github.com/owner/repo/pull/163
@@ -33,14 +34,15 @@ export interface ChangeRequestFetchPlan {
  * wrong base entirely. Both providers publish the real head under a numbered ref that works for
  * forks, which is what this targets.
  */
-export function planChangeRequestFetch(changeRequestUrl: string): ChangeRequestFetchPlan | null {
+export function planChangeRequestFetch(changeRequestUrl: string) {
   for (const pattern of PROVIDER_HEAD_REF_PATTERNS) {
-    const number = pattern.url.exec(changeRequestUrl)?.groups?.number
+    const number = namedGroups(pattern.url.exec(changeRequestUrl), ['number'])?.number
     if (number !== undefined) {
-      return {
+      const plan: ChangeRequestFetchPlan | null = {
         remoteRef: pattern.headRef(number),
         localRef: `refs/openwaggle/change-requests/${number}`,
       }
+      return plan
     }
   }
   return null

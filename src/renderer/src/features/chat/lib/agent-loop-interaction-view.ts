@@ -29,9 +29,7 @@ export function agentLoopInteractionRequiresDesktopRenderer(interaction: AgentLo
     .exhaustive()
 }
 
-function extensionInteractionActions(
-  interaction: AgentLoopInteraction,
-): ExtensionInteractionView['actions'] {
+function extensionInteractionActions(interaction: AgentLoopInteraction) {
   return matchBy(interaction, 'kind')
     .with('confirm', () => [
       { id: 'accept', label: 'Approve', tone: 'primary' as const },
@@ -50,7 +48,7 @@ function extensionInteractionActions(
 export function toExtensionInteractionView(
   interaction: AgentLoopInteraction,
   state: ExtensionInteractionView['state'] = 'pending',
-): ExtensionInteractionView {
+) {
   const message = agentLoopInteractionMessage(interaction)
   const customType = interaction.kind === 'custom' ? interaction.customType : interaction.kind
   return {

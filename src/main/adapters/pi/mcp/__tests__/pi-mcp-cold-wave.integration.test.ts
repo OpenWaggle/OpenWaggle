@@ -44,20 +44,20 @@ echo wrapper >> "$FAKE_NPX_ROOT/wrapper-launches"
 node "$FAKE_NPX_ROOT/node_modules/fixture-mcp/server.js" "$@"
 `
 
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
   setHostPackageRunnerBypassForTests(undefined)
 })
 
-function memoryStore(): PackageBinStore {
+function memoryStore() {
   let saved: Record<string, ResolvedPackageBin> = {}
   return {
     load: () => ({ ...saved }),
     save: (entries) => {
       saved = { ...entries }
     },
-  }
+  } satisfies PackageBinStore
 }
 
 function lines(file: string) {

@@ -11,19 +11,11 @@ interface ResourceState {
 
 const RESOURCE_REQUEST_FIELD_COUNT = 5
 
-interface ResourceRequest {
-  readonly projectPath: string | null
-  readonly sessionId: string | null
-  readonly serverInstanceId: string
-  readonly serverConfigHash: string
-  readonly resourceUri: string
-}
-
 function isUnknownArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value)
 }
 
-function decodeResourceRequest(requestKey: string): ResourceRequest {
+function decodeResourceRequest(requestKey: string) {
   const value: unknown = JSON.parse(requestKey)
   if (!isUnknownArray(value) || value.length !== RESOURCE_REQUEST_FIELD_COUNT) {
     throw new Error('Invalid MCP App resource request identity.')

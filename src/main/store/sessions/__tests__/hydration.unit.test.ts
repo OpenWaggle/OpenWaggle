@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { hydrateSessionSummary } from '../hydration'
 import type { SessionSummaryRow } from '../types'
 
-function row(overrides: Partial<SessionSummaryRow> = {}): SessionSummaryRow {
+function row(overrides: Partial<SessionSummaryRow> = {}) {
   return {
     id: 'session-1',
     title: 'A session',
@@ -15,7 +15,7 @@ function row(overrides: Partial<SessionSummaryRow> = {}): SessionSummaryRow {
     environment_mode: 'local',
     worktree_path: null,
     ...overrides,
-  }
+  } satisfies SessionSummaryRow
 }
 
 describe('hydrateSessionSummary', () => {

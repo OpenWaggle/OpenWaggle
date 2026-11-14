@@ -2,18 +2,19 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   feed,
-  OWNER,
   openInput,
+  OWNER,
   ptys,
   readinessMarker,
   service,
   settle,
   setupTerminalServiceActionsTest,
+  teardownTerminalServiceActionsTest,
   TERMINAL_ID,
   TERMINAL_KEY,
-  teardownTerminalServiceActionsTest,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 describe('makeNodePtyTerminalService input generation lifecycle races', () => {
   beforeEach(setupTerminalServiceActionsTest)
@@ -183,7 +184,7 @@ describe('makeNodePtyTerminalService input generation lifecycle races', () => {
     await expect(restarting).resolves.toMatchObject({ running: true })
     await settle()
     await closing
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     expect(ptys[0]?.write).not.toHaveBeenCalledWith('discarded by close')
     expect(ptys[1]?.write).not.toHaveBeenCalledWith('discarded by close')
   })

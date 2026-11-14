@@ -2,10 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
-interface JsonObject {
-  readonly [key: string]: unknown
-}
+type JsonObject = Readonly<Record<string, unknown>>
 
 interface PackageJson {
   readonly exports?: JsonObject
@@ -55,14 +55,16 @@ function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function toPackageJson(value: unknown, packageJsonPath: string): PackageJson {
-  if (!isJsonObject(value) || typeof value.name !== 'string') {
+const namedPackageJsonSchema = Schema.Struct({ name: Schema.String, exports: unknownField })
+const typedExportTargetSchema = Schema.Struct({ types: Schema.String })
+
+function toPackageJson(value: unknown, packageJsonPath: string) {
+  const manifest = objectFields(namedPackageJsonSchema, value)
+  if (manifest === undefined) {
     throw new Error(`${packageJsonPath} must contain a package name.`)
   }
-
-  const exportsValue = isJsonObject(value.exports) ? value.exports : undefined
-
-  return { exports: exportsValue, name: value.name }
+  const exportsValue = isJsonObject(manifest.exports) ? manifest.exports : undefined
+  return { ...(exportsValue === undefined ? {} : { exports: exportsValue }), name: manifest.name }
 }
 
 async function readPackageJson(packageRoot: string) {
@@ -81,27 +83,20 @@ function normalizeExportTargetPath(targetPath: string) {
 }
 
 function declarationPathForExportTarget(target: unknown) {
-  if (typeof target === 'string') {
-    return undefined
-  }
-
-  if (!isJsonObject(target) || typeof target.types !== 'string') {
-    return undefined
-  }
-
-  return normalizeExportTargetPath(target.types)
+  const typedTarget = objectFields(typedExportTargetSchema, target)
+  return typedTarget === undefined ? undefined : normalizeExportTargetPath(typedTarget.types)
 }
 
 function listTypedExports(packageJson: PackageJson) {
   const exportsValue = packageJson.exports
   if (!exportsValue) {
-    return [] satisfies readonly TypedExport[]
+    return []
   }
 
-  return Object.entries(exportsValue).map(([subpath, target]) => ({
-    declarationPath: declarationPathForExportTarget(target),
-    subpath,
-  })) satisfies readonly TypedExport[]
+  return Object.entries(exportsValue).map(([subpath, target]) => {
+    const declarationPath = declarationPathForExportTarget(target)
+    return { ...(declarationPath === undefined ? {} : { declarationPath }), subpath }
+  }) satisfies readonly TypedExport[]
 }
 
 function normalizeDeclarationContents(contents: string) {
@@ -135,9 +130,13 @@ function relativeDeclarationDependencies(contents: string) {
     const followsFrom = previousToken === SyntaxKind.FromKeyword
     const followsBareImport = previousToken === SyntaxKind.ImportKeyword
     const followsImportCall =
-      previousToken === SyntaxKind.OpenParenToken && tokenBeforePrevious === SyntaxKind.ImportKeyword
+      previousToken === SyntaxKind.OpenParenToken &&
+      tokenBeforePrevious === SyntaxKind.ImportKeyword
 
-    if (token === SyntaxKind.StringLiteral && (followsFrom || followsBareImport || followsImportCall)) {
+    if (
+      token === SyntaxKind.StringLiteral &&
+      (followsFrom || followsBareImport || followsImportCall)
+    ) {
       const declarationPath = declarationPathForModuleSpecifier(scanner.getTokenValue())
       if (declarationPath) {
         declarations.push(declarationPath)
@@ -170,7 +169,9 @@ async function collectDeclarationBlocks(packageRoot: string, declarationPath: st
     })
 
     for (const childDeclarationPath of relativeDeclarationDependencies(contents)) {
-      await visit(path.normalize(path.join(path.dirname(currentDeclarationPath), childDeclarationPath)))
+      await visit(
+        path.normalize(path.join(path.dirname(currentDeclarationPath), childDeclarationPath)),
+      )
     }
   }
 
@@ -180,7 +181,7 @@ async function collectDeclarationBlocks(packageRoot: string, declarationPath: st
 }
 
 function isMissingFileError(error: unknown) {
-  return isJsonObject(error) && error.code === 'ENOENT'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
 export async function createPackageApiSnapshot({
@@ -199,12 +200,22 @@ export async function createPackageApiSnapshot({
       continue
     }
 
-    const declarationBlocks = await collectDeclarationBlocks(packageRoot, exportEntry.declarationPath)
+    const declarationBlocks = await collectDeclarationBlocks(
+      packageRoot,
+      exportEntry.declarationPath,
+    )
 
     lines.push(`Types: \`${exportEntry.declarationPath}\``, '')
 
     for (const block of declarationBlocks) {
-      lines.push(`### Declarations from \`${block.relativePath}\``, '', '```ts', block.contents, '```', '')
+      lines.push(
+        `### Declarations from \`${block.relativePath}\``,
+        '',
+        '```ts',
+        block.contents,
+        '```',
+        '',
+      )
     }
   }
 
@@ -232,7 +243,7 @@ export async function checkPackageApiSnapshots({
   projectRoot,
   snapshotDir,
   update = false,
-}: CheckPackageApiSnapshotsOptions): Promise<CheckPackageApiSnapshotsResult> {
+}: CheckPackageApiSnapshotsOptions) {
   const changedSnapshots: string[] = []
   const violations: string[] = []
   const writtenSnapshots: string[] = []
@@ -258,7 +269,7 @@ export async function checkPackageApiSnapshots({
       continue
     }
 
-    violations.push(`${relativeSnapshotFile} is stale. Run pnpm api:snapshot:update.`)
+    violations.push(`${relativeSnapshotFile} is stale. Run bun run api:snapshot:update.`)
   }
 
   return { changedSnapshots, violations, writtenSnapshots }
@@ -269,7 +280,7 @@ interface CliOptions {
   readonly mode: 'check' | 'update'
 }
 
-function parseCliArgs(args: readonly string[]): CliOptions {
+function parseCliArgs(args: readonly string[]) {
   let mode: CliOptions['mode'] = 'check'
   let dryRun = false
 
@@ -297,7 +308,11 @@ function defaultPackageRoots(projectRoot: string) {
   return DEFAULT_PACKAGE_PATHS.map((packagePath) => path.join(projectRoot, packagePath))
 }
 
-function printResult(result: CheckPackageApiSnapshotsResult, mode: CliOptions['mode'], dryRun: boolean) {
+function printResult(
+  result: CheckPackageApiSnapshotsResult,
+  mode: CliOptions['mode'],
+  dryRun: boolean,
+) {
   for (const violation of result.violations) {
     console.error(violation)
   }

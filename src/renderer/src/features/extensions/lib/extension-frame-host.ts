@@ -56,6 +56,7 @@ const extensionFrameSurfaceActionMessageSchema = Schema.Struct({
   frameId: Schema.String,
   type: Schema.Literal('surface-action'),
   actionId: Schema.String,
+  // explicit undefined: respondInteraction posts the extension's own value, which may be undefined
   payload: Schema.optional(jsonValueSchema),
 })
 const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
@@ -65,6 +66,7 @@ const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
   requestId: Schema.String,
   input: Schema.Struct({
     source: Schema.String.pipe(Schema.maxLength(MAX_SYNTAX_SOURCE_CODE_UNITS)),
+    // explicit undefined: the extension builds this input, and the SDK type allows undefined keys
     language: Schema.optional(Schema.String),
     path: Schema.optional(Schema.String),
     priority: Schema.optional(Schema.Literal('visible', 'near-viewport', 'background')),
@@ -91,10 +93,8 @@ const extensionMountInvokeInputSchema = Schema.Struct({
   capability: extensionContributionIdSchema,
   method: extensionContributionIdSchema,
   scope: extensionInvokeScopeSchema,
-  payload: Schema.optional(Schema.Unknown),
+  payload: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
-
-export type ExtensionFrameMessage = SchemaType<typeof extensionFrameMessageSchema>
 export type ExtensionFrameInvokeMessage = SchemaType<typeof extensionFrameInvokeMessageSchema>
 
 export function extensionFrameConfig(input: {
@@ -106,7 +106,7 @@ export function extensionFrameConfig(input: {
     moduleUrl: input.moduleUrl,
     context: createOpenWaggleExtensionSurfaceContext({
       entry: input.entry,
-      surfacePayload: input.surfacePayload,
+      ...(input.surfacePayload === undefined ? {} : { surfacePayload: input.surfacePayload }),
       theme: createRendererExtensionTheme(),
     }),
   } satisfies ExtensionFrameConfig
@@ -120,8 +120,8 @@ export function decodeExtensionFrameMessage(value: unknown, frameId: string) {
   return decoded.data
 }
 
-function invalidInvokeFailure(issues: readonly string[]): ExtensionInvokeResult {
-  return {
+function invalidInvokeFailure(issues: readonly string[]) {
+  const result: ExtensionInvokeResult = {
     ok: false,
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_INPUT,
@@ -129,15 +129,19 @@ function invalidInvokeFailure(issues: readonly string[]): ExtensionInvokeResult 
       issues,
     },
   }
+  return result
 }
 
 export function extensionInvokeInputFromFrame(
   entry: ExtensionContributionRegistryEntry,
   input: unknown,
-): ExtensionInvokeInput | ExtensionInvokeResult {
+) {
   const decoded = safeDecodeUnknown(extensionMountInvokeInputSchema, input)
   if (!decoded.success) {
-    return invalidInvokeFailure(decoded.issues)
+    const result: ExtensionInvokeInput | ExtensionInvokeResult = invalidInvokeFailure(
+      decoded.issues,
+    )
+    return result
   }
 
   const scope = decoded.data.scope
@@ -147,20 +151,22 @@ export function extensionInvokeInputFromFrame(
       scope.sessionId !== entry.sessionId ||
       !entry.projectPaths.includes(scope.projectPath))
   ) {
-    return {
+    const result: ExtensionInvokeInput | ExtensionInvokeResult = {
       ok: false,
       error: {
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
         message: 'Extension session scope does not match the mounted surface.',
       },
     }
+    return result
   }
 
-  return {
+  const result: ExtensionInvokeInput | ExtensionInvokeResult = {
     ...decoded.data,
     extensionId: entry.extensionId,
     contributionId: entry.contributionId,
   } satisfies ExtensionInvokeInput
+  return result
 }
 
 export function postFrameMessage(

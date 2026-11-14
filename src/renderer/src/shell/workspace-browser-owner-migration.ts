@@ -62,8 +62,9 @@ export function retainDraftBrowsersAfterTerminalMigration(fromOwner: string, toO
       if (
         coordinator.activeClaim?.kind !== 'workspace' ||
         coordinator.activeClaim.ownerKey !== fromOwner
-      )
+      ) {
         return
+      }
       if (source.panelOpen) coordinator.claimWorkspace(toOwner)
       else coordinator.releaseWorkspace(fromOwner)
     },

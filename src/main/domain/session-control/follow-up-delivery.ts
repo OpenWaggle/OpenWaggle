@@ -54,20 +54,19 @@ export function waitsOnHeldNextFollowUp(state: SessionControlSessionState) {
   return index >= 0 && queue.items.slice(0, index + 1).some(isFollowUpEditHeld)
 }
 
-function withoutDeferredRetry(state: SessionControlSessionState): SessionControlSessionState {
+function withoutDeferredRetry(state: SessionControlSessionState) {
   const { deferredRetryAfter: _deferredRetryAfter, ...queue } = state.followUpQueue
   return { ...state, followUpQueue: queue }
 }
 
-function startItem(
-  state: SessionControlSessionState,
-  index: number,
-  nextRunId: RunId,
-): IdleQueueDelivery {
+function startItem(state: SessionControlSessionState, index: number, nextRunId: RunId) {
   const item = state.followUpQueue.items[index]
-  if (!item) return { state }
+  if (!item) {
+    const delivery: IdleQueueDelivery = { state }
+    return delivery
+  }
   const queue = withoutDeferredRetry(state).followUpQueue
-  return {
+  const delivery: IdleQueueDelivery = {
     state: {
       ...state,
       revision: state.revision + REVISION_INCREMENT,
@@ -80,6 +79,7 @@ function startItem(
     },
     delivered: { followUpId: item.id, runId: nextRunId, intent: item.intent },
   }
+  return delivery
 }
 
 /**
@@ -90,13 +90,22 @@ function deliverDeferredRetry(
   state: SessionControlSessionState,
   acceptedAfter: number,
   nextRunId: RunId,
-): IdleQueueDelivery {
+) {
   const items = state.followUpQueue.items
   const retryIndex = items.findIndex((item) => item.intent.acceptedAt > acceptedAfter)
   const retry = items[retryIndex]
-  if (retry === undefined) return { state: withoutDeferredRetry(state) }
-  if (items.slice(0, retryIndex + 1).some(isFollowUpEditHeld)) return { state }
-  if (retry.deliveryState !== 'pending') return { state: withoutDeferredRetry(state) }
+  if (retry === undefined) {
+    const delivery: IdleQueueDelivery = { state: withoutDeferredRetry(state) }
+    return delivery
+  }
+  if (items.slice(0, retryIndex + 1).some(isFollowUpEditHeld)) {
+    const delivery: IdleQueueDelivery = { state }
+    return delivery
+  }
+  if (retry.deliveryState !== 'pending') {
+    const delivery: IdleQueueDelivery = { state: withoutDeferredRetry(state) }
+    return delivery
+  }
   return startItem(state, retryIndex, nextRunId)
 }
 
@@ -104,11 +113,8 @@ function deliverDeferredRetry(
  * Starts what an idle Session's queue would deliver now: the deferred retry of a failed Run, or the
  * head of a running queue when it is pending and not held (the resumption rule).
  */
-export function deliverIdleQueueHead(
-  state: SessionControlSessionState,
-  nextRunId: RunId,
-): IdleQueueDelivery {
-  if (state.run.state !== 'idle') return { state }
+export function deliverIdleQueueHead(state: SessionControlSessionState, nextRunId: RunId) {
+  if (state.run.state !== 'idle') return { state } satisfies IdleQueueDelivery
   const { deferredRetryAfter } = state.followUpQueue
   if (deferredRetryAfter !== undefined) {
     return deliverDeferredRetry(state, deferredRetryAfter, nextRunId)
@@ -119,7 +125,7 @@ export function deliverIdleQueueHead(
     head?.deliveryState !== 'pending' ||
     isFollowUpEditHeld(head)
   ) {
-    return { state }
+    return { state } satisfies IdleQueueDelivery
   }
   return startItem(state, 0, nextRunId)
 }
@@ -136,7 +142,7 @@ export function deliverPersonFollowUpPastCapacity(
   state: SessionControlSessionState,
   nextRunId: RunId,
   retriesAfter?: number,
-): IdleQueueDelivery {
+) {
   const queue = state.followUpQueue
   const waitsOnCapacity =
     retriesAfter !== undefined ||
@@ -163,7 +169,7 @@ export function deliverPersonFollowUpPastCapacity(
 export function pauseUndeliveredQueue(
   state: SessionControlSessionState,
   reason: FollowUpQueuePauseReason,
-): SessionControlSessionState {
+) {
   const queue = withoutDeferredRetry(state).followUpQueue
   return {
     ...state,
@@ -171,10 +177,10 @@ export function pauseUndeliveredQueue(
     followUpQueue: {
       ...queue,
       state: 'paused',
-      pauseReason: queue.state === 'paused' ? queue.pauseReason : reason,
+      ...(queue.state === 'paused' ? {} : { pauseReason: reason }),
       revision: queue.revision + REVISION_INCREMENT,
     },
-  }
+  } satisfies SessionControlSessionState
 }
 
 /** Marks `followUpId` as needing attention for `reason`; delivery passes over it. */
@@ -182,7 +188,7 @@ export function markFollowUpNeedsAttention(
   state: SessionControlSessionState,
   followUpId: FollowUpId,
   reason: NonNullable<SessionControlFollowUp['attentionReason']>,
-): SessionControlSessionState {
+) {
   const queue = state.followUpQueue
   return {
     ...state,

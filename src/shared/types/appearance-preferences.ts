@@ -1,5 +1,13 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  appearanceMotionPreferenceSchema,
+  appearancePreferencesSchema,
+  appearanceTerminalPalettePreferencesSchema,
+  appearanceTypographyPreferencesSchema,
+} from '@shared/schemas/appearance-preferences'
+
 export const APPEARANCE_MOTION_PREFERENCES = ['system', 'reduced'] as const
-export type AppearanceMotionPreference = (typeof APPEARANCE_MOTION_PREFERENCES)[number]
+export type AppearanceMotionPreference = SchemaType<typeof appearanceMotionPreferenceSchema>
 
 export const INTERFACE_SCALE_MIN = 85
 export const INTERFACE_SCALE_MAX = 125
@@ -28,16 +36,12 @@ const TERMINAL_PALETTE_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}
 const SHORT_TERMINAL_PALETTE_COLOR_LENGTH = 5
 
 /** User-authored terminal colours. Null keeps the active theme in control of that role. */
-export interface AppearanceTerminalPalettePreferences {
-  readonly background: string | null
-  readonly foreground: string | null
-  readonly cursor: string | null
-  readonly selection: string | null
-  readonly scrollbar: string | null
-}
+export type AppearanceTerminalPalettePreferences = SchemaType<
+  typeof appearanceTerminalPalettePreferencesSchema
+>
 
 /** Accepts CSS hex colours and canonicalizes short/upper-case forms for persistence. */
-export function normalizeTerminalPaletteColor(value: unknown): string | null {
+export function normalizeTerminalPaletteColor(value: unknown) {
   if (typeof value !== 'string') return null
   const normalized = value.trim().toLowerCase()
   if (!TERMINAL_PALETTE_COLOR_PATTERN.test(normalized)) return null
@@ -55,27 +59,11 @@ export const DEFAULT_DOCUMENT_FONT_FAMILY = DEFAULT_INTERFACE_FONT_FAMILY
 export const DEFAULT_CODE_FONT_FAMILY =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
 
-export interface AppearanceTypographyPreferences {
-  readonly interfaceFontFamily: string
-  readonly documentFontFamily: string
-  readonly codeFontFamily: string
-  readonly terminalFontFamily: string
-  readonly terminalUsesCodeFont: boolean
-  readonly interfaceScale: number
-  readonly documentFontSize: number
-  /** Percentage, so 160 means a 1.6 line-height. */
-  readonly documentLineHeight: number
-  readonly codeFontSize: number
-  readonly codeLineHeight: number
-  readonly terminalFontSize: number
-  readonly codeLigatures: boolean
-}
+export type AppearanceTypographyPreferences = SchemaType<
+  typeof appearanceTypographyPreferencesSchema
+>
 
-export interface AppearancePreferences {
-  readonly typography: AppearanceTypographyPreferences
-  readonly terminalPalette: AppearanceTerminalPalettePreferences
-  readonly motion: AppearanceMotionPreference
-}
+export type AppearancePreferences = SchemaType<typeof appearancePreferencesSchema>
 
 export const DEFAULT_APPEARANCE_TYPOGRAPHY: AppearanceTypographyPreferences = {
   interfaceFontFamily: DEFAULT_INTERFACE_FONT_FAMILY,

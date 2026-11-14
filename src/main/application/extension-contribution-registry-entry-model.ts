@@ -12,6 +12,7 @@ import {
   isEntryContribution,
   isSessionSummaryContribution,
   type ManifestContribution,
+  type ManifestContributionMatches,
   type ManifestEntryContribution,
   type ManifestSessionSummaryContribution,
 } from './extension-contribution-family-model'
@@ -22,16 +23,63 @@ import {
 } from './extension-contribution-target-model'
 import { issueExtensionInvocationBinding } from './extension-invocation-binding'
 
-function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
+function scopeToView(scope: ExtensionPackageScope) {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' }
+    return {
+      kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
+      label: 'Global',
+    } satisfies ExtensionPackageScopeView
   }
 
   return {
     kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
     label: 'Project',
     projectPath: scope.projectPath,
+  } satisfies ExtensionPackageScopeView
+}
+
+function matchView(matches: ManifestContributionMatches) {
+  return {
+    ...(matches.toolNames !== undefined ? { toolNames: matches.toolNames } : {}),
+    ...(matches.customMessageNames !== undefined
+      ? { customMessageNames: matches.customMessageNames }
+      : {}),
+    ...(matches.interactionKinds !== undefined
+      ? { interactionKinds: matches.interactionKinds }
+      : {}),
   }
+}
+
+function sessionSummaryRowView(row: ManifestSessionSummaryContribution['rows'][number]) {
+  return {
+    id: row.id,
+    label: row.label,
+    ...(row.value !== undefined ? { value: row.value } : {}),
+    ...(row.badge !== undefined ? { badge: row.badge } : {}),
+    ...(row.count !== undefined ? { count: row.count } : {}),
+    ...(row.resourceId !== undefined ? { resourceId: row.resourceId } : {}),
+    ...(row.action !== undefined ? { action: row.action } : {}),
+  }
+}
+
+function sessionSummaryDisclosureView(
+  disclosure: NonNullable<ManifestSessionSummaryContribution['disclosure']>,
+) {
+  return {
+    ...(disclosure.defaultExpanded !== undefined
+      ? { defaultExpanded: disclosure.defaultExpanded }
+      : {}),
+    ...(disclosure.collapsible !== undefined ? { collapsible: disclosure.collapsible } : {}),
+    ...(disclosure.autoCollapseAfterMs !== undefined
+      ? { autoCollapseAfterMs: disclosure.autoCollapseAfterMs }
+      : {}),
+  }
+}
+
+function sessionSummaryStateView(state: NonNullable<ManifestSessionSummaryContribution['state']>) {
+  if (state.status === 'ready' || state.status === 'failure') return state
+  const { message, ...live } = state
+  return message === undefined ? live : { ...live, message }
 }
 
 function entryContributionMetadata(contribution: ManifestEntryContribution) {
@@ -39,7 +87,7 @@ function entryContributionMetadata(contribution: ManifestEntryContribution) {
     runtime: contribution.runtime,
     execution: contribution.execution,
     entryPath: contribution.entry,
-    ...(contribution.matches !== undefined ? { matches: contribution.matches } : {}),
+    ...(contribution.matches !== undefined ? { matches: matchView(contribution.matches) } : {}),
   }
 }
 
@@ -114,21 +162,23 @@ function contributionBaseEntry(
 function sessionSummaryEntry(
   baseEntry: ReturnType<typeof contributionBaseEntry>,
   contribution: ManifestSessionSummaryContribution,
-): ExtensionContributionRegistryEntry {
+) {
   return {
     ...baseEntry,
     sessionSummary: {
       placement: contribution.placement ?? 'details',
-      ...(contribution.disclosure !== undefined ? { disclosure: contribution.disclosure } : {}),
-      ...(contribution.state !== undefined ? { state: contribution.state } : {}),
-      rows: contribution.rows,
+      ...(contribution.disclosure !== undefined
+        ? { disclosure: sessionSummaryDisclosureView(contribution.disclosure) }
+        : {}),
+      ...(contribution.state !== undefined
+        ? { state: sessionSummaryStateView(contribution.state) }
+        : {}),
+      rows: contribution.rows.map(sessionSummaryRowView),
     },
-  }
+  } satisfies ExtensionContributionRegistryEntry
 }
 
-export function contributionToEntry(
-  input: ContributionEntryInput,
-): ExtensionContributionRegistryEntry | null {
+export function contributionToEntry(input: ContributionEntryInput) {
   const { contribution, eligibility } = input
   if (isEmptyReadySessionSummary(contribution)) return null
 

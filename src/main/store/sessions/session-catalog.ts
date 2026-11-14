@@ -1,11 +1,9 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionSummaryRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
 import type { HivePendingRequest } from '@shared/types/hive-next-actor'
-import type { SessionCatalogPage, SessionProjectPage, SessionSummary } from '@shared/types/session'
-import type {
-  HiveSessionCatalogPage,
-  HiveTreeSessionCatalogPage,
-} from '@shared/types/session-hive-catalog'
+import type { SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { countHiveNeedsYou } from './hive-needs-you-count'
@@ -18,11 +16,6 @@ import {
 import { hydrateSessionNavigationRows, loadArchivedBranchRows } from './session-list'
 import { searchProjectPage } from './session-project-catalog-cache'
 import type { SessionSummaryRow } from './types'
-
-interface SessionCatalogCursor {
-  readonly updatedAt: number
-  readonly sessionId: string
-}
 
 function projectPathsPage(rows: readonly { readonly project_path: string }[], limit: number) {
   const paths = rows.slice(0, limit).map((row) => row.project_path)
@@ -49,7 +42,7 @@ function queryUnfilteredProjectPage(
   })
 }
 
-function decodeCatalogCursor(cursor?: string): SessionCatalogCursor | null {
+function decodeCatalogCursor(cursor?: string) {
   if (!cursor) return null
   try {
     const value: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
@@ -75,7 +68,7 @@ function encodeCatalogCursor(session: SessionSummary) {
   ).toString('base64url')
 }
 
-function catalogPage(sessions: readonly SessionSummary[], limit: number): SessionCatalogPage {
+function catalogPage(sessions: readonly SessionSummary[], limit: number) {
   const page = sessions.slice(0, limit)
   const last = page.at(-1)
   return {
@@ -87,28 +80,28 @@ function catalogPage(sessions: readonly SessionSummary[], limit: number): Sessio
 function loadSessionRowsById(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   const emptyRows: readonly SessionSummaryRow[] = []
   if (sessionIds.length === 0) return Effect.succeed(emptyRows)
-  return sql<SessionSummaryRow>`
+  return sql`
     SELECT ${sessionSummaryColumns(sql)} FROM sessions WHERE id IN ${sql.in(sessionIds)}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
 export async function listSessionCatalogPage(
   archived: boolean,
   limit: number,
   encodedCursor?: string,
-): Promise<SessionCatalogPage> {
+) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<SessionSummaryRow>`
+      const rows = yield* sql`
         SELECT ${sessionSummaryColumns(sql)} FROM sessions
         WHERE archived = ${archived ? 1 : 0}
           AND (${cursor?.updatedAt ?? null} IS NULL
             OR updated_at < ${cursor?.updatedAt ?? null}
             OR (updated_at = ${cursor?.updatedAt ?? null} AND id < ${cursor?.sessionId ?? null}))
         ORDER BY updated_at DESC, id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       return catalogPage(yield* hydrateSessionNavigationRows(sql, rows), limit)
     }),
   )
@@ -120,7 +113,7 @@ export async function listSessionProjectPage(
   afterPath?: string,
   search?: string,
   matchingDisplayNamePaths: readonly string[] = [],
-): Promise<SessionProjectPage> {
+) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -132,7 +125,7 @@ export async function listSessionProjectPage(
 }
 
 /** Exact active-project authorization without hydrating an unbounded Session list. */
-export async function hasActiveSessionProjectPath(paths: readonly string[]): Promise<boolean> {
+export async function hasActiveSessionProjectPath(paths: readonly string[]) {
   if (paths.length === 0) return false
   return runStoreEffect(
     Effect.gen(function* () {
@@ -168,7 +161,7 @@ export async function listHiveSessionCatalogPage(
   sessionId: SessionId,
   limit: number,
   encodedCursor?: string,
-): Promise<HiveSessionCatalogPage> {
+) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {
@@ -189,7 +182,7 @@ export async function listHiveSessionCatalogPage(
         sql,
         yield* loadSessionRowsById(sql, contextIds),
       )
-      const rows = yield* sql<SessionSummaryRow>`
+      const rows = yield* sql`
         SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
         LEFT JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
         LEFT JOIN session_lineage AS historical ON historical.session_id = sessions.id
@@ -199,7 +192,7 @@ export async function listHiveSessionCatalogPage(
             OR (sessions.updated_at = ${cursor?.updatedAt ?? null}
               AND sessions.id < ${cursor?.sessionId ?? null}))
         ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       const workerPage = catalogPage(yield* hydrateSessionNavigationRows(sql, rows), limit)
       return {
         context,
@@ -216,7 +209,7 @@ export async function listHiveTreeSessionCatalogPage(
   limit: number,
   encodedCursor?: string,
   pendingRequests: ReadonlyMap<string, HivePendingRequest> = new Map(),
-): Promise<HiveTreeSessionCatalogPage> {
+) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {
@@ -232,7 +225,7 @@ export async function listHiveTreeSessionCatalogPage(
       const rootRows = yield* loadSessionRowsById(sql, [rootId])
       // Hydrated like every member, so the root carries its lineage (role, Worker counts).
       const root = (yield* hydrateSessionNavigationRows(sql, rootRows))[0] ?? null
-      const memberRows = yield* sql<SessionSummaryRow>`
+      const memberRows = yield* sql`
         SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
         JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
         WHERE live.hive_root_session_id = ${rootId}
@@ -242,7 +235,7 @@ export async function listHiveTreeSessionCatalogPage(
             OR (sessions.updated_at = ${cursor?.updatedAt ?? null}
               AND sessions.id < ${cursor?.sessionId ?? null}))
         ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       const memberPage = catalogPage(yield* hydrateSessionNavigationRows(sql, memberRows), limit)
       const needsYouCount = yield* countHiveNeedsYou(sql, rootId, pendingRequests)
       return {
@@ -256,15 +249,12 @@ export async function listHiveTreeSessionCatalogPage(
 }
 
 /** Keyset page of active Sessions that contain at least one archived branch. */
-export async function listArchivedSessionBranchCatalogPage(
-  limit: number,
-  encodedCursor?: string,
-): Promise<SessionCatalogPage> {
+export async function listArchivedSessionBranchCatalogPage(limit: number, encodedCursor?: string) {
   const cursor = decodeCatalogCursor(encodedCursor)
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<SessionSummaryRow>`
+      const rows = yield* sql`
         SELECT ${sessionSummaryColumns(sql)} FROM sessions
         WHERE archived = 0
           AND EXISTS (
@@ -276,7 +266,7 @@ export async function listArchivedSessionBranchCatalogPage(
             OR updated_at < ${cursor?.updatedAt ?? null}
             OR (updated_at = ${cursor?.updatedAt ?? null} AND id < ${cursor?.sessionId ?? null}))
         ORDER BY updated_at DESC, id DESC LIMIT ${limit + 1}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
       const page = catalogPage(hydrateSessionRows(rows) ?? [], limit)
       if (page.sessions.length === 0) return page
       return {

@@ -1,3 +1,5 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { errorCode } from '@shared/utils/node-error'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -5,6 +7,7 @@ import { createMcpAuthProvider } from '@earendil-works/pi-coding-agent'
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { isRecord } from '@shared/utils/validation'
 import { Effect } from 'effect'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
@@ -44,6 +47,7 @@ import {
   withShellResolvedClientSecrets,
 } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
+import { mcpToolCallResultFields } from './mcp-tool-list-schema'
 
 /** How long an App's request may take, like Pi's own MCP request timeout. */
 export const MCP_APP_REQUEST_TIMEOUT_MS = 60_000
@@ -187,10 +191,17 @@ async function appRequest(
   return requestOver(pool, connection, input, method, params)
 }
 
-function json(value: unknown): McpJsonValue {
+function json(value: unknown) {
   const decoded = safeDecodeUnknown(mcpConfigValueSchema, value ?? null)
   if (!decoded.success) throw new Error('The MCP server returned a result OpenWaggle cannot read.')
   return decoded.data
+}
+
+// explicit undefined: an MCP SDK resource read result is an in-process object
+const resourceReadSchema = Schema.Struct({ contents: Schema.optional(Schema.Unknown) })
+
+function resourceReadFields(result: object) {
+  return decodeUnknownOrThrow(resourceReadSchema, result)
 }
 
 async function readResource(
@@ -199,28 +210,34 @@ async function readResource(
 ) {
   if (!input.uri.startsWith('ui://')) throw new Error('MCP Apps may only read ui:// resources.')
   const result = await appRequest(pool, input, 'resources/read', { uri: input.uri })
-  return json(isRecord(result) ? result.contents : [])
+  return json(isRecord(result) ? resourceReadFields(result).contents : [])
 }
 
 /** A list the server may not offer at all; a server without the method lists nothing. */
 async function optionalList(
   pool: McpConnectionPool,
+  connection: AppConnection,
   input: McpAppServerInput,
   method: string,
   key: string,
 ) {
   try {
-    const result = await appRequest(pool, input, method, {})
+    const result = await requestOver(pool, connection, input, method, {})
     return json(isRecord(result) ? (result[key] ?? []) : [])
   } catch (error) {
-    if (isRecord(error) && error.code === METHOD_NOT_FOUND) return json([])
+    if (errorCode(error) === METHOD_NOT_FOUND) return json([])
     throw error
   }
 }
 
 async function listCatalog(pool: McpConnectionPool, input: McpAppServerInput) {
-  const resources = await optionalList(pool, input, 'resources/list', 'resources')
-  const prompts = await optionalList(pool, input, 'prompts/list', 'prompts')
+  // Both lists go over one connection, resolved once, as concurrent requests. A failure reports
+  // the resources list's error first, as listing them one after the other did.
+  const { connection } = await appConnection(pool, input)
+  const [resources, prompts] = await allInOrder([
+    optionalList(pool, connection, input, 'resources/list', 'resources'),
+    optionalList(pool, connection, input, 'prompts/list', 'prompts'),
+  ])
   return { resources, prompts }
 }
 
@@ -239,7 +256,7 @@ async function callTool(
     name: input.toolName,
     arguments: input.arguments,
   })
-  const value = isRecord(result) ? result : {}
+  const value = mcpToolCallResultFields(result)
   return {
     content: json(value.content ?? []),
     ...(value.structuredContent === undefined
@@ -257,12 +274,12 @@ function attempt<A>(operation: () => Promise<A>) {
 }
 
 /** MCP Apps over the given pool, which holds the Session's warm connections. */
-export function createPiMcpAppRuntimeService(pool: McpConnectionPool): McpAppRuntimeServiceShape {
+export function createPiMcpAppRuntimeService(pool: McpConnectionPool) {
   return {
     readResource: (input) =>
       attempt(async () => readResource(pool, await withLegacyAppServer(input))),
     listCatalog: (input) =>
       attempt(async () => listCatalog(pool, await withLegacyAppServer(input))),
     callTool: (input) => attempt(async () => callTool(pool, await withLegacyAppServer(input))),
-  }
+  } satisfies McpAppRuntimeServiceShape
 }

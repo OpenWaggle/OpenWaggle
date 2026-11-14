@@ -55,27 +55,28 @@ function isObject(value: unknown): value is object {
 }
 
 /** Whether `location` is code the app ships, Node.js code or native code. */
-export function isOwnErrorReportCodeLocation(location: string): boolean {
-  return (
+export function isOwnErrorReportCodeLocation(location: string) {
+  const result: boolean =
     location === '' ||
     PSEUDO_CODE_LOCATION.test(location) ||
     OWN_CODE_PREFIXES.some((prefix) => location.startsWith(prefix))
-  )
+  return result
 }
 
 /**
  * `location` itself for code the app ships, Node.js code and native code. Any other location
  * becomes `<external>`, or `<external>/index.js` and the like for an entry module.
  */
-export function scrubErrorReportCodeLocation(location: string): string {
+export function scrubErrorReportCodeLocation(location: string) {
   if (isOwnErrorReportCodeLocation(location)) return location
   const path = location.replace(/[?#].*$/u, '').replace(/[\\/]+$/u, '')
   const name = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)
-  return ENTRY_MODULE_NAME.test(name) ? `${EXTERNAL_CODE}/${name}` : EXTERNAL_CODE
+  const result: string = ENTRY_MODULE_NAME.test(name) ? `${EXTERNAL_CODE}/${name}` : EXTERNAL_CODE
+  return result
 }
 
 /** Whether a stack frame's code lives outside the app, Node.js and native code. */
-export function isExternalErrorReportFrame(frame: unknown): boolean {
+export function isExternalErrorReportFrame(frame: unknown) {
   return ERROR_REPORT_FRAME_LOCATION_KEYS.some((key) => {
     const location: unknown = isObject(frame) ? Reflect.get(frame, key) : undefined
     return typeof location === 'string' && !isOwnErrorReportCodeLocation(location)
@@ -91,7 +92,7 @@ function scrubLocations(holder: object, keys: readonly string[]) {
 }
 
 /** Rewrites an external stack frame in place: `<external>` locations and names, no module. */
-export function scrubErrorReportFrameLocation(frame: object): void {
+export function scrubErrorReportFrameLocation(frame: object) {
   if (!isExternalErrorReportFrame(frame)) return
   scrubLocations(frame, ERROR_REPORT_FRAME_LOCATION_KEYS)
   for (const key of ERROR_REPORT_FRAME_NAME_KEYS) {
@@ -101,8 +102,8 @@ export function scrubErrorReportFrameLocation(frame: object): void {
 }
 
 /** Rewrites, in place, the code file of every external image in an event's `debug_meta`. */
-export function scrubErrorReportDebugMeta(debugMeta: unknown): void {
-  const images: unknown = isObject(debugMeta) ? Reflect.get(debugMeta, 'images') : undefined
+export function scrubErrorReportDebugMeta(debugMeta: unknown) {
+  const images = isObject(debugMeta) && 'images' in debugMeta ? debugMeta.images : undefined
   if (!Array.isArray(images)) return
   for (const image of images) {
     if (isObject(image)) scrubLocations(image, ERROR_REPORT_DEBUG_IMAGE_LOCATION_KEYS)
@@ -111,10 +112,10 @@ export function scrubErrorReportDebugMeta(debugMeta: unknown): void {
 
 /** Whether the frame that threw, the last of the stack trace, is the app's or Node.js's code. */
 function thrownByOwnCode(exception: object) {
-  const stacktrace: unknown = Reflect.get(exception, 'stacktrace')
-  const frames: unknown = isObject(stacktrace) ? Reflect.get(stacktrace, 'frames') : undefined
+  const stacktrace = 'stacktrace' in exception ? exception.stacktrace : undefined
+  const frames = isObject(stacktrace) && 'frames' in stacktrace ? stacktrace.frames : undefined
   const thrower: unknown = Array.isArray(frames) ? frames.at(-1) : undefined
-  const location: unknown = isObject(thrower) ? Reflect.get(thrower, 'filename') : undefined
+  const location = isObject(thrower) && 'filename' in thrower ? thrower.filename : undefined
   return (
     typeof location === 'string' && OWN_CODE_PREFIXES.some((prefix) => location.startsWith(prefix))
   )
@@ -125,8 +126,9 @@ function thrownByOwnCode(exception: object) {
  * code threw the exception; any other type, such as an extension's own error class, becomes
  * `Error`. An exception without a stack trace counts as thrown by external code.
  */
-export function scrubErrorReportExceptionType(exception: object): void {
-  const type: unknown = Reflect.get(exception, 'type')
+export function scrubErrorReportExceptionType(exception: object) {
+  if (!('type' in exception)) return
+  const { type } = exception
   if (typeof type !== 'string' || ERROR_REPORT_BUILT_IN_ERROR_TYPES.has(type)) return
-  if (!thrownByOwnCode(exception)) Reflect.set(exception, 'type', GENERIC_ERROR_TYPE)
+  if (!thrownByOwnCode(exception)) exception.type = GENERIC_ERROR_TYPE
 }

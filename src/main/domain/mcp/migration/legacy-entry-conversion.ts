@@ -3,6 +3,7 @@
  * `mcpServers` entry format. No I/O and no hashing: the adapter decides which
  * entries are Pi copies and calls into these rules.
  */
+import { Schema } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
 
 export type JsonEntry = Record<string, unknown>
@@ -40,6 +41,29 @@ const SILENTLY_REMOVED = new Set(['provenance', 'directTools', 'auth', 'transpor
 const PI_EXPOSURES = new Set(['codemode', 'deferred', 'direct', 'hidden'])
 const EXPOSURE_ALIASES: Readonly<Record<string, string>> = { 'codemode-deferred': 'codemode' }
 
+/**
+ * The members of a legacy entry these rules read, each still unchecked. A `JsonEntry` satisfies
+ * it; the rules narrow each member where they read it and keep every other member as written.
+ */
+interface LegacyEntryFields {
+  readonly command?: unknown
+  readonly url?: unknown
+  readonly type?: unknown
+  readonly exposure?: unknown
+  readonly toolExposure?: unknown
+  readonly transport?: unknown
+  readonly compatibility?: unknown
+  readonly auth?: unknown
+  readonly oauth?: unknown
+  readonly directTools?: unknown
+}
+
+const legacyOAuthSchema = Schema.Struct({
+  type: Schema.Literal('oauth'),
+  clientMetadataUrl: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  scopes: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
 export interface LiveExposure {
   readonly exposure: string
   readonly toolExposure: Readonly<Record<string, string>>
@@ -51,7 +75,7 @@ export interface ConvertedEntry {
 }
 
 /** Pi treats an entry without `command`, `url`, or `type` as an override of an earlier file. */
-export function isOverrideOnlyEntry(entry: JsonEntry) {
+export function isOverrideOnlyEntry(entry: LegacyEntryFields) {
   return entry.command === undefined && entry.url === undefined && entry.type === undefined
 }
 
@@ -77,11 +101,12 @@ function exposureRecord(value: unknown) {
 }
 
 /** How Pi exposes a live entry's tools, ignoring fields Pi does not read (such as `directTools`). */
-export function liveExposureOf(entry: JsonEntry): LiveExposure {
-  return {
+export function liveExposureOf(entry: LegacyEntryFields) {
+  const result: LiveExposure = {
     exposure: resolveExposure(entry.exposure) ?? 'codemode',
     toolExposure: exposureRecord(entry.toolExposure),
   }
+  return result
 }
 
 function directToolNames(directTools: unknown) {
@@ -99,16 +124,23 @@ function directToolExposure(names: readonly string[], base: Readonly<Record<stri
  * `toolExposure` with those names `direct`, merged over the live entry's own
  * `toolExposure` because an override replaces that object as a whole.
  */
-export function directToolsOverride(directTools: unknown, live: LiveExposure): JsonEntry {
-  if (directTools === true) return live.exposure === 'direct' ? {} : { exposure: 'direct' }
+export function directToolsOverride(directTools: unknown, live: LiveExposure) {
+  if (directTools === true) {
+    const entry: JsonEntry = live.exposure === 'direct' ? {} : { exposure: 'direct' }
+    return entry
+  }
   const names = directToolNames(directTools).filter(
     (name) => (live.toolExposure[name] ?? live.exposure) !== 'direct',
   )
-  if (names.length === 0) return {}
-  return { toolExposure: directToolExposure(names, live.toolExposure) }
+  if (names.length === 0) {
+    const entry: JsonEntry = {}
+    return entry
+  }
+  const entry: JsonEntry = { toolExposure: directToolExposure(names, live.toolExposure) }
+  return entry
 }
 
-function legacyTransportType(entry: JsonEntry) {
+function legacyTransportType(entry: LegacyEntryFields) {
   if (entry.transport === 'sse' || entry.transport === 'websocket') return entry.transport
   if (entry.transport !== undefined) return undefined
   if (entry.compatibility === 'legacy-sse') return 'sse'
@@ -116,10 +148,10 @@ function legacyTransportType(entry: JsonEntry) {
   return undefined
 }
 
-function oauthFromLegacyAuth(entry: JsonEntry, notes: string[]) {
+function oauthFromLegacyAuth(entry: LegacyEntryFields, notes: string[]) {
   const auth = entry.auth
   if (auth === undefined) return undefined
-  if (!isRecord(auth) || auth.type !== 'oauth') {
+  if (!isRecord(auth) || !Schema.is(legacyOAuthSchema)(auth)) {
     notes.push('auth was not an OpenWaggle OAuth setting and was removed.')
     return undefined
   }
@@ -136,11 +168,20 @@ function oauthFromLegacyAuth(entry: JsonEntry, notes: string[]) {
   return { ...existing, scope: scopes.join(' ') }
 }
 
-function exposureFields(entry: JsonEntry): JsonEntry {
-  if (entry.directTools === true) return { exposure: 'direct' }
+function exposureFields(entry: LegacyEntryFields) {
+  if (entry.directTools === true) {
+    const result: JsonEntry = { exposure: 'direct' }
+    return result
+  }
   const names = directToolNames(entry.directTools)
-  if (names.length === 0) return {}
-  return { toolExposure: directToolExposure(names, exposureRecord(entry.toolExposure)) }
+  if (names.length === 0) {
+    const result: JsonEntry = {}
+    return result
+  }
+  const result: JsonEntry = {
+    toolExposure: directToolExposure(names, exposureRecord(entry.toolExposure)),
+  }
+  return result
 }
 
 /**
@@ -152,7 +193,7 @@ function exposureFields(entry: JsonEntry): JsonEntry {
 export function convertKeptLegacyEntry(
   entry: JsonEntry,
   options: { readonly dropProvenance: boolean },
-): ConvertedEntry {
+) {
   const notes: string[] = []
   const type = legacyTransportType(entry)
   const oauth = oauthFromLegacyAuth(entry, notes)
@@ -187,5 +228,6 @@ export function convertKeptLegacyEntry(
     }
   }
   place(Object.keys(replacements))
-  return { entry: result, notes }
+  const returned: ConvertedEntry = { entry: result, notes }
+  return returned
 }

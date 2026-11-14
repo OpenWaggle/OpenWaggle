@@ -33,8 +33,10 @@ export async function send(body: BodyInit, options: SendOptions = {}) {
 export function onlyEntry(store: KeyValueStore) {
   if (!(store instanceof MemoryKeyValueStore)) throw new Error('expected a memory store')
   expect(store.entries.size).toBe(1)
-  const [[key, stored]] = [...store.entries.entries()]
-  return { key, options: stored?.options, entry: JSON.parse(stored?.value ?? '{}') }
+  const first = store.entries.entries().next()
+  if (first.done) throw new Error('expected one stored entry')
+  const [key, stored] = first.value
+  return { key, options: stored.options, entry: JSON.parse(stored.value) }
 }
 
 export function requestRows(outcome: string, status: number, extra: unknown[][] = []) {

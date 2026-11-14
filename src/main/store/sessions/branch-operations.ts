@@ -1,10 +1,11 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionBranchRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
 import { mainBranchId } from './hydration'
-import type { SessionBranchRow } from './types'
 
 function selectMutableBranch(
   sql: SqlClient.SqlClient,
@@ -12,7 +13,7 @@ function selectMutableBranch(
   branchId: SessionBranchId,
 ) {
   return Effect.gen(function* () {
-    const rows = yield* sql<SessionBranchRow>`
+    const rows = yield* sql`
       SELECT
         id,
         session_id,
@@ -27,7 +28,7 @@ function selectMutableBranch(
       WHERE session_id = ${sessionId}
         AND id = ${branchId}
       LIMIT 1
-    `
+    `.pipe(Effect.flatMap(decodeSqlRows(sessionBranchRowSchema, 'session_branches')))
     const branch = rows[EMPTY_INDEX]
     if (!branch || branch.is_main === 1) {
       return yield* Effect.fail(new Error('Session branch not found or cannot be modified.'))

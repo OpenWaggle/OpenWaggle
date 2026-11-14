@@ -3,6 +3,7 @@ import {
   providerToolParameters,
   providerToolSchemaViolations,
 } from '../provider-tool-parameter-schema'
+import { keywordsOf } from '../json-schema-object'
 import { compileToolArgumentsValidator } from '../tool-arguments-validator'
 
 describe('providerToolParameters', () => {
@@ -120,8 +121,8 @@ describe('providerToolParameters', () => {
       anyOf: [true, { properties: { a: { type: 'string' } }, required: ['a'] }],
     })
 
-    expect(schema.required).toBeUndefined()
-    expect(schema.description).toMatch(/2 shapes.*2\) any object/)
+    expect(schema).not.toHaveProperty('required')
+    expect(keywordsOf(schema).description).toMatch(/2 shapes.*2\) any object/)
     expect(repairs).toContain('flattened root anyOf of 2 schemas')
   })
 

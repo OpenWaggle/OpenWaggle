@@ -62,7 +62,7 @@ function builtInCommandMatchesQuery(entry: BuiltInComposerCommand, lowerQuery: s
 export function createBuiltInCommandItems(
   lowerQuery: string,
   insertCommand: (command: string) => void,
-): CommandPaletteItem[] {
+) {
   return BUILT_IN_COMPOSER_COMMANDS.filter((entry) =>
     builtInCommandMatchesQuery(entry, lowerQuery),
   ).map((entry) => ({
@@ -148,7 +148,7 @@ export function createPresetItems(
       icon: presetIcon(preset),
       section: 'Waggle Mode',
       trailing: 'Sequential',
-      trailingBadge: preset.isBuiltIn ? undefined : 'Custom',
+      ...(preset.isBuiltIn ? {} : { trailingBadge: 'Custom' }),
       action: () => selectPreset(preset),
     })
   }

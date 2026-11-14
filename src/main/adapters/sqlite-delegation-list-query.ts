@@ -5,7 +5,8 @@ import * as Effect from 'effect/Effect'
 import { delegationListResponse } from './sqlite-delegation-list-response'
 import { readDelegationListCursor } from './sqlite-delegation-query-cursor'
 import type { DelegationsListRequest } from './sqlite-delegation-query-model'
-import type { DelegationSummaryRow } from './sqlite-delegation-query-rows'
+import { delegationSummaryRowSchema } from './sqlite-delegation-query-rows'
+import { decodeSqlRows } from './sqlite-row-schema'
 import { authorizedSessionScope, invalidSessionQueryCursor } from './sqlite-session-query-support'
 
 export function listDelegations(
@@ -28,7 +29,7 @@ export function listDelegations(
   const cursorUpdatedAt = cursor?.updatedAt ?? null
   const cursorDelegationId = cursor?.delegationId ?? null
   return Effect.gen(function* () {
-    const rows = yield* sql<DelegationSummaryRow>`
+    const rows = yield* sql`
       SELECT contracts.id AS delegation_id,
         contracts.parent_session_id,
         contracts.child_session_id AS worker_session_id,
@@ -70,7 +71,7 @@ export function listDelegations(
       GROUP BY contracts.id
       ORDER BY contracts.updated_at DESC, contracts.id DESC
       LIMIT ${request.query.limit + 1}
-    `
+    `.pipe(Effect.flatMap(decodeSqlRows(delegationSummaryRowSchema, 'delegation_contracts')))
     return delegationListResponse(request, rows)
   })
 }

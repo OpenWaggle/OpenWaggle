@@ -7,32 +7,29 @@ import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
-import { isRecord } from '../local-session-client-connection'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  decodeTestServerFrame,
+  isTestServerFrame,
+  sessionHostCursorFromTestFrame,
+  TestFrameReader,
+} from './local-session-server-test-client'
 
-function cursorFrom(frame: unknown) {
-  if (!isRecord(frame)) throw new Error('Expected a Local Session frame.')
-  const candidate = frame.kind === 'response' && isRecord(frame.payload) ? frame.payload : frame
-  if (
-    !isRecord(candidate.cursor) ||
-    typeof candidate.cursor.hostInstanceId !== 'string' ||
-    typeof candidate.cursor.sequence !== 'number'
-  ) {
-    throw new Error('Expected a Local Session event cursor.')
-  }
-  return {
-    hostInstanceId: candidate.cursor.hostInstanceId,
-    sequence: candidate.cursor.sequence,
-  }
+/** The cursor of an event frame, or of a response frame's payload. */
+function cursorFrom(value: unknown) {
+  return sessionHostCursorFromTestFrame(
+    isTestServerFrame(value, 'response') ? decodeTestServerFrame(value).payload : value,
+  )
 }
 
-function subscriptionIdFrom(frame: unknown) {
-  if (!isRecord(frame) || typeof frame.subscriptionId !== 'string') {
+function subscriptionIdFrom(value: unknown) {
+  const { subscriptionId } = decodeTestServerFrame(value)
+  if (typeof subscriptionId !== 'string') {
     throw new Error('Expected a Local Session subscription frame.')
   }
-  return frame.subscriptionId
+  return subscriptionId
 }
 
 async function negotiate(client: Socket, reader: TestFrameReader, clientVersion: string) {
@@ -140,8 +137,7 @@ describe('Local Session restricted event cursors', () => {
         payload: visible.payload,
       },
     })
-    if (!isRecord(delivery) || !isRecord(delivery.event)) throw new Error('Expected an event.')
-    const deliveredCursor = cursorFrom(delivery.event)
+    const deliveredCursor = cursorFrom(decodeTestServerFrame(delivery).event)
 
     const resumedClient = await connectLocalSessionTestClient(handle.endpoint)
     clients.push(resumedClient)

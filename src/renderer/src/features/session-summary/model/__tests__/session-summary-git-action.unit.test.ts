@@ -2,8 +2,8 @@ import type { VcsStatus } from '@shared/types/git'
 import { describe, expect, it } from 'vitest'
 import { resolveSessionSummaryGitAction } from '../session-summary-git-action'
 
-function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
-  return {
+function status(overrides: Partial<VcsStatus> = {}) {
+  const result: VcsStatus = {
     isRepo: true,
     sourceControlProvider: { id: 'github', host: 'github.com' },
     sourceControlHost: null,
@@ -25,6 +25,7 @@ function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
     changeRequestAccount: null,
     ...overrides,
   }
+  return result
 }
 
 describe('resolveSessionSummaryGitAction', () => {

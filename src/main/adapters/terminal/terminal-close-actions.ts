@@ -23,40 +23,45 @@ export function assessTerminalCloseAction(
   ownerKey: string,
   terminalId: string,
 ) {
-  return Effect.sync((): TerminalCloseAssessment => {
+  return Effect.sync(() => {
     const key = resolveTerminalKey(context, terminalKeyOf(ownerKey, terminalId))
     const record = context.runtime.records.get(key)
     if (
       record === undefined ||
       (record.live === null && !context.runtime.hasDetachedProcesses(record))
     ) {
-      return { disposition: 'safe', reason: 'dead' }
+      const assessment: TerminalCloseAssessment = { disposition: 'safe', reason: 'dead' }
+      return assessment
     }
     if (record.activity === null) {
-      return {
+      const assessment: TerminalCloseAssessment = {
         disposition: 'confirm',
         reason: 'uncertain',
         processNames: [],
         ports: [],
       }
+      return assessment
     }
     if (record.activity.processNames.length > 0 || record.activity.ports.length > 0) {
-      return {
+      const assessment: TerminalCloseAssessment = {
         disposition: 'confirm',
         reason: 'active',
         processNames: record.activity.processNames,
         ports: record.activity.ports,
       }
+      return assessment
     }
     if (!record.activity.reliable) {
-      return {
+      const assessment: TerminalCloseAssessment = {
         disposition: 'confirm',
         reason: 'uncertain',
         processNames: [],
         ports: [],
       }
+      return assessment
     }
-    return { disposition: 'safe', reason: 'idle' }
+    const assessment: TerminalCloseAssessment = { disposition: 'safe', reason: 'idle' }
+    return assessment
   })
 }
 
@@ -73,7 +78,7 @@ export function closeTerminalAction(
     const blockDisposition = terminalOperationBlockDisposition(context.operationQueue, {
       key,
       ownerKey: record?.ownerKey ?? ownerKey,
-      cwd: record?.cwd,
+      ...(record?.cwd === undefined ? {} : { cwd: record?.cwd }),
     })
     if (blockDisposition === 'retry') {
       await waitForTerminalScopeOperation(context.operationQueue)
@@ -130,8 +135,9 @@ export function closeOwnerTerminalsAction(
         )
         await stopRecordsForDestructiveClose(runtime, ownerRecords)
         await proveRetainedProcessTreesStopped(runtime, ownerRecords)
-        for (const record of ownerRecords)
+        for (const record of ownerRecords) {
           await finalizeClosedRecord(context, record, deleteHistory)
+        }
         for (const key of [...context.pendingInputByKey.keys()]) {
           if (ownerKeyFromTerminalKey(key) === ownerKey) context.pendingInputByKey.delete(key)
         }

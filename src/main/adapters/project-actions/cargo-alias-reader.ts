@@ -12,11 +12,12 @@ import { readTaskSource } from './task-source-files'
 const SOURCE = '.cargo/config.toml'
 const LEGACY_SOURCE = '.cargo/config'
 const cargoSchema = Schema.Struct({
-  alias: Schema.optional(
+  alias: Schema.optionalWith(
     Schema.Record({
       key: Schema.String,
       value: Schema.Union(Schema.String, Schema.Array(Schema.String)),
     }),
+    { exact: true },
   ),
 })
 // Cargo dispatches these before configured aliases, including hidden/unstable commands.
@@ -63,10 +64,7 @@ const BUILTIN_COMMANDS = new Set([
   'yank',
 ])
 
-async function list(
-  workspace: string,
-  requested?: ProjectTaskReference,
-): Promise<ProjectTaskDiscovery> {
+async function list(workspace: string, requested?: ProjectTaskReference) {
   let source = SOURCE
   try {
     let raw = await readTaskSource(workspace, source)
@@ -79,7 +77,10 @@ async function list(
       source = LEGACY_SOURCE
       raw = await readTaskSource(workspace, source)
     }
-    if (raw === null) return { tasks: [], diagnostics: [] }
+    if (raw === null) {
+      const discovery: ProjectTaskDiscovery = { tasks: [], diagnostics: [] }
+      return discovery
+    }
     const data: unknown = parse(raw)
     const aliases = decodeUnknownOrThrow(cargoSchema, data).alias ?? {}
     const diagnostics = []
@@ -101,9 +102,14 @@ async function list(
         runner: 'cargo',
       })
     }
-    return { tasks, diagnostics }
+    const discovery: ProjectTaskDiscovery = { tasks, diagnostics }
+    return discovery
   } catch (error) {
-    return { tasks: [], diagnostics: [taskReadError(source, error)] }
+    const discovery: ProjectTaskDiscovery = {
+      tasks: [],
+      diagnostics: [taskReadError(source, error)],
+    }
+    return discovery
   }
 }
 

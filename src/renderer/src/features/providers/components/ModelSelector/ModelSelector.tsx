@@ -36,7 +36,9 @@ function toFlatModel(group: ProviderInfo, model: ProviderInfo['models'][number])
     name: model.name.trim() || model.modelId,
     provider: group.provider,
     providerName: group.displayName,
-    contextWindowLabel: model.contextWindow ? formatContextWindow(model.contextWindow) : undefined,
+    ...(model.contextWindow
+      ? { contextWindowLabel: formatContextWindow(model.contextWindow) }
+      : {}),
   } satisfies FlatModel
 }
 
@@ -215,7 +217,7 @@ export function ModelSelector({
     closeList()
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
       event.preventDefault()
       closeList()

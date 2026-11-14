@@ -29,9 +29,9 @@ export interface PreparationPersistence {
 interface Row {
   readonly state_json: string
 }
-const decode = (row: Row): StoredWorkspacePreparation =>
+const decode = (row: Row) =>
   decodeUnknownExactOrThrow(storedWorkspacePreparationSchema, parseJsonUnknown(row.state_json))
-export function createPreparationPersistence(sql: SqlClient.SqlClient): PreparationPersistence {
+export function createPreparationPersistence(sql: SqlClient.SqlClient) {
   return {
     read: (workspaceId) =>
       Effect.runPromise(
@@ -55,13 +55,14 @@ export function createPreparationPersistence(sql: SqlClient.SqlClient): Preparat
             const rows = yield* sql<{
               readonly revision: number
             }>`SELECT revision FROM workspace_preparation WHERE workspace_id = ${state.workspaceId}`
-            if ((rows[0]?.revision ?? 0) !== expectedRevision)
+            if ((rows[0]?.revision ?? 0) !== expectedRevision) {
               return yield* Effect.fail(
                 new Error('Workspace preparation changed. Reload before continuing.'),
               )
+            }
             yield* sql`INSERT INTO workspace_preparation (workspace_id, revision, state_json) VALUES (${state.workspaceId}, ${state.revision}, ${JSON.stringify(valid)}) ON CONFLICT(workspace_id) DO UPDATE SET revision = excluded.revision, state_json = excluded.state_json`
           }),
         ),
       ),
-  }
+  } satisfies PreparationPersistence
 }

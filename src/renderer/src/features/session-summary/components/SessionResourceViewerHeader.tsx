@@ -251,8 +251,9 @@ export function SessionResourceViewerHeader({
         disabled={source === null}
         value={zoom}
         onChange={(event) => {
-          if (isMatching(P.union('fit', '25', '50', '100', '150', '200'), event.target.value))
+          if (isMatching(P.union('fit', '25', '50', '100', '150', '200'), event.target.value)) {
             onZoomChange(event.target.value)
+          }
         }}
       >
         <option value="fit">Fit</option>

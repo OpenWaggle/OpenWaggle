@@ -1,6 +1,5 @@
 import type { Terminal } from '@xterm/xterm'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { TerminalContextRange } from './terminal-context'
 import type { TerminalLaunchEnvironment } from './terminal-launch-environment'
 
 export interface TerminalRestartOptions {
@@ -23,7 +22,7 @@ export interface ContextMenuModifiers {
   readonly shiftKey: boolean
 }
 
-function selectionRange(terminal: Terminal | null): TerminalContextRange | null {
+function selectionRange(terminal: Terminal | null) {
   const position = terminal?.getSelectionPosition()
   if (position === undefined) return null
   const startLine = position.start.y + 1
@@ -52,7 +51,11 @@ function selectionEndClientRect(terminal: Terminal | null) {
   }
 }
 
-export function createTerminalPaneActions(options: TerminalPaneActionOptions) {
+/**
+ * The pane's imperative actions. A hook, though it calls none, so the pane may hand it its refs
+ * during render: every action reads them only when it runs.
+ */
+export function useTerminalPaneActions(options: TerminalPaneActionOptions) {
   const focus = () => options.terminalRef.current?.focus()
   const restart = async (next?: TerminalRestartOptions) => options.restartRef.current?.(next)
   const sendInputNow = () => {

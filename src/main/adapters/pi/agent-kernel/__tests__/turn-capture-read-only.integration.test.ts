@@ -42,7 +42,7 @@ const { createSession } = await import('../../../../store/session-details')
 const { getTurnDiffFiles, listTurnCheckpoints } = await import('../../../../store/turn-checkpoints')
 const { captureTurnCheckpoint } = await import('../turn-capture')
 
-async function git(args: readonly string[]): Promise<string> {
+async function git(args: readonly string[]) {
   const result = await execFileAsync('git', args, { cwd: state.projectPath })
   return typeof result === 'string' ? result : (result.stdout ?? '')
 }
@@ -60,7 +60,7 @@ async function createRepository() {
   return state.projectPath
 }
 
-async function createProjectSession(projectPath: string): Promise<SessionDetail> {
+async function createProjectSession(projectPath: string) {
   return createSession({
     projectPath,
     piSessionId: 'pi-turn-capture-skip',

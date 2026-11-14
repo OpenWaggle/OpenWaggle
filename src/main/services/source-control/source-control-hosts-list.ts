@@ -30,7 +30,7 @@ function approvedDeclarationHosts(
 export async function listSourceControlHosts(
   access: SourceControlSettingsAccess,
   deps: Partial<SourceControlConfigurationDeps> = {},
-): Promise<SourceControlHostsOverview> {
+) {
   const resolvedDeps = { ...LIVE_SOURCE_CONTROL_CONFIGURATION_DEPS, ...deps }
   const [settings, cliHosts, gh, glab] = await Promise.all([
     access.read(),
@@ -48,9 +48,9 @@ export async function listSourceControlHosts(
     ...Object.keys(approvedDeclarations),
   ])
   const userChoices = providerChoices(settings.sourceControlHostProviders)
-  const entries = [...hosts].sort().map((host): SourceControlHostEntry => {
+  const entries = [...hosts].sort().map((host) => {
     if (settings.sourceControlHostProviders[host] === 'unsupported') {
-      return {
+      const result: SourceControlHostEntry = {
         host,
         provider: null,
         source: 'user-choice',
@@ -59,6 +59,7 @@ export async function listSourceControlHosts(
         cliInstalled: false,
         accounts: [],
       }
+      return result
     }
     const decision = decideSourceControlHostProvider(host, '', {
       userChoices,
@@ -68,7 +69,7 @@ export async function listSourceControlHosts(
       detectedHosts: settings.sourceControlDetectedHostProviders,
     })
     const cli = decision ? sourceControlCliForProvider(decision.provider) : null
-    return {
+    const result: SourceControlHostEntry = {
       host,
       provider: decision?.provider ?? null,
       source: decision?.source ?? null,
@@ -81,6 +82,8 @@ export async function listSourceControlHosts(
           )?.accounts ?? [])
         : [],
     }
+    return result
   })
-  return { hosts: entries, cliInstalled }
+  const overview: SourceControlHostsOverview = { hosts: entries, cliInstalled }
+  return overview
 }

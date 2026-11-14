@@ -24,20 +24,21 @@ interface ScriptPickerProps {
 }
 
 /** A roomy script list: the common scripts first, the rest behind "Show all" or a search. */
-export function ScriptPicker(props: ScriptPickerProps) {
+export function ScriptPicker({ rootRef, ...props }: ScriptPickerProps) {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(false)
   const ranked = rankScripts(props.tasks)
   const matches = filterScripts(ranked, query)
   const showingAll = expanded || query.trim().length > 0
   const visible = showingAll ? matches : matches.slice(0, COLLAPSED_SCRIPT_COUNT)
-  if (props.status === 'loading')
+  if (props.status === 'loading') {
     return (
       <p role="status" className="text-sm text-text-tertiary">
         Looking for scripts in this project…
       </p>
     )
-  if (props.status === 'error')
+  }
+  if (props.status === 'error') {
     return (
       <div className="flex flex-wrap items-center gap-2 text-sm text-error-text">
         <span role="alert">
@@ -48,14 +49,16 @@ export function ScriptPicker(props: ScriptPickerProps) {
         </Button>
       </div>
     )
-  if (ranked.length === 0)
+  }
+  if (ranked.length === 0) {
     return (
       <p className="text-sm text-text-tertiary">
         No scripts found in this project. Type a command instead.
       </p>
     )
+  }
   return (
-    <div ref={props.rootRef} className="grid min-w-0 grid-cols-1 gap-2.5">
+    <div ref={rootRef} className="grid min-w-0 grid-cols-1 gap-2.5">
       {ranked.length > COLLAPSED_SCRIPT_COUNT ? (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-tertiary" />

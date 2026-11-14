@@ -1,4 +1,3 @@
-import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
 import { LocalSessionAuthenticationError } from '../errors'
 import { LocalSessionCredentialVerifier } from '../ports/local-session-credential-verifier'
@@ -12,13 +11,7 @@ export interface AuthenticateLocalSessionProfileInput {
   readonly now: number
 }
 
-export function authenticateLocalSessionProfile(
-  input: AuthenticateLocalSessionProfileInput,
-): Effect.Effect<
-  LocalSessionCallerIdentity,
-  Error,
-  LocalSessionCredentialVerifier | LocalSessionProfileRepository
-> {
+export function authenticateLocalSessionProfile(input: AuthenticateLocalSessionProfileInput) {
   return Effect.gen(function* () {
     const repository = yield* LocalSessionProfileRepository
     const verifier = yield* LocalSessionCredentialVerifier

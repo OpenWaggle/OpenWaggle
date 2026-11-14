@@ -71,8 +71,8 @@ const PROVIDER_MODELS: ProviderInfo[] = [
   },
 ]
 
-function sessionDetail(id: SessionId, executionModel: SupportedModelId): SessionDetail {
-  return {
+function sessionDetail(id: SessionId, executionModel: SupportedModelId) {
+  const detail: SessionDetail = {
     id,
     title: 'Model switch',
     projectPath: '/project',
@@ -81,6 +81,7 @@ function sessionDetail(id: SessionId, executionModel: SupportedModelId): Session
     updatedAt: 1,
     executionModel,
   }
+  return detail
 }
 
 function openSession(id: SessionId, storedAfterRefresh: SupportedModelId) {

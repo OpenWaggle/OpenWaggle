@@ -73,7 +73,7 @@ function useSessionSummaryGitController(input: SessionSummaryHubInput, panelVisi
   )
   const stackedActions = useStackedGitActions({
     workingPath: git.workingPath,
-    sessionId: input.session?.id,
+    ...(input.session?.id === undefined ? {} : { sessionId: input.session?.id }),
     onCompleted: () => {
       void combined.refresh()
       if (git.workingPath) void git.refreshStatus(git.workingPath)

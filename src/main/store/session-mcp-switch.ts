@@ -8,7 +8,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from './store-runtime'
 
-export async function isSessionMcpEnabled(sessionId: string): Promise<boolean> {
+export async function isSessionMcpEnabled(sessionId: string) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -22,14 +22,17 @@ export async function isSessionMcpEnabled(sessionId: string): Promise<boolean> {
 
 /** A switch for a Session the Host does not have. */
 export class UnknownMcpSessionError extends Error {
-  constructor(readonly sessionId: string) {
+  readonly sessionId: string
+
+  constructor(sessionId: string) {
     super(`No Session ${sessionId} to switch MCP off for.`)
+    this.sessionId = sessionId
     this.name = 'UnknownMcpSessionError'
   }
 }
 
 /** Switches MCP off for a Session the Host has; refuses one it does not have. */
-export async function disableSessionMcp(sessionId: string): Promise<void> {
+export async function disableSessionMcp(sessionId: string) {
   const known = await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -48,7 +51,7 @@ export async function disableSessionMcp(sessionId: string): Promise<void> {
   if (!known) throw new UnknownMcpSessionError(sessionId)
 }
 
-async function forgetSessionMcpSwitch(sessionId: string): Promise<void> {
+async function forgetSessionMcpSwitch(sessionId: string) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -57,6 +60,6 @@ async function forgetSessionMcpSwitch(sessionId: string): Promise<void> {
   )
 }
 
-export function setSessionMcpEnabled(sessionId: string, enabled: boolean): Promise<void> {
+export function setSessionMcpEnabled(sessionId: string, enabled: boolean) {
   return enabled ? forgetSessionMcpSwitch(sessionId) : disableSessionMcp(sessionId)
 }

@@ -45,14 +45,14 @@ function task(overrides: Partial<ScheduledTask> = {}) {
   })
 }
 
-function call(args: object, id = 'tc-1'): ToolCallPart {
+function call(args: object, id = 'tc-1') {
   return {
     type: 'tool-call',
     id,
     name: 'hive',
     arguments: JSON.stringify(args),
     state: 'input-complete',
-  }
+  } satisfies ToolCallPart
 }
 
 /** A hive-tool result as Pi records it: the compact text plus the Host response as details. */

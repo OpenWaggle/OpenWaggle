@@ -15,13 +15,11 @@ const { inspectMcpServer } = await import('../pi-mcp-server-runtime-service')
 const { forgetKnownMcpServerStates } = await import('../mcp-server-status-registry')
 const { hostMcpToolCatalogStore, mcpToolCatalogKeyOf } = await import('../mcp-tool-catalogs')
 const { loadMcpRuntimeConfig } = await import('../../../mcp/config/mcp-runtime-config')
-const { deferredMcpVaultSecret, mcpVaultSecretStamps } = await import(
-  '../../../mcp/encrypted-mcp-secret-vault-service'
-)
+const { deferredMcpVaultSecret, mcpVaultSecretStamps } =
+  await import('../../../mcp/encrypted-mcp-secret-vault-service')
 const { McpSessionConnectionPool } = await import('../../../mcp/pool/mcp-session-connection-pool')
-const { collect, FakeUpstream, flush, INITIALIZE_RESULT, initializeRequest } = await import(
-  '../../../mcp/pool/__tests__/fake-upstream'
-)
+const { collect, FakeUpstream, flush, INITIALIZE_RESULT, initializeRequest } =
+  await import('../../../mcp/pool/__tests__/fake-upstream')
 
 /** A server that now lists the tool `b`. */
 const SERVER = `

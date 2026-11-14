@@ -22,8 +22,9 @@ export function stackedActionFailure(
     readonly branch?: GitStackedActionBranchOutcome
     readonly fallbackUrl?: string
   } = {},
-): GitRunStackedActionFailure {
-  return { ok: false, phase, code, message, ...details }
+) {
+  const failure: GitRunStackedActionFailure = { ok: false, phase, code, message, ...details }
+  return failure
 }
 
 function preflightFailureMessage(readiness: SourceControlAuthResult) {
@@ -36,11 +37,16 @@ export async function preflightChangeRequest(
   projectPath: string,
   options: GitRunStackedActionOptions,
   phases: readonly GitActionPhase[],
-): Promise<
-  | { readonly ok: true; readonly payload: OpenChangeRequestPayload | null }
-  | { readonly ok: false; readonly failure: GitRunStackedActionFailure }
-> {
-  if (!phases.includes('pr')) return { ok: true, payload: null }
+) {
+  if (!phases.includes('pr')) {
+    const result:
+      | { readonly ok: true; readonly payload: OpenChangeRequestPayload | null }
+      | { readonly ok: false; readonly failure: GitRunStackedActionFailure } = {
+      ok: true,
+      payload: null,
+    }
+    return result
+  }
   const prospectiveBranch = options.createFeatureBranch
     ? ({
         status: 'created',
@@ -61,7 +67,9 @@ export async function preflightChangeRequest(
       )
     : null
   if (!payload) {
-    return {
+    const result:
+      | { readonly ok: true; readonly payload: OpenChangeRequestPayload | null }
+      | { readonly ok: false; readonly failure: GitRunStackedActionFailure } = {
       ok: false,
       failure: stackedActionFailure(
         'pr',
@@ -69,12 +77,20 @@ export async function preflightChangeRequest(
         'The approved Git push destination is not compatible with this change request.',
       ),
     }
+    return result
   }
-  if (readiness.ok && readiness.status.authenticated) return { ok: true, payload }
+  if (readiness.ok && readiness.status.authenticated) {
+    const result:
+      | { readonly ok: true; readonly payload: OpenChangeRequestPayload | null }
+      | { readonly ok: false; readonly failure: GitRunStackedActionFailure } = { ok: true, payload }
+    return result
+  }
   const fallbackUrl = payload
     ? await deps.buildChangeRequestFallbackUrl(projectPath, payload, false)
     : null
-  return {
+  const result:
+    | { readonly ok: true; readonly payload: OpenChangeRequestPayload | null }
+    | { readonly ok: false; readonly failure: GitRunStackedActionFailure } = {
     ok: false,
     failure: stackedActionFailure(
       'pr',
@@ -83,6 +99,7 @@ export async function preflightChangeRequest(
       { ...(fallbackUrl ? { fallbackUrl } : {}) },
     ),
   }
+  return result
 }
 
 export async function maybeCommit(
@@ -145,11 +162,12 @@ export async function maybeOpenChangeRequest(
   phases: readonly GitActionPhase[],
   payload: OpenChangeRequestPayload | null,
   report: PhaseReporter,
-): Promise<
-  | { ok: true; changeRequest: VcsChangeRequest | null }
-  | { ok: false; failure: GitRunStackedActionFailure }
-> {
-  if (!phases.includes('pr')) return { ok: true, changeRequest: null }
+) {
+  if (!phases.includes('pr')) {
+    return { ok: true, changeRequest: null } satisfies
+      | { ok: true; changeRequest: VcsChangeRequest | null }
+      | { ok: false; failure: GitRunStackedActionFailure }
+  }
   report('pr', 'Creating change request...')
   if (!payload) {
     return {
@@ -159,20 +177,26 @@ export async function maybeOpenChangeRequest(
         'change-request-failed',
         'Could not resolve the head ref for the change request.',
       ),
-    }
+    } satisfies
+      | { ok: true; changeRequest: VcsChangeRequest | null }
+      | { ok: false; failure: GitRunStackedActionFailure }
   }
   const result = await deps.openChangeRequest(projectPath, payload)
   const fallbackUrl = result.ok
     ? null
     : await deps.buildChangeRequestFallbackUrl(projectPath, payload, true)
-  return result.ok
-    ? { ok: true, changeRequest: result.changeRequest }
-    : {
-        ok: false,
-        failure: stackedActionFailure('pr', 'change-request-failed', result.message, {
-          ...(fallbackUrl ? { fallbackUrl } : {}),
-        }),
-      }
+  return (
+    result.ok
+      ? { ok: true, changeRequest: result.changeRequest }
+      : {
+          ok: false,
+          failure: stackedActionFailure('pr', 'change-request-failed', result.message, {
+            ...(fallbackUrl ? { fallbackUrl } : {}),
+          }),
+        }
+  ) satisfies
+    | { ok: true; changeRequest: VcsChangeRequest | null }
+    | { ok: false; failure: GitRunStackedActionFailure }
 }
 
 export async function createFeatureBranch(

@@ -14,7 +14,7 @@ describe('Session Host project catalog generation migration', () => {
       }
       const generation = () =>
         database
-          .prepare<[], Record<string, unknown>>(
+          .prepare<[], { readonly generation: unknown }>(
             'SELECT generation FROM session_project_catalog_generation WHERE singleton = 1',
           )
           .get()?.generation

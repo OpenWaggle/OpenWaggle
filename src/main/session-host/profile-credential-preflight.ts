@@ -16,14 +16,14 @@ interface CredentialPreflightInput {
 }
 
 class ProfileCredentialPreparationError extends Error {
-  constructor(
-    readonly recoveryLocation: string,
-    cause: unknown,
-  ) {
+  readonly recoveryLocation: string
+
+  constructor(recoveryLocation: string, cause: unknown) {
     super(
       `Credential destination validation failed. Protected credential data remains recoverable at ${recoveryLocation}. Confirm any prior operation before removing it.`,
       { cause },
     )
+    this.recoveryLocation = recoveryLocation
     this.name = 'ProfileCredentialPreparationError'
   }
 }
@@ -37,8 +37,9 @@ async function matchesInstalledCredential(
     path.dirname(input.targetPath),
     path.basename(input.targetPath),
   )
-  if (!target.content)
+  if (!target.content) {
     throw new CliError('conflict', 'Credential destination changed during preparation.')
+  }
   const targetCredential = decodeCredentialContent(input.destination, target.content)
   if (credentialFingerprint(targetCredential) === credentialFingerprint(input.selectedCredential)) {
     return true

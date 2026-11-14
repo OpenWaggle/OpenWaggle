@@ -4,7 +4,7 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderOAuthService } from '../../../ports/provider-oauth-service'
 
-const calls = vi.hoisted((): string[] => [])
+const calls = vi.hoisted<string[]>(() => [])
 
 vi.mock('@earendil-works/pi-ai/bun-oauth', () => ({
   registerBunOAuthFlows: () => calls.push('register OAuth flows'),

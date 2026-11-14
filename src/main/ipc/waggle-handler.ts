@@ -53,9 +53,7 @@ function cancelWaggle(sessionId: SessionId) {
   })
 }
 
-function explicitWaggleCancellationPayload(
-  sessionId: SessionId,
-): Extract<LocalSessionCommandPayload, { contract: 'session-waggle-cancel-v1' }> {
+function explicitWaggleCancellationPayload(sessionId: SessionId) {
   return {
     contract: 'session-waggle-cancel-v1',
     request: {
@@ -63,7 +61,7 @@ function explicitWaggleCancellationPayload(
       requestId: randomUUID(),
       sessionId,
     },
-  }
+  } satisfies Extract<LocalSessionCommandPayload, { contract: 'session-waggle-cancel-v1' }>
 }
 
 function explicitWagglePayload(
@@ -71,7 +69,7 @@ function explicitWagglePayload(
   payload: AgentSendPayload,
   model: SupportedModelId,
   config: WaggleConfig,
-): Extract<LocalSessionCommandPayload, { contract: 'session-waggle-v1' }> {
+) {
   const validatedPayload = toAgentSendPayload(decodeUnknownOrThrow(agentSendPayloadSchema, payload))
   return {
     contract: 'session-waggle-v1',
@@ -84,7 +82,7 @@ function explicitWagglePayload(
       model,
       config,
     },
-  }
+  } satisfies Extract<LocalSessionCommandPayload, { contract: 'session-waggle-v1' }>
 }
 
 function handleSendWaggleMessage(

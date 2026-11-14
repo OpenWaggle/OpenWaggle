@@ -6,7 +6,7 @@ status: accepted
 
 Date: 2026-10-26
 
-Superseded in part by: [ADR 0063](0063-parents-show-their-running-workers.md). A parent's running Workers also reach the person outside the panel: its sidebar row, its header and the rail dot show them, never in the attention colour.
+Superseded in part by: [ADR 0065](0065-parents-show-their-running-workers.md). A parent's running Workers also reach the person outside the panel: its sidebar row, its header and the rail dot show them, never in the attention colour.
 
 Supersedes in part: [ADR 0051](0051-workers-live-in-a-hive-panel-not-the-sidebar.md), its grouping by Delegation state ("Needs you, Review, Active, Done") and the state names of its two amendments (#356, #377). The panel, the tree, paging, the row menu and everything else in ADR 0051 stand.
 

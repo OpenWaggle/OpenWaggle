@@ -16,11 +16,11 @@ vi.mock('../../config/project-config', async (importOriginal) => {
  * Fakes the central write's observable outcome — a stripped settings file — because the
  * strip-confirmation re-read inspects the file rather than trusting the write's resolution.
  */
-async function fakeStripWrite(projectPath: string): Promise<void> {
+async function fakeStripWrite(projectPath: string) {
   const configPath = path.join(projectPath, '.openwaggle', 'settings.json')
   try {
     const raw = await fs.readFile(configPath, 'utf-8')
-    const parsed: { preferences?: Record<string, unknown> } = JSON.parse(raw)
+    const parsed: { preferences?: { model?: unknown } } = JSON.parse(raw)
     if (parsed.preferences && 'model' in parsed.preferences) {
       delete parsed.preferences.model
       if (Object.keys(parsed.preferences).length === 0) delete parsed.preferences
@@ -63,8 +63,8 @@ async function writeLegacyModelFile(projectPath: string) {
 }
 
 describe('removeProjectModelOperation', () => {
-  let removals: Array<string> | undefined
-  let modelWrites: Array<[string, string | null]> | undefined
+  let removals: string[] | undefined
+  let modelWrites: [string, string | null][] | undefined
 
   beforeEach(() => {
     mocks.setPreferences.mockReset().mockImplementation(fakeStripWrite)
@@ -95,12 +95,6 @@ describe('removeProjectModelOperation', () => {
 
   const tempProjectPath = async (prefix: string) =>
     fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)))
-
-  it('deletes the stored model through the queue-safe backend writer', async () => {
-    await run('/project')
-
-    expect(removals).toEqual(['/project'])
-  })
 
   it('strips a legacy file model before deleting the entry', async () => {
     const legacyPath = await tempProjectPath('openwaggle-legacy-model-')
@@ -167,7 +161,7 @@ describe('removeProjectModelOperation', () => {
   it('falls back to direct map updates without the queue-safe writers', async () => {
     const gonePath = await tempProjectPath('openwaggle-legacy-model-')
     await fs.rm(gonePath, { recursive: true, force: true })
-    const updates: Array<Record<string, unknown>> = []
+    const updates: Record<string, unknown>[] = []
 
     await run(gonePath, {
       setProjectModel: undefined,

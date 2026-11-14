@@ -1,9 +1,9 @@
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
-import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary, SessionWorktreePlan } from '@shared/types/session'
-import type { ThinkingLevel } from '@shared/types/settings'
-import { type DraftSessionState, useChatStore } from '@/features/chat/state/chat-store'
+import { useChatStore, type DraftSessionState } from '@/features/chat/state/chat-store'
 import { useSessionStore } from '@/features/sessions/state'
+import type { SessionWorktreePlan, SessionSummary, SessionDetail } from '@shared/types/session'
+import type { ThinkingLevel } from '@shared/types/settings'
+import type { SessionId } from '@shared/types/brand'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 
 export interface ChatReturn {
   sessions: readonly SessionSummary[]
@@ -35,7 +35,7 @@ export interface ChatReturn {
  * active ID and reads the full session from the local store. Persistence
  * still belongs to main; this store is the renderer-side snapshot/cache.
  */
-export function useChat(): ChatReturn {
+export function useChat() {
   const sessions = useSessionStore((s) => s.sessions)
   const activeSession = useChatStore((s) => s.activeSession)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
@@ -49,7 +49,7 @@ export function useChat(): ChatReturn {
   const updateSessionTitle = useChatStore((s) => s.updateSessionTitle)
   const loadSessions = useChatStore((s) => s.loadSessions)
 
-  return {
+  const result: ChatReturn = {
     sessions,
     activeSession,
     activeSessionId,
@@ -63,4 +63,5 @@ export function useChat(): ChatReturn {
     updateSessionTitle,
     loadSessions,
   }
+  return result
 }

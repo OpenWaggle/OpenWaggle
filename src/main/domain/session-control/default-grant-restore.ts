@@ -2,6 +2,7 @@ import {
   DEFAULT_SESSION_AGENT_CAPABILITIES,
   type SessionCapability,
 } from '@shared/types/session-capability'
+import { includesEvery } from '@shared/utils/set-membership'
 import { DEFAULT_BEFORE_SCHEDULED_TASKS } from './session-capability-restriction'
 
 /** A Session's stored execution profile, as the one-time capability restore reads it. */
@@ -26,10 +27,6 @@ export interface StoredSessionGrantSource {
 }
 
 const SCHEDULE_CAPABILITIES: readonly SessionCapability[] = ['schedules:read', 'schedules:manage']
-
-function holdsEvery(list: readonly string[], wanted: readonly string[]) {
-  return wanted.every((capability) => list.includes(capability))
-}
 
 function sourcesBySession(sources: readonly StoredSessionGrantSource[]) {
   const sourcesOf = new Map<string, string[]>()
@@ -65,20 +62,18 @@ function definitionAncestry(
   return (sessionId: string) => chosen.has(sessionId)
 }
 
-type GrantKind = 'restore' | 'older-copy' | 'keep'
-
 /** Restore: a default grant in itself. Older copy: restored only if every source is. */
 function grantKind(
   grant: StoredSessionGrant,
   scheduledTasksSince: number | undefined,
   comesFromDefinition: (sessionId: string) => boolean,
-): GrantKind {
+) {
   const list = grant.capabilities
-  if (!list || !grant.localUserOrigin || !holdsEvery(list, DEFAULT_BEFORE_SCHEDULED_TASKS)) {
+  if (!list || !grant.localUserOrigin || !includesEvery(list, DEFAULT_BEFORE_SCHEDULED_TASKS)) {
     return 'keep'
   }
   if (comesFromDefinition(grant.sessionId)) return 'keep'
-  if (holdsEvery(list, DEFAULT_SESSION_AGENT_CAPABILITIES)) return 'restore'
+  if (includesEvery(list, DEFAULT_SESSION_AGENT_CAPABILITIES)) return 'restore'
   if (list.some((capability) => SCHEDULE_CAPABILITIES.some((held) => held === capability))) {
     return 'keep'
   }
@@ -104,7 +99,7 @@ export function sessionsHoldingOnlyADefaultGrant(input: {
   readonly sources: readonly StoredSessionGrantSource[]
   /** When Scheduled tasks were installed; undefined when unknown, which restores none by age. */
   readonly scheduledTasksSince: number | undefined
-}): readonly string[] {
+}) {
   const sourcesOf = sourcesBySession(input.sources)
   const comesFromDefinition = definitionAncestry(input.grants, sourcesOf)
   const olderCopies = new Set<string>()

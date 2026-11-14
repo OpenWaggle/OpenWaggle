@@ -62,7 +62,9 @@ function renderNotice(
 
 function finishTerminalCommand() {
   const finished = mocks.watchSessionTerminalCommand.mock.calls.at(-1)?.[2]
-  act(() => finished?.())
+  act(() => {
+    finished?.()
+  })
 }
 
 describe('SourceControlAttentionNotice', () => {

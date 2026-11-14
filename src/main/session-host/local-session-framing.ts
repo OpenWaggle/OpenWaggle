@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { Schema } from '@shared/schema'
 import { SerializedLocalSessionFrame } from './local-session-serialized-frame'
 
 const FRAME_HEADER_BYTES = 4
@@ -17,7 +18,7 @@ const MAX_LOGICAL_CHUNKS = Math.ceil(
   MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES / LOGICAL_CHUNK_PAYLOAD_BYTES,
 )
 
-function encodePhysicalFrame(payload: Buffer): Buffer {
+function encodePhysicalFrame(payload: Buffer) {
   if (payload.byteLength > MAX_LOCAL_SESSION_FRAME_BYTES) {
     throw new Error(`Local Session frame exceeds ${MAX_LOCAL_SESSION_FRAME_BYTES} bytes.`)
   }
@@ -27,7 +28,7 @@ function encodePhysicalFrame(payload: Buffer): Buffer {
   return frame
 }
 
-function frameHeader(payloadBytes: number): Buffer {
+function frameHeader(payloadBytes: number) {
   if (payloadBytes > MAX_LOCAL_SESSION_FRAME_BYTES) {
     throw new Error(`Local Session frame exceeds ${MAX_LOCAL_SESSION_FRAME_BYTES} bytes.`)
   }
@@ -55,7 +56,7 @@ function chunkEnvelope(input: {
   )
 }
 
-export function encodeLocalSessionPayload(value: unknown): Buffer {
+export function encodeLocalSessionPayload(value: unknown) {
   const json = value instanceof SerializedLocalSessionFrame ? value.json : JSON.stringify(value)
   const payload = Buffer.from(json, 'utf8')
   if (payload.byteLength > MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES) {
@@ -66,7 +67,7 @@ export function encodeLocalSessionPayload(value: unknown): Buffer {
   return payload
 }
 
-export function* encodeLocalSessionFrameSegments(payload: Buffer): Generator<Buffer> {
+export function* encodeLocalSessionFrameSegments(payload: Buffer) {
   if (payload.byteLength <= MAX_LOCAL_SESSION_FRAME_BYTES) {
     yield frameHeader(payload.byteLength)
     yield payload
@@ -92,7 +93,7 @@ export function* encodeLocalSessionFrameSegments(payload: Buffer): Generator<Buf
   }
 }
 
-export function encodeLocalSessionFrame(value: unknown): Buffer {
+export function encodeLocalSessionFrame(value: unknown) {
   const payload = encodeLocalSessionPayload(value)
   if (payload.byteLength <= MAX_LOCAL_SESSION_FRAME_BYTES) return encodePhysicalFrame(payload)
   return Buffer.concat([...encodeLocalSessionFrameSegments(payload)])
@@ -111,24 +112,20 @@ interface LogicalChunk {
   readonly payload: Buffer
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const safeIntegerSchema = Schema.Number.pipe(Schema.filter(Number.isSafeInteger))
+
+const chunkEnvelopeSchema = Schema.Struct({
+  [LOGICAL_CHUNK_KEY]: Schema.Struct({
+    id: Schema.String,
+    index: safeIntegerSchema,
+    total: safeIntegerSchema,
+    payload: Schema.String,
+  }),
+})
 
 function decodeChunkEnvelope(value: unknown) {
-  if (!isRecord(value)) return null
+  if (!Schema.is(chunkEnvelopeSchema)(value)) return null
   const envelope = value[LOGICAL_CHUNK_KEY]
-  if (!isRecord(envelope)) return null
-  if (
-    typeof envelope.id !== 'string' ||
-    typeof envelope.index !== 'number' ||
-    !Number.isSafeInteger(envelope.index) ||
-    typeof envelope.total !== 'number' ||
-    !Number.isSafeInteger(envelope.total) ||
-    typeof envelope.payload !== 'string'
-  ) {
-    return null
-  }
   return {
     id: envelope.id,
     index: envelope.index,
@@ -146,7 +143,10 @@ export class LocalSessionFrameDecoder {
   private headOffset = 0
   private retainedBytes = 0
 
-  constructor(private maxFrameBytes = MAX_LOCAL_SESSION_FRAME_BYTES) {
+  private maxFrameBytes: number
+
+  constructor(maxFrameBytes: number = MAX_LOCAL_SESSION_FRAME_BYTES) {
+    this.maxFrameBytes = maxFrameBytes
     this.logicalChunksEnabled = maxFrameBytes > MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES
   }
 
@@ -274,7 +274,7 @@ export class LocalSessionFrameDecoder {
     else values.push(value)
   }
 
-  push(chunk: Buffer, maxFrames = Number.POSITIVE_INFINITY): unknown[] {
+  push(chunk: Buffer, maxFrames = Number.POSITIVE_INFINITY) {
     if (
       !(
         maxFrames === Number.POSITIVE_INFINITY ||

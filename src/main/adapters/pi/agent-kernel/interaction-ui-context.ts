@@ -66,18 +66,15 @@ function timeoutFields(opts: PiDialogOptions) {
   return opts?.timeout !== undefined ? { timeoutMs: opts.timeout } : {}
 }
 
-function mergedSignal(input: {
-  readonly runSignal: AbortSignal
-  readonly interactionSignal?: AbortSignal
-}) {
-  if (!input.interactionSignal) return input.runSignal
-  return AbortSignal.any([input.runSignal, input.interactionSignal])
+function mergedSignal(runSignal: AbortSignal, interactionSignal: AbortSignal | undefined) {
+  if (!interactionSignal) return runSignal
+  return AbortSignal.any([runSignal, interactionSignal])
 }
 
 function baseInteraction(input: {
   readonly context: PiInteractionUiContextInput
   readonly opts?: PiDialogOptions
-}): Omit<AgentLoopInteractionBase, 'kind'> {
+}) {
   return {
     interactionId: randomUUID(),
     sessionId: input.context.sessionId,
@@ -85,7 +82,7 @@ function baseInteraction(input: {
     source: 'pi-ui',
     createdAt: Date.now(),
     ...timeoutFields(input.opts),
-  }
+  } satisfies Omit<AgentLoopInteractionBase, 'kind'>
 }
 
 async function requestInteraction(input: AgentLoopInteractionRequestInput) {
@@ -109,9 +106,7 @@ function normalizeNotifyLevel(level: PiNotifyLevel) {
   return level ?? 'info'
 }
 
-function customRendererFields(
-  options: PiCustomInteractionOptions,
-): AgentLoopCustomInteraction['renderer'] {
+function customRendererFields(options: PiCustomInteractionOptions) {
   // The factory's raw JS function name is a runtime internal, not something a reader should ever
   // see, so it stays out of the payload the renderer receives. `kind` remains an internal
   // discriminant the renderer maps to product copy; it is never displayed.
@@ -119,7 +114,7 @@ function customRendererFields(
     kind: 'pi-tui-custom',
     supported: false,
     ...(options?.overlay !== undefined ? { overlay: options.overlay } : {}),
-  }
+  } satisfies AgentLoopCustomInteraction['renderer']
 }
 
 async function requestCustomInteraction(input: {
@@ -141,10 +136,8 @@ async function requestCustomInteraction(input: {
   return response.kind === 'custom' ? response.value : null
 }
 
-function createDesktopInteractionUiOverrides(
-  context: PiInteractionUiContextInput,
-): DesktopInteractionUiOverrides {
-  return {
+function createDesktopInteractionUiOverrides(context: PiInteractionUiContextInput) {
+  const overrides: DesktopInteractionUiOverrides = {
     select: async (title, choices, opts) => {
       const interaction = {
         ...baseInteraction({ context, opts }),
@@ -155,7 +148,7 @@ function createDesktopInteractionUiOverrides(
       const response = await requestInteraction({
         interaction,
         onEvent: context.onEvent,
-        signal: mergedSignal({ runSignal: context.signal, interactionSignal: opts?.signal }),
+        signal: mergedSignal(context.signal, opts?.signal),
       })
       return selectedValue(response)
     },
@@ -173,7 +166,7 @@ function createDesktopInteractionUiOverrides(
       const response = await requestInteraction({
         interaction,
         onEvent: context.onEvent,
-        signal: mergedSignal({ runSignal: context.signal, interactionSignal: opts?.signal }),
+        signal: mergedSignal(context.signal, opts?.signal),
       })
       return confirmedValue(response)
     },
@@ -187,7 +180,7 @@ function createDesktopInteractionUiOverrides(
       const response = await requestInteraction({
         interaction,
         onEvent: context.onEvent,
-        signal: mergedSignal({ runSignal: context.signal, interactionSignal: opts?.signal }),
+        signal: mergedSignal(context.signal, opts?.signal),
       })
       return textValue(response)
     },
@@ -219,10 +212,11 @@ function createDesktopInteractionUiOverrides(
     setWorkingMessage: (message) =>
       emitExtensionStatus(context, { kind: 'working-message' }, message),
   } satisfies DesktopInteractionUiOverrides
+  return overrides
 }
 
-function createAuthorizeChannel(context: PiInteractionUiContextInput): OpenWaggleAuthorize {
-  return (request) =>
+function createAuthorizeChannel(context: PiInteractionUiContextInput) {
+  return ((request) =>
     requestAuthorization({
       sessionId: context.sessionId,
       runId: context.runId,
@@ -235,15 +229,16 @@ function createAuthorizeChannel(context: PiInteractionUiContextInput): OpenWaggl
       runSignal: context.signal,
       ...(request.signal ? { interactionSignal: request.signal } : {}),
       newInteractionId: () => randomUUID(),
-    })
+    })) satisfies OpenWaggleAuthorize
 }
 
-function createDeclaredConfirmChannel(
-  context: PiInteractionUiContextInput,
-): OpenWaggleDeclaredConfirm {
-  return async (request) => {
+function createDeclaredConfirmChannel(context: PiInteractionUiContextInput) {
+  const confirm: OpenWaggleDeclaredConfirm = async (request) => {
     const interaction = {
-      ...baseInteraction({ context, opts: { signal: request.signal } }),
+      ...baseInteraction({
+        context,
+        opts: request.signal ? { signal: request.signal } : {},
+      }),
       kind: 'confirm',
       title: request.title,
       message: request.message,
@@ -252,10 +247,11 @@ function createDeclaredConfirmChannel(
     const response = await requestInteraction({
       interaction,
       onEvent: context.onEvent,
-      signal: mergedSignal({ runSignal: context.signal, interactionSignal: request.signal }),
+      signal: mergedSignal(context.signal, request.signal),
     })
     return confirmedValue(response)
   }
+  return confirm
 }
 
 /** The selection each Session last warned about, so the warning shows once until it changes. */
@@ -297,7 +293,7 @@ export function notifyModelFallback(
 export function createPiInteractionUiContext(
   context: PiInteractionUiContextInput,
   base: ExtensionUIContext,
-): ExtensionUIContext {
+) {
   return Object.assign({}, base, createDesktopInteractionUiOverrides(context), {
     custom: (factory: PiCustomInteractionFactory, options: PiCustomInteractionOptions) =>
       requestCustomInteraction({ context, factory, options }),

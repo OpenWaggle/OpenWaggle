@@ -13,6 +13,7 @@ import { runStoreEffect } from '../../../../store/store-runtime'
 import { PI_ENTRY_PROJECTION_VERSION } from '../entry-projection-version'
 import { readRunProjectionBase } from '../run-projection-base'
 import { projectPiSessionSnapshot } from '../session-projection'
+import { piSessionFileField } from '../pi-session-file-field'
 
 /**
  * A Run's snapshot keeps the entries the Session's current projection already holds, when the Pi
@@ -92,7 +93,7 @@ function persist(
   return persistSessionSnapshot({
     sessionId,
     piSessionId: manager.getSessionId(),
-    piSessionFile: manager.getSessionFile(),
+    ...piSessionFileField(manager.getSessionFile()),
     activeNodeId: snapshot.activeNodeId,
     nodes: snapshot.nodes,
     piProjection: snapshot.piProjection,
@@ -168,7 +169,7 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     await persist(sessionId, manager, { ...kept, nodes })
 
     const rows = await readRows(sessionId)
-    expect(rows.find((row) => row.id === firstAnswer)?.metadata_json).toBe(owned)
+    expect(rows).toContainEqual(expect.objectContaining({ id: firstAnswer, metadata_json: owned }))
   })
 
   it('keeps the tree up to date for kept entries when a branch is added', async () => {
@@ -219,10 +220,11 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     )
     await persist(sessionId, manager, snapshot)
     const rows = await readRows(sessionId)
-    expect(rows.find((row) => row.id === firstAnswer)?.metadata_json).toBe(
-      projectPiSessionSnapshot({ sessionManager: manager }).nodes.find(
-        (node) => node.id === firstAnswer,
-      )?.metadataJson,
+    const projected = projectPiSessionSnapshot({ sessionManager: manager }).nodes.find(
+      (node) => node.id === firstAnswer,
+    )
+    expect(rows).toContainEqual(
+      expect.objectContaining({ id: firstAnswer, metadata_json: projected?.metadataJson }),
     )
   })
 
@@ -301,8 +303,11 @@ describe('a Run snapshot keeps the entries its Session already projected', () =>
     )
     const rows = await readRows(sessionId)
     const full = projectPiSessionSnapshot({ sessionManager: manager })
-    expect(rows.find((row) => row.id === firstNodeId)?.content_json).toBe(
-      full.nodes.find((node) => node.id === firstNodeId)?.contentJson,
+    expect(rows).toContainEqual(
+      expect.objectContaining({
+        id: firstNodeId,
+        content_json: full.nodes.find((node) => node.id === firstNodeId)?.contentJson,
+      }),
     )
   })
 })

@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, safeDecodeUnknown } from '@shared/schema'
+import {
+  terminalInputIdentitySchema,
+  terminalInputIntentSchema,
+} from '@shared/schemas/terminal-requests'
 import type {
   TerminalInputIdentity,
   TerminalInputIntent,
@@ -13,8 +17,7 @@ import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
 import { TerminalService, type TerminalServiceShape } from '../ports/terminal-service'
 import {
-  terminalInputIdentitySchema,
-  terminalInputIntentSchema,
+  terminalCloseSchema,
   terminalInputReleaseSchema,
   terminalOpenInputSchema,
   terminalOutputAckSchema,
@@ -31,10 +34,10 @@ const registeredTerminalSurfaces = new WeakSet<object>()
 
 function registerTerminalSurfaceLifecycle(sender: object, service: TerminalServiceShape) {
   if (registeredTerminalSurfaces.has(sender)) return
-  const on: unknown = Reflect.get(sender, 'on')
+  const on = 'on' in sender ? sender.on : undefined
   if (typeof on !== 'function') return
   registeredTerminalSurfaces.add(sender)
-  const surfaceId: unknown = Reflect.get(sender, 'id')
+  const surfaceId = 'id' in sender ? sender.id : undefined
   if (typeof surfaceId !== 'number') return
   const detach = () => {
     void Effect.runPromise(service.detachSurface(surfaceId)).catch((error: unknown) => {
@@ -54,7 +57,7 @@ function registerTerminalSurfaceLifecycle(sender: object, service: TerminalServi
  * calling window as the terminal's event surface, and delegate everything else
  * to the TerminalService.
  */
-export function registerTerminalHandlers(): void {
+export function registerTerminalHandlers() {
   registerTerminalLifecycleHandlers()
   registerTerminalStreamHandlers()
 }
@@ -142,10 +145,10 @@ function registerTerminalLifecycleHandlers() {
     (_event, ownerKey: string, terminalId: string, deleteHistory: boolean) =>
       Effect.gen(function* () {
         const decoded = yield* Effect.try(() =>
-          decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+          decodeUnknownOrThrow(terminalCloseSchema, { ownerKey, terminalId, deleteHistory }),
         )
         const service = yield* TerminalService
-        yield* service.close(decoded.ownerKey, decoded.terminalId, deleteHistory === true)
+        yield* service.close(decoded.ownerKey, decoded.terminalId, decoded.deleteHistory)
       }),
   )
 }
@@ -267,7 +270,7 @@ function registerTerminalStreamHandlers() {
 }
 
 /** Kill every terminal; wired into app shutdown by the IPC module. */
-export function cleanupTerminals(): Promise<void> {
+export function cleanupTerminals() {
   return runGuiEffect(
     Effect.gen(function* () {
       const service = yield* TerminalService

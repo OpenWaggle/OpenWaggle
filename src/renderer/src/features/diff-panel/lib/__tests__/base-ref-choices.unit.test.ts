@@ -2,7 +2,7 @@ import type { GitBranchInfo } from '@shared/types/git'
 import { describe, expect, it } from 'vitest'
 import { buildBaseRefChoices } from '../base-ref-choices'
 
-function branch(name: string, isRemote = false): GitBranchInfo {
+function branch(name: string, isRemote = false) {
   return {
     name,
     localName: isRemote ? name.slice(name.indexOf('/') + 1) : name,
@@ -12,7 +12,7 @@ function branch(name: string, isRemote = false): GitBranchInfo {
     upstream: null,
     ahead: 0,
     behind: 0,
-  }
+  } satisfies GitBranchInfo
 }
 
 describe('buildBaseRefChoices', () => {

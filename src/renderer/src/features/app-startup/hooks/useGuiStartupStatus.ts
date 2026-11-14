@@ -10,7 +10,7 @@ const STARTING: GuiStartupStatus = { state: 'starting' }
  * The window's startup state from main (A-F2): subscribed first, then read once, so a change
  * between the two is never missed. An event always wins over the initial read it overtook.
  */
-export function useGuiStartupStatus(): GuiStartupStatus {
+export function useGuiStartupStatus() {
   const [status, setStatus] = useState<GuiStartupStatus>(STARTING)
 
   useEffect(() => {

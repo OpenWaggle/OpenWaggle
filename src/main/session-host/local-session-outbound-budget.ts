@@ -51,10 +51,10 @@ export interface LocalSessionOutboundLease {
 }
 
 export interface LocalSessionOutboundByteBudgetOptions {
-  readonly capacityWaitMs?: number | undefined
-  readonly evictionReleaseWaitMs?: number | undefined
+  readonly capacityWaitMs?: number
+  readonly evictionReleaseWaitMs?: number
   /** The wall-clock limit on one wait; `MAX_OUTBOUND_CAPACITY_WAIT_MS` unless a test sets it. */
-  readonly maxWaitMs?: number | undefined
+  readonly maxWaitMs?: number
   /** A monotonic wall clock in milliseconds; stalls are measured against it. */
   readonly now?: () => number
 }
@@ -102,10 +102,13 @@ export class LocalSessionOutboundByteBudget {
   private readonly wallNow: () => number
   private readonly clock: LocalSessionHostLiveClock
 
+  private readonly capacity: number
+
   constructor(
-    private readonly capacity = DEFAULT_MAX_PENDING_OUTBOUND_BYTES_GLOBAL,
+    capacity: number = DEFAULT_MAX_PENDING_OUTBOUND_BYTES_GLOBAL,
     options: LocalSessionOutboundByteBudgetOptions = {},
   ) {
+    this.capacity = capacity
     if (!Number.isSafeInteger(capacity) || capacity < MAX_OUTBOUND_ENCODING_RESERVATION_BYTES) {
       throw new Error(
         `Local Session outbound byte capacity must be at least ${MAX_OUTBOUND_ENCODING_RESERVATION_BYTES} bytes.`,
@@ -145,7 +148,7 @@ export class LocalSessionOutboundByteBudget {
     signal: AbortSignal,
     owner?: LocalSessionOutboundOwner,
     options: LocalSessionOutboundEncodeOptions = {},
-  ): Promise<LocalSessionOutboundLease> {
+  ) {
     const arrivedAt = this.wallNow()
     const arrivedLiveAt = this.clock.now()
     if (signal.aborted) throw encodingAborted()
@@ -257,7 +260,7 @@ export class LocalSessionOutboundByteBudget {
     signal: AbortSignal,
     owner: LocalSessionOutboundOwner | undefined,
     arrivedAt: number,
-  ): LocalSessionOutboundLease {
+  ) {
     this.retainBytes(MAX_OUTBOUND_ENCODING_RESERVATION_BYTES)
     let payload: Buffer
     try {
@@ -276,7 +279,7 @@ export class LocalSessionOutboundByteBudget {
     owner: LocalSessionOutboundOwner | undefined,
     reservationBytes: number,
     arrivedAt: number,
-  ): LocalSessionOutboundLease {
+  ) {
     const bytes =
       payload.byteLength +
       (payload.byteLength > MAX_LOCAL_SESSION_FRAME_BYTES ? MAX_LOCAL_SESSION_FRAME_BYTES : 0)

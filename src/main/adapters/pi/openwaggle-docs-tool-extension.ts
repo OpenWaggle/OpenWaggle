@@ -1,5 +1,4 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_DOCS_TOOL_NAME } from '@shared/constants/openwaggle-docs'
 import type { DocsDiscoveryView, DocsListInput } from '@shared/types/docs'
 import * as Effect from 'effect/Effect'
@@ -16,6 +15,7 @@ import {
   sortDocsToolTopics,
 } from './openwaggle-docs-tool-topics'
 import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on-demand-tools'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 const logger = createLogger('openwaggle-docs-tool')
 
@@ -139,7 +139,7 @@ interface DocsToolOutput {
   readonly details: unknown
 }
 
-function jsonOutput(details: unknown): DocsToolOutput {
+function jsonOutput(details: unknown) {
   return { text: JSON.stringify(details), details }
 }
 
@@ -162,7 +162,7 @@ async function discover(input: OpenWaggleDocsToolInput, includeExtensions: boole
       error: error instanceof Error ? error.message : String(error),
     })
     throw new Error(
-      `The OpenWaggle docs bundle could not be loaded from ${JSON.stringify(expected)}. In a development checkout, run \`pnpm docs:generate\` to build it; in an installed app, reinstall OpenWaggle. Answer from what you already know and say the docs were unavailable.`,
+      `The OpenWaggle docs bundle could not be loaded from ${JSON.stringify(expected)}. In a development checkout, run \`bun run docs:generate\` to build it; in an installed app, reinstall OpenWaggle. Answer from what you already know and say the docs were unavailable.`,
       { cause: error },
     )
   }
@@ -227,13 +227,13 @@ async function readTopic(
   }
 }
 
-function execute(input: OpenWaggleDocsToolInput, params: unknown): Promise<DocsToolOutput> {
+function execute(input: OpenWaggleDocsToolInput, params: unknown) {
   assertDocsToolArguments(params)
   return match(params)
     .with({ action: 'list' }, (list) => listTopics(input, list.source))
     .with({ action: 'search' }, (search) => searchTopics(input, search))
     .with({ action: 'read' }, (read) => readTopic(input, read))
-    .exhaustive()
+    .exhaustive() satisfies Promise<DocsToolOutput>
 }
 
 const DESCRIPTION =
@@ -257,10 +257,8 @@ const PI_DOCS_PROMPT_SECTION = 'docs'
 
 export const OPENWAGGLE_DOCS_PROMPT_SECTION = `OpenWaggle and Pi documentation: ${OPENWAGGLE_DOCS_TOOL_NAME} (load it with tool_search or call it from codemode) searches and reads the installed docs. Use it for questions about OpenWaggle itself (Hives and Worker Sessions, Waggle mode, settings, providers, MCP, extensions, skills, project actions, browser preview, worktrees, the hive CLI) and about pi itself (its SDK, extensions, themes, skills, TUI; source pi), instead of guessing from memory or file paths.`
 
-export function createOpenWaggleDocsToolExtension(
-  input: OpenWaggleDocsToolInput,
-): ExtensionFactory {
-  return (pi) => {
+export function createOpenWaggleDocsToolExtension(input: OpenWaggleDocsToolInput) {
+  return ((pi) => {
     onDemandToolRegistration(pi).registerTool({
       name: OPENWAGGLE_DOCS_TOOL_NAME,
       label: 'OpenWaggle Docs',
@@ -286,5 +284,5 @@ export function createOpenWaggleDocsToolExtension(
     announceOnDemandTools(pi, {
       section: { name: PI_DOCS_PROMPT_SECTION, text: OPENWAGGLE_DOCS_PROMPT_SECTION },
     })
-  }
+  }) satisfies SynchronousExtensionFactory
 }

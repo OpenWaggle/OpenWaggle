@@ -52,7 +52,7 @@ function stringEnv(values: Readonly<Record<string, string | undefined>>) {
  * runs each `env` value's `!command` (Pi's `resolveConfigValueOrThrow`, synchronous), so it is done
  * once per spawn and the result passed on.
  */
-function stdioLaunchInput(entry: McpServerEntry, cwd: string): StdioLaunch {
+function stdioLaunchInput(entry: McpServerEntry, cwd: string) {
   if (!('command' in entry.config)) throw new Error(`MCP server "${entry.name}" has no command`)
   const { config } = entry
   const env: Record<string, string> = {}
@@ -76,7 +76,7 @@ function stdioLaunchInput(entry: McpServerEntry, cwd: string): StdioLaunch {
 /** How long a server's first spawn waits for its package runner's bin to be resolved. */
 export const MCP_PACKAGE_RUNNER_PREPARE_WAIT_MS = 30_000
 
-function openStdio(configured: StdioLaunch, refreshPackage: boolean): McpUpstream {
+function openStdio(configured: StdioLaunch, refreshPackage: boolean) {
   // A package runner (`npx`, `pnpm dlx`, `bunx`) is skipped once its bin is known (D1.2).
   const launch = hostPackageRunnerBypass().launch(configured, { refresh: refreshPackage })
   const transport = new StdioTransport({
@@ -99,7 +99,7 @@ function openStdio(configured: StdioLaunch, refreshPackage: boolean): McpUpstrea
     transport,
     stderrTail: () => transport.stderr.trim().slice(-STDERR_TAIL_CHARS),
     close: () => stopMcpProcessGroup(pid ?? transport.pid),
-  }
+  } satisfies McpUpstream
 }
 
 /** Time the rest of a process group gets after SIGTERM before SIGKILL, as in pi-mcp. */
@@ -158,7 +158,7 @@ function openSse(
   config: { readonly url: string },
   headers: Record<string, string>,
   authProvider: AuthProvider | undefined,
-): McpUpstream {
+) {
   const fetch = serverFetch(entry, config.url)
   const authorized = authProvider
     ? createMcpAuthorizedFetch({ fetch, authProvider, serverUrl: new URL(config.url) })
@@ -177,19 +177,19 @@ function openSse(
       () => authorized?.authFailure(),
     ),
     close: () => fetch.close(),
-  }
+  } satisfies McpUpstream
 }
 
 function openHttp(
   entry: McpServerEntry,
   kind: McpTransportKind,
   authProvider: AuthProvider | undefined,
-): McpUpstream {
+) {
   const config = urlOf(entry)
   const headers =
     resolveHeadersOrThrow(config.headers, `MCP server "${entry.name}"`, mcpValueEnvironment()) ?? {}
   if (kind === 'websocket') {
-    return {
+    const upstream: McpUpstream = {
       transport: new McpSdkTransportAdapter(
         // The configured server may be plain ws:// or on a private network, as HTTP servers may.
         new LegacyWebSocketClientTransport({
@@ -200,10 +200,14 @@ function openHttp(
         }),
       ),
     }
+    return upstream
   }
-  if (kind === 'sse') return openSse(entry, config, headers, authProvider)
+  if (kind === 'sse') {
+    const upstream: McpUpstream = openSse(entry, config, headers, authProvider)
+    return upstream
+  }
   const fetch = serverFetch(entry, config.url)
-  return {
+  const upstream: McpUpstream = {
     transport: new StreamableHttpTransport({
       url: config.url,
       headers,
@@ -213,6 +217,7 @@ function openHttp(
     }),
     close: () => fetch.close(),
   }
+  return upstream
 }
 
 interface OpenPiMcpUpstreamInput {
@@ -229,7 +234,7 @@ interface OpenPiMcpUpstreamInput {
  * closing it stops a package runner such as `npx` together with the server), streamable HTTP over
  * OpenWaggle's hardened fetch, or the legacy SSE and WebSocket transports.
  */
-export function openPiMcpUpstream(input: OpenPiMcpUpstreamInput): McpUpstream {
+export function openPiMcpUpstream(input: OpenPiMcpUpstreamInput) {
   if (input.transport === 'stdio') {
     return openStdio(stdioLaunchInput(input.entry, input.cwd), input.refreshPackage === true)
   }
@@ -246,7 +251,7 @@ export function openPiMcpUpstream(input: OpenPiMcpUpstreamInput): McpUpstream {
  */
 export async function openPreparedPiMcpUpstream(
   input: OpenPiMcpUpstreamInput & { readonly prepareWaitMs?: number },
-): Promise<McpUpstream> {
+) {
   if (input.transport !== 'stdio') return openPiMcpUpstream(input)
   const launch = stdioLaunchInput(input.entry, input.cwd)
   try {

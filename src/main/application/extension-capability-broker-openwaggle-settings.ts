@@ -91,7 +91,7 @@ function selectedSettingValue(input: {
   readonly payload: ExtensionSettingsGetPayload
   readonly settings: Settings
   readonly defaultThinkingLevel: ThinkingLevel
-}): ExtensionSettingsSelectedValue {
+}) {
   return match(input.payload)
     .with({ key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES }, () => ({
       key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES,
@@ -100,7 +100,7 @@ function selectedSettingValue(input: {
     .with({ key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME }, (payload) =>
       toProjectDisplayNameValue(input.settings, payload.projectPath),
     )
-    .exhaustive()
+    .exhaustive() satisfies ExtensionSettingsSelectedValue
 }
 
 function invalidSettingProjectPath(input: BrokerRouteInput, message: string) {

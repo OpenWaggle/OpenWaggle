@@ -5,7 +5,7 @@ import { firingTiming, SCHEDULED_TASK_CATCH_UP_GRACE_MS } from '../scheduled-tas
 const MINUTE = 60_000
 const ANCHOR = Date.UTC(2026, 0, 5, 8)
 
-function record(overrides: Partial<ScheduledTaskRecord> = {}): ScheduledTaskRecord {
+function record(overrides: Partial<ScheduledTaskRecord> = {}) {
   return {
     id: 'task',
     ownerKey: 'local-user',
@@ -40,7 +40,7 @@ function record(overrides: Partial<ScheduledTaskRecord> = {}): ScheduledTaskReco
     createdAt: ANCHOR,
     updatedAt: ANCHOR,
     ...overrides,
-  }
+  } satisfies ScheduledTaskRecord
 }
 
 describe('Scheduled task firing timing', () => {

@@ -120,7 +120,7 @@ export function makeStorageInvocation(input: {
   readonly key?: string
   readonly value?: JsonValue
   readonly scope?: ExtensionInvokeInput['scope']
-}): ExtensionInvokeInput {
+}) {
   return {
     extensionId: input.extensionId ?? BROKER_EXTENSION_ID,
     contributionId: input.contributionId,
@@ -133,5 +133,5 @@ export function makeStorageInvocation(input: {
       ...(input.key !== undefined ? { key: input.key } : {}),
       ...(input.value !== undefined ? { value: input.value } : {}),
     },
-  }
+  } satisfies ExtensionInvokeInput
 }

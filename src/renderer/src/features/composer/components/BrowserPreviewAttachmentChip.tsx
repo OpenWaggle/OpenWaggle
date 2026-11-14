@@ -41,8 +41,9 @@ function annotationSummary(context: NonNullable<PreparedAttachment['browserPrevi
   if (context.elementCount) segments.push(countedLabel(context.elementCount, 'element'))
   if (context.regionCount) segments.push(countedLabel(context.regionCount, 'region'))
   if (context.drawingCount) segments.push(countedLabel(context.drawingCount, 'drawing'))
-  if (context.styleChangeCount)
+  if (context.styleChangeCount) {
     segments.push(countedLabel(context.styleChangeCount, 'style change'))
+  }
   return segments.join(' · ') || 'Preview annotation'
 }
 

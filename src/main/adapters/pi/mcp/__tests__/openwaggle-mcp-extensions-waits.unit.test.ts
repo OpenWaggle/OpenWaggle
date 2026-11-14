@@ -27,11 +27,12 @@ const mocks = vi.hoisted(() => {
 // Pi's MCP extension, reduced to its prompt-start wait for a server that is still connecting.
 vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@earendil-works/pi-coding-agent')>()),
-  createMcpExtension: (): ExtensionFactory => (pi) => {
-    pi.on('before_agent_start', (_event, ctx) => {
-      ctx.ui.notify('MCP servers are still connecting.', 'info')
-    })
-  },
+  createMcpExtension: () =>
+    ((pi) => {
+      pi.on('before_agent_start', (_event, ctx) => {
+        ctx.ui.notify('MCP servers are still connecting.', 'info')
+      })
+    }) satisfies ExtensionFactory,
 }))
 vi.mock('../openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpFilesOnce: async () => undefined,
@@ -122,7 +123,7 @@ describe("a Run's MCP extension", () => {
     mocks.servers = [{ name: 'off', config: { command: 'x', enabled: false } }]
     const extensions = await createOpenWaggleMcpExtensions(input)
     const mcp = extensions.find((extension) => typeof extension !== 'function')
-    const handlers: Array<(event: unknown, ctx: ExtensionContext) => unknown> = []
+    const handlers: ((event: unknown, ctx: ExtensionContext) => unknown)[] = []
     const notify = vi.fn<ExtensionUIContext['notify']>()
 
     if (typeof mcp === 'function' || !mcp) throw new Error('No MCP extension')

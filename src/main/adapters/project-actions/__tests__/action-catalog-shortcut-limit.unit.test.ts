@@ -12,7 +12,7 @@ import {
 const limit = PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT
 const shortcut = { shortcut: { key: 'K', mod: true } }
 
-function action(id: string, count: number): ActionDefinition {
+function action(id: string, count: number) {
   return {
     id,
     name: id,
@@ -22,19 +22,21 @@ function action(id: string, count: number): ActionDefinition {
     allowConcurrent: false,
     autoOpenPreview: false,
     shortcutRules: Array.from({ length: count }, () => shortcut),
-  }
+  } satisfies ActionDefinition
 }
 
-function manifest(actions: readonly ActionDefinition[]): ActionManifest {
-  return { version: 1, actions, profiles: [], preparation: [] }
+function manifest(actions: readonly ActionDefinition[]) {
+  const result: ActionManifest = { version: 1, actions, profiles: [], preparation: [] }
+  return result
 }
 
-function document(actions: readonly ActionDefinition[]): LocalActionDocument {
-  return {
+function document(actions: readonly ActionDefinition[]) {
+  const result: LocalActionDocument = {
     manifest: manifest(actions),
     reviews: [],
     migration: { version: 1, legacySource: null },
   }
+  return result
 }
 
 describe('effective native action shortcut limit', () => {

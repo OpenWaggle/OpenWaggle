@@ -60,7 +60,7 @@ function fromWorkspaceNode(
  */
 function persistedNodeId(message: UIMessage) {
   const nodeId = message.metadata?.sessionNodeId
-  return nodeId === undefined ? null : String(nodeId)
+  return nodeId ?? null
 }
 
 function indexMessagesByPersistedIdentity(messages: readonly UIMessage[]) {
@@ -229,14 +229,12 @@ export function resolveTranscriptMessages({
   activeWorkspace,
   messages,
   draftBranchSourceNodeId,
-}: ResolveTranscriptMessagesInput): UIMessage[] {
+}: ResolveTranscriptMessagesInput) {
   if (!activeSessionId || !activeWorkspace) {
     return messages
   }
 
-  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) {
-    return messages
-  }
+  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) return messages
 
   const workspaceMessages = workspacePathToMessages(activeWorkspace, messages)
   if (workspaceMessages.length === 0) {

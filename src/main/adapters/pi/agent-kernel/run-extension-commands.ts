@@ -23,10 +23,10 @@ export function forgetRunExtensionCommands(sessionId: string) {
 export function withRunExtensionCommands(
   sessionId: string,
   commands: readonly AgentExtensionCommand[],
-): AgentExtensionCommand[] {
+) {
   const named = new Set(commands.map((command) => command.name))
   const runOnly = (runCommandsBySession.get(sessionId) ?? []).filter(
     (command) => !named.has(command.name),
   )
-  return [...commands, ...runOnly]
+  return [...commands, ...runOnly] satisfies AgentExtensionCommand[]
 }

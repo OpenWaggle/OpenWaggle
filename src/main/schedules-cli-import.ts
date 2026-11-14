@@ -43,9 +43,21 @@ function unknownExportVersionRefusal(version: unknown) {
  * bare task array betas before 1.0 printed. Both stay importable for all of 1.x. An envelope with
  * a newer `schemaVersion` is refused, so a newer export is never half-read.
  */
-function importedScheduledTasks(parsed: unknown): readonly ScheduledTaskInput[] {
-  if (Array.isArray(parsed)) return decodeUnknownExactOrThrow(importedTasksSchema, parsed)
-  if (isRecord(parsed) && parsed.type === SCHEDULED_TASKS_EXPORT_TYPE) {
+/** The envelope `schedules export` prints; its version decides how the rest decodes. */
+const scheduledTasksEnvelopeSchema = Schema.Struct({
+  type: Schema.Literal(SCHEDULED_TASKS_EXPORT_TYPE),
+  schemaVersion: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+function importedScheduledTasks(parsed: unknown) {
+  if (Array.isArray(parsed)) {
+    const input: readonly ScheduledTaskInput[] = decodeUnknownExactOrThrow(
+      importedTasksSchema,
+      parsed,
+    )
+    return input
+  }
+  if (isRecord(parsed) && Schema.is(scheduledTasksEnvelopeSchema)(parsed)) {
     const decode =
       typeof parsed.schemaVersion === 'number'
         ? IMPORTABLE_EXPORT_VERSIONS.get(parsed.schemaVersion)
@@ -53,7 +65,10 @@ function importedScheduledTasks(parsed: unknown): readonly ScheduledTaskInput[] 
     if (!decode) throw unknownExportVersionRefusal(parsed.schemaVersion)
     return decode(parsed)
   }
-  return decodeUnknownExactOrThrow(importedTasksSchema, [parsed])
+  const input: readonly ScheduledTaskInput[] = decodeUnknownExactOrThrow(importedTasksSchema, [
+    parsed,
+  ])
+  return input
 }
 
 export async function readImport(source: string | undefined) {

@@ -99,21 +99,19 @@ function legacyProjectActionShortcut(action: LegacyProjectActionShortcutCarrier)
 }
 
 /** Converts the legacy one-shortcut shape without rewriting the user's file on read. */
-export function projectActionShortcutRules(
-  action: ProjectAction,
-): readonly ProjectActionShortcutRule[] {
+export function projectActionShortcutRules(action: ProjectAction) {
   if (action.shortcutRules !== undefined) return action.shortcutRules
   const legacyShortcut = legacyProjectActionShortcut(action)
-  return legacyShortcut === undefined ? [] : [{ shortcut: legacyShortcut }]
+  const rule: readonly ProjectActionShortcutRule[] =
+    legacyShortcut === undefined ? [] : [{ shortcut: legacyShortcut }]
+  return rule
 }
 
 /**
  * Flattens nested action rules into T3's global rule order. Explicit orders let an edited rule move
  * to the end without changing the visible action order; legacy rules keep their file order.
  */
-export function orderedProjectActionShortcuts(
-  actions: readonly ProjectAction[],
-): readonly OrderedProjectActionShortcut[] {
+export function orderedProjectActionShortcuts(actions: readonly ProjectAction[]) {
   const entries: OrderedProjectActionShortcut[] = []
   let fallbackOrder = 0
   actions.forEach((action, actionIndex) => {

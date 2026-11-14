@@ -33,7 +33,7 @@ function rowsFor(input: {
     sessionId: 'session-a',
     waggleMetadataLookup: {},
     phase: IDLE_PHASE,
-    firstSendPending: input.firstSendPending,
+    ...(input.firstSendPending === undefined ? {} : { firstSendPending: input.firstSendPending }),
     ...(input.interrupted
       ? {
           interruptedRun: {
@@ -46,7 +46,7 @@ function rowsFor(input: {
           },
         }
       : {}),
-    worktreeLaunch: input.worktreeLaunch,
+    ...(input.worktreeLaunch === undefined ? {} : { worktreeLaunch: input.worktreeLaunch }),
   })
 }
 

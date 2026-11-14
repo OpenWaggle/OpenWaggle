@@ -3,10 +3,7 @@ import type { ProjectAction } from '@shared/types/project-actions'
 import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  type BuiltInShortcutHandlers,
-  useUnifiedShortcutCapture,
-} from '../useUnifiedShortcutCapture'
+import { useUnifiedShortcutCapture } from '../useUnifiedShortcutCapture'
 
 const ipcMocks = vi.hoisted(() => {
   const listeners = new Set<(event: BrowserPreviewKeyEvent) => void>()
@@ -30,7 +27,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function handlers(): BuiltInShortcutHandlers {
+function handlers() {
   return {
     'commandPalette.toggle': vi.fn(),
     'filePicker.toggle': vi.fn(),
@@ -63,7 +60,7 @@ function handlers(): BuiltInShortcutHandlers {
   }
 }
 
-function previewKeyEvent(overrides: Partial<BrowserPreviewKeyEvent> = {}): BrowserPreviewKeyEvent {
+function previewKeyEvent(overrides: Partial<BrowserPreviewKeyEvent> = {}) {
   return {
     previewId: 'preview-1',
     type: 'keydown',
@@ -76,7 +73,7 @@ function previewKeyEvent(overrides: Partial<BrowserPreviewKeyEvent> = {}): Brows
     isComposing: false,
     repeat: false,
     ...overrides,
-  }
+  } satisfies BrowserPreviewKeyEvent
 }
 
 describe('useUnifiedShortcutCapture native browser preview events', () => {
@@ -173,7 +170,7 @@ describe('useUnifiedShortcutCapture native browser preview events', () => {
   it('suppresses repeats and never treats an open terminal as terminal focus', () => {
     const commandHandlers = handlers()
     const terminal = document.createElement('div')
-    terminal.dataset.terminalPane = ''
+    terminal.setAttribute('data-terminal-pane', '')
     document.body.append(terminal)
     renderHook(() =>
       useUnifiedShortcutCapture({

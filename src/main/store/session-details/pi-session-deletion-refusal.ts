@@ -1,4 +1,4 @@
-import { isRecord } from '@shared/utils/validation'
+import { errorCode } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
@@ -12,9 +12,9 @@ const MAX_CAUSE_DEPTH = 4
 function brokeConstraint(cause: unknown) {
   let current: unknown = cause
   for (let depth = 0; depth < MAX_CAUSE_DEPTH && current; depth++) {
-    const code = isRecord(current) ? current.code : undefined
+    const code = errorCode(current)
     if (typeof code === 'string' && code.startsWith('SQLITE_CONSTRAINT')) return true
-    current = isRecord(current) ? current.cause : undefined
+    current = typeof current === 'object' && 'cause' in current ? current.cause : undefined
   }
   return false
 }

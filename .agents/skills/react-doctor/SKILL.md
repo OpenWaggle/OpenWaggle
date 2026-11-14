@@ -20,31 +20,23 @@ React Doctor is a CLI diagnostic tool that scans React codebases for security, p
 
 ### Step 1: Run diagnostics
 
-For tasks on a feature branch (most common):
+React Doctor is a pinned devDependency and a required gate that fails on warnings:
 
 ```bash
-npx -y react-doctor@latest . --verbose --scope changed --base main
+bun run check:react-doctor
 ```
 
-For full project audit:
+For a feature branch, only the issues new against `main`:
 
 ```bash
-npx -y react-doctor@latest . --verbose
+bunx --no-install react-doctor . --verbose --scope changed --base main --no-score -y
 ```
 
-For a quick score check:
+For selected files:
 
 ```bash
-npx -y react-doctor@latest . --score
+bunx --no-install react-doctor src/a.tsx src/b.ts --verbose --no-score -y
 ```
-
-To skip dead code detection (faster, lint-only):
-
-```bash
-npx -y react-doctor@latest . --verbose --no-dead-code
-```
-
-When prompted to select projects, choose `openwaggle`.
 
 ### Step 2: Interpret results
 

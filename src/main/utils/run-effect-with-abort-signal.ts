@@ -14,7 +14,7 @@ import * as Effect from 'effect/Effect'
 export async function runEffectWithAbortSignal<A, E>(
   effect: Effect.Effect<A, E>,
   signal?: AbortSignal,
-): Promise<A> {
+) {
   if (!signal) return Effect.runPromise(effect)
   if (signal.aborted) return Effect.runPromise(effect, { signal })
   const run = new AbortController()

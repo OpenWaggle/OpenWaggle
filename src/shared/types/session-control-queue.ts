@@ -1,5 +1,16 @@
-import type { AttachmentKind, AttachmentOrigin, InlineVisualizationContext } from './agent'
-import type { WaggleInvocationInput } from './waggle'
+import type { SchemaType } from '@shared/schema'
+import type {
+  followUpEditHoldReferenceSchema,
+  queueAdoptCommandSchema,
+  queueEditBeginCommandSchema,
+  queueEditCancelCommandSchema,
+  queueEditSaveCommandSchema,
+  queuePauseCommandSchema,
+  queueReorderCommandSchema,
+  queueResumeCommandSchema,
+  queueWithdrawCommandSchema,
+} from '@shared/schemas/session-control-commands'
+import type { AttachmentKind, AttachmentOrigin } from './agent'
 
 export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
 
@@ -10,11 +21,7 @@ export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
 export const FOLLOW_UP_EDIT_CALLER_ID = 'gui:local-user'
 
 /** Names one Follow-up edit hold (ADR 0044). */
-export interface FollowUpEditHoldReference {
-  readonly sessionId: string
-  readonly followUpId: string
-  readonly holdId: string
-}
+export type FollowUpEditHoldReference = SchemaType<typeof followUpEditHoldReferenceSchema>
 
 /**
  * Why a Follow-up queue stopped delivering. Recorded when the queue goes from running to paused and
@@ -50,43 +57,15 @@ export function isFollowUpQueuePauseReason(value: unknown): value is FollowUpQue
   return FOLLOW_UP_QUEUE_PAUSE_REASONS.some((reason) => reason === value)
 }
 
-export interface SessionControlQueueWithdrawCommand {
-  readonly operation: 'queue-withdraw'
-  readonly sessionId: string
-  readonly followUpIds: readonly string[]
-}
+export type SessionControlQueueWithdrawCommand = SchemaType<typeof queueWithdrawCommandSchema>
 
-export interface SessionControlQueueReorderCommand {
-  readonly operation: 'queue-reorder'
-  readonly sessionId: string
-  readonly expectedQueueRevision: number
-  readonly orderedFollowUpIds: readonly string[]
-}
+export type SessionControlQueueReorderCommand = SchemaType<typeof queueReorderCommandSchema>
 
-export interface SessionControlQueuePauseCommand {
-  readonly operation: 'queue-pause'
-  readonly sessionId: string
-  readonly expectedQueueRevision: number
-}
+export type SessionControlQueuePauseCommand = SchemaType<typeof queuePauseCommandSchema>
 
-export interface SessionControlQueueResumeCommand {
-  readonly operation: 'queue-resume'
-  readonly sessionId: string
-  readonly expectedQueueRevision: number
-}
+export type SessionControlQueueResumeCommand = SchemaType<typeof queueResumeCommandSchema>
 
-/**
- * Re-authors a needs-attention Follow-up (`profile_revoked`, `authority_changed`) as the calling
- * desktop user, so it can be delivered under the user's own authority. The Follow-up keeps its
- * content and position; its original author stays as `authorCallerId` for provenance. It carries
- * no Run authorization override. Desktop app only; revision-guarded like other queue changes.
- */
-export interface SessionControlQueueAdoptCommand {
-  readonly operation: 'queue-adopt'
-  readonly sessionId: string
-  readonly followUpId: string
-  readonly expectedQueueRevision: number
-}
+export type SessionControlQueueAdoptCommand = SchemaType<typeof queueAdoptCommandSchema>
 
 export type SessionControlQueueMutationCommand =
   | SessionControlQueuePauseCommand
@@ -94,40 +73,11 @@ export type SessionControlQueueMutationCommand =
   | SessionControlQueueResumeCommand
   | SessionControlQueueWithdrawCommand
 
-/** The replaceable part of a queued Follow-up: the Follow-up edit input. */
-export interface SessionControlFollowUpEditInput {
-  readonly text: string
-  readonly attachmentIds: readonly string[]
-  /** Present to keep or add a Waggle invocation; omitted to remove it. */
-  readonly waggle?: WaggleInvocationInput
-  /** Present to keep or set a visualization context; omitted to remove it. */
-  readonly visualizationContext?: InlineVisualizationContext
-}
+export type SessionControlQueueEditBeginCommand = SchemaType<typeof queueEditBeginCommandSchema>
 
-/** Asks the Host to hold one Follow-up for a Follow-up edit (desktop user only). */
-export interface SessionControlQueueEditBeginCommand {
-  readonly operation: 'queue-edit-begin'
-  readonly sessionId: string
-  readonly followUpId: string
-}
+export type SessionControlQueueEditSaveCommand = SchemaType<typeof queueEditSaveCommandSchema>
 
-/** Replaces a held Follow-up's intent snapshot in place and releases its hold. */
-export interface SessionControlQueueEditSaveCommand {
-  readonly operation: 'queue-edit-save'
-  readonly sessionId: string
-  readonly followUpId: string
-  readonly holdId: string
-  readonly expectedQueueRevision: number
-  readonly input: SessionControlFollowUpEditInput
-}
-
-/** Releases a Follow-up edit hold without changing the Follow-up. Releasing a gone hold succeeds. */
-export interface SessionControlQueueEditCancelCommand {
-  readonly operation: 'queue-edit-cancel'
-  readonly sessionId: string
-  readonly followUpId: string
-  readonly holdId: string
-}
+export type SessionControlQueueEditCancelCommand = SchemaType<typeof queueEditCancelCommandSchema>
 
 export type SessionControlQueueEditCommand =
   | SessionControlQueueEditBeginCommand
@@ -183,58 +133,4 @@ export interface SessionFollowUpAttachmentDescriptor {
   readonly name: string
   readonly mimeType: string
   readonly sizeBytes: number
-}
-
-export type SessionControlQueueOutcome =
-  | {
-      readonly operation:
-        | SessionControlQueueMutationCommand['operation']
-        | 'queue-adopt'
-        | 'queue-edit-save'
-        | 'queue-edit-cancel'
-      readonly effect: 'queue-updated'
-      readonly sessionId: string
-      readonly queueState: 'running' | 'paused'
-      readonly queueRevision: number
-      /** The Follow-ups still queued after the change, in delivery order. */
-      readonly remainingFollowUpIds: readonly string[]
-      /** `queue-withdraw` only: the Follow-ups this call removed. */
-      readonly withdrawnFollowUpIds?: readonly string[]
-      readonly stateRevision: number
-    }
-  | {
-      /**
-       * A queue change that leaves an idle Session's queue able to deliver starts its next
-       * Follow-up, the same way resumption does (for example withdrawing or saving a held head).
-       */
-      readonly operation:
-        | 'queue-resume'
-        | 'queue-withdraw'
-        | 'queue-reorder'
-        | 'queue-adopt'
-        | 'queue-edit-save'
-        | 'queue-edit-cancel'
-      readonly effect: 'started-run'
-      readonly sessionId: string
-      readonly runId: string
-      readonly followUpId: string
-      /** `queue-withdraw` only: the Follow-ups this call removed. */
-      readonly withdrawnFollowUpIds?: readonly string[]
-      readonly queueRevision: number
-      readonly stateRevision: number
-    }
-  | SessionControlFollowUpEditHeldOutcome
-
-/** The `queue-edit-begin` outcome: the Host holds the Follow-up for this caller's edit. */
-export interface SessionControlFollowUpEditHeldOutcome {
-  readonly operation: 'queue-edit-begin'
-  readonly effect: 'follow-up-edit-held'
-  readonly sessionId: string
-  readonly followUpId: string
-  /** Names the hold to save, cancel, or renew it. Only the holder learns it. */
-  readonly holdId: string
-  /** When the hold expires unless renewed (Host clock, epoch milliseconds). */
-  readonly leaseExpiresAt: number
-  readonly queueRevision: number
-  readonly stateRevision: number
 }

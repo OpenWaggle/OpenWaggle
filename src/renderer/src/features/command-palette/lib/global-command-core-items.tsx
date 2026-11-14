@@ -54,7 +54,7 @@ function createProjectItems(
   projectPath: string | null,
   settings: Settings,
   actions: CoreCommandActions,
-): CommandPaletteItem[] {
+) {
   return [
     {
       id: 'new-session',
@@ -98,7 +98,7 @@ function createProjectItems(
       section: 'Project',
       action: () => void actions.selectProject('open'),
     },
-  ]
+  ] satisfies CommandPaletteItem[]
 }
 
 /** The shown Session, and the extension panels that can open here and so own their chords. */
@@ -131,9 +131,9 @@ function createSessionLinkItems(
   context: SessionLinkCommandContext,
   settings: Settings,
   actions: CoreCommandActions,
-): CommandPaletteItem[] {
+) {
   const { sessionId } = context
-  if (sessionId === null) return []
+  if (sessionId === null) return [] satisfies CommandPaletteItem[]
   return [
     {
       id: 'copy-session-link',
@@ -144,11 +144,11 @@ function createSessionLinkItems(
       trailing: copySessionLinkHint(settings, context.openablePanelIds),
       action: () => actions.finish(() => actions.copySessionLink(sessionId)),
     },
-  ]
+  ] satisfies CommandPaletteItem[]
 }
 
-function createSessionItems(actions: CoreCommandActions): CommandPaletteItem[] {
-  return [
+function createSessionItems(actions: CoreCommandActions) {
+  const item: CommandPaletteItem[] = [
     {
       id: 'compact-session',
       label: 'Compact session',
@@ -176,13 +176,11 @@ function createSessionItems(actions: CoreCommandActions): CommandPaletteItem[] {
       action: () => actions.finish(() => actions.requestSessionCommand('clone-session')),
     },
   ]
+  return item
 }
 
-function createViewAndOpenItems(
-  settings: Settings,
-  actions: CoreCommandActions,
-): CommandPaletteItem[] {
-  return [
+function createViewAndOpenItems(settings: Settings, actions: CoreCommandActions) {
+  const item: CommandPaletteItem[] = [
     {
       id: 'toggle-sidebar',
       label: 'Toggle sidebar',
@@ -236,6 +234,7 @@ function createViewAndOpenItems(
       action: () => actions.finish(actions.openFeedbackModal),
     },
   ]
+  return item
 }
 
 export function createCoreCommandItems(
@@ -256,7 +255,7 @@ export function createRecentProjectItems(
   settings: Settings,
   sessions: readonly SessionSummary[],
   actions: CoreCommandActions,
-): CommandPaletteItem[] {
+) {
   return settings.recentProjects.map((path) => ({
     id: `project:${path}`,
     label: settings.projectDisplayNames[path] ?? projectName(path),
@@ -287,7 +286,7 @@ export function createRecentSessionItems(
   sessions: readonly SessionSummary[],
   actions: CoreCommandActions,
   runningTerminalCounts: ReadonlyMap<string, number> = new Map(),
-): CommandPaletteItem[] {
+) {
   return [...sessions]
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .slice(0, RECENT_SESSION_LIMIT)

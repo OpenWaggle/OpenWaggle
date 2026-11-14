@@ -9,7 +9,7 @@
  */
 import { JSONSchema, type Schema } from 'effect'
 
-export type JsonSchemaNode = { readonly [key: string]: unknown }
+export type JsonSchemaNode = Readonly<Record<string, unknown>>
 
 /** Keywords to merge into the node at each JSON Pointer of the generated schema. */
 export type JsonSchemaOverlay = Readonly<Record<string, JsonSchemaNode>>
@@ -25,7 +25,7 @@ const GENERATED_ANNOTATIONS = new Set(['title', 'description', '$schema'])
 /** Keywords whose value maps names to schemas, so its own keys are names, not keywords. */
 const SCHEMA_MAPS = new Set(['properties', 'patternProperties', '$defs'])
 
-function cleanSchemaMap(value: unknown): unknown {
+function cleanSchemaMap(value: unknown) {
   if (!isNode(value)) return value
   return Object.fromEntries(
     Object.entries(value).map(([name, entry]) => [name, withoutGeneratedAnnotations(entry)]),
@@ -43,8 +43,9 @@ function withoutGeneratedAnnotations(value: unknown): unknown {
     Object.entries(value)
       .filter(([key, entry]) => {
         if (GENERATED_ANNOTATIONS.has(key)) return false
-        if (key === '$id' && typeof entry === 'string' && entry.startsWith('/schemas/'))
+        if (key === '$id' && typeof entry === 'string' && entry.startsWith('/schemas/')) {
           return false
+        }
         return !(key === 'required' && Array.isArray(entry) && entry.length === 0)
       })
       .map(([key, entry]) => [
@@ -117,9 +118,9 @@ export function publishedSchemaRoot(header: PublishedSchemaHeader, body: JsonSch
 
 /** JSON Schema 2020-12 for a runtime schema, with curated descriptions instead of Effect's. */
 export function jsonSchemaFromEffect<A, I>(
-  schema: Schema.Schema<A, I, never>,
+  schema: Schema.Schema<A, I>,
   overlay: JsonSchemaOverlay,
-): JsonSchemaNode {
+) {
   const generated = withoutGeneratedAnnotations(
     JSONSchema.make(schema, { target: 'jsonSchema2020-12' }),
   )

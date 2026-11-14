@@ -9,12 +9,17 @@ export class DeferredTransport extends WireTransportEvents implements McpWireTra
   private protocolVersion: string | undefined
   private closed = false
 
+  private readonly create: () => Promise<McpWireTransport>
+  /** Replaces a start failure with the error a wrapped fetch saw, such as a needed sign-in. */
+  private readonly startFailure: () => Error | undefined
+
   constructor(
-    private readonly create: () => Promise<McpWireTransport>,
-    /** Replaces a start failure with the error a wrapped fetch saw, such as a needed sign-in. */
-    private readonly startFailure: () => Error | undefined = () => undefined,
+    create: () => Promise<McpWireTransport>,
+    startFailure: () => Error | undefined = () => undefined,
   ) {
     super()
+    this.create = create
+    this.startFailure = startFailure
   }
 
   async start() {

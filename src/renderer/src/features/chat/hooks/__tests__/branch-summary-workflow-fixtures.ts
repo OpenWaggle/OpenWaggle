@@ -17,7 +17,7 @@ function node(input: {
   readonly parentId?: string | null
   readonly depth: number
   readonly order: number
-}): SessionNode {
+}) {
   return {
     id: SessionNodeId(input.id),
     sessionId: SESSION_ID,
@@ -30,21 +30,21 @@ function node(input: {
     pathDepth: input.depth,
     contentJson: '{}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
-function treeUiState(): SessionTreeUiState {
+function treeUiState() {
   return {
     sessionId: SESSION_ID,
     expandedNodeIds: [SOURCE_NODE_ID],
     expandedNodeIdsTouched: true,
     branchesSidebarCollapsed: false,
     updatedAt: 1,
-  }
+  } satisfies SessionTreeUiState
 }
 
-function tree(): SessionTree {
-  return {
+function tree() {
+  const result: SessionTree = {
     session: {
       id: SESSION_ID,
       title: 'Branch workflow',
@@ -57,6 +57,7 @@ function tree(): SessionTree {
     branchStates: [],
     uiState: treeUiState(),
   }
+  return result
 }
 
 export function workspace(input: {
@@ -64,7 +65,7 @@ export function workspace(input: {
   readonly nodeId: SessionNodeId
   readonly projectPath?: string | null
   readonly sessionId?: SessionId
-}): SessionWorkspace {
+}) {
   const sessionTree = tree()
   const activeNode = node({ id: String(input.nodeId), depth: 1, order: 2 })
   return {
@@ -80,5 +81,5 @@ export function workspace(input: {
     activeBranchId: input.branchId,
     activeNodeId: input.nodeId,
     transcriptPath: [{ node: activeNode, isActive: true }],
-  }
+  } satisfies SessionWorkspace
 }

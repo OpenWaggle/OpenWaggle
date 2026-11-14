@@ -4,10 +4,7 @@ import {
   FOLLOW_UP_EDIT_ATTACHMENT_RETENTION_MS,
   FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS,
 } from '../domain/session-control/follow-up-edit-lease'
-import type {
-  SessionControlFollowUpEditHold,
-  SessionControlSessionState,
-} from '../domain/session-control/message-aggregate'
+import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 
 /**
  * Follow-up edit holds are lease state (ADR 0044). They live in connection-scoped SQLite TEMP
@@ -67,7 +64,7 @@ export function ensureFollowUpEditHoldTable(sql: SqlClient.SqlClient) {
   })
 }
 
-function toHold(row: EditHoldRow): SessionControlFollowUpEditHold {
+function toHold(row: EditHoldRow) {
   return {
     holdId: row.hold_id,
     holderCallerId: row.holder_caller_id,

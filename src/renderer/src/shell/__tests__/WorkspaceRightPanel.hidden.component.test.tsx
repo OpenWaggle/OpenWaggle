@@ -1,47 +1,31 @@
 import { render, screen } from '@testing-library/react'
-import type { ComponentProps } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useTerminalStore } from '@/features/terminal'
-import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
-import type { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceRightPanel } from '../WorkspaceRightPanel'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
+import { DRAFT_OWNER, resetWorkspaceShellStores } from './workspace-shell.test-harness'
 
-vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
-vi.mock('@/features/chat/hooks', () => ({ useChat: () => ({ activeSession: null }) }))
-vi.mock('@/features/sessions/hooks', () => ({
-  useProject: () => ({ projectPath: '/repo' }),
-  useSessionProjectPath: () => '/repo',
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    setCurrentBrowserPreview: async () => undefined,
+  }),
 }))
-vi.mock('../useBrowserPreviewOwnerRegistration', () => ({
-  useBrowserPreviewOwnerRegistration: vi.fn(),
-}))
-vi.mock('../WorkspacePanelContent', () => ({ WorkspacePanelContent: () => null }))
-vi.mock('../WorkspaceSurfaceTabs', () => ({ WorkspaceSurfaceTabs: () => null }))
-vi.mock('@/shared/ui/RightSidebarLayout', () => ({
-  RightSidebarLayout: ({ open, children }: ComponentProps<typeof RightSidebarLayout>) => (
-    <div data-testid="layout" data-open={String(open)}>
-      {children}
-    </div>
-  ),
-}))
-
-const OWNER = 'draft:/repo'
+// Lazily loaded All panels surface: its own tests cover it, and it needs the router.
+vi.mock('../right-panel/AllPanelsSurface', () => ({ AllPanelsSurface: () => <p>All panels</p> }))
 
 describe('WorkspaceRightPanel on Settings pages', () => {
   beforeEach(() => {
-    useWorkspacePanelStore.setState({ groups: {} })
-    useTerminalStore.setState({ groups: {} })
-    useRightSidebarCoordinator.setState({ activeClaim: null })
-    useWorkspacePanelStore.getState().showIndexSurface(OWNER, 'all-panels')
+    resetWorkspaceShellStores()
+    useWorkspacePanelStore.getState().showIndexSurface(DRAFT_OWNER, 'all-panels')
   })
+  afterEach(resetWorkspaceShellStores)
 
-  it('hides the open panel without closing it, so it returns with the Session', () => {
+  it('hides the open panel without closing it, so it returns with the Session', async () => {
     const { rerender } = render(<WorkspaceRightPanel hidden>Settings</WorkspaceRightPanel>)
-    expect(screen.getByTestId('layout')).toHaveAttribute('data-open', 'false')
-    expect(useWorkspacePanelStore.getState().groups[OWNER]?.panelOpen).toBe(true)
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    expect(useWorkspacePanelStore.getState().groups[DRAFT_OWNER]?.panelOpen).toBe(true)
 
     rerender(<WorkspaceRightPanel>Chat</WorkspaceRightPanel>)
-    expect(screen.getByTestId('layout')).toHaveAttribute('data-open', 'true')
+    expect(await screen.findByText('All panels')).toBeVisible()
+    expect(screen.getByRole('complementary')).toContainElement(screen.getByText('All panels'))
   })
 })

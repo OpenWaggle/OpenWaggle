@@ -5,16 +5,15 @@
  * one lifecycle: read the current version and status, check, install, and subscribe to progress.
  */
 
-import type { UpdateChannel } from './update-channel'
-import type { UpdateStatus } from './updater'
+import type { IpcEventMethod, IpcInvokeMethod } from './ipc-api-methods'
 
 export interface OpenWaggleUpdaterApi {
-  checkForUpdates(channel?: UpdateChannel): Promise<void>
+  checkForUpdates: IpcInvokeMethod<'updater:check'>
   /** Restart to update; asks first when agent runs are active. */
-  installUpdate(): Promise<void>
+  installUpdate: IpcInvokeMethod<'updater:install'>
   /** Restart now, stopping any active agent runs; ends a Restart when idle wait. */
-  installUpdateNow(): Promise<void>
-  getUpdateStatus(): Promise<UpdateStatus>
-  getAppVersion(): Promise<string>
-  onUpdateStatus(callback: (payload: UpdateStatus) => void): () => void
+  installUpdateNow: IpcInvokeMethod<'updater:install-now'>
+  getUpdateStatus: IpcInvokeMethod<'updater:get-status'>
+  getAppVersion: IpcInvokeMethod<'app:get-version'>
+  onUpdateStatus: IpcEventMethod<'updater:status-changed'>
 }

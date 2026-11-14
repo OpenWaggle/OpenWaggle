@@ -39,7 +39,8 @@ interface TerminalPanelHeaderProps {
     readonly setFocusedPaneId: (terminalId: string | null) => void
     readonly onClosePanel: () => void
     readonly onCloseTab: (tab: TerminalTabState) => void
-    readonly onDockActiveTab?: (tabId: string) => void
+    /** Docks the active tab into the drawer; undefined where the panel cannot dock. */
+    readonly onDockActiveTab: ((tabId: string) => void) | undefined
   }
 }
 
@@ -122,7 +123,7 @@ export function TerminalPanelHeader(props: TerminalPanelHeaderProps) {
           newTerminal,
           splitSideBySide: () => splitActiveTab('side-by-side'),
           splitVertical: () => splitActiveTab('stacked'),
-          dockActiveTab,
+          ...(dockActiveTab === undefined ? {} : { dockActiveTab }),
           closePanel: actions.onClosePanel,
         }}
         closePanelLabel={model.closePanelLabel}

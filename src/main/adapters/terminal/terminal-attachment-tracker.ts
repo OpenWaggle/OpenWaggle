@@ -16,7 +16,7 @@ export interface TerminalAttachmentTracker {
   readonly clear: () => void
 }
 
-export function makeTerminalAttachmentTracker(): TerminalAttachmentTracker {
+export function makeTerminalAttachmentTracker() {
   const attached = new Map<TerminalKey, AttachmentState>()
 
   const replace = (key: TerminalKey, surfaces: ReadonlySet<number>) => {
@@ -65,5 +65,5 @@ export function makeTerminalAttachmentTracker(): TerminalAttachmentTracker {
     isAttached: (key) => attached.has(key),
     forget: (key) => attached.delete(key),
     clear: () => attached.clear(),
-  }
+  } satisfies TerminalAttachmentTracker
 }

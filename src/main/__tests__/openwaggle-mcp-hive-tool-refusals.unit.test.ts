@@ -31,13 +31,13 @@ function hiveTool(grants: readonly SessionCapability[], execute: () => Promise<n
   )
   const handler: unknown = registerTool.mock.calls[0]?.[2]
   if (typeof handler !== 'function') throw new Error('No tool handler was registered.')
-  return (input: object): Promise<unknown> => handler(input)
+  return (input: object) => handler(input)
 }
 
 /** Every openwaggle_hive refusal starts with its code and kind (ADR 0063). */
 describe('openwaggle_hive refusals', () => {
   it('names the kind of a refusal the Session Host throws at the scope check', async () => {
-    const execute = vi.fn(async (): Promise<never> => {
+    const execute = vi.fn<() => Promise<never>>(async () => {
       throw new LocalSessionClientProtocolError(
         'capability_denied',
         'Session command refused (capability_denied): no read.',
@@ -54,7 +54,7 @@ describe('openwaggle_hive refusals', () => {
   })
 
   it('names the kind of its own grant check', async () => {
-    const execute = vi.fn(async (): Promise<never> => {
+    const execute = vi.fn<() => Promise<never>>(async () => {
       throw new Error('The Session Host must not be asked.')
     })
 
@@ -67,7 +67,7 @@ describe('openwaggle_hive refusals', () => {
   })
 
   it('names the kind of its workspace check for Agent-definition discovery', async () => {
-    const execute = vi.fn(async (): Promise<never> => {
+    const execute = vi.fn<() => Promise<never>>(async () => {
       throw new Error('The Session Host must not be asked.')
     })
 
@@ -77,7 +77,7 @@ describe('openwaggle_hive refusals', () => {
   })
 
   it('names the kind of its export-root check', async () => {
-    const execute = vi.fn(async (): Promise<never> => {
+    const execute = vi.fn<() => Promise<never>>(async () => {
       throw new Error('The Session Host must not be asked.')
     })
 

@@ -3,7 +3,9 @@
  * Pi's "Migrate configuration from another client" describes, plus
  * `type: "sse"` for SSE endpoints (OpenWaggle keeps a legacy SSE transport).
  */
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 import { urlWithoutCredentials } from './import-credentials'
 import { piServerName } from './import-identity'
 import type { ExternalMcpImportSource, PiMcpEntry } from './import-types'
@@ -17,7 +19,45 @@ import {
   stringArray,
 } from './import-values'
 
-type Raw = Record<string, unknown>
+const unknownField = Schema.optionalWith(Schema.Unknown, { exact: true })
+
+/**
+ * The fields of a source entry the importer converts. Their values stay unknown here: each
+ * converter checks its own field and warns about a value of the wrong shape.
+ */
+const rawEntrySchema = Schema.Struct({
+  command: unknownField,
+  args: unknownField,
+  cwd: unknownField,
+  env: unknownField,
+  url: unknownField,
+  headers: unknownField,
+  type: unknownField,
+  enabled: unknownField,
+  disabled: unknownField,
+  description: unknownField,
+  oauth: unknownField,
+  http_headers: unknownField,
+  env_http_headers: unknownField,
+  bearer_token_env_var: unknownField,
+  tool_timeout_sec: unknownField,
+  startup_timeout_sec: unknownField,
+  startup_timeout_ms: unknownField,
+  enabled_tools: unknownField,
+  disabled_tools: unknownField,
+  environment: unknownField,
+  serverUrl: unknownField,
+})
+
+type Raw = SchemaType<typeof rawEntrySchema>
+
+/** Zed's `command: { path, args, env }`. */
+const zedCommandSchema = Schema.Struct({
+  path: unknownField,
+  args: unknownField,
+  env: unknownField,
+})
+const decodeZedCommand = Schema.decodeUnknownOption(zedCommandSchema)
 
 const GENERIC_FIELDS = [
   'command',
@@ -66,19 +106,25 @@ const PI_OAUTH_STRING_FIELDS = ['clientId', 'clientSecret', 'callbackUrl', 'clie
 const CODEX_FALLBACK_TOOL_PATTERN = '*'
 
 /** Reshape source-specific layouts into the generic `mcpServers` layout. */
-function reshape(source: ExternalMcpImportSource, value: Raw): Raw {
-  if (source === 'zed' && isRecord(value.command)) {
-    const { path: command, args, env } = value.command
-    return { ...value, command, args, env }
+function reshape(source: ExternalMcpImportSource, value: Raw) {
+  const zedCommand = source === 'zed' ? decodeZedCommand(value.command) : Option.none()
+  if (Option.isSome(zedCommand)) {
+    const { path: command, args, env } = zedCommand.value
+    const raw: Raw = { ...value, command, args, env }
+    return raw
   }
   if (source === 'opencode' && value.environment !== undefined && value.env === undefined) {
-    return { ...value, env: value.environment }
+    const raw: Raw = { ...value, env: value.environment }
+    return raw
   }
-  if (source === 'windsurf' && value.url === undefined) return { ...value, url: value.serverUrl }
+  if (source === 'windsurf' && value.url === undefined) {
+    const raw: Raw = { ...value, url: value.serverUrl }
+    return raw
+  }
   return value
 }
 
-function endpointFields(value: Raw, context: ImportValueContext): PiMcpEntry {
+function endpointFields(value: Raw, context: ImportValueContext) {
   const commandArray = stringArray(value.command)
   const rawCommand = commandArray?.[0] ?? nonEmptyString(value.command)
   // Pi takes these as written, like arguments: a variable in them is kept, with a warning.
@@ -92,31 +138,41 @@ function endpointFields(value: Raw, context: ImportValueContext): PiMcpEntry {
   const cwd = rawCwd && literalString(rawCwd, 'cwd', context)
   const rawUrl = nonEmptyString(value.url)
   const url = rawUrl && urlWithoutCredentials(literalString(rawUrl, 'url', context), 'url', context)
-  return {
+  const entry: PiMcpEntry = {
     ...(command ? { command } : {}),
     ...(args.length > 0 ? { args } : {}),
     ...(cwd ? { cwd } : {}),
     ...(url ? { url } : {}),
   }
+  return entry
 }
 
-function typeField(value: Raw, context: ImportValueContext): PiMcpEntry {
+function typeField(value: Raw, context: ImportValueContext) {
   const type = value.type
-  if (type === undefined || (typeof type === 'string' && IMPLICIT_TYPES.has(type))) return {}
-  if (type === 'sse') return { type: 'sse' }
-  context.warnings.push(`type ${String(type)} is not supported and was not imported.`)
-  return {}
+  if (type === undefined || (typeof type === 'string' && IMPLICIT_TYPES.has(type))) {
+    const entry: PiMcpEntry = {}
+    return entry
+  }
+  if (type === 'sse') {
+    const entry: PiMcpEntry = { type: 'sse' }
+    return entry
+  }
+  context.warnings.push(
+    `type ${typeof type === 'string' ? type : JSON.stringify(type)} is not supported and was not imported.`,
+  )
+  const entry: PiMcpEntry = {}
+  return entry
 }
 
 function codexHeaders(value: Raw, context: ImportValueContext) {
-  const headers: Record<string, string> = {}
   const bearer = nonEmptyString(value.bearer_token_env_var)
-  if (bearer) headers.Authorization = `Bearer \${${bearer}}`
+  const headers: Record<string, string> = bearer ? { Authorization: `Bearer \${${bearer}}` } : {}
   if (isRecord(value.env_http_headers)) {
     for (const [header, variable] of Object.entries(value.env_http_headers)) {
       if (typeof variable === 'string') headers[header] = `\${${variable}}`
-      else
+      else {
         context.warnings.push(`env_http_headers.${header} was ignored because it is not a string.`)
+      }
     }
   }
   return headers
@@ -126,7 +182,7 @@ function credentialFields(
   source: ExternalMcpImportSource,
   value: Raw,
   context: ImportValueContext,
-): PiMcpEntry {
+) {
   const mapped = credentialMap(value.env, 'env', context)
   const env =
     Object.keys(context.argumentEnv).length > 0 ? { ...context.argumentEnv, ...mapped } : mapped
@@ -135,10 +191,11 @@ function credentialFields(
     ...credentialMap(headerSource, 'headers', context),
     ...(source === 'codex' ? codexHeaders(value, context) : {}),
   }
-  return {
+  const entry: PiMcpEntry = {
     ...(env ? { env } : {}),
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
   }
+  return entry
 }
 
 function oauthValue(key: string, entry: unknown, context: ImportValueContext) {
@@ -154,9 +211,12 @@ function oauthValue(key: string, entry: unknown, context: ImportValueContext) {
   return undefined
 }
 
-function oauthField(value: Raw, context: ImportValueContext): PiMcpEntry {
-  if (!isRecord(value.oauth)) return {}
-  const oauth: Record<string, unknown> = {}
+function oauthField(value: Raw, context: ImportValueContext) {
+  if (!isRecord(value.oauth)) {
+    const result: PiMcpEntry = {}
+    return result
+  }
+  const oauth: Record<string, string | number> = {}
   for (const [key, entry] of Object.entries(value.oauth)) {
     const converted = oauthValue(key, entry, context)
     if (converted === undefined) {
@@ -165,10 +225,11 @@ function oauthField(value: Raw, context: ImportValueContext): PiMcpEntry {
     }
     oauth[key] = converted
   }
-  return Object.keys(oauth).length > 0 ? { oauth } : {}
+  const result: PiMcpEntry = Object.keys(oauth).length > 0 ? { oauth } : {}
+  return result
 }
 
-function codexToolExposure(value: Raw): PiMcpEntry {
+function codexToolExposure(value: Raw) {
   const enabled = stringArray(value.enabled_tools)
   const disabled = stringArray(value.disabled_tools) ?? []
   const exposure: Record<string, string> = {}
@@ -177,10 +238,11 @@ function codexToolExposure(value: Raw): PiMcpEntry {
     exposure[CODEX_FALLBACK_TOOL_PATTERN] = 'hidden'
   }
   for (const name of disabled) exposure[name] = 'hidden'
-  return Object.keys(exposure).length > 0 ? { toolExposure: exposure } : {}
+  const entry: PiMcpEntry = Object.keys(exposure).length > 0 ? { toolExposure: exposure } : {}
+  return entry
 }
 
-function codexFields(value: Raw, context: ImportValueContext): PiMcpEntry {
+function codexFields(value: Raw, context: ImportValueContext) {
   if (value.startup_timeout_sec !== undefined || value.startup_timeout_ms !== undefined) {
     context.warnings.push('The startup timeout has no Pi equivalent and was not imported.')
   }
@@ -188,15 +250,17 @@ function codexFields(value: Raw, context: ImportValueContext): PiMcpEntry {
     typeof value.tool_timeout_sec === 'number' && value.tool_timeout_sec > 0
       ? { timeout: value.tool_timeout_sec }
       : {}
-  return { ...timeout, ...codexToolExposure(value) }
+  const entry: PiMcpEntry = { ...timeout, ...codexToolExposure(value) }
+  return entry
 }
 
-function stateFields(value: Raw): PiMcpEntry {
+function stateFields(value: Raw) {
   const description = nonEmptyString(value.description)
-  return {
+  const entry: PiMcpEntry = {
     ...(value.enabled === false || value.disabled === true ? { enabled: false } : {}),
     ...(description ? { description } : {}),
   }
+  return entry
 }
 
 function warnUnknownFields(
@@ -206,8 +270,9 @@ function warnUnknownFields(
 ) {
   const known = new Set([...GENERIC_FIELDS, ...SOURCE_FIELDS[source]])
   for (const field of Object.keys(value)) {
-    if (!known.has(field))
+    if (!known.has(field)) {
       context.warnings.push(`${source} field ${field} has no Pi equivalent and was not imported.`)
+    }
   }
 }
 
@@ -220,7 +285,7 @@ export function normalizeImportedEntry(
   source: ExternalMcpImportSource,
   name: string,
   value: unknown,
-): NormalizedImport | undefined {
+) {
   if (!isRecord(value)) return undefined
   const context: ImportValueContext = {
     source,
@@ -230,7 +295,7 @@ export function normalizeImportedEntry(
     argumentEnv: {},
     credentialEnvNames: new Set(),
   }
-  const shaped = reshape(source, value)
+  const shaped = reshape(source, decodeUnknownOrThrow(rawEntrySchema, value))
   const entry: PiMcpEntry = {
     ...endpointFields(shaped, context),
     ...typeField(shaped, context),
@@ -243,5 +308,6 @@ export function normalizeImportedEntry(
   if (entry.command === undefined && entry.url === undefined) {
     context.warnings.push('No portable command or URL was found; this server cannot be imported.')
   }
-  return { entry, warnings: context.warnings }
+  const normalized: NormalizedImport = { entry, warnings: context.warnings }
+  return normalized
 }

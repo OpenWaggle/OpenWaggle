@@ -1,6 +1,13 @@
 import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { Schema } from '@shared/schema'
+import { GATES, STEPS } from './check/steps'
+import {
+  CHECK_RUNNER_SCRIPT,
+  runsRunnerLint,
+  validateCheckGate,
+} from './package-release-validator-check-gate'
 import { validatePackageReleasePipelines } from './package-release-validator-pipeline'
 import { validatePackageReleaseProvenance } from './package-release-validator-provenance'
 import {
@@ -8,11 +15,11 @@ import {
   validateSessionPerformanceCiPolicy,
 } from './release-ci-performance-policy'
 import { RELEASE_PLEASE_CONTRACT } from './release-please-contract'
+import { objectFields, unknownField } from './support/object-fields'
 import { validateReleasePleaseRuntimeContract } from './release-please-runtime-contract'
 
 const BOOTSTRAP_SOURCE_VERSION = '0.0.0'
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
-const CLI_ARGUMENT_START_INDEX = 2
 const CONFIG_PATH = 'release-please-config.json'
 const EMPTY_COUNT = 0
 const FAILURE_EXIT_CODE = 1
@@ -22,9 +29,9 @@ const MANIFEST_PATH = '.release-please-manifest.json'
 const ROOT_PACKAGE_PATH = 'package.json'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_DEPENDENCY_BUILD_SCRIPT =
-  'pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build'
-const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'pnpm build:package-dependencies &&'
-const TYPE_AWARE_LINT_PREREQUISITE = 'pnpm build:package-dependencies && oxlint '
+  'bun run --filter @openwaggle/waggle-core build && bun run --filter @openwaggle/extension-sdk build'
+const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'bun run build:package-dependencies &&'
+const TYPE_AWARE_LINT_PREREQUISITE = 'bun run build:package-dependencies && bun scripts/lint.ts'
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 interface ExpectedPackage {
@@ -34,7 +41,7 @@ interface ExpectedPackage {
   readonly path: string
 }
 
-type JsonObject = { readonly [key: string]: unknown }
+type JsonObject = Readonly<Record<string, unknown>>
 
 export interface PackageReleaseValidationResult {
   readonly violations: readonly string[]
@@ -65,7 +72,6 @@ const EXPECTED_PACKAGES: readonly ExpectedPackage[] = [
   },
 ]
 
-
 function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -77,9 +83,7 @@ function getObject(value: JsonObject, key: string) {
 
 function getStringArray(value: JsonObject, key: string) {
   const child = value[key]
-  return Array.isArray(child) && child.every((item) => typeof item === 'string')
-    ? child
-    : undefined
+  return Array.isArray(child) && child.every((item) => typeof item === 'string') ? child : undefined
 }
 
 function addViolation(condition: boolean, message: string, violations: string[]) {
@@ -118,34 +122,84 @@ function validateExactPackagePaths(
     violations,
   )
   for (const expectedPath of expectedPaths) {
-    addViolation(!actualPaths.includes(expectedPath), `${sourcePath} is missing ${expectedPath}.`, violations)
+    addViolation(
+      !actualPaths.includes(expectedPath),
+      `${sourcePath} is missing ${expectedPath}.`,
+      violations,
+    )
   }
   for (const actualPath of actualPaths) {
-    addViolation(!expectedPaths.includes(actualPath), `${sourcePath} contains unexpected package path ${actualPath}.`, violations)
+    addViolation(
+      !expectedPaths.includes(actualPath),
+      `${sourcePath} contains unexpected package path ${actualPath}.`,
+      violations,
+    )
   }
 }
 
+const releasePluginSchema = Schema.Struct({ type: Schema.String })
+const releasePleaseConfigSchema = Schema.Struct({ plugins: unknownField })
+const releasePleasePackageSchema = Schema.Struct({ component: unknownField })
+/** The `package.json` fields the release metadata checks read. */
+const packageJsonFieldsSchema = Schema.Struct({ name: unknownField, version: unknownField })
+const publishConfigSchema = Schema.Struct({ access: unknownField })
+const enginesSchema = Schema.Struct({ node: unknownField })
+const rootScriptsSchema = Schema.Struct({ check: unknownField })
+
 function pluginType(plugin: unknown) {
   if (typeof plugin === 'string') return plugin
-  return isJsonObject(plugin) && typeof plugin.type === 'string' ? plugin.type : undefined
+  return objectFields(releasePluginSchema, plugin)?.type
 }
 
 function validateReleasePleaseConfig(config: JsonObject | undefined, violations: string[]) {
   if (config === undefined) return
   const requirements: readonly (readonly [boolean, string])[] = [
-    [config['release-type'] !== 'node', `${CONFIG_PATH} must default publishable packages to release-type node.`],
-    [config['initial-version'] !== INITIAL_PUBLIC_PACKAGE_VERSION, `${CONFIG_PATH} must set initial-version to ${INITIAL_PUBLIC_PACKAGE_VERSION}.`],
-    [config['bump-minor-pre-major'] !== true, `${CONFIG_PATH} must minor-bump pre-1 breaking changes.`],
-    [config['bump-patch-for-minor-pre-major'] === true, `${CONFIG_PATH} must minor-bump pre-1 feature changes.`],
-    [config['include-component-in-tag'] !== true || config['include-v-in-tag'] !== true, `${CONFIG_PATH} must produce package-name tags like extension-sdk-v0.1.0.`],
-    [config['separate-pull-requests'] !== false, `${CONFIG_PATH} must create one coordinated package release PR.`],
-    [config['always-link-local'] !== true, `${CONFIG_PATH} must patch-bump local dependents when base packages release.`],
-    [config['group-pull-request-title-pattern'] !== PACKAGE_RELEASE_TITLE_PATTERN, `${CONFIG_PATH} must generate the policy-compatible coordinated release title.`],
+    [
+      config['release-type'] !== 'node',
+      `${CONFIG_PATH} must default publishable packages to release-type node.`,
+    ],
+    [
+      config['initial-version'] !== INITIAL_PUBLIC_PACKAGE_VERSION,
+      `${CONFIG_PATH} must set initial-version to ${INITIAL_PUBLIC_PACKAGE_VERSION}.`,
+    ],
+    [
+      config['bump-minor-pre-major'] !== true,
+      `${CONFIG_PATH} must minor-bump pre-1 breaking changes.`,
+    ],
+    [
+      config['bump-patch-for-minor-pre-major'] === true,
+      `${CONFIG_PATH} must minor-bump pre-1 feature changes.`,
+    ],
+    [
+      config['include-component-in-tag'] !== true || config['include-v-in-tag'] !== true,
+      `${CONFIG_PATH} must produce package-name tags like extension-sdk-v0.1.0.`,
+    ],
+    [
+      config['separate-pull-requests'] !== false,
+      `${CONFIG_PATH} must create one coordinated package release PR.`,
+    ],
+    [
+      config['always-link-local'] !== true,
+      `${CONFIG_PATH} must patch-bump local dependents when base packages release.`,
+    ],
+    [
+      config['group-pull-request-title-pattern'] !== PACKAGE_RELEASE_TITLE_PATTERN,
+      `${CONFIG_PATH} must generate the policy-compatible coordinated release title.`,
+    ],
   ]
   for (const [condition, message] of requirements) addViolation(condition, message, violations)
-  const plugins = Array.isArray(config.plugins) ? config.plugins.map(pluginType) : []
-  addViolation(!plugins.includes('node-workspace'), `${CONFIG_PATH} must enable the node-workspace plugin for dependent bumps.`, violations)
-  addViolation(plugins.includes('linked-versions'), `${CONFIG_PATH} must keep package versions independent.`, violations)
+  const configuredPlugins = objectFields(releasePleaseConfigSchema, config)?.plugins
+  const plugins = Array.isArray(configuredPlugins) ? configuredPlugins.map(pluginType) : []
+  addViolation(
+    !plugins.includes('node-workspace'),
+    `${CONFIG_PATH} must enable the node-workspace plugin for dependent bumps.`,
+    violations,
+  )
+  addViolation(
+    plugins.includes('linked-versions'),
+    `${CONFIG_PATH} must keep package versions independent.`,
+    violations,
+  )
   const packages = getObject(config, 'packages')
   if (packages === undefined) {
     violations.push(`${CONFIG_PATH} must define packages.`)
@@ -155,9 +209,21 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
   for (const expected of EXPECTED_PACKAGES) {
     const packageConfig = getObject(packages, expected.path)
     if (packageConfig === undefined) continue
-    addViolation(packageConfig['package-name'] !== expected.name, `${CONFIG_PATH} ${expected.path} must set package-name.`, violations)
-    addViolation(packageConfig.component !== expected.component, `${CONFIG_PATH} ${expected.path} must set short component.`, violations)
-    addViolation(packageConfig['changelog-path'] !== 'CHANGELOG.md', `${CONFIG_PATH} ${expected.path} must use package-local CHANGELOG.md.`, violations)
+    addViolation(
+      packageConfig['package-name'] !== expected.name,
+      `${CONFIG_PATH} ${expected.path} must set package-name.`,
+      violations,
+    )
+    addViolation(
+      objectFields(releasePleasePackageSchema, packageConfig)?.component !== expected.component,
+      `${CONFIG_PATH} ${expected.path} must set short component.`,
+      violations,
+    )
+    addViolation(
+      packageConfig['changelog-path'] !== 'CHANGELOG.md',
+      `${CONFIG_PATH} ${expected.path} must use package-local CHANGELOG.md.`,
+      violations,
+    )
   }
 }
 
@@ -184,17 +250,58 @@ async function validatePackageMetadata(
     const packageJsonPath = `${expected.path}/package.json`
     const packageJson = await readJsonFile(projectRoot, packageJsonPath, violations)
     if (packageJson === undefined) continue
-    const version = packageJson.version
+    const fields = objectFields(packageJsonFieldsSchema, packageJson)
+    const version = fields?.version
     const manifestVersion = manifest?.[expected.path]
-    addViolation(packageJson.name !== expected.name, `${packageJsonPath} must use package name ${expected.name}.`, violations)
-    addViolation(typeof version !== 'string' || !SEMVER_PATTERN.test(version), `${packageJsonPath} must contain a semver version.`, violations)
-    addViolation(bootstrap && version !== BOOTSTRAP_SOURCE_VERSION, `${packageJsonPath} bootstrap version must be ${BOOTSTRAP_SOURCE_VERSION}.`, violations)
-    addViolation(typeof manifestVersion === 'string' && version !== manifestVersion, `${packageJsonPath} version must stay aligned with ${MANIFEST_PATH}.`, violations)
-    addViolation(getObject(packageJson, 'publishConfig')?.access !== 'public', `${packageJsonPath} must declare publishConfig.access public.`, violations)
-    addViolation(getObject(packageJson, 'engines')?.node !== '>=22.19.0', `${packageJsonPath} must require Node.js >=22.19.0.`, violations)
-    addViolation(Boolean(expected.dependency && getObject(packageJson, 'dependencies')?.[expected.dependency] !== 'workspace:^'), `${packageJsonPath} must depend on ${expected.dependency} through workspace:^.`, violations)
-    addViolation(!(getStringArray(packageJson, 'files') ?? []).includes('CHANGELOG.md'), `${packageJsonPath} files must include CHANGELOG.md.`, violations)
-    addViolation(!(await pathExists(path.join(projectRoot, expected.path, 'CHANGELOG.md'))), `${expected.path}/CHANGELOG.md must exist before Release Please runs.`, violations)
+    addViolation(
+      fields?.name !== expected.name,
+      `${packageJsonPath} must use package name ${expected.name}.`,
+      violations,
+    )
+    addViolation(
+      typeof version !== 'string' || !SEMVER_PATTERN.test(version),
+      `${packageJsonPath} must contain a semver version.`,
+      violations,
+    )
+    addViolation(
+      bootstrap && version !== BOOTSTRAP_SOURCE_VERSION,
+      `${packageJsonPath} bootstrap version must be ${BOOTSTRAP_SOURCE_VERSION}.`,
+      violations,
+    )
+    addViolation(
+      typeof manifestVersion === 'string' && version !== manifestVersion,
+      `${packageJsonPath} version must stay aligned with ${MANIFEST_PATH}.`,
+      violations,
+    )
+    addViolation(
+      objectFields(publishConfigSchema, getObject(packageJson, 'publishConfig'))?.access !==
+        'public',
+      `${packageJsonPath} must declare publishConfig.access public.`,
+      violations,
+    )
+    addViolation(
+      objectFields(enginesSchema, getObject(packageJson, 'engines'))?.node !== '>=22.19.0',
+      `${packageJsonPath} must require Node.js >=22.19.0.`,
+      violations,
+    )
+    addViolation(
+      Boolean(
+        expected.dependency &&
+        getObject(packageJson, 'dependencies')?.[expected.dependency] !== 'workspace:^',
+      ),
+      `${packageJsonPath} must depend on ${expected.dependency} through workspace:^.`,
+      violations,
+    )
+    addViolation(
+      !(getStringArray(packageJson, 'files') ?? []).includes('CHANGELOG.md'),
+      `${packageJsonPath} files must include CHANGELOG.md.`,
+      violations,
+    )
+    addViolation(
+      !(await pathExists(path.join(projectRoot, expected.path, 'CHANGELOG.md'))),
+      `${expected.path}/CHANGELOG.md must exist before Release Please runs.`,
+      violations,
+    )
   }
 }
 
@@ -202,12 +309,17 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   const scripts = packageJson === undefined ? undefined : getObject(packageJson, 'scripts')
   const devDependencies =
     packageJson === undefined ? undefined : getObject(packageJson, 'devDependencies')
-  const checkScript = scripts?.check
+  const checkScript = objectFields(rootScriptsSchema, scripts)?.check
   if (typeof checkScript !== 'string') {
     violations.push(`${ROOT_PACKAGE_PATH} scripts.check must exist.`)
     return
   }
-  addViolation(!checkScript.includes('pnpm package:smoke'), `${ROOT_PACKAGE_PATH} scripts.check must run pnpm package:smoke.`, violations)
+  addViolation(
+    checkScript !== CHECK_RUNNER_SCRIPT,
+    `${ROOT_PACKAGE_PATH} scripts.check must be ${CHECK_RUNNER_SCRIPT}, whose check gate runs the package smoke.`,
+    violations,
+  )
+  violations.push(...validateCheckGate(STEPS, GATES))
   addViolation(
     scripts?.['build:package-dependencies'] !== PACKAGE_DEPENDENCY_BUILD_SCRIPT,
     `${ROOT_PACKAGE_PATH} scripts.build:package-dependencies must build waggle-core and extension-sdk before type-aware package analysis.`,
@@ -222,13 +334,18 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   )
   for (const scriptName of ['lint', 'lint:fix']) {
     const script = scripts?.[scriptName]
+    const buildsFirst = typeof script === 'string' && script.includes(TYPE_AWARE_LINT_PREREQUISITE)
     addViolation(
-      typeof script !== 'string' || !script.includes(TYPE_AWARE_LINT_PREREQUISITE),
+      !buildsFirst && !(scriptName === 'lint' && runsRunnerLint(script)),
       `${ROOT_PACKAGE_PATH} scripts.${scriptName} must build package dependencies immediately before clean-checkout type-aware analysis.`,
       violations,
     )
   }
-  addViolation(scripts?.['package-release:publish'] !== 'node scripts/package-release-publish.ts', `${ROOT_PACKAGE_PATH} scripts.package-release:publish must execute only the dependency-free typed package release publisher with Node.`, violations)
+  addViolation(
+    scripts?.['package-release:publish'] !== 'node scripts/package-release-publish.ts',
+    `${ROOT_PACKAGE_PATH} scripts.package-release:publish must execute only the dependency-free typed package release publisher with Node.`,
+    violations,
+  )
   addViolation(
     devDependencies?.['release-please'] !== RELEASE_PLEASE_CONTRACT.bundledRuntimeVersion,
     `${ROOT_PACKAGE_PATH} must pin release-please ${RELEASE_PLEASE_CONTRACT.bundledRuntimeVersion} for deterministic preflight contracts.`,
@@ -236,9 +353,7 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   )
 }
 
-export async function validatePackageReleaseFiles(
-  projectRoot = process.cwd(),
-): Promise<PackageReleaseValidationResult> {
+export async function validatePackageReleaseFiles(projectRoot = process.cwd()) {
   const violations: string[] = []
   const [config, manifest, packageJson] = await Promise.all([
     readJsonFile(projectRoot, CONFIG_PATH, violations),
@@ -248,9 +363,7 @@ export async function validatePackageReleaseFiles(
   validateReleasePleaseConfig(config, violations)
   if (typeof config?.['group-pull-request-title-pattern'] === 'string') {
     violations.push(
-      ...(await validateReleasePleaseRuntimeContract(
-        config['group-pull-request-title-pattern'],
-      )),
+      ...(await validateReleasePleaseRuntimeContract(config['group-pull-request-title-pattern'])),
     )
   }
   validateReleasePleaseManifest(manifest, violations)
@@ -280,14 +393,17 @@ export async function validatePackageReleaseFiles(
     readFile(path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-provenance.ts'), 'utf8'),
   ])
-  validatePackageReleasePipelines({
-    artifactsSource: `${artifactsSource}\n${contractSource}`,
-    ciWorkflowText,
-    contextSource,
-    locatorSource,
-    promoteSource: `${promoteSource}\n${promotionSource}`,
-    workflowText,
-  }, violations)
+  validatePackageReleasePipelines(
+    {
+      artifactsSource: `${artifactsSource}\n${contractSource}`,
+      ciWorkflowText,
+      contextSource,
+      locatorSource,
+      promoteSource: `${promoteSource}\n${promotionSource}`,
+      workflowText,
+    },
+    violations,
+  )
   validatePackageReleaseProvenance(provenanceSource, violations)
   violations.push(...validateSessionPerformanceCiPolicy(performanceWorkflowText))
   return { violations }

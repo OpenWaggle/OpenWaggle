@@ -20,21 +20,21 @@ import {
   spawnLifecycleInput,
 } from './sqlite-session-lifecycle-test-support'
 
-function reportAuthority(scope: LocalSessionProfileScope): LocalSessionProfileAuthority {
+function reportAuthority(scope: LocalSessionProfileScope) {
   return {
     profileId: 'reporter',
     profileName: 'reporter',
     capabilities: ['sessions:report'],
     scope,
     authorizationCeiling: 'ask-for-approval',
-  }
+  } satisfies LocalSessionProfileAuthority
 }
 
 function reportInput(
   target: SessionControlReportTarget,
   authority: LocalSessionProfileAuthority,
   suffix: string,
-): ExecuteSessionReportInput {
+) {
   return {
     callerId: 'profile:reporter',
     authority,
@@ -52,7 +52,7 @@ function reportInput(
     reportId: `report-${suffix}`,
     correlationId: `correlation-${suffix}`,
     now: 3000,
-  }
+  } satisfies ExecuteSessionReportInput
 }
 
 function insertLargeUnrelatedCatalog(sql: SqlClient.SqlClient, title = 'Unrelated') {

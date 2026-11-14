@@ -24,16 +24,14 @@ import {
 const TODAY = '2026-10-02'
 const TODAY_EPOCH_DAY = usageStatisticsEpochDay(TODAY) ?? 0
 
-function day(observations: readonly UsageStatisticsObservation[]): UsageStatisticsDay {
+function day(observations: readonly UsageStatisticsObservation[]) {
   return observations.reduce<UsageStatisticsDay>(
     applyUsageStatisticsObservation,
     EMPTY_USAGE_STATISTICS_DAY,
   )
 }
 
-function install(
-  overrides: Partial<UsageStatisticsInstallState> = {},
-): UsageStatisticsInstallState {
+function install(overrides: Partial<UsageStatisticsInstallState> = {}) {
   return { ...INITIAL_USAGE_STATISTICS_HOST_STATE.install, ...overrides }
 }
 

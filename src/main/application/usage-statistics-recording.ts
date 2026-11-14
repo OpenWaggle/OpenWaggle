@@ -51,7 +51,9 @@ export function recordRunStartedForUsageStatistics(input: {
       originCallerId: runOriginCallerId(input.intent),
       waggle: input.waggle ?? input.intent.waggle !== undefined,
       attachments: input.intent.attachmentIds.length > 0,
-      runAuthorizationOverride: input.intent.runAuthorizationOverride,
+      ...(input.intent.runAuthorizationOverride === undefined
+        ? {}
+        : { runAuthorizationOverride: input.intent.runAuthorizationOverride }),
     }),
   )
 }

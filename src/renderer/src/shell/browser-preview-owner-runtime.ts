@@ -265,7 +265,7 @@ function installListeners() {
   api.onBrowserPreviewOpenRequestCancellation(cancelRequestedPreview)
 }
 
-export function ensureBrowserPreviewOwnerRegistered(ownerKey: string): Promise<void> {
+export function ensureBrowserPreviewOwnerRegistered(ownerKey: string) {
   if (ownerKey.length === 0) return Promise.resolve()
   installListeners()
   const existing = registrationByOwnerKey.get(ownerKey)
@@ -291,7 +291,7 @@ export function quiesceBrowserPreviewOwnerForHandoff(ownerKey: string) {
   return drainBrowserPreviewOwnerWork(ownerKey, ownerQueues.get(ownerKey))
 }
 
-export async function unregisterBrowserPreviewOwner(ownerKey: string): Promise<void> {
+export async function unregisterBrowserPreviewOwner(ownerKey: string) {
   if (ownerKey.length === 0) return
   registeredOwnerKeys.delete(ownerKey)
   for (const [requestId, operation] of operationByRequestId) {

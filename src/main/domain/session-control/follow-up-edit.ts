@@ -30,8 +30,6 @@ import type {
   SessionControlSessionState,
 } from './message-aggregate'
 
-export { isFollowUpEditHeld } from './follow-up-delivery'
-
 const REVISION_INCREMENT = 1
 
 export interface FollowUpEditContent {
@@ -105,18 +103,21 @@ export function canEditFollowUp(intent: FollowUpEditProvenance, callerId: string
   return intent.callerId === callerId && intent.authorCallerId === undefined
 }
 
-function rejection(
-  state: SessionControlSessionState,
-  code: FollowUpEditRejectionCode,
-): FollowUpEditRejection {
-  return { accepted: false, code, currentRevision: state.followUpQueue.revision, state }
+function rejection(state: SessionControlSessionState, code: FollowUpEditRejectionCode) {
+  const result: FollowUpEditRejection = {
+    accepted: false,
+    code,
+    currentRevision: state.followUpQueue.revision,
+    state,
+  }
+  return result
 }
 
 function replaceItem(
   state: SessionControlSessionState,
   index: number,
   item: SessionControlFollowUp,
-): SessionControlSessionState {
+) {
   const items = [...state.followUpQueue.items]
   items[index] = item
   return {
@@ -130,7 +131,7 @@ function replaceItem(
   }
 }
 
-function withoutHold(item: SessionControlFollowUp): SessionControlFollowUp {
+function withoutHold(item: SessionControlFollowUp) {
   const { editHold: _editHold, ...released } = item
   return released
 }
@@ -152,8 +153,8 @@ function exceedsQueueBytes(
 function released(
   state: SessionControlSessionState,
   operation: 'queue-edit-save' | 'queue-edit-cancel',
-): ReleaseFollowUpEditResult {
-  return {
+) {
+  const result: ReleaseFollowUpEditResult = {
     accepted: true,
     state,
     outcome: {
@@ -166,13 +167,11 @@ function released(
       stateRevision: state.revision,
     },
   }
+  return result
 }
 
 /** The edited intent: new content, everything else (provenance) unchanged. */
-export function editedIntent(
-  intent: SessionControlIntentSnapshot,
-  content: FollowUpEditContent,
-): SessionControlIntentSnapshot {
+export function editedIntent(intent: SessionControlIntentSnapshot, content: FollowUpEditContent) {
   const {
     text: _text,
     attachmentIds: _attachmentIds,
@@ -198,15 +197,22 @@ export function beginFollowUpEdit(input: {
   readonly acquiredAt: number
   /** The lease length a client can expect, for the outcome's wall-clock estimate. */
   readonly leaseMs: number
-}): BeginFollowUpEditResult {
+}) {
   const { state } = input
   const index = state.followUpQueue.items.findIndex((item) => item.id === input.followUpId)
   const item = state.followUpQueue.items[index]
-  if (!item) return rejection(state, 'follow_up_not_found')
-  if (!canEditFollowUp(item.intent, input.callerId)) {
-    return rejection(state, 'follow_up_not_editable')
+  if (!item) {
+    const result: BeginFollowUpEditResult = rejection(state, 'follow_up_not_found')
+    return result
   }
-  if (isFollowUpEditHeld(item)) return rejection(state, 'follow_up_edit_held')
+  if (!canEditFollowUp(item.intent, input.callerId)) {
+    const result: BeginFollowUpEditResult = rejection(state, 'follow_up_not_editable')
+    return result
+  }
+  if (isFollowUpEditHeld(item)) {
+    const result: BeginFollowUpEditResult = rejection(state, 'follow_up_edit_held')
+    return result
+  }
   const baseQueueRevision = state.followUpQueue.revision + REVISION_INCREMENT
   const editHold: SessionControlFollowUpEditHold = {
     holdId: input.holdId,
@@ -216,7 +222,7 @@ export function beginFollowUpEdit(input: {
     baseQueueRevision,
   }
   const next = replaceItem(state, index, { ...item, editHold })
-  return {
+  const result: BeginFollowUpEditResult = {
     accepted: true,
     state: next,
     outcome: {
@@ -230,6 +236,7 @@ export function beginFollowUpEdit(input: {
       stateRevision: next.revision,
     },
   }
+  return result
 }
 
 export function saveFollowUpEdit(input: {
@@ -240,7 +247,7 @@ export function saveFollowUpEdit(input: {
   /** The `queueRevision` the edit began at (see the revision rule above). */
   readonly expectedQueueRevision: number
   readonly content: FollowUpEditContent
-}): ReleaseFollowUpEditResult {
+}) {
   const { state } = input
   const index = state.followUpQueue.items.findIndex((item) => item.id === input.followUpId)
   const item = state.followUpQueue.items[index]
@@ -270,7 +277,7 @@ export function cancelFollowUpEdit(input: {
   readonly state: SessionControlSessionState
   readonly followUpId: FollowUpId
   readonly holdId: string
-}): ReleaseFollowUpEditResult {
+}) {
   const { state } = input
   const index = state.followUpQueue.items.findIndex((item) => item.id === input.followUpId)
   const item = state.followUpQueue.items[index]

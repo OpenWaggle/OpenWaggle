@@ -1,7 +1,4 @@
-import type {
-  DesktopNotificationCategory,
-  DesktopNotificationReason,
-} from '../types/desktop-notification'
+import type { DesktopNotificationReason } from '../types/desktop-notification'
 
 /** A preview is one line: enough to recognise the request or reply, never a transcript. */
 export const DESKTOP_NOTIFICATION_PREVIEW_MAX_LENGTH = 160
@@ -17,15 +14,6 @@ export const DESKTOP_NOTIFICATION_BODIES: Readonly<Record<DesktopNotificationRea
   'host-loss': 'Interrupted — can be resumed',
   'agent-error': 'Agent error',
   'scheduled-task-attention': 'Scheduled task needs attention',
-}
-
-export const DESKTOP_NOTIFICATION_CATEGORY_LABELS: Readonly<
-  Record<DesktopNotificationCategory, string>
-> = {
-  'needs-you': 'Needs you',
-  'ready-to-read': 'Ready to read',
-  'failed-or-interrupted': 'Failed or interrupted',
-  'agent-errors': 'Agent errors',
 }
 
 /** The last path segment, as the sidebar names a project without a display name. */

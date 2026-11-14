@@ -20,16 +20,27 @@ export async function handleDefaultWaggleCommand(
   if (intent.type === 'menu') return openWaggleControlCenter(input)
   if (intent.type === 'create-preset') return createPresetFromEditor({ ctx: input.ctx })
   if (intent.type === 'edit-preset') {
-    return editPresetFromEditor({ ctx: input.ctx, presetId: intent.presetId })
+    return editPresetFromEditor({
+      ctx: input.ctx,
+      ...(intent.presetId === undefined ? {} : { presetId: intent.presetId }),
+    })
   }
   if (intent.type === 'edit-config') return editActiveConfig({ pi: input.pi, ctx: input.ctx })
   if (intent.type === 'edit-turns') {
-    return editActiveMaxTurns({ pi: input.pi, ctx: input.ctx, maxTurns: intent.maxTurns })
+    return editActiveMaxTurns({
+      pi: input.pi,
+      ctx: input.ctx,
+      ...(intent.maxTurns === undefined ? {} : { maxTurns: intent.maxTurns }),
+    })
   }
 
   const resolved = await resolvePresetById(input.ctx.cwd, intent.presetId)
   if (resolved) {
-    await activatePreset({ ...input, preset: resolved.preset, prompt: intent.prompt })
+    await activatePreset({
+      ...input,
+      preset: resolved.preset,
+      ...(intent.prompt === undefined ? {} : { prompt: intent.prompt }),
+    })
   } else {
     notify(input.ctx, `Unknown Waggle preset: ${intent.presetId}`, 'error')
   }

@@ -36,7 +36,7 @@ export interface ComposerQueuedEditMode {
 export function useComposerQueuedEditMode(
   sessionId: SessionId | null,
   onToast: (message: string) => void,
-): ComposerQueuedEditMode {
+) {
   const queuedEdit = useQueuedMessageEdit(sessionId, onToast)
   useAdoptHeldQueuedMessageEdit(sessionId)
   const input = useComposerStore((state) => state.input)

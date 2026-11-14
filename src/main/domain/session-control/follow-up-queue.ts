@@ -97,8 +97,8 @@ interface FollowUpQueueMutationRejection {
 function acceptedQueue<TItem extends FollowUpQueueItem>(
   queue: FollowUpQueue<TItem>,
   items: readonly TItem[],
-): FollowUpQueueMutationResult<TItem> {
-  return {
+) {
+  const result: FollowUpQueueMutationResult<TItem> = {
     accepted: true,
     queue: {
       ...queue,
@@ -106,6 +106,7 @@ function acceptedQueue<TItem extends FollowUpQueueItem>(
       items,
     },
   }
+  return result
 }
 
 export function serializedBytes(value: unknown) {
@@ -116,24 +117,23 @@ function hasIntent(item: FollowUpQueueItem): item is SizedFollowUpQueueItem {
   return 'intent' in item
 }
 
-function revisionRejection(
-  queueRevision: number,
-  expectedRevision: number,
-): FollowUpQueueMutationRejection | null {
-  return expectedRevision === queueRevision
-    ? null
-    : {
-        accepted: false,
-        code: 'queue_revision_changed',
-        currentRevision: queueRevision,
-      }
+function revisionRejection(queueRevision: number, expectedRevision: number) {
+  const rejection: FollowUpQueueMutationRejection | null =
+    expectedRevision === queueRevision
+      ? null
+      : {
+          accepted: false,
+          code: 'queue_revision_changed',
+          currentRevision: queueRevision,
+        }
+  return rejection
 }
 
 export function mutateFollowUpQueue<TItem extends FollowUpQueueItem>(
   queue: FollowUpQueue<TItem>,
   mutation: FollowUpQueueMutation<TItem>,
-): FollowUpQueueMutationResult<TItem> {
-  return matchBy(mutation, 'type')
+) {
+  const result: FollowUpQueueMutationResult<TItem> = matchBy(mutation, 'type')
     .with('append', (append) => {
       if (queue.items.some((item) => item.id === append.item.id)) {
         return {
@@ -246,4 +246,5 @@ export function mutateFollowUpQueue<TItem extends FollowUpQueueItem>(
       }
     })
     .exhaustive()
+  return result
 }

@@ -86,7 +86,7 @@ function isStaleBranchesRequest(requestId: number) {
 export function selectWorkingTreeStatus(
   state: Pick<GitState, 'statusByWorkingPath'>,
   workingPath: string | null,
-): GitWorkingTreeStatus {
+) {
   if (workingPath === null) return EMPTY_WORKING_TREE_STATUS
   return state.statusByWorkingPath[workingPath] ?? EMPTY_WORKING_TREE_STATUS
 }
@@ -95,22 +95,27 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback
 }
 
-function gitCommitFailureFromError(error: unknown): GitCommitFailure {
-  return { ok: false, code: 'unknown', message: getErrorMessage(error, 'Commit failed.') }
+function gitCommitFailureFromError(error: unknown) {
+  return {
+    ok: false,
+    code: 'unknown',
+    message: getErrorMessage(error, 'Commit failed.'),
+  } satisfies GitCommitFailure
 }
 
-function gitBranchFailureFromError(error: unknown): GitBranchMutationFailure {
-  return {
+function gitBranchFailureFromError(error: unknown) {
+  const failure: GitBranchMutationFailure = {
     ok: false,
     code: 'unknown',
     message: getErrorMessage(error, 'Branch operation failed.'),
   }
+  return failure
 }
 
 async function resolveGitCommitResult(
   resultPromise: Promise<GitCommitResult>,
   onSuccess: () => Promise<unknown>,
-): Promise<GitCommitResult> {
+) {
   const result = await match
     .promise(resultPromise)
     .with({ ok: true }, async (commitResult) => {
@@ -129,7 +134,7 @@ async function resolveGitCommitResult(
 async function resolveGitBranchMutationResult(
   resultPromise: Promise<GitBranchMutationResult>,
   onSuccess: () => Promise<unknown>,
-): Promise<GitBranchMutationResult> {
+) {
   const result = await match
     .promise(resultPromise)
     .with({ ok: true }, async (branchResult) => {

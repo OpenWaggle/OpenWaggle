@@ -20,7 +20,7 @@ import {
   packageFiles,
 } from './extension-package-workflow-test-utils'
 
-function trustedMainPackage(): DiscoveredExtensionPackage {
+function trustedMainPackage() {
   const basePackage = makePackage({
     id: 'workflow-update-trusted-main-extension',
     name: 'Workflow Update Trusted Main Extension',
@@ -39,7 +39,7 @@ function trustedMainPackage(): DiscoveredExtensionPackage {
           trusted: { main: 'dist/main.js' },
         }
       : null,
-  }
+  } satisfies DiscoveredExtensionPackage
 }
 
 describe('extension package update teardown', () => {

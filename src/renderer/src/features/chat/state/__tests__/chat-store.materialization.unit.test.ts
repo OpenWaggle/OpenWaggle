@@ -14,8 +14,8 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api }))
 
-function session(id: string): SessionDetail {
-  return {
+function session(id: string) {
+  const detail: SessionDetail = {
     id: SessionId(id),
     title: id,
     projectPath: '/repo',
@@ -23,6 +23,7 @@ function session(id: string): SessionDetail {
     createdAt: 1,
     updatedAt: 1,
   }
+  return detail
 }
 
 describe('canonical draft Session materialization receipt', () => {

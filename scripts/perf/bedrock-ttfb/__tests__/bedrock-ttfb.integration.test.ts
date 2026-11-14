@@ -7,6 +7,9 @@ import { createPiRuntimeServices } from '../../../../src/main/adapters/pi/pi-pro
 import { copyAwsSsoConfiguration } from '../../lib/aws-sso-home'
 import { measurementEnvironment } from '../../lib/perf-results'
 import { summarize } from '../../lib/perf-stats'
+import { scriptEnv } from '../../../support/env'
+import { Schema } from '@shared/schema'
+import { objectFields } from '../../../support/object-fields'
 
 /**
  * "Bedrock time to first byte per call" (v1 performance plan): sequential small requests through
@@ -14,20 +17,23 @@ import { summarize } from '../../lib/perf-stats'
  * timed from the request until its first streamed event and its first text. Only runs with
  *
  *   OPENWAGGLE_PERF_BEDROCK_MODEL=eu.anthropic.claude-sonnet-5 AWS_PROFILE=<sso profile> \
- *     OPENWAGGLE_PERF_OUT=<dir> pnpm perf:bedrock-ttfb
+ *     OPENWAGGLE_PERF_OUT=<dir> bun run perf:bedrock-ttfb
  *
  * The test home has no AWS configuration, so it gets read-only copies of the user's `~/.aws/config`
  * and SSO token cache (never a link to the real `~/.aws`, and never its long-lived keys).
  */
-const modelId = process.env.OPENWAGGLE_PERF_BEDROCK_MODEL
-const outDirectory = process.env.OPENWAGGLE_PERF_OUT
-const CALLS = Number(process.env.OPENWAGGLE_PERF_BEDROCK_CALLS ?? '20')
+const {
+  OPENWAGGLE_PERF_BEDROCK_MODEL: modelId,
+  OPENWAGGLE_PERF_OUT: outDirectory,
+  OPENWAGGLE_PERF_BEDROCK_CALLS: callCount,
+} = scriptEnv()
+const CALLS = Number(callCount ?? '20')
 const MAX_TOKENS = 64
 const TIMEOUT_MS = 300_000
 const JSON_INDENT = 2
 
 vi.mock('electron', () => ({
-  app: { getPath: () => process.env.OPENWAGGLE_USER_DATA_DIR ?? os.tmpdir() },
+  app: { getPath: () => scriptEnv().OPENWAGGLE_USER_DATA_DIR ?? os.tmpdir() },
   safeStorage: { isEncryptionAvailable: () => false },
   shell: {},
 }))
@@ -42,11 +48,18 @@ interface Handshake {
   ms: number | null
 }
 const handshakes: Handshake[] = []
+/** The `tls.connect` options that name the peer. */
+const connectOptionsSchema = Schema.Struct({
+  servername: Schema.optionalWith(Schema.String, { exact: true }),
+  host: Schema.optionalWith(Schema.String, { exact: true }),
+})
 const originalConnect = tls.connect
 vi.spyOn(tls, 'connect').mockImplementation((...args: Parameters<typeof tls.connect>) => {
   const socket = Reflect.apply(originalConnect, tls, args)
   const options: unknown = args[0]
-  const host = typeof options === 'object' && options !== null ? String(Reflect.get(options, 'servername') ?? Reflect.get(options, 'host') ?? '') : String(options)
+  const connection = objectFields(connectOptionsSchema, options)
+  const host =
+    connection === undefined ? String(options) : (connection.servername ?? connection.host ?? '')
   const record: Handshake = { host, startedAt: performance.now(), ms: null }
   handshakes.push(record)
   socket.once('secureConnect', () => {
@@ -61,7 +74,7 @@ afterAll(async () => {
 })
 
 async function copyUserAwsConfiguration() {
-  await copyAwsSsoConfiguration(os.userInfo().homedir, process.env.HOME ?? os.homedir())
+  await copyAwsSsoConfiguration(os.userInfo().homedir, scriptEnv().HOME ?? os.homedir())
 }
 
 describe.skipIf(!modelId)('Bedrock time to first byte', () => {
@@ -84,14 +97,18 @@ describe.skipIf(!modelId)('Bedrock time to first byte', () => {
           model,
           {
             systemPrompt: 'Answer with one word.',
-            messages: [{ role: 'user', content: `Say OK (${String(index)}).`, timestamp: Date.now() }],
+            messages: [
+              { role: 'user', content: `Say OK (${String(index)}).`, timestamp: Date.now() },
+            ],
           },
           { maxTokens: MAX_TOKENS, reasoning: 'minimal' },
         )
         for await (const event of stream) {
           firstEventMs ??= performance.now() - startedAt
           if (event.type === 'text_delta') firstTextMs ??= performance.now() - startedAt
-          if (event.type === 'error') throw new Error(event.error.errorMessage ?? 'Bedrock request failed.')
+          if (event.type === 'error') {
+            throw new Error(event.error.errorMessage ?? 'Bedrock request failed.')
+          }
         }
         const opened = handshakes.slice(handshakesBefore)
         calls.push({
@@ -121,7 +138,10 @@ describe.skipIf(!modelId)('Bedrock time to first byte', () => {
       }
       if (outDirectory) {
         await mkdir(outDirectory, { recursive: true })
-        await writeFile(path.join(outDirectory, 'bedrock-ttfb.json'), `${JSON.stringify(report, null, JSON_INDENT)}\n`)
+        await writeFile(
+          path.join(outDirectory, 'bedrock-ttfb.json'),
+          `${JSON.stringify(report, null, JSON_INDENT)}\n`,
+        )
       }
       expect(calls).toHaveLength(CALLS)
     },

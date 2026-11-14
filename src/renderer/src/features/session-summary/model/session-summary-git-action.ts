@@ -8,12 +8,13 @@ export interface SessionSummaryGitAction {
   readonly hint?: string
 }
 
-const unavailable = (hint: string): SessionSummaryGitAction => ({
-  label: 'Commit or push',
-  disabled: true,
-  kind: 'show_hint',
-  hint,
-})
+const unavailable = (hint: string) =>
+  ({
+    label: 'Commit or push',
+    disabled: true,
+    kind: 'show_hint',
+    hint,
+  }) satisfies SessionSummaryGitAction
 
 /**
  * Resolve the Environment section's Git row without absorbing PR or MR creation.
@@ -26,22 +27,30 @@ export function resolveSessionSummaryGitAction(
   isBusy: boolean,
   loadState: 'loading' | 'loaded' | 'error' | 'unavailable' = status ? 'loaded' : 'unavailable',
   localAheadCount = 0,
-): SessionSummaryGitAction {
-  if (isBusy) return unavailable('A Git action is already in progress.')
+) {
+  if (isBusy) {
+    return unavailable('A Git action is already in progress.') satisfies SessionSummaryGitAction
+  }
   if (loadState === 'error') {
     return {
       label: 'Retry Git status',
       disabled: false,
       kind: 'refresh_status',
       hint: 'Git status could not be loaded.',
-    }
+    } satisfies SessionSummaryGitAction
   }
-  if (loadState === 'loading') return unavailable('Checking Git status.')
-  if (!status) return unavailable('Git status is unavailable.')
+  if (loadState === 'loading') {
+    return unavailable('Checking Git status.') satisfies SessionSummaryGitAction
+  }
+  if (!status) return unavailable('Git status is unavailable.') satisfies SessionSummaryGitAction
   // A detached HEAD is recoverable in the command: it defaults to creating a named branch at
   // the current HEAD, so hiding the command here would strand both dirty files and detached commits.
   if (!status.refName) {
-    return { label: 'Commit or push', disabled: false, kind: 'run_action' }
+    return {
+      label: 'Commit or push',
+      disabled: false,
+      kind: 'run_action',
+    } satisfies SessionSummaryGitAction
   }
 
   const unpublishedCommits = Math.max(
@@ -50,10 +59,18 @@ export function resolveSessionSummaryGitAction(
     localAheadCount,
   )
   if (status.hasWorkingTreeChanges || unpublishedCommits > 0) {
-    return { label: 'Commit or push', disabled: false, kind: 'run_action' }
+    return {
+      label: 'Commit or push',
+      disabled: false,
+      kind: 'run_action',
+    } satisfies SessionSummaryGitAction
   }
   if (status.behindCount > 0) {
-    return unavailable('Pull the upstream changes before committing or pushing.')
+    return unavailable(
+      'Pull the upstream changes before committing or pushing.',
+    ) satisfies SessionSummaryGitAction
   }
-  return unavailable('There are no local changes or commits to publish.')
+  return unavailable(
+    'There are no local changes or commits to publish.',
+  ) satisfies SessionSummaryGitAction
 }

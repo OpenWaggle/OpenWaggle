@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest'
 import {
   type BeaconEnvironment,
   type BeaconTransport,
@@ -8,47 +8,50 @@ import {
   sendUsageBeacon,
   startUsageBeacon,
   usageBeaconAllowed,
-} from '../usage-beacon';
+} from '../usage-beacon'
 
-const PAGE = 'https://openwaggle.ai/docs/getting-started/installation/';
+const PAGE = 'https://openwaggle.ai/docs/getting-started/installation/'
 
 function recordingTransport(sendBeaconResult = true) {
-  const sent: { url: string; body: string; via: string }[] = [];
+  const sent: { url: string; body: string; via: string }[] = []
   const transport: BeaconTransport = {
     sendBeacon: (url, body) => {
-      sent.push({ url, body, via: 'sendBeacon' });
-      return sendBeaconResult;
+      sent.push({ url, body, via: 'sendBeacon' })
+      return sendBeaconResult
     },
     fetch: async (url, init) => {
-      sent.push({ url, body: String(init.body), via: 'fetch' });
-      return undefined;
+      sent.push({ url, body: typeof init.body === 'string' ? init.body : '', via: 'fetch' })
+      return undefined
     },
-  };
-  return { sent, transport };
+  }
+  return { sent, transport }
 }
 
 function environment(overrides: Partial<BeaconEnvironment> = {}) {
-  const { sent, transport } = recordingTransport();
-  const listeners: ((href: string) => void)[] = [];
+  const { sent, transport } = recordingTransport()
+  const listeners: ((href: string) => void)[] = []
   const beaconEnvironment: BeaconEnvironment = {
     hostname: 'openwaggle.ai',
     signals: { doNotTrack: null, webdriver: false },
-    page: () => ({ href: `${PAGE}?utm_source=hn&utm_medium=social&ref=x`, referrer: 'https://news.ycombinator.com/item?id=1' }),
+    page: () => ({
+      href: `${PAGE}?utm_source=hn&utm_medium=social&ref=x`,
+      referrer: 'https://news.ycombinator.com/item?id=1',
+    }),
     transport,
     onLinkFollowed: (listener) => listeners.push(listener),
     ...overrides,
-  };
+  }
   const follow = (href: string) => {
-    for (const listener of listeners) listener(href);
-  };
-  return { sent, listeners, beaconEnvironment, follow };
+    for (const listener of listeners) listener(href)
+  }
+  return { sent, listeners, beaconEnvironment, follow }
 }
 
 describe('website beacons', () => {
   it('sends a page view with the path, referring origin and UTM tags only', () => {
-    const { sent, beaconEnvironment } = environment();
+    const { sent, beaconEnvironment } = environment()
 
-    expect(startUsageBeacon(beaconEnvironment)).toBe(true);
+    expect(startUsageBeacon(beaconEnvironment)).toBe(true)
     expect(sent).toEqual([
       {
         url: '/api/v1/web',
@@ -61,22 +64,22 @@ describe('website beacons', () => {
           utm_medium: 'social',
         }),
       },
-    ]);
-  });
+    ])
+  })
 
   it('sends a download click for release, install-script and download links only', () => {
-    const { sent, beaconEnvironment, follow } = environment();
-    startUsageBeacon(beaconEnvironment);
-    follow('https://github.com/OpenWaggle/OpenWaggle/releases');
-    follow('https://github.com/OpenWaggle/OpenWaggle/issues');
-    follow('/docs/getting-started/installation/');
+    const { sent, beaconEnvironment, follow } = environment()
+    startUsageBeacon(beaconEnvironment)
+    follow('https://github.com/OpenWaggle/OpenWaggle/releases')
+    follow('https://github.com/OpenWaggle/OpenWaggle/issues')
+    follow('/docs/getting-started/installation/')
 
-    const clicks = sent.slice(1).map(({ body }) => JSON.parse(body));
+    const clicks = sent.slice(1).map(({ body }) => JSON.parse(body))
     expect(clicks.map(({ type, target }) => [type, target])).toEqual([
       ['download_click', 'github_releases'],
       ['download_click', 'installation_page'],
-    ]);
-  });
+    ])
+  })
 
   it.each([
     [{ doNotTrack: '1' }],
@@ -84,44 +87,53 @@ describe('website beacons', () => {
     [{ globalPrivacyControl: true }],
     [{ webdriver: true }],
   ])('sends nothing with %j', (signals) => {
-    const { sent, listeners, beaconEnvironment } = environment({ signals });
+    const { sent, listeners, beaconEnvironment } = environment({ signals })
 
-    expect(startUsageBeacon(beaconEnvironment)).toBe(false);
-    expect(sent).toEqual([]);
-    expect(listeners).toEqual([]);
-  });
+    expect(startUsageBeacon(beaconEnvironment)).toBe(false)
+    expect(sent).toEqual([])
+    expect(listeners).toEqual([])
+  })
 
   it('reports only from openwaggle.ai and local development', () => {
-    expect(usageBeaconAllowed('openwaggle.ai', {})).toBe(true);
-    expect(usageBeaconAllowed('localhost', {})).toBe(true);
-    expect(usageBeaconAllowed('abc.openwaggle.pages.dev', {})).toBe(false);
-    expect(usageBeaconAllowed('www.openwaggle.ai', {})).toBe(false);
-  });
+    expect(usageBeaconAllowed('openwaggle.ai', {})).toBe(true)
+    expect(usageBeaconAllowed('localhost', {})).toBe(true)
+    expect(usageBeaconAllowed('abc.openwaggle.pages.dev', {})).toBe(false)
+    expect(usageBeaconAllowed('www.openwaggle.ai', {})).toBe(false)
+  })
 
   it('falls back to a keep-alive fetch when sendBeacon declines', () => {
-    const { sent, transport } = recordingTransport(false);
-    sendUsageBeacon({ type: 'pageview', path: '/', referrer: '' }, transport);
+    const { sent, transport } = recordingTransport(false)
+    sendUsageBeacon({ type: 'pageview', path: '/', referrer: '' }, transport)
 
-    expect(sent.map(({ via }) => via)).toEqual(['sendBeacon', 'fetch']);
-  });
-});
+    expect(sent.map(({ via }) => via)).toEqual(['sendBeacon', 'fetch'])
+  })
+})
 
 describe('download links', () => {
   it.each([
     ['https://github.com/OpenWaggle/OpenWaggle/releases', 'github_releases'],
     ['https://github.com/OpenWaggle/OpenWaggle/releases/tag/v1.0.0-beta.4', 'github_releases'],
-    ['https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.0.0/openwaggle-1.0.0-arm64.dmg', 'release_asset'],
-    ['https://github.com/OpenWaggle/OpenWaggle/releases/latest/download/latest-mac.yml', 'release_asset'],
+    [
+      'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.0.0/openwaggle-1.0.0-arm64.dmg',
+      'release_asset',
+    ],
+    [
+      'https://github.com/OpenWaggle/OpenWaggle/releases/latest/download/latest-mac.yml',
+      'release_asset',
+    ],
     ['https://github.com/OpenWaggle/OpenWaggle/blob/main/scripts/install.sh', 'install_script'],
-    ['https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh', 'install_script'],
+    [
+      'https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh',
+      'install_script',
+    ],
     ['https://openwaggle.ai/install', 'install_script'],
     ['/install/', 'install_script'],
     ['/install.sh', 'install_script'],
     ['/docs/getting-started/installation/', 'installation_page'],
     ['https://openwaggle.ai/docs/getting-started/installation', 'installation_page'],
   ])('classifies %s as %s', (href, target) => {
-    expect(downloadTarget(href, PAGE)).toBe(target);
-  });
+    expect(downloadTarget(href, PAGE)).toBe(target)
+  })
 
   it.each([
     'https://github.com/OpenWaggle/OpenWaggle',
@@ -132,21 +144,25 @@ describe('download links', () => {
     '/docs/getting-started/first-run/',
     'mailto:privacy@openwaggle.ai',
   ])('ignores %s', (href) => {
-    expect(downloadTarget(href, PAGE)).toBeUndefined();
-  });
-});
+    expect(downloadTarget(href, PAGE)).toBeUndefined()
+  })
+})
 
 describe('beacon fields', () => {
   it('keeps only the referring origin', () => {
-    expect(referrerOrigin('https://www.google.com/search?q=openwaggle')).toBe('https://www.google.com');
-    expect(referrerOrigin('')).toBe('');
-    expect(referrerOrigin('android-app://com.example')).toBe('');
-  });
+    expect(referrerOrigin('https://www.google.com/search?q=openwaggle')).toBe(
+      'https://www.google.com',
+    )
+    expect(referrerOrigin('')).toBe('')
+    expect(referrerOrigin('android-app://com.example')).toBe('')
+  })
 
   it('reads UTM tags without control characters and within the length limit', () => {
-    expect(campaignTags(`?utm_campaign=${'x'.repeat(200)}&utm_term=a%0Ab&other=1&utm_content=`)).toEqual({
+    expect(
+      campaignTags(`?utm_campaign=${'x'.repeat(200)}&utm_term=a%0Ab&other=1&utm_content=`),
+    ).toEqual({
       utm_campaign: 'x'.repeat(128),
       utm_term: 'ab',
-    });
-  });
-});
+    })
+  })
+})

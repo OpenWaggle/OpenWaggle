@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { STARTUP_APPEARANCE_SCRIPT_HASH } from '../../src/main/security/electron-security'
+import { STARTUP_APPEARANCE_SCRIPT_HASH } from '../../src/main/security/web-security-policy'
 import { inlineScriptHashes, inlineScriptHashFailures } from '../renderer-inline-scripts'
 
 const SOURCE_PAGE = readFileSync(path.resolve(__dirname, '../../src/renderer/index.html'), 'utf8')
@@ -44,7 +44,10 @@ describe('the built renderer page against its CSP hash', () => {
   })
 
   it('fails a build that adds an inline script, and ignores bundled ones', () => {
-    const html = builtPage(sourceInlineScript()).replace('</head>', '<script>void 0</script></head>')
+    const html = builtPage(sourceInlineScript()).replace(
+      '</head>',
+      '<script>void 0</script></head>',
+    )
 
     expect(inlineScriptHashes(builtPage(sourceInlineScript()))).toHaveLength(1)
     expect(

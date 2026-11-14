@@ -15,11 +15,12 @@ export function desktopPathContains(root: string, candidate: string) {
 
 export function desktopScopesOverlap(a: DesktopMutationScope, b: DesktopMutationScope) {
   if (a.kind === 'owner' && b.kind === 'owner') return a.ownerKey === b.ownerKey
-  if (a.kind === 'path' && b.kind === 'path')
+  if (a.kind === 'path' && b.kind === 'path') {
     return (
       desktopPathContains(a.directoryPath, b.directoryPath) ||
       desktopPathContains(b.directoryPath, a.directoryPath)
     )
+  }
   // Owner/path intersections are additionally serialized by the actual GUI native fences.
   return false
 }
@@ -32,8 +33,9 @@ export function desktopCommandTouchesFence(
     command.service !== 'browser' ||
     command.operation === 'deleteOwner' ||
     command.operation === 'inspectOwner'
-  )
+  ) {
     return false
+  }
   return fence.scope.kind === 'owner'
     ? command.scope.sessionId === fence.scope.ownerKey
     : desktopPathContains(fence.scope.directoryPath, command.scope.workingPath)

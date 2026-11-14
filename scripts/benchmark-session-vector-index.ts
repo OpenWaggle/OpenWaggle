@@ -46,9 +46,7 @@ function percentile(sorted: readonly number[], fraction: number) {
 }
 
 function benchmarkSize(size: number) {
-  const index = new SessionFlatVectorIndex(
-    SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
-  )
+  const index = new SessionFlatVectorIndex(SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit)
   const startedAt = performance.now()
   index.replace(
     Array.from({ length: size }, (_, itemIndex) => ({

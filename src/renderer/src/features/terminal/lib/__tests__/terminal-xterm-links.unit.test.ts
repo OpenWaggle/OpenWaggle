@@ -12,11 +12,12 @@ const CONTEXT = {
   homePath: '/Users/alice',
 }
 
-function line(text: string, isWrapped = false): TerminalBufferLineLike {
-  return {
+function line(text: string, isWrapped = false) {
+  const like: TerminalBufferLineLike = {
     isWrapped,
     translateToString: (trimRight = false) => (trimRight ? text.trimEnd() : text),
   }
+  return like
 }
 
 function linksFor(

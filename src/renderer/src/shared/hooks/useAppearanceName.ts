@@ -1,13 +1,10 @@
 import { useSyncExternalStore } from 'react'
-import {
-  isOpenWaggleStandardAppearanceName,
-  type OpenWaggleAppearanceName,
-} from '@/shared/lib/appearance'
+import { isOpenWaggleStandardAppearanceName } from '@/shared/lib/appearance'
 
 const APPEARANCE_DATA_ATTRIBUTE = 'data-theme'
 const DEFAULT_APPEARANCE = 'dark'
 
-function appearanceName(): OpenWaggleAppearanceName {
+function appearanceName() {
   const name = document.documentElement.getAttribute(APPEARANCE_DATA_ATTRIBUTE)
   return name === 'debug' || isOpenWaggleStandardAppearanceName(name) ? name : DEFAULT_APPEARANCE
 }

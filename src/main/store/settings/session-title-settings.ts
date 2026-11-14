@@ -18,7 +18,10 @@ export function resolveSessionTitleModel(raw: unknown) {
   const parsed = parseSessionTitleModelSetting(raw)
   if (parsed !== null) return parsed
   logger.warn('Ignoring an invalid Title model setting; title generation is Off', {
-    value: String(raw).slice(0, SETTING_LOG_PREVIEW_LENGTH),
+    value: (typeof raw === 'string' ? raw : JSON.stringify(raw)).slice(
+      0,
+      SETTING_LOG_PREVIEW_LENGTH,
+    ),
   })
   return SESSION_TITLE_MODEL_OFF
 }

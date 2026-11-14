@@ -21,15 +21,21 @@ export class SessionHostEventReplayView {
   #hostInstanceId: string
   #minimumCursorSequence: number
   #closed = false
+  private readonly replayByteCapacity: number
+  private readonly accepts: (event: SessionHostEventEnvelope) => boolean
+  private readonly onClose: () => void
 
   constructor(
     hostInstanceId: string,
     baselineSequence: number,
     replayCapacity: number,
-    private readonly replayByteCapacity: number,
-    private readonly accepts: (event: SessionHostEventEnvelope) => boolean,
-    private readonly onClose: () => void,
+    replayByteCapacity: number,
+    accepts: (event: SessionHostEventEnvelope) => boolean,
+    onClose: () => void,
   ) {
+    this.replayByteCapacity = replayByteCapacity
+    this.accepts = accepts
+    this.onClose = onClose
     this.#hostInstanceId = hostInstanceId
     this.#minimumCursorSequence = baselineSequence
     this.#replayWindow = new SessionHostEventReplayWindow(replayCapacity, replayByteCapacity)
@@ -54,25 +60,34 @@ export class SessionHostEventReplayView {
     if (evicted) this.#minimumCursorSequence = evicted.event.cursor.sequence
   }
 
-  retainedReplayAfter(
-    cursor: SessionHostEventCursor,
-    current: SessionHostEventCursor,
-  ): RetainedReplayResult {
+  retainedReplayAfter(cursor: SessionHostEventCursor, current: SessionHostEventCursor) {
     if (this.#closed || cursor.sequence < this.#minimumCursorSequence) {
-      return { status: 'resync-required', reason: 'cursor-expired', cursor: current }
+      const result: RetainedReplayResult = {
+        status: 'resync-required',
+        reason: 'cursor-expired',
+        cursor: current,
+      }
+      return result
     }
     if (cursor.sequence > current.sequence) {
-      return { status: 'resync-required', reason: 'cursor-ahead', cursor: current }
+      const result: RetainedReplayResult = {
+        status: 'resync-required',
+        reason: 'cursor-ahead',
+        cursor: current,
+      }
+      return result
     }
-    return {
+    const result: RetainedReplayResult = {
       status: 'ready',
       entries: this.#replayWindow.after(cursor.sequence),
       cursor: current,
     }
+    return result
   }
 
-  usage(): SessionHostEventReplayViewUsage {
-    return this.#replayWindow.usage()
+  usage() {
+    const result: SessionHostEventReplayViewUsage = this.#replayWindow.usage()
+    return result
   }
 
   attach(subscription: SessionHostEventSubscription) {

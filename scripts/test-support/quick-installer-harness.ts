@@ -4,6 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect } from 'vitest'
+import { execFailure } from './exec-failure'
+import { scriptEnv } from '../support/env'
 
 const execFileAsync = promisify(execFile)
 export const INSTALLED_VERSION = '1.0.0-rc.1'
@@ -51,8 +53,10 @@ esac
 `
 const FAKE_UNAME = '#!/bin/sh\n[ "$1" = "-s" ] && echo "${FAKE_OS:-Linux}" || echo x86_64\n'
 
-async function createPaths(): Promise<HarnessPaths> {
-  const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'installer-reinstall-')))
+async function createPaths() {
+  const directory = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), 'installer-reinstall-')),
+  )
   const home = path.join(directory, 'home')
   const paths = {
     directory,
@@ -90,7 +94,11 @@ function releaseJson(tag: string) {
 }
 
 async function publish(paths: HarnessPaths, tags: readonly string[]) {
-  const list = JSON.stringify(tags.map((tag) => ({ tag_name: tag })), null, JSON_INDENT_SPACES)
+  const list = JSON.stringify(
+    tags.map((tag) => ({ tag_name: tag })),
+    null,
+    JSON_INDENT_SPACES,
+  )
   await fs.writeFile(path.join(paths.releases, 'list.json'), list)
   await Promise.all(
     tags.map((tag) => fs.writeFile(path.join(paths.releases, `${tag}.json`), releaseJson(tag))),
@@ -133,7 +141,7 @@ async function reportSavedChannel(paths: HarnessPaths, savedChannel: string) {
 async function runInstaller(paths: HarnessPaths, env: Readonly<Record<string, string>>) {
   const result = await execFileAsync('bash', ['scripts/install.sh', '--no-launch'], {
     env: {
-      PATH: `${paths.stubs}:${process.env.PATH ?? ''}`,
+      PATH: `${paths.stubs}:${scriptEnv().PATH ?? ''}`,
       HOME: paths.home,
       TMPDIR: path.join(paths.directory, 'tmp'),
       FAKE_CALLS: path.join(paths.directory, 'calls'),
@@ -143,7 +151,7 @@ async function runInstaller(paths: HarnessPaths, env: Readonly<Record<string, st
       OPENWAGGLE_RELEASES_API_URL: RELEASES_API_URL,
       ...env,
     },
-  }).catch((error: { stdout: string; stderr: string; code: number }) => error)
+  }).catch(execFailure)
   return { ...result, exitCode: 'code' in result ? result.code : 0 }
 }
 

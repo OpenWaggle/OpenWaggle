@@ -52,4 +52,15 @@ describe('describeError', () => {
     expect(describeError('boom')).toBe('boom')
     expect(describeError(undefined)).toBe('undefined')
   })
+
+  // Regression for the no-base-to-string fix: these described themselves as [object Object].
+  it('names an object with no tag, message or code by its class', () => {
+    class HostRefusal {
+      readonly reason = 'busy'
+    }
+    expect(describeError({ token: 'secret' })).toBe('Object')
+    expect(describeError(new Error('outer', { cause: new HostRefusal() }))).toBe(
+      'Error: outer <- HostRefusal',
+    )
+  })
 })

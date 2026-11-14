@@ -8,11 +8,7 @@ import {
   mcpCliConflictPolicy,
   mcpCliImportSources,
 } from './mcp-cli-management-arguments'
-import {
-  MCP_MANAGEMENT_EXIT,
-  type McpManagementCommandInput,
-  type McpManagementExit,
-} from './mcp-cli-management-context'
+import { MCP_MANAGEMENT_EXIT, type McpManagementCommandInput } from './mcp-cli-management-context'
 import { projectOptionOf } from './mcp-cli-management-list'
 import { vaultSecretLines } from './mcp-cli-management-registry'
 
@@ -104,7 +100,7 @@ function printApplied(
   for (const [source, names] of bySource) output.log(`  ${replaceCommand(input, source, names)}`)
 }
 
-export async function importCommand(input: McpManagementCommandInput): Promise<McpManagementExit> {
+export async function importCommand(input: McpManagementCommandInput) {
   const { args, projectPath, context } = input
   if (args.positional.length > 0) {
     throw new McpCliUsageError('Usage: openwaggle mcp import [--from <tools>] [--apply] [-l]')

@@ -25,7 +25,11 @@ export class McpServerRequestRouter {
   private readonly active = new Map<JsonRpcId, AbortController>()
   private readonly forwarded = new Map<JsonRpcId, McpConnectionLease>()
 
-  constructor(private readonly host: McpServerRequestRouterHost) {}
+  private readonly host: McpServerRequestRouterHost
+
+  constructor(host: McpServerRequestRouterHost) {
+    this.host = host
+  }
 
   async handle(request: JsonRpcRequest) {
     const controller = new AbortController()
@@ -37,8 +41,9 @@ export class McpServerRequestRouter {
         return
       }
       const result = await handled
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
         await this.host.send({ jsonrpc: '2.0', id: request.id, result })
+      }
     } catch (error) {
       if (!controller.signal.aborted) {
         await this.host

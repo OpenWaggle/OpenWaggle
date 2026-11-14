@@ -6,7 +6,6 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentDefinitionPiProjectServices } from '../adapters/pi/agent-definition-semantic-catalog-services'
-import type { OpenWagglePiExtensionSelectionServices } from '../adapters/pi/openwaggle-pi-extension-selection'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../extensions/types'
 
 const catalogMocks = vi.hoisted(() => ({
@@ -26,9 +25,9 @@ vi.mock('../adapters/pi/pi-provider-catalog', () => ({
 import { loadAgentDefinitionSemanticCatalog } from '../agent-definition-semantic-catalog-loader'
 import { validateAgentDefinitionSemantics } from '../agents/agent-definition-semantic-validation'
 
-function managedExtension(projectPath: string): DiscoveredExtensionPackage {
+function managedExtension(projectPath: string) {
   const packagePath = `${projectPath}/.openwaggle/extensions/team-tools`
-  return {
+  const result: DiscoveredExtensionPackage = {
     id: 'team-tools',
     scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
     packagePath,
@@ -52,10 +51,11 @@ function managedExtension(projectPath: string): DiscoveredExtensionPackage {
     },
     diagnostics: [],
   }
+  return result
 }
 
-function enabledLifecycle(projectPath: string): ExtensionLifecycleState {
-  return {
+function enabledLifecycle(projectPath: string) {
+  const state: ExtensionLifecycleState = {
     extensionId: 'team-tools',
     scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
     enabled: true,
@@ -74,12 +74,13 @@ function enabledLifecycle(projectPath: string): ExtensionLifecycleState {
     installedAt: 1,
     updatedAt: 1,
   }
+  return state
 }
 
 function extensionSelectionServices(
   extensionPackage: DiscoveredExtensionPackage,
   lifecycle: ExtensionLifecycleState,
-): OpenWagglePiExtensionSelectionServices {
+) {
   return {
     manager: { listPackages: () => Effect.succeed([extensionPackage]) },
     lifecycleRepository: {

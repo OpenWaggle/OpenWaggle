@@ -56,10 +56,7 @@ function sameProfile(left: string, right: string) {
  * Takes the boot shim's Host for `userDataRoot`, once: a later start (a Retry) launches as usual.
  * A Host launched for another profile, or one that already ended, is not returned.
  */
-export function takeSessionHostPrelaunch(
-  userDataRoot: string,
-  scope: PrelaunchScope = globalThis,
-): SessionHostPrelaunch | null {
+export function takeSessionHostPrelaunch(userDataRoot: string, scope: PrelaunchScope = globalThis) {
   const prelaunch: unknown = Reflect.get(scope, PRELAUNCH_KEY)
   Reflect.deleteProperty(scope, PRELAUNCH_KEY)
   if (!isSessionHostPrelaunch(prelaunch)) return null

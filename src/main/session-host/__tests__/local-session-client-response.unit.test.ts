@@ -95,4 +95,92 @@ describe('Local Session client Host UI response decoding', () => {
       }),
     )
   })
+
+  it.each([
+    {
+      contract: 'local-ui-v1',
+      response: {
+        requestId: 'r',
+        effect: 'pinned',
+        sessionId: 's',
+        navigation: { cancelled: 'no' },
+      },
+      issue: 'Invalid Local UI response: navigation.cancelled:',
+    },
+    {
+      contract: 'session-waggle-v1',
+      response: {
+        contractVersion: 1,
+        requestId: 'r',
+        idempotencyKey: 'k',
+        replayed: false,
+        report: { outcome: 'queued' },
+      },
+      issue: 'Invalid Waggle response: report.outcome:',
+    },
+    {
+      contract: 'local-compaction-v1',
+      response: { requestId: 'r', sessionId: 's', result: { summary: 'x', firstKeptEntryId: 'e' } },
+      issue: 'Invalid Local compaction response: result.tokensBefore:',
+    },
+  ])(
+    'names the field a malformed $contract response got wrong',
+    ({ contract, response, issue }) => {
+      expect(() =>
+        decodeLocalSessionCommandResponse(
+          { kind: 'response', requestId: 'wire-request', payload: { contract, response } },
+          'wire-request',
+        ),
+      ).toThrow(issue)
+    },
+  )
+
+  it('keeps the Host fields a Local UI and Waggle response declare', () => {
+    expect(
+      decodeLocalSessionCommandResponse(
+        {
+          kind: 'response',
+          requestId: 'wire-request',
+          payload: {
+            contract: 'local-ui-v1',
+            response: {
+              requestId: 'r',
+              effect: 'follow-up-edit-hold-renewed',
+              sessionId: 's',
+              leaseExpiresAt: 42,
+            },
+          },
+        },
+        'wire-request',
+      ),
+    ).toMatchObject({ response: { leaseExpiresAt: 42 } })
+    expect(
+      decodeLocalSessionCommandResponse(
+        {
+          kind: 'response',
+          requestId: 'wire-request',
+          payload: {
+            contract: 'session-waggle-v1',
+            response: {
+              contractVersion: 1,
+              requestId: 'r',
+              idempotencyKey: 'k',
+              replayed: false,
+              report: { outcome: 'delivered', runId: 'run-1' },
+            },
+          },
+        },
+        'wire-request',
+      ),
+    ).toMatchObject({ response: { report: { runId: 'run-1' } } })
+  })
+
+  it('rejects a command payload without a response member', () => {
+    expect(() =>
+      decodeLocalSessionCommandResponse(
+        { kind: 'response', requestId: 'wire-request', payload: { contract: 'local-ui-v1' } },
+        'wire-request',
+      ),
+    ).toThrow('Local Session Host returned an invalid command payload.')
+  })
 })

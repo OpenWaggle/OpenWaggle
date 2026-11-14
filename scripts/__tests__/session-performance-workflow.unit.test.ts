@@ -14,10 +14,10 @@ const MANUAL_FULL = "github.event_name == 'workflow_dispatch' && inputs.ci_tier 
 
 describe('Session Performance workflow', () => {
   it('enforces the ten-million-message release corpus', () => {
-    expect(WORKFLOW).toContain('pnpm benchmark:session-release')
-    expect(WORKFLOW).not.toContain('pnpm benchmark:session-performance')
+    expect(WORKFLOW).toContain('bun run benchmark:session-release')
+    expect(WORKFLOW).not.toContain('bun run benchmark:session-performance')
     expect(PACKAGE_JSON).toContain(
-      '"benchmark:session-release": "pnpm benchmark:session-embedding && pnpm benchmark:session-vector-index && pnpm benchmark:session-database"',
+      '"benchmark:session-release": "bun run benchmark:session-embedding && bun run benchmark:session-vector-index && bun run benchmark:session-database"',
     )
   })
 

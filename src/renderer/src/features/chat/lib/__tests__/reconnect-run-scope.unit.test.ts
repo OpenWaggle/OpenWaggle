@@ -5,22 +5,22 @@ import { describe, expect, it } from 'vitest'
 import { reconnectedRunScope } from '../reconnect-run-scope'
 import { withoutSavedRunAnswers } from '../saved-run-answers'
 
-function user(id: string, order: number): UIMessage {
+function user(id: string, order: number) {
   return {
     id,
     role: 'user',
     parts: [{ type: 'text', content: id }],
     metadata: { sessionNodeCreatedOrder: order },
-  }
+  } satisfies UIMessage
 }
 
-function answer(id: string, order?: number): UIMessage {
+function answer(id: string, order?: number) {
   return {
     id,
     role: 'assistant',
     parts: [{ type: 'text', content: 'x' }],
     ...(order === undefined ? {} : { metadata: { sessionNodeCreatedOrder: order } }),
-  }
+  } satisfies UIMessage
 }
 
 const SNAPSHOT: BackgroundRunSnapshot = {
@@ -87,10 +87,11 @@ describe('reconnectedRunScope', () => {
   })
 
   it('leaves a stream copy with no content to its saved copy, and keeps one with none', () => {
-    const thinking = (id: string, order?: number): UIMessage => ({
-      ...answer(id, order),
-      parts: [{ type: 'thinking', content: 'pondering', stepId: `${id}:thinking:0` }],
-    })
+    const thinking = (id: string, order?: number) =>
+      ({
+        ...answer(id, order),
+        parts: [{ type: 'thinking', content: 'pondering', stepId: `${id}:thinking:0` }],
+      }) satisfies UIMessage
     const saved = [...persistedMessages, thinking('n-a1', 2)]
     const shown = [user('n-u1', 1), thinking('stream-a1')]
     expect(

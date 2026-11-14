@@ -2,20 +2,17 @@ import { desktopNotificationListSchema } from '@shared/schemas/desktop-notificat
 import type {
   DesktopNotification,
   DesktopNotificationPermissionStatus,
-  DesktopNotificationSettings,
 } from '@shared/types/desktop-notification'
 import { DEFAULT_DESKTOP_NOTIFICATION_SETTINGS } from '@shared/types/desktop-notification'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import { sessionLink } from '@shared/utils/session-link'
 import * as Schema from 'effect/Schema'
-import type { BrowserWindow, Notification as NativeNotification } from 'electron'
 import { nativeNotificationBody } from './adapters/electron-desktop-notification-host-presenter'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { BADGE_OVERLAY_SIZE, badgeOverlayPixels } from './desktop-notification-badge-overlay'
 import {
   getAllBrowserWindows,
   getFocusedBrowserWindow,
-  nativeImageFromBitmap,
   nativeNotificationsSupported,
   playSystemAlertSound,
   removeDeliveredNativeNotification,
@@ -30,6 +27,8 @@ import {
 } from './domain/desktop-notifications/desktop-notification-presentation'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
+import type { DesktopWindow } from './ports/desktop-shell/desktop-windows'
+import type { SystemNotificationHandle } from './ports/desktop-shell/system-notifications'
 import { requestOpenSessionLink } from './session-link-requests'
 import type * as SettingsStore from './store/settings'
 import { broadcastToWindows } from './utils/broadcast'
@@ -46,7 +45,7 @@ interface PresenterState {
   /** The GUI's Host-hydrated settings store, loaded on demand like the rest of the backend. */
   settingsStore: typeof SettingsStore | null
   readonly outstanding: Map<string, DesktopNotification>
-  readonly shown: Map<string, NativeNotification>
+  readonly shown: Map<string, SystemNotificationHandle>
   viewingSessionId: string | null
   permission: DesktopNotificationPermissionStatus
   /** The count the Windows overlay shows, 0 while it is hidden. */
@@ -63,7 +62,7 @@ const state: PresenterState = {
   overlayCount: 0,
 }
 
-function settings(): DesktopNotificationSettings {
+function settings() {
   try {
     return (
       state.settingsStore?.getSettings().desktopNotifications ??
@@ -75,11 +74,11 @@ function settings(): DesktopNotificationSettings {
   }
 }
 
-function initialPermission(): DesktopNotificationPermissionStatus {
-  if (!nativeNotificationsSupported()) return 'unsupported'
+function initialPermission() {
+  if (!nativeNotificationsSupported()) return 'unsupported' as const
   // Only macOS asks the person; elsewhere the system settings decide quietly.
-  if (process.platform !== 'darwin') return 'allowed'
-  return settings().permissionRequested ? 'allowed' : 'not-asked'
+  if (process.platform !== 'darwin') return 'allowed' as const
+  return settings().permissionRequested ? ('allowed' as const) : ('not-asked' as const)
 }
 
 /**
@@ -221,14 +220,14 @@ export function refreshDesktopNotificationBadge() {
   setApplicationBadgeCount(count)
 }
 
-function applyWindowsOverlay(window: BrowserWindow, count: number) {
+function applyWindowsOverlay(window: DesktopWindow, count: number) {
   const update = windowsBadgeOverlayUpdate(state.overlayCount, count)
   if (!update) return
   state.overlayCount = count
   setWindowOverlayIcon(
     window,
     update.show
-      ? nativeImageFromBitmap(badgeOverlayPixels(), BADGE_OVERLAY_SIZE, BADGE_OVERLAY_SIZE)
+      ? { pixels: badgeOverlayPixels(), width: BADGE_OVERLAY_SIZE, height: BADGE_OVERLAY_SIZE }
       : null,
     update.description,
   )
@@ -238,7 +237,7 @@ function applyWindowsOverlay(window: BrowserWindow, count: number) {
  * Ask the operating system, once: macOS asks the person the first time the app shows a
  * notification, so the first one tells them where the settings are.
  */
-export function requestDesktopNotificationPermission(): DesktopNotificationPermissionStatus {
+export function requestDesktopNotificationPermission() {
   if (state.permission === 'unsupported') return state.permission
   showNativeNotification(
     {
@@ -293,13 +292,4 @@ export function sendTestDesktopNotification() {
   )
   if (native) state.shown.set(sample.id, native)
   return state.permission
-}
-
-export function resetDesktopNotificationPresenterForTests() {
-  state.input = null
-  state.outstanding.clear()
-  state.shown.clear()
-  state.viewingSessionId = null
-  state.permission = 'not-asked'
-  state.overlayCount = 0
 }

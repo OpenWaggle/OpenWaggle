@@ -7,12 +7,11 @@ const mocks = vi.hoisted(() => ({ broadcast: vi.fn() }))
 
 vi.mock('../utils/broadcast', () => ({ broadcastToWindows: mocks.broadcast }))
 
-const { claimAppInstance, requestOpenProject, takeOpenProjectRequest } = await import(
-  '../open-project-requests'
-)
+const { claimAppInstance, requestOpenProject, takeOpenProjectRequest } =
+  await import('../open-project-requests')
 const { takeOpenSessionLinkRequest } = await import('../session-link-requests')
 type AppInstanceHost = Parameters<typeof claimAppInstance>[0]['host']
-type SecondInstanceListener = Parameters<AppInstanceHost['on']>[1]
+type SecondInstanceListener = Parameters<AppInstanceHost['onSecondInstance']>[0]
 
 const root = mkdtempSync(path.join(tmpdir(), 'openwaggle-open-project-'))
 const project = path.join(root, 'project')
@@ -28,12 +27,15 @@ function fakeHost(lockGranted: boolean) {
       lockData.push(data)
       return lockGranted
     },
-    on: (_event, listener) => {
+    onSecondInstance: (listener) => {
       listeners.push(listener)
+      return () => undefined
     },
   }
   const launchAgain = (data: unknown) => {
-    for (const listener of listeners) listener({}, [], root, data)
+    for (const listener of listeners) {
+      listener({ argv: [], workingDirectory: root, additionalData: data })
+    }
   }
   return { host, lockData, launchAgain, listeners }
 }
@@ -114,7 +116,7 @@ describe('app instance claim', () => {
   it('reveals a window for every later launch and accepts only a valid project', () => {
     const { host, lockData, launchAgain } = fakeHost(true)
     const revealWindow = vi.fn()
-    claimAppInstance({ host, openProjectPath: undefined, singleInstance: true, revealWindow })
+    claimAppInstance({ host, singleInstance: true, revealWindow })
     expect(lockData).toEqual([undefined])
 
     launchAgain({ openProjectPath: project })
@@ -128,12 +130,21 @@ describe('app instance claim', () => {
     expect(takeOpenProjectRequest()).toBeNull()
   })
 
+  it('ignores launch data that sets a field to undefined, which a launch never sends', () => {
+    const { host, launchAgain } = fakeHost(true)
+    const revealWindow = vi.fn()
+    claimAppInstance({ host, singleInstance: true, revealWindow })
+
+    launchAgain({ openProjectPath: project, openSessionLink: undefined })
+    expect(revealWindow).toHaveBeenCalledTimes(1)
+    expect(takeOpenProjectRequest()).toBeNull()
+  })
+
   it('opens a Session link in the first instance and hands it to a running app', () => {
     const link = 'openwaggle://sessions/session-1'
     const primary = fakeHost(true)
     claimAppInstance({
       host: primary.host,
-      openProjectPath: undefined,
       openSessionLink: link,
       singleInstance: true,
       revealWindow: vi.fn(),
@@ -145,7 +156,6 @@ describe('app instance claim', () => {
     expect(
       claimAppInstance({
         host: secondary.host,
-        openProjectPath: undefined,
         openSessionLink: link,
         singleInstance: true,
         revealWindow: vi.fn(),
@@ -158,7 +168,7 @@ describe('app instance claim', () => {
   it('accepts a Session link forwarded by a later launch', () => {
     const { host, launchAgain } = fakeHost(true)
     const revealWindow = vi.fn()
-    claimAppInstance({ host, openProjectPath: undefined, singleInstance: true, revealWindow })
+    claimAppInstance({ host, singleInstance: true, revealWindow })
 
     launchAgain({ openSessionLink: 'openwaggle://sessions/session-2' })
     expect(revealWindow).toHaveBeenCalledTimes(1)
@@ -174,7 +184,7 @@ describe('app instance claim', () => {
   it('ignores the update CLI probe instead of raising a window', () => {
     const { host, launchAgain } = fakeHost(true)
     const revealWindow = vi.fn()
-    claimAppInstance({ host, openProjectPath: undefined, singleInstance: true, revealWindow })
+    claimAppInstance({ host, singleInstance: true, revealWindow })
 
     launchAgain({ openwaggleInstanceProbe: 'update-cli' })
 

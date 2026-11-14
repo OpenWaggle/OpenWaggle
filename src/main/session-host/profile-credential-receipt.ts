@@ -10,11 +10,14 @@ const credentialReceiptSchema = Schema.Struct({
   targetPath: Schema.String,
   fingerprint: Schema.String,
   /** Written since #330: survives a reboot, which renumbers macOS volumes (`st_dev`). */
-  directory: Schema.optional(
+  directory: Schema.optionalWith(
     Schema.Struct({ device: decimal, inode: decimal, birthtime: decimal }),
+    { exact: true },
   ),
   /** Written before #330 as `${st_dev}:${st_ino}` of `fs.Stats` numbers. Read-only now. */
-  directoryIdentity: Schema.optional(Schema.String.pipe(Schema.pattern(/^\d+:\d+$/))),
+  directoryIdentity: Schema.optionalWith(Schema.String.pipe(Schema.pattern(/^\d+:\d+$/)), {
+    exact: true,
+  }),
 })
 
 /** The destination directory a receipt was written for. */

@@ -9,10 +9,7 @@ import {
   type ResolvedExtensionAgentLoopContribution,
   resolveExtensionAgentLoopContributionEntries,
 } from './extension-agent-loop-resolution'
-import type {
-  ExtensionAgentLoopSurfaceInput,
-  ExtensionInteractionView,
-} from './extension-agent-loop-surface-model'
+import type { ExtensionAgentLoopSurfaceInput } from './extension-agent-loop-surface-model'
 import { surfacePayload, surfaceTarget } from './extension-agent-loop-surface-model'
 
 export type ExtensionAgentLoopAuxiliaryPlacement = 'dialog' | 'side-panel' | 'status-widget'
@@ -50,14 +47,14 @@ export function agentLoopInputKey(input: ExtensionAgentLoopSurfaceInput) {
 export function agentLoopAuxiliarySurfacePayload(
   input: ExtensionAgentLoopSurfaceInput,
   placement: ExtensionAgentLoopAuxiliaryPlacement,
-): JsonObject {
+) {
   return {
     surface: placement === 'status-widget' ? 'status-widget' : 'composer-adjacent',
     launcher: {
       kind: auxiliaryLauncherKind(placement),
     },
     agentLoop: surfacePayload(input),
-  }
+  } satisfies JsonObject
 }
 
 export function resolveExtensionAgentLoopAuxiliaryContributions({
@@ -70,9 +67,9 @@ export function resolveExtensionAgentLoopAuxiliaryContributions({
   readonly registry: ExtensionContributionRegistryView | null
   readonly projectPaths: readonly string[]
   readonly placement: ExtensionAgentLoopAuxiliaryPlacement
-}): readonly ExtensionAgentLoopAuxiliaryContribution[] {
+}) {
   if (registry === null) {
-    return []
+    return [] satisfies readonly ExtensionAgentLoopAuxiliaryContribution[]
   }
 
   const family = AUXILIARY_PLACEMENT_FAMILY[placement]
@@ -85,14 +82,5 @@ export function resolveExtensionAgentLoopAuxiliaryContributions({
     placement,
     contribution,
     surfacePayload: agentLoopAuxiliarySurfacePayload(input, placement),
-  }))
-}
-
-export function interactionSurfaceInput(
-  interaction: ExtensionInteractionView,
-): Extract<ExtensionAgentLoopSurfaceInput, { readonly surface: 'interaction' }> {
-  return {
-    surface: 'interaction',
-    interaction,
-  }
+  })) satisfies readonly ExtensionAgentLoopAuxiliaryContribution[]
 }

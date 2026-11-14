@@ -21,13 +21,13 @@ interface SessionProjectSources {
  * previous one. Without a Session (a draft, or no Session at all) this is the preference, which is
  * also the project a draft's composer creates its Session in.
  */
-export function resolveSessionProjectPath(sources: SessionProjectSources): string | null {
+export function resolveSessionProjectPath(sources: SessionProjectSources) {
   if (sources.activeSessionId === null) return sources.preferredProjectPath
   return sources.activeSessionProjectPath ?? sources.activeSummaryProjectPath
 }
 
 /** The open Session's project; see resolveSessionProjectPath. */
-export function useSessionProjectPath(): string | null {
+export function useSessionProjectPath() {
   const activeSessionId = useChatStore((state) => state.activeSessionId)
   // setActiveSession replaces activeSession with the selected Session's cached detail (or null)
   // in the same update as activeSessionId, so it never names the previous Session.
