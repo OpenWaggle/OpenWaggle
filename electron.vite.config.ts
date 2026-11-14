@@ -7,7 +7,6 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
-import { stylesheetsFirstPlugin } from './scripts/vite/stylesheets-first'
 import {
   EAGER_MAIN_EXTERNALS,
   lazyExternalRequiresPlugin,
@@ -221,7 +220,6 @@ export default defineConfig({
       react(),
       babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
-      stylesheetsFirstPlugin(),
       disablePluginTimingWarningsPlugin(),
     ],
   },
