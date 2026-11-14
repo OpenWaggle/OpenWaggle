@@ -56,9 +56,12 @@ function isolatedProject() {
   )
   place('peer@1', 'peer', {}, [])
   place('sdk@1', 'sdk', { dependencies: { helper: '1', 'sdk-only': '1' } }, ['helper', 'sdk-only'])
-  place('sdk-only@1', 'sdk-only', {}, [])
+  place('sdk-only@1', 'sdk-only', { dependencies: { undici: '1' } }, ['undici'])
+  place('undici@1', 'undici', {}, [])
   place('mammoth@1', 'mammoth', {}, [])
-  for (const name of ['native', 'sdk', 'mammoth']) {
+  // The npm package only downloads Electron's binary; the app's `electron` is the runtime's own.
+  place('electron@1', 'electron', { dependencies: { undici: '1' } }, ['undici'])
+  for (const name of ['native', 'sdk', 'mammoth', 'electron']) {
     fs.symlinkSync(
       path.join(store, `${name}@1`, 'node_modules', name),
       path.join(root, 'node_modules', name),
@@ -105,6 +108,13 @@ describe('packaged runtime packages', () => {
     const root = isolatedProject()
     const packages = packagedRuntimePackages(root, ['native'])
     expect([...packages.runtime].sort()).toEqual(['helper', 'mammoth', 'native', 'peer'])
-    expect(packages.unshipped).toEqual(['sdk', 'sdk-only'])
+    expect(packages.unshipped).toEqual(['sdk', 'sdk-only', 'undici'])
+  })
+
+  it('ships nothing for the electron external, which the Electron runtime provides', () => {
+    const root = isolatedProject()
+    const packages = packagedRuntimePackages(root, ['native', 'electron'])
+    expect([...packages.runtime].sort()).toEqual(['helper', 'mammoth', 'native', 'peer'])
+    expect(packages.unshipped).toEqual(['sdk', 'sdk-only', 'undici'])
   })
 })
