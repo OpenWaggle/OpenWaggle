@@ -4,7 +4,7 @@
  * value passes (the file follows the measurement). Pure: the caller reads the files and the labels.
  */
 import type { PerfBudgetFile } from './budget-file'
-import type { PerfBudgetMetric } from './budget-metrics'
+import type { PerfBudgetMetric } from './build-budget-metrics'
 
 export const BUDGET_INCREASE_LABEL = 'perf-budget-increase'
 

@@ -13,6 +13,30 @@
       "value": 41156608,
       "quantum": 262144
     },
+    "main.boot.bytes": {
+      "value": 25600,
+      "quantum": 256
+    },
+    "main.startup.gui.bytes": {
+      "value": 16252928,
+      "quantum": 65536
+    },
+    "main.startup.session-host.bytes": {
+      "value": 16252928,
+      "quantum": 65536
+    },
+    "main.startup.hive.bytes": {
+      "value": 16252928,
+      "quantum": 65536
+    },
+    "main.startup.run.bytes": {
+      "value": 16252928,
+      "quantum": 65536
+    },
+    "main.startup.mcp.bytes": {
+      "value": 16252928,
+      "quantum": 65536
+    },
     "main.startup.modules": {
       "value": 6320,
       "quantum": 16
@@ -28,6 +52,30 @@
     "preload.bytes": {
       "value": 28928,
       "quantum": 256
+    },
+    "renderer.initial.entry.bytes": {
+      "value": 284672,
+      "quantum": 1024
+    },
+    "renderer.initial.bytes": {
+      "value": 1744896,
+      "quantum": 8192
+    },
+    "renderer.chat-surface.bytes": {
+      "value": 782336,
+      "quantum": 4096
+    },
+    "renderer.syntax-worker.bytes": {
+      "value": 205824,
+      "quantum": 1024
+    },
+    "renderer.focused-editor.bytes": {
+      "value": 187392,
+      "quantum": 1024
+    },
+    "renderer.focused-editor-worker.bytes": {
+      "value": 211968,
+      "quantum": 1024
     },
     "renderer.assets.files": {
       "value": 628,

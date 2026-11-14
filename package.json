@@ -113,7 +113,7 @@
     "check:react-compiler": "bun scripts/check-react-compiler.ts",
     "check:fallow": "fallow dead-code --fail-on-issues --quiet --format compact && fallow --only dupes --fail-on-issues --quiet --format compact",
     "check:react-doctor": "react-doctor . --no-score --no-supply-chain --blocking warning -y",
-    "check:renderer-bundle": "electron-vite build && bun run check:syntax-bundle && bun run check:main-bundle && bun run check:renderer-csp",
+    "check:renderer-bundle": "OPENWAGGLE_DEV_SLUG=perf-budgets electron-vite build && bun run check:syntax-bundle && bun run check:main-bundle && bun run check:renderer-csp",
     "check": "bun scripts/check/run.ts check",
     "check:changed": "bun scripts/check/run.ts --changed",
     "verify": "bun scripts/check/run.ts verify",

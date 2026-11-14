@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { BUDGET_INCREASE_LABEL, budgetFailureLines, compareBudgets } from '../budget-compare'
-import type { PerfBudgetFile } from '../budget-file'
-import type { PerfBudgetMetric } from '../budget-metrics'
+import { type PerfBudgetFile, readPerfBudgetFile } from '../budget-file'
+import { PERF_BUDGET_METRICS } from '../budget-metrics'
+import {
+  MAIN_BUNDLE_BUDGET_METRICS,
+  type PerfBudgetMetric,
+  RENDERER_BUNDLE_BUDGET_METRICS,
+} from '../build-budget-metrics'
 
 const METRICS: readonly PerfBudgetMetric[] = [
   {
@@ -86,5 +91,25 @@ describe('compareBudgets', () => {
     })
     expect(comparison.rows.map((row) => row.status)).toEqual(['new', 'new'])
     expect(comparison.passed).toBe(true)
+  })
+
+  it('fails growth of a bundle size once held in code, until the label accepts it', () => {
+    const committed = readPerfBudgetFile()
+    for (const metric of [...MAIN_BUNDLE_BUDGET_METRICS, ...RENDERER_BUNDLE_BUDGET_METRICS]) {
+      const entry = committed.metrics[metric.id]
+      if (entry === undefined) throw new Error(`performance/perf-budgets.json lacks ${metric.id}.`)
+      const grown: PerfBudgetFile = {
+        ...committed,
+        metrics: {
+          ...committed.metrics,
+          [metric.id]: { ...entry, value: entry.value + entry.quantum },
+        },
+      }
+      const input = { base: committed, head: grown, metrics: PERF_BUDGET_METRICS }
+      expect(compareBudgets({ ...input, labels: [] }).increases.map((row) => row.id)).toEqual([
+        metric.id,
+      ])
+      expect(compareBudgets({ ...input, labels: [BUDGET_INCREASE_LABEL] }).passed).toBe(true)
+    }
   })
 })

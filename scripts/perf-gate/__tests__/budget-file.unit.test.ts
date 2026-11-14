@@ -13,6 +13,7 @@ import {
   quantize,
   readPerfBudgetFile,
   recordPerfMeasurements,
+  UPDATE_INSTRUCTION,
 } from '../budget-file'
 import { PERF_BUDGET_METRICS } from '../budget-metrics'
 
@@ -55,10 +56,13 @@ describe('the budgets file', () => {
         `${metric.id} went up: stored 0, measured ${String(metric.quantum * 2)}`,
       ),
     ])
-    expect(up[0]?.message).toContain('perf-budget-increase label')
+    expect(up[0]?.message).toContain(`${metric.fix} ${UPDATE_INSTRUCTION}`)
     const raised = perfBudgetFileFor({ ...measured, [metric.id]: metric.quantum * 2 })
     const down = perfBudgetMismatches(raised, { [metric.id]: 0 })
     expect(down[0]?.message).toContain('went down')
+    expect(down[0]?.message).toMatch(
+      /\. Run `bun run perf:budgets:update` and commit performance\/perf-budgets\.json\./u,
+    )
     expect(perfBudgetMismatches(file, { [metric.id]: 0 })).toEqual([])
   })
 
@@ -74,7 +78,7 @@ describe('the budgets file', () => {
     expect(perfBudgetShapeProblems(stale)).toEqual([
       `${PERF_BUDGETS_FILE} has gone.metric, which no measurement writes.`,
       `${PERF_BUDGETS_FILE} lacks ${first?.[0] ?? ''}.`,
-      'Run bun run perf:budgets:update and commit the file.',
+      UPDATE_INSTRUCTION,
     ])
   })
 

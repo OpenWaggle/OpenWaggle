@@ -7,26 +7,25 @@ import { Schema } from '@shared/schema'
  * - the desktop app's runtime, IPC and window services (src/main/index.ts, gui-backend-startup.ts);
  * - the Session Host's ownership, cutover, runtime and bootstrap (session-host-cli-entry.ts);
  * - a CLI command's module (top-level-cli-entry.ts and the `*-cli-entry.ts` files).
- * A budget counts the static closure of the entry chunk and the chunks holding these modules.
+ * Its startup bytes are the static closure of the entry chunk and the chunks holding these
+ * modules, and `metric` names them in performance/perf-budgets.json (scripts/perf-gate/build-metrics.ts).
  *
  * The main bundle is one file (electron.vite.config.ts says why), so today every process loads
- * all of it and the budgets are the bundle's size: 15.8 MB when set. Splitting it into chunks
- * would let each budget fall to its own graph (GUI 2.5 MB, Host 10.2 MB, CLI 0.9-1.7 MB measured).
+ * all of it and each metric is the bundle's size: 15.8 MB when first budgeted. Splitting it into
+ * chunks would let each fall to its own graph (GUI 2.5 MB, Host 10.2 MB, CLI 0.9-1.7 MB measured).
  */
-export interface MainProcessBudget {
+export interface MainProcessStartup {
   readonly label: string
+  readonly metric: string
   readonly startupModules: readonly string[]
-  readonly maximumBytes: number
 }
-
-const KIBIBYTE = 1024
-const ONE_FILE_BUNDLE_BUDGET_BYTES = 16_896 * KIBIBYTE
 
 export const MAIN_ENTRY_CHUNK = 'index.js'
 
-export const MAIN_PROCESS_BUDGETS: readonly MainProcessBudget[] = [
+export const MAIN_PROCESSES: readonly MainProcessStartup[] = [
   {
     label: 'desktop app (GUI)',
+    metric: 'main.startup.gui.bytes',
     startupModules: [
       'src/main/gui-runtime.ts',
       'src/main/gui-desktop-services.ts',
@@ -36,10 +35,10 @@ export const MAIN_PROCESS_BUDGETS: readonly MainProcessBudget[] = [
       'src/main/store/settings.ts',
       'src/main/usage-statistics/usage-statistics-gui.ts',
     ],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
   },
   {
     label: 'Session Host',
+    metric: 'main.startup.session-host.bytes',
     startupModules: [
       'src/main/session-host/session-host-ownership.ts',
       'src/main/session-host/session-host-cutover.ts',
@@ -47,22 +46,21 @@ export const MAIN_PROCESS_BUDGETS: readonly MainProcessBudget[] = [
       'src/main/store/settings.ts',
       'src/main/session-host/session-host-bootstrap.ts',
     ],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
   },
   {
     label: 'openwaggle hive',
+    metric: 'main.startup.hive.bytes',
     startupModules: ['src/main/sessions-cli.ts'],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
   },
   {
     label: 'openwaggle run',
+    metric: 'main.startup.run.bytes',
     startupModules: ['src/main/run-cli.ts'],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
   },
   {
     label: 'openwaggle mcp',
+    metric: 'main.startup.mcp.bytes',
     startupModules: ['src/main/mcp-cli.ts'],
-    maximumBytes: ONE_FILE_BUNDLE_BUDGET_BYTES,
   },
 ]
 
@@ -101,7 +99,7 @@ export function processStartupChunks(
   const roots = [MAIN_ENTRY_CHUNK]
   for (const module of startupModules) {
     const holder = manifest.find((entry) => entry.modules.includes(module))
-    if (!holder) throw new Error(`No main chunk holds ${module}; update MAIN_PROCESS_BUDGETS.`)
+    if (!holder) throw new Error(`No main chunk holds ${module}; update MAIN_PROCESSES.`)
     roots.push(holder.file)
   }
   const visited = new Set<string>()

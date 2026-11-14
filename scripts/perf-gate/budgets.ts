@@ -5,8 +5,9 @@
  *     The `perf-budgets` step of `bun run check`: measures `out/` and `node_modules` and fails when
  *     performance/perf-budgets.json differs from the measurement or from budget-metrics.ts.
  *   bun run perf:budgets:update [--no-build]
- *     Builds, measures every metric (the build, then the integration tests that measure the rest)
- *     and rewrites the file.
+ *     Builds (with PERF_BUILD_ENV, as `bun run check` does), measures every metric (the build, then
+ *     the integration tests that measure the rest) and rewrites the file. Any author runs it when
+ *     the check fails: no size limit lives in code.
 
  * The Performance Gate compares the file with main's in scripts/perf-gate/gate.ts (`budgets`).
  */
@@ -24,8 +25,9 @@ import {
   readPerfBudgetFile,
   recordPerfMeasurements,
 } from './budget-file'
-import { BUILD_SOURCE, PERF_BUDGET_METRICS } from './budget-metrics'
-import { measureBuild } from './build-metrics'
+import { PERF_BUDGET_METRICS } from './budget-metrics'
+import { BUILD_SOURCE } from './build-budget-metrics'
+import { measureBuild, PERF_BUILD_ENV } from './build-metrics'
 import { measurePackageClosure } from './package-closure'
 
 const FIRST_ARGUMENT = 2
@@ -72,7 +74,12 @@ function testSources() {
 function update(build: boolean) {
   const fragments = fs.mkdtempSync(path.join(os.tmpdir(), 'perf-budgets-'))
   try {
-    if (build) run('bunx', ['electron-vite', 'build', '--logLevel', 'warn'], process.env)
+    if (build) {
+      run('bunx', ['electron-vite', 'build', '--logLevel', 'warn'], {
+        ...process.env,
+        ...PERF_BUILD_ENV,
+      })
+    }
     const environment = { ...process.env, [PERF_BUDGET_FRAGMENTS_ENV]: fragments }
     recordPerfMeasurements(BUILD_GROUP, measureBuildSource(), environment)
     const tests = testSources()

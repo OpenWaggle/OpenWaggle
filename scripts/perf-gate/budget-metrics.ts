@@ -13,18 +13,12 @@
  * Gate needs the perf-budget-increase label for it, as for a raised value.
  */
 
-export type PerfBudgetUnit = 'bytes' | 'count'
-
-export interface PerfBudgetMetric {
-  readonly id: string
-  readonly title: string
-  readonly unit: PerfBudgetUnit
-  readonly quantum: number
-  /** `build`, or the repository path of the integration test that measures it. */
-  readonly source: string
-  /** What to look at when the value goes up. */
-  readonly fix: string
-}
+import {
+  BUILD_SOURCE,
+  MAIN_BUNDLE_BUDGET_METRICS,
+  type PerfBudgetMetric,
+  RENDERER_BUNDLE_BUDGET_METRICS,
+} from './build-budget-metrics'
 
 const KIBIBYTE = 1024
 const PACKAGE_BYTES_QUANTUM = 256 * KIBIBYTE
@@ -35,7 +29,6 @@ const ASSET_FILES_QUANTUM = 4
 const PRELOAD_BYTES_QUANTUM = 256
 const EXACT = 1
 
-export const BUILD_SOURCE = 'build'
 const HOST_STARTUP_SOURCE = 'scripts/perf-gate/__tests__/host-startup-processes.integration.test.ts'
 const POWERSHELL_FIX =
   'Each Windows user-only security call is one powershell.exe (about 0.8 s on hosted Windows); batch the targets into one call (src/main/session-host/local-session-paths.ts).'
@@ -70,6 +63,7 @@ export const PERF_BUDGET_METRICS: readonly PerfBudgetMetric[] = [
     source: BUILD_SOURCE,
     fix: 'Leave files the app never loads out of the pack (PACKAGE_UNLOADED_FILES in scripts/packaged-runtime-packages.ts).',
   },
+  ...MAIN_BUNDLE_BUDGET_METRICS,
   {
     id: 'main.startup.modules',
     title: 'Source modules the desktop app loads before its window shows',
@@ -102,6 +96,7 @@ export const PERF_BUDGET_METRICS: readonly PerfBudgetMetric[] = [
     source: BUILD_SOURCE,
     fix: 'The preload runs before every page; keep it a thin IPC bridge (src/preload).',
   },
+  ...RENDERER_BUNDLE_BUDGET_METRICS,
   {
     id: 'renderer.assets.files',
     title: 'Renderer asset files',

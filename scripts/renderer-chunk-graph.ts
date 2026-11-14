@@ -1,5 +1,7 @@
 import { Schema } from '@shared/schema'
-/** The part of a Vite build manifest (`out/renderer/.vite/manifest.json`) the bundle budget reads. */
+import { namedGroups } from '@shared/utils/regex-named-groups'
+
+/** The part of a Vite build manifest (`out/renderer/.vite/manifest.json`) the bundle budgets read. */
 export interface RendererManifestChunk {
   readonly file: string
   readonly imports?: readonly string[]
@@ -17,6 +19,63 @@ export const OPTIONAL_CHAT_SURFACE_SOURCES: readonly RegExp[] = [
 ]
 
 export type RendererManifest = Readonly<Record<string, RendererManifestChunk>>
+
+/** The chat surface's source patterns in this build: the optional ones only when they are chunks. */
+export function chatSurfaceSources(manifest: RendererManifest) {
+  const keys = Object.keys(manifest)
+  return [
+    ...CHAT_SURFACE_SOURCES,
+    ...OPTIONAL_CHAT_SURFACE_SOURCES.filter((pattern) => keys.some((key) => pattern.test(key))),
+  ]
+}
+
+const ENTRY_SCRIPT = /<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u
+const MODULE_PRELOAD = /<link[^>]+rel="modulepreload"[^>]+href="\.\/assets\/(?<asset>[^"]+\.js)"/gu
+
+/**
+ * The scripts `index.html` loads at boot, as file names under `assets/`: its entry and every chunk
+ * it preloads, the entry first.
+ */
+export function initialRendererScripts(html: string) {
+  const entry = namedGroups(html.match(ENTRY_SCRIPT), ['asset'])?.asset
+  if (!entry) throw new Error('Could not resolve the initial renderer asset from index.html.')
+  const preloaded = [...html.matchAll(MODULE_PRELOAD)].flatMap(
+    (match) => namedGroups(match, ['asset'])?.asset ?? [],
+  )
+  return { entry, assets: [...new Set([entry, ...preloaded])] }
+}
+
+/** Deferred assets the build emits once each, with the metric that holds their bytes. */
+export const DEFERRED_RENDERER_ASSETS = [
+  {
+    metric: 'renderer.syntax-worker.bytes',
+    label: 'syntax worker',
+    pattern: /^syntax\.worker-[^.]+\.js$/u,
+  },
+  {
+    metric: 'renderer.focused-editor.bytes',
+    label: 'focused editor',
+    pattern: /^FocusedSourceEditor-[^.]+\.js$/u,
+  },
+  {
+    metric: 'renderer.focused-editor-worker.bytes',
+    label: 'focused editor worker',
+    pattern: /^worker-[^.]+\.js$/u,
+  },
+] as const
+
+/** The one asset in `assets` that matches, or an error naming how many did. */
+export function deferredRendererAsset(
+  assets: readonly string[],
+  deferred: (typeof DEFERRED_RENDERER_ASSETS)[number],
+) {
+  const matches = assets.filter((asset) => deferred.pattern.test(asset))
+  const [only] = matches
+  if (matches.length !== 1 || only === undefined) {
+    throw new Error(`Expected one ${deferred.label} asset, found ${String(matches.length)}.`)
+  }
+  return only
+}
 
 /** A Vite manifest chunk: its file and, when it has any, the chunks and stylesheets it imports. */
 const manifestChunkSchema = Schema.Struct({

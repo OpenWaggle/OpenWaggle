@@ -16,6 +16,12 @@ import { PERF_BUDGET_METRICS } from './budget-metrics'
 export const PERF_BUDGETS_FILE = 'performance/perf-budgets.json'
 /** Where an update run's measuring steps leave their values before they are merged. */
 export const PERF_BUDGET_FRAGMENTS_ENV = 'OPENWAGGLE_PERF_BUDGETS_WRITE'
+/**
+ * What fixes a mismatch, whoever the author: the file follows the measurement, with no constant to
+ * raise. Growth over main's shows on the advisory Performance Gate, not here.
+ */
+export const UPDATE_INSTRUCTION =
+  "Run `bun run perf:budgets:update` and commit performance/perf-budgets.json. A value above main's then shows on the advisory Performance Gate, where a maintainer's perf-budget-increase label accepts it."
 
 export interface PerfBudgetEntry {
   readonly value: number
@@ -117,9 +123,8 @@ export function perfBudgetMismatches(
       message:
         `${PERF_BUDGETS_FILE} ${id} ${direction}: stored ${String(stored ?? '-')}, measured ${String(value)} ` +
         `(${String(raw)} before rounding to ${String(metric.quantum)}). ` +
-        (stored !== undefined && value > stored
-          ? `${metric.fix} If the increase is intended, run bun run perf:budgets:update; the Performance Gate then needs the perf-budget-increase label.`
-          : 'Run bun run perf:budgets:update and commit the file.'),
+        (stored !== undefined && value > stored ? `${metric.fix} ` : '') +
+        UPDATE_INSTRUCTION,
     }
     return [mismatch]
   })
@@ -139,9 +144,7 @@ export function perfBudgetShapeProblems(file: PerfBudgetFile) {
     return entry !== undefined && entry.quantum !== metric.quantum
   }).map((metric) => `${PERF_BUDGETS_FILE} ${metric.id} quantum differs from budget-metrics.ts.`)
   const problems = [...stale, ...missing, ...quanta]
-  return problems.length === 0
-    ? []
-    : [...problems, 'Run bun run perf:budgets:update and commit the file.']
+  return problems.length === 0 ? [] : [...problems, UPDATE_INSTRUCTION]
 }
 
 /**
