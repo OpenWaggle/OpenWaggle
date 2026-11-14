@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import { SESSION_CATALOG_PAGE_SIZE } from '@shared/types/openwaggle-api-session-catalog'
 import type { SessionSummary } from '@shared/types/session'
 import { loadInBatches } from '@shared/utils/batches'
 import { coalescedRead } from '@/shared/lib/coalesced-read'
@@ -7,7 +8,6 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { readPinnedSessions } from '@/shared/lib/pinned-sessions-read'
 
 const logger = createRendererLogger('session-catalog-store')
-const PAGE_SIZE = 100
 let latestCatalogRequestId = 0
 let latestHiveRequestId = 0
 let catalogOperationId = 0
@@ -56,8 +56,8 @@ function appendUnique(current: readonly SessionSummary[], incoming: readonly Ses
 async function loadPinnedSessionSummaries() {
   const pins = await readPinnedSessions()
   const sessions: SessionSummary[] = []
-  for (let offset = 0; offset < pins.length; offset += PAGE_SIZE) {
-    const ids = pins.slice(offset, offset + PAGE_SIZE).map((pin) => pin.sessionId)
+  for (let offset = 0; offset < pins.length; offset += SESSION_CATALOG_PAGE_SIZE) {
+    const ids = pins.slice(offset, offset + SESSION_CATALOG_PAGE_SIZE).map((pin) => pin.sessionId)
     sessions.push(...(await api.listSessionsByIds(ids)))
   }
   return sessions
@@ -70,8 +70,8 @@ async function loadCatalog(set: CatalogSet) {
   activeCatalogReadOperationIds.add(requestId)
   try {
     const [active, archived, pinned] = await Promise.all([
-      api.listSessionCatalogPage(false, PAGE_SIZE),
-      api.listSessionCatalogPage(true, PAGE_SIZE),
+      api.listSessionCatalogPage(false, SESSION_CATALOG_PAGE_SIZE),
+      api.listSessionCatalogPage(true, SESSION_CATALOG_PAGE_SIZE),
       loadPinnedSessionSummaries().catch((error: unknown) => {
         logger.warn('Failed to hydrate pinned Sessions', { error: String(error) })
         return []
@@ -129,7 +129,7 @@ async function refreshCatalogSessions(
     targetedSessionOperationIds.set(String(sessionId), operationId)
   }
   try {
-    const refreshed = await loadInBatches(requestedIds, PAGE_SIZE, (ids) =>
+    const refreshed = await loadInBatches(requestedIds, SESSION_CATALOG_PAGE_SIZE, (ids) =>
       api.listSessionsByIds(ids),
     )
     const requested = new Set(
@@ -195,7 +195,7 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet) {
       const operationId = catalogOperationId
       activeCatalogReadOperationIds.add(operationId)
       try {
-        const page = await api.listSessionCatalogPage(false, PAGE_SIZE, cursor)
+        const page = await api.listSessionCatalogPage(false, SESSION_CATALOG_PAGE_SIZE, cursor)
         if (get().sessionsNextCursor !== cursor) {
           set({ sessionsLoadingMore: false })
           return
@@ -221,7 +221,7 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet) {
       latestHiveRequestId += 1
       const requestId = latestHiveRequestId
       try {
-        const page = await api.listHiveSessionCatalogPage(sessionId, PAGE_SIZE)
+        const page = await api.listHiveSessionCatalogPage(sessionId, SESSION_CATALOG_PAGE_SIZE)
         if (requestId !== latestHiveRequestId) return
         set({
           hiveSessions: appendUnique(page.context, page.workers),
@@ -238,7 +238,11 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet) {
       const cursor = get().hiveWorkersNextCursor
       if (!cursor) return
       try {
-        const page = await api.listHiveSessionCatalogPage(sessionId, PAGE_SIZE, cursor)
+        const page = await api.listHiveSessionCatalogPage(
+          sessionId,
+          SESSION_CATALOG_PAGE_SIZE,
+          cursor,
+        )
         if (get().hiveWorkersNextCursor !== cursor) return
         set((state) => ({
           hiveSessions: appendUnique(state.hiveSessions, [...page.context, ...page.workers]),

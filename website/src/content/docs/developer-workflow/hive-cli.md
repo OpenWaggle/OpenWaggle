@@ -275,6 +275,19 @@ Ordinary search uses hybrid mode over session summaries and needs `sessions:disc
 
 Pass `--mode semantic` or `--mode hybrid` when matching by meaning helps. Those modes build the embeddings they need on first use, and only for the sessions the query may see, up to 1,000 sessions. Use `--require-fresh --timeout-ms <ms>` to wait until every item the storage limits allow is indexed.
 
+Both modes also need the session search model, which OpenWaggle downloads on first use ([The session search model](/docs/configuration/security-privacy#the-session-search-model)). Until it arrives, `semanticReadiness` has a `model` field and a `reason`:
+
+| `model.state` | `semanticReadiness.status` | Meaning |
+| --- | --- | --- |
+| `missing` | `preparing` | Not downloaded yet |
+| `downloading` | `preparing` | Downloading, with `receivedBytes` and `totalBytes` |
+| `offline` | `unavailable` | The download failed without a network. `retryAt` says when it tries again |
+| `failed` | `unavailable` | The download failed for another reason, such as a hash mismatch. `retryAt` says when it tries again |
+
+These statuses apply unless the index already reports `failed` or `unavailable`, which it keeps.
+
+Meanwhile hybrid search returns word matches, with `searchBackend: "lexical"` and the degradation reason `semantic_not_ready`. Semantic-only search fails with `semantic_not_ready`. `--require-fresh` returns at once instead of waiting for the download.
+
 The meaning index is a local cache that OpenWaggle can rebuild. The transcript itself is the source of truth. The cache keeps these limits:
 
 | Limit | Value |

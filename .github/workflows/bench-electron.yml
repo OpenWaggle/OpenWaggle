@@ -1,0 +1,234 @@
+# Measures the packaged Electron app the way the Electrobun package proof measures its build, so the
+# two shells compare (scripts/bench/electron-bench.ts): download and installed size, cold and warm
+# window-ready and backend-ready, idle and after-turn resident memory by process, medians of four
+# runs, on the same runners. Each run also proves a fake-provider turn, a terminal, a Browser
+# preview and a Session link. Throwaway `bench/electron-best-*` branches run it; it gates nothing.
+#
+# Nightly, the `ab` job times main on macOS and Windows the way the Performance Gate times a pull
+# request on Linux (perf-gate.yml, scripts/perf-gate/ab-run.ts): main as it was 24 hours earlier
+# against main now, both built and launched unpackaged on one runner, interleaved. It reports in
+# the job summary and fails nothing; per pull request those runners were too slow to gate on
+# (.agents/memory/performance.md). A push to `bench/electron-best-nightly-ab*` runs it on demand.
+name: Electron Bench
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 05:23 UTC daily, after the nightly canary (nightly.yml, 04:17).
+    - cron: "23 5 * * *"
+  push:
+    branches:
+      - "bench/electron-best-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electron-bench-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPENWAGGLE_RELEASE_CHANNEL: beta
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+jobs:
+  bench:
+    name: Bench ${{ matrix.target }}
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !startsWith(github.ref_name, 'bench/electron-best-nightly-ab'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-15, flags: --mac --arm64 }
+          - { target: linux-x64, runner: ubuntu-24.04, flags: --linux }
+          - { target: win32-x64, runner: windows-2025, flags: --win }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      RESULTS: ${{ github.workspace }}/out/bench-results/${{ matrix.target }}
+      DISPLAY: ":99"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - uses: ./.github/actions/bun-install
+        with:
+          electron-binary: "true"
+
+      # The same display, session bus and sandbox setup the Electrobun proof uses on Ubuntu 24.04,
+      # plus FUSE for the AppImage.
+      - name: Linux display
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb openbox dbus-x11 libfuse2t64 libnss3 libxss1 libasound2t64 libgtk-3-0t64
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          Xvfb "$DISPLAY" -screen 0 1440x900x24 >/dev/null 2>&1 &
+          sleep 1
+          eval "$(dbus-launch --sh-syntax)"
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
+          openbox >/dev/null 2>&1 &
+
+      - name: Build the app
+        run: bun run build
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          mkdir -p "$RESULTS"
+          start=$(date +%s)
+          bunx electron-builder ${{ matrix.flags }} --publish never
+          echo "{\"packageSeconds\": $(( $(date +%s) - start ))}" > "$RESULTS/package.json"
+          ls -la dist | tee "$RESULTS/dist.txt"
+
+      # Releases build Linux on Ubuntu 22.04 for the glibc floor (release.yml, nightly.yml); the bench
+      # builds where it measures, as the Electrobun proof does, so a newer glibc only warns here.
+      - name: Check the package against the platform floor
+        continue-on-error: ${{ runner.os == 'Linux' }}
+        run: bun scripts/check-native-platform-floor.ts | tee "$RESULTS/floor.txt"
+
+      - name: Smoke the packaged runtime
+        run: bun run packaged-app:smoke | tee "$RESULTS/smoke.txt"
+
+      - name: Install
+        run: |
+          bun scripts/bench/electron-bench.ts install --dist dist --dir "$RUNNER_TEMP/install" \
+            --out "$RESULTS/install.json"
+
+      - name: Measure (4 runs)
+        run: |
+          bun scripts/bench/electron-bench.ts measure --install "$RESULTS/install.json" --runs 4 \
+            --work "$RUNNER_TEMP/bench" --label "${GITHUB_REF_NAME#bench/} @ ${GITHUB_SHA::9}" \
+            --out "$RESULTS/result.json" --screenshots "$RESULTS/screenshots" --logs "$RESULTS/logs"
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$RESULTS/result.json" ]; then
+            {
+              echo "## ${{ matrix.target }}"
+              bun scripts/bench/electron-bench.ts summarize "$RESULTS/result.json"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ !cancelled() }}
+        with:
+          name: electron-bench-${{ matrix.target }}
+          path: out/bench-results/${{ matrix.target }}
+          retention-days: 14
+
+  ab:
+    name: Nightly A/B ${{ matrix.target }}
+    if: github.event_name == 'schedule' || startsWith(github.ref_name, 'bench/electron-best-nightly-ab')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-15 }
+          - { target: win32-x64, runner: windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out main
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: head
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Pick main as it was 24 hours ago
+        id: refs
+        working-directory: head
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          base=$(git rev-list -1 --first-parent --before="24 hours ago" HEAD)
+          if [ -f performance/perf-gate/bench.json ]; then
+            base=$(git rev-parse "$(jq -r '.base' performance/perf-gate/bench.json)^{commit}")
+          fi
+          { echo "base=$base"; echo "head=$head"; } >> "$GITHUB_OUTPUT"
+          if [ "$base" = "$head" ]; then echo "::notice::main did not change in 24 hours."; fi
+
+      - name: Check out the base
+        if: steps.refs.outputs.base != steps.refs.outputs.head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ steps.refs.outputs.base }}
+          path: base
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: steps.refs.outputs.base != steps.refs.outputs.head
+        with:
+          bun-version-file: head/package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        if: steps.refs.outputs.base != steps.refs.outputs.head
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - name: Install and build both
+        if: steps.refs.outputs.base != steps.refs.outputs.head
+        run: |
+          set -euo pipefail
+          for side in base head; do
+            # A base from before the move to Bun installs and builds with pnpm.
+            manager=$(jq -r '.packageManager // "bun@"' "$side/package.json" | cut -d@ -f1)
+            if [ "$manager" = "pnpm" ]; then corepack enable; fi
+            (cd "$side" && "$manager" install --frozen-lockfile && node node_modules/electron/install.js && "$manager" run build)
+          done
+
+      - name: Measure base and head, interleaved
+        if: steps.refs.outputs.base != steps.refs.outputs.head
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          pairs=$(jq -r .pairs head/performance/perf-gate/thresholds.json)
+          idle=$(jq -r .idleMs head/performance/perf-gate/thresholds.json)
+          (cd head && bun scripts/perf-gate/ab-run.ts --base ../base --head ../head --pairs "$pairs" \
+            --idle-ms "$idle" --work "$RUNNER_TEMP/ab" --out ../results/ab.json)
+
+      - name: Summary
+        if: steps.refs.outputs.base != steps.refs.outputs.head && !cancelled()
+        env:
+          BASE_SHA: ${{ steps.refs.outputs.base }}
+          HEAD_SHA: ${{ steps.refs.outputs.head }}
+        run: |
+          set -uo pipefail
+          [ -f results/ab.json ] || exit 0
+          cd head
+          bun scripts/perf-gate/gate.ts verdict --results ../results/ab.json \
+            --thresholds performance/perf-gate/thresholds.json \
+            --head-thresholds performance/perf-gate/thresholds.json --out ../results/verdict.json || true
+          bun scripts/perf-gate/gate.ts report --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" \
+            --verdict ../results/verdict.json --results ../results/ab.json \
+            --out ../results/report.json --markdown ../results/report.md
+          { echo "## ${{ matrix.target }}"; cat ../results/report.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ !cancelled() }}
+        with:
+          name: nightly-ab-${{ matrix.target }}
+          path: results
+          retention-days: 30

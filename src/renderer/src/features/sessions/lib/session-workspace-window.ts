@@ -5,6 +5,7 @@ import type {
   SessionWorkspace,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
+import { TRANSCRIPT_WINDOW_PAGE_ENTRIES } from '@shared/types/session-transcript-window'
 
 /**
  * The transcript window the desktop window reads (ADR 0036 bounds the transferred rows as well as
@@ -16,8 +17,6 @@ import type {
  * window that reaches it.
  */
 
-/** Path entries in one page: well above the 160 rows the transcript mounts at once. */
-export const TRANSCRIPT_WINDOW_PAGE_ENTRIES = 200
 /** Most node ids one read says it holds; past this the oldest are simply sent again. */
 const MAX_CACHED_NODE_IDS = 5_000
 /** Sessions whose loaded transcript nodes are kept for a quick return. */

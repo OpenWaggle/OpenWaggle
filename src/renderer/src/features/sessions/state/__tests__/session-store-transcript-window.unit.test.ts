@@ -1,12 +1,12 @@
 import { MessageId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTranscriptEntry, SessionTree, SessionWorkspace } from '@shared/types/session'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  clearTranscriptNodeCaches,
+  type SessionWorkspaceRequest,
   TRANSCRIPT_WINDOW_PAGE_ENTRIES,
-} from '../../lib/session-workspace-window'
+} from '@shared/types/session-transcript-window'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearTranscriptNodeCaches } from '../../lib/session-workspace-window'
 import { useSessionStore } from '../session-store'
-import type { SessionWorkspaceRequest } from '@shared/types/session-transcript-window'
 
 const mockApi = {
   getSessionTree: vi.fn(),

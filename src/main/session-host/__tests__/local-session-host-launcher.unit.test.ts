@@ -190,6 +190,26 @@ describe('Local Session Host launcher', () => {
     expect(launcher.probe).toHaveBeenCalledTimes(2)
   })
 
+  it('reports the launch just before it starts and once it has started', async () => {
+    const events: string[] = []
+    const canConnect = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const launcher = dependencies({ canConnect })
+    launcher.launch = vi.fn(async () => {
+      events.push('launch')
+    })
+
+    await ensureLocalSessionHost(
+      {
+        ...client,
+        onLaunching: () => events.push('launching'),
+        onLaunched: () => events.push('launched'),
+      },
+      launcher,
+    )
+
+    expect(events).toEqual(['launching', 'launch', 'launched'])
+  })
+
   it('surfaces launch failures before polling for Host readiness', async () => {
     const canConnect = vi.fn(async () => false)
     const launcher = dependencies({ canConnect })

@@ -26,6 +26,17 @@ describe("packaging Pi's own documentation", () => {
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'examples', 'README.md'))).toBe(false)
   })
 
+  it("requires Pi's HTML export template and both built-in themes", () => {
+    const complete = PACKAGED_PI_ASSET_ENTRIES.map((entry) => entry)
+    expect(missingPackagedPiAssets(complete.filter((entry) => !entry.endsWith('.json')))).toEqual([
+      '/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json',
+      '/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json',
+    ])
+    expect(missingPackagedPiAssets(complete.filter((entry) => !entry.endsWith('.html')))).toEqual([
+      '/node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/template.html',
+    ])
+  })
+
   it('names every Pi asset missing from a packaged asar file list', () => {
     const complete = PACKAGED_PI_ASSET_ENTRIES.map((entry) => entry)
 

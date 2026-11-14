@@ -6,6 +6,19 @@ import type {
 
 export type SessionWorkspaceRequest = SchemaType<typeof sessionWorkspaceRequestSchema>
 
+/**
+ * Path entries in one page of the desktop window's transcript: well above the 160 rows the
+ * transcript mounts at once.
+ */
+export const TRANSCRIPT_WINDOW_PAGE_ENTRIES = 200
+
+/**
+ * Newest messages of a Session the desktop window holds: above the 200 path entries of the
+ * transcript's first workspace page, so every message it shows at first is held, with room for a
+ * long Run.
+ */
+export const SESSION_DETAIL_MESSAGE_WINDOW = 400
+
 /** Where a windowed transcript path starts within the whole selected path. */
 export interface SessionTranscriptWindow {
   /** Entries of the selected path before the first one returned. */

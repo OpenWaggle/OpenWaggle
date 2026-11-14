@@ -57,7 +57,8 @@ In CI a missing `origin/main` fails the step instead of comparing with `HEAD`; t
 CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no Electron E2E and no merge queue:
 
 - **Per-PR / per-push gate:** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them. A PR that changes packages also runs the Package Consumer Rehearsal (`bun run package:smoke` with npm, pnpm, Yarn and Bun on Node 22.19.0), and one that changes the website or docs runs the Website & Docs Rehearsal; a full-tier dispatch runs both.
-- **Session Performance workflow (manual/dispatch):** `bun run benchmark:session-release` validates the packaged embedding model's warm query latency and multilingual recall, the exact 100,000-Session vector index, and the 100,000-Session/10,000,000-message reference corpus. `bun run benchmark:session-performance` remains the faster local 1,000,000-message development check.
+- **Performance Gate (per PR, required):** `.github/workflows/perf-gate.yml`, below in "Performance Gate".
+- **Session Performance workflow (manual/dispatch):** `bun run benchmark:session-release` validates the pinned embedding model's warm query latency and multilingual recall on the copy `bun run prepare:semantic-model` fetches into `build/` (no package ships the model any more; the app downloads it on first use), the exact 100,000-Session vector index, and the 100,000-Session/10,000,000-message reference corpus. `bun run benchmark:session-performance` remains the faster local 1,000,000-message development check.
 - **Nightly canary (non-gating):** `.github/workflows/nightly.yml` builds and runs `packaged-app:smoke` on macOS/Linux/Windows, and runs the syntax performance benchmark on macOS. It never blocks a merge.
 
 Pushes to `main` run the same checks as a PR (the path-scoped `changes` job is skipped on push, which the gate tolerates).
@@ -83,6 +84,26 @@ and its test strategy: OpenWaggle no longer runs Electron E2E in CI at all
 Windows diagnostics workflow for native investigation. The reference is T3 Code commit
 `b1e223e2b0d87124883b1410ab52dd6a1338e40d`, specifically
 `apps/server/src/terminal/NodePtyAdapter.ts` and `.github/workflows/windows-tests.yml`.
+
+## Performance Gate
+
+The required `Performance Gate` check fails a pull request that makes the app slower or heavier (`.github/workflows/perf-gate.yml`, `scripts/perf-gate/`). It has two halves.
+
+- **Budgets.** `performance/perf-budgets.json` holds deterministic measurements: the runtime package closure (packages, files, bytes), main startup modules, worker, preload and renderer asset sizes, renderer requests and chunks before chat is ready, PowerShell calls the Host makes at a Windows start, and the Session data a 3,000-Session project and a 2,000-message Session move (bytes, rows, SQLite statements, `listSessionsByIds` batches). The `perf-budgets` check step fails when the file differs from the measurement. The gate fails when any value is higher than main's, unless a maintainer added `perf-budget-increase`.
+- **Timings.** The merge base and the head are built and launched unpackaged on one ubuntu-24.04 runner under xvfb. One warm-up each, then 10 interleaved A/B pairs. It measures cold and warm window, backend and chat ready, IPC calls until chat ready, and RSS by process type at idle and after a fake-provider turn. A metric regresses when the median of its paired differences is over the larger of a relative and an absolute limit (`performance/perf-gate/thresholds.json`, main's copy). A regression, a metric the head stopped measuring, a readiness timing neither side measured, or a loosened threshold fails unless a maintainer added `perf-regression-accepted`. Results with fewer base and head samples paired by order than main's `pairs` fail whatever the labels. The job takes about 11 minutes.
+
+Labels count only when a user with the admin or maintain role added them last, after the run's first attempt began: add the label, then re-run the failed job. A label added before a push does not count for it: after a new push the maintainer removes the label and adds it again. A change to only `docs/`, `website/`, `.agents/` or root Markdown skips the timings, and the check still reports success.
+
+Reading a failure: the job summary and the PR comment (`perf-report.yml`, rendered by main's reporter) list changed rows first. Each failing line names the metric, old -> new and the fix. Reproduce locally:
+
+```bash
+bun run perf:budgets:update      # rebuild, re-measure, rewrite performance/perf-budgets.json
+bun scripts/perf-gate/budgets.ts check
+bun run perf:ab                  # build the merge base in .tmp/perf-gate/base, A/B it against HEAD
+bun run perf:ab --base <ref> --pairs 4
+```
+
+Local A/B numbers only compare with each other. The thresholds were set on GitHub's runners (`.agents/memory/performance.md`). macOS and Windows timings run nightly against main in `bench-electron.yml` and gate nothing.
 
 ## Baseline Static Checks
 

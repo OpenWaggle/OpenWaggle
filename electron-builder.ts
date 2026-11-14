@@ -5,14 +5,20 @@ import {
   resolveMacIconPath,
   resolveUrlSchemeProtocols,
 } from './scripts/build-identity'
+import { removeUnusedChromiumFiles } from './scripts/electron-builder-after-pack'
 import {
   forceIncludePiPackageAsset,
   PI_PACKAGE_ASSET_FILE_PATTERNS,
 } from './scripts/electron-builder-pi-assets'
 import { foreignNativePrebuildExclusions } from './scripts/electron-builder-native-prebuilds'
-import { UNUSED_RUNTIME_FILE_PATTERNS } from './scripts/electron-builder-runtime-trim'
+import {
+  unshippedPackagePatterns,
+  UNUSED_RUNTIME_FILE_PATTERNS,
+} from './scripts/electron-builder-runtime-trim'
 import { resolveMacSigning } from './scripts/mac-signing'
+import { packagedRuntimePackages } from './scripts/packaged-runtime-packages'
 import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
+import { mainExternalPackages } from './scripts/vite/main-externals'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
@@ -26,6 +32,8 @@ import { SUPPORTED_PLATFORM_FLOOR } from './scripts/supported-platform-floor'
  * module resolution. Replaces the former static electron-builder.yml.
  */
 const identity = resolveBuildIdentity()
+// The production packages the main bundle already contains (scripts/packaged-runtime-packages.ts).
+const { unshipped } = packagedRuntimePackages(process.cwd(), [...mainExternalPackages()])
 const buildResourcesDir = 'build'
 
 const stableIcons = {
@@ -53,6 +61,12 @@ const config = {
   directories: {
     buildResources: buildResourcesDir,
   },
+  // zip at 7-Zip's highest level and an LZMA DMG (ULMO, patches/dmg-builder); the AppImage stays
+  // gzip (`appImage` below). The Windows installer keeps electron-builder's differential-update
+  // payload (1 MB LZMA blocks) either way.
+  compression: 'maximum',
+  // SwiftShader, which Chromium no longer falls back to (scripts/electron-builder-after-pack.ts).
+  afterPack: removeUnusedChromiumFiles,
   // Session links (`openwaggle://sessions/<id>`, ADR 0056). Release channels only.
   protocols: resolveUrlSchemeProtocols(identity.channel),
   publish: {
@@ -120,6 +134,8 @@ const config = {
     '!node_modules/@openwaggle/*/tsconfig*.json',
     // onnxruntime-web, SQLite sources, tesseract browser builds (scripts/electron-builder-runtime-trim.ts).
     ...UNUSED_RUNTIME_FILE_PATTERNS,
+    // Packages inlined into the main bundle, apart from files they read from their directory.
+    ...unshippedPackagePatterns(unshipped),
     // Pi reads its README, docs (codemode points the model at docs/codemode.md) and examples from
     // its package directory; keep them although other packages' docs are excluded above.
     ...PI_PACKAGE_ASSET_FILE_PATTERNS,
@@ -132,7 +148,6 @@ const config = {
     // (docs/adr/0032). Packaged macOS builds take their Dock icon from the bundle.
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
-    { from: 'build/session-embedding-model', to: 'session-embedding-model' },
     { from: 'scripts/install.sh', to: 'openwaggle-install.sh' },
     // MIT notices for code adapted from other projects (generated Session titles, ADR 0043).
     { from: 'THIRD_PARTY_NOTICES.md', to: 'THIRD_PARTY_NOTICES.md' },
@@ -164,6 +179,12 @@ const config = {
   },
   nsis: {
     include: 'build/installer.nsh',
+  },
+  // `maximum` alone would make the AppImage's squashfs xz with 1 MB blocks: 23% smaller, but every
+  // read through its FUSE mount decompresses a whole block, and the app then took 65 s to show its
+  // window on Ubuntu 24.04 instead of 2 s.
+  appImage: {
+    compression: 'gzip',
   },
   linux: {
     icon: icons.linux,

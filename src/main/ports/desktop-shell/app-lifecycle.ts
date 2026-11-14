@@ -52,7 +52,10 @@ export interface AppLifecycleShape {
    */
   readonly onBeforeQuitForUpdate: (listener: () => void) => Unsubscribe
   readonly commandLine: ShellCommandLineShape
-  /** Turns GPU compositing off for a windowless process; only before ready. */
+  /**
+   * Sets a windowless process up, only before ready: turns GPU compositing off and folds the GPU
+   * process and the network service into the process itself (`WINDOWLESS_PROCESS_SWITCHES`).
+   */
   readonly disableHardwareAcceleration: () => void
 }
 

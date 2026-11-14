@@ -1,5 +1,14 @@
+import { createRequire } from 'node:module'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { assertNativeModulesLoad } from '../native-load-probe'
+import { REQUIRED_RUNTIME_ASAR_ENTRIES } from '../electron-builder-runtime-trim'
+import {
+  assertNativeModulesLoad,
+  packageImportEntry,
+  TESSERACT_CORE_LOADER,
+  TRIMMED_RUNTIME_MODULES,
+} from '../native-load-probe'
+import { PACKAGE_UNLOADED_FILES } from '../packaged-runtime-packages'
 
 vi.mock('../native-windows-telemetry-probe', () => ({ probeWindowsTerminalTelemetry: vi.fn() }))
 
@@ -117,15 +126,28 @@ function fakeNativeModules(platform: NodeJS.Platform) {
     if (moduleName === 'better-sqlite3') return FakeDatabase
     if (moduleName === 'node-pty') return nodePty
     if (moduleName === 'sharp') return { versions: {} }
+    if (TRIMMED_RUNTIME_MODULES.some((name) => name === moduleName)) return {}
+    if (moduleName === TESSERACT_CORE_LOADER) return async () => () => undefined
     throw new Error(`Unexpected module ${moduleName}.`)
   })
-  return { loadModule, spawn, terminals }
+  const importModule = vi.fn<(moduleName: string) => Promise<unknown>>(async (moduleName) => {
+    if (TRIMMED_RUNTIME_MODULES.some((name) => name === moduleName)) return {}
+    throw new Error(`Unexpected import of ${moduleName}.`)
+  })
+  return { loadModule, importModule, spawn, terminals }
 }
 
 describe('native load probe', () => {
   it('checks the shipping Windows backend selection and the bundled ConPTY payload by default', async () => {
     const fixture = fakeNativeModules('win32')
-    await assertNativeModulesLoad('electron', fixture.loadModule, 'win32', 'C:\\runtime\\node.exe')
+    await assertNativeModulesLoad(
+      'electron',
+      fixture.loadModule,
+      'win32',
+      'C:\\runtime\\node.exe',
+      'runtime',
+      fixture.importModule,
+    )
 
     expect(fixture.spawn).toHaveBeenCalledTimes(4)
     for (const call of fixture.spawn.mock.calls.slice(0, 2)) {
@@ -164,6 +186,7 @@ describe('native load probe', () => {
       'win32',
       'C:\\runtime\\node.exe',
       'all-backends',
+      fixture.importModule,
     )
 
     expect(fixture.spawn).toHaveBeenCalledTimes(6)
@@ -181,6 +204,70 @@ describe('native load probe', () => {
         'openwaggle-native-probe-input\r',
       )
     }
+  })
+
+  it('loads every trimmed package with import() as well as require', async () => {
+    const fixture = fakeNativeModules('darwin')
+    await assertNativeModulesLoad(
+      'electron',
+      fixture.loadModule,
+      'darwin',
+      '/runtime/node',
+      'runtime',
+      fixture.importModule,
+    )
+
+    expect(fixture.importModule.mock.calls.map(([name]) => name)).toEqual([
+      ...TRIMMED_RUNTIME_MODULES,
+    ])
+  })
+
+  it('fails when a trimmed package cannot be imported', async () => {
+    const fixture = fakeNativeModules('darwin')
+    fixture.importModule.mockRejectedValueOnce(
+      new Error('Cannot find module transformers.node.mjs'),
+    )
+
+    await expect(
+      assertNativeModulesLoad(
+        'electron',
+        fixture.loadModule,
+        'darwin',
+        '/runtime/node',
+        'runtime',
+        fixture.importModule,
+      ),
+    ).rejects.toThrow('transformers.node.mjs')
+  })
+
+  it('resolves import() through the import condition of a package exports', () => {
+    const checkout = createRequire(path.join(process.cwd(), 'package.json'))
+
+    expect(path.basename(packageImportEntry(checkout, '@huggingface/transformers'))).toBe(
+      'transformers.node.mjs',
+    )
+    expect(path.basename(packageImportEntry(checkout, 'playwright-core'))).toBe('index.mjs')
+    expect(packageImportEntry(checkout, 'jszip')).toBe(checkout.resolve('jszip'))
+  })
+
+  it('ships the files both require and import() load from every partly trimmed package', () => {
+    const checkout = createRequire(path.join(process.cwd(), 'package.json'))
+    const asarEntry = (name: string, file: string) => {
+      const marker = `${path.sep}node_modules${path.sep}${name.split('/').join(path.sep)}${path.sep}`
+      return `/node_modules/${name}/${file
+        .slice(file.lastIndexOf(marker) + marker.length)
+        .split(path.sep)
+        .join('/')}`
+    }
+    const trimmed = TRIMMED_RUNTIME_MODULES.filter((name) => name in PACKAGE_UNLOADED_FILES)
+    const entries = trimmed.flatMap((name) => [
+      asarEntry(name, checkout.resolve(name)),
+      asarEntry(name, packageImportEntry(checkout, name)),
+    ])
+
+    expect(trimmed).toContain('@huggingface/transformers')
+    const required: readonly string[] = REQUIRED_RUNTIME_ASAR_ENTRIES
+    expect(entries.filter((entry) => !required.includes(entry))).toEqual([])
   })
 
   it('rejects an upstream terminal that lacks the patched lifecycle API', async () => {

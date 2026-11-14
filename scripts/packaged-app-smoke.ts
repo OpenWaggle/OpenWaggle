@@ -4,9 +4,13 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { missingPackagedPiAssets } from './electron-builder-pi-assets'
+import { runPiPackageAssetsProbe } from './packaged-pi-package-probe'
 import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
 import { nodeRuntime } from './support/node-runtime'
-import { prunedRuntimeIssues } from './electron-builder-runtime-trim'
+import { unusedChromiumFiles } from './electron-builder-after-pack'
+import { unshippedPackageIssues, prunedRuntimeIssues } from './electron-builder-runtime-trim'
+import { packagedRuntimePackages } from './packaged-runtime-packages'
+import { mainExternalPackages } from './vite/main-externals'
 import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from './support/object-fields'
 
@@ -17,7 +21,11 @@ const APP_NAME = 'OpenWaggle.app'
 const RESOURCES_PATH = ['Contents', 'Resources'] as const
 const ASAR_FILE = 'app.asar'
 const DOCS_DIR = 'openwaggle-docs'
-const SESSION_EMBEDDING_MODEL_DIR = 'session-embedding-model'
+/**
+ * Resources the app fetches on first use instead of shipping: the Session embedding model (about
+ * 135 MB, src/main/adapters/session-embedding-model-files.ts).
+ */
+const UNSHIPPED_RESOURCES = ['session-embedding-model']
 const PACKAGE_JSON = 'package.json'
 const NODE_MODULES_DIR = 'node_modules'
 const OUT_DIR = 'out'
@@ -34,14 +42,6 @@ const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
 /** Resources shipped at the top level of the app's resources directory. */
 const REQUIRED_RESOURCE_FILES = ['THIRD_PARTY_NOTICES.md']
-const REQUIRED_SESSION_EMBEDDING_MODEL_FILES = [
-  'Xenova/multilingual-e5-small/config.json',
-  'Xenova/multilingual-e5-small/tokenizer_config.json',
-  'Xenova/multilingual-e5-small/tokenizer.json',
-  'Xenova/multilingual-e5-small/onnx/model_quantized.onnx',
-  'Xenova/multilingual-e5-small/openwaggle-model-manifest.json',
-  'Xenova/multilingual-e5-small/THIRD_PARTY_NOTICE.md',
-]
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
@@ -208,13 +208,15 @@ function assertPiPackageAssets(header: AsarNode) {
   const missing = missingPackagedPiAssets(collectAsarEntries(header))
   if (missing.length > 0) {
     throw new Error(
-      `Packaged app asar is missing Pi documentation Pi names to the model: ${missing.join(', ')}.`,
+      `Packaged app asar is missing Pi files Pi reads from its package directory: ${missing.join(', ')}.`,
     )
   }
 }
 
 function assertRuntimeTrim(header: AsarNode) {
-  const issues = prunedRuntimeIssues(collectAsarEntries(header))
+  const entries = collectAsarEntries(header)
+  const { unshipped } = packagedRuntimePackages(process.cwd(), [...mainExternalPackages()])
+  const issues = [...prunedRuntimeIssues(entries), ...unshippedPackageIssues(entries, unshipped)]
   if (issues.length > 0) {
     throw new Error(`Packaged app asar runtime trim is wrong: ${issues.join('; ')}.`)
   }
@@ -232,6 +234,16 @@ async function assertRequiredFiles(rootPath: string, relativeFiles: readonly str
 
   if (missingFiles.length > 0) {
     throw new Error(`${rootPath} is missing required files: ${missingFiles.join(', ')}.`)
+  }
+}
+
+async function assertUnshipped(rootPath: string, relativePaths: readonly string[]) {
+  const shipped: string[] = []
+  for (const relativePath of relativePaths) {
+    if (await pathExists(path.join(rootPath, relativePath))) shipped.push(relativePath)
+  }
+  if (shipped.length > 0) {
+    throw new Error(`${rootPath} ships what the app fetches on first use: ${shipped.join(', ')}.`)
   }
 }
 
@@ -276,6 +288,21 @@ async function runPackagedPtyProbe(appPath: string, asarPath: string) {
   })
 }
 
+async function assertNoUnusedChromiumFiles(appPath: string) {
+  if (
+    process.platform !== 'darwin' &&
+    process.platform !== 'linux' &&
+    process.platform !== 'win32'
+  ) {
+    return
+  }
+  const files = unusedChromiumFiles(appPath, process.platform)
+  const shipped = (await Promise.all(files.map(pathExists))).flatMap((exists, index) =>
+    exists ? [files[index]] : [],
+  )
+  if (shipped.length > 0) throw new Error(`${appPath} ships ${shipped.join(', ')}.`)
+}
+
 async function smokePackagedApp(appPath: string) {
   const resourcesPath = await packagedAppResourcesPath(appPath)
   const asarPath = path.join(resourcesPath, ASAR_FILE)
@@ -287,10 +314,10 @@ async function smokePackagedApp(appPath: string) {
   assertRuntimeTrim(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
   await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
-  await assertRequiredFiles(
-    path.join(resourcesPath, SESSION_EMBEDDING_MODEL_DIR),
-    REQUIRED_SESSION_EMBEDDING_MODEL_FILES,
-  )
+  await assertUnshipped(resourcesPath, UNSHIPPED_RESOURCES)
+  await assertNoUnusedChromiumFiles(appPath)
+  await runPiPackageAssetsProbe(asarPath)
+  console.log(`packaged Pi HTML export and themes passed: ${appPath}`)
 
   if (packagedAppMatchesHostArchitecture(appPath)) {
     await runPackagedPtyProbe(appPath, asarPath)
