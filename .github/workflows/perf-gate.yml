@@ -45,6 +45,9 @@ jobs:
       base_sha: ${{ steps.refs.outputs.base_sha }}
       head_sha: ${{ steps.refs.outputs.head_sha }}
       main_sha: ${{ steps.refs.outputs.main_sha }}
+      # true only while main has no Performance Gate: the timing harness and the gate then run the
+      # pull request's own scripts, and main has no budgets file to compare against.
+      gate_fallback: ${{ steps.trusted.outputs.fallback }}
       pairs: ${{ steps.refs.outputs.pairs }}
       run: ${{ steps.decide.outputs.run }}
       reason: ${{ steps.decide.outputs.reason }}
@@ -54,10 +57,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
 
       - name: Resolve the merge base and the head
         id: refs
@@ -90,17 +89,26 @@ jobs:
 
       # main's gate decides, from its own checkout, so a pull request cannot widen what skips timing.
       - name: Check out main's gate
+        id: trusted
         env:
           MAIN_SHA: ${{ steps.refs.outputs.main_sha }}
           HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
         run: |
           set -euo pipefail
           git worktree add --detach trusted "$MAIN_SHA"
+          fallback=false
           if [ ! -f trusted/scripts/perf-gate/gate.ts ]; then
             echo "::notice::main has no Performance Gate yet; this run uses the pull request's own."
             git worktree remove --force trusted
             git worktree add --detach trusted "$HEAD_SHA"
+            fallback=true
           fi
+          echo "fallback=$fallback" >> "$GITHUB_OUTPUT"
+
+      # main's Bun, from main's package.json, runs main's gate.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: trusted/package.json
 
       # gate.ts reads its files through Effect Schema, and bunfig.toml disables auto-install.
       - name: Install the gate's dependencies
@@ -144,6 +152,15 @@ jobs:
         with:
           ref: ${{ needs.decide.outputs.base_sha }}
           path: base
+          persist-credentials: false
+
+      # The harness and its thresholds are main's (decide's main_sha), never the merge base's or the
+      # pull request's; the head's own only while main has no Performance Gate.
+      - name: Check out main's timing harness
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.decide.outputs.gate_fallback == 'true' && needs.decide.outputs.head_sha || needs.decide.outputs.main_sha }}
+          path: trusted
           persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -193,6 +210,8 @@ jobs:
             (cd "$side" && node node_modules/electron/install.js)
             echo "::notice::install $side ($manager) took $(( $(date +%s) - start )) s"
           done
+          # The harness launches each checkout's own Electron, so its checkout needs no scripts.
+          (cd trusted && bun install --frozen-lockfile --ignore-scripts)
 
       - name: Linux display
         run: |
@@ -221,19 +240,17 @@ jobs:
           exit "$status"
 
       - name: Measure base and head, interleaved
+        working-directory: trusted
         env:
           PAIRS_OVERRIDE: ${{ needs.decide.outputs.pairs }}
         run: |
           set -euo pipefail
-          # main's harness and thresholds when main has them; the head's before the gate landed.
-          trusted=base
-          [ -f base/scripts/perf-gate/ab-run.ts ] || trusted=head
-          thresholds="$trusted/performance/perf-gate/thresholds.json"
+          thresholds=performance/perf-gate/thresholds.json
           pairs=${PAIRS_OVERRIDE:-$(jq -r .pairs "$thresholds")}
           idle=$(jq -r .idleMs "$thresholds")
-          mkdir -p results
+          mkdir -p ../results
           start=$(date +%s)
-          (cd "$trusted" && bun scripts/perf-gate/ab-run.ts --base ../base --head ../head \
+          (bun scripts/perf-gate/ab-run.ts --base ../base --head ../head \
             --pairs "$pairs" --idle-ms "$idle" --work "$RUNNER_TEMP/ab" --out ../results/ab.json)
           echo "::notice::measurement took $(( $(date +%s) - start )) s for $pairs pairs"
 
@@ -265,26 +282,30 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
-
       # Every gate command runs inside trusted/, so Bun loads main's bunfig.toml, never the pull
       # request's. The pull request's files are read by absolute path from $GITHUB_WORKSPACE.
       - name: Check out main's gate
         env:
           MAIN_SHA: ${{ needs.decide.outputs.main_sha }}
+          FALLBACK: ${{ needs.decide.outputs.gate_fallback }}
         run: |
           set -euo pipefail
-          git worktree add --detach trusted "$MAIN_SHA"
-          if [ ! -f trusted/scripts/perf-gate/gate.ts ]; then
+          if [ "$FALLBACK" = "true" ]; then
             echo "::notice::main has no Performance Gate yet; this run uses the pull request's own."
-            git worktree remove --force trusted
             git worktree add --detach trusted HEAD
+            # No budgets on main before the gate landed (gate.ts compares every metric as new).
+            git show "$MAIN_SHA:performance/perf-budgets.json" > "$RUNNER_TEMP/main-perf-budgets.json" \
+              || rm -f "$RUNNER_TEMP/main-perf-budgets.json"
+          else
+            git worktree add --detach trusted "$MAIN_SHA"
+            # main has the gate, so it has its budgets: a failed read fails the gate.
+            git show "$MAIN_SHA:performance/perf-budgets.json" > "$RUNNER_TEMP/main-perf-budgets.json"
           fi
-          # main's budgets; none before the gate landed on main (gate.ts compares every metric as new).
-          git show "$MAIN_SHA:performance/perf-budgets.json" > "$RUNNER_TEMP/main-perf-budgets.json" \
-            || rm -f "$RUNNER_TEMP/main-perf-budgets.json"
+
+      # main's Bun, from main's package.json, runs main's gate.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: trusted/package.json
 
       # gate.ts reads its files through Effect Schema, and bunfig.toml disables auto-install.
       - name: Install the gate's dependencies
@@ -298,7 +319,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           RUN_ID: ${{ github.run_id }}
-        run: bun scripts/perf-gate/gate.ts labels --repo "$GITHUB_REPOSITORY" --pr "$PR" --run "$RUN_ID" | tee -a "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          bun scripts/perf-gate/gate.ts labels --repo "$GITHUB_REPOSITORY" --pr "$PR" --run "$RUN_ID" | tee -a "$GITHUB_ENV"
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         if: needs.timings.result == 'success'
