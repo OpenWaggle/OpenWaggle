@@ -66,3 +66,4 @@ Performance probes must not subtract independent process wall clocks. Hosted mac
 - A merge base from before the Bun move installs and builds with pnpm. The workflow reads each checkout's `packageManager` field.
 - Windows and macOS timings run nightly in `bench-electron.yml` (`ab` job), comparing main as it was 24 hours earlier with main now. They gate nothing.
 - `OPENWAGGLE_PERF_BUDGETS_WRITE` is a directory for measurement fragments, not a flag: `=1` writes `./1/`.
+- Keep Vite's order of the renderer's entry script before its stylesheet. Linking the stylesheet first (a `transformIndexHtml` plugin, November 2026) moved first-contentful-paint 48 ms sooner on macOS, and window ready 266-303 ms sooner on the gate's Linux runner, but chat ready came 575-613 ms later there (bench run 43589825721, reverting it on the pull request head). The likely cause is that a stylesheet ahead of a module script holds the script until the stylesheet has loaded. It was reverted.
