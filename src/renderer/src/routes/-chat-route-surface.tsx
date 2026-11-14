@@ -262,9 +262,7 @@ export function ChatRouteSurface({
             rightSidebarOpen={rightSidebarOpen}
             onOpenDiff={() => handleDiffOpenChange(true)}
             onOpenChangeRequest={(url) => handleChangeRequestOpenChange(true, url)}
-            onOpenResources={(target = DEFAULT_SESSION_RESOURCE_BROWSER_TARGET) =>
-              handleResourcesTargetChange(target)
-            }
+            onOpenResources={(target) => handleResourcesTargetChange(target)}
             onOpenSessionTree={() => handleSessionTreeOpenChange(true)}
             onOpenExtensionSidePanel={(target) => handleExtensionSidePanelOpenChange(true, target)}
           />

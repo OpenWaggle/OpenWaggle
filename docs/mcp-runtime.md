@@ -400,7 +400,7 @@ panel's width and theme as host context changes (`McpAppHost`, `use-mcp-app-fram
 `serverInstanceId` is the server name and its `serverConfigHash` the server identity, so an App
 opened for a server that was since replaced is refused.
 
-`pnpm test:mcp:conformance` runs the official MCP conformance scenarios with pi-mcp's client
+`bun run test:mcp:conformance` runs the official MCP conformance scenarios with pi-mcp's client
 through a pool lease, OpenWaggle's hardened fetch, and the connection hooks a Run's connection
 gets: `initialize`, `tools_call`, and `json-schema-2020-12-preservation` (SEP-1613, SEP-2106).
 

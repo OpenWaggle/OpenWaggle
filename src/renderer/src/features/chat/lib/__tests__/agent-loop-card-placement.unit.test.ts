@@ -27,8 +27,8 @@ const SESSION_ID = SessionId('cards-session')
 
 type AuditEvent = AgentTransportCustomEvent | AgentInteractionEvent
 
-function auditNode(id: string, parentId: string, event: AuditEvent, order: number): SessionNode {
-  return {
+function auditNode(id: string, parentId: string, event: AuditEvent, order: number) {
+  const node: SessionNode = {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
     parentId: SessionNodeId(parentId),
@@ -43,6 +43,7 @@ function auditNode(id: string, parentId: string, event: AuditEvent, order: numbe
     }),
     metadataJson: '{}',
   }
+  return node
 }
 
 /** A Run's audit chain: its first card hangs from the Run's last entry, each next from the last. */
@@ -57,11 +58,16 @@ function auditChain(runEnd: string, events: readonly AuditEvent[], firstOrder: n
   )
 }
 
-function notice(name: string, timestamp: number): AgentTransportCustomEvent {
-  return { type: 'custom', name, timestamp, value: { note: name } }
+function notice(name: string, timestamp: number) {
+  return {
+    type: 'custom',
+    name,
+    timestamp,
+    value: { note: name },
+  } satisfies AgentTransportCustomEvent
 }
 
-function confirm(interactionId: string, timestamp: number): AgentInteractionEvent[] {
+function confirm(interactionId: string, timestamp: number) {
   return [
     {
       type: 'agent_interaction_request',
@@ -87,7 +93,7 @@ function confirm(interactionId: string, timestamp: number): AgentInteractionEven
       status: 'resolved',
       response: { kind: 'confirm', accepted: true },
     },
-  ]
+  ] satisfies AgentInteractionEvent[]
 }
 
 function withAuditNodes(workspace: SessionWorkspace, nodes: readonly SessionNode[]) {

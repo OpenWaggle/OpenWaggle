@@ -4,6 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { execFailure } from '../test-support/exec-failure'
+import { scriptEnv } from '../support/env'
 
 const execFileAsync = promisify(execFile)
 const SECTION_START = '# BEGIN TESTABLE SESSION HOST STOP'
@@ -24,7 +26,9 @@ afterEach(async () => {
 async function fakeCli(input: { readonly help: 'update' | 'plain'; readonly state: string }) {
   const executable = path.join(directory, 'OpenWaggle')
   const help =
-    input.help === 'update' ? 'openwaggle host stop --update [--json]' : 'openwaggle host stop [--wait]'
+    input.help === 'update'
+      ? 'openwaggle host stop --update [--json]'
+      : 'openwaggle host stop [--wait]'
   await fs.writeFile(
     executable,
     `#!/bin/sh
@@ -59,7 +63,7 @@ QUIT_MAC_APP="1"
 ${source.slice(start + SECTION_START.length, end)}
 ${command} "$@"`
   const child = execFileAsync('bash', ['-c', script, 'installer-host-stop-test', ...args], {
-    env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
+    env: { PATH: scriptEnv().PATH ?? '', TMPDIR: directory },
   })
   // The rest of a piped install script must never reach the CLI. The section can exit before it
   // reads stdin, so the write may hit a closed pipe; that EPIPE is expected, not a failure.
@@ -67,7 +71,7 @@ ${command} "$@"`
     if (error.code !== 'EPIPE') throw error
   })
   child.child.stdin?.end('rest of the install script\n')
-  const result = await child.catch((error: { stdout: string; code: number }) => error)
+  const result = await child.catch(execFailure)
   return { stdout: result.stdout.trim(), exitCode: 'code' in result ? result.code : 0 }
 }
 

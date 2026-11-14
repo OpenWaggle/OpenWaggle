@@ -145,3 +145,39 @@ export function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueContext
     restoreWorkspaceDraftOverDiskNow(context, selectedDraft),
   )
 }
+
+/**
+ * Takes a newer disk revision into the editor, unless unsaved edits would be lost: then the file
+ * is a conflict the person resolves, and the pending edits stay in the draft journal.
+ */
+export function synchronizeWorkspaceDocumentFromDisk(
+  context: WorkspaceSaveQueueContext,
+  file: WorkspaceTextFileReadResult,
+) {
+  if (file.revision === context.revision.current) return
+  if (
+    context.pending.current.length > 0 ||
+    context.latestContent.current !== context.savedContent.current
+  ) {
+    context.conflict.current = true
+    context.setStatus('conflict')
+    context.setErrorMessage(
+      'The file changed on disk. Compare it with your draft before choosing a version.',
+    )
+    persistPendingJournal(context)
+    return
+  }
+  context.revision.current = file.revision
+  context.persistedVersion.current = file.documentVersion
+  context.nextVersion.current = file.documentVersion + 1
+  context.latestContent.current = file.content
+  context.latestSnapshot.current = null
+  context.savedContent.current = file.content
+  context.encoding.current = file.fidelity.encoding
+  context.setEditorRevision(file.revision)
+  context.setContent(file.content)
+  context.setSavedContent(file.content)
+  context.setNormalizationRequired(file.fidelity.lineEnding === 'mixed')
+  context.setEncoding(file.fidelity.encoding)
+  context.setLineEnding(file.fidelity.lineEnding)
+}

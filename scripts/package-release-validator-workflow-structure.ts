@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto'
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const EMPTY_COUNT = 0
-const CI_WORKFLOW_AST_CONTRACT = '617834a81a39176050d525fd30535de8eb5ab95dbc70ac3ae82257e60b73d078'
-const SESSION_PERFORMANCE_WORKFLOW_AST_CONTRACT = '4dddf7083f57775c15820de881ec33d25cbeede5a7cf2bcff58a88e7ecfa7f0f'
+const CI_WORKFLOW_AST_CONTRACT = '04d90348a85e869c66163947155cb2cfdda16bb0df6fd66d8bd74316a7c0ed06'
+const SESSION_PERFORMANCE_WORKFLOW_AST_CONTRACT =
+  'c9309bd637262376cd1b56e6e16f484e85754874206da8498dc6c3dce84f1001'
 
 export interface WorkflowActionUse {
   readonly ref?: string
@@ -46,32 +47,6 @@ export function executableWorkflowText(workflowText: string) {
     .join('\n')
 }
 
-function collectWorkflowRunCommands(node: unknown, commands: string[]) {
-  if (isMap(node)) {
-    for (const pair of node.items) {
-      if (
-        isScalar(pair.key) &&
-        pair.key.value === 'run' &&
-        isScalar(pair.value) &&
-        typeof pair.value.value === 'string'
-      ) {
-        commands.push(pair.value.value)
-      }
-      collectWorkflowRunCommands(pair.value, commands)
-    }
-    return
-  }
-  if (isSeq(node)) {
-    for (const item of node.items) collectWorkflowRunCommands(item, commands)
-  }
-}
-
-export function workflowRunCommands(workflowText: string) {
-  const commands: string[] = []
-  collectWorkflowRunCommands(parsePackageReleaseWorkflow(workflowText).root, commands)
-  return commands
-}
-
 function collectWorkflowActionUses(node: unknown, uses: WorkflowActionUse[]) {
   if (isMap(node)) {
     for (const pair of node.items) {
@@ -109,7 +84,9 @@ function contractValue(node: unknown): unknown {
 }
 
 export function workflowAstContractHash(workflowRoot: unknown) {
-  return createHash('sha256').update(JSON.stringify(contractValue(workflowRoot))).digest('hex')
+  return createHash('sha256')
+    .update(JSON.stringify(contractValue(workflowRoot)))
+    .digest('hex')
 }
 
 export function workflowUsesYamlReferences(node: unknown): boolean {

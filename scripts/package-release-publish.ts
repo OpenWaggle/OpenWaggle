@@ -71,7 +71,9 @@ export async function runPackageReleasePublishCli(
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void runPackageReleasePublishCli(process.argv.slice(CLI_ARGUMENT_START_INDEX)).then((exitCode) => {
-    process.exitCode = exitCode
-  })
+  void runPackageReleasePublishCli(process.argv.slice(CLI_ARGUMENT_START_INDEX)).then(
+    (exitCode) => {
+      process.exitCode = exitCode
+    },
+  )
 }

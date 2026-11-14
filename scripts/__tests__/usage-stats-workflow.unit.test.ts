@@ -15,9 +15,13 @@ describe('usage statistics snapshot workflow', () => {
   })
 
   it('runs daily and on demand, only in the OpenWaggle repository', () => {
-    expect(EXECUTABLE).toMatch(/^on:\n {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"\n {2}workflow_dispatch:$/mu)
+    expect(EXECUTABLE).toMatch(
+      /^on:\n {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"\n {2}workflow_dispatch:$/mu,
+    )
     expect(EXECUTABLE).toContain("if: github.repository == 'OpenWaggle/OpenWaggle'")
-    expect(EXECUTABLE).toContain('concurrency:\n  group: usage-stats-snapshot\n  cancel-in-progress: false')
+    expect(EXECUTABLE).toContain(
+      'concurrency:\n  group: usage-stats-snapshot\n  cancel-in-progress: false',
+    )
   })
 
   it('reads the repository and never writes to it', () => {
@@ -33,16 +37,16 @@ describe('usage statistics snapshot workflow', () => {
     const uses = [...EXECUTABLE.matchAll(/uses:\s*(\S+)/gu)].map((match) => match[1] ?? '')
     expect(uses).toEqual([
       'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10',
-      'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413',
+      'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6',
       'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e',
-      './.github/actions/pnpm-install',
+      './.github/actions/bun-install',
     ])
   })
 
   it('passes secrets through the environment and runs the snapshot script', () => {
     expect(EXECUTABLE).toContain('STATS_SNAPSHOT_TOKEN: ${{ secrets.STATS_SNAPSHOT_TOKEN }}')
     expect(EXECUTABLE).toContain('STATS_GITHUB_TOKEN: ${{ secrets.STATS_GITHUB_TOKEN }}')
-    expect(EXECUTABLE).toContain('run: pnpm exec tsx scripts/usage-stats-snapshot.ts')
+    expect(EXECUTABLE).toContain('run: bun scripts/usage-stats-snapshot.ts')
     expect(EXECUTABLE).not.toMatch(/run:.*\$\{\{\s*secrets\./u)
   })
 })

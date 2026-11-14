@@ -37,7 +37,7 @@ export const localUser: LocalSessionCallerIdentity = { callerId: 'local-user:mac
 
 export function restrictedCaller(
   overrides: Partial<NonNullable<LocalSessionCallerIdentity['profileAuthority']>> = {},
-): LocalSessionCallerIdentity {
+) {
   return {
     callerId: 'profile:worker-client',
     profileAuthority: {
@@ -48,7 +48,7 @@ export function restrictedCaller(
       authorizationCeiling: 'ask-for-approval',
       ...overrides,
     },
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 export function startPayload(runAuthorizationOverride: 'yolo' | 'ask-for-approval') {
@@ -73,7 +73,7 @@ export function controlPayload(
     LocalSessionCommandPayload,
     { readonly contract: 'session-control-v2' }
   >['request']['command'],
-): Extract<LocalSessionCommandPayload, { readonly contract: 'session-control-v2' }> {
+) {
   return {
     contract: 'session-control-v2',
     request: {
@@ -82,7 +82,7 @@ export function controlPayload(
       idempotencyKey: `idempotency-${command.operation}`,
       command,
     },
-  }
+  } satisfies Extract<LocalSessionCommandPayload, { readonly contract: 'session-control-v2' }>
 }
 
 export function queryPayload(
@@ -101,9 +101,9 @@ export function queryPayload(
         readonly targets: readonly [{ readonly sessionId: string; readonly condition: 'idle' }]
         readonly timeoutMs: number
       },
-): LocalSessionCommandPayload {
+) {
   return {
     contract: 'session-query-v2',
     request: { contractVersion: 2, requestId: 'request-query', query },
-  }
+  } satisfies LocalSessionCommandPayload
 }

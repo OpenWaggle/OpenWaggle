@@ -1,29 +1,18 @@
-import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { isJsonValue, isNonEmptyString, isRecord, isStringArray } from './internal-validation.js'
-import type {
-  ExtensionRuntimeRegisterContributionResult,
-  ExtensionRuntimeUnregisterContributionResult,
-} from './runtime-types.js'
-import type {
-  ExtensionStorageDeleteResult,
-  ExtensionStorageGetResult,
-  ExtensionStorageListResult,
-  ExtensionStorageSetResult,
-} from './storage-types.js'
+import type * as Schema from 'effect/Schema'
+import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import { safeDecodeExtensionSchema } from './schema.js'
 import type {
   ExtensionCapabilityAuditEntry,
   ExtensionInvokeFailure,
   ExtensionInvokeResult,
 } from './types.js'
 
-type OperationResultGuard<TValue> = (value: unknown) => value is TValue
-
 export function invalidOperationResult(input: {
   readonly audit: ExtensionCapabilityAuditEntry
   readonly issues: readonly string[]
   readonly message: string
-}): ExtensionInvokeFailure {
-  return {
+}) {
+  const failure: ExtensionInvokeFailure = {
     ok: false,
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
@@ -32,136 +21,35 @@ export function invalidOperationResult(input: {
     },
     audit: input.audit,
   }
+  return failure
 }
 
-export function toDecodedOperationResult<TValue>(
+/**
+ * The broker's result for one operation, decoded with the operation's result schema. A result that
+ * does not decode becomes an invalid-payload failure whose issues name the fields that failed.
+ */
+export function toDecodedOperationResult<TValue, TEncoded>(
   result: ExtensionInvokeResult,
-  guard: OperationResultGuard<TValue>,
+  schema: Schema.Schema<TValue, TEncoded>,
   message: string,
-): ExtensionInvokeResult<TValue> {
+) {
   if (!result.ok) {
-    return result
+    const returned: ExtensionInvokeResult<TValue> = result
+    return returned
   }
 
-  return guard(result.value)
-    ? { ok: true, value: result.value, audit: result.audit }
-    : invalidOperationResult({
-        audit: result.audit,
-        issues: ['Broker response payload did not match the expected operation result.'],
-        message,
-      })
+  const decoded = safeDecodeExtensionSchema(schema, result.value)
+  const returned: ExtensionInvokeResult<TValue> = decoded.success
+    ? { ok: true, value: decoded.data, audit: result.audit }
+    : invalidOperationResult({ audit: result.audit, issues: decoded.issues, message })
+  return returned
 }
 
-function isKnownString<TValue extends string>(
-  values: readonly TValue[],
-  value: unknown,
-): value is TValue {
-  return typeof value === 'string' && values.some((candidate) => candidate === value)
-}
-
-function isStorageScope(value: unknown) {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  if (value.kind === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND) {
-    return true
-  }
-
-  return (
-    value.kind === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND &&
-    isNonEmptyString(value.projectPath)
-  )
-}
-
-function isStorageKey(value: unknown) {
-  return (
-    isNonEmptyString(value) &&
-    value === value.trim() &&
-    value.length <= OPENWAGGLE_EXTENSION.STORAGE.KEY_MAX_LENGTH
-  )
-}
-
-function hasStorageResultBase(value: Readonly<Record<string, unknown>>) {
-  return (
-    isNonEmptyString(value.extensionId) &&
-    isNonEmptyString(value.contributionId) &&
-    value.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE &&
-    isKnownString(OPENWAGGLE_EXTENSION.STORAGE.KINDS, value.storageKind) &&
-    isStorageScope(value.storageScope)
-  )
-}
-
-export function isStorageGetResult(value: unknown): value is ExtensionStorageGetResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.GET &&
-    isStorageKey(value.key) &&
-    (value.value === null || isJsonValue(value.value))
-  )
-}
-
-export function isStorageSetResult(value: unknown): value is ExtensionStorageSetResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.SET &&
-    isStorageKey(value.key) &&
-    isJsonValue(value.value) &&
-    typeof value.createdAt === 'number' &&
-    typeof value.updatedAt === 'number'
-  )
-}
-
-export function isStorageDeleteResult(value: unknown): value is ExtensionStorageDeleteResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE &&
-    isStorageKey(value.key) &&
-    value.deleted === true
-  )
-}
-
-export function isStorageListResult(value: unknown): value is ExtensionStorageListResult {
-  return (
-    isRecord(value) &&
-    hasStorageResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST &&
-    isStringArray(value.keys) &&
-    value.keys.every(isStorageKey)
-  )
-}
-
-function hasRuntimeContributionResultBase(value: Readonly<Record<string, unknown>>) {
-  return (
-    isNonEmptyString(value.extensionId) &&
-    isNonEmptyString(value.contributionId) &&
-    value.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME &&
-    isKnownString(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES, value.family)
-  )
-}
-
-export function isRuntimeRegisterContributionResult(
-  value: unknown,
-): value is ExtensionRuntimeRegisterContributionResult {
-  return (
-    isRecord(value) &&
-    hasRuntimeContributionResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION &&
-    isNonEmptyString(value.registeredContributionId)
-  )
-}
-
-export function isRuntimeUnregisterContributionResult(
-  value: unknown,
-): value is ExtensionRuntimeUnregisterContributionResult {
-  return (
-    isRecord(value) &&
-    hasRuntimeContributionResultBase(value) &&
-    value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION &&
-    isNonEmptyString(value.unregisteredContributionId) &&
-    typeof value.unregistered === 'boolean'
-  )
-}
+export {
+  extensionRuntimeRegisterContributionResultSchema as runtimeRegisterContributionResultSchema,
+  extensionRuntimeUnregisterContributionResultSchema as runtimeUnregisterContributionResultSchema,
+  extensionStorageDeleteResultSchema as storageDeleteResultSchema,
+  extensionStorageGetResultSchema as storageGetResultSchema,
+  extensionStorageListResultSchema as storageListResultSchema,
+  extensionStorageSetResultSchema as storageSetResultSchema,
+} from './broker-schemas-storage.js'

@@ -1,6 +1,15 @@
+import { createHash } from 'node:crypto'
 import path from 'node:path'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
-const GENERATED_API_MARKER = '<!-- Generated from the checked public package declarations. -->'
+/*
+ * The marker names the package version whose declarations the page lists and the SHA-256 of the
+ * page without the marker. A published version's page is frozen: it is generated again only once
+ * the package's version changes, at a release, and until then the hash shows it was not edited.
+ */
+const GENERATED_API_MARKER_PATTERN =
+  /^<!-- Generated from the public declarations of (?<packageName>\S+) (?<packageVersion>\S+)(?:; content sha256 (?<contentHash>[0-9a-f]{64}))?\. -->$/mu
 const MATCH_DECLARATION_GROUP = 2
 const NAMED_EXPORT_SOURCE_GROUP = 2
 const SUBPATH_PREFIX_LENGTH = 2
@@ -14,12 +23,27 @@ interface RenderApiReferenceInput {
   readonly apiDescription: string
   readonly exports: Readonly<Record<string, unknown>>
   readonly packageName: string
+  /** The package.json version, which the generated marker records. */
+  readonly packageVersion: string
   readonly snapshot: string
   readonly version: string
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/** The package version a generated API page lists, or `undefined` for a page without the marker. */
+export function generatedApiReferencePackageVersion(contents: string) {
+  return GENERATED_API_MARKER_PATTERN.exec(contents)?.groups?.packageVersion
+}
+
+function apiReferenceContentHash(contents: string) {
+  return createHash('sha256')
+    .update(contents.replace(GENERATED_API_MARKER_PATTERN, ''))
+    .digest('hex')
+}
+
+/** Whether a generated API page still holds the content whose hash its marker records. */
+export function apiReferenceMatchesRecordedHash(contents: string) {
+  const recorded = GENERATED_API_MARKER_PATTERN.exec(contents)?.groups?.contentHash
+  return recorded !== undefined && recorded === apiReferenceContentHash(contents)
 }
 
 function normalizeMarkdown(value: string) {
@@ -37,9 +61,11 @@ function declarationSections(snapshot: string) {
   return sections
 }
 
+const typedTargetSchema = Schema.Struct({ types: unknownField })
+
 function exportTypesPath(target: unknown) {
-  if (!isJsonObject(target)) return undefined
-  return typeof target.types === 'string' ? target.types : undefined
+  const types = objectFields(typedTargetSchema, target)?.types
+  return typeof types === 'string' ? types : undefined
 }
 
 function directExportedSymbols(declaration: string) {
@@ -137,8 +163,8 @@ function exportedSymbols(
   sections: ReadonlyMap<string, string>,
   declarationPath: string,
   visiting: ReadonlySet<string> = new Set(),
-): readonly ApiSymbol[] {
-  if (visiting.has(declarationPath)) return []
+) {
+  if (visiting.has(declarationPath)) return [] satisfies readonly ApiSymbol[]
   const declaration = sections.get(declarationPath)
   if (declaration === undefined) {
     throw new Error(`Missing ${declarationPath} in the package API snapshot.`)
@@ -150,7 +176,9 @@ function exportedSymbols(
   mergeStarExports(symbols, sections, declarationPath, declaration, nextVisiting)
   mergeNamedExports(symbols, sections, declarationPath, declaration, nextVisiting)
 
-  return [...symbols.values()].sort((left, right) => left.name.localeCompare(right.name))
+  return [...symbols.values()].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  ) satisfies readonly ApiSymbol[]
 }
 
 const PACKAGE_MODULE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
@@ -233,7 +261,8 @@ export function renderApiReference(input: RenderApiReferenceInput) {
   const moduleSections = Object.entries(input.exports).map(([subpath, target]) =>
     renderModule(input, sections, subpath, target),
   )
-  return normalizeMarkdown(
+  const marker = `<!-- Generated from the public declarations of ${input.packageName} ${input.packageVersion}`
+  const page = normalizeMarkdown(
     [
       '---',
       `title: "${input.packageName} API"`,
@@ -243,7 +272,7 @@ export function renderApiReference(input: RenderApiReferenceInput) {
       'kind: "reference"',
       '---',
       '',
-      GENERATED_API_MARKER,
+      `${marker}. -->`,
       '',
       `This reference inventories every public entry point and named export in \`${input.packageName}\` ${input.version}.`,
       '',
@@ -251,5 +280,9 @@ export function renderApiReference(input: RenderApiReferenceInput) {
       '',
       ...moduleSections,
     ].join('\n'),
+  )
+  return page.replace(
+    `${marker}. -->`,
+    `${marker}; content sha256 ${apiReferenceContentHash(page)}. -->`,
   )
 }

@@ -1,3 +1,6 @@
+import type { SchemaType } from '@shared/schema'
+import type { syntaxThemeSelectionsSchema } from '@shared/schemas/settings-fields'
+
 /** App appearance slots that independently select a syntax theme. */
 export const SYNTAX_APPEARANCE_VARIANTS = [
   'light',
@@ -14,12 +17,7 @@ export type SyntaxAppearanceVariant = (typeof SYNTAX_APPEARANCE_VARIANTS)[number
  */
 export type SyntaxThemeId = string
 
-export interface SyntaxThemeSelections {
-  readonly light: SyntaxThemeId
-  readonly dark: SyntaxThemeId
-  readonly 'high-contrast-light': SyntaxThemeId
-  readonly 'high-contrast-dark': SyntaxThemeId
-}
+export type SyntaxThemeSelections = SchemaType<typeof syntaxThemeSelectionsSchema>
 
 export interface BundledSyntaxTheme {
   readonly id: SyntaxThemeId

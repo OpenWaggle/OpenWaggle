@@ -26,13 +26,17 @@ function manifestDeclaredSvgIconPaths(extensionPackage: DiscoveredExtensionPacka
 export function runtimeSidePanelIconDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly registration: ExtensionContributionRegistration
-}): readonly ExtensionDiagnostic[] {
+}) {
   const { registration } = input
-  if (registration.family !== OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS) return []
+  if (registration.family !== OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS) {
+    return [] satisfies readonly ExtensionDiagnostic[]
+  }
   const icon = registration.contribution.icon
-  if (icon === undefined || typeof icon === 'string') return []
+  if (icon === undefined || typeof icon === 'string') {
+    return [] satisfies readonly ExtensionDiagnostic[]
+  }
   if (manifestDeclaredSvgIconPaths(input.extensionPackage).has(normalizedIconPath(icon.svg))) {
-    return []
+    return [] satisfies readonly ExtensionDiagnostic[]
   }
   return [
     contributionDiagnostic({
@@ -41,5 +45,5 @@ export function runtimeSidePanelIconDiagnostics(input: {
       contributionId: registration.contribution.id,
       message: `Dynamically registered side panels can only use an SVG icon that a side panel in the extension manifest declares; "${icon.svg}" is not declared. Use a Lucide icon name or declare the file in the manifest.`,
     }),
-  ]
+  ] satisfies readonly ExtensionDiagnostic[]
 }

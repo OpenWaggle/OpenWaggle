@@ -1,0 +1,288 @@
+{
+  "lockfileVersion": 1,
+  "firstParty": [
+    "babysit",
+    "code-review",
+    "electron-qa",
+    "electron-runtime",
+    "herdr-orchestration",
+    "pi-integration",
+    "pr",
+    "ready",
+    "release",
+    "retro",
+    "write-docs"
+  ],
+  "skills": {
+    "caveman": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/productivity/caveman",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-e4d9b4b81b60231ec1dfa8556a2311976c00d42601cf45ba6104db27f9de9c66"
+        }
+      ],
+      "hash": "sha256-e4d9b4b81b60231ec1dfa8556a2311976c00d42601cf45ba6104db27f9de9c66"
+    },
+    "diagnose": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/diagnose",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-c3f9b767a0877b4bf35b85156041f2498f7a602fcffee41dbcd90f0179e170f4"
+        }
+      ],
+      "hash": "sha256-3beb7930f40007edfd6f393461ae165ca12abf15a21efd80bd1a7e87a5e5a122",
+      "localEdits": "The HITL loop template opens the app or preview URL the bug needs instead of a fixed localhost:3000 address."
+    },
+    "fallow": {
+      "upstream": [
+        {
+          "repository": "https://github.com/fallow-rs/fallow-skills",
+          "path": "fallow/skills/fallow",
+          "ref": "196b2876bf6ff7b2464580cb3b5328c7bd99b43a",
+          "hash": "sha256-39d722bc48a75d35a21a5b141165ea23752ce296e757bca43281d5a47a0c8081"
+        }
+      ],
+      "hash": "sha256-90c6faf91fb465a0685450967bcf2bdc1655d62c9413141e29a53e3e941c7d88",
+      "localEdits": "references/patterns.md describes the push guard as a generic agent command gate instead of one agent's hook API."
+    },
+    "frontend-design": {
+      "upstream": [
+        {
+          "repository": "https://github.com/anthropics/skills",
+          "path": "skills/frontend-design",
+          "ref": "ef740771ac901e03fbca3ce4e1c453a96010f30a",
+          "hash": "sha256-e9da74933fca7527d0be52ddf7657deb60a1829a5b7fc191280adbe392041a8c"
+        }
+      ],
+      "hash": "sha256-101c64b4d73fdde3c4c0c7595b26e4357a4658621534bde55bdb6c0ee80c2f81",
+      "localEdits": "The closing line addresses the agent by a different name than upstream."
+    },
+    "git-guardrails": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/misc/git-guardrails-claude-code",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-b3b9d6234098c865c2cc6cd8b6ef5a9d31ca6243688f29f38c1a47a21f2eb3e4"
+        }
+      ],
+      "hash": "sha256-1240752b18fd8d79659a86837cf06af3173b9bfa76eb7864af66648f012ee9fd",
+      "localEdits": "Rewritten as a tool-neutral guardrail policy for any agent runtime, with a section on how this repository enforces it, including the lease push that replays an agent's own ow/* PR branch onto main; the upstream hook script for one agent is not vendored."
+    },
+    "grill-me": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/productivity/grill-me",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-16a898096b1967bbaa578f807ec2efb54c0752b2d1fcca43fae220eeee2bd90b"
+        }
+      ],
+      "hash": "sha256-16a898096b1967bbaa578f807ec2efb54c0752b2d1fcca43fae220eeee2bd90b"
+    },
+    "grill-with-docs": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/grill-with-docs",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-a2ed65a31ccbfac33f32faa88048ddaa581e663d8b5c439ea32c03b49788347e"
+        }
+      ],
+      "hash": "sha256-a2ed65a31ccbfac33f32faa88048ddaa581e663d8b5c439ea32c03b49788347e"
+    },
+    "handoff": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/productivity/handoff",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-89e42a4f238cd58759444390daf812185a5afed012acbe234aefb5dd8f833d3a"
+        }
+      ],
+      "hash": "sha256-89e42a4f238cd58759444390daf812185a5afed012acbe234aefb5dd8f833d3a"
+    },
+    "improve-codebase-architecture": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/improve-codebase-architecture",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-6650440b42669ea6544632fe6597c17db684e38fa582ecbe2b26177caafdbcce"
+        }
+      ],
+      "hash": "sha256-281dcb27e16ef56e173f868272a65d666e69f2cef9274712dadc958f7c11bcda",
+      "localEdits": "DEEPENING.md names this repository's test stand-ins (a temporary SQLite database, in-memory adapters) instead of PGLite."
+    },
+    "interface-design": {
+      "upstream": [
+        {
+          "repository": "https://github.com/Dammyjay93/interface-design",
+          "path": ".claude/skills/interface-design",
+          "ref": "99386248f7618142dff869dce5593807dfece507",
+          "hash": "sha256-3405655aae282b4bcc5daa28ab3d942c347c4d846fb91a522c7cd122cec9baa3"
+        }
+      ],
+      "hash": "sha256-3405655aae282b4bcc5daa28ab3d942c347c4d846fb91a522c7cd122cec9baa3"
+    },
+    "prototype": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/prototype",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-ee10d28723d8df7e95bdf525f95c81bbe4a198eb663038a827671a77526fe472"
+        }
+      ],
+      "hash": "sha256-ee10d28723d8df7e95bdf525f95c81bbe4a198eb663038a827671a77526fe472"
+    },
+    "react-doctor": {
+      "upstream": [
+        {
+          "repository": "https://github.com/millionco/react-doctor",
+          "path": "skills/react-doctor",
+          "ref": "13b40e37d4e1e06a27d22e90981272fae3dcabf5",
+          "hash": "sha256-ab38cbec1a1ff86b7f9f03a40fce563495d824077552e85b597de72edb663d12"
+        }
+      ],
+      "hash": "sha256-8a163c598babaac0655101693ce7d92f81569a88f8ce9460b8b98ec7aa9a6701",
+      "localEdits": "Drop the reference to the removed end-of-turn quality-gate extension"
+    },
+    "repo-explorer": {
+      "upstream": [
+        {
+          "repository": "https://github.com/kenryu42/agent-skills",
+          "path": "skills/repo-explorer",
+          "ref": "c8968320de1a5ff550acf16856a2c95166e6952a",
+          "hash": "sha256-d7096e4681418723b20a3c1d9a8516a2a81e939590299e165017953d48323a83"
+        }
+      ],
+      "hash": "sha256-dd976bdb7ca5be519577b0604f862d8c194e1dd1b8d6c3fbf03c879d2c8fbc2b",
+      "localEdits": "Drops the upstream fallback that lists the cache with ls when the host has no shell injection, and names cache directories owner_repo."
+    },
+    "setup-matt-pocock-skills": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/setup-matt-pocock-skills",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-5d51b430ec6e1f43db16182bbd16fd1cb2929a25c0b615facf06346b08fb17ce"
+        }
+      ],
+      "hash": "sha256-ebd7edf937e2711057b2325fb48f1283fea2ead87d4b5c5df4ad03da3c2958a0",
+      "localEdits": "Rewritten for this repository's AGENTS.md, .agents/ and docs/agents/ layout; the upstream per-tracker templates are not vendored."
+    },
+    "tdd": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/tdd",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-c19d9a9dd3a23b41b323df2aef01e7b4345ebe11c8a0231bb7d94bafa2cdd105"
+        }
+      ],
+      "hash": "sha256-c19d9a9dd3a23b41b323df2aef01e7b4345ebe11c8a0231bb7d94bafa2cdd105"
+    },
+    "to-issues": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/to-issues",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-52b24d59c2166d622d9b259246be777e3915d9fbc588309d32577a92c2e870f9"
+        }
+      ],
+      "hash": "sha256-52b24d59c2166d622d9b259246be777e3915d9fbc588309d32577a92c2e870f9"
+    },
+    "to-prd": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/to-prd",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-129be3fb8d45f3ef8112a2777bf2b8d0ffd4e2e43825773da4ed9c3e6dedabf8"
+        }
+      ],
+      "hash": "sha256-129be3fb8d45f3ef8112a2777bf2b8d0ffd4e2e43825773da4ed9c3e6dedabf8"
+    },
+    "triage": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/triage",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-75924be9e61e4a1aa39edf84f331fdad2e93c0a85d060bd786115d649496da79"
+        }
+      ],
+      "hash": "sha256-75924be9e61e4a1aa39edf84f331fdad2e93c0a85d060bd786115d649496da79"
+    },
+    "ts-match": {
+      "upstream": [
+        {
+          "repository": "https://github.com/DiegoGBrisa/ts-match",
+          "path": "",
+          "ref": "78859094ba4eeff092da24d422798c8db7982ec0",
+          "files": [
+            "SKILL.md"
+          ],
+          "hash": "sha256-a4e37e823c43de964479df1fe5e20245ab9fdf425e358bf212431d7d9bb9c22b"
+        }
+      ],
+      "hash": "sha256-c594ff60a94cdac9fa9a1b96815c6335817f3f8e31491c1a0771707b9b2507f2",
+      "localEdits": "metadata.json is local: the skill installer's record of the package version and skill hash it installed."
+    },
+    "unslop": {
+      "upstream": [
+        {
+          "repository": "https://github.com/cursor/plugins",
+          "path": "pstack/skills/unslop",
+          "ref": "99559f2f52047978602ef365589275831e76af07",
+          "hash": "sha256-8bf3598fc13387efa4390d827133d5ded5d0aa2f4cd4617915449a07e1d2a128"
+        }
+      ],
+      "hash": "sha256-8bf3598fc13387efa4390d827133d5ded5d0aa2f4cd4617915449a07e1d2a128"
+    },
+    "write-a-skill": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/productivity/write-a-skill",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "files": [
+            "SKILL.md"
+          ],
+          "hash": "sha256-092e0146307d7cc6c9addc3d43b0b3bc23b3425f679df2f14735124f8e49b13c"
+        },
+        {
+          "repository": "https://github.com/anthropics/skills",
+          "path": "skill-creator",
+          "ref": "e5c60158df67e67d7609065ba3ad5605a6794e93",
+          "files": [
+            "LICENSE.txt",
+            "scripts/init_skill.py",
+            "scripts/package_skill.py",
+            "scripts/quick_validate.py"
+          ],
+          "hash": "sha256-434a0326cf9f6c5be5049efaef776509687134151c6be7caed94ac63bc58cb4f"
+        }
+      ],
+      "hash": "sha256-44aa5d798172d71e7b860abd2e7832c1a33b259188c7acf47b0dd4915216b028",
+      "localEdits": "SKILL.md is this repository's own: it merges the skill-creator packaging workflow (whose scripts and license are vendored unchanged) with guidance on descriptions, triggers and the token cost of always-loaded text."
+    },
+    "zoom-out": {
+      "upstream": [
+        {
+          "repository": "https://github.com/mattpocock/skills",
+          "path": "skills/engineering/zoom-out",
+          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
+          "hash": "sha256-270c74314999459009163c35e551afecdf59f3262012d87fcbdde2f09c09666f"
+        }
+      ],
+      "hash": "sha256-270c74314999459009163c35e551afecdf59f3262012d87fcbdde2f09c09666f"
+    }
+  }
+}

@@ -22,8 +22,8 @@ function allowedProject(name = 'project') {
   return path.join(allowedRoot, name)
 }
 
-function scopedOptions(): OpenWaggleMcpServeOptions {
-  return {
+function scopedOptions() {
+  const options: OpenWaggleMcpServeOptions = {
     transport: 'stdio',
     grants: new Set(),
     workspaceRoots: [allowedRoot],
@@ -32,6 +32,7 @@ function scopedOptions(): OpenWaggleMcpServeOptions {
     userDataRoot: '/tmp/openwaggle-test',
     version: 'test',
   }
+  return options
 }
 
 describe('OpenWaggle MCP Session Control v2 scope', () => {

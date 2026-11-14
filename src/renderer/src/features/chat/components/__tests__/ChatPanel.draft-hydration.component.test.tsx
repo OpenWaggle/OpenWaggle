@@ -11,8 +11,8 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { ChatPanelContent } from '../ChatPanel'
 import { createSections } from './ChatPanel.test-utils'
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     activateSessionResourceOwner: vi.fn(),
     getGitStatus: vi.fn().mockResolvedValue(null),
     listGitBranches: vi.fn().mockResolvedValue({ currentBranch: 'main', branches: [] }),
@@ -20,7 +20,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     onGitWorkingTreeChanged: vi.fn(() => () => undefined),
     onWaggleEvent: vi.fn(() => () => undefined),
     onWaggleTurnEvent: vi.fn(() => () => undefined),
-  },
+  }),
 }))
 
 it('owns an editable pending draft and restores the untouched saved branch draft after hydration', async () => {

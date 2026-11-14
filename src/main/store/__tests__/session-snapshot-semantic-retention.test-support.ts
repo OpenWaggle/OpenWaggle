@@ -9,7 +9,7 @@ export function transcriptNode(
   createdOrder: number,
   text: string,
   runId: string,
-): ProjectedSessionNodeInput {
+) {
   return {
     id,
     parentId,
@@ -21,7 +21,7 @@ export function transcriptNode(
     metadataJson: JSON.stringify({ openWaggle: { runId } }),
     pathDepth: parentId === null ? 0 : createdOrder,
     createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 export function readTermProjection(sessionId: string) {

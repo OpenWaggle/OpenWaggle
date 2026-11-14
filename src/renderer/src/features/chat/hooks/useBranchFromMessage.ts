@@ -113,8 +113,8 @@ export function useBranchFromMessage(params: BranchFromMessageParams) {
     // different Session or cursor selected while this action was pending.
     void api
       .getSessionWorkspace(sessionId, {
-        branchId: search.branch ? SessionBranchId(search.branch) : undefined,
-        nodeId: search.node ? SessionNodeId(search.node) : undefined,
+        ...(search.branch ? { branchId: SessionBranchId(search.branch) } : {}),
+        ...(search.node ? { nodeId: SessionNodeId(search.node) } : {}),
       })
       .then((resolvedWorkspace) => {
         if (!isCurrent()) return
@@ -135,10 +135,11 @@ export function useBranchFromMessage(params: BranchFromMessageParams) {
         applyBranchSelection(params, sessionId, resolvedWorkspace, resolvedSelection)
       })
       .catch((error: unknown) => {
-        if (isCurrent())
+        if (isCurrent()) {
           params.showToast(
             `Failed to load branch source: ${error instanceof Error ? error.message : String(error)}`,
           )
+        }
       })
   }
 }

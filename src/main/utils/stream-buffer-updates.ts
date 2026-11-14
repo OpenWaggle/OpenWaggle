@@ -26,7 +26,7 @@ export function updateStreamBufferParts(
   update: (parts: readonly MessagePart[]) => readonly MessagePart[],
   totalRetainedBytes: number,
   attemptedContentBytes?: number,
-): StreamBufferUpdate {
+) {
   const parts = update(buffer.parts)
   const retainedBytes = retainedPartsBytes(parts)
   const retainedDelta = retainedBytes - buffer.retainedBytes
@@ -37,22 +37,22 @@ export function updateStreamBufferParts(
         omittedBytes: buffer.omittedBytes + (attemptedContentBytes ?? Math.max(0, retainedDelta)),
       },
       retainedDelta: 0,
-    }
+    } satisfies StreamBufferUpdate
   }
-  return { buffer: { ...buffer, parts, retainedBytes }, retainedDelta }
+  return { buffer: { ...buffer, parts, retainedBytes }, retainedDelta } satisfies StreamBufferUpdate
 }
 
 export function appendStreamBufferToolCallDelta(
   buffer: ActiveStreamBuffer,
   input: { readonly toolCallId: string; readonly delta: string; readonly args: JsonValue },
   totalRetainedBytes: number,
-): StreamBufferUpdate {
+) {
   const deltaBytes = Buffer.byteLength(input.delta, 'utf8')
   if (buffer.degradedToolCallIds.has(input.toolCallId)) {
     return {
       buffer: { ...buffer, omittedBytes: buffer.omittedBytes + deltaBytes },
       retainedDelta: 0,
-    }
+    } satisfies StreamBufferUpdate
   }
   const parts = upsertToolCallPart({
     parts: buffer.parts,
@@ -71,9 +71,9 @@ export function appendStreamBufferToolCallDelta(
     return {
       buffer: { ...degraded.buffer, omittedBytes: buffer.omittedBytes + deltaBytes },
       retainedDelta: degraded.retainedDelta,
-    }
+    } satisfies StreamBufferUpdate
   }
-  return { buffer: { ...buffer, parts, retainedBytes }, retainedDelta }
+  return { buffer: { ...buffer, parts, retainedBytes }, retainedDelta } satisfies StreamBufferUpdate
 }
 
 export function appendStreamBufferText(
@@ -84,7 +84,7 @@ export function appendStreamBufferText(
     readonly contentIndex: number
   },
   totalRetainedBytes: number,
-): StreamBufferUpdate {
+) {
   const { type, delta, contentIndex } = text
   const parts = appendTextDeltaPart(buffer.parts, type, delta, contentIndex)
   const retainedBytes = retainedBytesAfterTextAppend({
@@ -102,16 +102,16 @@ export function appendStreamBufferText(
         omittedBytes: buffer.omittedBytes + Buffer.byteLength(delta, 'utf8'),
       },
       retainedDelta: 0,
-    }
+    } satisfies StreamBufferUpdate
   }
-  return { buffer: { ...buffer, parts, retainedBytes }, retainedDelta }
+  return { buffer: { ...buffer, parts, retainedBytes }, retainedDelta } satisfies StreamBufferUpdate
 }
 
 export function updateStreamBufferActivityEvents(
   buffer: ActiveStreamBuffer,
   update: (events: readonly BackgroundRunActivityEvent[]) => readonly BackgroundRunActivityEvent[],
   totalRetainedBytes: number,
-): StreamBufferUpdate {
+) {
   const activityEvents = update(buffer.activityEvents ?? [])
   const activityEventsBytes =
     activityEvents.length > 0 ? Buffer.byteLength(JSON.stringify(activityEvents), 'utf8') : 0
@@ -120,9 +120,12 @@ export function updateStreamBufferActivityEvents(
     retainedStreamBufferBytes(buffer) + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
     totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
   ) {
-    return { buffer, retainedDelta: 0 }
+    return { buffer, retainedDelta: 0 } satisfies StreamBufferUpdate
   }
-  return { buffer: { ...buffer, activityEvents, activityEventsBytes }, retainedDelta }
+  return {
+    buffer: { ...buffer, activityEvents, activityEventsBytes },
+    retainedDelta,
+  } satisfies StreamBufferUpdate
 }
 
 /** Retains a user message the Run incorporated; one that does not fit is left to the snapshot. */
@@ -130,8 +133,8 @@ export function appendStreamBufferUserMessage(
   buffer: ActiveStreamBuffer,
   event: AgentTransportMessageStartEvent,
   totalRetainedBytes: number,
-): StreamBufferUpdate {
-  if (!event.userMessage) return { buffer, retainedDelta: 0 }
+) {
+  if (!event.userMessage) return { buffer, retainedDelta: 0 } satisfies StreamBufferUpdate
   const userMessage: BackgroundRunUserMessage = {
     ...event.userMessage,
     messageId: event.messageId,
@@ -141,7 +144,7 @@ export function appendStreamBufferUserMessage(
   }
   const existing = buffer.userMessages ?? []
   if (existing.some((message) => message.messageId === userMessage.messageId)) {
-    return { buffer, retainedDelta: 0 }
+    return { buffer, retainedDelta: 0 } satisfies StreamBufferUpdate
   }
   const userMessages = [...existing, userMessage]
   const userMessagesBytes = Buffer.byteLength(JSON.stringify(userMessages), 'utf8')
@@ -150,7 +153,10 @@ export function appendStreamBufferUserMessage(
     retainedStreamBufferBytes(buffer) + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
     totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
   ) {
-    return { buffer, retainedDelta: 0 }
+    return { buffer, retainedDelta: 0 } satisfies StreamBufferUpdate
   }
-  return { buffer: { ...buffer, userMessages, userMessagesBytes }, retainedDelta }
+  return {
+    buffer: { ...buffer, userMessages, userMessagesBytes },
+    retainedDelta,
+  } satisfies StreamBufferUpdate
 }

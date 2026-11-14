@@ -73,10 +73,8 @@ function surfaceRank(surface: Pick<ExtensionSidePanelSurfaceEntry, 'openable' | 
  * One entry per extension side panel surface. The registry may list the same panel from several
  * packages or scopes; the most usable entry wins (see surfaceRank), otherwise the first wins.
  */
-export function extensionSidePanelSurfaces(
-  registry: ExtensionContributionRegistryView | null,
-): readonly ExtensionSidePanelSurfaceEntry[] {
-  if (registry === null) return []
+export function extensionSidePanelSurfaces(registry: ExtensionContributionRegistryView | null) {
+  if (registry === null) return [] satisfies readonly ExtensionSidePanelSurfaceEntry[]
   const surfaces = new Map<ExtensionRightPanelSurfaceId, ExtensionSidePanelSurfaceEntry>()
   for (const entry of registry.entries) {
     if (!isExtensionSidePanelEntry(entry)) continue
@@ -95,14 +93,14 @@ export function extensionSidePanelSurfaces(
       surfaces.set(surfaceId, candidate)
     }
   }
-  return [...surfaces.values()]
+  return [...surfaces.values()] satisfies readonly ExtensionSidePanelSurfaceEntry[]
 }
 
 /** Surface ids of the extension side panels that can be shown right now. */
 export function openableExtensionSidePanelSurfaceIds(
   registry: ExtensionContributionRegistryView | null,
-): ReadonlySet<ExtensionRightPanelSurfaceId> {
-  return new Set(
+) {
+  return new Set<ExtensionRightPanelSurfaceId>(
     extensionSidePanelSurfaces(registry)
       .filter((surface) => surface.openable)
       .map((surface) => surface.surfaceId),

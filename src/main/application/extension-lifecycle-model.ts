@@ -1,9 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionAcceptUpdateInput,
-  ExtensionApproveBuildInput,
   ExtensionLifecycleMutationTarget,
-  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -28,8 +26,6 @@ export type LifecycleMutationInput =
   | ExtensionSetTrustedInput
   | ExtensionSetEnabledInput
   | ExtensionAcceptUpdateInput
-  | ExtensionApproveBuildInput
-  | ExtensionReloadInput
 
 function scopeKey(scope: ExtensionPackageScope) {
   return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -82,7 +78,7 @@ export function projectOverrideKey(input: ExtensionSetProjectDisabledInput) {
 
 export function findPackage(
   packages: readonly DiscoveredExtensionPackage[],
-  input: ExtensionLifecycleMutationTarget,
+  input: Pick<ExtensionLifecycleMutationTarget, 'extensionId' | 'scope'>,
 ) {
   return (
     packages.find(
@@ -266,7 +262,7 @@ function lifecycleDiagnostics(input: MakeLifecycleStateInput) {
   return input.diagnostics ?? input.extensionPackage.diagnostics
 }
 
-export function makeLifecycleState(input: MakeLifecycleStateInput): ExtensionLifecycleState {
+export function makeLifecycleState(input: MakeLifecycleStateInput) {
   const now = Date.now()
   return {
     extensionId: input.extensionPackage.id,

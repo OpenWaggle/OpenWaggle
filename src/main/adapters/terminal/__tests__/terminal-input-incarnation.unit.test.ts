@@ -3,19 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   events,
   feed,
-  OWNER,
   openInput,
+  OWNER,
   ptys,
   readinessMarker,
   service,
   settle,
   setupTerminalServiceActionsTest,
   spawn,
+  teardownTerminalServiceActionsTest,
   TERMINAL_ID,
   TERMINAL_KEY,
-  teardownTerminalServiceActionsTest,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 const generation = 'renderer-incarnation-test'
 
@@ -71,7 +72,7 @@ describe('terminal native input incarnation', () => {
   it('creates a new incarnation after native deletion and rejects even old sequence-zero writes', async () => {
     const oldIncarnation = await openIncarnation()
     await Effect.runPromise(service.closeAllForOwner(OWNER, false))
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     const incarnation = await openIncarnation()
     expect(incarnation).not.toBe(oldIncarnation)
     feed(1, readinessMarker(1))
@@ -113,7 +114,7 @@ describe('terminal native input incarnation', () => {
     )
     await reading.promise
     try {
-      expect(service.records.has(TERMINAL_KEY)).toBe(false)
+      expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
       await expect(
         Effect.runPromise(
           service.write(OWNER, TERMINAL_ID, 'late pre-open input', {

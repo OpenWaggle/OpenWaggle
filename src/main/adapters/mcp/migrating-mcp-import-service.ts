@@ -30,7 +30,7 @@ export function migrateBeforeImports(
     /** The last migration lock timeout (`McpLockTimeouts`), to tell whether a call waited. */
     readonly lockTimeouts?: McpLockTimeouts
   } = {},
-): McpImportServiceShape {
+) {
   const migrated = (projectPath: string | null) =>
     Effect.promise(() => migrate(projectPath).catch(() => undefined))
   return {
@@ -63,5 +63,5 @@ export function migrateBeforeImports(
         ),
       )
     },
-  }
+  } satisfies McpImportServiceShape
 }

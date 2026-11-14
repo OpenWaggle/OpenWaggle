@@ -46,14 +46,14 @@ function isGlobalFileId(fileId: string) {
 }
 
 /** Which files changing this server writes: its override's, else its defining file's. */
-export function serverWriteScope(server: McpConfiguredServerView | undefined): McpWriteScope {
-  if (!server) return 'all'
+export function serverWriteScope(server: McpConfiguredServerView | undefined) {
+  if (!server) return 'all' as const
   const fileId = server.override?.fileId ?? server.source.fileId
-  return isGlobalFileId(fileId) ? 'global' : 'all'
+  return isGlobalFileId(fileId) ? ('global' as const) : ('all' as const)
 }
 
-export function fileWriteScope(fileId: string): McpWriteScope {
-  return isGlobalFileId(fileId) ? 'global' : 'all'
+export function fileWriteScope(fileId: string) {
+  return isGlobalFileId(fileId) ? ('global' as const) : ('all' as const)
 }
 
 /**
@@ -127,10 +127,10 @@ export function mcpUpdateRefusal(
 }
 
 /** Kept projects whose migration fails, each with its failure. */
-export type PendingKeptProjects = () => ReadonlyArray<{
+export type PendingKeptProjects = () => readonly {
   readonly projectPath: string
   readonly pending: PendingMcpFileMigration
-}>
+}[]
 
 /**
  * Before a write that waits for other projects (`global`, `everywhere`), migrates again each kept

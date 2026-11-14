@@ -9,7 +9,7 @@ export const LOOPBACK_HOST = '127.0.0.1'
  * rejects instead of crashing the process with an unhandled 'error' event, so the caller's
  * `finally` still releases the scratch profile; a server left without a port is closed.
  */
-export async function listenOnLoopback(server: http.Server, port: number): Promise<number> {
+export async function listenOnLoopback(server: http.Server, port: number) {
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error) => {
       server.off('listening', onListening)

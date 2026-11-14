@@ -8,7 +8,7 @@ import { WaggleMentionNode } from '../nodes/WaggleMentionNode'
  * Syncs Lexical editor text content to the Zustand composer store.
  * This keeps `composer-store.input` current for submission, voice, history, and canSend checks.
  */
-export function SyncPlugin(): null {
+export function SyncPlugin() {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {

@@ -17,8 +17,8 @@ vi.mock('../../hooks/use-chat-panel-controller', () => ({
   useChatPanelSections: useChatPanelSectionsMock,
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
@@ -36,7 +36,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     activateSessionResourceOwner: vi.fn(),
     getVcsStatus: vi.fn().mockResolvedValue(null),
     onGitWorkingTreeChanged: vi.fn(() => () => undefined),
-  },
+  }),
 }))
 
 function renderPanel(

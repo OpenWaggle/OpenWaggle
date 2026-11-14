@@ -7,10 +7,9 @@ import {
 import { decodeDesktopBrowserCommand } from '@shared/schemas/desktop-browser-service'
 import { Effect, Exit, Fiber } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
-import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-preview-automation-service'
 import { executeDesktopBrowserCommand } from '../desktop-browser-executor'
 
-function localService(): BrowserPreviewAutomationServiceShape {
+function localService() {
   return {
     status: vi.fn(() => Effect.succeed(values.status)),
     open: vi.fn(() => Effect.succeed(values.open)),
@@ -48,13 +47,13 @@ describe('desktop browser executor', () => {
 
   it('rejects a mutated scoped command before touching local capabilities', async () => {
     const service = localService()
-    const command = decodeDesktopBrowserCommand({
+    const decoded = decodeDesktopBrowserCommand({
       service: 'browser',
       operation: 'open',
       scope,
       input: inputs.open,
     })
-    Reflect.set(command.scope, 'workingPath', '/repo\0other')
+    const command = { ...decoded, scope: { ...decoded.scope, workingPath: '/repo\0other' } }
 
     await expect(Effect.runPromise(executeDesktopBrowserCommand(service, command))).rejects.toThrow(
       'received an invalid command',

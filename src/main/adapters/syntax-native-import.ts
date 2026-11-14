@@ -1,33 +1,23 @@
 import { createHash } from 'node:crypto'
 import path from 'node:path'
-import type { SyntaxAppearanceVariant } from '@shared/types/syntax'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import type { SyntaxAppearanceResource, SyntaxResourceScope } from '@shared/types/syntax-resources'
 import { normalizedLanguage } from './syntax-language-normalization'
 import {
-  isRecord,
   SYNTAX_IMPORT_RESOURCE_KIND_LIMIT,
   syntaxResourceSlug,
   toJsonObject,
 } from './syntax-resource-import-utils'
+import {
+  decodeSource,
+  hasCompleteAppearanceTokenGroups,
+  isSourceObject,
+  nativeAppearanceEntrySchema,
+  nativeLanguageEntrySchema,
+  nativePackageSourceSchema,
+  nativeThemeEntrySchema,
+} from './syntax-source-schemas'
 import { normalizedTheme } from './syntax-theme-normalization'
-
-const REQUIRED_APPEARANCE_GROUPS = [
-  'color',
-  'typography',
-  'spacing',
-  'radius',
-  'shadow',
-  'focus',
-] as const
-
-function isAppearanceVariant(value: unknown): value is SyntaxAppearanceVariant {
-  return (
-    value === 'light' ||
-    value === 'dark' ||
-    value === 'high-contrast-light' ||
-    value === 'high-contrast-dark'
-  )
-}
 
 function nativeAppearance(
   candidate: unknown,
@@ -36,15 +26,19 @@ function nativeAppearance(
   packageName: string,
   sourcePath: string,
   scope: SyntaxResourceScope,
-): SyntaxAppearanceResource {
-  if (!isRecord(candidate) || !isRecord(candidate.tokens)) {
+) {
+  const entry = isSourceObject(candidate)
+    ? decodeUnknownOrThrow(nativeAppearanceEntrySchema, candidate)
+    : undefined
+  const rawTokens = entry?.tokens
+  if (!entry || !isSourceObject(rawTokens)) {
     throw new Error(`Native appearance entry ${String(index + 1)} is malformed.`)
   }
-  const rawTokens = candidate.tokens
-  if (!isAppearanceVariant(candidate.variant)) {
+  const { variant } = entry
+  if (variant === undefined) {
     throw new Error(`Native appearance entry ${String(index + 1)} has an invalid variant.`)
   }
-  if (REQUIRED_APPEARANCE_GROUPS.some((group) => !isRecord(rawTokens[group]))) {
+  if (!hasCompleteAppearanceTokenGroups(rawTokens)) {
     throw new Error(
       `Native appearance entry ${String(index + 1)} does not contain the complete semantic token groups.`,
     )
@@ -52,35 +46,38 @@ function nativeAppearance(
   const original = toJsonObject(candidate)
   const tokens = toJsonObject(rawTokens)
   const revision = createHash('sha256').update(JSON.stringify(original)).digest('hex')
-  return {
-    id: `appearance:${syntaxResourceSlug(packageId)}:${candidate.variant}`,
+  const resource: SyntaxAppearanceResource = {
+    id: `appearance:${syntaxResourceSlug(packageId)}:${variant}`,
     packageId,
     revision,
-    label:
-      typeof candidate.label === 'string' ? candidate.label : `${packageName} ${candidate.variant}`,
-    variant: candidate.variant,
+    label: entry.label ?? `${packageName} ${variant}`,
+    variant,
     scope,
     format: 'openwaggle',
     sourcePath,
     tokens,
     original,
   }
+  return resource
 }
 
 export function nativeSyntaxResources(
-  raw: Readonly<Record<string, unknown>>,
+  raw: unknown,
   sourcePath: string,
   scope: SyntaxResourceScope,
 ) {
+  const source = decodeSource(nativePackageSourceSchema, raw)
   if (
-    raw.schemaVersion !== 1 ||
-    (!Array.isArray(raw.themes) && !Array.isArray(raw.languages) && !Array.isArray(raw.appearances))
+    source?.schemaVersion !== 1 ||
+    (source.themes === undefined &&
+      source.languages === undefined &&
+      source.appearances === undefined)
   ) {
     return null
   }
-  const themeCandidates = Array.isArray(raw.themes) ? raw.themes : []
-  const languageCandidates = Array.isArray(raw.languages) ? raw.languages : []
-  const appearanceCandidates = Array.isArray(raw.appearances) ? raw.appearances : []
+  const themeCandidates = source.themes ?? []
+  const languageCandidates = source.languages ?? []
+  const appearanceCandidates = source.appearances ?? []
   if (
     themeCandidates.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
     languageCandidates.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
@@ -88,42 +85,47 @@ export function nativeSyntaxResources(
   ) {
     throw new Error('A native syntax package declares too many resources of one kind.')
   }
-  const publisher = typeof raw.publisher === 'string' ? raw.publisher : 'local'
-  const packageName = typeof raw.name === 'string' ? raw.name : path.basename(sourcePath)
+  const publisher = source.publisher ?? 'local'
+  const packageName = source.name ?? path.basename(sourcePath)
   const packageId = `${publisher}.${packageName}`
   const themes = themeCandidates.map((candidate, index) => {
-    if (!isRecord(candidate) || !isRecord(candidate.theme)) {
+    const entry = isSourceObject(candidate)
+      ? decodeUnknownOrThrow(nativeThemeEntrySchema, candidate)
+      : undefined
+    if (!entry || !isSourceObject(entry.theme)) {
       throw new Error(`Native theme entry ${String(index + 1)} is malformed.`)
     }
-    if (!isAppearanceVariant(candidate.variant)) {
+    const { variant } = entry
+    if (variant === undefined) {
       throw new Error(`Native theme entry ${String(index + 1)} has an invalid variant.`)
     }
     return normalizedTheme({
-      raw: candidate.theme,
-      label:
-        typeof candidate.label === 'string'
-          ? candidate.label
-          : `${packageName} ${candidate.variant}`,
+      raw: entry.theme,
+      label: entry.label ?? `${packageName} ${variant}`,
       packageId,
       format: 'openwaggle',
       sourcePath,
       scope,
-      forcedVariant: candidate.variant,
+      forcedVariant: variant,
     })
   })
   const languages = languageCandidates.map((candidate, index) => {
-    if (!isRecord(candidate) || !isRecord(candidate.grammar)) {
+    const entry = isSourceObject(candidate)
+      ? decodeUnknownOrThrow(nativeLanguageEntrySchema, candidate)
+      : undefined
+    if (!entry || !isSourceObject(entry.grammar)) {
       throw new Error(`Native language entry ${String(index + 1)} is malformed.`)
     }
+    const declaration = toJsonObject(candidate)
     return normalizedLanguage({
-      grammar: candidate.grammar,
-      declaration: candidate,
-      language: isRecord(candidate.language) ? candidate.language : candidate,
+      grammar: entry.grammar,
+      declaration,
+      language: isSourceObject(entry.language) ? toJsonObject(entry.language) : declaration,
       packageId,
       format: 'openwaggle',
       sourcePath,
       scope,
-      configuration: candidate.configuration,
+      configuration: entry.configuration,
     })
   })
   const appearances = appearanceCandidates.map((candidate, index) =>

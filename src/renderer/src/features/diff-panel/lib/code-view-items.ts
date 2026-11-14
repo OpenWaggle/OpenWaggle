@@ -54,7 +54,7 @@ export function codeViewItemId(filePath: string) {
  * patch yields no file (empty diff, or a mode-only change git reports with no
  * hunks) so callers can skip the item rather than render an empty section.
  */
-function parseFileDiff(file: GitFileDiff, patchHash: string): FileDiffMetadata | null {
+function parseFileDiff(file: GitFileDiff, patchHash: string) {
   const patches = parsePatchFiles(file.diff, `${file.path}-${patchHash}`)
   for (const patch of patches) {
     const [first] = patch.files
@@ -104,7 +104,7 @@ export function createCodeViewItemDecorator() {
     parsedItems: readonly ParsedReviewCodeViewItem[],
     annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
   ) =>
-    parsedItems.map((parsed): ReviewCodeViewItem => {
+    parsedItems.map((parsed) => {
       const annotations = annotationsByPath.get(parsed.filePath)
       const previous = cache.get(parsed)
       if (previous && previous.annotations === annotations) return previous.item

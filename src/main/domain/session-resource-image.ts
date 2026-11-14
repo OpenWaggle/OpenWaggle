@@ -165,7 +165,7 @@ function imageDimensions(bytes: Uint8Array, mimeType: string) {
   if (mimeType === 'image/jpeg') return jpegDimensions(bytes)
   if (mimeType === 'image/webp' && bytes.byteLength >= WEBP_MIN_HEADER_LENGTH) {
     const format = view.toString('ascii', WEBP_FORMAT_START, WEBP_FORMAT_END)
-    if (format === 'VP8X')
+    if (format === 'VP8X') {
       return {
         width:
           DIMENSION_BASE +
@@ -174,14 +174,16 @@ function imageDimensions(bytes: Uint8Array, mimeType: string) {
           DIMENSION_BASE +
           view.readUIntLE(WEBP_EXTENDED_HEIGHT_OFFSET, WEBP_EXTENDED_DIMENSION_BYTES),
       }
+    }
     if (
       format === 'VP8 ' &&
       view.toString('hex', WEBP_LOSSY_SIGNATURE_START, WEBP_LOSSY_SIGNATURE_END) === '9d012a'
-    )
+    ) {
       return {
         width: view.readUInt16LE(WEBP_LOSSY_WIDTH_OFFSET) & WEBP_DIMENSION_MASK,
         height: view.readUInt16LE(WEBP_LOSSY_HEIGHT_OFFSET) & WEBP_DIMENSION_MASK,
       }
+    }
     if (format === 'VP8L' && view[WEBP_LOSSLESS_SIGNATURE_OFFSET] === WEBP_LOSSLESS_SIGNATURE) {
       const bits = view.readUInt32LE(WEBP_LOSSLESS_BITS_OFFSET)
       return {
@@ -193,10 +195,7 @@ function imageDimensions(bytes: Uint8Array, mimeType: string) {
   return null
 }
 
-export function validatedImageBuffer(
-  bytes: Uint8Array,
-  mimeType: string,
-): ValidatedSessionResourceImage | null {
+export function validatedImageBuffer(bytes: Uint8Array, mimeType: string) {
   const normalizedMimeType = normalizeImageMimeType(mimeType)
   if (!ALLOWED_IMAGE_MIME_TYPES.has(normalizedMimeType)) return null
   return bytes.byteLength > 0 &&

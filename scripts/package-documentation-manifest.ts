@@ -1,22 +1,13 @@
+import { Schema, type SchemaType } from '@shared/schema'
+import { lenientExactOptional } from '@shared/schemas/lenient-exact'
+import { jsonValueSchema } from '@shared/schemas/validation'
+import { objectFields, unknownField } from './support/object-fields'
 import type {
   PackageDocumentationDefinition,
   VersionedPackageDocumentationDefinition,
 } from './package-documentation-model'
 
-export interface PackageManifest {
-  readonly bugs?: { readonly url?: string }
-  readonly description?: string
-  readonly exports?: Readonly<Record<string, unknown>>
-  readonly homepage?: string
-  readonly keywords?: readonly string[]
-  readonly name?: string
-  readonly repository?: { readonly directory?: string; readonly type?: string; readonly url?: string }
-  readonly version?: string
-}
-
-interface JsonObject {
-  readonly [key: string]: unknown
-}
+type JsonObject = Readonly<Record<string, unknown>>
 
 const SEMVER_DOCS_PART_COUNT = 2
 
@@ -24,33 +15,50 @@ function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function stringArray(value: unknown) {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
-    ? value
-    : undefined
-}
+/** The `package.json` fields the docs metadata reads; a field of the wrong type reads as absent. */
+const manifestFieldsSchema = Schema.Struct({
+  bugs: unknownField,
+  description: unknownField,
+  exports: unknownField,
+  homepage: unknownField,
+  keywords: unknownField,
+  name: unknownField,
+  repository: unknownField,
+  version: unknownField,
+})
+/**
+ * The `package.json` metadata the docs check reads. A field that is missing or of the wrong type
+ * is left out, never set to undefined.
+ */
+const packageManifestSchema = Schema.Struct({
+  bugs: lenientExactOptional(Schema.Struct({ url: lenientExactOptional(Schema.String) })),
+  description: lenientExactOptional(Schema.String),
+  exports: lenientExactOptional(
+    // A runtime-keyed map: each subpath to its export target.
+    Schema.Record({ key: Schema.String, value: jsonValueSchema }).pipe(
+      Schema.filter((exportsValue) => !Array.isArray(exportsValue)),
+    ),
+  ),
+  homepage: lenientExactOptional(Schema.String),
+  keywords: lenientExactOptional(Schema.Array(Schema.String)),
+  name: lenientExactOptional(Schema.String),
+  repository: lenientExactOptional(
+    Schema.Struct({
+      directory: lenientExactOptional(Schema.String),
+      type: lenientExactOptional(Schema.String),
+      url: lenientExactOptional(Schema.String),
+    }),
+  ),
+  version: lenientExactOptional(Schema.String),
+})
 
-export function packageManifest(value: unknown): PackageManifest {
-  if (!isJsonObject(value)) return {}
-  const repository = isJsonObject(value.repository) ? value.repository : undefined
-  const bugs = isJsonObject(value.bugs) ? value.bugs : undefined
-  return {
-    bugs: bugs && typeof bugs.url === 'string' ? { url: bugs.url } : undefined,
-    description: typeof value.description === 'string' ? value.description : undefined,
-    exports: isJsonObject(value.exports) ? value.exports : undefined,
-    homepage: typeof value.homepage === 'string' ? value.homepage : undefined,
-    keywords: stringArray(value.keywords),
-    name: typeof value.name === 'string' ? value.name : undefined,
-    repository: repository
-      ? {
-          directory:
-            typeof repository.directory === 'string' ? repository.directory : undefined,
-          type: typeof repository.type === 'string' ? repository.type : undefined,
-          url: typeof repository.url === 'string' ? repository.url : undefined,
-        }
-      : undefined,
-    version: typeof value.version === 'string' ? value.version : undefined,
-  }
+export type PackageManifest = SchemaType<typeof packageManifestSchema>
+
+export function packageManifest(value: unknown) {
+  const manifest: PackageManifest = isJsonObject(value)
+    ? Schema.decodeUnknownSync(packageManifestSchema)(value)
+    : {}
+  return manifest
 }
 
 export function packageManifestDocumentationViolations(
@@ -61,8 +69,8 @@ export function packageManifestDocumentationViolations(
   const violations: string[] = []
   if (manifest.name !== definition.packageName) violations.push('name')
   if (
-    manifest.version?.split('.').slice(0, SEMVER_DOCS_PART_COUNT).join('.')
-    !== definition.currentVersion
+    manifest.version?.split('.').slice(0, SEMVER_DOCS_PART_COUNT).join('.') !==
+    definition.currentVersion
   ) {
     violations.push('docs version')
   }
@@ -72,9 +80,9 @@ export function packageManifestDocumentationViolations(
     violations.push('bugs')
   }
   if (
-    manifest.repository?.type !== 'git'
-    || manifest.repository.url !== 'https://github.com/OpenWaggle/OpenWaggle.git'
-    || manifest.repository.directory !== `packages/${definition.slug}`
+    manifest.repository?.type !== 'git' ||
+    manifest.repository.url !== 'https://github.com/OpenWaggle/OpenWaggle.git' ||
+    manifest.repository.directory !== `packages/${definition.slug}`
   ) {
     violations.push('repository')
   }
@@ -89,7 +97,8 @@ export function withPackageDocumentationMetadata(
   definition: PackageDocumentationDefinition,
   docsUrl: string,
 ) {
-  if (!isJsonObject(value)) {
+  const manifest = objectFields(manifestFieldsSchema, value)
+  if (!isJsonObject(value) || manifest === undefined) {
     throw new Error(`${definition.packageName} package manifest must be an object.`)
   }
   return {
@@ -99,13 +108,13 @@ export function withPackageDocumentationMetadata(
     keywords: definition.keywords,
     homepage: docsUrl,
     repository: {
-      ...(isJsonObject(value.repository) ? value.repository : {}),
+      ...(isJsonObject(manifest.repository) ? manifest.repository : {}),
       type: 'git',
       url: 'https://github.com/OpenWaggle/OpenWaggle.git',
       directory: `packages/${definition.slug}`,
     },
     bugs: {
-      ...(isJsonObject(value.bugs) ? value.bugs : {}),
+      ...(isJsonObject(manifest.bugs) ? manifest.bugs : {}),
       url: 'https://github.com/OpenWaggle/OpenWaggle/issues',
     },
   }

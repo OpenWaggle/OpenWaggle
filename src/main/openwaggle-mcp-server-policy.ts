@@ -2,12 +2,6 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 
-export {
-  assertProjectAllowed,
-  canonicalizeExistingProjectPath,
-  sessionAllowed,
-} from './openwaggle-mcp-workspace-policy'
-
 export const OPENWAGGLE_MCP_SERVE_GRANTS = SESSION_CAPABILITIES
 
 export type OpenWaggleMcpServeGrant = SessionCapability
@@ -46,19 +40,6 @@ export interface OpenWaggleMcpServeOptions {
   readonly userDataRoot: string
   readonly version: string
   readonly stderr?: Pick<NodeJS.WriteStream, 'write'>
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function toolResult(value: unknown, isError = false) {
-  const structuredContent = isRecord(value) ? value : { value }
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify(value) }],
-    structuredContent,
-    ...(isError ? { isError: true as const } : {}),
-  }
 }
 
 export type OpenWaggleMcpServer = McpServer

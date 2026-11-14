@@ -53,27 +53,29 @@ async function repositoryProbeFailure(projectPath: string) {
   return null
 }
 
-async function resolveRefNameResult(projectPath: string): Promise<LocalReadResult<string | null>> {
+async function resolveRefNameResult(projectPath: string) {
   const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
   // `symbolic-ref --quiet` exits non-zero without stderr for a genuine detached HEAD. An execution
   // failure has a diagnostic; accepting that as detached silently enabled the wrong Git workflow.
   if (result.code !== 0) {
-    return result.executionFailed === true || result.stderr.trim()
-      ? { ok: false, message: localReadFailure('the current Git branch', result.stderr) }
-      : { ok: true, value: null }
+    return (
+      result.executionFailed === true || result.stderr.trim()
+        ? { ok: false, message: localReadFailure('the current Git branch', result.stderr) }
+        : { ok: true, value: null }
+    ) satisfies LocalReadResult<string | null>
   }
   const name = result.stdout.trim()
-  return { ok: true, value: name || null }
+  return { ok: true, value: name || null } satisfies LocalReadResult<string | null>
 }
 
-async function resolveRefName(projectPath: string): Promise<string | null> {
+async function resolveRefName(projectPath: string) {
   const result = await resolveRefNameResult(projectPath)
   return result.ok ? result.value : null
 }
 
-export { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from '../../services/git/primary-remote'
+export { resolvePrimaryRemoteUrl } from '../../services/git/primary-remote'
 
-async function resolveWorkingTree(projectPath: string): Promise<LocalReadResult<VcsWorkingTree>> {
+async function resolveWorkingTree(projectPath: string) {
   const [porcelainResult, worktreeNumstat, cachedNumstat] = await Promise.all([
     runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1', '-z']),
     runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat', '-z']),
@@ -83,17 +85,20 @@ async function resolveWorkingTree(projectPath: string): Promise<LocalReadResult<
     (result) => result.code !== 0,
   )
   if (failed) {
-    return { ok: false, message: localReadFailure('the Git working tree', failed.stderr) }
+    return {
+      ok: false,
+      message: localReadFailure('the Git working tree', failed.stderr),
+    } satisfies LocalReadResult<VcsWorkingTree>
   }
   const numstat = parseNumstat(`${worktreeNumstat.stdout}${cachedNumstat.stdout}`)
   const changedFiles = buildChangedFiles(parsePorcelain(porcelainResult.stdout), numstat)
-  return { ok: true, value: toWorkingTree(changedFiles) }
+  return { ok: true, value: toWorkingTree(changedFiles) } satisfies LocalReadResult<VcsWorkingTree>
 }
 
 export async function getLocalVcsStatus(
   projectPath: string,
   options: { readonly resolvePushDestination?: boolean } = {},
-): Promise<LocalVcsStatusResult> {
+) {
   const probeFailure = await repositoryProbeFailure(projectPath)
   if (probeFailure) return probeFailure
 
@@ -103,8 +108,8 @@ export async function getLocalVcsStatus(
     resolveWorkingTree(projectPath),
   ])
   const inputs = resolveLocalStatusInputs(refNameResult, primaryRemoteResult, workingTreeResult)
-  return inputs.ok
-    ? buildLocalVcsStatus(
+  const result: LocalVcsStatusResult = inputs.ok
+    ? await buildLocalVcsStatus(
         projectPath,
         inputs.refName,
         inputs.primaryRemote,
@@ -112,6 +117,7 @@ export async function getLocalVcsStatus(
         options.resolvePushDestination !== false,
       )
     : { ok: false, code: 'unknown', message: inputs.message }
+  return result
 }
 
 function resolveLocalStatusInputs(
@@ -136,7 +142,7 @@ async function buildLocalVcsStatus(
   primaryRemote: PrimaryRemote | null,
   workingTree: VcsWorkingTree,
   shouldResolvePushDestination: boolean,
-): Promise<LocalVcsStatusResult> {
+) {
   const push = await resolveLocalPushStatus(
     projectPath,
     refName,
@@ -165,14 +171,15 @@ async function buildLocalVcsStatus(
     hasWorkingTreeChanges: workingTree.files.length > 0,
     workingTree,
   }
-  return { ok: true, status }
+  const result: LocalVcsStatusResult = { ok: true, status }
+  return result
 }
 
 async function resolveAheadOfDefault(
   projectPath: string,
   refName: string | null,
   remoteName: string,
-): Promise<number | null> {
+) {
   // The remote status may reach the network; the local one may not.
   const defaultRef = await resolveDefaultRef(projectPath, remoteName)
   if (!defaultRef || !refName || refName === defaultRef) return null
@@ -186,7 +193,7 @@ async function resolveAheadOfDefault(
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
 }
 
-export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcsStatusResult> {
+export async function getRemoteVcsStatus(projectPath: string) {
   const probeFailure = await repositoryProbeFailure(projectPath)
   if (probeFailure) return probeFailure
 
@@ -198,7 +205,7 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
       ok: false,
       code: 'remote-unreachable',
       message: fetchResult.stderr.trim() || 'Failed to reach the remote.',
-    }
+    } satisfies RemoteVcsStatusResult
   }
 
   const [upstreamResult, primaryRemote] = await Promise.all([
@@ -229,5 +236,5 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
       aheadOfDefaultCount,
       ...openChangeRequest,
     },
-  }
+  } satisfies RemoteVcsStatusResult
 }

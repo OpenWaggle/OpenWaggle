@@ -11,6 +11,7 @@ import {
   type ResourceKind,
   resolveResourcePath,
 } from './openwaggle-pi-settings-resources'
+import { piSettingsFields, withPiSettings } from './pi-settings-fields'
 
 function getRemovableImplicitExtensionResourceRoots(
   projectPath: string,
@@ -84,45 +85,23 @@ export function withoutImplicitOpenWaggleResourcePrecedence(
   settings: JsonObject,
   options: OpenWaggleResourcePrecedenceOptions = {},
 ) {
-  const next: JsonObject = { ...settings }
-  const packagesResult = removeImplicitPackageSources(projectPath, settings.packages, options)
-  const skills = removeImplicitResourceRoots(projectPath, settings.skills, 'skills', options)
+  const current = piSettingsFields(settings)
+  const packagesResult = removeImplicitPackageSources(projectPath, current.packages, options)
+  const skills = removeImplicitResourceRoots(projectPath, current.skills, 'skills', options)
   const extensions = removeImplicitResourceRoots(
     projectPath,
-    settings.extensions,
+    current.extensions,
     'extensions',
     options,
   )
-  const prompts = removeImplicitResourceRoots(projectPath, settings.prompts, 'prompts', options)
-  const themes = removeImplicitResourceRoots(projectPath, settings.themes, 'themes', options)
+  const prompts = removeImplicitResourceRoots(projectPath, current.prompts, 'prompts', options)
+  const themes = removeImplicitResourceRoots(projectPath, current.themes, 'themes', options)
 
-  if (packagesResult.shouldUpdate) {
-    if (packagesResult.packages) {
-      next.packages = packagesResult.packages
-    } else {
-      delete next.packages
-    }
-  }
-  if (skills) {
-    next.skills = skills
-  } else {
-    delete next.skills
-  }
-  if (extensions) {
-    next.extensions = extensions
-  } else {
-    delete next.extensions
-  }
-  if (prompts) {
-    next.prompts = prompts
-  } else {
-    delete next.prompts
-  }
-  if (themes) {
-    next.themes = themes
-  } else {
-    delete next.themes
-  }
-
-  return next
+  return withPiSettings(settings, {
+    ...(packagesResult.shouldUpdate ? { packages: packagesResult.packages } : {}),
+    skills,
+    extensions,
+    prompts,
+    themes,
+  })
 }

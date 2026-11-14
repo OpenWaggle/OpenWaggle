@@ -1,74 +1,30 @@
-import type {
-  McpAppCatalogInput,
-  McpAppCatalogResult,
-  McpAppToolCallInput,
-  McpAppToolCallResult,
-  McpReadResourceInput,
-  McpRemoveSecretInput,
-  McpResourceResult,
-  McpSecretSummary,
-  McpSetSecretInput,
-} from './mcp'
-import type {
-  McpAppFrameRegisterInput,
-  McpAppFrameRegisterResult,
-  McpAppFrameUnregisterInput,
-} from './mcp-app-frame'
-import type {
-  McpConfigurationView,
-  McpServerInspection,
-  McpServerStatusView,
-} from './mcp-configuration'
-import type {
-  McpAddServerRequest,
-  McpConfigurationScopeRequest,
-  McpImportApplyRequest,
-  McpImportApplyResultView,
-  McpImportPreviewRequest,
-  McpImportPreviewView,
-  McpInstallCatalogServerRequest,
-  McpRemoveServerRequest,
-  McpServerNameRequest,
-  McpSessionRequest,
-  McpSetServerEnabledRequest,
-  McpSetServerExposureRequest,
-  McpSetSessionEnabledRequest,
-  McpSignInResultView,
-} from './mcp-configuration-operations'
-import type {
-  McpRegistryInstallRequest,
-  McpRegistryInstallResultView,
-  McpRegistrySearchRequest,
-  McpRegistrySearchResultView,
-  McpRegistryServerRequest,
-  McpRegistryServerView,
-} from './mcp-registry'
+import type { IpcInvokeMethod } from './ipc-api-methods'
 
 export interface OpenWaggleMcpApi {
-  getMcpConfiguration(input: McpConfigurationScopeRequest): Promise<McpConfigurationView>
-  setMcpServerEnabled(input: McpSetServerEnabledRequest): Promise<McpConfigurationView>
-  setMcpServerExposure(input: McpSetServerExposureRequest): Promise<McpConfigurationView>
-  addMcpServer(input: McpAddServerRequest): Promise<McpConfigurationView>
-  removeMcpServer(input: McpRemoveServerRequest): Promise<McpConfigurationView>
-  installMcpCatalogServer(input: McpInstallCatalogServerRequest): Promise<McpConfigurationView>
-  inspectMcpServer(input: McpServerNameRequest): Promise<McpServerInspection>
-  getMcpServerStatuses(input: McpConfigurationScopeRequest): Promise<readonly McpServerStatusView[]>
-  signInMcpServer(input: McpServerNameRequest): Promise<McpSignInResultView>
-  signOutMcpServer(input: McpServerNameRequest): Promise<void>
-  getSessionMcpEnabled(input: McpSessionRequest): Promise<boolean>
-  setSessionMcpEnabled(input: McpSetSessionEnabledRequest): Promise<boolean>
-  previewMcpImports(input: McpImportPreviewRequest): Promise<McpImportPreviewView>
-  applyMcpImports(input: McpImportApplyRequest): Promise<McpImportApplyResultView>
-  searchMcpRegistry(input: McpRegistrySearchRequest): Promise<McpRegistrySearchResultView>
-  getMcpRegistryServer(input: McpRegistryServerRequest): Promise<McpRegistryServerView>
-  installMcpRegistryServer(input: McpRegistryInstallRequest): Promise<McpRegistryInstallResultView>
-  listMcpSecrets(): Promise<readonly McpSecretSummary[]>
-  setMcpSecret(input: McpSetSecretInput): Promise<readonly McpSecretSummary[]>
-  removeMcpSecret(input: McpRemoveSecretInput): Promise<readonly McpSecretSummary[]>
-  readMcpResource(input: McpReadResourceInput): Promise<McpResourceResult>
-  listMcpAppCatalog(input: McpAppCatalogInput): Promise<McpAppCatalogResult>
-  callMcpAppTool(input: McpAppToolCallInput): Promise<McpAppToolCallResult>
+  getMcpConfiguration: IpcInvokeMethod<'mcp:get-configuration'>
+  setMcpServerEnabled: IpcInvokeMethod<'mcp:set-server-enabled'>
+  setMcpServerExposure: IpcInvokeMethod<'mcp:set-server-exposure'>
+  addMcpServer: IpcInvokeMethod<'mcp:add-server'>
+  removeMcpServer: IpcInvokeMethod<'mcp:remove-server'>
+  installMcpCatalogServer: IpcInvokeMethod<'mcp:install-catalog-server'>
+  inspectMcpServer: IpcInvokeMethod<'mcp:inspect-server'>
+  getMcpServerStatuses: IpcInvokeMethod<'mcp:get-server-statuses'>
+  signInMcpServer: IpcInvokeMethod<'mcp:sign-in'>
+  signOutMcpServer: IpcInvokeMethod<'mcp:sign-out'>
+  getSessionMcpEnabled: IpcInvokeMethod<'mcp:get-session-enabled'>
+  setSessionMcpEnabled: IpcInvokeMethod<'mcp:set-session-enabled'>
+  previewMcpImports: IpcInvokeMethod<'mcp:preview-imports'>
+  applyMcpImports: IpcInvokeMethod<'mcp:apply-imports'>
+  searchMcpRegistry: IpcInvokeMethod<'mcp:search-registry'>
+  getMcpRegistryServer: IpcInvokeMethod<'mcp:get-registry-server'>
+  installMcpRegistryServer: IpcInvokeMethod<'mcp:install-registry-server'>
+  listMcpSecrets: IpcInvokeMethod<'mcp:list-secrets'>
+  setMcpSecret: IpcInvokeMethod<'mcp:set-secret'>
+  removeMcpSecret: IpcInvokeMethod<'mcp:remove-secret'>
+  readMcpResource: IpcInvokeMethod<'mcp:read-resource'>
+  listMcpAppCatalog: IpcInvokeMethod<'mcp:list-app-catalog'>
+  callMcpAppTool: IpcInvokeMethod<'mcp:call-app-tool'>
   /** Serves an App document under its own frame origin and policy (ADR 0053). */
-  registerMcpAppFrame(input: McpAppFrameRegisterInput): Promise<McpAppFrameRegisterResult>
-  unregisterMcpAppFrame(input: McpAppFrameUnregisterInput): Promise<void>
+  registerMcpAppFrame: IpcInvokeMethod<'mcp:register-app-frame'>
+  unregisterMcpAppFrame: IpcInvokeMethod<'mcp:unregister-app-frame'>
 }

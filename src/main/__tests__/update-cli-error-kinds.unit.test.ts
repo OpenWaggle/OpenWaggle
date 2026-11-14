@@ -53,7 +53,7 @@ describe('openwaggle update error kinds (#351)', () => {
       )
       stderr.mockRestore()
       vi.unstubAllGlobals()
-      env.OPENWAGGLE_AGENT_RUN = undefined
+      delete env.OPENWAGGLE_AGENT_RUN
     },
   )
 

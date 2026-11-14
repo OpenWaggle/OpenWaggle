@@ -10,12 +10,12 @@ import { useChatStore } from '../state'
 import { useBackgroundRunStore } from '../state/background-run-store'
 
 /** What a failed send leaves in the composer: its text back, unless it reached the agent. */
-export function composerSendFailureDisposition(
-  cause: unknown,
-  activeSessionId: SessionId | null,
-): SendFailureDisposition {
+export function composerSendFailureDisposition(cause: unknown, activeSessionId: SessionId | null) {
   if (cause instanceof PiSessionContinuationHeld) {
-    return { kind: 'restore', notice: piSessionContinuationHeldNotice(cause) }
+    return {
+      kind: 'restore',
+      notice: piSessionContinuationHeldNotice(cause),
+    } satisfies SendFailureDisposition
   }
   return sessionImageSendFailureDisposition({
     cause,
@@ -25,5 +25,5 @@ export function composerSendFailureDisposition(
     disposedSessions: useChatStore.getState().missingSessionIds,
     hasWorktreeLaunch: (sessionId) =>
       useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) !== null,
-  })
+  }) satisfies SendFailureDisposition
 }

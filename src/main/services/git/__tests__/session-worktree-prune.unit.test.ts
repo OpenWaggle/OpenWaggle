@@ -4,20 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionWorktreeRef } from '../worktree-cleanup'
 
 const { removeGitWorktreeMock, validateGitWorktreeRemovalMock } = vi.hoisted(() => ({
-  removeGitWorktreeMock: vi.fn(
-    async (): Promise<GitWorktreeMutationResult> => ({
-      ok: true,
-      message: 'removed',
-      path: '/wt/x',
-    }),
-  ),
-  validateGitWorktreeRemovalMock: vi.fn(
-    async (): Promise<GitWorktreeMutationResult> => ({
-      ok: true,
-      message: 'safe',
-      path: '/wt/x',
-    }),
-  ),
+  removeGitWorktreeMock: vi.fn<() => Promise<GitWorktreeMutationResult>>(async () => ({
+    ok: true,
+    message: 'removed',
+    path: '/wt/x',
+  })),
+  validateGitWorktreeRemovalMock: vi.fn<() => Promise<GitWorktreeMutationResult>>(async () => ({
+    ok: true,
+    message: 'safe',
+    path: '/wt/x',
+  })),
 }))
 
 vi.mock('../../../adapters/git/worktree', () => ({

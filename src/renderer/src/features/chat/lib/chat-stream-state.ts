@@ -43,7 +43,7 @@ function withMessageError(messages: readonly UIMessage[], messageId: string, err
 export function applyAgentTransportEvent<Messages extends readonly UIMessage[]>(
   messages: Messages,
   event: AgentTransportEvent,
-): Messages | UIMessage[] {
+) {
   const unchanged = () => messages
 
   return matchBy(event, 'type')

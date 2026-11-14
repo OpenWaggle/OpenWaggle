@@ -8,10 +8,8 @@ import { resolveExtensionDialogContribution } from '../extension-dialog-resoluti
 
 const PROJECT_PATH = '/tmp/project'
 
-function entry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function entry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const result: ExtensionContributionRegistryEntry = {
     extensionId: 'sample-extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -43,15 +41,14 @@ function entry(
     diagnostics: [],
     ...overrides,
   }
+  return result
 }
 
-function registry(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): ExtensionContributionRegistryView {
+function registry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return {
     projectPaths: [PROJECT_PATH],
     entries,
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
 function targetFor(entry: ExtensionContributionRegistryEntry, dialogId = entry.contributionId) {

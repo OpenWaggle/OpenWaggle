@@ -1,225 +1,69 @@
-import { fromAny } from '@total-typescript/shoehorn'
-import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import os from 'node:os'
+import { describe, expect, it, vi } from 'vitest'
+import { harness, invoke, writeLogs } from './feedback-handler.test-harness'
 
-const handlers = new Map<string, (...args: unknown[]) => unknown>()
+describe('feedback:check-gh', () => {
+  // Pins fix(ipc): answer feedback:check-gh when gh is missing or signed out. A failed `which` or
+  // `gh auth status` failed the whole request instead of reporting gh unavailable.
+  it.each([
+    { which: false, auth: false, expected: { available: false, authenticated: false } },
+    { which: true, auth: false, expected: { available: true, authenticated: false } },
+    { which: true, auth: true, expected: { available: true, authenticated: true } },
+  ])('reports gh $expected', async ({ which, auth, expected }) => {
+    if (which) harness.replies.set('which gh', { stdout: '/usr/bin/gh\n' })
+    if (auth) harness.replies.set('gh auth status', {})
 
-vi.mock('../../runtime', () => ({
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
-}))
-vi.mock('../../gui-runtime', () => ({
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
-}))
-
-vi.mock('electron', () => ({
-  app: { getVersion: () => '0.1.0-test' },
-  ipcMain: {
-    handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(channel, handler)
-    },
-    on: vi.fn(),
-  },
-}))
-
-vi.mock('../../logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-  getLogFilePath: () => '',
-}))
-
-import { registerFeedbackHandlers } from '../feedback-handler'
-
-describe('feedback-handler', () => {
-  beforeEach(() => {
-    handlers.clear()
+    await expect(invoke('feedback:check-gh')).resolves.toEqual(expected)
+    // gh never sees a token from the app's environment; it uses its own login.
+    for (const { env } of harness.spawned) expect(env ?? {}).not.toHaveProperty('GH_TOKEN')
   })
+})
 
-  it('registers all feedback channels', () => {
-    registerFeedbackHandlers()
+describe('feedback:collect-diagnostics', () => {
+  it.each<[NodeJS.Platform, string]>([
+    ['darwin', 'macOS'],
+    ['win32', 'Windows'],
+    ['linux', 'Linux'],
+    ['freebsd', 'freebsd'],
+  ])('names %s as %s with the app version', async (platform, name) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
 
-    expect(handlers.has('feedback:check-gh')).toBe(true)
-    expect(handlers.has('feedback:collect-diagnostics')).toBe(true)
-    expect(handlers.has('feedback:get-recent-logs')).toBe(true)
-    expect(handlers.has('feedback:generate-markdown')).toBe(true)
-    expect(handlers.has('feedback:submit')).toBe(true)
-  })
-
-  describe('feedback:collect-diagnostics', () => {
-    it('returns diagnostics with expected shape', async () => {
-      registerFeedbackHandlers()
-      const handler = handlers.get('feedback:collect-diagnostics')
-      expect(handler).toBeDefined()
-
-      const result = await handler?.({})
-      expect(result).toMatchObject({
-        appVersion: '0.1.0-test',
-        arch: expect.any(String),
-        nodeVersion: expect.any(String),
-        os: expect.any(String),
-      })
-      // electronVersion is undefined in non-Electron test env
-      expect(result).toHaveProperty('electronVersion')
+    await expect(invoke('feedback:collect-diagnostics')).resolves.toEqual({
+      os: `${name} ${os.release()}`,
+      appVersion: '0.1.0-test',
+      electronVersion: process.versions.electron,
+      nodeVersion: process.versions.node,
+      arch: process.arch,
     })
   })
+})
 
-  describe('feedback:get-recent-logs', () => {
-    it('returns empty string when no log file exists', async () => {
-      registerFeedbackHandlers()
-      const handler = handlers.get('feedback:get-recent-logs')
-      expect(handler).toBeDefined()
-
-      const result = await handler?.({}, 50)
-      expect(result).toBe('')
-    })
+describe('feedback:get-recent-logs', () => {
+  it('returns nothing when the app has no log file', async () => {
+    await expect(invoke('feedback:get-recent-logs', 50)).resolves.toBe('')
   })
 
-  describe('feedback:generate-markdown', () => {
-    it('generates markdown with description', async () => {
-      registerFeedbackHandlers()
-      const handler = handlers.get('feedback:generate-markdown')
-      expect(handler).toBeDefined()
+  it('returns the last lines of the GUI and Session Host logs, redacted', async () => {
+    await writeLogs(
+      'gui 1\ngui 2\ngui 3 Authorization: Bearer abcdef0123456789secret',
+      'host 1\nhost 2',
+    )
 
-      const result = fromAny<string, unknown>(
-        await handler?.(
-          {},
-          {
-            title: 'Test bug',
-            description: 'Something broke',
-            category: 'bug',
-            includeSystemInfo: false,
-            includeLogs: false,
-            includeErrorContext: false,
-            includeLastMessage: false,
-            includeModelInfo: false,
-          },
-        ),
-      )
+    await expect(invoke('feedback:get-recent-logs', 2)).resolves.toBe(
+      'gui 2\ngui 3 Authorization: Bearer [REDACTED_TOKEN]\n' +
+        '--- Session Host (openwaggle-host-2026-11-11.log) ---\nhost 1\nhost 2',
+    )
+  })
 
-      expect(result).toContain('## Description')
-      expect(result).toContain('Something broke')
-    })
+  it('returns the GUI log alone when the Session Host has no log', async () => {
+    await writeLogs('gui 1\ngui 2')
 
-    it('includes system info when flag is set', async () => {
-      registerFeedbackHandlers()
-      const handler = handlers.get('feedback:generate-markdown')
+    await expect(invoke('feedback:get-recent-logs', 5)).resolves.toBe('gui 1\ngui 2')
+  })
 
-      const result = fromAny<string, unknown>(
-        await handler?.(
-          {},
-          {
-            title: 'Test',
-            description: '',
-            category: 'bug',
-            includeSystemInfo: true,
-            includeLogs: false,
-            includeErrorContext: false,
-            includeLastMessage: false,
-            includeModelInfo: false,
-          },
-        ),
-      )
+  it('reads a log once when its name has no GUI stem to map to the Host', async () => {
+    await writeLogs('only line', undefined, 'custom.log')
 
-      expect(result).toContain('## System Info')
-      expect(result).toContain('App Version')
-    })
-
-    it('includes error context when provided', async () => {
-      registerFeedbackHandlers()
-      const handler = handlers.get('feedback:generate-markdown')
-
-      const result = fromAny<string, unknown>(
-        await handler?.(
-          {},
-          {
-            title: 'Error report',
-            description: '',
-            category: 'bug',
-            includeSystemInfo: false,
-            includeLogs: false,
-            includeErrorContext: true,
-            includeLastMessage: false,
-            includeModelInfo: false,
-            lastErrorContext: {
-              code: 'rate-limited',
-              message: 'Too many requests',
-              userMessage: 'Rate limited',
-              suggestion: 'Wait and retry',
-              retryable: true,
-            },
-          },
-        ),
-      )
-
-      expect(result).toContain('## Error Context')
-      expect(result).toContain('rate-limited')
-      expect(result).toContain('Too many requests')
-    })
-
-    // Raw error detail can carry provider output; it is redacted before it can reach an issue.
-    it('redacts credentials in the raw error before it reaches the report', async () => {
-      registerFeedbackHandlers()
-      const handler = handlers.get('feedback:generate-markdown')
-
-      const result = fromAny<string, unknown>(
-        await handler?.(
-          {},
-          {
-            title: 'Error report',
-            description: '',
-            category: 'bug',
-            includeSystemInfo: false,
-            includeLogs: false,
-            includeErrorContext: true,
-            includeLastMessage: false,
-            includeModelInfo: false,
-            lastErrorContext: {
-              code: 'unknown',
-              message:
-                'upstream said: Authorization: Bearer abcdef0123456789secret ANTHROPIC_API_KEY=abcdef1234567890 API key: xyz9876543210',
-              userMessage: 'Something went wrong',
-              retryable: true,
-            },
-          },
-        ),
-      )
-
-      expect(result).not.toContain('abcdef0123456789secret')
-      expect(result).toContain('Bearer [REDACTED_TOKEN]')
-      expect(result).not.toContain('abcdef1234567890')
-      expect(result).not.toContain('xyz9876543210')
-    })
-
-    it('includes model info when provided', async () => {
-      registerFeedbackHandlers()
-      const handler = handlers.get('feedback:generate-markdown')
-
-      const result = fromAny<string, unknown>(
-        await handler?.(
-          {},
-          {
-            title: 'Test',
-            description: '',
-            category: 'feature',
-            includeSystemInfo: false,
-            includeLogs: false,
-            includeErrorContext: false,
-            includeLastMessage: false,
-            includeModelInfo: true,
-            activeModel: 'claude-sonnet-4-20250514',
-            activeProvider: 'anthropic',
-          },
-        ),
-      )
-
-      expect(result).toContain('## Model Info')
-      expect(result).toContain('claude-sonnet-4-20250514')
-      expect(result).toContain('anthropic')
-    })
+    await expect(invoke('feedback:get-recent-logs', 5)).resolves.toBe('only line')
   })
 })

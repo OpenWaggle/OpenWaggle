@@ -22,7 +22,11 @@ const EMPTY_ASAR = asarImage({ 'package.json': packageJson('openwaggle') })
 async function tree(files: Record<string, Buffer | string>) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'native-floor-'))
   temporaryRoots.push(root)
-  const withAsar = { 'Contents/Resources/app.asar': EMPTY_ASAR, 'resources/app.asar': EMPTY_ASAR, ...files }
+  const withAsar = {
+    'Contents/Resources/app.asar': EMPTY_ASAR,
+    'resources/app.asar': EMPTY_ASAR,
+    ...files,
+  }
   for (const [relative, contents] of Object.entries(withAsar)) {
     await fs.mkdir(path.dirname(path.join(root, relative)), { recursive: true })
     await fs.writeFile(path.join(root, relative), contents)
@@ -31,7 +35,9 @@ async function tree(files: Record<string, Buffer | string>) {
 }
 
 afterEach(async () => {
-  await Promise.all(temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })))
+  await Promise.all(
+    temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })),
+  )
 })
 
 const libc = (...versions: string[]) => ({ file: 'libc.so.6', versions })
@@ -48,7 +54,9 @@ describe('Linux native platform floor', () => {
   it('passes when every x64 ELF needs at most glibc 2.35 and GLIBCXX 3.4.30', async () => {
     const root = await tree({
       openwaggle: elfImage({ needs: [libc('GLIBC_2.2.5', 'GLIBC_2.34', 'GLIBC_PRIVATE')] }),
-      [PTY]: elfImage({ needs: [libc('GLIBC_2.35'), libstdcxx('GLIBCXX_3.4.30', 'CXXABI_1.3.13')] }),
+      [PTY]: elfImage({
+        needs: [libc('GLIBC_2.35'), libstdcxx('GLIBCXX_3.4.30', 'CXXABI_1.3.13')],
+      }),
     })
     const report = await checkNativePlatformFloor(root, 'linux')
     expect(report.violations).toEqual([])
@@ -59,7 +67,9 @@ describe('Linux native platform floor', () => {
   it('fails on the node-pty build that beta.25 shipped, which needs glibc 2.38', async () => {
     const root = await tree({
       openwaggle: elfImage({ needs: [libc('GLIBC_2.34')] }),
-      [PTY]: elfImage({ needs: [libc('GLIBC_2.38'), libstdcxx('GLIBCXX_3.4.31', 'CXXABI_1.3.15')] }),
+      [PTY]: elfImage({
+        needs: [libc('GLIBC_2.38'), libstdcxx('GLIBCXX_3.4.31', 'CXXABI_1.3.15')],
+      }),
     })
     const report = await checkNativePlatformFloor(root, 'linux')
     expect(report.violations).toEqual([
@@ -72,7 +82,10 @@ describe('Linux native platform floor', () => {
   it('fails on binaries for another platform or architecture, which can never load', async () => {
     const root = await tree({
       openwaggle: elfImage({ needs: [libc('GLIBC_2.17')] }),
-      'lib/linux-arm64/pty.node': elfImage({ machine: ELF_MACHINE.aarch64, needs: [libc('GLIBC_2.39')] }),
+      'lib/linux-arm64/pty.node': elfImage({
+        machine: ELF_MACHINE.aarch64,
+        needs: [libc('GLIBC_2.39')],
+      }),
       'lib/darwin/pty.node': machOImage({ cpu: MACHO_CPU.arm64, minos: '15.0' }),
       'lib/win32/pty.node': peImage({ subsystemVersion: [10, 0] }),
     })
@@ -93,7 +106,8 @@ describe('Linux native platform floor', () => {
 
 describe('macOS native platform floor', () => {
   const executable = 'Contents/MacOS/OpenWaggle'
-  const onnx = 'Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/libonnxruntime.dylib'
+  const onnx =
+    'Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/libonnxruntime.dylib'
 
   it('passes the beta.25 shape: a 12.0 executable, 13.4 onnxruntime, and LSMinimumSystemVersion 12.0', async () => {
     const root = await tree({
@@ -145,7 +159,10 @@ describe('macOS native platform floor', () => {
     })
     const report = await checkNativePlatformFloor(root, 'darwin')
     expect(report.checked).toBe(2)
-    expect(report.foreign).toEqual(['Contents/lib/arm64-only.node (Mach-O arm64)', 'Contents/lib/linux.node (ELF x64)'])
+    expect(report.foreign).toEqual([
+      'Contents/lib/arm64-only.node (Mach-O arm64)',
+      'Contents/lib/linux.node (ELF x64)',
+    ])
     expect(report.violations).toEqual([
       'Contents/lib/arm64-only.node (Mach-O arm64) cannot load in this x64 app',
       'Contents/lib/linux.node (ELF x64) cannot load in this x64 app',
@@ -182,7 +199,9 @@ describe('formatFloorReport', () => {
     expect(text).toContain(`linux native floor (x64): ${root}`)
     expect(text).toContain('checked 1 native binaries, 1 for another platform or architecture')
     expect(text).toContain('  FAIL other.node (ELF arm64) cannot load in this x64 app')
-    expect(text).toContain('  FAIL openwaggle needs GLIBC_2.38 (libc.so.6), above the supported GLIBC_2.35')
+    expect(text).toContain(
+      '  FAIL openwaggle needs GLIBC_2.38 (libc.so.6), above the supported GLIBC_2.35',
+    )
   })
 })
 
@@ -190,9 +209,14 @@ describe('native packages missing for the app architecture', () => {
   it('fails the Intel app when sharp and keyring shipped only their arm64 builds', async () => {
     const asar = asarImage({
       'package.json': packageJson('openwaggle'),
-      'node_modules/sharp/package.json': packageJson('sharp', ['@img/sharp-darwin-arm64', '@img/sharp-darwin-x64']),
+      'node_modules/sharp/package.json': packageJson('sharp', [
+        '@img/sharp-darwin-arm64',
+        '@img/sharp-darwin-x64',
+      ]),
       'node_modules/@img/sharp-darwin-x64/package.json': packageJson('@img/sharp-darwin-x64'),
-      'node_modules/@napi-rs/keyring/package.json': packageJson('@napi-rs/keyring', ['@napi-rs/keyring-darwin-x64']),
+      'node_modules/@napi-rs/keyring/package.json': packageJson('@napi-rs/keyring', [
+        '@napi-rs/keyring-darwin-x64',
+      ]),
     })
     const root = await tree({
       'Contents/MacOS/OpenWaggle': machOImage({ cpu: MACHO_CPU.x86_64, minos: '12.0' }),

@@ -67,6 +67,7 @@ export const sessionResourceNodeIdsSchema = Schema.Array(sessionResourceNodeIdSc
   Schema.maxItems(MAX_TARGET_NODE_IDS),
 )
 
+/** The Session workspace path currently rendered in chat. */
 export const sessionResourceRouteSelectionSchema = Schema.Struct({
   branchId: Schema.NullOr(sessionResourceNodeIdSchema),
   pathNodeIds: sessionResourceNodeIdsSchema,
@@ -74,20 +75,32 @@ export const sessionResourceRouteSelectionSchema = Schema.Struct({
 
 export const sessionResourceCatalogPageRequestSchema = Schema.Struct({
   view: sessionResourceCatalogViewSchema,
-  cursor: Schema.optional(
+  cursor: Schema.optionalWith(
     Schema.NullOr(Schema.String.pipe(Schema.maxLength(MAX_CATALOG_CURSOR_LENGTH))),
+    { exact: true },
   ),
   limit: Schema.Number.pipe(
     Schema.int(),
     Schema.greaterThanOrEqualTo(1),
     Schema.lessThanOrEqualTo(MAX_CATALOG_PAGE_SIZE),
   ),
-  selection: Schema.optional(Schema.NullOr(sessionResourceRouteSelectionSchema)),
+  selection: Schema.optionalWith(Schema.NullOr(sessionResourceRouteSelectionSchema), {
+    exact: true,
+  }),
 })
 
-export const sessionResourceKindOrNullSchema = Schema.NullOr(
-  Schema.Literal('image', 'file', 'link', 'tool', 'web-search', 'site', 'commit', 'change-request'),
+export const sessionResourceKindSchema = Schema.Literal(
+  'image',
+  'file',
+  'link',
+  'tool',
+  'web-search',
+  'site',
+  'commit',
+  'change-request',
 )
+
+export const sessionResourceKindOrNullSchema = Schema.NullOr(sessionResourceKindSchema)
 
 export const sessionResourceTargetLimitSchema = Schema.Number.pipe(
   Schema.int(),
@@ -98,8 +111,9 @@ export const sessionResourceTargetLimitSchema = Schema.Number.pipe(
 export const sessionResourceNodePageRequestSchema = Schema.Struct({
   nodeIds: sessionResourceNodeIdsSchema,
   kind: sessionResourceKindOrNullSchema,
-  cursor: Schema.optional(
+  cursor: Schema.optionalWith(
     Schema.NullOr(Schema.String.pipe(Schema.maxLength(MAX_CATALOG_CURSOR_LENGTH))),
+    { exact: true },
   ),
   limit: sessionResourceTargetLimitSchema,
 })

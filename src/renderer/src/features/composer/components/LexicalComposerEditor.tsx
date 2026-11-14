@@ -77,8 +77,8 @@ export function LexicalComposerEditor({
       />
       <HistoryPlugin />
       <ComposerAutoFocusPlugin />
-      <EditablePlugin disabled={disabled} />
-      <KeyboardPlugin onSubmit={onSubmit} onEscape={onEscape} />
+      <EditablePlugin {...(disabled === undefined ? {} : { disabled })} />
+      <KeyboardPlugin onSubmit={onSubmit} {...(onEscape === undefined ? {} : { onEscape })} />
       <SyncPlugin />
       <SlashCommandPlugin />
       <AutoResizePlugin />

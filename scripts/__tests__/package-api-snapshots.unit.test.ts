@@ -1,11 +1,14 @@
-import { mkdtemp as createTemporaryDirectory, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp as createTemporaryDirectory,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  checkPackageApiSnapshots,
-  createPackageApiSnapshot,
-} from '../package-api-snapshots.js'
+import { checkPackageApiSnapshots, createPackageApiSnapshot } from '../package-api-snapshots.js'
 
 const projectRoots: string[] = []
 
@@ -102,7 +105,9 @@ describe('checkPackageApiSnapshots', () => {
       }),
     ).resolves.toEqual({
       changedSnapshots: ['scripts/api-snapshots/example.api.md'],
-      violations: ['scripts/api-snapshots/example.api.md is stale. Run pnpm api:snapshot:update.'],
+      violations: [
+        'scripts/api-snapshots/example.api.md is stale. Run bun run api:snapshot:update.',
+      ],
       writtenSnapshots: [],
     })
   })

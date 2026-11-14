@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { isEnoent } from '@shared/utils/node-error'
+import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { SessionResourceStoreError } from '../errors'
 import {
   SessionResourceStore,
@@ -86,8 +86,8 @@ async function sessionDirectoryFor(root: string, sessionId: string) {
   await fs.mkdir(root, { recursive: true })
   const realRoot = await fs.realpath(root)
   const target = path.join(realRoot, sessionDirectoryName(sessionId))
-  await fs.mkdir(target).catch(async (cause: NodeJS.ErrnoException) => {
-    if (cause.code !== 'EEXIST') throw cause
+  await fs.mkdir(target).catch(async (cause: unknown) => {
+    if (!isNodeError(cause, 'EEXIST')) throw cause
     const stats = await fs.lstat(target)
     if (stats.isSymbolicLink() || !stats.isDirectory()) {
       throw new Error('Session resource directory is not a managed directory.')
@@ -117,7 +117,7 @@ async function writeBytesAtomically(temporaryPath: string, targetPath: string, b
   }
 }
 
-function makeStore(root: string): SessionResourceStoreShape {
+function makeStore(root: string) {
   const prepareTemporaryPath = createSessionResourceTemporaryPathManager()
 
   function storeBytes(input: StoreSessionResourceBytesInput) {
@@ -155,7 +155,7 @@ function makeStore(root: string): SessionResourceStoreShape {
             sourcePath: input.sourcePath,
             temporaryPath: temporary,
             expectedSizeBytes: input.expectedSizeBytes,
-            expectedSha256: input.expectedSha256,
+            ...(input.expectedSha256 === undefined ? {} : { expectedSha256: input.expectedSha256 }),
             maxSizeBytes: input.maxSizeBytes,
           })
           try {
@@ -217,7 +217,7 @@ function makeStore(root: string): SessionResourceStoreShape {
         },
         catch: (cause) => storeError('removeSession', cause),
       }),
-  }
+  } satisfies SessionResourceStoreShape
 }
 
 export function makeFilesystemSessionResourceStoreLayer(root: string) {
@@ -227,7 +227,7 @@ export function makeFilesystemSessionResourceStoreLayer(root: string) {
 export const FilesystemSessionResourceStoreLive = Layer.effect(
   SessionResourceStore,
   Effect.sync(() => {
-    const root = path.join(app.getPath('userData'), RESOURCE_DIRECTORY)
+    const root = path.join(appPaths.userData(), RESOURCE_DIRECTORY)
     return SessionResourceStore.of(makeStore(root))
   }),
 )

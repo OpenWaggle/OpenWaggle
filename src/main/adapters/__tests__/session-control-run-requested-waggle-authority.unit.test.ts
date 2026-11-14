@@ -35,11 +35,12 @@ import type { SettingsServiceShape } from '../../services/settings-service'
 import { SettingsService } from '../../services/settings-service'
 
 const { executeAgentRunMock, publishSessionHostEventMock } = vi.hoisted(() => ({
-  executeAgentRunMock: vi.fn(
+  executeAgentRunMock: vi.fn<
     (_input: {
       readonly onEvent: (event: AgentTransportEvent) => void
-    }): Effect.Effect<AgentRunResult> =>
-      Effect.succeed(fromPartial<AgentRunResult>({ outcome: 'success', newMessages: [] })),
+    }) => Effect.Effect<AgentRunResult>
+  >((_input: { readonly onEvent: (event: AgentTransportEvent) => void }) =>
+    Effect.succeed(fromPartial<AgentRunResult>({ outcome: 'success', newMessages: [] })),
   ),
   publishSessionHostEventMock: vi.fn(),
 }))

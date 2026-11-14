@@ -163,11 +163,20 @@ function resolveUserPath(value: string, environment: TopLevelCliEnvironment) {
   return path.resolve(environment.workingDirectory, value)
 }
 
-function renamedGroupRoute(argv: readonly string[]): TopLevelCliRoute | undefined {
+function usageError(message: string) {
+  const route: TopLevelCliRoute = { kind: 'usage-error', message }
+  return route
+}
+
+function renamedGroupRoute(argv: readonly string[]) {
   const message = renamedGroupMessage(argv)
   if (!message) return undefined
   const machine = argv.includes('--json') || argv.includes('--jsonl')
-  return { kind: 'usage-error', message, ...(machine ? { machine } : {}) }
+  return {
+    kind: 'usage-error',
+    message,
+    ...(machine ? { machine } : {}),
+  } satisfies TopLevelCliRoute
 }
 
 function unknownCommand(value: string) {
@@ -181,14 +190,20 @@ function unknownCommand(value: string) {
   return `unknown command '${value}'.`
 }
 
-function routeHelp(argv: readonly string[]): TopLevelCliRoute {
+function routeHelp(argv: readonly string[]) {
   const [, topic, ...rest] = argv
-  if (topic === undefined) return { kind: 'help' }
-  if (rest.length > 0) return { kind: 'usage-error', message: 'help accepts one command name.' }
-  if (isGroup(topic)) return { kind: 'delegate', argv: groupHelpArgv(topic) }
-  if (isCommand(topic)) return { kind: 'command', command: topic, argv: ['--help'] }
-  if (HELP_TOKENS.has(topic) || VERSION_TOKENS.has(topic)) return { kind: 'help' }
-  return { kind: 'usage-error', message: `no help topic '${topic}'.` }
+  if (topic === undefined) return { kind: 'help' } satisfies TopLevelCliRoute
+  if (rest.length > 0) return usageError('help accepts one command name.')
+  if (isGroup(topic)) {
+    return { kind: 'delegate', argv: groupHelpArgv(topic) } satisfies TopLevelCliRoute
+  }
+  if (isCommand(topic)) {
+    return { kind: 'command', command: topic, argv: ['--help'] } satisfies TopLevelCliRoute
+  }
+  if (HELP_TOKENS.has(topic) || VERSION_TOKENS.has(topic)) {
+    return { kind: 'help' } satisfies TopLevelCliRoute
+  }
+  return usageError(`no help topic '${topic}'.`)
 }
 
 function groupHelpArgv(group: TopLevelCliGroup) {
@@ -198,120 +213,100 @@ function groupHelpArgv(group: TopLevelCliGroup) {
   return [group, 'help']
 }
 
-function routeGroup(group: TopLevelCliGroup, argv: readonly string[]): TopLevelCliRoute {
+function routeGroup(group: TopLevelCliGroup, argv: readonly string[]) {
   // Only the exact `<group> -h|--help` form is rewritten, so message payloads that happen
   // to contain a help flag are never reinterpreted.
   const onlyArgument = argv.length === GROUP_HELP_FLAG_ARGUMENT_COUNT ? argv[1] : undefined
   if (onlyArgument !== undefined && HELP_FLAGS.has(onlyArgument)) {
-    return { kind: 'delegate', argv: groupHelpArgv(group) }
+    return { kind: 'delegate', argv: groupHelpArgv(group) } satisfies TopLevelCliRoute
   }
-  return { kind: 'delegate', argv }
+  return { kind: 'delegate', argv } satisfies TopLevelCliRoute
 }
 
 function routeLongOption(
   first: string,
   argv: readonly string[],
   environment: TopLevelCliEnvironment,
-): TopLevelCliRoute {
+) {
   const separator = first.indexOf(OPTION_VALUE_SEPARATOR)
   const name = separator === -1 ? first : first.slice(0, separator)
   if (separator !== -1 && TOP_LEVEL_OPTIONS.some((option) => option === name)) {
-    return { kind: 'usage-error', message: `${name} does not accept a value.` }
+    return usageError(`${name} does not accept a value.`)
   }
   // `--status` and the like are commands written as switches; no Electron switch has those names.
   const commandName = name.slice(LONG_OPTION_PREFIX.length)
   if (separator === -1 && (isGroup(commandName) || isCommand(commandName))) {
-    return {
-      kind: 'usage-error',
-      message: `unknown option '${first}'. Did you mean '${commandName}'?`,
-    }
+    return usageError(`unknown option '${first}'. Did you mean '${commandName}'?`)
   }
   const suggestion = separator === -1 || name !== '--v' ? suggestOption(name) : undefined
-  if (suggestion) {
-    return {
-      kind: 'usage-error',
-      message: `unknown option '${first}'. Did you mean '${suggestion}'?`,
-    }
-  }
+  if (suggestion) return usageError(`unknown option '${first}'. Did you mean '${suggestion}'?`)
   const stray = argv.slice(1).find((token) => !token.startsWith('-'))
   if (environment.isPackaged && stray !== undefined) {
-    return { kind: 'usage-error', message: `unknown option '${first}' before '${stray}'.` }
+    return usageError(`unknown option '${first}' before '${stray}'.`)
   }
   // Long switches configure Electron and Chromium (automation, CDP, sandboxing, updater
   // relaunches, and the app's own launch markers); they have always started the desktop app.
-  return { kind: 'gui' }
+  return { kind: 'gui' } satisfies TopLevelCliRoute
 }
 
-function routeOption(
-  first: string,
-  argv: readonly string[],
-  environment: TopLevelCliEnvironment,
-): TopLevelCliRoute {
-  if (first === '--') {
-    return { kind: 'usage-error', message: "unexpected '--' before a command." }
-  }
+function routeOption(first: string, argv: readonly string[], environment: TopLevelCliEnvironment) {
+  if (first === '--') return usageError("unexpected '--' before a command.")
   if (first.startsWith('--')) return routeLongOption(first, argv, environment)
-  if (first.startsWith(MACOS_PROCESS_SERIAL_NUMBER_PREFIX)) return { kind: 'gui' }
-  if (MACOS_DEFAULTS_OVERRIDE.test(first)) return { kind: 'gui' }
-  return { kind: 'usage-error', message: `unknown option '${first}'.` }
+  if (first.startsWith(MACOS_PROCESS_SERIAL_NUMBER_PREFIX)) {
+    return { kind: 'gui' } satisfies TopLevelCliRoute
+  }
+  if (MACOS_DEFAULTS_OVERRIDE.test(first)) return { kind: 'gui' } satisfies TopLevelCliRoute
+  return usageError(`unknown option '${first}'.`)
 }
 
-function routeWord(
-  first: string,
-  argv: readonly string[],
-  environment: TopLevelCliEnvironment,
-): TopLevelCliRoute {
+function routeWord(first: string, argv: readonly string[], environment: TopLevelCliEnvironment) {
   const candidatePath = resolveUserPath(first, environment)
   const kind = environment.pathKind(candidatePath)
   if (kind === 'directory') {
     if (argv.length > 1) {
-      return {
-        kind: 'usage-error',
-        message: `unexpected argument '${argv[1] ?? ''}' after project path '${first}'.`,
-      }
+      return usageError(`unexpected argument '${argv[1] ?? ''}' after project path '${first}'.`)
     }
-    return { kind: 'open-project', projectPath: candidatePath }
+    return { kind: 'open-project', projectPath: candidatePath } satisfies TopLevelCliRoute
   }
   if (kind === 'file') {
     // A file named on the command line opens its folder. (macOS delivers files dropped on
     // the app icon as `open-file` events, not arguments.)
     if (argv.length > 1) {
-      return {
-        kind: 'usage-error',
-        message: `unexpected argument '${argv[1] ?? ''}' after '${first}'.`,
-      }
+      return usageError(`unexpected argument '${argv[1] ?? ''}' after '${first}'.`)
     }
-    return { kind: 'open-project', projectPath: path.dirname(candidatePath) }
+    return {
+      kind: 'open-project',
+      projectPath: path.dirname(candidatePath),
+    } satisfies TopLevelCliRoute
   }
-  if (looksLikePath(first)) {
-    return { kind: 'usage-error', message: `no such directory: '${first}'.` }
-  }
-  return { kind: 'usage-error', message: unknownCommand(first) }
+  if (looksLikePath(first)) return usageError(`no such directory: '${first}'.`)
+  return usageError(unknownCommand(first))
 }
 
 /**
  * Decide what one OpenWaggle invocation does. Only the first application argument selects
  * a route: later tokens belong to the selected command and are never scanned.
  */
-export function routeTopLevelCli(
-  argv: readonly string[],
-  environment: TopLevelCliEnvironment,
-): TopLevelCliRoute {
+export function routeTopLevelCli(argv: readonly string[], environment: TopLevelCliEnvironment) {
   const [first] = argv
-  if (first === undefined) return { kind: 'gui' }
+  if (first === undefined) return { kind: 'gui' } satisfies TopLevelCliRoute
   // `openwaggle "$UNSET"` must not quietly open the working directory.
-  if (first.trim() === '') return { kind: 'usage-error', message: 'empty argument.' }
-  if (INTERNAL_COMMANDS.has(first)) return { kind: 'delegate', argv }
+  if (first.trim() === '') return usageError('empty argument.')
+  if (INTERNAL_COMMANDS.has(first)) return { kind: 'delegate', argv } satisfies TopLevelCliRoute
   if (isGroup(first)) return routeGroup(first, argv)
-  if (isCommand(first)) return { kind: 'command', command: first, argv: argv.slice(1) }
+  if (isCommand(first)) {
+    return { kind: 'command', command: first, argv: argv.slice(1) } satisfies TopLevelCliRoute
+  }
   // A renamed group is refused before a same-named folder can open; `./sessions` still opens it.
   const renamed = renamedGroupRoute(argv)
   if (renamed) return renamed
   if (HELP_TOKENS.has(first)) return routeHelp(argv)
   if (VERSION_TOKENS.has(first)) {
-    return argv.length === 1
-      ? { kind: 'version' }
-      : { kind: 'usage-error', message: `${first} does not accept arguments.` }
+    return (
+      argv.length === 1
+        ? { kind: 'version' }
+        : { kind: 'usage-error', message: `${first} does not accept arguments.` }
+    ) satisfies TopLevelCliRoute
   }
   if (first.startsWith('-')) return routeOption(first, argv, environment)
   return routeSessionLinkLaunch(argv) ?? routeWord(first, argv, environment)

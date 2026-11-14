@@ -203,7 +203,7 @@ describe('Local Session server concurrency', () => {
     })
     let active = 0
     let peak = 0
-    const releases: Array<() => void> = []
+    const releases: (() => void)[] = []
     const authenticate = vi.fn(
       () =>
         new Promise<{ callerId: string }>((resolve) => {

@@ -3,9 +3,7 @@ import { browserPreviewAttachmentSchema } from '@shared/schemas/validation'
 import type { PreparedAttachment } from '@shared/types/agent'
 
 /** Stable key order binds all optional provenance fields, independent of client JSON ordering. */
-export function browserAttachmentMetadataJson(
-  metadata: PreparedAttachment['browserPreview'],
-): string | null {
+export function browserAttachmentMetadataJson(metadata: PreparedAttachment['browserPreview']) {
   if (metadata === undefined) return null
   const validated = decodeUnknownExactOrThrow(browserPreviewAttachmentSchema, metadata)
   return JSON.stringify(
@@ -15,8 +13,6 @@ export function browserAttachmentMetadataJson(
   )
 }
 
-export function parseBrowserAttachmentMetadata(
-  json: string,
-): NonNullable<PreparedAttachment['browserPreview']> {
+export function parseBrowserAttachmentMetadata(json: string) {
   return decodeUnknownExactOrThrow(browserPreviewAttachmentSchema, JSON.parse(json))
 }

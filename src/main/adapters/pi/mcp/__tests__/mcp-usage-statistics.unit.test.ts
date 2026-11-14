@@ -2,7 +2,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const recorded = vi.hoisted((): unknown[] => [])
+const recorded = vi.hoisted<unknown[]>(() => [])
 
 vi.mock('../../../../usage-statistics/usage-statistics-enablement', () => ({
   isUsageStatisticsEnabled: () => true,

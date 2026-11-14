@@ -79,7 +79,7 @@ export const WEBSITE_SCREENSHOTS = [
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]
 
 /** The captures `--only` names, without the extension: `--only hive-sessions,session-summary`. */
-export function selectedScreenshots(argv: readonly string[]): readonly WebsiteScreenshot[] {
+export function selectedScreenshots(argv: readonly string[]) {
   const flagIndex = argv.indexOf('--only')
   if (flagIndex < 0) return WEBSITE_SCREENSHOTS
   const names = (argv[flagIndex + 1] ?? '').split(',').filter((name) => name.length > 0)

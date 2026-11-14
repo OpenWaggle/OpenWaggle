@@ -50,13 +50,14 @@ export function ActionEditorPanel({ request }: { readonly request: ActionRequest
     otherSessionProject,
     onClose: closePanel,
   }
-  if (state.status === 'switch')
+  if (state.status === 'switch') {
     return (
       <ActionPanelChrome {...chrome} title={title} description={null}>
         <SwitchPrompt request={request} existing={state.existing} />
       </ActionPanelChrome>
     )
-  if (state.status === 'loading' || !catalog.data)
+  }
+  if (state.status === 'loading' || !catalog.data) {
     return (
       <ActionPanelChrome {...chrome} title={title} description={null}>
         <p role="status" className="text-sm text-text-tertiary">
@@ -66,6 +67,7 @@ export function ActionEditorPanel({ request }: { readonly request: ActionRequest
         </p>
       </ActionPanelChrome>
     )
+  }
   return (
     <ActionEditorForm
       chrome={chrome}

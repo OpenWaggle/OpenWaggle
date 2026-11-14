@@ -17,7 +17,7 @@ export function isSessionsToolQueueAction(input: SessionsToolParameters): input 
   return input.action.startsWith('queue_') && input.action !== 'queue_list'
 }
 
-export function buildSessionsToolQueuePayload(input: QueueInput): LocalSessionCommandPayload {
+export function buildSessionsToolQueuePayload(input: QueueInput) {
   const command: SessionControlMutationCommand =
     input.action === 'queue_withdraw'
       ? {
@@ -43,7 +43,7 @@ export function buildSessionsToolQueuePayload(input: QueueInput): LocalSessionCo
               sessionId: input.sessionId,
               expectedQueueRevision: input.queueRevision,
             }
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -52,4 +52,5 @@ export function buildSessionsToolQueuePayload(input: QueueInput): LocalSessionCo
       command,
     },
   }
+  return payload
 }

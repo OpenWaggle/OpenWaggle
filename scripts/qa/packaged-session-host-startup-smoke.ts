@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -19,6 +18,7 @@ import {
   waitForNormalSecondInstanceExit,
 } from './single-instance-lock-proof'
 import {
+  type CliOutcome,
   cliOutcome,
   launchGui,
   runJsonCli,
@@ -141,7 +141,10 @@ export function packagedSecondInstanceArguments(
   return [...packagedGuiArguments(platform), ...singleInstanceLockDeniedArguments(markerPath)]
 }
 
-async function assertLegacySessionMigrated(executable: string, environment: Record<string, string>) {
+async function assertLegacySessionMigrated(
+  executable: string,
+  environment: Record<string, string>,
+) {
   const response = await runJsonCli(executable, environment, [
     'hive',
     'list',
@@ -185,7 +188,7 @@ async function assertLegacySessionMigrated(executable: string, environment: Reco
   assertPackagedSemanticSearch(cliOutcome(searchResponse))
 }
 
-export function assertPackagedSemanticSearch(outcome: Record<string, unknown>) {
+export function assertPackagedSemanticSearch(outcome: CliOutcome) {
   const sessions = outcome.sessions
   const sessionRecords: unknown[] = Array.isArray(sessions) ? sessions : []
   const semanticReadiness = outcome.semanticReadiness
@@ -207,7 +210,9 @@ export function assertPackagedSemanticSearch(outcome: Record<string, unknown>) {
         session.sessionId === LEGACY_SESSION_ID,
     )
   ) {
-    throw new Error('The packaged semantic embedding/search smoke did not return the legacy Session.')
+    throw new Error(
+      'The packaged semantic embedding/search smoke did not return the legacy Session.',
+    )
   }
 }
 
@@ -223,7 +228,7 @@ export async function runPackagedSessionHostStartupScenario(
   await runLiveQaProfileLifecycle({
     userDataRoot: input.userDataRoot,
     state,
-    cleanup: dependencies.cleanup,
+    ...(dependencies.cleanup === undefined ? {} : { cleanup: dependencies.cleanup }),
     run: async () => {
       const paths = resolveLocalSessionHostPaths({ userDataRoot: input.userDataRoot })
       if (input.scenario === 'legacy') {
@@ -234,12 +239,12 @@ export async function runPackagedSessionHostStartupScenario(
         OPENWAGGLE_AUTOMATION: '1',
         OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
       })
-      const cliExecutable = await (
-        dependencies.prepareCliExecutable ?? prepareLiveQaCliExecutable
-      )({
-        executable: input.executable,
-        workingDirectory: input.userDataRoot,
-      })
+      const cliExecutable = await (dependencies.prepareCliExecutable ?? prepareLiveQaCliExecutable)(
+        {
+          executable: input.executable,
+          workingDirectory: input.userDataRoot,
+        },
+      )
       state.gui = await launchGui(input.executable, environment, packagedGuiArguments())
       state.guiLogs.push(state.gui.logs)
       await waitForHost(cliExecutable, environment)

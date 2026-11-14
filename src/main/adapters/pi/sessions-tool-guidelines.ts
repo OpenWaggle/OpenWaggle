@@ -33,10 +33,12 @@ function rootGuideline(permits: Permits) {
   if (launch && create) {
     return 'Use launch for an independent root Session that starts immediately, or create for an idle independent root. Neither joins the current Hive.'
   }
-  if (launch)
+  if (launch) {
     return 'Use launch for an independent root Session that starts immediately; it does not join the current Hive.'
-  if (create)
+  }
+  if (create) {
     return 'Use create for an idle independent root Session; it does not join the current Hive.'
+  }
   return undefined
 }
 
@@ -115,8 +117,9 @@ function newSessionGuidance(newSession: readonly string[], firstRun: readonly st
   if (newSession.length === 0) return ''
   const thinking = `${accepts(newSession)} thinking as the new Session's starting level`
   if (firstRun.length === 0) return `${thinking}.`
-  if (firstRun.join() === newSession.join())
+  if (firstRun.join() === newSession.join()) {
     return `${thinking} and authorization for its first Run.`
+  }
   return `${thinking}; ${accepts(firstRun)} authorization for its first Run.`
 }
 
@@ -161,10 +164,12 @@ function delegationGuideline(permits: Permits) {
   if (submits && reviews) {
     return `Workers submit immutable Delegation results; parents request revision ${REVISION_STARTS_WORKER_RUN} or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
   }
-  if (submits)
+  if (submits) {
     return 'Submit immutable Delegation results; your parent requests revision or accepts an exact submission revision.'
-  if (reviews)
+  }
+  if (reviews) {
     return `Workers submit immutable Delegation results; request revision ${REVISION_STARTS_WORKER_RUN} or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+  }
   return undefined
 }
 

@@ -1,17 +1,24 @@
 import { DEFAULT_DESKTOP_NOTIFICATION_SETTINGS } from '@shared/types/desktop-notification'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
-import { AGENT, PERSON, settled, shownKinds } from './desktop-notification-observer.test-harness'
+import {
+  AGENT,
+  PERSON,
+  session,
+  settled,
+  shownKinds,
+} from './desktop-notification-observer.test-harness'
 import { hive, person, workerSettled } from './desktop-notification-observer-hive.test-support'
 
-describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0063)', () => {
+describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0065)', () => {
   it('shows a held Ready to read when an archived Worker completes last', async () => {
     const { emit, published, fixture } = hive()
     fixture.running = new Set(['w1'])
     await emit(settled('run-1', 'completed'), 100)
-    const w1 = fixture.sessions.w1
-    if (!w1) throw new Error('Expected the Worker fixture.')
-    fixture.sessions.w1 = { ...w1, archived: true }
+    fixture.sessions = {
+      ...fixture.sessions,
+      w1: session('w1', { parentSessionId: 'root', parentTitle: 'Queen', archived: true }),
+    }
     fixture.running.clear()
     await emit(workerSettled('w1'), 110)
     expect(shownKinds(published)).toEqual(['shown:completed'])
@@ -92,7 +99,10 @@ describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0063)'
     await emit(settled('run-1', 'completed'), 100)
     // Observer lag: the wake already ran and completed when w1's settlement is handled.
     fixture.running.clear()
-    fixture.latestRuns.root = { runId: 'wake-1', status: 'completed', hiveWake: true }
+    fixture.latestRuns = {
+      ...fixture.latestRuns,
+      root: { runId: 'wake-1', status: 'completed', hiveWake: true },
+    }
     await emit(workerSettled('w1'), 110)
     await emit(settled('wake-1', 'completed', { hiveWake: true }), 120)
     expect(shownKinds(published)).toEqual(['shown:completed'])

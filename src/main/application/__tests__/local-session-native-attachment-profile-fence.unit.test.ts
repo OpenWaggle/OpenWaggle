@@ -33,7 +33,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function caller(attachmentRoots: readonly string[] | undefined): LocalSessionCallerIdentity {
+function caller(attachmentRoots: readonly string[] | undefined) {
   const scope = {
     sessionIds: [SESSION_ID],
     ...(attachmentRoots ? { attachmentRoots } : {}),
@@ -49,11 +49,11 @@ function caller(attachmentRoots: readonly string[] | undefined): LocalSessionCal
       scope,
       authorizationCeiling: 'ask-for-approval',
     },
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
-function controlPayload(): ControlPayload {
-  return {
+function controlPayload() {
+  const payload: ControlPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: 2,
@@ -67,10 +67,11 @@ function controlPayload(): ControlPayload {
     },
     transport: { attachmentPaths: [ATTACHMENT_PATH] },
   }
+  return payload
 }
 
-function lifecyclePayload(): LifecyclePayload {
-  return {
+function lifecyclePayload() {
+  const payload: LifecyclePayload = {
     contract: 'session-lifecycle-v2',
     request: {
       contractVersion: 2,
@@ -93,6 +94,7 @@ function lifecyclePayload(): LifecyclePayload {
     },
     transport: { attachmentPaths: [ATTACHMENT_PATH] },
   }
+  return payload
 }
 
 function testLayer(prepare: SessionControlAttachmentServiceShape['prepare']) {
@@ -155,27 +157,21 @@ async function expectDowngradeRejected(
 }
 
 describe('Pi-native Session attachment profile fencing', () => {
-  it('holds control attachment preparation behind a persisted root downgrade', async () => {
-    const harness = raceHarness()
-    const running = Effect.runPromise(
-      acquirePreparedLocalSessionMutation({
-        caller: caller(['/workspace/granted']),
-        payload: controlPayload(),
-        mutationAdmission: harness.mutationAdmission,
-      }).pipe(Effect.provide(testLayer(harness.prepare))),
-    )
-    await expectDowngradeRejected(running, harness)
-  })
-
-  it('holds lifecycle attachment preparation behind a persisted root downgrade', async () => {
-    const harness = raceHarness()
-    const running = Effect.runPromise(
-      acquirePreparedLocalSessionMutation({
-        caller: caller(['/workspace/granted']),
-        payload: lifecyclePayload(),
-        mutationAdmission: harness.mutationAdmission,
-      }).pipe(Effect.provide(testLayer(harness.prepare))),
-    )
-    await expectDowngradeRejected(running, harness)
-  })
+  it.each([
+    ['control', controlPayload],
+    ['lifecycle', lifecyclePayload],
+  ] as const)(
+    'holds %s attachment preparation behind a persisted root downgrade',
+    async (_kind, payload) => {
+      const harness = raceHarness()
+      const running = Effect.runPromise(
+        acquirePreparedLocalSessionMutation({
+          caller: caller(['/workspace/granted']),
+          payload: payload(),
+          mutationAdmission: harness.mutationAdmission,
+        }).pipe(Effect.provide(testLayer(harness.prepare))),
+      )
+      await expectDowngradeRejected(running, harness)
+    },
+  )
 })

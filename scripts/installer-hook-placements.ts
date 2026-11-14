@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import fg from 'fast-glob'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * Where electron-builder inserts a customisation hook, derived from its own templates.
@@ -39,7 +40,8 @@ export interface HookPlacement {
   readonly source: string
 }
 
-const TEMPLATE_GLOB = 'node_modules/.pnpm/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
+const TEMPLATE_GLOB =
+  'node_modules/.bun/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
 const UNINSTALLER_DEFINE = 'BUILD_UNINSTALLER'
 const ALL_PASSES: readonly CompilePassName[] = ['installer', 'uninstaller']
 /** Templates the installer entry point includes only for one pass. */
@@ -72,12 +74,12 @@ const CONTEXT_BY_TEMPLATE: Readonly<Record<string, HookContext>> = {
 /**
  * Resolve the vendored templates directory, or null when the dependency is absent.
  *
- * Resolved through Node rather than by globbing the pnpm store: the store can hold several
- * `app-builder-lib` versions at once, and taking the first glob hit would read templates from a copy
- * electron-builder does not use - which is the opposite of this module's contract that the vendored
+ * Resolved through Node, from the electron-builder the project installs, rather than by globbing
+ * Bun's store: the store can hold several `app-builder-lib` versions at once, and taking the first
+ * glob hit would read templates from a copy electron-builder does not use - which is the opposite of this module's contract that the vendored
  * templates are the authority. The glob remains only as a fallback for an unusual layout.
  */
-export async function findNsisTemplates(repositoryRoot: string): Promise<string | null> {
+export async function findNsisTemplates(repositoryRoot: string) {
   const resolved = resolveTemplatesThroughNode(repositoryRoot)
   if (resolved !== null) return resolved
 
@@ -89,10 +91,12 @@ export async function findNsisTemplates(repositoryRoot: string): Promise<string 
   return matches[0] ?? null
 }
 
-function resolveTemplatesThroughNode(repositoryRoot: string): string | null {
+function resolveTemplatesThroughNode(repositoryRoot: string) {
   try {
-    const require = createRequire(path.join(repositoryRoot, 'package.json'))
-    const manifest = require.resolve('app-builder-lib/package.json')
+    const rootRequire = createRequire(path.join(repositoryRoot, 'package.json'))
+    // app-builder-lib is electron-builder's dependency, not the project's, so resolve it from there.
+    const builderRequire = createRequire(rootRequire.resolve('electron-builder/package.json'))
+    const manifest = builderRequire.resolve('app-builder-lib/package.json')
     return path.join(path.dirname(manifest), 'templates', 'nsis')
   } catch {
     return null
@@ -102,10 +106,10 @@ function resolveTemplatesThroughNode(repositoryRoot: string): string | null {
 const MACRO_DEFINITION = /^!macro\s+(?<name>\S+)/u
 
 /** Every macro the installer script defines, in file order. */
-export function parseDefinedMacros(scriptSource: string): readonly string[] {
+export function parseDefinedMacros(scriptSource: string) {
   const names: string[] = []
   for (const line of scriptSource.split('\n')) {
-    const name = MACRO_DEFINITION.exec(line.trim())?.groups?.['name']
+    const name = namedGroups(MACRO_DEFINITION.exec(line.trim()), ['name'])?.name
     if (name !== undefined) names.push(name)
   }
   return names
@@ -123,7 +127,7 @@ const MACRO_START = /^!macro\b/iu
  * in these templates is invoked from a function or section, so it is treated as a function - the
  * stricter of the two for StrFunc purposes.
  */
-function contextAt(lines: readonly string[], index: number): HookContext {
+function contextAt(lines: readonly string[], index: number) {
   let closed = 0
   for (let cursor = index; cursor >= 0; cursor -= 1) {
     const line = (lines[cursor] ?? '').trim()
@@ -138,9 +142,9 @@ function contextAt(lines: readonly string[], index: number): HookContext {
       closed -= 1
       continue
     }
-    return opensSection ? 'section' : 'function'
+    return opensSection ? ('section' as const) : ('function' as const)
   }
-  return 'top-level'
+  return 'top-level' as const
 }
 
 /**
@@ -149,7 +153,7 @@ function contextAt(lines: readonly string[], index: number): HookContext {
  * `!else` flips the polarity, which is how `customInit` is reached: it sits in the `!else` of an
  * `!ifdef BUILD_UNINSTALLER`, i.e. the installer pass. Ignoring `!else` reported the opposite.
  */
-function guardedForUninstaller(lines: readonly string[], index: number): boolean | null {
+function guardedForUninstaller(lines: readonly string[], index: number) {
   const stack: (boolean | null)[] = []
   for (let cursor = 0; cursor <= index; cursor += 1) {
     const line = (lines[cursor] ?? '').trim()
@@ -184,10 +188,7 @@ function guardedForUninstaller(lines: readonly string[], index: number): boolean
  * Returns `null` for a hook that appears in no template: that is a hook this version of
  * electron-builder does not support, which must fail the check rather than be skipped.
  */
-export async function derivePlacements(
-  templatesDir: string,
-  hooks: readonly string[],
-): Promise<ReadonlyMap<string, HookPlacement | null>> {
+export async function derivePlacements(templatesDir: string, hooks: readonly string[]) {
   const files = await fg('**/*.{nsh,nsi}', { cwd: templatesDir, absolute: true })
   const sources = await Promise.all(
     files.map(async (file) => ({ file, lines: (await readFile(file, 'utf8')).split('\n') })),
@@ -204,7 +205,7 @@ function findPlacement(
   sources: readonly { readonly file: string; readonly lines: readonly string[] }[],
   templatesDir: string,
   hook: string,
-): HookPlacement | null {
+) {
   const insertion = new RegExp(`!insertmacro\\s+${hook}\\b`, 'u')
   for (const { file, lines } of sources) {
     const index = lines.findIndex((line) => insertion.test(line))
@@ -222,11 +223,11 @@ function findPlacement(
        * An unguarded insertion in a file that is not pass-specific is compiled in both passes, which
        * is how electron-builder treats `installer.nsi` itself.
        */
-      passes: pass === undefined || pass === null ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
+      passes: pass === undefined ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
       context:
         withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[templateKey] ?? 'top-level') : withinFile,
       source: `${relative}:${String(index + 1)}`,
-    }
+    } satisfies HookPlacement
   }
   return null
 }

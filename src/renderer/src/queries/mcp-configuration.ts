@@ -1,9 +1,5 @@
-import type { McpSecretSummary } from '@shared/types/mcp'
-import type { McpConfigurationView, McpServerStatusView } from '@shared/types/mcp-configuration'
-import type { McpImportPreviewView } from '@shared/types/mcp-configuration-operations'
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
-import type { OpenWaggleQueryOptions } from './query-options'
 
 /** Settings > MCP data, read from the Session Host. */
 
@@ -19,14 +15,7 @@ export const mcpQueryKeys = {
   sessionEnabled: (sessionId: string) => ['sessionMcpEnabled', sessionId] as const,
 }
 
-export function mcpConfigurationQueryOptions(
-  projectPath: string | null,
-): OpenWaggleQueryOptions<
-  McpConfigurationView,
-  Error,
-  McpConfigurationView,
-  ReturnType<typeof mcpQueryKeys.configuration>
-> {
+export function mcpConfigurationQueryOptions(projectPath: string | null) {
   return queryOptions({
     queryKey: mcpQueryKeys.configuration(projectPath),
     queryFn: () => api.getMcpConfiguration({ projectPath }),
@@ -37,29 +26,14 @@ export function mcpConfigurationQueryOptions(
  * Every server's state without connecting: a warm connection's, the last check's, or none yet.
  * Reading it starts no server, so it is safe on every open of Settings > MCP.
  */
-export function mcpServerStatusesQueryOptions(
-  projectPath: string | null,
-): OpenWaggleQueryOptions<
-  readonly McpServerStatusView[],
-  Error,
-  readonly McpServerStatusView[],
-  ReturnType<typeof mcpQueryKeys.statuses>
-> {
+export function mcpServerStatusesQueryOptions(projectPath: string | null) {
   return queryOptions({
     queryKey: mcpQueryKeys.statuses(projectPath),
     queryFn: () => api.getMcpServerStatuses({ projectPath }),
   })
 }
 
-export function mcpImportPreviewQueryOptions(
-  projectPath: string | null,
-  enabled: boolean,
-): OpenWaggleQueryOptions<
-  McpImportPreviewView,
-  Error,
-  McpImportPreviewView,
-  ReturnType<typeof mcpQueryKeys.imports>
-> {
+export function mcpImportPreviewQueryOptions(projectPath: string | null, enabled: boolean) {
   return queryOptions({
     queryKey: mcpQueryKeys.imports(projectPath),
     queryFn: () => api.previewMcpImports({ projectPath }),
@@ -67,19 +41,12 @@ export function mcpImportPreviewQueryOptions(
   })
 }
 
-export function mcpSecretsQueryOptions(): OpenWaggleQueryOptions<
-  readonly McpSecretSummary[],
-  Error,
-  readonly McpSecretSummary[],
-  typeof mcpQueryKeys.secrets
-> {
+export function mcpSecretsQueryOptions() {
   return queryOptions({ queryKey: mcpQueryKeys.secrets, queryFn: () => api.listMcpSecrets() })
 }
 
 /** Whether a Session's Runs use MCP servers: on until the Session is switched off. */
-export function sessionMcpEnabledQueryOptions(
-  sessionId: string,
-): OpenWaggleQueryOptions<boolean, Error, boolean, ReturnType<typeof mcpQueryKeys.sessionEnabled>> {
+export function sessionMcpEnabledQueryOptions(sessionId: string) {
   return queryOptions({
     queryKey: mcpQueryKeys.sessionEnabled(sessionId),
     queryFn: () => api.getSessionMcpEnabled({ sessionId }),

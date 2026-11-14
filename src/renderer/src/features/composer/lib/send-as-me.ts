@@ -21,7 +21,7 @@ export function sendAsMeStartsNow(input: {
   readonly followUpId: string
   /** The composer is streaming a Run the Host may not report yet. */
   readonly isStreaming: boolean
-}): boolean {
+}) {
   const { queue, followUpId } = input
   if (input.isStreaming || queue.activeRunId !== null) return false
   if (queue.state === 'paused' && queue.pauseReason === 'parent-limit') {

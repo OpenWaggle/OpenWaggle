@@ -9,13 +9,7 @@ const UPDATE_METADATA_FILE = 'latest-mac.yml'
 const MAC_ARCHITECTURES = ['arm64', 'x64'] as const
 const MAC_ARTIFACT_EXTENSIONS = ['zip', 'dmg'] as const
 
-interface UpdateFile {
-  readonly url: string
-  readonly sha512: string
-  readonly size: number
-}
-
-async function updateFile(directory: string, filename: string): Promise<UpdateFile> {
+async function updateFile(directory: string, filename: string) {
   const filePath = path.join(directory, filename)
   const [contents, stats] = await Promise.all([fs.readFile(filePath), fs.stat(filePath)])
   return {

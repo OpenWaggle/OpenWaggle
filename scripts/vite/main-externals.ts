@@ -24,7 +24,6 @@ export const BUNDLED_DEPS = [
   '@modelcontextprotocol/node',
   '@modelcontextprotocol/server',
   'typebox',
-  '@electron-toolkit/utils',
   'fast-glob',
   'diff',
   'smol-toml',
@@ -39,7 +38,6 @@ export const BUNDLED_DEPS = [
   // compiled each of their files at startup (≈150 ms: startup-main.md, A-F4); bundled, they are
   // part of the main bundle's compile cache and evaluate only when their importer does. Natives,
   // WASM readers and packages that locate files beside themselves stay external.
-  'zod',
   'undici',
   'ws',
   'proper-lockfile',
@@ -51,20 +49,14 @@ export const BUNDLED_DEPS = [
   'chokidar',
 ]
 
-interface UnknownObject {
-  readonly [key: string]: unknown
-}
-
-function isObject(value: unknown): value is UnknownObject {
+function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
 function dependencyNamesFromPackageJson(value: unknown) {
-  if (!isObject(value) || !isObject(value.dependencies)) {
-    return []
-  }
-
-  return Object.keys(value.dependencies)
+  // Narrowed with `in`: the build config loads this file before the `@shared` alias exists.
+  const dependencies = isObject(value) && 'dependencies' in value ? value.dependencies : undefined
+  return isObject(dependencies) ? Object.keys(dependencies) : []
 }
 
 /**
@@ -77,11 +69,12 @@ function dependencyNamesFromPackageJson(value: unknown) {
 function mainExternalPackages() {
   const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
   const allDeps = dependencyNamesFromPackageJson(packageJson)
-  const externalDeps = allDeps.filter((dependency) =>
-    !BUNDLED_DEPS.some(
-      (bundledDependency) =>
-        dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
-    ),
+  const externalDeps = allDeps.filter(
+    (dependency) =>
+      !BUNDLED_DEPS.some(
+        (bundledDependency) =>
+          dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
+      ),
   )
   return new Set([...ALWAYS_EXTERNAL, ...externalDeps])
 }
@@ -97,7 +90,7 @@ export function isLazyMainExternal(packageName: string) {
   return MAIN_EXTERNAL_PACKAGES.has(packageName) && !EAGER_MAIN_EXTERNALS.includes(packageName)
 }
 
-export function rolldownExternalFixPlugin(): Plugin {
+export function rolldownExternalFixPlugin() {
   return {
     name: 'vite:rolldown-external-fix',
     enforce: 'post',
@@ -118,5 +111,5 @@ export function rolldownExternalFixPlugin(): Plugin {
 
       config.build.rolldownOptions.external = merged
     },
-  }
+  } satisfies Plugin
 }

@@ -1,3 +1,6 @@
+import type { SchemaType } from '@shared/schema'
+import type { browserProfileSchema } from '@shared/schemas/browser-profile'
+
 export const BROWSER_PROFILE_LIMITS = {
   ID_LENGTH: 64,
   NAME_LENGTH: 48,
@@ -5,13 +8,8 @@ export const BROWSER_PROFILE_LIMITS = {
 } as const
 
 export const BROWSER_PROFILE_KINDS = ['persistent', 'incognito'] as const
-export type BrowserProfileKind = (typeof BROWSER_PROFILE_KINDS)[number]
 
-export interface BrowserProfile {
-  readonly id: string
-  readonly name: string
-  readonly kind: BrowserProfileKind
-}
+export type BrowserProfile = SchemaType<typeof browserProfileSchema>
 
 export const DEFAULT_BROWSER_PROFILE_ID = 'default'
 export const INCOGNITO_BROWSER_PROFILE_ID = 'incognito'
@@ -37,8 +35,4 @@ export function resolveBrowserProfiles(userProfiles: readonly BrowserProfile[]) 
   }
 
   return profiles
-}
-
-export function findBrowserProfile(profiles: readonly BrowserProfile[], id: string | undefined) {
-  return id === undefined ? undefined : profiles.find((profile) => profile.id === id)
 }

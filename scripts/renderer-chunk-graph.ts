@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 /** The part of a Vite build manifest (`out/renderer/.vite/manifest.json`) the bundle budget reads. */
 export interface RendererManifestChunk {
   readonly file: string
@@ -6,18 +7,17 @@ export interface RendererManifestChunk {
 
 export type RendererManifest = Readonly<Record<string, RendererManifestChunk>>
 
+/** A Vite manifest chunk: its file and, when it has any, the chunks it imports. */
+const manifestChunkSchema = Schema.Struct({
+  file: Schema.String,
+  imports: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+})
+
 function isManifestChunk(value: unknown): value is RendererManifestChunk {
-  if (typeof value !== 'object' || value === null) return false
-  const file: unknown = Reflect.get(value, 'file')
-  const imports: unknown = Reflect.get(value, 'imports')
-  return (
-    typeof file === 'string' &&
-    (imports === undefined ||
-      (Array.isArray(imports) && imports.every((entry) => typeof entry === 'string')))
-  )
+  return Schema.is(manifestChunkSchema)(value)
 }
 
-export function parseRendererManifest(value: unknown): RendererManifest {
+export function parseRendererManifest(value: unknown) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('The renderer build manifest is not an object.')
   }

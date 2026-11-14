@@ -40,10 +40,7 @@ function hostOf(value: string) {
  * discovered for it, may be plain HTTP or on a private network, as in Pi; any other host must be
  * public HTTPS, and a redirect may not move a request to another host.
  */
-export function createMcpServerFetch(
-  serverUrl: string,
-  options: McpServerFetchOptions = {},
-): McpServerFetch {
+export function createMcpServerFetch(serverUrl: string, options: McpServerFetchOptions = {}) {
   const base = new URL(serverUrl)
   const own = createSecureMcpFetch({
     baseUrl: base,
@@ -77,7 +74,7 @@ export function createMcpServerFetch(
     others.set(key, created)
     return created
   }
-  return Object.assign(
+  const result: McpServerFetch = Object.assign(
     async (input: string | URL | Request, init?: RequestInit) => {
       assertOpen()
       const url = requestUrl(input)
@@ -96,4 +93,5 @@ export function createMcpServerFetch(
       },
     },
   )
+  return result
 }

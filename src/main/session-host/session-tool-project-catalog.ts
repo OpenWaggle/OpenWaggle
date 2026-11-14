@@ -17,7 +17,7 @@ type SessionLifecyclePayload = Extract<
   { readonly contract: 'session-lifecycle-v2' }
 >
 
-function normalizedLifecyclePayload(payload: SessionLifecyclePayload): SessionLifecyclePayload {
+function normalizedLifecyclePayload(payload: SessionLifecyclePayload) {
   const command = payload.request.command
   if (command.operation !== 'launch' && command.operation !== 'create') return payload
   if (!path.isAbsolute(command.projectPath)) return payload
@@ -33,7 +33,7 @@ function normalizedLifecyclePayload(payload: SessionLifecyclePayload): SessionLi
  */
 export function normalizeLifecycleProjectPath<Payload extends LocalSessionCommandPayload>(
   payload: Payload,
-): Payload | SessionLifecyclePayload {
+) {
   return payload.contract === 'session-lifecycle-v2' ? normalizedLifecyclePayload(payload) : payload
 }
 

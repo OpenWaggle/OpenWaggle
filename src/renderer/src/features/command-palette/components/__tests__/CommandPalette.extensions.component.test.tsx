@@ -30,8 +30,8 @@ function sampleEntry(
   family: ExtensionContributionRegistryEntry['family'],
   contributionId: string,
   label: string,
-): ExtensionContributionRegistryEntry {
-  return {
+) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample-extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -66,6 +66,7 @@ function sampleEntry(
         }
       : {}),
   }
+  return entry
 }
 
 describe('composer slash extension contributions', () => {

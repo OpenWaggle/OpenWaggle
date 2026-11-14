@@ -65,7 +65,7 @@ export function createOrchestrationUpdateExtension(input: {
   readonly runId: string
   readonly pendingUpdates: readonly PendingSessionOrchestrationUpdate[]
   readonly onDelivered: (updateIds: readonly string[]) => void
-}): { readonly factory: ExtensionFactory; readonly close: () => void } {
+}) {
   let close = () => {}
   const factory: ExtensionFactory = (pi) => {
     close = installLiveSink(pi, input.runId, input.pendingUpdates, input.onDelivered)

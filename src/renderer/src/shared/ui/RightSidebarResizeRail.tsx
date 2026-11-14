@@ -30,7 +30,7 @@ export function RightSidebarResizeRail({
     bounds,
     refs: handles,
     state,
-    shouldAcceptWidth,
+    ...(shouldAcceptWidth === undefined ? {} : { shouldAcceptWidth }),
   })
 
   return (

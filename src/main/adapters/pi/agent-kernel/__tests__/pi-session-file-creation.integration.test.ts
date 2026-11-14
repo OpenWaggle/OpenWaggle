@@ -12,13 +12,14 @@ import {
   findExistingPiSessionFile,
   piSessionDirectoryFor,
 } from '../session-manager'
+import { piSessionFileField } from '../pi-session-file-field'
 
 const PRE_CREATED_PI_SESSION_ID = '0199b1c2-0000-7000-8000-00000000abcd'
 
 let home = ''
 let projectPath = ''
 
-function session(fields: Partial<SessionDetail>): SessionDetail {
+function session(fields: Partial<SessionDetail>) {
   return fromPartial<SessionDetail>({
     projectPath,
     environmentMode: 'local',
@@ -80,7 +81,7 @@ describe('Pi session file creation (Pi 0.99+ writes the file at the first user m
     const sessionFile = first.getSessionFile()
 
     const reopened = createSessionManagerForSession(
-      session({ piSessionId: PRE_CREATED_PI_SESSION_ID, piSessionFile: sessionFile }),
+      session({ piSessionId: PRE_CREATED_PI_SESSION_ID, ...piSessionFileField(sessionFile) }),
       projectPath,
     )
 

@@ -30,7 +30,7 @@ export async function openProjectInDraft(deps: ProjectDraftNavigationDeps, path:
 }
 
 /** The same navigation for callers outside the sidebar, bound to the app stores. */
-export function storeProjectDraftNavigation(navigate: Navigate): ProjectDraftNavigationDeps {
+export function storeProjectDraftNavigation(navigate: Navigate) {
   return {
     clearTransientDraftContext() {
       useBranchSummaryStore.getState().clearPrompt()
@@ -48,5 +48,5 @@ export function storeProjectDraftNavigation(navigate: Navigate): ProjectDraftNav
         git.refreshBranches(path),
       ])
     },
-  }
+  } satisfies ProjectDraftNavigationDeps
 }

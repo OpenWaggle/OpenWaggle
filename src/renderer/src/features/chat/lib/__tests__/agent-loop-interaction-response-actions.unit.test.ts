@@ -10,7 +10,7 @@ vi.mock('@/features/extensions', () => ({
   CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID: 'custom-renderer-unavailable',
 }))
 
-function customInteraction(): AgentLoopInteraction {
+function customInteraction() {
   return {
     interactionId: 'custom-interaction-1',
     sessionId: SessionId('session-1'),
@@ -20,10 +20,10 @@ function customInteraction(): AgentLoopInteraction {
     source: 'pi-ui',
     createdAt: 1,
     renderer: { kind: 'pi-tui-custom', supported: false },
-  }
+  } satisfies AgentLoopInteraction
 }
 
-function confirmInteraction(): AgentLoopInteraction {
+function confirmInteraction() {
   return {
     interactionId: 'confirm-interaction-1',
     sessionId: SessionId('session-1'),
@@ -34,7 +34,7 @@ function confirmInteraction(): AgentLoopInteraction {
     title: 'Approve?',
     message: 'Allow the action?',
     purpose: 'user-input',
-  }
+  } satisfies AgentLoopInteraction
 }
 
 describe('responseFromExtensionAction', () => {

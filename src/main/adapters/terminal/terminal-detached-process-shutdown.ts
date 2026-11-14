@@ -110,7 +110,7 @@ function forceRemainingIdentities(input: {
 async function attemptDetachedGracefulShutdown(
   target: OwnedTerminalProcessTree,
   state: TerminalProcessExitObservation,
-): Promise<{ readonly finished: true } | PendingDetachedGracefulShutdown> {
+) {
   const { live } = target
   await settleLiveProcessMetadata(live)
   target.processPids = mergeProcessPids(target.processPids, [live.pid])
@@ -154,7 +154,11 @@ async function attemptDetachedGracefulShutdown(
     remainingSnapshotBudget(gracefulDeadline),
   )
   retainRefresh(target, refreshed)
-  if (retainedShutdownIsComplete(refreshed, state)) return { finished: true }
+  if (retainedShutdownIsComplete(refreshed, state)) {
+    return { finished: true } satisfies
+      | { readonly finished: true }
+      | PendingDetachedGracefulShutdown
+  }
   return {
     finished: false,
     closeRequested,
@@ -163,7 +167,7 @@ async function attemptDetachedGracefulShutdown(
     knownIdentities,
     refreshed,
     gracefulDeadline,
-  }
+  } satisfies { readonly finished: true } | PendingDetachedGracefulShutdown
 }
 
 function retainedShutdownIsComplete(
@@ -187,7 +191,7 @@ function retainRefresh(target: OwnedTerminalProcessTree, refreshed: RefreshedExi
 }
 
 /** Confirm disposal of a PTY retained after a natural exit or spawn race. */
-export async function shutdownDetachedTerminal(target: OwnedTerminalProcessTree): Promise<boolean> {
+export async function shutdownDetachedTerminal(target: OwnedTerminalProcessTree) {
   const { live } = target
   const observation = live.processTreeExit
   const wasPaused = pauseOutputForShutdown(live)

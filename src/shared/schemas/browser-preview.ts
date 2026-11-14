@@ -86,7 +86,10 @@ export const browserPreviewBoundsSchema: Schema.Schema<BrowserPreviewBounds> = S
   y: dipPositionSchema,
   width: dipSizeSchema,
   height: dipSizeSchema,
-  sourceViewport: Schema.optional(Schema.Struct({ width: dipSizeSchema, height: dipSizeSchema })),
+  sourceViewport: Schema.optionalWith(
+    Schema.Struct({ width: dipSizeSchema, height: dipSizeSchema }),
+    { exact: true },
+  ),
 }).pipe(
   Schema.filter(
     (bounds) =>
@@ -103,8 +106,8 @@ export const browserPreviewOpenInputSchema: Schema.Schema<BrowserPreviewOpenInpu
   url: browserPreviewUrlSchema,
   bounds: browserPreviewBoundsSchema,
   visible: Schema.Boolean,
-  audioMuted: Schema.optional(Schema.Boolean),
-  initialControls: Schema.optional(browserPreviewInitialControlsSchema),
+  audioMuted: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  initialControls: Schema.optionalWith(browserPreviewInitialControlsSchema, { exact: true }),
 })
 
 export const browserPreviewIdAndAudioMutedSchema = Schema.Tuple(
@@ -160,11 +163,11 @@ const browserPreviewShortcutBindingSchema = Schema.Struct({
     Schema.maxLength(SHORTCUT_RULE_LIMITS.KEY_LENGTH),
     Schema.filter((key) => key.trim().length > 0 || 'Shortcut key cannot be blank.'),
   ),
-  mod: Schema.optional(Schema.Boolean),
-  ctrl: Schema.optional(Schema.Boolean),
-  shift: Schema.optional(Schema.Boolean),
-  alt: Schema.optional(Schema.Boolean),
-  meta: Schema.optional(Schema.Boolean),
+  mod: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  ctrl: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  shift: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  alt: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  meta: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const browserPreviewShortcutBindingsSchema: Schema.Schema<BrowserPreviewShortcutBindings> =

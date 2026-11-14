@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 export type PackageRunner = 'npx' | 'npm-exec' | 'pnpm-dlx' | 'bunx'
 
@@ -38,8 +39,9 @@ function runnerOf(command: string, args: readonly string[]) {
   if (base === 'npm' && (args[0] === 'exec' || args[0] === 'x')) {
     return { runner: 'npm-exec' as const, rest: args.slice(1) }
   }
-  if (base === 'pnpm' && args[0] === 'dlx')
+  if (base === 'pnpm' && args[0] === 'dlx') {
     return { runner: 'pnpm-dlx' as const, rest: args.slice(1) }
+  }
   if (base === 'bunx') return { runner: 'bunx' as const, rest: args }
   return undefined
 }
@@ -66,18 +68,12 @@ const PACKAGE_FLAGS = new Set(['-p', '--package'])
 /** `flag=value` splits into its two parts. */
 const FLAG_AND_VALUE_PARTS = 2
 
-interface RunnerOptions {
-  readonly packageSpec: string | undefined
-  /** Index of the first argument after the runner's options. */
-  readonly next: number
-}
-
 /**
  * The runner's own options: `--package <spec>` once, and flags that change nothing about the bin
  * that runs. Undefined for any other option, or several packages (the runner's PATH would hold
  * them all, which a direct spawn would not).
  */
-function runnerOptions(runner: PackageRunner, rest: readonly string[]): RunnerOptions | undefined {
+function runnerOptions(runner: PackageRunner, rest: readonly string[]) {
   let packageSpec: string | undefined
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index] ?? ''
@@ -102,8 +98,9 @@ function packageNameOf(spec: string, cwd: string | undefined) {
     const folder = path.resolve(cwd, spec.slice('file:'.length))
     try {
       const manifest: unknown = JSON.parse(readFileSync(path.join(folder, 'package.json'), 'utf8'))
-      if (typeof manifest !== 'object' || manifest === null || !('name' in manifest))
+      if (typeof manifest !== 'object' || manifest === null || !('name' in manifest)) {
         return undefined
+      }
       return typeof manifest.name === 'string'
         ? { name: manifest.name, version: '', localFolder: folder }
         : undefined
@@ -111,9 +108,8 @@ function packageNameOf(spec: string, cwd: string | undefined) {
       return undefined
     }
   }
-  const parsed = REGISTRY_SPEC.exec(spec)
-  const name = parsed?.groups?.name
-  return name ? { name, version: parsed?.groups?.version ?? '' } : undefined
+  const groups = namedGroups(REGISTRY_SPEC.exec(spec), ['name', 'version'])
+  return groups?.name ? { name: groups.name, version: groups.version ?? '' } : undefined
 }
 
 /**
@@ -125,7 +121,7 @@ export function parsePackageRunnerCommand(
   command: string,
   args: readonly string[] = [],
   cwd?: string,
-): PackageRunnerLaunch | undefined {
+) {
   const found = runnerOf(command, args)
   if (!found) return undefined
   const { runner, rest } = found
@@ -152,11 +148,12 @@ export function packageBinPath(
   packageJson: { readonly bin?: unknown },
   packageName: string,
   binName: string | undefined,
-): string | undefined {
+) {
   const unscoped = packageName.replace(/^@[^/]+\//u, '')
   const { bin } = packageJson
-  if (typeof bin === 'string')
+  if (typeof bin === 'string') {
     return binName === undefined || binName === unscoped ? bin : undefined
+  }
   if (typeof bin !== 'object' || bin === null) return undefined
   const entries = Object.entries(bin).filter(
     (entry): entry is [string, string] => typeof entry[1] === 'string',

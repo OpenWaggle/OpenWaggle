@@ -23,24 +23,27 @@ export class LocalSessionHandshakeDeadline {
   private settled = false
   private didExpire = false
 
-  constructor(
-    private readonly timeoutMs: number,
-    private readonly expire: () => void,
-    private readonly now: () => number = () => performance.now(),
-  ) {
+  private readonly timeoutMs: number
+  private readonly expire: () => void
+  private readonly now: () => number
+
+  constructor(timeoutMs: number, expire: () => void, now: () => number = () => performance.now()) {
+    this.timeoutMs = timeoutMs
+    this.expire = expire
+    this.now = now
     this.arm()
   }
 
   /** The deadline passed and the connection was told so; late handshake work must not admit it. */
-  get expired(): boolean {
+  get expired() {
     return this.didExpire
   }
 
-  markHelloReceived(): void {
+  markHelloReceived() {
     this.helloReceived = true
   }
 
-  clear(): void {
+  clear() {
     this.settled = true
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined

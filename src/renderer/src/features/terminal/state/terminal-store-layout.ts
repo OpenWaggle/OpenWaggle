@@ -43,9 +43,10 @@ export function updateTab(
   update: (tab: TerminalTabState) => TerminalTabState,
 ) {
   const index = group.tabs.findIndex((tab) => tab.id === tabId)
-  if (index === -1) return group
+  const tab = group.tabs[index]
+  if (tab === undefined) return group
   const tabs = [...group.tabs]
-  tabs[index] = update(tabs[index])
+  tabs[index] = update(tab)
   return { ...group, tabs }
 }
 
@@ -168,18 +169,16 @@ export function closePaneAction(set: TerminalStateSetter, ownerKey: string, term
     if (target === undefined) return {}
     const closingIndex = target.panes.findIndex((pane) => pane.terminalId === terminalId)
     const remainingPanes = target.panes.filter((pane) => pane.terminalId !== terminalId)
+    // The pane that takes the closing pane's place; undefined when it was the tab's last pane.
+    const nextPane = remainingPanes[Math.min(closingIndex, remainingPanes.length - 1)]
     const tabs =
-      remainingPanes.length > 0
-        ? updateTab(group, target.id, (tab) => ({
+      nextPane === undefined
+        ? group.tabs.filter((tab) => tab.id !== target.id)
+        : updateTab(group, target.id, (tab) => ({
             ...tab,
             panes: remainingPanes,
-            activePaneId:
-              tab.activePaneId === terminalId
-                ? (remainingPanes[Math.min(closingIndex, remainingPanes.length - 1)]?.terminalId ??
-                  remainingPanes[0].terminalId)
-                : tab.activePaneId,
+            activePaneId: tab.activePaneId === terminalId ? nextPane.terminalId : tab.activePaneId,
           })).tabs
-        : group.tabs.filter((tab) => tab.id !== target.id)
     const activeTabId =
       remainingPanes.length > 0 || group.activeTabId !== target.id
         ? group.activeTabId

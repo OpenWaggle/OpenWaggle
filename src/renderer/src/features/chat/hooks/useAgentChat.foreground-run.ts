@@ -7,7 +7,6 @@ import type {
   MutableValueRef,
   PendingRunWaiter,
   RunCompletion,
-  RunCompletionRouting,
   SetMessagesBySessionId,
   SetRunRenderMessages,
 } from './useAgentChat.types'
@@ -54,14 +53,11 @@ export function clearRunPointers(refs: ForegroundRunRefs) {
 }
 
 /** Offer a completion to a waiter, which may route it on; one without routing just settles. */
-export function offerRunCompletion(
-  waiter: PendingRunWaiter,
-  completion: RunCompletion,
-): RunCompletionRouting {
+export function offerRunCompletion(waiter: PendingRunWaiter, completion: RunCompletion) {
   if (waiter.complete) return waiter.complete(completion)
   if (completion.error) waiter.reject(completion.error)
   else waiter.resolve()
-  return 'settled'
+  return 'settled' as const
 }
 
 /**
@@ -117,26 +113,26 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
     if (handedBack) forwardToPrevious(error ? { error } : {})
   }
 
-  function route(completion: RunCompletion): RunCompletionRouting {
+  function route(completion: RunCompletion) {
     if (handedBack) {
       forwardToPrevious(completion)
-      return 'forwarded'
+      return 'forwarded' as const
     }
     if (completion.runId === undefined || boundRunId === null) {
       settle(completion.error)
-      return 'settled'
+      return 'settled' as const
     }
     if (boundRunId === undefined) {
       held.push(completion)
-      return 'held'
+      return 'held' as const
     }
     // A requested Waggle's id (`waggle-of-<X>`) settles as the classic Run X it goes on with.
     if (settlingRunId(completion.runId) === boundRunId) {
       settle(completion.error)
-      return 'settled'
+      return 'settled' as const
     }
     forwardToPrevious(completion)
-    return 'forwarded'
+    return 'forwarded' as const
   }
 
   const tracked: PendingRunWaiter = {
@@ -285,7 +281,7 @@ export function beginForegroundRun(
   refs: ForegroundRunRefs,
   setters: ForegroundRunSetters,
   targetSessionId: SessionId,
-): ForegroundRun {
+) {
   const displacedWaiter = refs.pendingRunWaiterRef.current
   const run = createForegroundRunWaiter({
     waiter: displacedWaiter,

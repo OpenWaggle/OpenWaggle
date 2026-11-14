@@ -39,12 +39,12 @@ let environment: UpdaterInstallEnvironment | null = null
 let previousFailure: { readonly version: string; readonly message: string } | null = null
 
 /** Whether Restart to update is in progress, so the status shows it and checks wait. */
-export function isInstallingUpdate(): boolean {
+export function isInstallingUpdate() {
   return installingVersion !== null
 }
 
 /** Whether a quit now installs an update, so it must also release the Session Host. */
-export function shouldReleaseHostOnQuit(): boolean {
+export function shouldReleaseHostOnQuit() {
   return releaseHostOnQuit
 }
 
@@ -54,10 +54,12 @@ export function markUpdateQuit() {
   installerQuitAnnounced = true
 }
 
-export function downloadedUpdateStatus(version: string): DownloadedUpdateStatus {
-  return previousFailure?.version === version
-    ? { type: 'downloaded', version, installFailure: previousFailure.message }
-    : { type: 'downloaded', version }
+export function downloadedUpdateStatus(version: string) {
+  return (
+    previousFailure?.version === version
+      ? { type: 'downloaded', version, installFailure: previousFailure.message }
+      : { type: 'downloaded', version }
+  ) satisfies DownloadedUpdateStatus
 }
 
 /** Starts a new updater session and reports whether the last Restart to update installed. */
@@ -119,7 +121,7 @@ export async function beginUpdateInstall(version: string) {
  * An updater error while installing means the app did not quit, so the downloaded update is still
  * there: say why and offer it again. Returns whether the error belonged to an install.
  */
-export function failUpdateInstall(error: Error): boolean {
+export function failUpdateInstall(error: Error) {
   const version = installingVersion
   if (!version) {
     // A late error after the watchdog, from the installer or a check; an announced quit keeps it.

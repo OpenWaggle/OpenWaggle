@@ -25,7 +25,7 @@ import {
 import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 function customMessageText(message: { readonly content: string | readonly { type: string }[] }) {
   if (typeof message.content === 'string') return message.content
@@ -77,7 +77,7 @@ async function twoTurnSession(
     pi.on('before_agent_start', (event) => {
       // Since Pi 1.2.0 a turn a custom message starts carries that message, not a prompt.
       const text = event.messageType === 'user' ? event.prompt : customMessageText(event.message)
-      event.systemPromptOptions.sections.turn_prompt = `For ${text}`
+      Object.assign(event.systemPromptOptions.sections, { turn_prompt: `For ${text}` })
     })
     pi.registerTool({
       name: 'ping',

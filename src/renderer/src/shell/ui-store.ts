@@ -5,9 +5,6 @@ const DELAY_MS = 3500
 /** Long enough to reach a toast's button, such as Run now after saving an action. */
 const ACTION_TOAST_DELAY_MS = 8_000
 const FEEDBACK_COOLDOWN_MS = 60_000
-
-export const DIFF_PANEL_MIN = 360
-export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
 export const EXTENSION_SIDE_PANEL_ROUTE_PANEL = 'extension-side-panel'
 

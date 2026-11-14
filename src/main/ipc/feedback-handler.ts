@@ -4,9 +4,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { BASE_TEN } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
-import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
+import type { FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { getSourceControlCliEnv } from '../env'
 import { createLogger, getLogFilePath, sessionHostLogPathFor } from '../logger'
 import { userFacingErrorDetail } from '../utils/describe-error'
@@ -17,12 +17,8 @@ const logger = createLogger('ipc:feedback')
 
 const FEEDBACK_REPO = 'OpenWaggle/OpenWaggle'
 
-function execFilePromise(
-  command: string,
-  args: string[],
-  options?: { env?: NodeJS.ProcessEnv },
-): Promise<{ readonly stdout: string; readonly stderr: string }> {
-  return new Promise((resolve, reject) => {
+function execFilePromise(command: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) {
+  return new Promise<{ readonly stdout: string; readonly stderr: string }>((resolve, reject) => {
     execFile(
       command,
       args,
@@ -49,10 +45,10 @@ function humanOsName() {
   return `${platform} ${os.release()}`
 }
 
-function collectDiagnostics(): DiagnosticsInfo {
+function collectDiagnostics() {
   return {
     os: humanOsName(),
-    appVersion: app.getVersion(),
+    appVersion: appLifecycle.version(),
     electronVersion: process.versions.electron,
     nodeVersion: process.versions.node,
     arch: process.arch,
@@ -191,24 +187,26 @@ async function buildMarkdownBody(payload: FeedbackPayload) {
   return sections.join('\n\n')
 }
 
-export function registerFeedbackHandlers(): void {
+export function registerFeedbackHandlers() {
   typedHandle('feedback:check-gh', () =>
     Effect.gen(function* () {
-      const ghAvailable = yield* Effect.tryPromise({
-        try: () => execFilePromise('which', ['gh']).then(() => true),
-        catch: () => false,
-      })
+      // A failed command answers false; it is not an IPC failure.
+      const ghAvailable = yield* Effect.promise(() =>
+        execFilePromise('which', ['gh']).then(
+          () => true,
+          () => false,
+        ),
+      )
       if (!ghAvailable) {
         return { available: false, authenticated: false }
       }
 
-      const authenticated = yield* Effect.tryPromise({
-        try: () =>
-          execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
-            () => true,
-          ),
-        catch: () => false,
-      })
+      const authenticated = yield* Effect.promise(() =>
+        execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
+          () => true,
+          () => false,
+        ),
+      )
       return { available: true, authenticated }
     }),
   )

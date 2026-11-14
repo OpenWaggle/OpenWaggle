@@ -7,7 +7,7 @@ import {
   appendBrowserPreviewAnnotationToComposer,
 } from '../browser-preview-composer'
 
-function attachment(id = 'annotation-1'): PreparedAttachment {
+function attachment(id = 'annotation-1') {
   return {
     id,
     kind: 'image',
@@ -26,11 +26,11 @@ function attachment(id = 'annotation-1'): PreparedAttachment {
       elementText: 'Save',
       comment: 'Align this.',
     },
-  }
+  } satisfies PreparedAttachment
 }
 
-function annotation(prepared: PreparedAttachment | null = attachment()): BrowserPreviewAnnotation {
-  return {
+function annotation(prepared: PreparedAttachment | null = attachment()) {
+  const result: BrowserPreviewAnnotation = {
     id: 'pick-1',
     previewId: 'preview-1',
     pageUrl: 'http://localhost:3000',
@@ -92,6 +92,7 @@ function annotation(prepared: PreparedAttachment | null = attachment()): Browser
     screenshot: null,
     attachment: prepared,
   }
+  return result
 }
 
 describe('browser preview composer annotations', () => {

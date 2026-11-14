@@ -4,9 +4,8 @@ const mocks = vi.hoisted(() => ({ broadcast: vi.fn() }))
 
 vi.mock('../utils/broadcast', () => ({ broadcastToWindows: mocks.broadcast }))
 
-const { requestOpenSessionLink, takeOpenSessionLinkRequest } = await import(
-  '../session-link-requests'
-)
+const { requestOpenSessionLink, takeOpenSessionLinkRequest } =
+  await import('../session-link-requests')
 
 beforeEach(() => {
   while (takeOpenSessionLinkRequest() !== null) {

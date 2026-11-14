@@ -34,7 +34,7 @@ export function createLucideCatalogLoader(importCatalog: () => Promise<LucideIco
 
 /** Loads the bundled `lucide` icon catalog once, on first use, keyed by PascalCase name. */
 export const loadBundledLucideIcons = createLucideCatalogLoader(() =>
-  import('lucide').then((module): LucideIconCatalog => module.icons),
+  import('lucide').then((module) => module.icons),
 )
 
 /** `git-pull-request` → `GitPullRequest`, `arrow-down-0-1` → `ArrowDown01`, as Lucide names them. */
@@ -45,8 +45,8 @@ export function lucideExportName(kebabName: string) {
     .join('')
 }
 
-function lucideNodeToElement([name, attributes]: LucideIconNode[number]): SvgMarkupElement {
-  return {
+function lucideNodeToElement([name, attributes]: LucideIconNode[number]) {
+  const element: SvgMarkupElement = {
     kind: 'element',
     name,
     attributes: Object.entries(attributes).flatMap(([attributeName, value]) =>
@@ -56,6 +56,7 @@ function lucideNodeToElement([name, attributes]: LucideIconNode[number]): SvgMar
     ),
     children: [],
   }
+  return element
 }
 
 /** Standalone SVG markup for a Lucide icon name, or null when Lucide has no icon by that name. */

@@ -1,14 +1,9 @@
-import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
+import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 
-interface WorktreeLaunchSourceSnapshot {
-  readonly sessionId: SessionId
-  readonly worktreeLaunch?: WorktreeLaunchSnapshot
-}
+type WorktreeLaunchSourceSnapshot = Pick<BackgroundRunSnapshot, 'sessionId' | 'worktreeLaunch'>
 
-export function launchesFromSnapshots(
-  snapshots: readonly (WorktreeLaunchSourceSnapshot | null)[],
-): Map<SessionId, WorktreeLaunchSnapshot> {
+export function launchesFromSnapshots(snapshots: readonly (WorktreeLaunchSourceSnapshot | null)[]) {
   const launches = new Map<SessionId, WorktreeLaunchSnapshot>()
   for (const snapshot of snapshots) {
     if (snapshot?.worktreeLaunch) launches.set(snapshot.sessionId, snapshot.worktreeLaunch)
@@ -35,9 +30,7 @@ const INTERRUPTED_WORKTREE_LAUNCH_MESSAGE =
 const INTERRUPTED_LOCAL_LAUNCH_MESSAGE =
   'Starting the session was interrupted before the task was delivered. Retry, or cancel to restore the draft.'
 
-export function interruptedFirstSendLaunch(
-  launch: WorktreeLaunchSnapshot | undefined,
-): WorktreeLaunchSnapshot {
+export function interruptedFirstSendLaunch(launch: WorktreeLaunchSnapshot | undefined) {
   if (launch?.status === 'failed') return launch
   const now = Date.now()
   const message =
@@ -52,5 +45,5 @@ export function interruptedFirstSendLaunch(
     updatedAt: now,
     details: launch ? [...launch.details, message] : [message],
     errorMessage: message,
-  }
+  } satisfies WorktreeLaunchSnapshot
 }

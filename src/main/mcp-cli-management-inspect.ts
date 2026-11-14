@@ -9,7 +9,7 @@ export async function inspectEnabledServers(
   context: McpManagementCommandInput['context'],
   projectPath: string | null,
   servers: readonly McpConfiguredServerView[],
-): Promise<ReadonlyMap<string, McpServerInspection>> {
+) {
   const enabled = servers.filter((server) => server.enabled)
   const settled = await Promise.allSettled(
     enabled.map((server) =>
@@ -19,9 +19,11 @@ export async function inspectEnabledServers(
     ),
   )
   return new Map(
-    enabled.map((server, index): [string, McpServerInspection] => {
+    enabled.map((server, index) => {
       const outcome = settled[index]
-      if (outcome?.status === 'fulfilled') return [server.name, outcome.value]
+      if (outcome?.status === 'fulfilled') {
+        return [server.name, outcome.value] satisfies [string, McpServerInspection]
+      }
       const reason: unknown = outcome?.reason
       return [
         server.name,
@@ -31,7 +33,7 @@ export async function inspectEnabledServers(
           tools: [],
           error: reason instanceof Error ? reason.message : String(reason),
         },
-      ]
+      ] satisfies [string, McpServerInspection]
     }),
   )
 }

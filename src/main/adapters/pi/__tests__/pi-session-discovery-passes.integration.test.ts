@@ -46,9 +46,8 @@ async function sessionCount() {
 
 /** The Sessions announced as updated or deleted while recording. */
 async function recordSessionListChanges() {
-  const { installSessionHostEventPublisher } = await import(
-    '../../../session-host/session-host-events'
-  )
+  const { installSessionHostEventPublisher } =
+    await import('../../../session-host/session-host-events')
   const updated: string[] = []
   const deleted: string[] = []
   const stop = installSessionHostEventPublisher((payload: SessionHostEventPayload) => {
@@ -70,9 +69,8 @@ describe('A Pi session discovery pass', () => {
     createPiCliSession(fixture.project, 'First file')
     createPiCliSession(path.join(fixture.project, 'packages', 'core'), 'Second file')
     const create = await lifecycleCreate()
-    const { beginPiSessionProjectRemoval } = await import(
-      '../../../application/pi-session-project-removal'
-    )
+    const { beginPiSessionProjectRemoval } =
+      await import('../../../application/pi-session-project-removal')
     let creates = 0
 
     // The removal starts after the pass created the first Session, before it adopted the file.
@@ -97,12 +95,10 @@ describe('A Pi session discovery pass', () => {
     const create = await lifecycleCreate()
     const [listed] = await discoverWith(create)
     if (!listed) throw new Error('Discovery listed no Session.')
-    const { beginPiSessionProjectRemoval, deleteSessionForProjectRemoval } = await import(
-      '../../../application/pi-session-project-removal'
-    )
-    const { SessionProjectionRepository } = await import(
-      '../../../ports/session-projection-repository'
-    )
+    const { beginPiSessionProjectRemoval, deleteSessionForProjectRemoval } =
+      await import('../../../application/pi-session-project-removal')
+    const { SessionProjectionRepository } =
+      await import('../../../ports/session-projection-repository')
 
     beginPiSessionProjectRemoval(nested)
     await run(
@@ -197,9 +193,8 @@ describe('A Pi session discovery pass', () => {
       }),
     )
     continuePiCliSession(cli.file, 'Written while the Host was down')
-    const { removeUnattachedDiscoveredSessions } = await import(
-      '../../../application/pi-session-discovery'
-    )
+    const { removeUnattachedDiscoveredSessions } =
+      await import('../../../application/pi-session-discovery')
     const changes = await recordSessionListChanges()
 
     // The next Host start, then its first pass.

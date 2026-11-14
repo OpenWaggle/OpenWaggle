@@ -52,21 +52,21 @@ export type AdoptFollowUpResult =
       readonly state: SessionControlSessionState
     }
 
-function adopted(item: SessionControlFollowUp, callerId: string): SessionControlFollowUp {
+function adopted(item: SessionControlFollowUp, callerId: string) {
   const { attentionReason: _reason, editHold, ...rest } = item
   const author = followUpAttachmentOwner(item.intent)
   const { authorCallerId: _previousAuthor, ...intent } = item.intent
   return {
     ...rest,
     // Another caller's open edit of it ends: the Follow-up is now the adopter's.
-    ...(editHold && editHold.holderCallerId === callerId ? { editHold } : {}),
+    ...(editHold?.holderCallerId === callerId ? { editHold } : {}),
     deliveryState: 'pending',
     intent: {
       ...intent,
       callerId,
       ...(author !== callerId ? { authorCallerId: author } : {}),
     },
-  }
+  } satisfies SessionControlFollowUp
 }
 
 function resumesAttentionPause(queue: SessionControlSessionState['followUpQueue']) {
@@ -81,11 +81,11 @@ function withQueue(
   queue: SessionControlSessionState['followUpQueue'],
   items: readonly SessionControlFollowUp[],
   revision: number,
-): SessionControlSessionState['followUpQueue'] {
-  const next = { ...queue, revision, items }
+) {
+  const next: SessionControlSessionState['followUpQueue'] = { ...queue, revision, items }
   if (!resumesAttentionPause(next)) return next
   const { pauseReason: _pauseReason, ...running } = next
-  return { ...running, state: 'running' }
+  return { ...running, state: 'running' } satisfies SessionControlSessionState['followUpQueue']
 }
 
 export function adoptFollowUp(input: {
@@ -93,21 +93,24 @@ export function adoptFollowUp(input: {
   readonly followUpId: FollowUpId
   readonly callerId: string
   readonly expectedQueueRevision: number
-}): AdoptFollowUpResult {
+}) {
   const { state } = input
-  const reject = (code: AdoptFollowUpRejectionCode): AdoptFollowUpResult => ({
-    accepted: false,
-    code,
-    currentRevision: state.followUpQueue.revision,
-    state,
-  })
+  const reject = (code: AdoptFollowUpRejectionCode) =>
+    ({
+      accepted: false,
+      code,
+      currentRevision: state.followUpQueue.revision,
+      state,
+    }) satisfies AdoptFollowUpResult
   if (state.followUpQueue.revision !== input.expectedQueueRevision) {
-    return reject('queue_revision_changed')
+    return reject('queue_revision_changed') satisfies AdoptFollowUpResult
   }
   const index = state.followUpQueue.items.findIndex((item) => item.id === input.followUpId)
   const item = state.followUpQueue.items[index]
-  if (!item) return reject('follow_up_not_found')
-  if (item.deliveryState !== 'needs_attention') return reject('follow_up_not_adoptable')
+  if (!item) return reject('follow_up_not_found') satisfies AdoptFollowUpResult
+  if (item.deliveryState !== 'needs_attention') {
+    return reject('follow_up_not_adoptable') satisfies AdoptFollowUpResult
+  }
 
   const items = [...state.followUpQueue.items]
   items[index] = adopted(item, input.callerId)
@@ -130,5 +133,5 @@ export function adoptFollowUp(input: {
       remainingFollowUpIds: items.map((candidate) => candidate.id),
       stateRevision,
     },
-  }
+  } satisfies AdoptFollowUpResult
 }

@@ -35,13 +35,13 @@ type RestoreNotice = Pick<
 >
 
 /** What the person is told about an undelivered send the Session does not show, if anything. */
-function undeliveredNotice(cause: unknown): RestoreNotice {
+function undeliveredNotice(cause: unknown) {
   const failure = cause instanceof FirstSendFailed ? cause.cause : cause
   if (failure instanceof SendFailedOutOfView) {
-    return { notice: failedOutOfViewNotice(failure), unexpected: true }
+    return { notice: failedOutOfViewNotice(failure), unexpected: true } satisfies RestoreNotice
   }
   const refusal = sendRefusalOf(cause)
-  return refusal ? { notice: refusedSendNotice(refusal) } : {}
+  return (refusal ? { notice: refusedSendNotice(refusal) } : {}) satisfies RestoreNotice
 }
 
 interface SendFailureOwnershipInput {
@@ -54,14 +54,17 @@ interface SendFailureOwnershipInput {
 }
 
 /** A failed first send: its draft belongs to the Session it created, unless the agent got it. */
-function firstSendFailureDisposition(
-  cause: FirstSendFailed,
-  input: SendFailureOwnershipInput,
-): SendFailureDisposition {
-  if (cause.cause instanceof MessageDeliveredRunFailed) return { kind: 'retain' }
+function firstSendFailureDisposition(cause: FirstSendFailed, input: SendFailureOwnershipInput) {
+  if (cause.cause instanceof MessageDeliveredRunFailed) {
+    return { kind: 'retain' } satisfies SendFailureDisposition
+  }
   const createdSessionId = SessionId(cause.createdSessionId)
-  if (input.disposedSessions.has(createdSessionId)) return { kind: 'discard' }
-  if (input.hasWorktreeLaunch(createdSessionId)) return { kind: 'retain' }
+  if (input.disposedSessions.has(createdSessionId)) {
+    return { kind: 'discard' } satisfies SendFailureDisposition
+  }
+  if (input.hasWorktreeLaunch(createdSessionId)) {
+    return { kind: 'retain' } satisfies SendFailureDisposition
+  }
   const sessionContextToken = `:session:${String(createdSessionId)}:`
   const savedOwnedContextKey =
     input.savedDraftContextKeys.find(
@@ -72,20 +75,29 @@ function firstSendFailureDisposition(
     : null
   const ownedContextKey =
     activeOwnedContextKey ?? savedOwnedContextKey ?? `session:${String(createdSessionId)}:pending`
-  return { kind: 'restore', contextKey: ownedContextKey, ...undeliveredNotice(cause) }
+  return {
+    kind: 'restore',
+    contextKey: ownedContextKey,
+    ...undeliveredNotice(cause),
+  } satisfies SendFailureDisposition
 }
 
-export function sessionImageSendFailureDisposition(
-  input: SendFailureOwnershipInput,
-): SendFailureDisposition {
-  if (input.cause instanceof FirstSendFailed) return firstSendFailureDisposition(input.cause, input)
-  if (input.cause instanceof MessageDeliveredRunFailed) return { kind: 'retain' }
+export function sessionImageSendFailureDisposition(input: SendFailureOwnershipInput) {
+  if (input.cause instanceof FirstSendFailed) {
+    return firstSendFailureDisposition(input.cause, input) satisfies SendFailureDisposition
+  }
+  if (input.cause instanceof MessageDeliveredRunFailed) {
+    return { kind: 'retain' } satisfies SendFailureDisposition
+  }
   // The Session's notice says why; the text goes back to the composer, and a toast says so.
   if (input.cause instanceof MessageNotDelivered && isPiSessionFileRefusal(input.cause)) {
-    return { kind: 'restore', notice: PI_SESSION_FILE_REFUSAL_NOTICE }
+    return {
+      kind: 'restore',
+      notice: PI_SESSION_FILE_REFUSAL_NOTICE,
+    } satisfies SendFailureDisposition
   }
   if (input.activeSessionId && input.disposedSessions.has(input.activeSessionId)) {
-    return { kind: 'discard' }
+    return { kind: 'discard' } satisfies SendFailureDisposition
   }
-  return { kind: 'restore', ...undeliveredNotice(input.cause) }
+  return { kind: 'restore', ...undeliveredNotice(input.cause) } satisfies SendFailureDisposition
 }

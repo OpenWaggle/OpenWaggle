@@ -184,7 +184,7 @@ export function BrowserPreviewFloatingPanel({
     sourceViewport,
   })
 
-  const layout = useBrowserPreviewFloatingLayout({
+  const { rootRef, ...layout } = useBrowserPreviewFloatingLayout({
     ownerKey: tab.ownerKey,
     previewId: tab.id,
     position: floating?.previewId === tab.id ? floating.position : null,
@@ -217,7 +217,7 @@ export function BrowserPreviewFloatingPanel({
 
   return (
     <section
-      ref={layout.rootRef}
+      ref={rootRef}
       aria-label="Floating browser preview"
       aria-hidden={suspended}
       inert={suspended}

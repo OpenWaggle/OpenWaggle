@@ -30,17 +30,17 @@ function transcriptReadinessStatus(input: {
   readonly state: TranscriptStateRow | undefined
   readonly compatibleState: boolean
   readonly stale: boolean
-}): SemanticDiscoveryReadiness['status'] {
-  if (input.stale) return 'preparing'
+}) {
+  if (input.stale) return 'preparing' as const
   if (input.compatibleState && input.state?.status === 'failed' && input.queued > 0) {
-    return 'failed'
+    return 'failed' as const
   }
-  if (input.queued > 0) return 'preparing'
-  return input.limited ? 'partial' : 'ready'
+  if (input.queued > 0) return 'preparing' as const
+  return input.limited ? ('partial' as const) : ('ready' as const)
 }
 
-function emptyReadiness(model: SessionEmbeddingModel): SemanticDiscoveryReadiness {
-  return {
+function emptyReadiness(model: SessionEmbeddingModel) {
+  const readiness: SemanticDiscoveryReadiness = {
     status: 'ready',
     modelId: model.metadata.id,
     modelRevision: model.metadata.revision,
@@ -49,6 +49,7 @@ function emptyReadiness(model: SessionEmbeddingModel): SemanticDiscoveryReadines
     pendingCount: 0,
     updatedAt: Date.now(),
   }
+  return readiness
 }
 
 function readinessCount(
@@ -100,9 +101,14 @@ export function readTranscriptSemanticReadiness(input: {
   readonly model: SessionEmbeddingModel
   readonly sessionIds: readonly string[]
   readonly preparationOperationId: string
-}): Effect.Effect<SemanticDiscoveryReadiness, SqlError> {
-  if (input.sessionIds.length === 0) return Effect.succeed(emptyReadiness(input.model))
-  return Effect.gen(function* () {
+}) {
+  if (input.sessionIds.length === 0) {
+    const effect: Effect.Effect<SemanticDiscoveryReadiness, SqlError> = Effect.succeed(
+      emptyReadiness(input.model),
+    )
+    return effect
+  }
+  const effect: Effect.Effect<SemanticDiscoveryReadiness, SqlError> = Effect.gen(function* () {
     const counts = yield* readinessCount(input.sql, input.model, input.sessionIds)
     const stateRows = yield* input.sql<TranscriptStateRow>`
       SELECT status, model_id, model_revision,
@@ -154,4 +160,5 @@ export function readTranscriptSemanticReadiness(input: {
         : {}),
     } satisfies SemanticDiscoveryReadiness
   })
+  return effect
 }

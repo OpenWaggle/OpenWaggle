@@ -5,8 +5,10 @@
  * In dev: outputs to browser console with namespace prefix.
  * In prod: errors are forwarded to main process via IPC for aggregation.
  */
-import type { Logger, LogLevel } from '@shared/types/logger'
+import type { LogLevel } from '@shared/types/logger'
+import { loggerMethods } from '@shared/utils/logger-methods'
 import { env } from '@/env'
+import { lenientJsonStringify } from './lenient-json'
 
 const LOG_LEVEL_PRIORITIES: Record<LogLevel, number> = {
   debug: 10,
@@ -19,25 +21,7 @@ function isLevelEnabled(level: LogLevel) {
   return LOG_LEVEL_PRIORITIES[level] >= LOG_LEVEL_PRIORITIES[env.logLevel]
 }
 
-/**
- * Warn and error data as text. Electron's console log and CDP console readers print an object
- * argument as `[object Object]`, so a failure would reach them without its reason. Errors become
- * `Name: message`; a repeated object becomes `[Circular]`.
- */
-function describeLogData(data: object) {
-  const seen = new WeakSet<object>()
-  return JSON.stringify(data, (_key, value: unknown) => {
-    if (value instanceof Error) return `${value.name}: ${value.message}`
-    if (typeof value === 'bigint') return value.toString()
-    if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) return '[Circular]'
-      seen.add(value)
-    }
-    return value
-  })
-}
-
-export function createRendererLogger(namespace: string): Logger {
+export function createRendererLogger(namespace: string) {
   const log = (level: LogLevel, message: string, data?: object) => {
     if (!isLevelEnabled(level)) {
       return
@@ -52,31 +36,19 @@ export function createRendererLogger(namespace: string): Logger {
     }[level]
 
     if (data && Object.keys(data).length > 0) {
-      // Debug and info logs are frequent; DevTools expands their objects on demand.
-      if (level === 'warn' || level === 'error') consoleMethod(`${prefix} ${describeLogData(data)}`)
-      else consoleMethod(prefix, data)
+      // Debug and info logs are frequent; DevTools expands their objects on demand. Warn and error
+      // data goes into the line: Electron's console log and CDP console readers print an object
+      // argument as `[object Object]`, so a failure would reach them without its reason.
+      if (level === 'warn' || level === 'error') {
+        consoleMethod(`${prefix} ${lenientJsonStringify(data)}`)
+      } else {
+        consoleMethod(prefix, data)
+      }
       return
     }
 
     consoleMethod(prefix)
   }
 
-  return {
-    isLevelEnabled,
-    isDebugEnabled() {
-      return isLevelEnabled('debug')
-    },
-    debug(message, data) {
-      log('debug', message, data)
-    },
-    info(message, data) {
-      log('info', message, data)
-    },
-    warn(message, data) {
-      log('warn', message, data)
-    },
-    error(message, data) {
-      log('error', message, data)
-    },
-  }
+  return loggerMethods(log, isLevelEnabled)
 }

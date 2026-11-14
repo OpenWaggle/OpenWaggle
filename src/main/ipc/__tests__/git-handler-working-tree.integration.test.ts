@@ -166,7 +166,7 @@ describe('registerGitHandlers working-tree actions', () => {
 
     await handler?.({ sender: { id: 'renderer' } }, '/tmp/repo/packages/app')
 
-    const detail = showMessageBoxMock.mock.calls.at(0)?.at(1)?.detail
+    const detail = showMessageBoxMock.mock.calls[0]?.[1].detail
     expect(detail).toContain('including files outside the folder you opened')
     expect(detail).not.toContain('/tmp/repo')
   })

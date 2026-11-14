@@ -38,7 +38,7 @@ function panelItem(
     readonly surfaceId: RightPanelSurfaceId
     readonly panel?: ExtensionSidePanelSurfaceEntry
   },
-): CommandPaletteItem {
+) {
   const { surfaceId, panel, ...rest } = item
   const reason =
     (input.disabledReason ?? noDisabledReason)(surfaceId) ??
@@ -52,14 +52,14 @@ function panelItem(
     action: () => {
       if (reason === null) input.showSurface(surfaceId, panel)
     },
-  }
+  } satisfies CommandPaletteItem
 }
 
 /**
  * One entry per Right panel surface: built-ins in rail order, then extension side panels. Choosing
  * one shows that surface and never closes the Right panel.
  */
-export function createPanelCommandItems(input: PanelCommandItemsInput): CommandPaletteItem[] {
+export function createPanelCommandItems(input: PanelCommandItemsInput) {
   const builtIns = BUILT_IN_RIGHT_PANEL_SURFACES.map((surface) => {
     const Icon = surface.icon
     return panelItem(input, {
@@ -90,7 +90,7 @@ export function createPanelCommandItems(input: PanelCommandItemsInput): CommandP
       trailingBadge: panel.entry.scope.label,
     }),
   )
-  return [...builtIns, ...extensions]
+  return [...builtIns, ...extensions] satisfies CommandPaletteItem[]
 }
 
 interface LegacyPanelOpeners {

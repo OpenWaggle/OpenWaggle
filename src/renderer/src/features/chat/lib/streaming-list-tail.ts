@@ -1,4 +1,5 @@
 import type { Processor } from 'unified'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * Bounded re-parse of a streaming list (B9, ADR 0026).
@@ -51,8 +52,9 @@ const MIN_SPLIT_ITEMS = 2
 function itemMarker(line: string) {
   const match = MARKER_LINE.exec(line)
   if (!match || THEMATIC_BREAK.test(line)) return null
+  const groups = namedGroups(match, ['bullet', 'delimiter'])
   return {
-    style: match.groups?.bullet ?? match.groups?.delimiter ?? null,
+    style: groups?.bullet ?? groups?.delimiter ?? null,
     contentIndent: match[0].length,
   }
 }
@@ -66,7 +68,7 @@ function continuesItem(line: string, isStreamingEnd: boolean, contentIndent: num
 }
 
 /** Where the last item starts, when the text is a list whose items cannot affect each other. */
-export function splitListTail(text: string): ListTailSplit | null {
+export function splitListTail(text: string) {
   if (REFERENCE_OR_FOOTNOTE.test(text)) return null
   let marker: string | null = null
   let contentIndent = 0
@@ -91,12 +93,16 @@ export function splitListTail(text: string): ListTailSplit | null {
     if (!continuesItem(line, lineOffset + line.length === text.length, contentIndent)) return null
   }
   if (items < MIN_SPLIT_ITEMS) return null
-  return { head: text.slice(0, lastItemOffset), last: text.slice(lastItemOffset) }
+  const result: ListTailSplit | null = {
+    head: text.slice(0, lastItemOffset),
+    last: text.slice(lastItemOffset),
+  }
+  return result
 }
 
 function isNode(value: unknown): value is MarkdownNode {
   return (
-    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
   )
 }
 

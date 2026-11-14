@@ -8,10 +8,8 @@ export const COMPACTION_SETTINGS = {
   thresholdPercent: 80,
 }
 
-export function makeNativeModel(
-  overrides: Partial<Model<'openai-responses'>> = {},
-): Model<'openai-responses'> {
-  return {
+export function makeNativeModel(overrides: Partial<Model<'openai-responses'>> = {}) {
+  const model: Model<'openai-responses'> = {
     id: 'native-model',
     name: 'Native model',
     provider: 'native-provider',
@@ -25,10 +23,20 @@ export function makeNativeModel(
     compat: { supportsCompaction: true },
     ...overrides,
   }
+  return model
 }
 
-export function makePreparation(): Parameters<typeof compact>[0] {
-  const portableFallback: Parameters<typeof compact>[0] = {
+/** The model without `compat`, as from a provider that declares no compatibility flags. */
+export function withoutCompat(model: Model<'openai-responses'>) {
+  const { compat: _compat, ...rest } = model
+  return rest
+}
+
+type CompactionPreparation = Parameters<typeof compact>[0]
+
+/** Typed as a value: declarations cannot name Pi's unexported `CompactionPreparation`. */
+export const makePreparation: () => CompactionPreparation = () => {
+  const portableFallback: CompactionPreparation = {
     firstKeptEntryId: 'kept-entry',
     messagesToSummarize: [{ role: 'user', content: 'Old context', timestamp: 1 }],
     messagesForNativeCompaction: [{ role: 'user', content: 'All context', timestamp: 1 }],
@@ -44,8 +52,8 @@ export function makePreparation(): Parameters<typeof compact>[0] {
   }
 }
 
-export function makeAssistant(text: string, timestamp: number): AssistantMessage {
-  return {
+export function makeAssistant(text: string, timestamp: number) {
+  const message: AssistantMessage = {
     role: 'assistant',
     content: [{ type: 'text', text }],
     api: 'openai-responses',
@@ -62,9 +70,10 @@ export function makeAssistant(text: string, timestamp: number): AssistantMessage
     stopReason: 'stop',
     timestamp,
   }
+  return message
 }
 
-export function makeCompactResponse(output: unknown[], status = 200): Response {
+export function makeCompactResponse(output: unknown[], status = 200) {
   const body =
     status === 200
       ? {
@@ -81,10 +90,11 @@ export function makeCompactResponse(output: unknown[], status = 200): Response {
           },
         }
       : { error: { message: 'native endpoint unavailable' } }
-  return new Response(JSON.stringify(body), {
+  const response: Response = new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   })
+  return response
 }
 
 export const NATIVE_DETAILS = {

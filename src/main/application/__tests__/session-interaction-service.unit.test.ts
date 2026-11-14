@@ -15,9 +15,7 @@ import { respondToSessionInteraction } from '../session-interaction-service'
 
 const sessionId = SessionId('session-interaction')
 
-function request(
-  operation: 'request-respond' | 'approval-respond',
-): SessionInteractionResponseMutationRequest {
+function request(operation: 'request-respond' | 'approval-respond') {
   return {
     contractVersion: 2,
     requestId: 'request-1',
@@ -30,7 +28,7 @@ function request(
       kind: 'confirm',
       response: { kind: 'confirm', accepted: true },
     },
-  }
+  } satisfies SessionInteractionResponseMutationRequest
 }
 
 describe('Session interaction service', () => {

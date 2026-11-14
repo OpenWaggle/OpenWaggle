@@ -15,7 +15,7 @@ import {
 import type { WaggleRunResult } from '../waggle-run-service'
 
 const waggleTurns = vi.hoisted(() => ({
-  run: (): Promise<void> => Promise.resolve(),
+  run: () => Promise.resolve(),
 }))
 
 vi.mock('../waggle-run-service', () => ({

@@ -1,9 +1,9 @@
 import { LOCAL_UPDATE_CONTRACT_VERSION } from '@shared/types/local-update'
 import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
-import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
 import { CliError, cliExitCodeForKind } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
+import { systemIntegration } from './desktop-shell/system-integration'
+import { updateEngine } from './desktop-shell/update-engine'
 import { isDesktopAppRunning } from './desktop-instance-probe'
 import {
   assertCliAgentMayUseOwnerAuthority,
@@ -26,50 +26,39 @@ import {
   stopSessionHostBeforeInstall,
 } from './update-cli-exact-version'
 import { runBundledInstaller } from './update-cli-installers'
-import {
-  configureUpdaterFeed,
-  isVersionEligibleForChannel,
-  type UpdateFeedSelection,
-} from './update-feed'
+import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
 
 const UPDATE_AGENT_REFUSAL =
   'OpenWaggle agents cannot check for or install OpenWaggle updates. Ask the user to run openwaggle update.'
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
 
-async function configureUpdater(
-  channel: UpdateChannel,
-  checkOnly: boolean,
-): Promise<UpdateFeedSelection> {
-  autoUpdater.channel = updaterFeedChannel(channel)
-  autoUpdater.allowPrerelease = channel !== 'stable'
-  autoUpdater.allowDowngrade = false
-  autoUpdater.autoDownload = !checkOnly
+async function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
+  updateEngine.configure({
+    feedChannel: updaterFeedChannel(channel),
+    allowPrerelease: channel !== 'stable',
+  })
+  updateEngine.setAutoDownload(!checkOnly)
   // Installs only through quitAndInstall below. Installing on quit would let a Ctrl-C while the
   // Session Host stops install the update under it.
-  autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.logger = null
-  return configureUpdaterFeed(autoUpdater, channel)
+  updateEngine.cancelInstallOnQuit()
+  return configureUpdaterFeed({ setFeedURL: updateEngine.setFeed }, channel)
 }
 
 function createDownloadWaiter() {
   let cancel = () => undefined
   const promise = new Promise<void>((resolve, reject) => {
     const finish = (error?: Error) => {
-      clearTimeout(timeout)
-      autoUpdater.off('update-downloaded', downloaded)
-      autoUpdater.off('error', failed)
+      cancel()
       if (error) reject(error)
       else resolve()
     }
-    const downloaded = () => finish()
-    const failed = (error: Error) => finish(error)
+    const stopDownloaded = updateEngine.onUpdateDownloaded(() => finish())
+    const stopFailed = updateEngine.onError((error) => finish(error))
     cancel = () => {
       clearTimeout(timeout)
-      autoUpdater.off('update-downloaded', downloaded)
-      autoUpdater.off('error', failed)
+      stopDownloaded()
+      stopFailed()
     }
-    autoUpdater.once('update-downloaded', downloaded)
-    autoUpdater.once('error', failed)
     const timeout = setTimeout(
       () => finish(new CliError('timeout', 'Timed out while downloading the update.')),
       DOWNLOAD_TIMEOUT_MS,
@@ -86,14 +75,14 @@ function abandonDownloadWaiter(waiter: ReturnType<typeof createDownloadWaiter> |
 
 type ChannelInstallMode = 'check' | 'defer-to-desktop' | 'bundled-installer' | 'updater'
 
-function channelInstallMode(checkOnly: boolean): ChannelInstallMode {
-  if (checkOnly) return 'check'
+function channelInstallMode(checkOnly: boolean) {
+  if (checkOnly) return 'check' as const
   // A running desktop app owns installation, so its Restart to update action can protect active
   // agent runs and relaunch it. The terminal then only reports the available version.
-  if (isDesktopAppRunning(app)) return 'defer-to-desktop'
+  if (isDesktopAppRunning(systemIntegration)) return 'defer-to-desktop' as const
   // Squirrel.Mac ignores quitAndInstall's arguments and always relaunches the app, so macOS installs
   // through the bundled installer, which can install without opening a window.
-  return process.platform === 'darwin' ? 'bundled-installer' : 'updater'
+  return process.platform === 'darwin' ? ('bundled-installer' as const) : ('updater' as const)
 }
 
 async function installAvailableUpdate(input: {
@@ -118,7 +107,7 @@ async function installAvailableUpdate(input: {
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   if (mode === 'defer-to-desktop') {
-    autoUpdater.autoInstallOnAppQuit = false
+    updateEngine.cancelInstallOnQuit()
     await writeCliStdout(
       `OpenWaggle ${version} is available on the ${channel} channel. OpenWaggle is open, so install ` +
         'it from the app: Settings > General > About & Updates > Check now, then Restart to update.\n',
@@ -134,7 +123,7 @@ async function installAvailableUpdate(input: {
   await stopSessionHostBeforeInstall(input.parsed)
   await writeCliStdout(`Installing OpenWaggle ${version}…\n`)
   // Windows and Linux honor this: install silently without opening a window.
-  autoUpdater.quitAndInstall(true, false)
+  updateEngine.quitAndInstall({ silent: true, relaunch: false })
   return { exitCode: EXIT.SUCCESS, updaterOwnsExit: true }
 }
 
@@ -162,11 +151,11 @@ async function updateFromChannel(input: {
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   const downloaded = reportOnly ? null : createDownloadWaiter()
-  const result = await autoUpdater.checkForUpdates().catch((error: unknown) => {
+  const result = await updateEngine.checkForUpdates().catch((error: unknown) => {
     abandonDownloadWaiter(downloaded)
     throw error
   })
-  if (!result?.isUpdateAvailable) {
+  if (!result) {
     abandonDownloadWaiter(downloaded)
     if (machine) {
       const { savedChannel } = machine
@@ -175,12 +164,12 @@ async function updateFromChannel(input: {
     await writeCliStdout(`OpenWaggle is up to date on the ${channel} channel.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
-  const version = result.updateInfo.version
+  const version = result.version
   if (!isVersionEligibleForChannel(version, channel)) {
     abandonDownloadWaiter(downloaded)
-    autoUpdater.autoInstallOnAppQuit = false
-    result.cancellationToken?.cancel()
-    void result.downloadPromise?.catch(() => undefined)
+    updateEngine.cancelInstallOnQuit()
+    result.cancelDownload()
+    void result.download?.catch(() => undefined)
     throw new Error(`OpenWaggle ${version} is not eligible for the ${channel} update channel.`)
   }
   return installAvailableUpdate({

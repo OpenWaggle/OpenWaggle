@@ -11,19 +11,25 @@ export function fencedCodeLanguage(children: ReactNode) {
   return /(?:^|\s)language-([^\s]+)/u.exec(className)?.[1]
 }
 
-export function createSyntaxMarkdownComponents(
-  overrides: Components = {},
-  options: { readonly theme?: string } = {},
-): Components {
-  return {
-    ...safeMarkdownComponents,
-    pre({ children }: { children?: ReactNode }) {
-      return (
-        <MarkdownCodeBlock language={fencedCodeLanguage(children)} theme={options.theme}>
-          {children}
-        </MarkdownCodeBlock>
-      )
-    },
-    ...overrides,
-  }
-}
+/**
+ * Typed as a value: its inferred `Components` comes from a path of react-markdown that declarations
+ * cannot name.
+ */
+export const createSyntaxMarkdownComponents: (
+  overrides?: Components,
+  options?: { readonly theme?: string },
+) => Components = (overrides = {}, options = {}) => ({
+  ...safeMarkdownComponents,
+  pre({ children }: { children?: ReactNode }) {
+    const language = fencedCodeLanguage(children)
+    return (
+      <MarkdownCodeBlock
+        {...(language === undefined ? {} : { language })}
+        {...(options.theme === undefined ? {} : { theme: options.theme })}
+      >
+        {children}
+      </MarkdownCodeBlock>
+    )
+  },
+  ...overrides,
+})

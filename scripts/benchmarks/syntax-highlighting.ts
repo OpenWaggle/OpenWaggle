@@ -17,6 +17,7 @@ import {
   syntaxHighlightAdmission,
   syntaxSourceFingerprint,
 } from '../../src/shared/syntax-highlighting-performance'
+import { scriptEnv } from '../support/env'
 
 // Nearest-rank p95 is the second-slowest value at twenty samples and the third-slowest at forty.
 // Forty samples therefore tolerate up to two scheduler-descheduled samples. The hosted profile
@@ -57,12 +58,12 @@ function percentile(values: readonly number[], percentileValue: number) {
   return sorted[index] ?? 0
 }
 
-function summary(values: readonly number[]): MetricSummary {
+function summary(values: readonly number[]) {
   return {
     medianMs: percentile(values, MEDIAN_PERCENTILE),
     p95Ms: percentile(values, P95_PERCENTILE),
     samples: values.length,
-  }
+  } satisfies MetricSummary
 }
 
 async function measure(samples: number, operation: () => void | Promise<void>) {
@@ -120,8 +121,7 @@ function isBudgetMap(value: unknown): value is Readonly<Record<string, number>> 
 
 function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
   if (typeof value !== 'object' || value === null || !('metricBudgetsMs' in value)) return false
-  const medianBudgets =
-    'metricMedianBudgetsMs' in value ? value.metricMedianBudgetsMs : undefined
+  const medianBudgets = 'metricMedianBudgetsMs' in value ? value.metricMedianBudgetsMs : undefined
   return (
     isBudgetMap(value.metricBudgetsMs) &&
     (medianBudgets === undefined || isBudgetMap(medianBudgets))
@@ -129,7 +129,7 @@ function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
 }
 
 function benchmarkProfilePath() {
-  const configuredPath = process.env.SYNTAX_BENCHMARK_PROFILE
+  const configuredPath = scriptEnv().SYNTAX_BENCHMARK_PROFILE
   return configuredPath ? path.resolve(configuredPath) : DEFAULT_PROFILE_PATH
 }
 
@@ -139,7 +139,7 @@ async function loadProfile(profilePath: string) {
   return parsed
 }
 
-function roundSummary(metric: MetricSummary): MetricSummary {
+function roundSummary(metric: MetricSummary) {
   return {
     medianMs: Number(metric.medianMs.toFixed(DECIMAL_PLACES)),
     p95Ms: Number(metric.p95Ms.toFixed(DECIMAL_PLACES)),
@@ -169,8 +169,9 @@ async function main() {
       const visible = analysis.lineStarts
         .slice(0, SOURCE_VIEW_SAMPLE_LINES)
         .map((_, index) => sourceViewLineAt(large, analysis.lineStarts, index))
-      if (visible.length !== SOURCE_VIEW_SAMPLE_LINES)
+      if (visible.length !== SOURCE_VIEW_SAMPLE_LINES) {
         throw new Error('Source-view benchmark returned too few lines.')
+      }
     }),
     sourceFingerprint1MiB: await measure(WARM_SAMPLE_COUNT, () => {
       if (syntaxSourceFingerprint(large) !== largeFingerprint) {
@@ -208,7 +209,9 @@ async function main() {
       const metric = Object.entries(metrics).find(([metricName]) => metricName === name)?.[1]
       if (!metric) return [`${name} is configured but was not measured`]
       return metric[field] > budget
-        ? [`${name} ${label} ${metric[field].toFixed(DECIMAL_PLACES)} ms exceeded ${String(budget)} ms`]
+        ? [
+            `${name} ${label} ${metric[field].toFixed(DECIMAL_PLACES)} ms exceeded ${String(budget)} ms`,
+          ]
         : []
     })
   const failures = [

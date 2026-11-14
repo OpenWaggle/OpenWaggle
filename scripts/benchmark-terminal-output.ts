@@ -4,14 +4,17 @@ import os from 'node:os'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { TERMINAL } from '@shared/constants/resource-limits'
-import { terminalKeyOf } from '@shared/types/terminal'
 import type { TerminalEventPayload } from '@shared/types/terminal'
+import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import { makeNodePtyTerminalService } from '../src/main/adapters/node-pty-terminal-service'
 import type { TerminalEventSinkShape } from '../src/main/ports/terminal-event-sink'
 import {
+  assertGate,
+  delay,
   runCloseUnderFloodGate,
   runRestartUnderFloodGate,
+  waitUntil,
 } from './benchmark-terminal-lifecycle'
 
 /**
@@ -19,7 +22,7 @@ import {
  * against a live shell and measures attach latency, streamed throughput, and
  * IPC coalescing efficiency.
  *
- * Run: pnpm tsx scripts/benchmark-terminal-output.ts
+ * Run: bun scripts/benchmark-terminal-output.ts
  */
 
 const OUTPUT_LINES = 200_000
@@ -28,8 +31,6 @@ const TERMINAL_ID = 'term-bench'
 const OUTPUT_LINE = '0123456789abcdef'
 const OUTPUT_START_MARKER = '__OPENWAGGLE_BENCH_START__'
 const OUTPUT_DONE_MARKER = '__OPENWAGGLE_BENCH_DONE__'
-const OUTPUT_POLL_MS = 25
-const OUTPUT_TIMEOUT_MS = 60_000
 const FINAL_FLUSH_WINDOWS = 2
 let benchmarkCompleted = false
 
@@ -39,7 +40,7 @@ process.once('beforeExit', () => {
   process.exitCode = 1
 })
 
-function makeSink(): { readonly shape: TerminalEventSinkShape; readonly events: TerminalEventPayload[] } {
+function makeSink() {
   const events: TerminalEventPayload[] = []
   const shape: TerminalEventSinkShape = {
     emit: (payload) =>
@@ -85,24 +86,6 @@ function outputEventCount(events: readonly TerminalEventPayload[]) {
   return events.filter((payload) => payload.event.type === 'output').length
 }
 
-function assertGate(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(`Terminal benchmark gate failed: ${message}`)
-}
-
-function delay(milliseconds: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
-}
-
-async function waitUntil(description: string, predicate: () => boolean) {
-  const deadline = performance.now() + OUTPUT_TIMEOUT_MS
-  while (!predicate()) {
-    if (performance.now() >= deadline) {
-      throw new Error(`Timed out waiting for ${description}.`)
-    }
-    await delay(OUTPUT_POLL_MS)
-  }
-}
-
 function extractFloodLines(output: string) {
   const startMarkerOffset = output.indexOf(OUTPUT_START_MARKER)
   assertGate(startMarkerOffset >= 0, 'start marker is missing from PTY output')
@@ -137,7 +120,7 @@ function throughputCommand() {
   return `printf '${encodedStart}\\n'; yes '${OUTPUT_LINE}' | head -n ${OUTPUT_LINES}; printf '${encodedDone}\\n'\n`
 }
 
-async function main(): Promise<void> {
+async function main() {
   const logsDir = path.join(os.tmpdir(), `openwaggle-terminal-bench-${Date.now()}`)
   const { shape, events } = makeSink()
   const service = makeNodePtyTerminalService(shape, { logsDir, appVersion: '0.0.0-benchmark' })
@@ -167,7 +150,10 @@ async function main(): Promise<void> {
     const writeResult = await Effect.runPromise(
       service.write(OWNER, TERMINAL_ID, throughputCommand()),
     )
-    assertGate(writeResult.status !== 'rejected', `throughput command rejected (${writeResult.status})`)
+    assertGate(
+      writeResult.status !== 'rejected',
+      `throughput command rejected (${writeResult.status})`,
+    )
     await waitUntil('the terminal throughput completion marker', () =>
       outputForTerminal(events, TERMINAL_ID).includes(OUTPUT_DONE_MARKER),
     )
@@ -222,7 +208,6 @@ async function main(): Promise<void> {
     }
     await runCloseUnderFloodGate(lifecycleContext)
     await runRestartUnderFloodGate(lifecycleContext)
-
   } finally {
     try {
       await Effect.runPromise(service.closeAll())
@@ -235,6 +220,8 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  process.stderr.write(`benchmark failed: ${error instanceof Error ? error.message : String(error)}\n`)
+  process.stderr.write(
+    `benchmark failed: ${error instanceof Error ? error.message : String(error)}\n`,
+  )
   process.exit(1)
 })

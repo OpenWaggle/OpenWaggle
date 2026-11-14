@@ -12,7 +12,7 @@ import {
 
 describe('SQLite Session export continuation', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-export-continuation-'))
@@ -37,8 +37,12 @@ describe('SQLite Session export continuation', () => {
           branchScope: 'active-branch',
         }),
       )
-      if (first.outcome.operation !== 'export' || !('manifest' in first.outcome)) {
-        throw new Error('Expected export outcome.')
+      if (
+        first.outcome.operation !== 'export' ||
+        !('manifest' in first.outcome) ||
+        first.outcome.nextCreatedOrder === undefined
+      ) {
+        throw new Error('Expected an export outcome with a next page.')
       }
 
       await runtime.runPromise(

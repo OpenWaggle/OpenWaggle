@@ -2,15 +2,16 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   feed,
-  OWNER,
   open,
+  OWNER,
   service,
   settle,
   setupTerminalServiceActionsTest,
-  TERMINAL_KEY,
   teardownTerminalServiceActionsTest,
+  TERMINAL_KEY,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 async function persistAndCacheHistory() {
   await open(workDirA)
@@ -38,7 +39,7 @@ describe('retained terminal history cache cleanup', () => {
 
     await Effect.runPromise(service.closeAllForOwner(OWNER, false))
 
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     await expectReleasedButPersisted()
   })
 
@@ -47,7 +48,7 @@ describe('retained terminal history cache cleanup', () => {
 
     await Effect.runPromise(service.closeAllUnderPath(workDirA, false))
 
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     await expectReleasedButPersisted()
   })
 })

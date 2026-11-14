@@ -1,7 +1,7 @@
 import type { ProjectAction } from '@shared/types/project-actions'
 import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { act, renderHook } from '@testing-library/react'
-import { Suspense } from 'react'
+import { Suspense, use } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { useProjectActionShortcutCapture } from '../useProjectActionShortcutCapture'
@@ -35,7 +35,7 @@ describe('useProjectActionShortcutCapture', () => {
           builtInBindings: DEFAULT_SHORTCUT_BINDINGS,
           onRun,
         })
-        if (suspend) throw gate
+        if (suspend) use(gate)
       },
       {
         initialProps: { onRun: committed, suspend: false },
@@ -71,12 +71,16 @@ describe('useProjectActionShortcutCapture', () => {
       code: 'KeyR',
       ctrlKey: true,
     })
-    act(() => terminalInput.dispatchEvent(keyDown))
+    act(() => {
+      terminalInput.dispatchEvent(keyDown)
+    })
     expect(keyDown.defaultPrevented).toBe(true)
     expect(onRun).toHaveBeenCalledExactlyOnceWith(ACTION)
 
     const keyUp = keyboardEvent('keyup', { key: 'r', code: 'KeyR' })
-    act(() => terminalInput.dispatchEvent(keyUp))
+    act(() => {
+      terminalInput.dispatchEvent(keyUp)
+    })
     expect(keyUp.defaultPrevented).toBe(true)
     expect(onRun).toHaveBeenCalledOnce()
     terminalInput.remove()
@@ -111,14 +115,16 @@ describe('useProjectActionShortcutCapture', () => {
     expect(onRun).toHaveBeenCalledOnce()
 
     const recorder = document.createElement('button')
-    recorder.dataset.projectActionShortcutInput = ''
+    recorder.setAttribute('data-project-action-shortcut-input', '')
     document.body.append(recorder)
     const recording = keyboardEvent('keydown', {
       key: 'r',
       code: 'KeyR',
       ctrlKey: true,
     })
-    act(() => recorder.dispatchEvent(recording))
+    act(() => {
+      recorder.dispatchEvent(recording)
+    })
     expect(recording.defaultPrevented).toBe(false)
     expect(onRun).toHaveBeenCalledOnce()
     recorder.remove()
@@ -154,7 +160,9 @@ describe('useProjectActionShortcutCapture', () => {
     document.body.append(input)
 
     const typing = keyboardEvent('keydown', { key: 'r', code: 'KeyR', ctrlKey: true })
-    act(() => input.dispatchEvent(typing))
+    act(() => {
+      input.dispatchEvent(typing)
+    })
 
     expect(typing.defaultPrevented).toBe(true)
     expect(onRun).toHaveBeenCalledExactlyOnceWith(ACTION)
@@ -170,7 +178,9 @@ describe('useProjectActionShortcutCapture', () => {
       }),
     )
     const plainKey = keyboardEvent('keydown', { key: 'x', code: 'KeyX' })
-    act(() => window.dispatchEvent(plainKey))
+    act(() => {
+      window.dispatchEvent(plainKey)
+    })
     expect(plainKey.defaultPrevented).toBe(true)
     expect(modifierFreeRun).toHaveBeenCalledExactlyOnceWith(modifierFree)
   })
@@ -197,21 +207,21 @@ describe('useProjectActionShortcutCapture', () => {
       }),
     )
     const terminal = document.createElement('section')
-    terminal.dataset.terminalPane = ''
+    terminal.setAttribute('data-terminal-pane', '')
     const terminalInput = document.createElement('textarea')
     terminal.append(terminalInput)
     document.body.append(terminal)
 
-    act(() =>
-      window.dispatchEvent(keyboardEvent('keydown', { key: 'r', code: 'KeyR', ctrlKey: true })),
-    )
+    act(() => {
+      window.dispatchEvent(keyboardEvent('keydown', { key: 'r', code: 'KeyR', ctrlKey: true }))
+    })
     expect(onRun).toHaveBeenLastCalledWith(fallback)
 
-    act(() =>
+    act(() => {
       terminalInput.dispatchEvent(
         keyboardEvent('keydown', { key: 'r', code: 'KeyR', ctrlKey: true }),
-      ),
-    )
+      )
+    })
     expect(onRun).toHaveBeenLastCalledWith(terminalOnly)
     terminal.remove()
   })
@@ -228,7 +238,9 @@ describe('useProjectActionShortcutCapture', () => {
     useUIStore.setState({ commandSurface: 'commands' })
 
     const event = keyboardEvent('keydown', { key: 'r', code: 'KeyR', ctrlKey: true })
-    act(() => window.dispatchEvent(event))
+    act(() => {
+      window.dispatchEvent(event)
+    })
 
     expect(event.defaultPrevented).toBe(false)
     expect(onRun).not.toHaveBeenCalled()

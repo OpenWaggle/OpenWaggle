@@ -1,3 +1,6 @@
+import type { SyntaxLanguageResource } from '@shared/types/syntax-resources'
+import { BUNDLED_SYNTAX_LANGUAGES } from './bundled-language-metadata.generated'
+
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   '.bash': 'bash',
   '.c': 'c',
@@ -75,7 +78,7 @@ function bundledLanguageClaims() {
   return claims
 }
 
-function bundledExtensionClaims(): Map<string, SyntaxLanguageClaim> {
+function bundledExtensionClaims() {
   return new Map<string, SyntaxLanguageClaim>(
     [...BUNDLED_FILE_EXTENSIONS].map((extension) => [
       extension,
@@ -87,7 +90,7 @@ function bundledExtensionClaims(): Map<string, SyntaxLanguageClaim> {
   )
 }
 
-function bundledFileNameClaims(): Map<string, SyntaxLanguageClaim> {
+function bundledFileNameClaims() {
   return new Map<string, SyntaxLanguageClaim>(
     [...BUNDLED_FILE_NAMES].map((fileName) => [
       fileName,
@@ -119,9 +122,7 @@ function collisionDiagnosticFor(
   return null
 }
 
-export function syntaxLanguageResourceActivations(
-  resources: readonly SyntaxLanguageResource[],
-): readonly SyntaxLanguageResourceActivation[] {
+export function syntaxLanguageResourceActivations(resources: readonly SyntaxLanguageResource[]) {
   const claimedIdentities = bundledLanguageClaims()
   const claimedExtensions = bundledExtensionClaims()
   const claimedFileNames = bundledFileNameClaims()
@@ -230,6 +231,3 @@ export function languageFromPath(
   const dot = basename.lastIndexOf('.')
   return dot < 0 ? 'text' : (LANGUAGE_BY_EXTENSION[basename.slice(dot)] ?? 'text')
 }
-
-import type { SyntaxLanguageResource } from '@shared/types/syntax-resources'
-import { BUNDLED_SYNTAX_LANGUAGES } from './bundled-language-metadata.generated'

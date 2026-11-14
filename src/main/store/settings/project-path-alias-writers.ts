@@ -11,7 +11,7 @@ import { enqueueSettingsWrite } from './write-queue'
  * existing mapping is preserved — the saved reference's identity is stable until that reference is
  * explicitly removed, so a retargeted symlink cannot silently re-point the record.
  */
-export function recordProjectPathAliasDurably(alias: string, canonicalPath: string): Promise<void> {
+export function recordProjectPathAliasDurably(alias: string, canonicalPath: string) {
   assertSettingsReady()
   if (alias === canonicalPath) return Promise.resolve()
   return enqueueSettingsWrite(async () => {
@@ -22,13 +22,13 @@ export function recordProjectPathAliasDurably(alias: string, canonicalPath: stri
 }
 
 /** Resolves one aliased project path through the recorded alias map, if present. */
-export function lookupProjectPathAlias(alias: string): Promise<string | undefined> {
+export function lookupProjectPathAlias(alias: string) {
   assertSettingsReady()
   return refreshSettingsStore().then(() => getSettings().projectPathAliases[alias])
 }
 
 /** Deletes one aliased project path's recorded identity inside the write queue. */
-export function deleteProjectPathAliasDurably(alias: string): Promise<void> {
+export function deleteProjectPathAliasDurably(alias: string) {
   assertSettingsReady()
   return enqueueSettingsWrite(() => {
     if (!Object.hasOwn(getSettings().projectPathAliases, alias)) return Promise.resolve()

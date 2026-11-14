@@ -1,7 +1,6 @@
-import { safeDecodeUnknown } from '@shared/schema'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { actionManagementRequestSchema } from '@shared/schemas/action-management'
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
-import { isRecord } from '@shared/utils/validation'
 
 /** Channels that only read, whatever their arguments. */
 export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
@@ -59,10 +58,12 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'desktop-notifications:list',
   ])
 
+const replaySafeAgentDefinitionInvocationSchema = Schema.Struct({
+  command: Schema.Struct({ operation: Schema.Literal('list', 'import-plan', 'refresh-plan') }),
+})
+
 function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {
-  if (args.length !== 1 || !isRecord(args[0]) || !isRecord(args[0].command)) return false
-  const operation = args[0].command.operation
-  return operation === 'list' || operation === 'import-plan' || operation === 'refresh-plan'
+  return args.length === 1 && Schema.is(replaySafeAgentDefinitionInvocationSchema)(args[0])
 }
 
 /**

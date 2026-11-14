@@ -37,18 +37,19 @@ type BirthRecovery =
 function decideFromFolder(
   state: StoredWorkspacePreparation,
   identity: WorkspaceDirectoryIdentity | null,
-): BirthRecovery {
-  if (!isPendingPreparationBirth(state)) return { refusal: 'setup-started' }
+) {
+  if (!isPendingPreparationBirth(state)) return { refusal: 'setup-started' } satisfies BirthRecovery
   const since = state.awaitingWorktreeBirthSince
-  if (since === undefined) return { refusal: 'birth-time-unrecorded' }
-  if (!identity) return { refusal: 'missing-or-not-a-folder' }
-  if (!/^\d+$/.test(identity.birthtime) || identity.birthtime === '0')
-    return { refusal: 'creation-time-unknown' }
+  if (since === undefined) return { refusal: 'birth-time-unrecorded' } satisfies BirthRecovery
+  if (!identity) return { refusal: 'missing-or-not-a-folder' } satisfies BirthRecovery
+  if (!/^\d+$/.test(identity.birthtime) || identity.birthtime === '0') {
+    return { refusal: 'creation-time-unknown' } satisfies BirthRecovery
+  }
   const earliest =
     BigInt(Math.max(0, since - BIRTH_CLOCK_TOLERANCE_MS)) * NANOSECONDS_PER_MILLISECOND
-  return BigInt(identity.birthtime) >= earliest
-    ? { record: identity }
-    : { refusal: 'predates-birth' }
+  return (
+    BigInt(identity.birthtime) >= earliest ? { record: identity } : { refusal: 'predates-birth' }
+  ) satisfies BirthRecovery
 }
 
 /** Git is asked last, and only about a folder that already passed the cheaper checks. */
@@ -56,17 +57,25 @@ async function decideBirthRecovery(
   workspace: ActionRunWorkspace,
   state: StoredWorkspacePreparation,
   inspectLinkedWorktree: PreparationDependencies['inspectLinkedWorktree'],
-): Promise<BirthRecovery & { readonly observed: WorkspaceDirectoryIdentity | null }> {
+) {
   try {
     const observed = await readPreparationWorkspaceIdentity(workspace.workspacePath)
     const decision = decideFromFolder(state, observed)
-    if ('refusal' in decision) return { ...decision, observed }
+    if ('refusal' in decision) {
+      return { ...decision, observed } satisfies BirthRecovery & {
+        readonly observed: WorkspaceDirectoryIdentity | null
+      }
+    }
     const worktree = await inspectLinkedWorktree(workspace.projectPath, workspace.workspacePath)
-    if (worktree === 'linked') return { ...decision, observed }
+    if (worktree === 'linked') {
+      return { ...decision, observed } satisfies BirthRecovery & {
+        readonly observed: WorkspaceDirectoryIdentity | null
+      }
+    }
     return {
       refusal: worktree === 'locked' ? 'worktree-add-unfinished' : 'not-a-linked-worktree',
       observed,
-    }
+    } satisfies BirthRecovery & { readonly observed: WorkspaceDirectoryIdentity | null }
   } catch (error) {
     throw unreadableWorktreeError(workspace, error)
   }

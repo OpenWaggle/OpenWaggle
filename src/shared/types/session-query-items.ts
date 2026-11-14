@@ -1,15 +1,3 @@
-export interface SessionItemsQuery {
-  readonly operation: 'items'
-  readonly sessionId: string
-  readonly limit: number
-  readonly runId?: string
-  readonly branchScope?: 'active-branch' | 'tree'
-  readonly branchId?: string
-  readonly afterCreatedOrder?: number
-  readonly throughCreatedOrder?: number
-  readonly snapshotHeadNodeId?: string
-}
-
 export interface SessionItemsOutcome {
   readonly operation: 'items'
   readonly sessionId: string

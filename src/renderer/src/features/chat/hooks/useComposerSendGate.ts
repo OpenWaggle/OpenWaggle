@@ -1,11 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import {
-  type SessionContextRowState,
-  stashDraftWorktreePlan,
-  useSessionContextRow,
-} from '@/features/git'
+import { stashDraftWorktreePlan, useSessionContextRow } from '@/features/git'
 import { usePreferencesStore } from '@/features/settings/state'
 import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 
@@ -21,19 +17,7 @@ interface UseComposerSendGateInput {
  * Wires the composer context strip (WS1b) and gates send: a worktree-mode first
  * send is blocked (with a toast) until a Worktree base ref is resolvable.
  */
-export function useComposerSendGate(input: UseComposerSendGateInput): {
-  readonly strip: SessionContextRowState
-  readonly guardedSend: (payload: AgentSendPayload) => Promise<void> | false
-  /**
-   * Why sending is currently refused, or null when it is allowed.
-   *
-   * Exposed so queueing is gated by the same rule. Only the direct send path used to be checked,
-   * so queueing a message against a vanished worktree deferred it past the gate: main then
-   * rejected it with a bare thrown error and the message was silently re-enqueued, instead of the
-   * user seeing the recover-or-switch notice.
-   */
-  readonly sendBlockedReason: string | null
-} {
+export function useComposerSendGate(input: UseComposerSendGateInput) {
   const projectPath = usePreferencesStore((s) => s.settings.projectPath)
   const defaultEnvironmentMode = usePreferencesStore(
     (s) => s.settings.defaultSessionEnvironmentMode,

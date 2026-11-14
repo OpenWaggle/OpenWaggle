@@ -48,25 +48,26 @@ function keyAt(keys: readonly string[], index: number) {
   return key
 }
 
-function rangeFromIndexes(
-  keys: readonly string[],
-  start: number,
-  end: number,
-): TranscriptWindowRange {
-  return {
+function rangeFromIndexes(keys: readonly string[], start: number, end: number) {
+  const range: TranscriptWindowRange = {
     startKey: keyAt(keys, start),
     endKey: end >= keys.length ? null : keyAt(keys, end - 1),
     members: keys.slice(start, end),
   }
+  return range
 }
 
 /** The newest rows, following the live end. `null` for an empty transcript. */
 export function newestRange(
   keys: readonly string[],
   initialRows: number = TRANSCRIPT_WINDOW_LIMITS.initialRows,
-): TranscriptWindowRange | null {
+) {
   if (keys.length === 0) return null
-  return rangeFromIndexes(keys, Math.max(0, keys.length - initialRows), keys.length)
+  return rangeFromIndexes(
+    keys,
+    Math.max(0, keys.length - initialRows),
+    keys.length,
+  ) satisfies TranscriptWindowRange | null
 }
 
 /** A window that starts shortly above an anchored row, for restoring a reading position. */
@@ -77,17 +78,14 @@ export function rangeAround(
     readonly maxRows: number
     readonly rowsBeforeAnchor: number
   } = TRANSCRIPT_WINDOW_LIMITS,
-): TranscriptWindowRange | null {
+) {
   const anchor = keys.indexOf(anchorKey)
   if (anchor < 0) return null
   const start = Math.max(0, anchor - limits.rowsBeforeAnchor)
   return rangeFromIndexes(keys, start, Math.min(keys.length, start + limits.maxRows))
 }
 
-export function resolveRange(
-  range: TranscriptWindowRange,
-  keys: readonly string[],
-): ResolvedTranscriptWindow | null {
+export function resolveRange(range: TranscriptWindowRange, keys: readonly string[]) {
   const start = keys.indexOf(range.startKey)
   if (start < 0) return null
   const endIndex = range.endKey === null ? keys.length - 1 : keys.indexOf(range.endKey)
@@ -138,7 +136,7 @@ export function reconcileRange(
   range: TranscriptWindowRange | null,
   keys: readonly string[],
   initialRows: number = TRANSCRIPT_WINDOW_LIMITS.initialRows,
-): TranscriptWindowRange | null {
+) {
   if (keys.length === 0) return null
   if (range === null) return newestRange(keys, initialRows)
   const resolved = resolveRange(range, keys)
@@ -174,12 +172,15 @@ export function extendEarlier(
   range: TranscriptWindowRange,
   keys: readonly string[],
   limits: Limits = TRANSCRIPT_WINDOW_LIMITS,
-): WindowExtension {
+) {
   const resolved = resolveRange(range, keys)
-  if (!resolved || resolved.start === 0) return { range, added: 0 }
+  if (!resolved || resolved.start === 0) return { range, added: 0 } satisfies WindowExtension
   const start = Math.max(0, resolved.start - limits.batchRows)
   const end = Math.min(resolved.end, start + limits.maxRows)
-  return { range: rangeFromIndexes(keys, start, end), added: resolved.start - start }
+  return {
+    range: rangeFromIndexes(keys, start, end),
+    added: resolved.start - start,
+  } satisfies WindowExtension
 }
 
 /** Adds newer rows at the bottom, releasing rows at the top beyond the bound. */
@@ -187,12 +188,15 @@ export function extendLater(
   range: TranscriptWindowRange,
   keys: readonly string[],
   limits: Limits = TRANSCRIPT_WINDOW_LIMITS,
-): WindowExtension {
+) {
   const resolved = resolveRange(range, keys)
-  if (!resolved?.hasLater) return { range, added: 0 }
+  if (!resolved?.hasLater) return { range, added: 0 } satisfies WindowExtension
   const end = Math.min(keys.length, resolved.end + limits.batchRows)
   const start = Math.max(resolved.start, end - limits.maxRows)
-  return { range: rangeFromIndexes(keys, start, end), added: end - resolved.end }
+  return {
+    range: rangeFromIndexes(keys, start, end),
+    added: end - resolved.end,
+  } satisfies WindowExtension
 }
 
 /**
@@ -206,7 +210,7 @@ export function trimLiveWindow(
   range: TranscriptWindowRange,
   keys: readonly string[],
   maxRows: number = TRANSCRIPT_WINDOW_LIMITS.maxRows,
-): TranscriptWindowRange {
+) {
   const resolved = resolveRange(range, keys)
   if (!resolved || range.endKey !== null || resolved.end - resolved.start <= maxRows) return range
   return rangeFromIndexes(keys, resolved.end - maxRows, resolved.end)
@@ -223,7 +227,7 @@ export function capAnchoredLiveWindow(
   range: TranscriptWindowRange,
   keys: readonly string[],
   maxRows: number = TRANSCRIPT_WINDOW_LIMITS.maxRows,
-): TranscriptWindowRange {
+) {
   const resolved = resolveRange(range, keys)
   if (!resolved || range.endKey !== null || resolved.end - resolved.start <= maxRows) return range
   return rangeFromIndexes(keys, resolved.start, resolved.start + maxRows)

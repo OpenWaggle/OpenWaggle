@@ -144,8 +144,9 @@ export function sidebarRowStateIcon(state: SidebarRowState) {
 export function resolveSidebarRowState(input: {
   readonly status: SessionStatus
   readonly hasInterruptedRun: boolean
-}): SidebarRowState {
-  return input.hasInterruptedRun ? 'interrupted' : input.status
+}) {
+  const state: SidebarRowState = input.hasInterruptedRun ? 'interrupted' : input.status
+  return state
 }
 
 /** True when any of a session's conversation branches holds an interrupted run. */
@@ -186,10 +187,11 @@ export function mergeExactTerminalCounts(
 export function buildSidebarStateCounts(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
-): readonly SidebarStateCount[] {
-  return buildSidebarStateCountsFromStates(
+) {
+  const count: readonly SidebarStateCount[] = buildSidebarStateCountsFromStates(
     sessions.flatMap((session) => (session.archived === true ? [] : [stateOf(session)])),
   )
+  return count
 }
 
 export function buildSidebarStateCountsFromStates(states: Iterable<SidebarRowState>) {
@@ -213,10 +215,11 @@ export function buildSidebarStateCountsFromStates(states: Iterable<SidebarRowSta
 export function buildProjectRollUp(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
-): readonly SidebarStateCount[] {
-  return buildSidebarStateCounts(sessions, stateOf).filter(
+) {
+  const count: readonly SidebarStateCount[] = buildSidebarStateCounts(sessions, stateOf).filter(
     ({ state }) => ROW_STATE_META[state].tier !== 'quiet',
   )
+  return count
 }
 
 /**
@@ -233,9 +236,9 @@ export function resolveVisibleSessionStatus(input: {
   readonly status: SessionStatus
   readonly completedAt: number | undefined
   readonly lastVisitedAt: number | undefined
-  /** A parent's Workers, from its Host summary (ADR 0063); absent for a Session without any. */
-  readonly lineage?: SessionLineageSummary | undefined
-}): SessionStatus {
+  /** A parent's Workers, from its Host summary (ADR 0065); absent for a Session without any. */
+  readonly lineage?: SessionLineageSummary
+}) {
   const seen =
     TERMINAL_STATUSES.has(input.status) &&
     input.completedAt !== undefined &&
@@ -246,7 +249,7 @@ export function resolveVisibleSessionStatus(input: {
 }
 
 /**
- * A parent's row follows its Workers (ADR 0063). Its own attention or in-flight status wins,
+ * A parent's row follows its Workers (ADR 0065). Its own attention or in-flight status wins,
  * because it describes the Session the person would open. Otherwise it reads Working while any
  * Worker below it runs, and Done below once the last Run there ended after the person last
  * visited it. A failed last Worker Run still reads Done: that Worker reaches the person through
@@ -256,12 +259,16 @@ function resolveParentStatus(
   own: SessionStatus,
   lineage: SessionLineageSummary | undefined,
   lastVisitedAt: number | undefined,
-): SessionStatus {
+) {
   if (lineage === undefined || ROW_STATE_META[own].tier !== 'quiet') return own
-  if (runningWorkerCount(lineage) > 0) return 'working'
+  if (runningWorkerCount(lineage) > 0) {
+    const status: SessionStatus = 'working'
+    return status
+  }
   const endedAt = lineage.workersLastRunEndedAt
   if (endedAt !== undefined && endedAt > (lastVisitedAt ?? Number.NEGATIVE_INFINITY)) {
-    return 'completed'
+    const status: SessionStatus = 'completed'
+    return status
   }
   return own
 }

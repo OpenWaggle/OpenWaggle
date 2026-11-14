@@ -7,7 +7,7 @@ import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { useHivePanelViewStore } from '../../state/hive-panel-view-store'
 
 const listHiveTreeSessionCatalogPage = vi.hoisted(() => vi.fn())
-type NavigateOptions = {
+interface NavigateOptions {
   to: string
   params: Record<string, string>
   search: (previous: Record<string, unknown>) => Record<string, unknown>
@@ -29,7 +29,7 @@ function child(
   parent: string,
   createdAt: number,
   overrides: Partial<SessionSummary> & { readonly state?: string } = {},
-): SessionSummary {
+) {
   const { state, ...rest } = overrides
   return summary(id, {
     createdAt,

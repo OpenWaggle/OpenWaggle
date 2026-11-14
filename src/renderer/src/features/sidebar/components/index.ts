@@ -1,5 +1,2 @@
-export {
-  SessionItemContextMenu,
-  type SessionRowMenuCommands,
-} from './SessionItemContextMenu'
+export { SessionItemContextMenu } from './SessionItemContextMenu'
 export { Sidebar } from './Sidebar'

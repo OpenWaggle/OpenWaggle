@@ -1,12 +1,26 @@
+import type { SchemaType } from '@shared/schema'
+import type { localScheduledTasksCommandResultSchema } from '@shared/schemas/local-session-command-response'
+import type { localScheduledTasksCommandPayloadSchema } from '@shared/schemas/local-session-protocol'
 import type {
-  HeartbeatRunOutcome,
-  HeartbeatSettings,
-  HeartbeatSettingsInput,
-  ScheduledTaskRunOutcome,
-  ScheduledTaskRunWakeCheck,
-} from './scheduled-task-heartbeat'
-import type { ScheduledTasksRejectedOutcome } from './scheduled-task-rejection'
-import type { ThinkingLevel } from './settings'
+  scheduledTaskInputSchema,
+  scheduledTaskPatchSchema,
+  scheduledTasksCommandSchema,
+  scheduledTasksRequestSchema,
+} from '@shared/schemas/scheduled-task'
+import type {
+  scheduledTaskAttentionSchema,
+  scheduledTaskCreatorSchema,
+  scheduledTaskRunSchema,
+  scheduledTaskRunTriggerSchema,
+  scheduledTaskSchema,
+  scheduledTasksOutcomeSchema,
+  scheduledTasksResponseSchema,
+} from '@shared/schemas/scheduled-task-records'
+import type {
+  launchScheduleWorkspaceSchema,
+  scheduledTaskTargetSchema,
+  taskScheduleSchema,
+} from '@shared/schemas/scheduled-task-schedule'
 
 export * from './scheduled-task-heartbeat'
 
@@ -36,40 +50,9 @@ export const SCHEDULED_TASK_RUN_PAGE_LIMIT = 100
 export const SCHEDULED_TASK_LIST_LIMIT = 500
 export const SCHEDULED_TASK_RECENT_SESSION_LIMIT = 50
 
-/** When a Scheduled task fires (CONTEXT.md: Task schedule). */
-export type TaskSchedule =
-  | { readonly kind: 'interval'; readonly everyMinutes: number }
-  | {
-      readonly kind: 'daily'
-      /** Local wall-clock time `HH:MM` in the task's time zone. */
-      readonly at: string
-      /** Omitted means every day. */
-      readonly weekdays?: readonly IsoWeekday[]
-    }
-  | {
-      readonly kind: 'rrule'
-      /** An RFC 5545 recurrence rule without DTSTART, UNTIL or COUNT, read in the task's zone. */
-      readonly rule: string
-    }
-
-export type LaunchScheduleWorkspace = 'new-worktree' | 'local'
-
-/** A model and thinking level for this task's Runs only; omitted uses the Session's or project's. */
-interface ScheduledTaskModelChoice {
-  readonly modelId?: string
-  readonly thinkingLevel?: ThinkingLevel
-}
-
-export type ScheduledTaskTarget =
-  | ({ readonly kind: 'heartbeat'; readonly sessionId: string } & ScheduledTaskModelChoice)
-  | ({
-      readonly kind: 'launch'
-      readonly projectPath: string
-      readonly workspace: LaunchScheduleWorkspace
-      readonly agentDefinitionName?: string
-      /** Archive a launched Session once it finished, nothing needs attention, and no one touched it. */
-      readonly archiveFinishedSessions: boolean
-    } & ScheduledTaskModelChoice)
+export type TaskSchedule = SchemaType<typeof taskScheduleSchema>
+export type LaunchScheduleWorkspace = SchemaType<typeof launchScheduleWorkspaceSchema>
+export type ScheduledTaskTarget = SchemaType<typeof scheduledTaskTargetSchema>
 
 /** Whom a Scheduled task notifies: every run, or only failures and attention. */
 export const SCHEDULED_TASK_NOTIFICATION_POLICIES = ['every-run', 'failures-only'] as const
@@ -86,18 +69,8 @@ export const SCHEDULED_TASK_ATTENTION_REASONS = [
 ] as const
 export type ScheduledTaskAttentionReason = (typeof SCHEDULED_TASK_ATTENTION_REASONS)[number]
 
-export interface ScheduledTaskAttention {
-  readonly reason: ScheduledTaskAttentionReason
-  readonly message: string
-  readonly since: number
-}
-
-/** Who created a Scheduled task, for display; its authority is revalidated at every run. */
-export interface ScheduledTaskCreator {
-  readonly kind: 'local-user' | 'profile' | 'session-agent'
-  readonly label: string
-  readonly sessionId?: string
-}
+export type ScheduledTaskAttention = SchemaType<typeof scheduledTaskAttentionSchema>
+export type ScheduledTaskCreator = SchemaType<typeof scheduledTaskCreatorSchema>
 
 export const SCHEDULED_TASK_RUN_STATUSES = ['started', 'skipped', 'failed'] as const
 export type ScheduledTaskRunStatus = (typeof SCHEDULED_TASK_RUN_STATUSES)[number]
@@ -122,120 +95,12 @@ export const SCHEDULED_TASK_RUN_REASONS = [
 ] as const
 export type ScheduledTaskRunReason = (typeof SCHEDULED_TASK_RUN_REASONS)[number]
 
-export type ScheduledTaskRunTrigger = 'schedule' | 'catch-up' | 'run-now'
-
-/** One firing of a Scheduled task (CONTEXT.md: Scheduled task run). */
-export interface ScheduledTaskRun {
-  readonly id: string
-  readonly taskId: string
-  readonly trigger: ScheduledTaskRunTrigger
-  /** The fire time the Task schedule named; for a catch-up, the latest one it covers. */
-  readonly nominalAt: number
-  readonly firedAt: number
-  /** Firings missed while the Host was down or the machine slept, covered by this one run. */
-  readonly missedCount: number
-  readonly status: ScheduledTaskRunStatus
-  readonly reason?: ScheduledTaskRunReason
-  readonly message?: string
-  /** The Session the run delivered into (Heartbeat) or launched (Launch schedule). */
-  readonly sessionId?: string
-  readonly runId?: string
-  /** What a Heartbeat's Wake check decided for this firing. */
-  readonly wakeCheck?: ScheduledTaskRunWakeCheck
-  /** A Heartbeat Run's Run outcome, once reported or inferred. */
-  readonly outcome?: ScheduledTaskRunOutcome
-}
-
-export interface ScheduledTask {
-  readonly id: string
-  readonly name: string
-  readonly prompt: string
-  readonly kind: ScheduledTaskKind
-  readonly enabled: boolean
-  readonly schedule: TaskSchedule
-  /** IANA time zone the schedule is read in, stored when the task was created. */
-  readonly timeZone: string
-  readonly endsAt: number | null
-  readonly maxRuns: number | null
-  readonly target: ScheduledTaskTarget
-  readonly notificationPolicy: ScheduledTaskNotificationPolicy
-  /** The project the task belongs to: the Heartbeat target's or the Launch schedule's. */
-  readonly projectPath: string | null
-  readonly creator: ScheduledTaskCreator
-  readonly attention: ScheduledTaskAttention | null
-  /** Next fire time, jitter included; null while disabled or once the schedule has ended. */
-  readonly nextRunAt: number | null
-  /** The nominal time of the next firing, which the history shows beside the actual time. */
-  readonly nextNominalAt: number | null
-  /** A Heartbeat waiting for its Session to become idle since this time. */
-  readonly waitingSince: number | null
-  readonly runCount: number
-  readonly lastRun: ScheduledTaskRun | null
-  readonly heartbeat: HeartbeatSettings | null
-  /** Sessions this task's recent runs started or delivered into, newest first. */
-  readonly recentSessionIds: readonly string[]
-  readonly createdAt: number
-  readonly updatedAt: number
-}
-
-/** What a caller sets when creating a Scheduled task. */
-export interface ScheduledTaskInput {
-  readonly name: string
-  readonly prompt: string
-  readonly enabled: boolean
-  readonly schedule: TaskSchedule
-  /** Omitted: the machine's time zone. */
-  readonly timeZone?: string
-  readonly endsAt?: number | null
-  readonly maxRuns?: number | null
-  readonly target: ScheduledTaskTarget
-  /** Omitted: failures only for a Heartbeat, every run for a Launch schedule. */
-  readonly notificationPolicy?: ScheduledTaskNotificationPolicy
-  /** A Heartbeat needs `stopWhen`, `indefinite`, `endsAt` or `maxRuns` (#388). */
-  readonly heartbeat?: HeartbeatSettingsInput
-}
-
-/** A partial update; the kind and Heartbeat target Session cannot change. */
-export interface ScheduledTaskPatch {
-  readonly name?: string
-  readonly prompt?: string
-  readonly enabled?: boolean
-  readonly schedule?: TaskSchedule
-  readonly timeZone?: string
-  readonly endsAt?: number | null
-  readonly maxRuns?: number | null
-  readonly target?: ScheduledTaskTarget
-  readonly notificationPolicy?: ScheduledTaskNotificationPolicy
-  readonly heartbeat?: HeartbeatSettingsInput
-}
-
-export type ScheduledTasksCommand =
-  | {
-      readonly operation: 'list'
-      readonly projectPath?: string
-      readonly sessionId?: string
-    }
-  | { readonly operation: 'read'; readonly taskId: string }
-  | {
-      readonly operation: 'runs'
-      readonly taskId: string
-      readonly limit?: number
-      /** Runs fired before this time. */
-      readonly before?: number
-    }
-  | { readonly operation: 'create'; readonly input: ScheduledTaskInput }
-  | { readonly operation: 'update'; readonly taskId: string; readonly patch: ScheduledTaskPatch }
-  | { readonly operation: 'delete'; readonly taskId: string }
-  | { readonly operation: 'run-now'; readonly taskId: string }
-  /** The user approves this exact Wake check command, which releases a held Heartbeat. */
-  | { readonly operation: 'approve-wake-check'; readonly taskId: string; readonly command: string }
-  /** A Heartbeat Run reports its Run outcome; `runId` is that Session Run's id. */
-  | {
-      readonly operation: 'report-outcome'
-      readonly runId: string
-      readonly outcome: HeartbeatRunOutcome
-      readonly note?: string
-    }
+export type ScheduledTaskRunTrigger = SchemaType<typeof scheduledTaskRunTriggerSchema>
+export type ScheduledTaskRun = SchemaType<typeof scheduledTaskRunSchema>
+export type ScheduledTask = SchemaType<typeof scheduledTaskSchema>
+export type ScheduledTaskInput = SchemaType<typeof scheduledTaskInputSchema>
+export type ScheduledTaskPatch = SchemaType<typeof scheduledTaskPatchSchema>
+export type ScheduledTasksCommand = SchemaType<typeof scheduledTasksCommandSchema>
 
 export const SCHEDULED_TASKS_OPERATIONS = [
   'list',
@@ -250,54 +115,22 @@ export const SCHEDULED_TASKS_OPERATIONS = [
 ] as const
 export type ScheduledTasksOperation = (typeof SCHEDULED_TASKS_OPERATIONS)[number]
 
-export interface ScheduledTasksRequest {
-  readonly contractVersion: typeof SCHEDULED_TASKS_CONTRACT_VERSION
-  readonly requestId: string
-  readonly idempotencyKey?: string
-  readonly command: ScheduledTasksCommand
-}
-
-export type ScheduledTasksOutcome =
-  | { readonly effect: 'listed'; readonly tasks: readonly ScheduledTask[] }
-  | {
-      readonly effect: 'read'
-      readonly task: ScheduledTask
-      readonly runs: readonly ScheduledTaskRun[]
-    }
-  | { readonly effect: 'runs-listed'; readonly runs: readonly ScheduledTaskRun[] }
-  | { readonly effect: 'created'; readonly task: ScheduledTask }
-  | { readonly effect: 'updated'; readonly task: ScheduledTask }
-  | { readonly effect: 'deleted'; readonly taskId: string }
-  | { readonly effect: 'run-requested'; readonly task: ScheduledTask }
-  | {
-      readonly effect: 'outcome-recorded'
-      readonly task: ScheduledTask
-      readonly run: ScheduledTaskRun
-    }
-  | ScheduledTasksRejectedOutcome
+export type ScheduledTasksRequest = SchemaType<typeof scheduledTasksRequestSchema>
+export type ScheduledTasksOutcome = SchemaType<typeof scheduledTasksOutcomeSchema>
 
 export {
   SCHEDULED_TASK_REJECTION_CODES,
   type ScheduledTaskRejectionCode,
-  type ScheduledTasksRejectedOutcome,
 } from './scheduled-task-rejection'
 
-export interface ScheduledTasksResponse {
-  readonly contractVersion: typeof SCHEDULED_TASKS_CONTRACT_VERSION
-  readonly requestId: string
-  readonly operation: ScheduledTasksOperation
-  readonly outcome: ScheduledTasksOutcome
-}
+export type ScheduledTasksResponse = SchemaType<typeof scheduledTasksResponseSchema>
 
-export type LocalScheduledTasksCommandPayload = {
-  readonly contract: 'scheduled-tasks-v1'
-  readonly request: ScheduledTasksRequest
-}
-
-export type LocalScheduledTasksCommandResult = {
-  readonly contract: 'scheduled-tasks-v1'
-  readonly response: ScheduledTasksResponse
-}
+export type LocalScheduledTasksCommandPayload = SchemaType<
+  typeof localScheduledTasksCommandPayloadSchema
+>
+export type LocalScheduledTasksCommandResult = SchemaType<
+  typeof localScheduledTasksCommandResultSchema
+>
 
 /** The enabled tasks `openwaggle host status` reports, so a windowless Host is never invisible. */
 export interface ScheduledTaskStatusSummary {

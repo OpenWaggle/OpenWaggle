@@ -6,7 +6,7 @@ import type {
   ExtensionSessionSummaryView,
 } from '@shared/types/extension-contribution-registry'
 import { AlertCircle, LoaderCircle, Radio } from 'lucide-react'
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { SessionSummaryRow, SessionSummarySection } from './SessionSummaryPrimitives'
 import { resolveSessionSummaryAction } from './session-summary-extension-actions'
 
@@ -42,7 +42,7 @@ function storeExpansion(storageKey: string, expanded: boolean) {
   }
 }
 
-function rowValue(row: ExtensionSessionSummaryRowView): ReactNode {
+function rowValue(row: ExtensionSessionSummaryRowView) {
   if (!row.value && !row.badge && row.count === undefined) return undefined
   return (
     <>
@@ -59,7 +59,7 @@ function rowValue(row: ExtensionSessionSummaryRowView): ReactNode {
   )
 }
 
-function stateView(state: ExtensionSessionSummaryView['state']): ReactNode {
+function stateView(state: ExtensionSessionSummaryView['state']) {
   if (state === undefined) return null
   return match(state)
     .with({ status: 'ready' }, () => null)
@@ -97,6 +97,10 @@ function stateAnnouncement(state: ExtensionSessionSummaryView['state']) {
   if (state?.status === 'loading') return state.message ?? 'Loading extension data'
   if (state?.status === 'live') return state.message ?? 'Live'
   return ''
+}
+
+function disabledReasonProps(action: ReturnType<typeof resolveSessionSummaryAction> | null) {
+  return action?.kind === 'disabled-command' ? { disabledReason: action.disabledReason } : {}
 }
 
 export function ExtensionSessionSummarySection({
@@ -171,9 +175,8 @@ export function ExtensionSessionSummarySection({
             key={row.id}
             label={row.label}
             value={rowValue(row)}
-            ariaLabel={actionable ? row.label : undefined}
-            disabledReason={action?.kind === 'disabled-command' ? action.disabledReason : undefined}
-            onClick={actionable ? () => onActivate(row) : undefined}
+            {...(actionable ? { ariaLabel: row.label, onClick: () => onActivate(row) } : {})}
+            {...disabledReasonProps(action)}
           />
         )
       })}
@@ -209,7 +212,7 @@ export function ExtensionSessionSummarySection({
       <SessionSummarySection
         id={sectionId}
         title={contribution.title}
-        count={summary.rows.length > 0 ? summary.rows.length : undefined}
+        {...(summary.rows.length > 0 ? { count: summary.rows.length } : {})}
         expanded={expanded}
         sectionRef={sectionRef}
         triggerRef={triggerRef}

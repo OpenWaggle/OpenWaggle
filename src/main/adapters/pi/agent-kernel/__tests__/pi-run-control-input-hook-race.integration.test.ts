@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createPiRunControl } from '../pi-run-control'
 import { payload } from './run-orchestration.test-utils'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()

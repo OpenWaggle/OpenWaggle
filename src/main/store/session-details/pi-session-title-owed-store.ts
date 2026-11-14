@@ -8,7 +8,7 @@ import { runStoreEffect } from '../store-runtime'
 export async function listTitleOwedDiscoveredPiSessions(input: {
   readonly activeAfter: number
   readonly limit: number
-}): Promise<readonly TitleOwedDiscoveredSession[]> {
+}) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -28,11 +28,14 @@ export async function listTitleOwedDiscoveredPiSessions(input: {
         ORDER BY sessions.updated_at DESC
         LIMIT ${input.limit}
       `
-      return rows.map((row) => ({
-        sessionId: SessionId(row.session_id),
-        piSessionFile: row.pi_session_file,
-        titleSource: row.title_source === 'provisional' ? 'provisional' : 'default',
-      }))
+      return rows.map(
+        (row) =>
+          ({
+            sessionId: SessionId(row.session_id),
+            piSessionFile: row.pi_session_file,
+            titleSource: row.title_source === 'provisional' ? 'provisional' : 'default',
+          }) satisfies TitleOwedDiscoveredSession,
+      )
     }),
   )
 }

@@ -10,8 +10,9 @@ import {
   targetsDefaultRef,
 } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
-import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import type { MessageBoxRequest } from '../../ports/desktop-shell/dialogs'
+import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
 import { resolvePrimaryRemoteResult } from '../../services/git/primary-remote'
 import { resolveLocalDefaultRef } from './default-ref'
 import type { GitPinnedPushTarget } from './push-service'
@@ -38,16 +39,13 @@ function readsPushDestination(action: GitRunStackedActionOptions['action']) {
   )
 }
 
-export function resolvePlannedFeatureRef(options: GitRunStackedActionOptions): string | null {
+export function resolvePlannedFeatureRef(options: GitRunStackedActionOptions) {
   const requested = options.featureBranchName?.trim()
   if (!options.createFeatureBranch || !requested) return null
   return options.exactFeatureBranchName ? requested : sanitizeFeatureBranchName(requested)
 }
 
-function askDefaultBranchConfirmation(
-  event: IpcMainInvokeEvent,
-  copy: DefaultBranchActionDialogCopy,
-) {
+function askDefaultBranchConfirmation(event: IpcInvocation, copy: DefaultBranchActionDialogCopy) {
   return Effect.gen(function* () {
     const ownerWindow = browserWindowFromWebContents(event.sender)
     const dialogOptions = {
@@ -57,18 +55,13 @@ function askDefaultBranchConfirmation(
       cancelId: 0,
       message: copy.title,
       detail: copy.description,
-    } satisfies MessageBoxOptions
+    } satisfies MessageBoxRequest
     const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
     return confirmation.response === 1
   })
 }
 
-async function gitTargetIdentity(
-  projectPath: string,
-  status: LocalVcsStatus,
-  readsPushDestination: boolean,
-  branchName = status.refName,
-): Promise<
+type GitTargetIdentityResult =
   | {
       readonly ok: true
       readonly identity: string
@@ -77,7 +70,19 @@ async function gitTargetIdentity(
       readonly pinnedPushTarget: GitPinnedPushTarget | null
     }
   | { readonly ok: false; readonly message: string; readonly recoverable?: boolean }
-> {
+
+function identityFailure(message: string, recoverable?: boolean) {
+  const result: GitTargetIdentityResult =
+    recoverable === undefined ? { ok: false, message } : { ok: false, message, recoverable }
+  return result
+}
+
+async function gitTargetIdentity(
+  projectPath: string,
+  status: LocalVcsStatus,
+  readsPushDestination: boolean,
+  branchName = status.refName,
+) {
   if (!readsPushDestination) {
     return {
       ok: true,
@@ -85,29 +90,24 @@ async function gitTargetIdentity(
       pushTargetRef: branchName,
       pushTargetIsDefaultRef: false,
       pinnedPushTarget: null,
-    }
+    } satisfies GitTargetIdentityResult
   }
   if (branchName === null) {
-    return {
-      ok: false,
-      message: 'Create or check out a branch before publishing a detached HEAD.',
-      recoverable: false,
-    }
+    return identityFailure('Create or check out a branch before publishing a detached HEAD.', false)
   }
   const primaryRemoteResult = await resolvePrimaryRemoteResult(projectPath)
   if (!primaryRemoteResult.ok) {
-    return { ok: false, message: primaryRemoteResult.message }
+    return identityFailure(primaryRemoteResult.message)
   }
   const primaryRemote = primaryRemoteResult.remote
   const primaryRemoteName = primaryRemote?.name ?? 'origin'
   const pushRefResult = await resolveEffectivePushRef(projectPath, branchName, primaryRemoteName)
-  if (!pushRefResult.ok) return pushRefResult
+  if (!pushRefResult.ok) {
+    const result: GitTargetIdentityResult = pushRefResult
+    return result
+  }
   if (primaryRemote === null && pushRefResult.usedFallbackRemote) {
-    return {
-      ok: false,
-      message: 'Add a Git remote before publishing this branch.',
-      recoverable: false,
-    }
+    return identityFailure('Add a Git remote before publishing this branch.', false)
   }
   const pushRefName = pushRefResult.upstream
     ? `${pushRefResult.upstream.remote}/${pushRefResult.upstream.branch}`
@@ -122,15 +122,17 @@ async function gitTargetIdentity(
   const pushDestination = remote
     ? await resolveSafeLocalPushDestination(projectPath, remote, primaryRemote, primaryDefaultRef)
     : ({ ok: true, defaultRef: null, fetchUrl: '', pushUrls: [] } as const)
-  if (!pushDestination.ok) return pushDestination
-  return buildPushTargetIdentity(branchName, pushRefResult, pushRefName, remote, pushDestination)
+  const result: GitTargetIdentityResult = pushDestination.ok
+    ? buildPushTargetIdentity(branchName, pushRefResult, pushRefName, remote, pushDestination)
+    : pushDestination
+  return result
 }
 
 async function resolveEffectivePushRef(
   projectPath: string,
   branchName: string | null,
   primaryRemoteName: string,
-): Promise<GitPushRefReadResult> {
+) {
   const configured = await readPushRef(projectPath, branchName)
   return configured.ok && !configured.upstream
     ? readPushRef(projectPath, branchName, primaryRemoteName)
@@ -190,7 +192,7 @@ function buildPushTargetIdentity(
 
 /** Main-process default-branch gate from ADR 0012. */
 export function confirmDefaultBranchAction(
-  event: IpcMainInvokeEvent,
+  event: IpcInvocation,
   projectPath: string,
   options: GitRunStackedActionOptions,
 ) {

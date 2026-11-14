@@ -39,7 +39,6 @@ export {
   buildMcpSessionPayloadV2,
   type SessionToolInputV2,
   sessionInputSchemaForGrantsV2,
-  sessionInputSchemaV2,
 } from './openwaggle-mcp-session-input-v2'
 
 function requireGrant(
@@ -114,7 +113,7 @@ function payloadProjectPath(payload: LocalSessionCommandPayload) {
 export function mcpTransientAuthority(
   options: OpenWaggleMcpServeOptions,
   payload?: LocalSessionCommandPayload,
-): LocalSessionProfileAuthority {
+) {
   const projectPath = payload ? payloadProjectPath(payload) : undefined
   const identity = options.identity
   const name = identity.kind === 'owner' ? identity.label : identity.profile
@@ -130,7 +129,7 @@ export function mcpTransientAuthority(
       ...(options.sessionIds.size > 0 ? { sessionIds: [...options.sessionIds] } : {}),
     },
     authorizationCeiling: identity.kind === 'owner' ? identity.authorizationCeiling : 'yolo',
-  }
+  } satisfies LocalSessionProfileAuthority
 }
 
 /** How the server authenticates to the Session Host for one call. */
@@ -173,9 +172,9 @@ export type McpSessionHostExecutor = (
 export function createMcpSessionHostExecutor(
   options: OpenWaggleMcpServeOptions,
   client: { readonly userDataRoot: string; readonly version: string },
-): McpSessionHostExecutor {
+) {
   let paths: ReturnType<typeof prepareLocalSessionHostPaths> | undefined
-  return async (payload) => {
+  return (async (payload) => {
     paths ??= prepareLocalSessionHostPaths(
       resolveLocalSessionHostPaths({ userDataRoot: client.userDataRoot }),
     )
@@ -192,7 +191,7 @@ export function createMcpSessionHostExecutor(
       paths: await refreshLocalSessionHostEndpoint(preparedPaths),
       payload,
     })
-  }
+  }) satisfies McpSessionHostExecutor
 }
 
 export function registerOpenWaggleSessionToolV2(

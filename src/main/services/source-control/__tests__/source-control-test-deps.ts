@@ -5,9 +5,7 @@ import {
 import { resolveRemoteUrlRepository } from '../working-tree-source-control'
 
 /** Resolution with no user choices, CLI sign-ins, or git hints: hostname rules only. */
-export function offlineResolutionDeps(
-  overrides: Partial<SourceControlRemoteResolutionDeps> = {},
-): SourceControlRemoteResolutionDeps {
+export function offlineResolutionDeps(overrides: Partial<SourceControlRemoteResolutionDeps> = {}) {
   return {
     readPrimaryRemote: async () => ({ name: 'origin', url: 'git@github.com:acme/app.git' }),
     readPreferences: async () => ({ userChoices: {}, detectedHosts: {}, projectDeclarations: {} }),
@@ -18,7 +16,7 @@ export function offlineResolutionDeps(
     probeRemoteRefs: async () => null,
     rememberDetectedHost: async () => undefined,
     ...overrides,
-  }
+  } satisfies SourceControlRemoteResolutionDeps
 }
 
 /** A `resolveRemoteRepository` dependency for tests that exercises the real resolver offline. */

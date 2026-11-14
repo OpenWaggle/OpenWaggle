@@ -27,7 +27,7 @@ import {
   suggestActionName,
 } from '../action-panel-scripts'
 
-function script(task: string, directory = '.', description = `run ${task}`): DiscoveredProjectTask {
+function script(task: string, directory = '.', description = `run ${task}`) {
   return {
     reference: {
       provider: 'package-script',
@@ -38,7 +38,7 @@ function script(task: string, directory = '.', description = `run ${task}`): Dis
     group: directory === '.' ? 'root' : directory,
     description,
     runner: 'pnpm',
-  }
+  } satisfies DiscoveredProjectTask
 }
 
 const saved: ActionDefinition = {
@@ -51,13 +51,14 @@ const saved: ActionDefinition = {
   autoOpenPreview: true,
 }
 
-function catalogWith(definition = saved): ActionCatalog {
-  return {
+function catalogWith(definition = saved) {
+  const catalog: ActionCatalog = {
     revision: 'r',
     actions: [{ source: 'local', definition }],
     profiles: [{ source: 'local', definition: { id: 'default', name: 'Default' } }],
     preparation: [],
   }
+  return catalog
 }
 
 describe('action panel scripts', () => {

@@ -6,11 +6,11 @@ export function startClaimedReplacement(
   interruptedRunId: RunId,
   replacementRunId: RunId,
   intent: SessionControlRunIntent,
-): SessionControlSessionState {
+) {
   if (state.run.state !== 'stopping' || state.run.runId !== interruptedRunId) return state
   return {
     ...state,
     revision: state.revision + 1,
     run: { state: 'starting', runId: replacementRunId, intent },
-  }
+  } satisfies SessionControlSessionState
 }

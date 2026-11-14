@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   commandKey,
   compatibleTrustConfiguration,
@@ -14,13 +17,15 @@ describe('package release namespace bootstrap package transaction', () => {
   it('secures and finalizes each new package before publishing the next package', async () => {
     const [firstPackage, secondPackage] = PACKAGE_NAMES
     const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
+      ['bun run check', successful()],
       [
         'npm access list packages maintainer --json',
-        successful(JSON.stringify({
-          [firstPackage]: 'read-write',
-          [secondPackage]: 'read-write',
-        })),
+        successful(
+          JSON.stringify({
+            [firstPackage]: 'read-write',
+            [secondPackage]: 'read-write',
+          }),
+        ),
       ],
       [
         `npm trust github ${firstPackage} --file package-release.yml --repository OpenWaggle/OpenWaggle --environment npm --allow-publish --yes`,
@@ -37,13 +42,15 @@ describe('package release namespace bootstrap package transaction', () => {
       ],
       [
         `npm view ${firstPackage}@0.0.0-bootstrap.0 --json`,
-        successful(JSON.stringify({
-          deprecated: 'Namespace bootstrap placeholder; use a released version.',
-          files: [],
-          name: firstPackage,
-          openwaggleNamespaceBootstrap: true,
-          version: '0.0.0-bootstrap.0',
-        })),
+        successful(
+          JSON.stringify({
+            deprecated: 'Namespace bootstrap placeholder; use a released version.',
+            files: [],
+            name: firstPackage,
+            openwaggleNamespaceBootstrap: true,
+            version: '0.0.0-bootstrap.0',
+          }),
+        ),
       ],
       [
         `npm view ${firstPackage} dist-tags --json`,
@@ -54,10 +61,7 @@ describe('package release namespace bootstrap package transaction', () => {
     const publishSequence = new Map<string, BootstrapCommandResult[]>([
       [
         'npm publish --tag bootstrap --access public --ignore-scripts',
-        [
-          successful(),
-          { exitCode: 1, stderr: 'second package publish failed', stdout: '' },
-        ],
+        [successful(), { exitCode: 1, stderr: 'second package publish failed', stdout: '' }],
       ],
     ])
     const { dependencies, requests } = createDependencies(overrides, publishSequence)
@@ -110,10 +114,7 @@ describe('package release namespace bootstrap package transaction', () => {
     const sequences = new Map<string, BootstrapCommandResult[]>([
       [
         `npm access set mfa=publish ${packageName}`,
-        [
-          { exitCode: 1, stderr: 'temporary MFA policy failure', stdout: '' },
-          successful(),
-        ],
+        [{ exitCode: 1, stderr: 'temporary MFA policy failure', stdout: '' }, successful()],
       ],
     ])
     const { dependencies, requests } = createDependencies(overrides, sequences)

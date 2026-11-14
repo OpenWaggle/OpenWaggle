@@ -38,14 +38,28 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
     readonly expectedArtifact: { readonly dev: number | bigint; readonly ino: number | bigint }
   } | null = null
 
+  private readonly operation: SessionExportOperationRecord
+  private readonly transcriptHandle: FileHandle
+  private readonly stagingPath: string | null
+  private readonly bundleHandle: FileHandle | null
+  private readonly resourceSpoolHandle: FileHandle | null
+  private readonly bundleSources: SessionExportBundleSource[]
+
   constructor(
-    private readonly operation: SessionExportOperationRecord,
-    private readonly transcriptHandle: FileHandle,
-    private readonly stagingPath: string | null,
-    private readonly bundleHandle: FileHandle | null,
-    private readonly resourceSpoolHandle: FileHandle | null,
-    private readonly bundleSources: SessionExportBundleSource[],
-  ) {}
+    operation: SessionExportOperationRecord,
+    transcriptHandle: FileHandle,
+    stagingPath: string | null,
+    bundleHandle: FileHandle | null,
+    resourceSpoolHandle: FileHandle | null,
+    bundleSources: SessionExportBundleSource[],
+  ) {
+    this.operation = operation
+    this.transcriptHandle = transcriptHandle
+    this.stagingPath = stagingPath
+    this.bundleHandle = bundleHandle
+    this.resourceSpoolHandle = resourceSpoolHandle
+    this.bundleSources = bundleSources
+  }
 
   private resourceSpoolOffset = 0
   private readonly bundleResourcePaths = new Set<string>()
@@ -212,66 +226,21 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
     })
 }
 
-async function openSink(operation: SessionExportOperationRecord) {
-  if (!path.isAbsolute(operation.destinationPath)) {
-    throw new Error('Export destination path must be absolute.')
-  }
-  await assertOperationPathScope(operation, operation.destinationPath)
-  if (!operation.overwriteExisting && (await pathExists(operation.destinationPath))) {
-    throw new Error('Export destination already exists; overwrite was not requested.')
-  }
-  if (operation.destinationRoot) {
-    const transcriptHandle = await openUnlinkedScopedExportFile('transcript')
-    if (operation.format !== 'bundle') {
-      return new FilesystemSessionExportArtifactSink(
-        operation,
-        transcriptHandle,
-        null,
-        null,
-        null,
-        [],
-      )
-    }
-    let bundleHandle: FileHandle | null = null
-    let resourceSpoolHandle: FileHandle | null = null
-    try {
-      bundleHandle = await openUnlinkedScopedExportFile('bundle')
-      resourceSpoolHandle = await openUnlinkedScopedExportFile('resources')
-      return new FilesystemSessionExportArtifactSink(
-        operation,
-        transcriptHandle,
-        'unlinked-scoped-bundle',
-        bundleHandle,
-        resourceSpoolHandle,
-        [{ path: 'session.jsonl', handle: transcriptHandle }],
-      )
-    } catch (error) {
-      await Promise.all(
-        [transcriptHandle, bundleHandle, resourceSpoolHandle]
-          .filter((handle): handle is FileHandle => handle !== null)
-          .map((handle) => handle.close().catch(() => undefined)),
-      )
-      throw error
-    }
-  }
-  const { artifactPath, stagingPath } = await prepareExportWorkingPaths(operation)
-  const transcriptPath = stagingPath ? path.join(stagingPath, 'session.jsonl') : artifactPath
-  const transcriptHandle = await openNewExportArtifact(transcriptPath)
-  if (!stagingPath) {
-    return new FilesystemSessionExportArtifactSink(
-      operation,
-      transcriptHandle,
-      null,
-      null,
-      null,
-      [],
-    )
-  }
+function transcriptOnlySink(operation: SessionExportOperationRecord, transcriptHandle: FileHandle) {
+  return new FilesystemSessionExportArtifactSink(operation, transcriptHandle, null, null, null, [])
+}
+
+/** A bundle sink; the handles opened so far are closed when opening the bundle fails. */
+async function bundleSink(
+  operation: SessionExportOperationRecord,
+  transcriptHandle: FileHandle,
+  stagingPath: string,
+  openBundle: () => Promise<FileHandle>,
+) {
   let bundleHandle: FileHandle | null = null
   let resourceSpoolHandle: FileHandle | null = null
   try {
-    await unlink(transcriptPath)
-    bundleHandle = await openNewExportArtifact(artifactPath)
+    bundleHandle = await openBundle()
     resourceSpoolHandle = await openUnlinkedScopedExportFile('resources')
     return new FilesystemSessionExportArtifactSink(
       operation,
@@ -289,6 +258,31 @@ async function openSink(operation: SessionExportOperationRecord) {
     )
     throw error
   }
+}
+
+async function openSink(operation: SessionExportOperationRecord) {
+  if (!path.isAbsolute(operation.destinationPath)) {
+    throw new Error('Export destination path must be absolute.')
+  }
+  await assertOperationPathScope(operation, operation.destinationPath)
+  if (!operation.overwriteExisting && (await pathExists(operation.destinationPath))) {
+    throw new Error('Export destination already exists; overwrite was not requested.')
+  }
+  if (operation.destinationRoot) {
+    const transcriptHandle = await openUnlinkedScopedExportFile('transcript')
+    if (operation.format !== 'bundle') return transcriptOnlySink(operation, transcriptHandle)
+    return bundleSink(operation, transcriptHandle, 'unlinked-scoped-bundle', () =>
+      openUnlinkedScopedExportFile('bundle'),
+    )
+  }
+  const { artifactPath, stagingPath } = await prepareExportWorkingPaths(operation)
+  const transcriptPath = stagingPath ? path.join(stagingPath, 'session.jsonl') : artifactPath
+  const transcriptHandle = await openNewExportArtifact(transcriptPath)
+  if (!stagingPath) return transcriptOnlySink(operation, transcriptHandle)
+  return bundleSink(operation, transcriptHandle, stagingPath, async () => {
+    await unlink(transcriptPath)
+    return openNewExportArtifact(artifactPath)
+  })
 }
 
 export const FilesystemSessionExportArtifactWriterLive = Layer.succeed(

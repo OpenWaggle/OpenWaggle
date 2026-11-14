@@ -4,6 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { execFailure } from '../test-support/exec-failure'
+import { scriptEnv } from '../support/env'
 
 const execFileAsync = promisify(execFile)
 const QUIT_START = '# BEGIN TESTABLE MAC APP QUIT'
@@ -83,9 +85,7 @@ ${section(source, QUIT_START, QUIT_END)}
 quit_running_mac_app "$1"
 printf 'quit=%s\\n' "\${QUIT_MAC_APP}"`
   const result = await execFileAsync('bash', ['-c', script, 'installer-mac-quit-test', bundlePath])
-  const killedPids = (await fs.readFile(killed, 'utf8').catch(() => ''))
-    .split('\n')
-    .filter(Boolean)
+  const killedPids = (await fs.readFile(killed, 'utf8').catch(() => '')).split('\n').filter(Boolean)
   return { stdout: result.stdout.trim(), killedPids }
 }
 
@@ -177,8 +177,8 @@ QUIT_MAC_APP='${quitMacApp}'
 ${section(source, HOST_STOP_START, HOST_STOP_END)}
 stop_session_host_for_update "$1" 1.0.0-beta.25`
     return execFileAsync('bash', ['-c', script, 'installer-host-stop-test', executable], {
-      env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
-    }).catch((error: { readonly stdout: string; readonly code: number }) => error)
+      env: { PATH: scriptEnv().PATH ?? '', TMPDIR: directory },
+    }).catch(execFailure)
   }
 
   it('asks to quit the other app instead of claiming it was reopened', async () => {

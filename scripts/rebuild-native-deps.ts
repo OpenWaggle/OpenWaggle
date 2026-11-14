@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { access } from 'node:fs/promises'
 import { dirname, join, posix, win32 } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
 import {
   removeElectronRebuildMetadata,
   removeNativeBuildDirectories,
@@ -18,7 +19,20 @@ import {
   type RebuildMode,
   writeNativeRebuildMarker,
 } from './native-rebuild-cache'
+import {
+  type CommandInvocation,
+  electronNativeRebuildInvocation,
+  nodeNativeRebuildInvocations,
+  shellInvocationForPlatform,
+  suppressDependencyDeprecationWarnings,
+} from './native-rebuild-invocations'
+import { nodeRuntime } from './support/node-runtime'
 
+export {
+  packageRebuildCommandLine,
+  packageRebuildEnvironment,
+  shellInvocationForPlatform,
+} from './native-rebuild-invocations'
 export {
   createNativeRebuildCacheKey,
   createNativeRebuildPlan,
@@ -33,27 +47,20 @@ const PROJECT_ROOT = join(dirname(SCRIPT_PATH), '..')
 const MODE_ARG_INDEX = 2
 const FORCE_FLAG_START_INDEX = 3
 const FORCE_REBUILD_FLAG = '--force'
-const SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION = '--no-deprecation'
-const WINDOWS_COMMAND_PROCESSOR = 'cmd.exe'
 const NATIVE_REBUILD_CACHE_PATHS = {
   projectRoot: PROJECT_ROOT,
   electronPackageJsonPath: join(PROJECT_ROOT, 'node_modules', 'electron', 'package.json'),
   cacheDirectory: join(PROJECT_ROOT, 'node_modules', '.cache', 'openwaggle', 'native-rebuild'),
   patchesDirectory: join(PROJECT_ROOT, 'patches'),
-  pnpmPackageDirectory: join(PROJECT_ROOT, 'node_modules', '.pnpm'),
+  storeDirectory: join(PROJECT_ROOT, 'node_modules', '.bun'),
 }
 
-type RebuildOptions = {
+interface RebuildOptions {
   readonly mode: RebuildMode
   readonly force: boolean
 }
 
-type CommandInvocation = {
-  readonly command: string
-  readonly args: readonly string[]
-}
-
-type NativeProbeRuntimeOptions = {
+interface NativeProbeRuntimeOptions {
   readonly projectRoot?: string
   readonly platform?: NodeJS.Platform
   readonly nodeExecutable?: string
@@ -65,27 +72,15 @@ type NativeProbeRuntimeOptions = {
   ) => Promise<void>
 }
 
-export function commandInvocationForPlatform(
+function runCommand(
   command: string,
   args: readonly string[],
-  platform: NodeJS.Platform = process.platform,
-  windowsCommandProcessor: string | undefined = process.env['ComSpec'],
-): CommandInvocation {
-  if (platform !== 'win32' || command !== 'pnpm') {
-    return { command, args }
-  }
-
-  return {
-    command: windowsCommandProcessor ?? WINDOWS_COMMAND_PROCESSOR,
-    args: ['/d', '/c', command, ...args],
-  }
-}
-
-function runCommand(command: string, args: readonly string[], extraEnvironment: NodeJS.ProcessEnv = {}) {
+  extraEnvironment: NodeJS.ProcessEnv = {},
+  cwd: string = PROJECT_ROOT,
+) {
   return new Promise<void>((resolve, reject) => {
-    const invocation = commandInvocationForPlatform(command, args)
-    const child = spawn(invocation.command, invocation.args, {
-      cwd: PROJECT_ROOT,
+    const child = spawn(command, args, {
+      cwd,
       stdio: 'inherit',
       env: { ...process.env, ...extraEnvironment },
     })
@@ -107,8 +102,7 @@ function commandSucceeds(
   extraEnvironment: NodeJS.ProcessEnv = {},
 ) {
   return new Promise<boolean>((resolve) => {
-    const invocation = commandInvocationForPlatform(command, args)
-    const child = spawn(invocation.command, invocation.args, {
+    const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
       stdio: 'ignore',
       env: { ...process.env, ...extraEnvironment },
@@ -125,31 +119,10 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-function appendWhitespaceDelimitedOption(existingOptions: string | undefined, option: string) {
-  if (existingOptions === undefined || existingOptions.trim().length === 0) {
-    return option
-  }
-
-  return existingOptions.split(/\s+/u).includes(option) ? existingOptions : `${existingOptions} ${option}`
-}
-
-function suppressDependencyDeprecationWarnings(
-  extraEnvironment: NodeJS.ProcessEnv = {},
-  baseEnvironment: NodeJS.ProcessEnv = process.env,
-) {
-  return {
-    ...extraEnvironment,
-    NODE_OPTIONS: appendWhitespaceDelimitedOption(
-      extraEnvironment.NODE_OPTIONS ?? baseEnvironment['NODE_OPTIONS'],
-      SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION,
-    ),
-  }
-}
-
 export function parseRebuildOptions(
   argv: readonly string[] = process.argv,
   environment: NodeJS.ProcessEnv = process.env,
-): RebuildOptions {
+) {
   const mode = argv[MODE_ARG_INDEX]
   const flags = argv.slice(FORCE_FLAG_START_INDEX)
   const unsupportedFlags = flags.filter((flag) => flag !== FORCE_REBUILD_FLAG)
@@ -158,7 +131,7 @@ export function parseRebuildOptions(
   }
   if (!isRebuildMode(mode)) {
     throw new Error(
-      `Usage: pnpm tsx scripts/rebuild-native-deps.ts <node|electron> [${FORCE_REBUILD_FLAG}]`,
+      `Usage: bun scripts/rebuild-native-deps.ts <node|electron> [${FORCE_REBUILD_FLAG}]`,
     )
   }
 
@@ -192,13 +165,13 @@ function electronExecutablePath(projectRoot: string, platform: NodeJS.Platform) 
 export function electronRuntimeInstallCommandForPlatform(
   projectRoot: string = PROJECT_ROOT,
   platform: NodeJS.Platform = process.platform,
-  nodeExecutable: string = process.execPath,
-): CommandInvocation {
+  nodeExecutable: string = nodeRuntime().execPath,
+) {
   const path = platform === 'win32' ? win32 : posix
   return {
     command: nodeExecutable,
     args: [path.join(projectRoot, 'node_modules', 'electron', 'install.js')],
-  }
+  } satisfies CommandInvocation
 }
 
 export async function ensureNativeProbeRuntime(
@@ -213,7 +186,7 @@ export async function ensureNativeProbeRuntime(
   try {
     await accessPath(electronExecutablePath(projectRoot, platform))
   } catch {
-    const nodeExecutable = options.nodeExecutable ?? process.execPath
+    const nodeExecutable = options.nodeExecutable ?? nodeRuntime().execPath
     const install = electronRuntimeInstallCommandForPlatform(projectRoot, platform, nodeExecutable)
     const environment = suppressDependencyDeprecationWarnings()
     await runInstall(install.command, install.args, environment)
@@ -224,63 +197,48 @@ export function nativeLoadProbeCommandForMode(
   mode: RebuildMode,
   projectRoot: string = PROJECT_ROOT,
   platform: NodeJS.Platform = process.platform,
-  nodeExecutable: string = process.execPath,
+  nodeExecutable: string = nodeRuntime().execPath,
 ) {
-  const path = platform === 'win32' ? win32 : posix
-  const probeScriptPath = path.join(projectRoot, 'scripts', 'native-load-probe.ts')
+  // The bundle of scripts/native-load-probe.ts (native-load-probe-bundle.ts); Node and Electron
+  // cannot load the TypeScript source.
+  const probePath = nativeLoadProbeBundlePath(projectRoot, platform)
   return mode === 'node'
     ? {
         command: nodeExecutable,
-        args: ['--import', 'tsx', probeScriptPath, mode],
+        args: [probePath, mode, projectRoot],
         environment: suppressDependencyDeprecationWarnings(),
       }
     : {
         command: electronExecutablePath(projectRoot, platform),
         // Load the addon in Electron, but exercise a console executable inside
         // the PTY. Windows Electron is a GUI binary, even in RunAsNode mode.
-        args: ['--import', 'tsx', probeScriptPath, mode, projectRoot, nodeExecutable],
+        args: [probePath, mode, projectRoot, nodeExecutable],
         environment: suppressDependencyDeprecationWarnings({ ELECTRON_RUN_AS_NODE: '1' }),
       }
 }
 
-export function nodeNativeRebuildInvocation(baseEnvironment: NodeJS.ProcessEnv = process.env) {
-  return {
-    command: 'pnpm',
-    args: ['rebuild', ...nativeArtifactPackagesForMode('node')],
-    environment: nativeSourceBuildEnvironment(baseEnvironment),
-  } satisfies CommandInvocation & { readonly environment: NodeJS.ProcessEnv }
-}
-
-export function electronNativeRebuildInvocation(baseEnvironment: NodeJS.ProcessEnv = process.env) {
-  return {
-    command: 'pnpm',
-    args: ['exec', 'electron-builder', 'install-app-deps'],
-    environment: nativeSourceBuildEnvironment(baseEnvironment),
-  } satisfies CommandInvocation & { readonly environment: NodeJS.ProcessEnv }
-}
-
-function nativeSourceBuildEnvironment(baseEnvironment: NodeJS.ProcessEnv) {
-  return suppressDependencyDeprecationWarnings(
-    { npm_config_build_from_source: 'true' },
-    baseEnvironment,
-  )
-}
-
 async function nativeLoadProbeSucceeds(mode: RebuildMode) {
   await ensureNativeProbeRuntime(mode)
+  await buildNativeLoadProbe(PROJECT_ROOT)
   const probe = nativeLoadProbeCommandForMode(mode)
   return commandSucceeds(probe.command, probe.args, probe.environment)
 }
 
 async function assertNativeLoadProbe(mode: RebuildMode) {
   await ensureNativeProbeRuntime(mode)
+  await buildNativeLoadProbe(PROJECT_ROOT)
   const probe = nativeLoadProbeCommandForMode(mode)
   await runCommand(probe.command, probe.args, probe.environment)
 }
 
 async function rebuildForNode() {
-  const invocation = nodeNativeRebuildInvocation()
-  await runCommand(invocation.command, invocation.args, invocation.environment)
+  for (const invocation of await nodeNativeRebuildInvocations(PROJECT_ROOT)) {
+    console.log(
+      `Rebuilding ${invocation.packageName} from source for Node: ${invocation.commandLine}`,
+    )
+    const shell = shellInvocationForPlatform(invocation.commandLine)
+    await runCommand(shell.command, shell.args, invocation.environment, invocation.cwd)
+  }
   await removeElectronRebuildMetadata(
     NATIVE_REBUILD_CACHE_PATHS,
     nativeArtifactPackagesForMode('node'),
@@ -301,7 +259,11 @@ async function rebuildForElectron() {
 }
 
 async function rebuildNativeDependencies(options: RebuildOptions) {
-  const plan = await createNativeRebuildPlan(NATIVE_REBUILD_CACHE_PATHS, options.mode)
+  const plan = await createNativeRebuildPlan(
+    NATIVE_REBUILD_CACHE_PATHS,
+    options.mode,
+    nodeRuntime().version,
+  )
   if (!options.force && (await canUseNativeRebuildCache(NATIVE_REBUILD_CACHE_PATHS, plan))) {
     if (await nativeLoadProbeSucceeds(options.mode)) {
       console.log(`Native dependencies cache hit for ${options.mode}.`)
@@ -322,7 +284,7 @@ async function rebuildNativeDependencies(options: RebuildOptions) {
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void rebuildNativeDependencies(parseRebuildOptions()).catch((error) => {
+  void rebuildNativeDependencies(parseRebuildOptions()).catch((error: unknown) => {
     console.error(errorMessage(error))
     process.exitCode = 1
   })

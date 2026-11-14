@@ -44,13 +44,15 @@ describe('session branch prefix detection', () => {
   })
 })
 
+const DESKTOP_UI_POLICY_OWNER = 'src/main/adapters/electron/electron-window-policy.ts'
+
 describe('non-disruptive Electron automation boundary', () => {
   it('keeps native context-menu presentation inside the desktop UI policy', () => {
     expect(
       collectUnguardedDesktopUiViolations('src/main/preview.ts', 'menu.popup({ window })'),
     ).toHaveLength(1)
     expect(
-      collectUnguardedDesktopUiViolations('src/main/desktop-ui.ts', 'menu.popup({ window })'),
+      collectUnguardedDesktopUiViolations(DESKTOP_UI_POLICY_OWNER, 'menu.popup({ window })'),
     ).toEqual([])
   })
   it('rejects native dialogs, external applications, and window activation in main code', () => {
@@ -93,7 +95,7 @@ describe('non-disruptive Electron automation boundary', () => {
       "const marker = 'OPENWAGGLE_AUTOMATION'; electron.launch({ args: ['.'], env: {} })"
     const aliased =
       "import { _electron as appDriver } from '@playwright/test'; appDriver.launch({ env: {} })"
-    const safe = "launchOpenWaggleElectron({ userDataDir, hidden: true })"
+    const safe = 'launchOpenWaggleElectron({ userDataDir, hidden: true })'
 
     expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', unsafe)).toHaveLength(1)
     expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', misleading)).toHaveLength(1)
@@ -148,7 +150,7 @@ describe('non-disruptive Electron automation boundary', () => {
   it('allows the audited policy owner and test stubs', () => {
     const source = 'dialog.showMessageBox({ message: "Continue?" }); mainWindow.show()'
 
-    expect(collectUnguardedDesktopUiViolations('src/main/desktop-ui.ts', source)).toEqual([])
+    expect(collectUnguardedDesktopUiViolations(DESKTOP_UI_POLICY_OWNER, source)).toEqual([])
     expect(
       collectUnguardedDesktopUiViolations('src/main/__tests__/desktop-ui.unit.test.ts', source),
     ).toEqual([])
@@ -207,7 +209,8 @@ describe('SessionSummaryRow column detection', () => {
   })
 
   it('still ignores a projection of aggregates only', () => {
-    const contents = 'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, MAX(created_at) FROM sessions`'
+    const contents =
+      'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, MAX(created_at) FROM sessions`'
 
     expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
   })
@@ -270,9 +273,9 @@ describe('exact dependency versions', () => {
     })
 
     expect(collectExactDependencyVersionViolations('package.json', contents)).toEqual([])
-    expect(collectExactDependencyVersionViolations('packages/pi-waggle/package.json', contents)).toEqual(
-      [],
-    )
+    expect(
+      collectExactDependencyVersionViolations('packages/pi-waggle/package.json', contents),
+    ).toEqual([])
   })
 
   it('reports caret, tilde, and open ranges in every installed section', () => {
@@ -289,23 +292,26 @@ describe('exact dependency versions', () => {
     ).toEqual(['lexical: ^0.30.0', 'vitest: ~4.1.0', 'dmg-license: *'])
   })
 
-  it('requires exact versions in the default and named pnpm catalogs', () => {
-    const workspace = [
-      'catalog:',
-      '  zod: ^4.0.0',
-      'catalogs:',
-      '  pi-runtime:',
-      '    "@earendil-works/pi-ai": 1.4.0',
-      '    "@earendil-works/pi-tui": ~1.4.0',
-      'overrides:',
-      '  qs: ^6.16.0',
-    ].join('\n')
+  it('requires exact versions in the default and named workspace catalogs', () => {
+    const rootManifest = JSON.stringify({
+      workspaces: {
+        packages: ['packages/*'],
+        catalog: { zod: '^4.0.0' },
+        catalogs: {
+          'pi-runtime': { '@earendil-works/pi-ai': '1.4.0', '@earendil-works/pi-tui': '~1.4.0' },
+        },
+      },
+      overrides: { qs: '^6.16.0' },
+    })
 
     expect(
-      collectExactDependencyVersionViolations('pnpm-workspace.yaml', workspace).map(
+      collectExactDependencyVersionViolations('package.json', rootManifest).map(
         (violation) => violation.detail,
       ),
     ).toEqual(['zod: ^4.0.0', '@earendil-works/pi-tui: ~1.4.0'])
+    expect(
+      collectExactDependencyVersionViolations('packages/pi-waggle/package.json', rootManifest),
+    ).toEqual([])
   })
 
   it('leaves peer ranges and fixture packages alone', () => {

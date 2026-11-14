@@ -23,10 +23,7 @@ function utf8Width(character: string) {
  * within the main-process UTF-8 byte limit. Concatenating the chunks always
  * reproduces the original input exactly.
  */
-export function chunkTerminalInput(
-  input: string,
-  maxBytes: number = TERMINAL.MAX_INPUT_BYTES,
-): readonly string[] {
+export function chunkTerminalInput(input: string, maxBytes: number = TERMINAL.MAX_INPUT_BYTES) {
   if (!Number.isInteger(maxBytes) || maxBytes < UTF8_MAX_CODE_POINT_WIDTH) {
     throw new RangeError('Terminal input chunks must allow one UTF-8 code point.')
   }
@@ -53,7 +50,7 @@ export function chunkTerminalInput(
 }
 
 /** Slice a terminal string at a UTF-8 stream offset without splitting a code point. */
-export function sliceTerminalDataAfterBytes(data: string, skippedBytes: number): string {
+export function sliceTerminalDataAfterBytes(data: string, skippedBytes: number) {
   if (skippedBytes <= 0) return data
   let consumedBytes = 0
   let cursor = 0

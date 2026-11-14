@@ -2,7 +2,7 @@ import type { ErrorEvent } from '@sentry/electron/renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sentry = vi.hoisted(() => {
-  const integration = (name: string) => (): { readonly name: string } => ({ name })
+  const integration = (name: string) => () => ({ name })
   return {
     init: vi.fn(),
     captureException: vi.fn(),
@@ -50,9 +50,10 @@ describe('Sentry renderer options', () => {
     })
     expect(options.maxBreadcrumbs).toBe(0)
     expect(options.beforeBreadcrumb?.({ message: 'clicked' })).toBeNull()
-    expect(options.tracesSampleRate).toBeUndefined()
-    expect(options.dsn).toBeUndefined()
-    expect(options.tunnel).toBeUndefined()
+    expect(options).not.toHaveProperty('tracesSampleRate')
+    // The DSN belongs to the main process only; the renderer options never carry one.
+    expect(options).not.toHaveProperty('dsn')
+    expect(options).not.toHaveProperty('tunnel')
   })
 
   it('drops message text and request data before a report leaves the renderer', async () => {

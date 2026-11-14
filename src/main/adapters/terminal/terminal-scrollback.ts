@@ -44,7 +44,7 @@ export interface TerminalScrollback {
 export function createTerminalScrollback(
   maxLines: number = TERMINAL.MAX_SCROLLBACK_LINES,
   maxBytes: number = TERMINAL.MAX_SCROLLBACK_BYTES,
-): TerminalScrollback {
+) {
   const segments: TerminalHistoryText[] = []
   let head = 0
   let pendingParts: string[] = []
@@ -169,5 +169,5 @@ export function createTerminalScrollback(
     get lineCount() {
       return totalLines
     },
-  }
+  } satisfies TerminalScrollback
 }

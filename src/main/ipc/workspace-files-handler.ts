@@ -1,7 +1,15 @@
 import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import { WORKSPACE_EDITOR_PERFORMANCE } from '@shared/constants/workspace-editor-performance'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS } from '@shared/types/workspace-external-editor'
+import {
+  workspaceAbsoluteFileExternalOpenInputSchema,
+  workspaceDocumentApplyInputSchema,
+  workspaceEntryCreateInputSchema,
+  workspaceEntryMutationInputSchema,
+  workspaceFileExternalOpenInputSchema,
+  workspaceFileWriteInputSchema,
+  workspaceNonEmptyStringSchema,
+} from '@shared/schemas/workspace-files-requests'
 import * as Effect from 'effect/Effect'
 import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../adapters/workspace-file-watcher'
 import { authorizeWorkspaceProject } from '../application/workspace-project-authorization'
@@ -9,7 +17,6 @@ import { WorkspaceFileService } from '../ports/workspace-file-service'
 import { invalidateGitStatusCache } from './git/status-cache'
 import { typedHandle } from './typed-ipc'
 
-const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 const MAX_WORKSPACE_QUERY_CODE_UNITS = 1_024
 const workspaceQuerySchema = Schema.String.pipe(Schema.maxLength(MAX_WORKSPACE_QUERY_CODE_UNITS))
 const explorerResultLimitSchema = Schema.Number.pipe(
@@ -20,47 +27,11 @@ const contentResultLimitSchema = Schema.Number.pipe(
   Schema.int(),
   Schema.between(1, WORKSPACE_FILES.CONTENT_RESULT_LIMIT),
 )
-const writeInputSchema = Schema.Struct({
-  projectPath: nonEmptyStringSchema,
-  path: nonEmptyStringSchema,
-  content: Schema.String.pipe(
-    Schema.maxLength(WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES),
-  ),
-  expectedRevision: nonEmptyStringSchema,
-})
 const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(0))
-const filePositionSchema = Schema.Number.pipe(Schema.int(), Schema.greaterThan(0))
 const pageLimitSchema = Schema.Number.pipe(
   Schema.int(),
   Schema.between(1, WORKSPACE_EDITOR_PERFORMANCE.SOURCE_PAGE_MAX_BYTES),
 )
-const documentChangeSchema = Schema.Struct({
-  rangeOffset: nonNegativeIntegerSchema,
-  rangeLength: nonNegativeIntegerSchema,
-  text: Schema.String.pipe(Schema.maxLength(WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES)),
-})
-const documentEditBatchSchema = Schema.Struct({
-  version: nonNegativeIntegerSchema,
-  changes: Schema.Array(documentChangeSchema).pipe(
-    Schema.maxItems(WORKSPACE_FILES.DOCUMENT_EDIT_CHANGES_PER_BATCH_LIMIT),
-  ),
-})
-const externalEditorIdSchema = Schema.Literal(
-  ...WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS.map((editor) => editor.id),
-)
-const externalOpenInputSchema = Schema.Struct({
-  projectPath: nonEmptyStringSchema,
-  path: nonEmptyStringSchema,
-  editor: externalEditorIdSchema,
-  line: Schema.optional(filePositionSchema),
-  column: Schema.optional(filePositionSchema),
-})
-const absoluteExternalOpenInputSchema = Schema.Struct({
-  path: nonEmptyStringSchema,
-  editor: externalEditorIdSchema,
-  line: Schema.optional(filePositionSchema),
-  column: Schema.optional(filePositionSchema),
-})
 
 function assertBoundedDocumentEditWorkload(input: {
   readonly batches: readonly {
@@ -82,31 +53,10 @@ function assertBoundedDocumentEditWorkload(input: {
     }
   }
 }
-const documentApplyInputSchema = Schema.Struct({
-  projectPath: nonEmptyStringSchema,
-  path: nonEmptyStringSchema,
-  expectedRevision: nonEmptyStringSchema,
-  baseVersion: nonNegativeIntegerSchema,
-  batches: Schema.Array(documentEditBatchSchema).pipe(
-    Schema.maxItems(WORKSPACE_FILES.DOCUMENT_EDIT_BATCH_LIMIT),
-  ),
-  normalizeLineEnding: Schema.optional(Schema.Literal('lf', 'crlf')),
-  targetEncoding: Schema.optional(Schema.Literal('utf-8', 'utf-8-bom', 'utf-16le', 'utf-16be')),
-})
-const entryCreateInputSchema = Schema.Struct({
-  projectPath: nonEmptyStringSchema,
-  path: nonEmptyStringSchema,
-  kind: Schema.Literal('file', 'directory'),
-})
-const entryMutationInputSchema = Schema.Struct({
-  projectPath: nonEmptyStringSchema,
-  path: nonEmptyStringSchema,
-  targetPath: Schema.optional(nonEmptyStringSchema),
-  overwrite: Schema.optional(Schema.Boolean),
-})
-
 function validatedProjectPath(rawProjectPath: string) {
-  return authorizeWorkspaceProject(decodeUnknownOrThrow(nonEmptyStringSchema, rawProjectPath))
+  return authorizeWorkspaceProject(
+    decodeUnknownOrThrow(workspaceNonEmptyStringSchema, rawProjectPath),
+  )
 }
 
 function registerWorkspaceFileReadHandlers() {
@@ -151,7 +101,7 @@ function registerWorkspaceFileReadHandlers() {
   typedHandle('workspace-files:read', (_event, rawProjectPath, rawPath) =>
     Effect.gen(function* () {
       const projectPath = yield* validatedProjectPath(rawProjectPath)
-      const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+      const relativePath = decodeUnknownOrThrow(workspaceNonEmptyStringSchema, rawPath)
       const workspaceFiles = yield* WorkspaceFileService
       return yield* workspaceFiles.readFile({ projectPath, path: relativePath })
     }),
@@ -162,7 +112,7 @@ function registerWorkspaceFileReadHandlers() {
     (_event, rawProjectPath, rawPath, rawEncoding) =>
       Effect.gen(function* () {
         const projectPath = yield* validatedProjectPath(rawProjectPath)
-        const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+        const relativePath = decodeUnknownOrThrow(workspaceNonEmptyStringSchema, rawPath)
         const encoding = decodeUnknownOrThrow(
           Schema.Literal('utf-8', 'utf-8-bom', 'utf-16le', 'utf-16be'),
           rawEncoding,
@@ -178,7 +128,7 @@ function registerWorkspaceFileReadHandlers() {
 
   typedHandle('workspace-files:write', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(writeInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceFileWriteInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
       const result = yield* workspaceFiles.writeFile({ ...input, projectPath })
@@ -189,7 +139,7 @@ function registerWorkspaceFileReadHandlers() {
 
   typedHandle('workspace-files:apply-document-edits', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(documentApplyInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceDocumentApplyInputSchema, rawInput)
       assertBoundedDocumentEditWorkload(input)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
@@ -203,7 +153,7 @@ function registerWorkspaceFileReadHandlers() {
 function registerWorkspaceFileMutationHandlers() {
   typedHandle('workspace-files:open-external', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(externalOpenInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceFileExternalOpenInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
       yield* workspaceFiles.openFile({ ...input, projectPath })
@@ -212,7 +162,7 @@ function registerWorkspaceFileMutationHandlers() {
 
   typedHandle('workspace-files:open-absolute-external', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(absoluteExternalOpenInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceAbsoluteFileExternalOpenInputSchema, rawInput)
       const workspaceFiles = yield* WorkspaceFileService
       yield* workspaceFiles.openAbsoluteFile(input)
     }),
@@ -220,7 +170,7 @@ function registerWorkspaceFileMutationHandlers() {
 
   typedHandle('workspace-files:create-entry', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(entryCreateInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceEntryCreateInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
       const result = yield* workspaceFiles.createEntry({ ...input, projectPath })
@@ -231,7 +181,7 @@ function registerWorkspaceFileMutationHandlers() {
 
   typedHandle('workspace-files:move-entry', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceEntryMutationInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
       const result = yield* workspaceFiles.moveEntry({ ...input, projectPath })
@@ -242,7 +192,7 @@ function registerWorkspaceFileMutationHandlers() {
 
   typedHandle('workspace-files:duplicate-entry', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceEntryMutationInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
       const result = yield* workspaceFiles.duplicateEntry({ ...input, projectPath })
@@ -253,7 +203,7 @@ function registerWorkspaceFileMutationHandlers() {
 
   typedHandle('workspace-files:trash-entry', (_event, rawInput) =>
     Effect.gen(function* () {
-      const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
+      const input = decodeUnknownOrThrow(workspaceEntryMutationInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
       const result = yield* workspaceFiles.trashEntry({ ...input, projectPath })
@@ -265,7 +215,7 @@ function registerWorkspaceFileMutationHandlers() {
   typedHandle('workspace-files:reveal-entry', (_event, rawProjectPath, rawPath) =>
     Effect.gen(function* () {
       const projectPath = yield* validatedProjectPath(rawProjectPath)
-      const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+      const relativePath = decodeUnknownOrThrow(workspaceNonEmptyStringSchema, rawPath)
       const workspaceFiles = yield* WorkspaceFileService
       yield* workspaceFiles.revealEntry({ projectPath, path: relativePath })
     }),
@@ -289,7 +239,7 @@ function registerWorkspaceFileMutationHandlers() {
   typedHandle('workspace-files:read-page', (_event, rawProjectPath, rawPath, rawOffset, rawLimit) =>
     Effect.gen(function* () {
       const projectPath = yield* validatedProjectPath(rawProjectPath)
-      const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+      const relativePath = decodeUnknownOrThrow(workspaceNonEmptyStringSchema, rawPath)
       const offset = decodeUnknownOrThrow(nonNegativeIntegerSchema, rawOffset)
       const limit = decodeUnknownOrThrow(pageLimitSchema, rawLimit)
       const workspaceFiles = yield* WorkspaceFileService
@@ -303,7 +253,7 @@ function registerWorkspaceFileMutationHandlers() {
   )
 }
 
-export function registerWorkspaceFileHandlers(): void {
+export function registerWorkspaceFileHandlers() {
   registerWorkspaceFileReadHandlers()
   registerWorkspaceFileMutationHandlers()
 }

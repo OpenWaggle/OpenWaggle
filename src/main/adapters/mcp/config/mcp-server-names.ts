@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { isNodeError } from '@shared/utils/node-error'
 import { isRecord } from '@shared/utils/validation'
+import { writtenMcpServers } from '../mcp-config-server-maps'
 
 /**
  * The MCP configuration files of ADR 0051, lowest priority first: Pi's and OpenWaggle's global
@@ -24,7 +26,7 @@ export function mcpConfigFilePaths(input: {
 }
 
 function isMissingFile(error: unknown) {
-  return isRecord(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+  return isNodeError(error, 'ENOENT') || isNodeError(error, 'ENOTDIR')
 }
 
 async function readServerNames(filePath: string) {
@@ -38,7 +40,7 @@ async function readServerNames(filePath: string) {
   if (!raw.trim()) return []
   const parsed: unknown = JSON.parse(raw)
   if (!isRecord(parsed)) throw new Error('expected a JSON object')
-  const servers = parsed.mcpServers
+  const servers = writtenMcpServers(parsed)
   if (servers === undefined) return []
   if (!isRecord(servers)) throw new Error('`mcpServers` must be an object')
   return Object.keys(servers)

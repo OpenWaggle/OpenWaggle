@@ -10,8 +10,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 import { SessionAuthorizationModeMenu } from '../SessionAuthorizationModeMenu'
 
-function session(override?: 'yolo' | 'ask-for-approval'): SessionDetail {
-  return {
+function session(override?: 'yolo' | 'ask-for-approval') {
+  const detail: SessionDetail = {
     id: SessionId('session-1'),
     title: 'Session',
     projectPath: '/tmp/project',
@@ -20,6 +20,7 @@ function session(override?: 'yolo' | 'ask-for-approval'): SessionDetail {
     updatedAt: 1,
     ...(override ? { authorizationMode: override } : {}),
   }
+  return detail
 }
 
 describe('SessionAuthorizationModeMenu', () => {

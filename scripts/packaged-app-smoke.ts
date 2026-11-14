@@ -4,7 +4,11 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { missingPackagedPiAssets } from './electron-builder-pi-assets'
+import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
+import { nodeRuntime } from './support/node-runtime'
 import { prunedRuntimeIssues } from './electron-builder-runtime-trim'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 const execFile = promisify(execFileCallback)
 
@@ -41,21 +45,23 @@ const REQUIRED_SESSION_EMBEDDING_MODEL_FILES = [
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
-  readonly files?: { readonly [name: string]: AsarNode }
+  readonly files?: Readonly<Record<string, AsarNode>>
 }
 
-function isObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
+const asarNodeFilesSchema = Schema.Struct({ files: unknownField })
 
 function parseAsarNode(value: unknown): AsarNode | null {
   if (!isObject(value)) return null
 
-  const files = value.files
+  const { files } = objectFields(asarNodeFilesSchema, value) ?? {}
   if (files === undefined) return {}
   if (!isObject(files)) return null
 
-  const parsedFiles: { [name: string]: AsarNode } = {}
+  const parsedFiles: Record<string, AsarNode> = {}
   for (const [name, child] of Object.entries(files)) {
     const parsedChild = parseAsarNode(child)
     if (parsedChild === null) return null
@@ -201,7 +207,9 @@ function assertAsarEntries(header: AsarNode) {
 function assertPiPackageAssets(header: AsarNode) {
   const missing = missingPackagedPiAssets(collectAsarEntries(header))
   if (missing.length > 0) {
-    throw new Error(`Packaged app asar is missing Pi documentation Pi names to the model: ${missing.join(', ')}.`)
+    throw new Error(
+      `Packaged app asar is missing Pi documentation Pi names to the model: ${missing.join(', ')}.`,
+    )
   }
 }
 
@@ -232,20 +240,16 @@ export function packagedPtyProbeInvocation(
   asarPath: string,
   projectRoot: string = process.cwd(),
   platform: NodeJS.Platform = process.platform,
+  nodeExecutable: string = nodeRuntime().execPath,
 ) {
-  const executablePath = platform === 'darwin'
-    ? path.join(appPath, 'Contents', 'MacOS', 'OpenWaggle')
-    : path.join(appPath, platform === 'win32' ? 'OpenWaggle.exe' : 'openwaggle')
+  const executablePath =
+    platform === 'darwin'
+      ? path.join(appPath, 'Contents', 'MacOS', 'OpenWaggle')
+      : path.join(appPath, platform === 'win32' ? 'OpenWaggle.exe' : 'openwaggle')
   return {
     command: executablePath,
-    args: [
-      '--import',
-      'tsx',
-      path.join(projectRoot, 'scripts', 'native-load-probe.ts'),
-      'electron',
-      asarPath,
-      process.execPath,
-    ],
+    // The bundle of scripts/native-load-probe.ts; the packaged Electron cannot load TypeScript.
+    args: [nativeLoadProbeBundlePath(projectRoot, platform), 'electron', asarPath, nodeExecutable],
   }
 }
 
@@ -262,6 +266,7 @@ export function packagedAppMatchesHostArchitecture(
 }
 
 async function runPackagedPtyProbe(appPath: string, asarPath: string) {
+  await buildNativeLoadProbe(process.cwd())
   const invocation = packagedPtyProbeInvocation(appPath, asarPath)
   await execFile(invocation.command, invocation.args, {
     cwd: process.cwd(),

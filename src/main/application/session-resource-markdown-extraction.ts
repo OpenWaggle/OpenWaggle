@@ -18,6 +18,24 @@ const HTTP_URL_PATTERN = /^https?:\/\//iu
 const ROOT_RELATIVE_PATH_PATTERN = /^\/(?!\/)/u
 const markdownParser = unified().use(remarkParse)
 
+/**
+ * The mdast node members the walk reads, each still unchecked: the parser's tree is walked as
+ * plain objects, and each reader narrows the members it uses.
+ */
+interface MarkdownNodeFields {
+  readonly type?: unknown
+  readonly children?: unknown
+  readonly identifier?: unknown
+  readonly url?: unknown
+  readonly alt?: unknown
+  readonly value?: unknown
+}
+
+function markdownNode(value: unknown) {
+  const fields: MarkdownNodeFields | undefined = isRecord(value) ? value : undefined
+  return fields
+}
+
 function supportedHttpUrl(value: string) {
   if (value.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
   try {
@@ -30,22 +48,23 @@ function supportedHttpUrl(value: string) {
   }
 }
 
-function enqueueChildren(candidate: Readonly<Record<string, unknown>>, pending: unknown[]) {
+function enqueueChildren(candidate: MarkdownNodeFields, pending: unknown[]) {
   const children = candidate.children
   if (!Array.isArray(children)) return
   for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
 }
 
-function children(candidate: Readonly<Record<string, unknown>>): readonly unknown[] {
-  return Array.isArray(candidate.children) ? candidate.children : []
+function children(candidate: MarkdownNodeFields) {
+  const result: readonly unknown[] = Array.isArray(candidate.children) ? candidate.children : []
+  return result
 }
 
 function definitions(root: unknown) {
   const result = new Map<string, string>()
   const pending = [root]
   while (pending.length > 0) {
-    const candidate = pending.pop()
-    if (!isRecord(candidate)) continue
+    const candidate = markdownNode(pending.pop())
+    if (!candidate) continue
     if (
       candidate.type === 'definition' &&
       typeof candidate.identifier === 'string' &&
@@ -59,7 +78,7 @@ function definitions(root: unknown) {
   return result
 }
 
-function label(candidate: Readonly<Record<string, unknown>>) {
+function label(candidate: MarkdownNodeFields) {
   const directAlt = typeof candidate.alt === 'string' ? candidate.alt.trim() : ''
   if (directAlt) return directAlt.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
 
@@ -72,9 +91,9 @@ function label(candidate: Readonly<Record<string, unknown>>) {
     visited < SESSION_RESOURCE_EXTRACTION_LIMITS.maxVisitedNodes &&
     length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters
   ) {
-    const child = pending.pop()
+    const child = markdownNode(pending.pop())
     visited += 1
-    if (!isRecord(child)) continue
+    if (!child) continue
     if ((child.type === 'text' || child.type === 'inlineCode') && typeof child.value === 'string') {
       const fragment = child.value.slice(
         0,
@@ -89,10 +108,7 @@ function label(candidate: Readonly<Record<string, unknown>>) {
   return fragments.join('').trim()
 }
 
-function markdownUrl(
-  candidate: Readonly<Record<string, unknown>>,
-  knownDefinitions: ReadonlyMap<string, string>,
-) {
+function markdownUrl(candidate: MarkdownNodeFields, knownDefinitions: ReadonlyMap<string, string>) {
   const direct = candidate.type === 'link' || candidate.type === 'image'
   const reference = candidate.type === 'linkReference' || candidate.type === 'imageReference'
   const url = direct
@@ -121,31 +137,33 @@ function imageMimeType(filePath: string) {
  * forms stay recognizable so a transcript written on one platform still resolves on another.
  * Whatever comes out is still gated by the capture roots when the bytes are read.
  */
-function localImageFilePath(url: string): string | null {
+function localImageFilePath(url: string) {
   if (url.includes('\0')) return null
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/u.test(url)) {
     try {
       const parsed = new URL(url)
       if (parsed.protocol !== 'file:' || parsed.username || parsed.password) return null
       const filePath = fileURLToPath(parsed)
-      return filePath.includes('\0') ? null : filePath
+      const result: string | null = filePath.includes('\0') ? null : filePath
+      return result
     } catch {
       return null
     }
   }
-  const isAbsolute = path.isAbsolute(url) || /^[a-zA-Z]:[\\/]/u.test(url) || /^\\\\/u.test(url)
-  return isAbsolute ? url : null
+  const isAbsolute = path.isAbsolute(url) || /^[a-zA-Z]:[\\/]/u.test(url) || url.startsWith('\\\\')
+  const result: string | null = isAbsolute ? url : null
+  return result
 }
 
-function isImageNode(candidate: Readonly<Record<string, unknown>>) {
+function isImageNode(candidate: MarkdownNodeFields) {
   return candidate.type === 'image' || candidate.type === 'imageReference'
 }
 
 function localImage(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: MarkdownNodeFields,
   knownDefinitions: ReadonlyMap<string, string>,
   imageOrigin: MarkdownImageOrigin,
-): CapturedLocalImage | null {
+) {
   if (imageOrigin.kind !== 'local-file' || !isImageNode(candidate)) return null
   const url = markdownUrl(candidate, knownDefinitions)
   if (!url || url.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
@@ -153,13 +171,18 @@ function localImage(
   if (!filePath) return null
   const mimeType = imageMimeType(filePath)
   if (!mimeType) return null
-  return { filePath, mimeType, title: label(candidate) || path.basename(filePath) }
+  const image: CapturedLocalImage | null = {
+    filePath,
+    mimeType,
+    title: label(candidate) || path.basename(filePath),
+  }
+  return image
 }
 
 /** A website image path as its absolute URL; every other destination is returned unchanged. */
 function resolvedImageUrl(
   url: string,
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: MarkdownNodeFields,
   imageOrigin: MarkdownImageOrigin,
 ) {
   if (imageOrigin.kind !== 'website' || !isImageNode(candidate)) return url
@@ -172,21 +195,22 @@ function resolvedImageUrl(
 }
 
 function httpLink(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: MarkdownNodeFields,
   knownDefinitions: ReadonlyMap<string, string>,
   imageOrigin: MarkdownImageOrigin,
-): CapturedLink | null {
+) {
   const destination = markdownUrl(candidate, knownDefinitions)
   if (!destination) return null
   const url = resolvedImageUrl(destination, candidate, imageOrigin)
   if (!HTTP_URL_PATTERN.test(url)) return null
   const normalizedUrl = supportedHttpUrl(url)
   if (!normalizedUrl) return null
-  return {
+  const link: CapturedLink | null = {
     url: normalizedUrl,
     title: label(candidate) || normalizedUrl,
     image: isImageNode(candidate),
   }
+  return link
 }
 
 interface MarkdownResourceCandidate {
@@ -260,8 +284,9 @@ export function collectMarkdownResources(
   if (
     images.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages &&
     links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks
-  )
+  ) {
     return
+  }
   for (const { image, link } of markdownCandidates(text, imageOrigin)) {
     if (image && images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages) {
       order.push({ kind: 'image', index: images.length })

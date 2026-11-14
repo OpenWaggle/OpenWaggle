@@ -28,7 +28,7 @@ export interface LineStats {
  * Porcelain v1 spells a rename either as `old -> new` or with a brace form such as
  * `dir/{old => new}.ts`; both have to be understood to reconstruct the source path.
  */
-export function renameSourcePath(rawPath: string): string | null {
+export function renameSourcePath(rawPath: string) {
   const trimmed = rawPath.trim()
   if (!trimmed) return null
 
@@ -221,7 +221,7 @@ function findPlainRenameTarget(trimmed: string) {
   return null
 }
 
-function mapStatusCode(code: string): GitFileStatus {
+function mapStatusCode(code: string) {
   return match(code)
     .with('M', () => 'modified' as const)
     .with('A', () => 'added' as const)

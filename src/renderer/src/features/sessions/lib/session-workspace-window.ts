@@ -5,7 +5,6 @@ import type {
   SessionWorkspace,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
-import type { SessionWorkspaceRequest } from '@shared/types/session-transcript-window'
 
 /**
  * The transcript window the desktop window reads (ADR 0036 bounds the transferred rows as well as
@@ -90,7 +89,7 @@ export function transcriptWindowRequest(input: {
   readonly sessionId: SessionId
   readonly loaded: SessionWorkspace | null
   readonly target: TranscriptWindowTarget
-}): SessionWorkspaceRequest {
+}) {
   const firstLoaded = input.loaded?.transcriptPath[0]?.node.id ?? null
   const includeNodeId = input.target.includeNodeId ?? firstLoaded
   const cache = nodeCaches.get(String(input.sessionId))
@@ -113,10 +112,7 @@ export function transcriptWindowRequest(input: {
   }
 }
 
-function restoredEntry(
-  entry: SessionTranscriptEntry,
-  cache: SessionNodeCache | undefined,
-): SessionTranscriptEntry | null {
+function restoredEntry(entry: SessionTranscriptEntry, cache: SessionNodeCache | undefined) {
   if (!entry.contentOmitted) return entry
   const held = cache?.nodes.get(String(entry.node.id))
   if (!held) return null
@@ -129,10 +125,7 @@ function restoredEntry(
  * one is missing (the caller then reads again without naming held nodes). Held node objects keep
  * their identity, so unchanged messages do not re-render.
  */
-export function restoreTranscriptWindow(
-  sessionId: SessionId,
-  workspace: SessionWorkspace,
-): SessionWorkspace | null {
+export function restoreTranscriptWindow(sessionId: SessionId, workspace: SessionWorkspace) {
   const cache = nodeCaches.get(String(sessionId))
   const transcriptPath: SessionTranscriptEntry[] = []
   for (const entry of workspace.transcriptPath) {

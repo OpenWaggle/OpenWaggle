@@ -14,7 +14,9 @@ import { emptySessionCatalogMethods } from './session-repository-test-support'
 interface DispatchedCommand {
   readonly payload: {
     readonly contract: string
-    readonly request: { readonly command: Record<string, unknown> }
+    readonly request: {
+      readonly command: { readonly operation?: unknown; readonly sessionId?: unknown }
+    }
   }
 }
 
@@ -65,7 +67,7 @@ function repository(overrides: Partial<SessionRepositoryShape> = {}) {
 
 function run<A>(effect: Effect.Effect<A, unknown, unknown>, repo = repository()) {
   const provided = effect.pipe(Effect.provideService(SessionRepository, repo))
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof provided>(provided))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof provided>(provided))
 }
 
 function dispatched() {

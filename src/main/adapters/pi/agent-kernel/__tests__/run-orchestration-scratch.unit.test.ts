@@ -93,7 +93,11 @@ describe('Pi run scratch directory prompt', () => {
     })
 
     const prompts = runMocks.createPiProjectModelRuntime.mock.calls.map((call: unknown[]) => {
-      const appendices: unknown = Reflect.get(Object(call[0]), 'systemPromptAppendices')
+      const input = call[0]
+      const appendices: unknown =
+        typeof input === 'object' && input !== null && 'systemPromptAppendices' in input
+          ? input.systemPromptAppendices
+          : undefined
       return Array.isArray(appendices) ? appendices : []
     })
     expect(prompts.length).toBeGreaterThanOrEqual(2)

@@ -54,7 +54,7 @@ function noToast() {}
 /** The composer's mode with its defaults. */
 function resolveComposerMode(mode: ComposerProps['mode']) {
   return {
-    disabled: mode?.disabled,
+    disabled: mode?.disabled ?? false,
     placeholder: mode?.placeholder,
     sendTitle: mode?.sendTitle,
     requiresText: mode?.requiresText ?? false,
@@ -94,12 +94,9 @@ export function Composer({
   isLoading,
   finishing,
   mode,
-  onToast,
+  onToast = noToast,
 }: ComposerProps) {
-  const queuedEdit = useComposerQueuedEditMode(
-    mode?.queuedMessagesSessionId ?? null,
-    onToast ?? noToast,
-  )
+  const queuedEdit = useComposerQueuedEditMode(mode?.queuedMessagesSessionId ?? null, onToast)
   const editHere = queuedEdit.here
   const {
     disabled,
@@ -119,7 +116,7 @@ export function Composer({
   const submission = useComposerSubmission({
     onSend,
     onEnqueue,
-    onSendFailure,
+    ...(onSendFailure === undefined ? {} : { onSendFailure }),
     isLoading,
     disabled,
     requiresText,
@@ -136,7 +133,7 @@ export function Composer({
   // While a queued message is being edited here (including while it opens), nothing is sent.
   function submit() {
     if (!editHere) {
-      submission.handleSubmit()
+      void submission.handleSubmit()
       return
     }
     if (!disabled) queuedEdit.save()
@@ -178,9 +175,9 @@ export function Composer({
         />
         <ComposerEditorArea
           onSubmit={submit}
-          onEscape={editHere ? queuedEdit.onEscape : undefined}
+          {...(editHere ? { onEscape: queuedEdit.onEscape } : {})}
           disabled={disabled}
-          placeholder={placeholder}
+          {...(placeholder === undefined ? {} : { placeholder })}
           isLoading={isLoading}
           editorRef={editorRef}
           checkAndConvertPaste={attachments.checkAndConvertPaste}
@@ -194,9 +191,9 @@ export function Composer({
             onSend: submit,
             onCancel,
             isLoading,
-            finishing,
+            ...(finishing === undefined ? {} : { finishing }),
             canSend: editHere ? queuedEdit.canSave : submission.canSend,
-            sendTitle,
+            ...(sendTitle === undefined ? {} : { sendTitle }),
             savesEdit: editHere !== null,
           }}
         />

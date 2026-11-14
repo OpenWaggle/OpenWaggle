@@ -1,66 +1,27 @@
-import type { SyntaxResourceCatalog, SyntaxThemeImportPreview } from './syntax-resources'
-import type {
-  WorkspaceAbsoluteFileExternalOpenInput,
-  WorkspaceExternalEditor,
-  WorkspaceFileExternalOpenInput,
-} from './workspace-external-editor'
-import type {
-  WorkspaceContentMatch,
-  WorkspaceDocumentApplyInput,
-  WorkspaceDocumentApplyResult,
-  WorkspaceEntryCreateInput,
-  WorkspaceEntryMutationInput,
-  WorkspaceEntryMutationResult,
-  WorkspaceFileEntry,
-  WorkspaceFilePage,
-  WorkspaceFileReadResult,
-  WorkspaceFilesChangedEvent,
-  WorkspaceFileWriteInput,
-  WorkspaceFileWriteResult,
-  WorkspaceTextEncoding,
-} from './workspace-files'
+import type { IpcEventMethod, IpcInvokeMethod } from './ipc-api-methods'
 
 export interface OpenWaggleWorkspaceFilesApi {
-  listSyntaxThemes(projectPath?: string | null): Promise<SyntaxResourceCatalog>
-  selectSyntaxThemeImport(): Promise<SyntaxThemeImportPreview | null>
-  applySyntaxThemeImport(token: string): Promise<SyntaxResourceCatalog>
-  removeSyntaxTheme(themeId: string): Promise<SyntaxResourceCatalog>
-  searchWorkspaceFiles(
-    projectPath: string,
-    query: string,
-    limit: number,
-  ): Promise<WorkspaceFileEntry[]>
-  searchWorkspaceContent(
-    projectPath: string,
-    query: string,
-    limit: number,
-  ): Promise<WorkspaceContentMatch[]>
-  cancelWorkspaceContentSearch(projectPath: string): Promise<void>
-  readWorkspaceFile(projectPath: string, path: string): Promise<WorkspaceFileReadResult>
-  readWorkspaceFileWithEncoding(
-    projectPath: string,
-    path: string,
-    encoding: WorkspaceTextEncoding,
-  ): Promise<WorkspaceFileReadResult>
-  writeWorkspaceFile(input: WorkspaceFileWriteInput): Promise<WorkspaceFileWriteResult>
-  applyWorkspaceDocumentEdits(
-    input: WorkspaceDocumentApplyInput,
-  ): Promise<WorkspaceDocumentApplyResult>
-  listWorkspaceExternalEditors(): Promise<WorkspaceExternalEditor[]>
-  openWorkspaceFileExternal(input: WorkspaceFileExternalOpenInput): Promise<void>
-  openAbsoluteFileExternal(input: WorkspaceAbsoluteFileExternalOpenInput): Promise<void>
-  createWorkspaceEntry(input: WorkspaceEntryCreateInput): Promise<WorkspaceEntryMutationResult>
-  moveWorkspaceEntry(input: WorkspaceEntryMutationInput): Promise<WorkspaceEntryMutationResult>
-  duplicateWorkspaceEntry(input: WorkspaceEntryMutationInput): Promise<WorkspaceEntryMutationResult>
-  trashWorkspaceEntry(input: WorkspaceEntryMutationInput): Promise<WorkspaceEntryMutationResult>
-  revealWorkspaceEntry(projectPath: string, path: string): Promise<void>
-  watchWorkspaceFiles(projectPath: string): Promise<string>
-  unwatchWorkspaceFiles(projectPath: string): Promise<void>
-  onWorkspaceFilesChanged(callback: (payload: WorkspaceFilesChangedEvent) => void): () => void
-  readWorkspaceFilePage(
-    projectPath: string,
-    path: string,
-    offset: number,
-    limit: number,
-  ): Promise<WorkspaceFilePage>
+  listSyntaxThemes: IpcInvokeMethod<'syntax-themes:list'>
+  selectSyntaxThemeImport: IpcInvokeMethod<'syntax-themes:select-import'>
+  applySyntaxThemeImport: IpcInvokeMethod<'syntax-themes:apply-import'>
+  removeSyntaxTheme: IpcInvokeMethod<'syntax-themes:remove'>
+  searchWorkspaceFiles: IpcInvokeMethod<'workspace-files:search'>
+  searchWorkspaceContent: IpcInvokeMethod<'workspace-files:search-content'>
+  cancelWorkspaceContentSearch: IpcInvokeMethod<'workspace-files:cancel-content-search'>
+  readWorkspaceFile: IpcInvokeMethod<'workspace-files:read'>
+  readWorkspaceFileWithEncoding: IpcInvokeMethod<'workspace-files:read-with-encoding'>
+  writeWorkspaceFile: IpcInvokeMethod<'workspace-files:write'>
+  applyWorkspaceDocumentEdits: IpcInvokeMethod<'workspace-files:apply-document-edits'>
+  listWorkspaceExternalEditors: IpcInvokeMethod<'workspace-files:list-external-editors'>
+  openWorkspaceFileExternal: IpcInvokeMethod<'workspace-files:open-external'>
+  openAbsoluteFileExternal: IpcInvokeMethod<'workspace-files:open-absolute-external'>
+  createWorkspaceEntry: IpcInvokeMethod<'workspace-files:create-entry'>
+  moveWorkspaceEntry: IpcInvokeMethod<'workspace-files:move-entry'>
+  duplicateWorkspaceEntry: IpcInvokeMethod<'workspace-files:duplicate-entry'>
+  trashWorkspaceEntry: IpcInvokeMethod<'workspace-files:trash-entry'>
+  revealWorkspaceEntry: IpcInvokeMethod<'workspace-files:reveal-entry'>
+  watchWorkspaceFiles: IpcInvokeMethod<'workspace-files:watch'>
+  unwatchWorkspaceFiles: IpcInvokeMethod<'workspace-files:unwatch'>
+  onWorkspaceFilesChanged: IpcEventMethod<'workspace-files:changed'>
+  readWorkspaceFilePage: IpcInvokeMethod<'workspace-files:read-page'>
 }

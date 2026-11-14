@@ -7,6 +7,9 @@ interface ProviderModelIconProps {
   readonly className?: string
 }
 
-export function ProviderModelIcon({ provider, className }: ProviderModelIconProps): ReactElement {
-  return createElement(getProviderIcon(provider), { className })
+export function ProviderModelIcon({ provider, className }: ProviderModelIconProps) {
+  const element: ReactElement = createElement(getProviderIcon(provider), {
+    ...(className === undefined ? {} : { className }),
+  })
+  return element
 }

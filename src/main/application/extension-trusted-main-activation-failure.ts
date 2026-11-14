@@ -22,12 +22,12 @@ export function describeTrustedMainActivationCause(cause: Cause.Cause<unknown>) 
 export function trustedMainFailureResult(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly error: unknown
-}): TrustedMainActivationFailureResult {
+}) {
   return {
     extensionId: input.extensionPackage.id,
     status: 'failed',
     errorMessage: describeTrustedMainActivationError(input.error),
-  }
+  } satisfies TrustedMainActivationFailureResult
 }
 
 export function recordTrustedMainActivationFailure(input: {

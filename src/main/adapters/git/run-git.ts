@@ -4,7 +4,10 @@ import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
-import { desktopShellEnvironmentReady, getEnvWithOverrides } from '../../env'
+import { errorCode } from '@shared/utils/node-error'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
+import { getEnvWithOverrides } from '../../env'
 
 const MODULE_VALUE_5 = 5
 
@@ -75,7 +78,9 @@ function execFileWithInput(
          * the original Git message (for example "nothing to commit") to remain structured.
          */
         const decodedError = safeDecodeUnknown(jsonObjectSchema, error)
-        const errorOutput = decodedError.success ? decodedError.data : {}
+        const errorOutput: UncheckedFields<GitExecFailure> = decodedError.success
+          ? decodedError.data
+          : {}
         reject(
           Object.assign(error, {
             stdout: stdout || (typeof errorOutput.stdout === 'string' ? errorOutput.stdout : ''),
@@ -91,38 +96,53 @@ function execFileWithInput(
   })
 }
 
-function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }): GitExecResult {
+function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }) {
   if (typeof output === 'string') {
-    return { stdout: output, stderr: '', code: 0 }
+    const result: GitExecResult = { stdout: output, stderr: '', code: 0 }
+    return result
   }
-  return {
+  const result: GitExecResult = {
     stdout: output.stdout ?? '',
     stderr: output.stderr ?? '',
     code: 0,
   }
+  return result
 }
 
-function normalizeGitError(error: unknown): GitExecResult {
+/** The fields Node's `execFile` puts on a failed Git run that its normalisation reads. */
+interface GitExecFailure {
+  readonly message: string
+  readonly name: string
+  readonly stdout: string
+  readonly stderr: string
+  readonly killed: boolean
+  readonly signal: string
+}
+
+function normalizeGitError(error: unknown) {
   const result = safeDecodeUnknown(jsonObjectSchema, error)
   if (!result.success) {
-    return {
+    const returned: GitExecResult = {
       stdout: '',
       stderr: error instanceof Error ? error.message : 'Git command failed',
       code: 1,
     }
+    return returned
   }
 
-  const value = result.data
+  const value: UncheckedFields<GitExecFailure> = result.data
+  const code = errorCode(error)
   const fallbackMessage = typeof value.message === 'string' ? value.message : 'Git command failed'
-  return {
+  const returned: GitExecResult = {
     stdout: typeof value.stdout === 'string' ? value.stdout : '',
     stderr: typeof value.stderr === 'string' ? value.stderr : fallbackMessage,
-    code: typeof value.code === 'number' ? value.code : 1,
-    ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
+    code: typeof code === 'number' ? code : 1,
+    ...(code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
     ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
-    ...(value.name === 'AbortError' || value.code === 'ABORT_ERR' ? { aborted: true } : {}),
-    ...(typeof value.code !== 'number' ? { executionFailed: true } : {}),
+    ...(value.name === 'AbortError' || code === 'ABORT_ERR' ? { aborted: true } : {}),
+    ...(typeof code !== 'number' ? { executionFailed: true } : {}),
   }
+  return returned
 }
 
 /**
@@ -132,15 +152,11 @@ function normalizeGitError(error: unknown): GitExecResult {
  * normalised to `code: 1` with an empty stderr - a caller could not tell "the remote is unreachable"
  * from "git failed for no stated reason", and neither could the user reading the toast.
  */
-function wasKilledForTimeout(value: Readonly<Record<string, unknown>>) {
+function wasKilledForTimeout(value: UncheckedFields<GitExecFailure>) {
   return value.killed === true && typeof value.signal === 'string'
 }
 
-export async function runGit(
-  projectPath: string,
-  args: string[],
-  options: RunGitOptions = {},
-): Promise<GitExecResult> {
+export async function runGit(projectPath: string, args: string[], options: RunGitOptions = {}) {
   const maxBuffer = options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER
   // Hooks and credential helpers run with the user's PATH.
   await desktopShellEnvironmentReady()
@@ -162,12 +178,13 @@ export async function runGit(
   }
 }
 
-export async function isGitRepository(projectPath: string): Promise<boolean> {
+export async function isGitRepository(projectPath: string) {
   const result = await runGit(projectPath, ['rev-parse', '--is-inside-work-tree'])
-  return result.code === 0 && result.stdout.trim() === 'true'
+  const value: boolean = result.code === 0 && result.stdout.trim() === 'true'
+  return value
 }
 
-export function stripSurroundingQuotes(value: string): string {
+export function stripSurroundingQuotes(value: string) {
   if (value.length >= DOUBLE_FACTOR && value.startsWith('"') && value.endsWith('"')) {
     return value.slice(1, -1).replaceAll('\\"', '"')
   }
@@ -181,9 +198,10 @@ export function stripSurroundingQuotes(value: string): string {
  * minutes - or forever on a credential prompt, and these calls sit on interactive paths. Defined once
  * so a new network call cannot quietly omit it.
  */
-export function networkGitOptions(timeoutMs: number): RunGitOptions {
-  return {
+export function networkGitOptions(timeoutMs: number) {
+  const options: RunGitOptions = {
     timeoutMs,
     env: { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '', SSH_ASKPASS: '' },
   }
+  return options
 }

@@ -4,15 +4,14 @@ import { useComposerStore } from '../state/composer-store'
 
 const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
 
-export function attachmentLimitReason(
-  attachments: readonly PreparedAttachment[],
-): 'count' | 'size' | null {
-  if (attachments.length > ATTACHMENT.MAX_COUNT) return 'count'
+export function attachmentLimitReason(attachments: readonly PreparedAttachment[]) {
+  if (attachments.length > ATTACHMENT.MAX_COUNT) return 'count' as const
   if (
     attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
     ATTACHMENT.MAX_TOTAL_SIZE_BYTES
-  )
-    return 'size'
+  ) {
+    return 'size' as const
+  }
   return null
 }
 
@@ -37,7 +36,7 @@ export interface ComposerDraftSnapshot {
   readonly wagglePresetId: string | null
 }
 
-export function captureCurrentComposerDraft(): ComposerDraftSnapshot {
+export function captureCurrentComposerDraft() {
   const state = useComposerStore.getState()
   return {
     activeDraftContextKey: state.activeDraftContextKey,
@@ -84,7 +83,7 @@ export function queuedSubmissionKey(snapshot: ComposerDraftSnapshot, payload: Ag
   })
 }
 
-export function callAsPromise<Result>(action: () => Promise<Result> | Result): Promise<Result> {
+export function callAsPromise<Result>(action: () => Promise<Result> | Result) {
   try {
     return Promise.resolve(action())
   } catch (error) {

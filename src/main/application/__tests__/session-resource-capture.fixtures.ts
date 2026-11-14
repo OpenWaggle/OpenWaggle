@@ -7,7 +7,7 @@ import { PNG_BASE64 } from './session-resource-capture-test-layer'
 
 export { PNG_BASE64, sessionResourceTestLayer } from './session-resource-capture-test-layer'
 
-export function resourceMessages(): Message[] {
+export function resourceMessages() {
   return [
     {
       id: MessageId('user-message'),
@@ -34,10 +34,10 @@ export function resourceMessages(): Message[] {
       ],
       createdAt: 2000,
     },
-  ]
+  ] satisfies Message[]
 }
 
-export function capturedResource(input: UpsertSessionResourceInput): SessionResource {
+export function capturedResource(input: UpsertSessionResourceInput) {
   return {
     id: input.id,
     sessionId: input.sessionId,
@@ -53,7 +53,7 @@ export function capturedResource(input: UpsertSessionResourceInput): SessionReso
     occurrences: [input.occurrence],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
-  }
+  } satisfies SessionResource
 }
 
 export function assistantToolResultMessage(
@@ -64,7 +64,7 @@ export function assistantToolResultMessage(
     readonly result?: JsonValue
     readonly details?: JsonValue
   } = {},
-): Message {
+) {
   return {
     id: MessageId('assistant-tool-message'),
     role: 'assistant',
@@ -83,5 +83,5 @@ export function assistantToolResultMessage(
       },
     ],
     createdAt: 2_000,
-  }
+  } satisfies Message
 }

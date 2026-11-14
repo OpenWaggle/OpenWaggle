@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import {
   PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
   PI_WAGGLE_TURN_CUSTOM_TYPE,
@@ -8,8 +9,8 @@ import { isRecord } from '@shared/utils/validation'
 import {
   hydrateSessionMessage,
   hydrateStructuralSessionMessage,
-  type SessionNodeRow,
-} from '../session-details'
+} from '../session-details/message-hydration'
+import type { SessionNodeRow } from '../session-details/types'
 import { CUSTOM_MESSAGE_ENTRY_TYPE, MESSAGE_ENTRY_TYPE } from './constants'
 import { parseJson } from './json'
 
@@ -41,11 +42,17 @@ function isHiddenProjectionRow(row: SessionNodeRow) {
   return isHiddenCustomMessageRow(row) || isHiddenCustomStateRow(row)
 }
 
+const customMessageMetadataSchema = Schema.Struct({
+  display: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  customType: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
 function isHiddenCustomMessageRow(row: SessionNodeRow) {
   if (row.pi_entry_type !== CUSTOM_MESSAGE_ENTRY_TYPE) return false
   const metadata = parseJson(row.metadata_json, `node:${row.id}:metadata`)
   return (
     isRecord(metadata) &&
+    Schema.is(customMessageMetadataSchema)(metadata) &&
     (metadata.display === false || metadata.customType === PI_WAGGLE_TURN_CUSTOM_TYPE)
   )
 }
@@ -59,7 +66,11 @@ const HIDDEN_STATE_CUSTOM_TYPES = new Set<string>([
 function isHiddenCustomStateRow(row: SessionNodeRow) {
   if (row.pi_entry_type !== 'custom') return false
   const content = parseJson(row.content_json, `node:${row.id}:content`)
-  return isRecord(content) && HIDDEN_STATE_CUSTOM_TYPES.has(String(content.customType))
+  return (
+    isRecord(content) &&
+    Schema.is(customMessageMetadataSchema)(content) &&
+    HIDDEN_STATE_CUSTOM_TYPES.has(String(content.customType))
+  )
 }
 
 function buildVisibleParentByRowId(rows: readonly SessionNodeRow[]) {
@@ -108,18 +119,19 @@ function hydrateSessionNode(
   visibleDepthById: Map<string, number>,
 ) {
   const parentId = visibleParentById.get(row.id) ?? null
+  const message = hydrateNodeMessage(row)
   return {
     id: SessionNodeId(row.id),
     sessionId: SessionId(row.session_id),
     parentId: parentId ? SessionNodeId(parentId) : null,
     piEntryType: row.pi_entry_type,
     kind: row.kind,
-    role: row.role ?? undefined,
+    ...(row.role === null ? {} : { role: row.role }),
     timestampMs: row.timestamp_ms,
     createdOrder: row.created_order,
     pathDepth: getVisiblePathDepth(row.id, visibleParentById, visibleDepthById),
     branchId: row.branch_hint_id ? SessionBranchId(row.branch_hint_id) : null,
-    message: hydrateNodeMessage(row),
+    ...(message === undefined ? {} : { message }),
     contentJson: row.content_json,
     metadataJson: row.metadata_json,
   }

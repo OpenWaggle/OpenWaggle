@@ -44,8 +44,8 @@ function extensionDialogEntry({
   readonly manifestPath?: string
   readonly contentHash?: string
   readonly trusted?: boolean
-}): ExtensionContributionRegistryEntry {
-  return {
+}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
     extensionVersion: '1.0.0',
@@ -73,13 +73,17 @@ function extensionDialogEntry({
     },
     diagnostics: [],
   }
+  return entry
 }
 
-function extensionDialogRegistry(kind: string): ExtensionContributionRegistryView {
-  return { projectPaths: [PROJECT_PATH], entries: [extensionDialogEntry({ kind })] }
+function extensionDialogRegistry(kind: string) {
+  return {
+    projectPaths: [PROJECT_PATH],
+    entries: [extensionDialogEntry({ kind })],
+  } satisfies ExtensionContributionRegistryView
 }
 
-function pendingInteraction(): AgentLoopInteraction {
+function pendingInteraction() {
   return {
     interactionId: 'interaction-1',
     sessionId: SessionId('session-1'),
@@ -90,7 +94,7 @@ function pendingInteraction(): AgentLoopInteraction {
     title: 'Approve action?',
     message: 'The extension wants to proceed.',
     purpose: 'user-input',
-  }
+  } satisfies AgentLoopInteraction
 }
 
 function extensionFrame(title: string) {
@@ -119,7 +123,7 @@ function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
 }
 
 function extensionFrameId(frame: HTMLIFrameElement) {
-  const frameId = frame.dataset.extensionFrameId
+  const frameId = frame.getAttribute('data-extension-frame-id')
   if (!frameId) {
     throw new Error('Expected extension dialog iframe id.')
   }

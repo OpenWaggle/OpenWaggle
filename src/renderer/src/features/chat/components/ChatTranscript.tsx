@@ -146,7 +146,7 @@ export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTransc
             rowsLength={rows.length}
           />
         }
-        renderVisibleMessageRows={renderVisibleMessageRows}
+        {...(renderVisibleMessageRows === undefined ? {} : { renderVisibleMessageRows })}
       />
     </>
   )

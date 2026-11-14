@@ -18,7 +18,7 @@ function isReply(row: MessageChatRow) {
 function lastReplyIndex(messages: readonly MessageChatRow[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (message && message.message.role === 'assistant') return isReply(message) ? index : -1
+    if (message?.message.role === 'assistant') return isReply(message) ? index : -1
   }
   return -1
 }
@@ -35,7 +35,7 @@ function cached<Row extends object>(
   row: Row,
   mark: ReplyMark,
   build: () => Row,
-): Row {
+) {
   const byMark = cache.get(row) ?? new Map<ReplyMark, Row>()
   cache.set(row, byMark)
   const existing = byMark.get(mark)
@@ -96,12 +96,9 @@ function replyRowIndexes(rows: readonly ChatRow[], activeStart: number) {
  * after the last user message are left alone while the Session runs. Each Waggle agent turn has a
  * reply of its own. The transcript's last reply is `latest`.
  */
-export function markTurnReplies(
-  rows: readonly ChatRow[],
-  input: { readonly isLoading: boolean },
-): ChatRow[] {
+export function markTurnReplies(rows: readonly ChatRow[], input: { readonly isLoading: boolean }) {
   const replies = replyRowIndexes(rows, activeTurnStart(rows, input.isLoading))
-  if (replies.length === 0) return [...rows]
+  if (replies.length === 0) return [...rows] satisfies ChatRow[]
   const marks = new Map<number, ReplyMark>(replies.map((index) => [index, 'reply']))
   marks.set(replies[replies.length - 1] ?? -1, 'latest')
   return rows.map((row, index) => {
@@ -109,5 +106,5 @@ export function markTurnReplies(
     if (!mark) return row
     if (row.type === 'waggle-turn') return markWaggleTurn(row, mark)
     return row.type === 'message' ? markMessageRow(row, mark) : row
-  })
+  }) satisfies ChatRow[]
 }

@@ -129,7 +129,7 @@ describe('MCP OAuth state backend', () => {
     })
 
     update(backend, (states) => {
-      states.k = { tokens: { access_token: 'memory' } }
+      Object.assign(states, { k: { tokens: { access_token: 'memory' } } })
     })
 
     expect(read(backend)).toEqual({ k: { tokens: { access_token: 'memory' } } })

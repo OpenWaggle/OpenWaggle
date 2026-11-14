@@ -5,7 +5,7 @@ import { useUIStore } from '@/shell/ui-store'
 import { findSlashCommandMatch } from '../../lib/slash-command'
 import { useComposerStore } from '../../state/composer-store'
 
-export function SlashCommandPlugin(): null {
+export function SlashCommandPlugin() {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {

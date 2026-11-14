@@ -16,7 +16,7 @@ function buildComment(
   files: readonly GitFileDiff[],
   location: ReviewCommentLocation,
   content: string,
-): ReviewCommentWithSnippet {
+) {
   const endLine = location.endLine ?? location.line
   const patch = files.find((file) => file.path === location.filePath)?.diff ?? ''
   return {
@@ -30,7 +30,7 @@ function buildComment(
     diff: patch === '' ? '' : extractDiffSnippet(patch, location.line, endLine),
     // Kept so the saved marker is drawn on the side the reviewer commented on.
     lineType: location.lineType,
-  }
+  } satisfies ReviewCommentWithSnippet
 }
 
 /**

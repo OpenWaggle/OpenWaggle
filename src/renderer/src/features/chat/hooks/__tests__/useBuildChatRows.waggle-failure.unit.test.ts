@@ -21,12 +21,13 @@ const CRITIC: WaggleMessageMetadata = {
   turnNumber: 1,
 }
 
-function answer(id: string, text: string): UIMessage {
-  return { id, role: 'assistant', parts: [{ type: 'text', content: text }] }
+function answer(id: string, text: string) {
+  return { id, role: 'assistant', parts: [{ type: 'text', content: text }] } satisfies UIMessage
 }
 
-function failed(id: string, error: string): UIMessage {
-  return { id, role: 'assistant', parts: [], metadata: { error } }
+function failed(id: string, error: string) {
+  const message: UIMessage = { id, role: 'assistant', parts: [], metadata: { error } }
+  return message
 }
 
 function waggleTurns(input: {

@@ -1,12 +1,11 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { safeDecodeUnknown } from '@shared/schema'
-import type { ExtensionContributionUnregistration } from '@shared/schemas/extensions'
 import { extensionContributionUnregistrationSchema } from '@shared/schemas/extensions'
 import { describe, expect, it } from 'vitest'
 import { authorizeRuntimeContributionUnregistration } from '../extension-runtime-contribution-authorization-model'
 import { makePackage } from './extension-contribution-registry-test-utils'
 
-function decodeUnregistration(raw: unknown): ExtensionContributionUnregistration {
+function decodeUnregistration(raw: unknown) {
   const decoded = safeDecodeUnknown(extensionContributionUnregistrationSchema, raw)
   if (!decoded.success) {
     throw new Error(decoded.issues.join('\n'))

@@ -15,8 +15,13 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const SESSION = SessionId('session-b')
 
-function message(id: string, role: UIMessage['role']): UIMessage {
-  return { id, role, parts: [{ type: 'text', content: id }], createdAt: new Date(1) }
+function message(id: string, role: UIMessage['role']) {
+  return {
+    id,
+    role,
+    parts: [{ type: 'text', content: id }],
+    createdAt: new Date(1),
+  } satisfies UIMessage
 }
 
 function snapshot() {

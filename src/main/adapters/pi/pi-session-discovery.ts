@@ -47,7 +47,7 @@ interface FileVersion {
   readonly mtimeMs: number
 }
 
-async function fileState(file: string): Promise<FileVersion | null> {
+async function fileState(file: string) {
   try {
     const stats = await stat(file)
     return { size: stats.size, mtimeMs: stats.mtimeMs }
@@ -76,7 +76,7 @@ export function createPiSessionDiscoveryScanner(
     readonly sessionsRoot?: string
     readonly resolveSessionDirectory?: (projectPath: string) => string | undefined
   } = {},
-): PiSessionDiscoveryScanner {
+) {
   /** What each file's start held, or null for a file without a Pi header, by the version read. */
   const headers = new Map<string, FileVersion & { readonly header: PiSessionFileHeader | null }>()
 
@@ -90,10 +90,7 @@ export function createPiSessionDiscoveryScanner(
     return header
   }
 
-  const discoveredSession = async (
-    file: string,
-    projectPaths: readonly ProjectLocation[],
-  ): Promise<DiscoveredPiSession | null> => {
+  const discoveredSession = async (file: string, projectPaths: readonly ProjectLocation[]) => {
     const state = await fileState(file)
     if (state === null) return null
     const header = await headerOf(file, state)
@@ -169,7 +166,7 @@ export function createPiSessionDiscoveryScanner(
     return [...discovered.values()]
   }
 
-  const titleSource = async (file: string): Promise<PiSessionTitleSource | null> => {
+  const titleSource = async (file: string) => {
     const state = await fileState(file)
     if (state === null) return null
     const header = await headerOf(file, state)
@@ -192,5 +189,5 @@ export function createPiSessionDiscoveryScanner(
       }
     },
     titleSource,
-  }
+  } satisfies PiSessionDiscoveryScanner
 }

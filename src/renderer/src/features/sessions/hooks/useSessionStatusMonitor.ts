@@ -1,8 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionSummary } from '@shared/types/session'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
+import { loadInBatches } from '@shared/utils/batches'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
@@ -49,8 +49,6 @@ async function hydrateLiveSessionStatuses(input: {
   ).catch((error: unknown) => {
     logger.warn('Failed to load the parents of running Workers', { error: String(error) })
   })
-  if (typeof api.querySessionControl !== 'function') return
-
   for (let offset = 0; offset < runs.length; offset += RUNTIME_HYDRATION_CONCURRENCY) {
     const pages = await Promise.allSettled(
       runs
@@ -87,22 +85,22 @@ const SESSION_IDS_PER_REQUEST = 100
 
 /**
  * A parent whose Workers already run when the window opens reads Working only once its catalog
- * entry is loaded (ADR 0063). The first catalog page may not hold it, so the parent and the Hive
+ * entry is loaded (ADR 0065). The first catalog page may not hold it, so the parent and the Hive
  * root of every running Worker are read in; a deeper ancestor arrives with its next Worker change.
  */
 async function loadRunningWorkerParents(
   runningSessionIds: readonly SessionId[],
   cancelled: () => boolean,
 ) {
-  if (runningSessionIds.length === 0 || typeof api.listSessionsByIds !== 'function') return
+  if (runningSessionIds.length === 0) return
   const ids = [...new Set(runningSessionIds)]
-  const running: SessionSummary[] = []
-  for (let start = 0; start < ids.length; start += SESSION_IDS_PER_REQUEST) {
-    running.push(
-      ...(await api.listSessionsByIds(ids.slice(start, start + SESSION_IDS_PER_REQUEST))),
-    )
-    if (cancelled()) return
-  }
+  const running = await loadInBatches(
+    ids,
+    SESSION_IDS_PER_REQUEST,
+    (batch) => api.listSessionsByIds(batch),
+    cancelled,
+  )
+  if (cancelled()) return
   const loaded = new Set(useSessionStore.getState().sessions.map((session) => String(session.id)))
   const parents = new Set<SessionId>()
   for (const session of running) {
@@ -120,7 +118,7 @@ async function loadRunningWorkerParents(
  * When a terminal status arrives for the currently active session,
  * it is immediately marked as visited so the icon doesn't flash.
  */
-export function useSessionStatusMonitor(): void {
+export function useSessionStatusMonitor() {
   const setStatus = useSessionStatusStore((s) => s.setStatus)
   const markWaggleRunning = useSessionStatusStore((s) => s.markWaggleRunning)
   const markRunCompleted = useSessionStatusStore((s) => s.markRunCompleted)
@@ -161,7 +159,6 @@ export function useSessionStatusMonitor(): void {
     }
 
     async function reconcileResolvedInteraction(sessionId: SessionId, resolvedAt: number) {
-      if (typeof api.querySessionControl !== 'function') return
       const pending = await listPendingNonNotifyInteractions(sessionId)
       if (cancelled || !pending) return
       if (TERMINAL_STATUSES.has(useSessionStatusStore.getState().getStatus(sessionId))) return

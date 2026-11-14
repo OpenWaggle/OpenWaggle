@@ -11,8 +11,8 @@ import { QueuedMessages } from '../QueuedMessages'
 const SESSION = SessionId('session-queue-state')
 const onToast = vi.fn()
 
-function item(overrides: Partial<SessionFollowUpQueueItem> = {}): SessionFollowUpQueueItem {
-  return {
+function item(overrides: Partial<SessionFollowUpQueueItem> = {}) {
+  const result: SessionFollowUpQueueItem = {
     id: 'follow-up-1',
     text: 'next',
     attachmentCount: 0,
@@ -22,9 +22,10 @@ function item(overrides: Partial<SessionFollowUpQueueItem> = {}): SessionFollowU
     editable: true,
     ...overrides,
   }
+  return result
 }
 
-function snapshot(overrides: Partial<SessionFollowUpQueueSnapshot>): SessionFollowUpQueueSnapshot {
+function snapshot(overrides: Partial<SessionFollowUpQueueSnapshot>) {
   return {
     state: 'running',
     revision: 4,
@@ -32,7 +33,7 @@ function snapshot(overrides: Partial<SessionFollowUpQueueSnapshot>): SessionFoll
     items: [item()],
     waitingOnEdit: false,
     ...overrides,
-  }
+  } satisfies SessionFollowUpQueueSnapshot
 }
 
 const queueMock = vi.hoisted(() => {

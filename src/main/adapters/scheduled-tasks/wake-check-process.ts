@@ -6,7 +6,7 @@ import {
   HEARTBEAT_WAKE_CHECK_TIMEOUT_MS,
 } from '@shared/types/scheduled-task-heartbeat'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appLifecycle } from '../../desktop-shell/app-lifecycle'
 import type {
   WakeCheckExecution,
   WakeCheckRequest,
@@ -65,8 +65,9 @@ function killDirect(child: ChildProcess) {
   try {
     child.kill('SIGKILL')
   } catch (error) {
-    if (errorCode(error) !== 'ESRCH')
+    if (errorCode(error) !== 'ESRCH') {
       logger.warn('Wake check kill failed', { error: String(error) })
+    }
   }
 }
 
@@ -103,7 +104,7 @@ function killTree(child: ChildProcess) {
   treeKill.unref()
 }
 
-function startFailure(message: string): WakeCheckExecution {
+function startFailure(message: string) {
   return {
     exitCode: null,
     signal: null,
@@ -112,7 +113,7 @@ function startFailure(message: string): WakeCheckExecution {
     stderr: '',
     truncated: false,
     startError: message,
-  }
+  } satisfies WakeCheckExecution
 }
 
 async function workingDirectoryProblem(workingPath: string) {
@@ -134,7 +135,7 @@ async function workingDirectoryProblem(workingPath: string) {
 export async function runWakeCheckProcess(
   request: WakeCheckRequest,
   options: WakeCheckProcessOptions,
-): Promise<WakeCheckExecution> {
+) {
   const problem = await workingDirectoryProblem(request.workingPath)
   if (problem) return startFailure(problem)
   const environment = getInteractiveTerminalEnv(options.appVersion, {
@@ -151,7 +152,7 @@ export async function runWakeCheckProcess(
     return startFailure(error instanceof Error ? error.message : String(error))
   }
   const limit = options.outputLimitBytes ?? HEARTBEAT_WAKE_CHECK_OUTPUT_LIMIT_BYTES
-  return new Promise((resolve) => {
+  return new Promise<WakeCheckExecution>((resolve) => {
     const stdout = boundedStream(limit)
     const stderr = boundedStream(limit)
     let timedOut = false
@@ -170,7 +171,7 @@ export async function runWakeCheckProcess(
       clearTimeout(timeout)
       resolve(result)
     }
-    const collected = (): WakeCheckExecution => ({
+    const collected = () => ({
       exitCode: exit?.code ?? null,
       signal: exit?.signal ?? null,
       timedOut,
@@ -202,5 +203,5 @@ export async function runWakeCheckProcess(
 
 /** The Session Host's Wake check runner, with this app's version in the terminal environment. */
 export function runHostWakeCheck(request: WakeCheckRequest) {
-  return Effect.promise(() => runWakeCheckProcess(request, { appVersion: app.getVersion() }))
+  return Effect.promise(() => runWakeCheckProcess(request, { appVersion: appLifecycle.version() }))
 }

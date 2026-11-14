@@ -25,16 +25,14 @@ const WITHDRAW: SessionControlMutationRequest = {
   command: { operation: 'queue-withdraw', sessionId: 'worker', followUpIds: ['held'] },
 }
 
-function response(
-  outcome: SessionControlMutationResponse['outcome'],
-): SessionControlMutationResponse {
+function response(outcome: SessionControlMutationResponse['outcome']) {
   return {
     contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
     requestId: 'request-1',
     idempotencyKey: 'key-1',
     replayed: false,
     outcome,
-  }
+  } satisfies SessionControlMutationResponse
 }
 
 const UPDATED = response({

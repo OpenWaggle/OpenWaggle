@@ -10,7 +10,7 @@ export interface TerminalProcessCommandResult {
   readonly exitCode: string | number | null
 }
 
-function childProcessExitCode(error: Error | null): string | number | null {
+function childProcessExitCode(error: Error | null) {
   if (error === null || !('code' in error)) return null
   const code: unknown = error.code
   return typeof code === 'string' || typeof code === 'number' ? code : null
@@ -27,8 +27,8 @@ export function runTerminalProcessCommand(
   args: readonly string[],
   timeoutMs = EXEC_TIMEOUT_MS,
   signal?: AbortSignal,
-): Promise<TerminalProcessCommandResult> {
-  return new Promise((resolve) => {
+) {
+  return new Promise<TerminalProcessCommandResult>((resolve) => {
     const finish = (error: Error | null, stdout = '', stderr = '') => {
       resolve({
         ok: error === null,

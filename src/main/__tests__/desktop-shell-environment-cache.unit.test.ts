@@ -73,7 +73,7 @@ describe('the cached login-shell environment', () => {
     expect(ready).toBe(false)
     shell.answer.resolve()
     await started.ready
-    expect(env.PATH).toBe('/opt/homebrew/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/opt/homebrew/bin:/usr/bin:/bin')
     const cached: unknown = JSON.parse(await readFile(cacheFile, 'utf8'))
     expect(cached).toMatchObject({
       ...KEY,
@@ -97,14 +97,14 @@ describe('the cached login-shell environment', () => {
 
     await started.ready
     expect(started.fromCache).toBe(true)
-    expect(env.PATH).toBe('/cached/bin:/usr/bin:/bin')
-    expect(env.SSH_AUTH_SOCK).toBe('/tmp/old-agent')
+    expect(env).toHaveProperty('PATH', '/cached/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('SSH_AUTH_SOCK', '/tmp/old-agent')
 
     shell.answer.resolve()
     await started.refreshed
     // Rebuilt from the launch environment: the cached entries do not linger.
-    expect(env.PATH).toBe('/fresh/bin:/usr/bin:/bin')
-    expect(env.SSH_AUTH_SOCK).toBe('/tmp/new-agent')
+    expect(env).toHaveProperty('PATH', '/fresh/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('SSH_AUTH_SOCK', '/tmp/new-agent')
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)).toEqual({
       environment: { PATH: '/fresh/bin:/usr/bin', SSH_AUTH_SOCK: '/tmp/new-agent' },
       resolvedAt: NOW,
@@ -118,7 +118,7 @@ describe('the cached login-shell environment', () => {
     shell.answer.resolve()
     await started.refreshed
 
-    expect(env.PATH).toBe('/cached/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/cached/bin:/usr/bin:/bin')
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)).toEqual({
       environment: { PATH: '/cached/bin' },
       resolvedAt: NOW,
@@ -170,13 +170,13 @@ describe('the cached login-shell environment', () => {
     )
     const shell = inheritingLoginShell('/opt/homebrew/bin')
     const { env, started } = launch(shell.runCommand)
-    expect(env.PATH).toBe('/stale/venv/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/stale/venv/bin:/usr/bin:/bin')
     await started.refreshed
 
     expect(shell.inherited).toHaveLength(1)
-    expect(shell.inherited[0]?.PATH).toBe('/usr/bin:/bin')
+    expect(shell.inherited[0]).toHaveProperty('PATH', '/usr/bin:/bin')
     // A PATH entry only the cache had is gone, from the process and from the cache.
-    expect(env.PATH).toBe('/opt/homebrew/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/opt/homebrew/bin:/usr/bin:/bin')
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)).toEqual({
       environment: { PATH: '/opt/homebrew/bin:/usr/bin:/bin' },
       resolvedAt: NOW,
@@ -192,12 +192,13 @@ describe('the cached login-shell environment', () => {
     const shell = inheritingLoginShell('/opt/homebrew/bin')
     const { env, started } = launch(shell.runCommand, { XDG_SESSION_TYPE: 'wayland' })
     await started.ready
-    expect(env.XDG_SESSION_TYPE).toBe('wayland')
+    expect(env).toHaveProperty('XDG_SESSION_TYPE', 'wayland')
 
     await started.refreshed
-    expect(shell.inherited[0]?.XDG_SESSION_TYPE).toBe('wayland')
-    expect(env.XDG_SESSION_TYPE).toBe('wayland')
-    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.XDG_SESSION_TYPE).toBe(
+    expect(shell.inherited[0]).toHaveProperty('XDG_SESSION_TYPE', 'wayland')
+    expect(env).toHaveProperty('XDG_SESSION_TYPE', 'wayland')
+    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment).toHaveProperty(
+      'XDG_SESSION_TYPE',
       'wayland',
     )
   })
@@ -211,10 +212,10 @@ describe('the cached login-shell environment', () => {
     const shell = inheritingLoginShell('/opt/homebrew/bin')
     const { env, started } = launch(shell.runCommand)
     await started.ready
-    expect(env.SSH_AUTH_SOCK).toBe('/tmp/old-agent')
+    expect(env).toHaveProperty('SSH_AUTH_SOCK', '/tmp/old-agent')
 
     await started.refreshed
-    expect(shell.inherited[0]?.SSH_AUTH_SOCK).toBeUndefined()
+    expect(shell.inherited[0]).not.toHaveProperty('SSH_AUTH_SOCK')
     expect('SSH_AUTH_SOCK' in env).toBe(false)
     expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment).not.toHaveProperty(
       'SSH_AUTH_SOCK',
@@ -261,7 +262,7 @@ describe('a Session Host launched by the desktop app', () => {
     await started.ready
     await started.refreshed
     expect(runCommand).not.toHaveBeenCalled()
-    expect(env.PATH).toBe('/fresh/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/fresh/bin:/usr/bin:/bin')
   })
 
   it("applies the app's refresh once it is written, still without a login shell", async () => {
@@ -279,11 +280,11 @@ describe('a Session Host launched by the desktop app', () => {
       },
     })
     await started.ready
-    expect(env.PATH).toBe('/old/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/old/bin:/usr/bin:/bin')
 
     await started.refreshed
     expect(runCommand).not.toHaveBeenCalled()
-    expect(env.PATH).toBe('/app/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/app/bin:/usr/bin:/bin')
   })
 
   it('probes itself when the app has not refreshed in time, and leaves the cache to the app', async () => {
@@ -299,8 +300,11 @@ describe('a Session Host launched by the desktop app', () => {
     await started.refreshed
 
     expect(runCommand).toHaveBeenCalled()
-    expect(env.PATH).toBe('/terminal/venv/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/terminal/venv/bin:/usr/bin:/bin')
     // A Host's environment can be a terminal's; it never becomes every launch's.
-    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe('/old/bin')
+    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment).toHaveProperty(
+      'PATH',
+      '/old/bin',
+    )
   })
 })

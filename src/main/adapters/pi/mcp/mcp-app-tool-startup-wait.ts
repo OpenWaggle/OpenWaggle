@@ -6,7 +6,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { mcpAppToolNames } from './mcp-app-registry'
-import { type CachedMcpAppTools, knownMcpAppTools } from './mcp-openwaggle-exposure'
+import { type CachedMcpAppTools, knownMcpAppTools } from './mcp-known-app-tools'
 import { knownMcpServerState } from './mcp-server-status-registry'
 
 const POLL_INTERVAL_MS = 10

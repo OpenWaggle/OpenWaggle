@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import type { CliShimMutationResult, CliShimStatus } from '@shared/types/cli-shim'
-import { app } from 'electron'
+import type { CliShimStatus } from '@shared/types/cli-shim'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
 import { env, getCurrentProcessPath } from '../env'
 import { runManagedShimMutation } from './cli-shim-bound-mutation'
 import {
@@ -99,18 +100,15 @@ function isManagedShim(content: string) {
   )
 }
 
-async function legacyMacCliLinkStatus(
-  input: CliShimServiceInput,
-  target: string,
-  onPath: boolean,
-): Promise<CliShimStatus | null> {
+async function legacyMacCliLinkStatus(input: CliShimServiceInput, target: string, onPath: boolean) {
   if (input.platform !== 'darwin') return null
   try {
     const link = await fs.lstat(target)
     if (!link.isSymbolicLink()) return null
     const destination = await fs.readlink(target)
-    if (path.resolve(path.dirname(target), destination) !== path.resolve(input.executablePath))
+    if (path.resolve(path.dirname(target), destination) !== path.resolve(input.executablePath)) {
       return null
+    }
     if (!(await fs.stat(target)).isFile()) return null
     return {
       management: 'installer',
@@ -118,14 +116,14 @@ async function legacyMacCliLinkStatus(
       commandPath: target,
       onPath,
       detail: 'Existing OpenWaggle app link. Re-run the app installer if the app moves.',
-    }
+    } satisfies CliShimStatus
   } catch (error) {
     if (isMissing(error)) return null
     throw error
   }
 }
 
-function unsupportedStatus(input: CliShimServiceInput): CliShimStatus | null {
+function unsupportedStatus(input: CliShimServiceInput) {
   if (input.platform === 'win32') {
     return {
       management: 'installer',
@@ -133,33 +131,34 @@ function unsupportedStatus(input: CliShimServiceInput): CliShimStatus | null {
       commandPath: null,
       onPath: true,
       detail: 'The Windows installer manages the openwaggle command.',
-    }
+    } satisfies CliShimStatus
   }
   if (input.platform === 'darwin' || input.platform === 'linux') return null
-  return {
+  const status: CliShimStatus = {
     management: 'unsupported',
     state: 'unavailable',
     commandPath: null,
     onPath: false,
     detail: `CLI installation is not supported on ${input.platform}.`,
   }
+  return status
 }
 
-function legacyLinuxRuntimeStatus(target: string, onPath: boolean): CliShimStatus {
+function legacyLinuxRuntimeStatus(target: string, onPath: boolean) {
   return {
     management: 'user-shim',
     state: 'outdated',
     commandPath: target,
     onPath,
     detail: LEGACY_LINUX_LAYOUT_ERROR,
-  }
+  } satisfies CliShimStatus
 }
 
 export function createCliShimService(input: CliShimServiceInput) {
   const target = commandPath(input)
   const expectedContent = managedCliShimContent(input)
 
-  async function status(): Promise<CliShimStatus> {
+  async function status() {
     const unsupported = unsupportedStatus(input)
     if (unsupported) return unsupported
     const onPath = commandDirectoryIsOnPath(input, target)
@@ -168,7 +167,12 @@ export function createCliShimService(input: CliShimServiceInput) {
     if (legacyMacLink) return legacyMacLink
     const current = await readCommand(target)
     if (current.kind === 'missing') {
-      return { management: 'user-shim', state: 'not-installed', commandPath: target, onPath }
+      return {
+        management: 'user-shim',
+        state: 'not-installed',
+        commandPath: target,
+        onPath,
+      } satisfies CliShimStatus
     }
     if (current.kind === 'conflict' || !isManagedShim(current.content)) {
       return {
@@ -177,17 +181,17 @@ export function createCliShimService(input: CliShimServiceInput) {
         commandPath: target,
         onPath,
         detail: 'Another file already uses this path. OpenWaggle will not replace it.',
-      }
+      } satisfies CliShimStatus
     }
     return {
       management: 'user-shim',
       state: current.content === expectedContent ? 'installed' : 'outdated',
       commandPath: target,
       onPath,
-    }
+    } satisfies CliShimStatus
   }
 
-  async function install(): Promise<CliShimMutationResult> {
+  async function install() {
     const before = await status()
     if (before.management !== 'user-shim' || before.state === 'unavailable') {
       return {
@@ -203,7 +207,7 @@ export function createCliShimService(input: CliShimServiceInput) {
         status: before,
       }
     }
-    if (before.state === 'installed') return { ok: true, status: before }
+    if (before.state === 'installed') return { ok: true, status: before } as const
     if (usesLegacyLinuxRuntime(input, target)) {
       return { ok: false, error: LEGACY_LINUX_LAYOUT_ERROR, status: before }
     }
@@ -231,15 +235,15 @@ export function createCliShimService(input: CliShimServiceInput) {
         status: current,
       }
     }
-    return { ok: true, status: await status() }
+    return { ok: true, status: await status() } as const
   }
 
-  async function remove(): Promise<CliShimMutationResult> {
+  async function remove() {
     const before = await status()
     if (before.management !== 'user-shim' || before.state === 'unavailable') {
       return { ok: false, error: before.detail ?? 'CLI removal is unavailable.', status: before }
     }
-    if (before.state === 'not-installed') return { ok: true, status: before }
+    if (before.state === 'not-installed') return { ok: true, status: before } as const
     if (before.state === 'conflict') {
       return {
         ok: false,
@@ -269,7 +273,7 @@ export function createCliShimService(input: CliShimServiceInput) {
         status: await status(),
       }
     }
-    return { ok: true, status: await status() }
+    return { ok: true, status: await status() } as const
   }
 
   return { status, install, remove }
@@ -281,17 +285,19 @@ export function createAppCliShimService() {
   const appImagePath = resolveCliShimExecutablePath({
     platform: process.platform,
     executablePath: process.execPath,
-    isPackaged: app.isPackaged,
+    isPackaged: appLifecycle.isPackaged(),
     ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
   })
   const legacyLinuxAppImage =
-    process.platform === 'linux' && app.isPackaged && path.resolve(appImagePath) === command
+    process.platform === 'linux' &&
+    appLifecycle.isPackaged() &&
+    path.resolve(appImagePath) === command
   return createCliShimService({
     platform: process.platform,
     homeDirectory,
     executablePath: appImagePath,
     ...(legacyLinuxAppImage ? { legacyLinuxAppImagePath: command } : {}),
-    ...(app.isPackaged ? {} : { appPath: app.getAppPath() }),
+    ...(appLifecycle.isPackaged() ? {} : { appPath: appPaths.appRoot() }),
     environmentPath: getCurrentProcessPath,
   })
 }
@@ -302,8 +308,8 @@ export async function ensureCliShimInstalled(
     ReturnType<typeof createCliShimService>,
     'status' | 'install'
   > = createAppCliShimService(),
-): Promise<CliShimMutationResult> {
+) {
   const current = await service.status()
-  if (current.management === 'installer') return { ok: true, status: current }
+  if (current.management === 'installer') return { ok: true, status: current } as const
   return service.install()
 }

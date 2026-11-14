@@ -158,12 +158,10 @@ describe('Session Control external command service', () => {
   })
 
   it('releases the attachments of a steer an extension handled', async () => {
-    const steer = vi.fn(
-      async (): Promise<AgentSteeringResult> => ({
-        accepted: true,
-        receipt: { delivery: 'handled' },
-      }),
-    )
+    const steer = vi.fn<() => Promise<AgentSteeringResult>>(async () => ({
+      accepted: true,
+      receipt: { delivery: 'handled' },
+    }))
     const setup = makeLayer({
       state: {
         sessionId: SessionId('session-target'),

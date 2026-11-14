@@ -11,9 +11,8 @@ vi.mock('../../../usage-statistics/usage-statistics-enablement', async (importOr
   isUsageStatisticsEnabled: () => statistics.enabled,
 }))
 
-const { createPiProviderCatalogSnapshot, createPiRuntimeServices } = await import(
-  '../pi-provider-catalog'
-)
+const { createPiProviderCatalogSnapshot, createPiRuntimeServices } =
+  await import('../pi-provider-catalog')
 const { setClientIdentityTransform } = await import('@earendil-works/pi-coding-agent')
 
 const ATTRIBUTION_HEADERS = ['http-referer', 'x-openrouter-title', 'x-openrouter-categories']

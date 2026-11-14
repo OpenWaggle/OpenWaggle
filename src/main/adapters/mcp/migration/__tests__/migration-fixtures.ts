@@ -68,8 +68,14 @@ export interface RecordingLogger extends Logger {
   readonly error: Mock<Logger['error']>
 }
 
-export function recordingLogger(): RecordingLogger {
-  return { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn<Logger['error']>() }
+export function recordingLogger() {
+  const logger: RecordingLogger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn<Logger['error']>(),
+  }
+  return logger
 }
 
 export function memoryFs(files: Record<string, unknown>) {
@@ -106,9 +112,10 @@ export function allConnectedState(files: Record<string, unknown>) {
   return legacyState({ globalState: 'on', servers })
 }
 
-function safeParse(text: string): unknown {
+function safeParse(text: string) {
   try {
-    return JSON.parse(text)
+    const parsed: unknown = JSON.parse(text)
+    return parsed
   } catch {
     return undefined
   }

@@ -10,9 +10,30 @@ import { useMcpRegistry } from '../../../hooks/useMcpRegistry'
 import { McpInlineError } from './McpLabels'
 import { McpRegistryResultRow } from './McpRegistryResultRow'
 import { McpSecretLines } from './McpSecretLines'
+import { mcpCountWords } from './mcp-count-words'
+
+function OptionalSecretsLine({ result }: { readonly result: McpRegistryInstallResultView }) {
+  const words = mcpCountWords(result.optionalSecrets.length)
+  const ending = result.optionalSecretsNeedContainerEnv
+    ? ', and add -e NAME to its args before the image so the container receives it.'
+    : '.'
+  return (
+    <p>
+      {`It can also use the optional secret${words.plural} ${result.optionalSecrets.join(', ')}, which ${words.was} left out so it starts without ${words.object}. To use one, add it to the entry with a secret${ending}`}
+    </p>
+  )
+}
+
+function OptionalArgumentsLine({ flags }: { readonly flags: readonly string[] }) {
+  const words = mcpCountWords(flags.length)
+  return (
+    <p>
+      {`It also takes the optional argument${words.plural} ${flags.join(', ')}, which ${words.was} left out: ${words.needs} a literal value in args, since a command line cannot read a secret.`}
+    </p>
+  )
+}
 
 function InstalledNotice({ result }: { readonly result: McpRegistryInstallResultView }) {
-  const optional = result.optionalSecrets
   const flags = result.optionalSecretArguments
   return (
     <div role="status" className="space-y-0.5 text-xs text-text-secondary">
@@ -28,25 +49,8 @@ function InstalledNotice({ result }: { readonly result: McpRegistryInstallResult
         existingSecrets={result.existingSecrets}
         subject="one"
       />
-      {optional.length > 0 ? (
-        <p>
-          It can also use the optional secret{optional.length === 1 ? '' : 's'}{' '}
-          {optional.join(', ')}, which {optional.length === 1 ? 'was' : 'were'} left out so it
-          starts without {optional.length === 1 ? 'it' : 'them'}. To use one, add it to the entry
-          with a secret
-          {result.optionalSecretsNeedContainerEnv
-            ? ', and add -e NAME to its args before the image so the container receives it.'
-            : '.'}
-        </p>
-      ) : null}
-      {flags.length > 0 ? (
-        <p>
-          It also takes the optional argument{flags.length === 1 ? '' : 's'} {flags.join(', ')},
-          which {flags.length === 1 ? 'was' : 'were'} left out:{' '}
-          {flags.length === 1 ? 'it needs' : 'they need'} a literal value in args, since a command
-          line cannot read a secret.
-        </p>
-      ) : null}
+      {result.optionalSecrets.length > 0 ? <OptionalSecretsLine result={result} /> : null}
+      {flags.length > 0 ? <OptionalArgumentsLine flags={flags} /> : null}
     </div>
   )
 }

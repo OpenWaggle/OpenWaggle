@@ -28,7 +28,8 @@ const REAL_KEY = 'sk-or-real-key'
 const RUN_TOKEN = 'per-run-token'
 const MODEL = 'z-ai/glm-5.3-flash'
 const HTTP_FORBIDDEN = 403
-const SSE_BODY = 'data: {"choices":[{"delta":{"content":"OK"}}]}\n\ndata: {"usage":{"prompt_tokens":1234,"completion_tokens":2}}\n\ndata: [DONE]\n\n'
+const SSE_BODY =
+  'data: {"choices":[{"delta":{"content":"OK"}}]}\n\ndata: {"usage":{"prompt_tokens":1234,"completion_tokens":2}}\n\ndata: [DONE]\n\n'
 const UPSTREAM_STATUS = 201
 const READY_POLL_MS = 50
 const READY_TIMEOUT_MS = 10_000
@@ -67,7 +68,11 @@ async function startUpstream(respond: (index: number) => Promise<string> = async
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
   cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())))
   const address = server.address()
-  return { url: `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`, seen, paths }
+  return {
+    url: `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`,
+    seen,
+    paths,
+  }
 }
 
 async function startProxy(upstream: string, logPath: string) {
@@ -87,7 +92,10 @@ async function startProxy(upstream: string, logPath: string) {
   })
   const deadline = Date.now() + READY_TIMEOUT_MS
   while (Date.now() < deadline) {
-    const ready = await fetch(`http://127.0.0.1:${String(port)}/__bench/ready`).then((response) => response.ok, () => false)
+    const ready = await fetch(`http://127.0.0.1:${String(port)}/__bench/ready`).then(
+      (response) => response.ok,
+      () => false,
+    )
     if (ready) return { port, pid: child.pid ?? 0 }
     await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS))
   }
@@ -105,7 +113,7 @@ function chatRequest(headers: Record<string, string>, model = MODEL) {
 function nonLoopbackAddress() {
   return Object.values(os.networkInterfaces())
     .flat()
-    .find((entry) => entry && entry.family === 'IPv4' && !entry.internal)?.address
+    .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
 }
 
 describe('benchmark proxy', () => {
@@ -126,9 +134,16 @@ describe('benchmark proxy', () => {
     expect(response.status).toBe(UPSTREAM_STATUS)
     expect(body).toBe(SSE_BODY)
     expect(upstream.seen.at(-1)?.authorization).toBe(`Bearer ${REAL_KEY}`)
-    const records = (await readFile(logPath, 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
+    const records = (await readFile(logPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
     const post = records.find((record) => record.command === 'POST')
-    expect(post).toMatchObject({ status: UPSTREAM_STATUS, model: 'z-ai/glm-5.3-flash', request: { messages: [{ role: 'system' }] } })
+    expect(post).toMatchObject({
+      status: UPSTREAM_STATUS,
+      model: 'z-ai/glm-5.3-flash',
+      request: { messages: [{ role: 'system' }] },
+    })
     expect(post.usage_events).toContainEqual({ prompt_tokens: 1234, completion_tokens: 2 })
     expect(JSON.stringify(records)).not.toContain(REAL_KEY)
   })
@@ -146,8 +161,14 @@ describe('benchmark proxy', () => {
     ).then((response) => response.text())
 
     expect(upstream.paths.at(-1)).toBe('/api/v1/chat/completions')
-    const records = (await readFile(logPath, 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
-    expect(records.find((record) => record.command === 'POST')).toMatchObject({ agent: 'opencode', path: '/api/v1/chat/completions' })
+    const records = (await readFile(logPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(records.find((record) => record.command === 'POST')).toMatchObject({
+      agent: 'opencode',
+      path: '/api/v1/chat/completions',
+    })
   })
 
   it.skipIf(!nonLoopbackAddress())('does not listen on other interfaces', async () => {
@@ -155,7 +176,12 @@ describe('benchmark proxy', () => {
     cleanups.push(() => rm(directory, { recursive: true, force: true }))
     const upstream = await startUpstream()
     const { port } = await startProxy(upstream.url, path.join(directory, 'proxy-log.jsonl'))
-    const reachable = await fetch(`http://${nonLoopbackAddress() ?? ''}:${String(port)}/__bench/ready`).then(() => true, () => false)
+    const reachable = await fetch(
+      `http://${nonLoopbackAddress() ?? ''}:${String(port)}/__bench/ready`,
+    ).then(
+      () => true,
+      () => false,
+    )
     expect(reachable).toBe(false)
   })
 
@@ -172,7 +198,11 @@ describe('benchmark proxy', () => {
     const apiKey = await fetch(url, chatRequest({ 'x-api-key': RUN_TOKEN }))
     await apiKey.text()
 
-    expect([missing.status, wrongBearer.status, wrongApiKey.status]).toEqual([HTTP_FORBIDDEN, HTTP_FORBIDDEN, HTTP_FORBIDDEN])
+    expect([missing.status, wrongBearer.status, wrongApiKey.status]).toEqual([
+      HTTP_FORBIDDEN,
+      HTTP_FORBIDDEN,
+      HTTP_FORBIDDEN,
+    ])
     expect(apiKey.status).toBe(UPSTREAM_STATUS)
     expect(upstream.paths).toEqual(['/api/v1/chat/completions'])
   })
@@ -187,11 +217,21 @@ describe('benchmark proxy', () => {
 
     const key = await fetch(`${base}/api/v1/key`, { headers: authorization })
     const credits = await fetch(`${base}/agent/pi/api/v1/credits`, { headers: authorization })
-    const otherModel = await fetch(`${base}/api/v1/chat/completions`, chatRequest(authorization, 'anthropic/claude-opus-4'))
-    const messages = await fetch(`${base}/agent/claude/api/v1/messages?beta=true`, chatRequest(authorization))
+    const otherModel = await fetch(
+      `${base}/api/v1/chat/completions`,
+      chatRequest(authorization, 'anthropic/claude-opus-4'),
+    )
+    const messages = await fetch(
+      `${base}/agent/claude/api/v1/messages?beta=true`,
+      chatRequest(authorization),
+    )
     await messages.text()
 
-    expect([key.status, credits.status, otherModel.status]).toEqual([HTTP_FORBIDDEN, HTTP_FORBIDDEN, HTTP_FORBIDDEN])
+    expect([key.status, credits.status, otherModel.status]).toEqual([
+      HTTP_FORBIDDEN,
+      HTTP_FORBIDDEN,
+      HTTP_FORBIDDEN,
+    ])
     expect(messages.status).toBe(UPSTREAM_STATUS)
     expect(upstream.paths).toEqual(['/api/v1/messages?beta=true'])
   })
@@ -210,7 +250,8 @@ describe('benchmark proxy', () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'bench-proxy-'))
     cleanups.push(() => rm(directory, { recursive: true, force: true }))
     const logPath = path.join(directory, 'proxy-log.jsonl')
-    const usageBody = (promptTokens: number) => `data: {"usage":{"prompt_tokens":${String(promptTokens)},"completion_tokens":1}}\n\ndata: [DONE]\n\n`
+    const usageBody = (promptTokens: number) =>
+      `data: {"usage":{"prompt_tokens":${String(promptTokens)},"completion_tokens":1}}\n\ndata: [DONE]\n\n`
     // The first model call streams for a while; the title call sent after it returns at once.
     const upstream = await startUpstream(async (index) => {
       if (index > 0) return usageBody(TITLE_CALL_PROMPT_TOKENS)
@@ -231,12 +272,18 @@ describe('benchmark proxy', () => {
 
     const lines = (await readFile(logPath, 'utf8')).trim().split('\n')
     // The log is in completion order: the title call is written first.
-    expect(JSON.parse(lines[0] ?? '{}')).toMatchObject({ seq: 2, request: { messages: [{ content: 'title call' }] } })
+    expect(JSON.parse(lines[0] ?? '{}')).toMatchObject({
+      seq: 2,
+      request: { messages: [{ content: 'title call' }] },
+    })
     expect(firstRequestOf(lines)).toMatchObject({ messages: [{ content: 'first model call' }] })
     await writeFile(path.join(directory, 'openwaggle.proxy.jsonl'), `${lines.join('\n')}\n`)
     execFileSync('python3', [PARSE_RESULTS, directory], { stdio: 'ignore' })
     const results = JSON.parse(await readFile(path.join(directory, 'results.json'), 'utf8'))
-    expect(results.agents.openwaggle).toMatchObject({ turnOneTokens: FIRST_CALL_PROMPT_TOKENS, modelCalls: 2 })
+    expect(results.agents.openwaggle).toMatchObject({
+      turnOneTokens: FIRST_CALL_PROMPT_TOKENS,
+      modelCalls: 2,
+    })
   })
 
   it('refuses to start without the real key, the run token or the model', () => {
@@ -248,7 +295,9 @@ describe('benchmark proxy', () => {
         BENCH_MODEL: MODEL,
       }
       delete environment[missing]
-      expect(() => execFileSync('python3', [PROXY, '0', '/dev/null'], { env: environment, stdio: 'pipe' })).toThrow()
+      expect(() =>
+        execFileSync('python3', [PROXY, '0', '/dev/null'], { env: environment, stdio: 'pipe' }),
+      ).toThrow()
     }
   })
 })
@@ -272,7 +321,10 @@ describe('benchmark container scripts', () => {
 
   it('declares every Python module the DeepSeek harness probe uses', async () => {
     const inside = await readFile(INSIDE, 'utf8')
-    const probe = inside.slice(inside.indexOf("<<'PYEOF'") + "<<'PYEOF'".length, inside.indexOf('PYEOF\n', inside.indexOf("<<'PYEOF'") + 1))
+    const probe = inside.slice(
+      inside.indexOf("<<'PYEOF'") + "<<'PYEOF'".length,
+      inside.indexOf('PYEOF\n', inside.indexOf("<<'PYEOF'") + 1),
+    )
     expect(probe).toContain('os.environ')
     expect(probe).toMatch(/^import os$/m)
   })
@@ -289,7 +341,10 @@ describe('benchmark OpenWaggle build identity', () => {
     await mkdir(path.join(bundle, 'Contents', 'Resources'), { recursive: true })
     await writeFile(
       path.join(bundle, 'Contents', 'Resources', 'app.asar'),
-      asarImage({ 'package.json': JSON.stringify({ version: VERSION }), 'out/build-meta.json': JSON.stringify({ commit: COMMIT }) }),
+      asarImage({
+        'package.json': JSON.stringify({ version: VERSION }),
+        'out/build-meta.json': JSON.stringify({ commit: COMMIT }),
+      }),
     )
     const checkout = path.join(directory, 'checkout')
     await mkdir(path.join(checkout, 'out'), { recursive: true })
@@ -303,7 +358,10 @@ describe('benchmark OpenWaggle build identity', () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'bench-identity-'))
     cleanups.push(() => rm(directory, { recursive: true, force: true }))
     await writeFile(path.join(directory, 'openwaggle.proxy.jsonl'), '')
-    await writeFile(path.join(directory, 'openwaggle.app.json'), JSON.stringify({ appVersion: VERSION, commit: COMMIT }))
+    await writeFile(
+      path.join(directory, 'openwaggle.app.json'),
+      JSON.stringify({ appVersion: VERSION, commit: COMMIT }),
+    )
     execFileSync('python3', [PARSE_RESULTS, directory], { stdio: 'ignore' })
     const results = JSON.parse(await readFile(path.join(directory, 'results.json'), 'utf8'))
     expect(results.agents.openwaggle).toMatchObject({ appVersion: VERSION, commit: COMMIT })
@@ -312,17 +370,39 @@ describe('benchmark OpenWaggle build identity', () => {
   it('points the OpenWaggle row at the address the proxy listens on, and only on macOS', async () => {
     const run = await readFile(RUN, 'utf8')
     expect(run).toContain('--proxy "http://$BENCH_PROXY_BIND:$PROXY_PORT/agent/openwaggle"')
-    expect(run).toContain('curl -s -o /dev/null "http://$BENCH_PROXY_BIND:$PROXY_PORT/__bench/ready"')
+    expect(run).toContain(
+      'curl -s -o /dev/null "http://$BENCH_PROXY_BIND:$PROXY_PORT/__bench/ready"',
+    )
     expect(run).toContain('runs on macOS only')
   })
 })
 
 describe('benchmark request tokens', () => {
   it('counts the system prompt and tools of chat, responses and messages requests', () => {
-    const tool = { type: 'function', function: { name: 'bash', description: 'Run a shell command.', parameters: { type: 'object' } } }
-    const chat = requestTokens({ messages: [{ role: 'system', content: 'You are a coding agent.' }, { role: 'user', content: 'hi' }], tools: [tool] })
-    const responses = requestTokens({ instructions: 'You are a coding agent.', input: [{ role: 'user', content: 'hi' }], tools: [tool] })
-    const messages = requestTokens({ system: [{ type: 'text', text: 'You are a coding agent.' }], tools: [tool] })
+    const tool = {
+      type: 'function',
+      function: {
+        name: 'bash',
+        description: 'Run a shell command.',
+        parameters: { type: 'object' },
+      },
+    }
+    const chat = requestTokens({
+      messages: [
+        { role: 'system', content: 'You are a coding agent.' },
+        { role: 'user', content: 'hi' },
+      ],
+      tools: [tool],
+    })
+    const responses = requestTokens({
+      instructions: 'You are a coding agent.',
+      input: [{ role: 'user', content: 'hi' }],
+      tools: [tool],
+    })
+    const messages = requestTokens({
+      system: [{ type: 'text', text: 'You are a coding agent.' }],
+      tools: [tool],
+    })
     expect(chat.toolCount).toBe(1)
     expect(chat.systemO200k).toBeGreaterThan(0)
     expect(responses.systemO200k).toBe(chat.systemO200k)

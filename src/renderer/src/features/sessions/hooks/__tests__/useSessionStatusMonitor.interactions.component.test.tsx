@@ -40,7 +40,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const SESSION_ID = SessionId('session-multiple-interactions')
 
-function interaction(id: string, createdAt: number): AgentLoopInteraction {
+function interaction(id: string, createdAt: number) {
   return {
     interactionId: id,
     sessionId: SESSION_ID,
@@ -49,7 +49,7 @@ function interaction(id: string, createdAt: number): AgentLoopInteraction {
     source: 'pi-ui',
     createdAt,
     title: `Question ${id}`,
-  }
+  } satisfies AgentLoopInteraction
 }
 
 function pendingResponse(requests: readonly AgentLoopInteraction[]) {

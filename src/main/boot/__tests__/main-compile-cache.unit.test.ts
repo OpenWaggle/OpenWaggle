@@ -76,7 +76,7 @@ describe('flushMainCompileCacheAfterLoad', () => {
     const { api, flushCompileCache } = fakeApi(STATUS.ENABLED)
     const cache = enableMainCompileCache({ kind: 'enabled', directory: '/c' }, api)
     const unref = vi.fn()
-    const scheduled: Array<{ callback: () => void; delayMs: number }> = []
+    const scheduled: { callback: () => void; delayMs: number }[] = []
 
     flushMainCompileCacheAfterLoad(cache, (callback, delayMs) => {
       scheduled.push({ callback, delayMs })
@@ -97,7 +97,7 @@ describe('flushMainCompileCacheOnceStarted', () => {
   it("keeps the write off the window's and the Host's startup, then writes for each", () => {
     const { api, flushCompileCache } = fakeApi(STATUS.ENABLED)
     const cache = enableMainCompileCache({ kind: 'enabled', directory: '/c' }, api)
-    const scheduled: Array<{ callback: () => void; delayMs: number }> = []
+    const scheduled: { callback: () => void; delayMs: number }[] = []
 
     flushMainCompileCacheOnceStarted(cache, (callback, delayMs) => {
       scheduled.push({ callback, delayMs })
@@ -179,7 +179,7 @@ describe('stale compile cache sweep (R6 P3-11)', () => {
       fileSystem,
       () => NOW,
     )
-    const scheduled: Array<() => void> = []
+    const scheduled: (() => void)[] = []
 
     flushMainCompileCacheOnceStarted(cache, (callback) => {
       scheduled.push(callback)

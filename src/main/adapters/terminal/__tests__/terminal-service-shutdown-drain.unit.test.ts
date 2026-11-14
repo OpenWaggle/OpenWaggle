@@ -3,16 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProcessRow } from '../terminal-process-inspector'
 import {
   feed,
-  OWNER,
   open,
+  OWNER,
   ptys,
   service,
   settle,
   setupTerminalServiceActionsTest,
-  TERMINAL_KEY,
   teardownTerminalServiceActionsTest,
+  TERMINAL_KEY,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 const processProbe = vi.hoisted(() => ({
   rows: new Map<number, ProcessRow>(),
@@ -29,7 +30,7 @@ vi.mock('../terminal-process-probes', () => ({
   readProcessTty: vi.fn(() => Promise.resolve(null)),
 }))
 
-function processRow(pid: number, ppid: number, name: string): ProcessRow {
+function processRow(pid: number, ppid: number, name: string) {
   return {
     pid,
     ppid,
@@ -41,7 +42,7 @@ function processRow(pid: number, ppid: number, name: string): ProcessRow {
     zombie: false,
     startedAt: `start-${pid}`,
     name,
-  }
+  } satisfies ProcessRow
 }
 
 describe('makeNodePtyTerminalService owner and app shutdown drain', () => {
@@ -67,7 +68,7 @@ describe('makeNodePtyTerminalService owner and app shutdown drain', () => {
     first.emitProcessTreeExit(0)
     await closing
 
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     expect(record.closed).toBe(true)
     feed(0, 'discarded after destructive close')
     expect(record.scrollback.toString()).toBe('')
@@ -101,6 +102,6 @@ describe('makeNodePtyTerminalService owner and app shutdown drain', () => {
     first.emitPublicExit(0)
     await closing
     expect(settled).toBe(true)
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
   })
 })

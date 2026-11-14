@@ -109,7 +109,7 @@ async function failureMessage<A, E>(effect: Effect.Effect<A, E, Services>) {
   return error instanceof Error ? error.message : String(error)
 }
 
-function servers(filePath: string): Record<string, unknown> {
+function servers(filePath: string) {
   const parsed: { mcpServers: Record<string, unknown> } = JSON.parse(readFileSync(filePath, 'utf8'))
   return parsed.mcpServers
 }

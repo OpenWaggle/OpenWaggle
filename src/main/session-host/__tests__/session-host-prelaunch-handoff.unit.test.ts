@@ -6,8 +6,12 @@ import {
   takeSessionHostPrelaunch,
 } from '../session-host-prelaunch-handoff'
 
-function prelaunch(userDataRoot: string, ended = false): SessionHostPrelaunch {
-  return { userDataRoot, ended: new Promise(() => undefined), hasEnded: () => ended }
+function prelaunch(userDataRoot: string, ended = false) {
+  return {
+    userDataRoot,
+    ended: new Promise(() => undefined),
+    hasEnded: () => ended,
+  } satisfies SessionHostPrelaunch
 }
 
 describe('Session Host prelaunch hand-off', () => {

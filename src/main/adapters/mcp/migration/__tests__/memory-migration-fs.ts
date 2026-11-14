@@ -30,7 +30,7 @@ export class MemoryMigrationFs implements McpMigrationFs {
     return Promise.resolve(true)
   }
 
-  json(filePath: string): unknown {
+  json(filePath: string) {
     const content = this.files.get(filePath)
     if (content === undefined) throw new Error(`No file at ${filePath}`)
     const parsed: unknown = JSON.parse(content)

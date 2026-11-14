@@ -19,7 +19,7 @@ import {
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 
-function definition(overrides: Partial<ScheduleDefinition>): ScheduleDefinition {
+function definition(overrides: Partial<ScheduleDefinition>) {
   return {
     taskId: 'task-1',
     schedule: { kind: 'interval', everyMinutes: 30 },
@@ -27,7 +27,7 @@ function definition(overrides: Partial<ScheduleDefinition>): ScheduleDefinition 
     anchorAt: Date.UTC(2026, 0, 5, 8, 0),
     endsAt: null,
     ...overrides,
-  }
+  } satisfies ScheduleDefinition
 }
 
 function rule(text: string) {

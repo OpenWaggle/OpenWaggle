@@ -57,7 +57,7 @@ export function minimumIntervalMinutes(kind: ScheduledTaskKind) {
 }
 
 /** A Heartbeat checks in every 30 minutes; a Launch schedule starts work each weekday morning. */
-export function defaultScheduleDraft(kind: ScheduledTaskKind): ScheduleDraft {
+export function defaultScheduleDraft(kind: ScheduledTaskKind) {
   return {
     preset: kind === 'heartbeat' ? 'interval' : 'weekdays',
     intervalAmount: DEFAULT_HEARTBEAT_INTERVAL,
@@ -65,7 +65,7 @@ export function defaultScheduleDraft(kind: ScheduledTaskKind): ScheduleDraft {
     time: DEFAULT_DAILY_TIME,
     weekdays: WORKDAYS,
     rule: '',
-  }
+  } satisfies ScheduleDraft
 }
 
 function sortedWeekdays(weekdays: readonly IsoWeekday[]) {
@@ -77,63 +77,88 @@ function sameWeekdays(left: readonly IsoWeekday[], right: readonly IsoWeekday[])
   return sorted.length === right.length && sorted.every((day, index) => day === right[index])
 }
 
-function intervalSchedule(draft: ScheduleDraft, kind: ScheduledTaskKind): ScheduleDraftResult {
+function intervalSchedule(draft: ScheduleDraft, kind: ScheduledTaskKind) {
   const amount = draft.intervalAmount.trim()
   if (!INTEGER_PATTERN.test(amount) || Number(amount) === 0) {
-    return { ok: false, error: 'Enter a whole number for the interval.' }
+    const result: ScheduleDraftResult = {
+      ok: false,
+      error: 'Enter a whole number for the interval.',
+    }
+    return result
   }
   const everyMinutes = Number(amount) * (draft.intervalUnit === 'hours' ? MINUTES_PER_HOUR : 1)
   const minimum = minimumIntervalMinutes(kind)
   if (everyMinutes < minimum) {
     const label = kind === 'heartbeat' ? 'A Heartbeat' : 'A Launch schedule'
-    return { ok: false, error: `${label} runs at most every ${String(minimum)} minutes.` }
+    const result: ScheduleDraftResult = {
+      ok: false,
+      error: `${label} runs at most every ${String(minimum)} minutes.`,
+    }
+    return result
   }
   if (everyMinutes > SCHEDULED_TASK_MAX_INTERVAL_MINUTES) {
-    return { ok: false, error: 'The interval can be at most 31 days.' }
+    const result: ScheduleDraftResult = { ok: false, error: 'The interval can be at most 31 days.' }
+    return result
   }
-  return { ok: true, schedule: { kind: 'interval', everyMinutes } }
+  const result: ScheduleDraftResult = { ok: true, schedule: { kind: 'interval', everyMinutes } }
+  return result
 }
 
-function dailySchedule(
-  time: string,
-  weekdays: readonly IsoWeekday[] | undefined,
-): ScheduleDraftResult {
-  if (!TIME_PATTERN.test(time)) return { ok: false, error: 'Choose a time of day.' }
-  if (weekdays === undefined) return { ok: true, schedule: { kind: 'daily', at: time } }
-  if (weekdays.length === 0) return { ok: false, error: 'Choose at least one day.' }
-  return { ok: true, schedule: { kind: 'daily', at: time, weekdays: sortedWeekdays(weekdays) } }
+function dailySchedule(time: string, weekdays: readonly IsoWeekday[] | undefined) {
+  if (!TIME_PATTERN.test(time)) {
+    const result: ScheduleDraftResult = { ok: false, error: 'Choose a time of day.' }
+    return result
+  }
+  if (weekdays === undefined) {
+    const result: ScheduleDraftResult = { ok: true, schedule: { kind: 'daily', at: time } }
+    return result
+  }
+  if (weekdays.length === 0) {
+    const result: ScheduleDraftResult = { ok: false, error: 'Choose at least one day.' }
+    return result
+  }
+  const result: ScheduleDraftResult = {
+    ok: true,
+    schedule: { kind: 'daily', at: time, weekdays: sortedWeekdays(weekdays) },
+  }
+  return result
 }
 
-function ruleSchedule(rule: string): ScheduleDraftResult {
+function ruleSchedule(rule: string) {
   const trimmed = rule.trim().replace(/^RRULE:/i, '')
-  if (trimmed === '') return { ok: false, error: 'Enter a recurrence rule, such as FREQ=DAILY.' }
-  if (trimmed.length > SCHEDULED_TASK_RRULE_MAX_LENGTH) {
-    return { ok: false, error: 'The recurrence rule is too long.' }
+  if (trimmed === '') {
+    const result: ScheduleDraftResult = {
+      ok: false,
+      error: 'Enter a recurrence rule, such as FREQ=DAILY.',
+    }
+    return result
   }
-  return { ok: true, schedule: { kind: 'rrule', rule: trimmed } }
+  if (trimmed.length > SCHEDULED_TASK_RRULE_MAX_LENGTH) {
+    const result: ScheduleDraftResult = { ok: false, error: 'The recurrence rule is too long.' }
+    return result
+  }
+  const result: ScheduleDraftResult = { ok: true, schedule: { kind: 'rrule', rule: trimmed } }
+  return result
 }
 
 /** The Task schedule an editor draft describes, or why it does not describe one yet. */
-export function scheduleFromDraft(
-  draft: ScheduleDraft,
-  kind: ScheduledTaskKind,
-): ScheduleDraftResult {
+export function scheduleFromDraft(draft: ScheduleDraft, kind: ScheduledTaskKind) {
   return match(draft.preset)
     .with('interval', () => intervalSchedule(draft, kind))
     .with('daily', () => dailySchedule(draft.time, undefined))
     .with('weekdays', () => dailySchedule(draft.time, WORKDAYS))
     .with('weekly', () => dailySchedule(draft.time, draft.weekdays))
     .with('rrule', () => ruleSchedule(draft.rule))
-    .exhaustive()
+    .exhaustive() satisfies ScheduleDraftResult
 }
 
-function dailyPreset(weekdays: readonly IsoWeekday[] | undefined): SchedulePreset {
-  if (weekdays === undefined || weekdays.length === EVERY_DAY_COUNT) return 'daily'
-  return sameWeekdays(weekdays, WORKDAYS) ? 'weekdays' : 'weekly'
+function dailyPreset(weekdays: readonly IsoWeekday[] | undefined) {
+  if (weekdays === undefined || weekdays.length === EVERY_DAY_COUNT) return 'daily' as const
+  return sameWeekdays(weekdays, WORKDAYS) ? ('weekdays' as const) : ('weekly' as const)
 }
 
 /** The editor draft for a stored Task schedule, so Edit opens on the matching preset. */
-export function draftFromSchedule(schedule: TaskSchedule, kind: ScheduledTaskKind): ScheduleDraft {
+export function draftFromSchedule(schedule: TaskSchedule, kind: ScheduledTaskKind) {
   const base = defaultScheduleDraft(kind)
   return match(schedule)
     .with({ kind: 'interval' }, ({ everyMinutes }) => {
@@ -152,7 +177,7 @@ export function draftFromSchedule(schedule: TaskSchedule, kind: ScheduledTaskKin
       weekdays: weekdays === undefined ? base.weekdays : sortedWeekdays(weekdays),
     }))
     .with({ kind: 'rrule' }, ({ rule }) => ({ ...base, preset: 'rrule' as const, rule }))
-    .exhaustive()
+    .exhaustive() satisfies ScheduleDraft
 }
 
 function plural(count: number, unit: string) {

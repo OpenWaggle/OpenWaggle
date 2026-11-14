@@ -97,7 +97,7 @@ const config = {
     '!scripts/**/*',
     '!electron.vite.config.*',
     '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}',
-    '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}',
+    '!tsconfig*.json',
     // Exclude non-runtime files from node_modules to reduce asar size
     '!node_modules/**/@types',
     '!node_modules/**/*.d.ts',

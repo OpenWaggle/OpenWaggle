@@ -100,7 +100,7 @@ function terminalInputUnavailable(record: TerminalRecord, deferUntilLaunch: bool
   return record.termination !== null || record.exitCode !== null
 }
 
-export function makeTerminalInputFlow(deps: TerminalInputFlowDeps): TerminalInputFlow {
+export function makeTerminalInputFlow(deps: TerminalInputFlowDeps) {
   const emitReadiness = (record: TerminalRecord) => {
     deps.emitEvent(record, readinessEvent(record))
   }
@@ -122,20 +122,38 @@ export function makeTerminalInputFlow(deps: TerminalInputFlowDeps): TerminalInpu
     data: string,
     intent: TerminalInputIntent | undefined,
     deferUntilLaunch: boolean,
-  ): TerminalWriteResult => {
+  ) => {
     const acceptedBytes = Buffer.byteLength(data, 'utf8')
-    if (acceptedBytes === 0) return { status: 'rejected', acceptedBytes: 0, reason: 'empty' }
+    if (acceptedBytes === 0) {
+      return { status: 'rejected', acceptedBytes: 0, reason: 'empty' } satisfies TerminalWriteResult
+    }
     if (terminalInputUnavailable(record, deferUntilLaunch)) {
-      return { status: 'rejected', acceptedBytes: 0, reason: 'terminal-not-open' }
+      return {
+        status: 'rejected',
+        acceptedBytes: 0,
+        reason: 'terminal-not-open',
+      } satisfies TerminalWriteResult
     }
     if (acceptedBytes > terminalInputByteLimit(intent)) {
-      return { status: 'rejected', acceptedBytes: 0, reason: 'input-too-large' }
+      return {
+        status: 'rejected',
+        acceptedBytes: 0,
+        reason: 'input-too-large',
+      } satisfies TerminalWriteResult
     }
     if (record.pendingInputBytes + acceptedBytes > TERMINAL.MAX_PENDING_INPUT_BYTES) {
-      return { status: 'rejected', acceptedBytes: 0, reason: 'queue-full' }
+      return {
+        status: 'rejected',
+        acceptedBytes: 0,
+        reason: 'queue-full',
+      } satisfies TerminalWriteResult
     }
     if (!beginTerminalProjectAction(record, intent)) {
-      return { status: 'rejected', acceptedBytes: 0, reason: 'project-action-pending' }
+      return {
+        status: 'rejected',
+        acceptedBytes: 0,
+        reason: 'project-action-pending',
+      } satisfies TerminalWriteResult
     }
     record.pendingInput.push({ data, ...(intent === undefined ? {} : { intent }) })
     record.pendingInputBytes += acceptedBytes
@@ -144,7 +162,7 @@ export function makeTerminalInputFlow(deps: TerminalInputFlowDeps): TerminalInpu
     return {
       status: !deferUntilLaunch && record.pendingInput.length === 0 ? 'written' : 'queued',
       acceptedBytes,
-    }
+    } satisfies TerminalWriteResult
   }
 
   const write = (record: TerminalRecord, data: string, intent?: TerminalInputIntent) =>
@@ -153,17 +171,20 @@ export function makeTerminalInputFlow(deps: TerminalInputFlowDeps): TerminalInpu
   const stageForLaunch = (record: TerminalRecord, data: string, intent?: TerminalInputIntent) =>
     enqueue(record, data, intent, true)
 
-  const forceRelease = (record: TerminalRecord): TerminalInputReleaseResult => {
+  const forceRelease = (record: TerminalRecord) => {
     if (record.live === null || record.termination !== null || record.exitCode !== null) {
-      return { status: 'terminal-not-open', releasedBytes: 0 }
+      const result: TerminalInputReleaseResult = { status: 'terminal-not-open', releasedBytes: 0 }
+      return result
     }
     if (record.readinessPhase === 'ready') {
-      return { status: 'already-ready', releasedBytes: 0 }
+      const result: TerminalInputReleaseResult = { status: 'already-ready', releasedBytes: 0 }
+      return result
     }
     record.readinessPhase = 'ready'
     emitReadiness(record)
     const releasedBytes = drainPendingInput(record) ?? 0
-    return { status: 'released', releasedBytes }
+    const result: TerminalInputReleaseResult = { status: 'released', releasedBytes }
+    return result
   }
 
   const observePromptMarkerBatch = (record: TerminalRecord, generation: number, count: number) => {
@@ -184,7 +205,7 @@ export function makeTerminalInputFlow(deps: TerminalInputFlowDeps): TerminalInpu
     if (clearTerminalProjectAction(record, true)) deps.onProjectActionChanged(record)
   }
 
-  return {
+  const flow: TerminalInputFlow = {
     setReadiness,
     emitReadiness,
     write,
@@ -198,4 +219,5 @@ export function makeTerminalInputFlow(deps: TerminalInputFlowDeps): TerminalInpu
     prepareProjectActionForRestart,
     dropProjectActionOnExit,
   }
+  return flow
 }

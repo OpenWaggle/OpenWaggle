@@ -43,7 +43,7 @@ const REQUEST_REVISION = {
 function transientMcpCaller(
   capabilities: readonly SessionCapability[],
   scope: LocalSessionProfileScope = { all: true },
-): LocalSessionCallerIdentity {
+) {
   return {
     callerId: 'transient-mcp:digest',
     profileAuthority: {
@@ -53,7 +53,7 @@ function transientMcpCaller(
       scope,
       authorizationCeiling: 'yolo',
     },
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 function reviewAs(caller: LocalSessionCallerIdentity) {

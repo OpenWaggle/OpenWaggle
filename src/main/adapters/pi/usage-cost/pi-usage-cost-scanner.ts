@@ -72,7 +72,7 @@ interface SessionCacheEntry {
  * its `.git` pointer names the primary repository — the project identity is
  * resolved from git itself, never from the UUID worktree folder name.
  */
-export function resolvePrimaryRepositoryFromGitDir(gitDir: string): string | null {
+export function resolvePrimaryRepositoryFromGitDir(gitDir: string) {
   const normalized = gitDir.replace(/\\/g, '/')
   const hadWorktreeSuffix = /\/worktrees\/[^/]+$/.test(normalized)
   const withoutWorktree = normalized.replace(/\/worktrees\/[^/]+$/, '')
@@ -86,9 +86,7 @@ export function resolvePrimaryRepositoryFromGitDir(gitDir: string): string | nul
   return primary === '' ? null : primary
 }
 
-export function createPiUsageCostScanner(
-  options: CreatePiUsageCostScannerOptions = {},
-): PiUsageCostScanner {
+export function createPiUsageCostScanner(options: CreatePiUsageCostScannerOptions = {}) {
   const cache = new Map<string, SessionCacheEntry>()
   const estimateCost = options.costEstimator ?? createPiCatalogCostEstimator()
   const projectIdentityByCwd = new Map<string, string | null>()
@@ -140,7 +138,7 @@ export function createPiUsageCostScanner(
   }
 
   /** Longest temporary root wins, so a scratch dir inside `/tmp` still resolves to its exact root. */
-  async function resolveProjectIdentity(cwd: string | null): Promise<string | null> {
+  async function resolveProjectIdentity(cwd: string | null) {
     if (cwd === null) return null
     const cachedIdentity = projectIdentityByCwd.get(cwd)
     if (cachedIdentity !== undefined) return cachedIdentity
@@ -151,7 +149,7 @@ export function createPiUsageCostScanner(
     return identity
   }
 
-  async function resolveWorktreePrimaryRepository(cwd: string): Promise<string | null> {
+  async function resolveWorktreePrimaryRepository(cwd: string) {
     let pointer: string
     try {
       pointer = await readFile(path.join(cwd, '.git'), 'utf8')
@@ -170,7 +168,7 @@ export function createPiUsageCostScanner(
     return knownProjectLocations
   }
 
-  function attributeToKnownProject(session: UsageCostScanSession): UsageCostScanSession {
+  function attributeToKnownProject(session: UsageCostScanSession) {
     if (session.resolvedProjectPath !== null || session.cwd === null) return session
     const owner = owningProject(session.cwd, knownProjectLocations)
     if (owner === null) return session
@@ -202,20 +200,17 @@ async function listSessionFiles(sessionsRoot: string) {
   } catch {
     return []
   }
-  const files: string[] = []
-  for (const directoryName of directoryNames) {
-    const directory = path.join(sessionsRoot, directoryName)
-    let entries: string[]
-    try {
-      entries = await readdir(directory)
-    } catch {
-      continue
-    }
-    for (const entry of entries) {
-      if (entry.endsWith(PI_SESSION_FILE_SUFFIX)) files.push(path.join(directory, entry))
-    }
-  }
-  return files
+  // A directory that cannot be listed adds nothing; the others keep their order.
+  const listed = await Promise.all(
+    directoryNames.map(async (directoryName) => {
+      const directory = path.join(sessionsRoot, directoryName)
+      const entries = await readdir(directory).catch(() => [])
+      return entries
+        .filter((entry) => entry.endsWith(PI_SESSION_FILE_SUFFIX))
+        .map((entry) => path.join(directory, entry))
+    }),
+  )
+  return listed.flat()
 }
 
 /**
@@ -223,11 +218,11 @@ async function listSessionFiles(sessionsRoot: string) {
  * rates — the same `calculateCost` Pi uses — for records written without a
  * cost. Returns `null` for models the catalog does not know (Cost tier 3).
  */
-export function createPiCatalogCostEstimator(): UsageCostEstimator {
+export function createPiCatalogCostEstimator() {
   // `createModels()` alone registers no providers, so every lookup missed and no record was ever
   // estimated; `builtinModels()` is the same collection with Pi's built-in catalog registered.
   let models: ReturnType<typeof builtinModels> | null = null
-  return (provider, modelId, tokens) => {
+  return ((provider, modelId, tokens) => {
     models ??= builtinModels()
     const model = models.getModel(provider, modelId)
     if (!model) return null
@@ -237,5 +232,5 @@ export function createPiCatalogCostEstimator(): UsageCostEstimator {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     }
     return calculateCost(model, usage).total
-  }
+  }) satisfies UsageCostEstimator
 }

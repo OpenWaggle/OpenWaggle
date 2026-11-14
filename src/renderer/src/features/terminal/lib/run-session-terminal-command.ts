@@ -23,7 +23,7 @@ interface SessionTerminalCommand {
  * `submit` is false, which leaves it typed at the prompt. Returns
  * the terminal id, or null when the Session has no terminal owner or Working path.
  */
-export function runSessionTerminalCommand(input: SessionTerminalCommand): string | null {
+export function runSessionTerminalCommand(input: SessionTerminalCommand) {
   if (input.ownerKey.length === 0 || input.cwd.length === 0) return null
   const store = useTerminalStore.getState()
   const layoutOwnerKey = resolveTerminalCommandLayoutOwner(input.ownerKey, store.groups)
@@ -69,7 +69,7 @@ export function watchSessionTerminalCommand(
   ownerKey: string,
   terminalId: string,
   onFinished: () => void,
-): () => void {
+) {
   const runtimeKey = runtimeKeyOf(ownerKey, terminalId)
   let sawCommand = false
   let sawPane = hasPane(useTerminalStore.getState().groups, terminalId)

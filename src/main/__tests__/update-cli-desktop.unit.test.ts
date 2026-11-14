@@ -21,7 +21,7 @@ const {
     autoDownload: boolean
     autoInstallOnAppQuit: boolean
     logger: null
-    once: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
     off: ReturnType<typeof vi.fn>
   } = {
     channel: null,
@@ -30,7 +30,7 @@ const {
     autoDownload: true,
     autoInstallOnAppQuit: true,
     logger: null,
-    once: vi.fn(),
+    on: vi.fn(),
     off: vi.fn(),
   }
   return {
@@ -115,10 +115,12 @@ describe('update CLI with the desktop app', () => {
 
   it('installs silently without opening the app when the desktop app is closed', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
-    updater.once.mockImplementation((event: string, listener: () => void) => {
-      if (event === 'update-downloaded') queueMicrotask(listener)
-      return updater
-    })
+    updater.on.mockImplementation(
+      (event: string, listener: (info: { readonly version: string }) => void) => {
+        if (event === 'update-downloaded') queueMicrotask(() => listener({ version: '0.4.1' }))
+        return updater
+      },
+    )
     checkForUpdatesMock.mockResolvedValue({
       isUpdateAvailable: true,
       updateInfo: { version: '0.4.1' },
@@ -139,10 +141,12 @@ describe('update CLI with the desktop app', () => {
   it('does not install when the user cancels because agent runs are active', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     vi.spyOn(process.stderr, 'write').mockReturnValue(true)
-    updater.once.mockImplementation((event: string, listener: () => void) => {
-      if (event === 'update-downloaded') queueMicrotask(listener)
-      return updater
-    })
+    updater.on.mockImplementation(
+      (event: string, listener: (info: { readonly version: string }) => void) => {
+        if (event === 'update-downloaded') queueMicrotask(() => listener({ version: '0.4.1' }))
+        return updater
+      },
+    )
     checkForUpdatesMock.mockResolvedValue({
       isUpdateAvailable: true,
       updateInfo: { version: '0.4.1' },

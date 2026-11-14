@@ -47,8 +47,10 @@ export class CliError extends Error {
   override readonly name: string = 'CliError'
   readonly code: string | undefined
 
+  readonly kind: CliErrorKind
+
   constructor(
-    readonly kind: CliErrorKind,
+    kind: CliErrorKind,
     message: string,
     options?: ErrorOptions & {
       /** The Session Host's refusal code, when one caused the error; `--json` carries it. */
@@ -56,6 +58,7 @@ export class CliError extends Error {
     },
   ) {
     super(message, options)
+    this.kind = kind
     this.code = options?.code
   }
 }
@@ -64,7 +67,7 @@ export class CliError extends Error {
  * Runs the part of a command that only reads its arguments: what it rejects is a usage error,
  * whatever it throws, unless the error already says its kind.
  */
-export async function asUsageErrors<T>(read: () => T | Promise<T>): Promise<T> {
+export async function asUsageErrors<T>(read: () => T | Promise<T>) {
   try {
     return await read()
   } catch (error) {
@@ -73,7 +76,7 @@ export async function asUsageErrors<T>(read: () => T | Promise<T>): Promise<T> {
 }
 
 /** The synchronous form of `asUsageErrors`. */
-export function asUsageErrorsSync<T>(read: () => T): T {
+export function asUsageErrorsSync<T>(read: () => T) {
   try {
     return read()
   } catch (error) {

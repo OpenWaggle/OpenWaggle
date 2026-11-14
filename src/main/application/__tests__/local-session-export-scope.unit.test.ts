@@ -32,7 +32,7 @@ describe('named-profile Session export scope', () => {
       sessionIds: ['session-1'],
       exportRoots: [workspace],
     },
-  ): LocalSessionCallerIdentity {
+  ) {
     return {
       callerId: 'profile:exporter',
       profileAuthority: {
@@ -42,14 +42,14 @@ describe('named-profile Session export scope', () => {
         scope,
         authorizationCeiling: 'ask-for-approval',
       },
-    }
+    } satisfies LocalSessionCallerIdentity
   }
 
   function payload(
     destinationPath: string,
     destinationRoot?: string,
     resources?: readonly { readonly kind: 'workspace-file'; readonly path: string }[],
-  ): LocalSessionCommandPayload {
+  ) {
     return {
       contract: 'session-control-v2',
       request: {
@@ -65,7 +65,7 @@ describe('named-profile Session export scope', () => {
           ...(destinationRoot ? { destinationRoot } : {}),
         },
       },
-    }
+    } satisfies LocalSessionCommandPayload
   }
 
   function layer() {

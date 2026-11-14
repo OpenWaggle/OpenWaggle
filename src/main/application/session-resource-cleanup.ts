@@ -40,7 +40,3 @@ export function cleanupPendingSessionResources() {
     }
   })
 }
-
-export function cleanupPendingSessionResourcesSafely() {
-  return cleanupPendingSessionResources().pipe(Effect.catchAll(() => Effect.void))
-}

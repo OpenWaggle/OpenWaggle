@@ -5,9 +5,7 @@ import type { WaggleHandoffRequest } from '@shared/types/waggle'
 
 const WAGGLE_INVOKE_TOOL_NAME = 'waggle_invoke'
 
-export function findWaggleHandoffRequest(
-  messages: readonly Message[],
-): WaggleHandoffRequest | null {
+export function findWaggleHandoffRequest(messages: readonly Message[]) {
   for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
     const message = messages[messageIndex]
     if (!message) continue
@@ -21,7 +19,9 @@ export function findWaggleHandoffRequest(
         continue
       }
       const decoded = safeDecodeUnknown(waggleHandoffRequestSchema, part.toolResult.details)
-      if (decoded.success) return toWaggleHandoffRequest(decoded.data)
+      if (decoded.success) {
+        return toWaggleHandoffRequest(decoded.data) satisfies WaggleHandoffRequest | null
+      }
     }
   }
   return null

@@ -10,7 +10,7 @@ import {
   wagglePresetReducer,
 } from '../waggle-form-state'
 
-function makePreset(): WagglePreset {
+function makePreset() {
   return {
     id: WagglePresetId('preset-1'),
     name: 'Pair',
@@ -36,7 +36,7 @@ function makePreset(): WagglePreset {
       ],
       stop: { primary: 'consensus', maxTurnsSafety: 8 },
     },
-  }
+  } satisfies WagglePreset
 }
 
 describe('waggle form state reducers', () => {

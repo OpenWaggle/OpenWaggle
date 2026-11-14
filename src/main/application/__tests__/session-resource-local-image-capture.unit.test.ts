@@ -41,14 +41,14 @@ function assistantPlainPathImageMessage() {
   }
 }
 
-function capturedResource(input: UpsertSessionResourceInput): SessionResource {
+function capturedResource(input: UpsertSessionResourceInput) {
   return {
     ...input,
     managed: input.managedPath !== null,
     occurrences: [input.occurrence],
     isSource: false,
     isOutput: true,
-  }
+  } satisfies SessionResource
 }
 
 function expectCapturedLocalImage(upserts: readonly UpsertSessionResourceInput[]) {
@@ -270,7 +270,7 @@ ${PLAIN_IMAGE_MARKDOWN}
 
   it("lets backfill read images from the Session's own scratch directory", async () => {
     const image = `${sessionScratchDirectoryPath('session-1')}/electron-qa-evidence/final.png`
-    const readSourceRoots: Array<readonly string[]> = []
+    const readSourceRoots: (readonly string[])[] = []
     const recordingReadRoots = Layer.effect(
       SessionResourceStore,
       Effect.map(SessionResourceStore, (store) =>

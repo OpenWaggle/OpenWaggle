@@ -1,8 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import type {
-  SessionResource,
-  SessionResourceThumbnailPreview,
-} from '@shared/types/session-resource'
+import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionResourceImageFetcher } from '../ports/session-resource-image-fetcher'
 import {
@@ -20,7 +17,7 @@ function thumbnailFromBytes(
   fileName: string,
   mimeType: string,
   bytes: Uint8Array,
-): SessionResourceThumbnailPreview {
+) {
   return {
     resourceId,
     fileName,

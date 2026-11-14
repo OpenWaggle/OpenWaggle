@@ -2,7 +2,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 
-export function createSession(): SessionDetail {
+export function createSession() {
   return {
     id: SessionId('session-1'),
     title: 'SessionDetail',
@@ -27,14 +27,11 @@ export function createSession(): SessionDetail {
         ],
       },
     ],
-  }
+  } satisfies SessionDetail
 }
 
-export function createSessionWithMessages(
-  updatedAt: number,
-  messages: SessionDetail['messages'],
-): SessionDetail {
-  return {
+export function createSessionWithMessages(updatedAt: number, messages: SessionDetail['messages']) {
+  const detail: SessionDetail = {
     id: SessionId('session-1'),
     title: 'SessionDetail',
     projectPath: '/tmp/project',
@@ -42,10 +39,11 @@ export function createSessionWithMessages(
     updatedAt,
     messages,
   }
+  return detail
 }
 
-export function createSessionWithId(id: SessionId): SessionDetail {
-  return {
+export function createSessionWithId(id: SessionId) {
+  const detail: SessionDetail = {
     id,
     title: `Session ${String(id)}`,
     projectPath: '/tmp/project',
@@ -53,14 +51,15 @@ export function createSessionWithId(id: SessionId): SessionDetail {
     updatedAt: 1,
     messages: [],
   }
+  return detail
 }
 
 export function createSessionWithIdAndMessages(
   id: SessionId,
   updatedAt: number,
   messages: SessionDetail['messages'],
-): SessionDetail {
-  return {
+) {
+  const detail: SessionDetail = {
     id,
     title: `Session ${String(id)}`,
     projectPath: `/tmp/${String(id)}`,
@@ -68,6 +67,7 @@ export function createSessionWithIdAndMessages(
     updatedAt,
     messages,
   }
+  return detail
 }
 
 export const SEND_PAYLOAD: AgentSendPayload = {

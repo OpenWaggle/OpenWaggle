@@ -38,7 +38,7 @@ const TAB: BrowserPreviewMaterializedTab = {
   controller: { kind: 'agent', action: 'click', pointer: { x: 24, y: 42 } },
 }
 
-function previewState(pictureInPicture: boolean): BrowserPreviewState {
+function previewState(pictureInPicture: boolean) {
   return {
     previewId: TAB.id,
     ownerKey: TAB.ownerKey,
@@ -61,7 +61,7 @@ function previewState(pictureInPicture: boolean): BrowserPreviewState {
       picking: false,
       recording: false,
     },
-  }
+  } satisfies BrowserPreviewState
 }
 
 function renderFloating() {

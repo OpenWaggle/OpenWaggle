@@ -53,7 +53,7 @@ function nodeId(index: number) {
   return `node-${String(index).padStart(6, '0')}`
 }
 
-function snapshotNodes(): readonly ProjectedSessionNodeInput[] {
+function snapshotNodes() {
   const existing = Array.from({ length: NODE_COUNT }, (_, index) => ({
     id: nodeId(index),
     parentId: index === 0 ? null : nodeId(index - 1),
@@ -80,7 +80,7 @@ function snapshotNodes(): readonly ProjectedSessionNodeInput[] {
       pathDepth: APPENDED_NODE_INDEX,
       createdOrder: APPENDED_NODE_INDEX,
     },
-  ]
+  ] satisfies readonly ProjectedSessionNodeInput[]
 }
 
 describe('Session snapshot semantic retention', () => {

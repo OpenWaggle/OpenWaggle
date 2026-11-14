@@ -1,10 +1,7 @@
 import { SESSION_HOST_ERROR_KINDS } from '@shared/domain/session-host-refusals'
 import { Schema } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
-import {
-  SESSION_CONTROL_MUTATION_OPERATIONS,
-  type SessionControlMutationOutcome,
-} from '@shared/types/session-control'
+import { SESSION_CONTROL_MUTATION_OPERATIONS } from '@shared/types/session-control'
 import { FOLLOW_UP_QUEUE_PAUSE_REASONS } from '@shared/types/session-control-queue'
 import {
   delegationAmendmentProposedOutcomeSchema,
@@ -18,9 +15,9 @@ import {
 import { exportCancelOutcomeSchema, exportCreateOutcomeSchema } from './session-export-operation'
 import { sessionOrganizationOutcomeSchemas } from './session-organization'
 
-const stateRevisionSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
+export const stateRevisionSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
 
-const steeringReceiptSchema = Schema.Union(
+export const steeringReceiptSchema = Schema.Union(
   Schema.Struct({
     delivery: Schema.Literal('queued'),
     durableTextSha256: Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)),
@@ -30,7 +27,7 @@ const steeringReceiptSchema = Schema.Union(
   Schema.Struct({ delivery: Schema.Literal('unavailable') }),
 )
 
-const messageStartedRunOutcomeSchema = Schema.Struct({
+export const messageStartedRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('message'),
   effect: Schema.Literal('started-run'),
   sessionId: Schema.String,
@@ -38,18 +35,22 @@ const messageStartedRunOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const followUpQueuedOutcomeSchema = Schema.Struct({
+export const followUpQueuedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('follow-up'),
   effect: Schema.Literal('queued-follow-up'),
   sessionId: Schema.String,
   followUpId: Schema.String,
-  queueState: Schema.optional(Schema.Literal('running', 'paused')),
-  pauseReason: Schema.optional(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS)),
+  /** Absent only in outcomes recorded before 1.0.0-rc.1. */
+  queueState: Schema.optionalWith(Schema.Literal('running', 'paused'), { exact: true }),
+  /** Why a paused queue holds the Follow-up, when the Host recorded it. */
+  pauseReason: Schema.optionalWith(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS), {
+    exact: true,
+  }),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
 
-const followUpStartedRunOutcomeSchema = Schema.Struct({
+export const followUpStartedRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('follow-up'),
   effect: Schema.Literal('started-run'),
   sessionId: Schema.String,
@@ -57,18 +58,22 @@ const followUpStartedRunOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const messageQueuedFollowUpOutcomeSchema = Schema.Struct({
+export const messageQueuedFollowUpOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('message'),
   effect: Schema.Literal('queued-follow-up'),
   sessionId: Schema.String,
   followUpId: Schema.String,
-  queueState: Schema.optional(Schema.Literal('running', 'paused')),
-  pauseReason: Schema.optional(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS)),
+  /** Absent only in outcomes recorded before 1.0.0-rc.1. */
+  queueState: Schema.optionalWith(Schema.Literal('running', 'paused'), { exact: true }),
+  /** Why a paused queue holds the Follow-up, when the Host recorded it. */
+  pauseReason: Schema.optionalWith(Schema.Literal(...FOLLOW_UP_QUEUE_PAUSE_REASONS), {
+    exact: true,
+  }),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
 
-const startStartedRunOutcomeSchema = Schema.Struct({
+export const startStartedRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('start'),
   effect: Schema.Literal('started-run'),
   sessionId: Schema.String,
@@ -76,7 +81,7 @@ const startStartedRunOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const steeredRunOutcomeSchema = Schema.Struct({
+export const steeredRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('steer'),
   effect: Schema.Literal('steered-run'),
   receipt: steeringReceiptSchema,
@@ -85,7 +90,7 @@ const steeredRunOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const interruptionRequestedOutcomeSchema = Schema.Struct({
+export const interruptionRequestedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('interrupt'),
   effect: Schema.Literal('interruption-requested'),
   sessionId: Schema.String,
@@ -93,7 +98,7 @@ const interruptionRequestedOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const interactionResolvedOutcomeSchema = Schema.Struct({
+export const interactionResolvedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('request-respond', 'approval-respond'),
   effect: Schema.Literal('interaction-resolved'),
   sessionId: Schema.String,
@@ -102,7 +107,7 @@ const interactionResolvedOutcomeSchema = Schema.Struct({
   status: Schema.Literal('pending', 'resolved', 'cancelled', 'errored'),
 })
 
-const authorizationUpdatedOutcomeSchema = Schema.Struct({
+export const authorizationUpdatedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('authorization-set'),
   effect: Schema.Literal('authorization-updated'),
   sessionId: Schema.String,
@@ -110,7 +115,7 @@ const authorizationUpdatedOutcomeSchema = Schema.Struct({
   effectiveAuthorizationMode: Schema.Literal(...AGENT_AUTHORIZATION_MODES),
 })
 
-const descendantInterruptionsRequestedOutcomeSchema = Schema.Struct({
+export const descendantInterruptionsRequestedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('interrupt-descendants'),
   effect: Schema.Literal('descendant-interruptions-requested'),
   sessionId: Schema.String,
@@ -124,7 +129,7 @@ const descendantInterruptionsRequestedOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const promotedFollowUpOutcomeSchema = Schema.Struct({
+export const promotedFollowUpOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('promote'),
   effect: Schema.Literal('promoted-follow-up'),
   receipt: steeringReceiptSchema,
@@ -135,7 +140,7 @@ const promotedFollowUpOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const replacedRunOutcomeSchema = Schema.Struct({
+export const replacedRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('replace'),
   effect: Schema.Literal('replaced-run'),
   sessionId: Schema.String,
@@ -144,7 +149,7 @@ const replacedRunOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
-const acceptedReportOutcomeSchema = Schema.Struct({
+export const acceptedReportOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('report'),
   effect: Schema.Literal('accepted-report'),
   sessionId: Schema.String,
@@ -159,7 +164,7 @@ const acceptedReportOutcomeSchema = Schema.Struct({
   ),
 })
 
-const queueUpdatedOutcomeSchema = Schema.Struct({
+export const queueUpdatedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal(
     'queue-adopt',
     'queue-edit-cancel',
@@ -173,12 +178,18 @@ const queueUpdatedOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
   queueState: Schema.Literal('running', 'paused'),
   queueRevision: stateRevisionSchema,
+  /** The Follow-ups still queued after the change, in delivery order. */
   remainingFollowUpIds: Schema.Array(Schema.String),
-  withdrawnFollowUpIds: Schema.optional(Schema.Array(Schema.String)),
+  /** `queue-withdraw` only: the Follow-ups this call removed. */
+  withdrawnFollowUpIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
   stateRevision: stateRevisionSchema,
 })
 
-const queueResumeStartedRunOutcomeSchema = Schema.Struct({
+/**
+ * A queue change that leaves an idle Session's queue able to deliver starts its next Follow-up,
+ * the same way resumption does (for example withdrawing or saving a held head).
+ */
+export const queueResumeStartedRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal(
     'queue-resume',
     'queue-withdraw',
@@ -191,57 +202,61 @@ const queueResumeStartedRunOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
   runId: Schema.String,
   followUpId: Schema.String,
-  withdrawnFollowUpIds: Schema.optional(Schema.Array(Schema.String)),
+  /** `queue-withdraw` only: the Follow-ups this call removed. */
+  withdrawnFollowUpIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
 
-const followUpEditHeldOutcomeSchema = Schema.Struct({
+/** The `queue-edit-begin` outcome: the Host holds the Follow-up for this caller's edit. */
+export const followUpEditHeldOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('queue-edit-begin'),
   effect: Schema.Literal('follow-up-edit-held'),
   sessionId: Schema.String,
   followUpId: Schema.String,
+  /** Names the hold to save, cancel, or renew it. Only the holder learns it. */
   holdId: Schema.String,
+  /** When the hold expires unless renewed (Host clock, epoch milliseconds). */
   leaseExpiresAt: stateRevisionSchema,
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
 
-const rejectedMutationOutcomeSchema = Schema.Struct({
+export const rejectedMutationOutcomeSchema = Schema.Struct({
   operation: Schema.Literal(...SESSION_CONTROL_MUTATION_OPERATIONS),
   effect: Schema.Literal('rejected'),
   sessionId: Schema.String,
   code: Schema.String,
+  /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
   kind: Schema.Literal(...SESSION_HOST_ERROR_KINDS),
 })
 
-export const sessionControlMutationOutcomeSchema: Schema.Schema<SessionControlMutationOutcome> =
-  Schema.Union(
-    delegationUpdatedOutcomeSchema,
-    delegationClaimsUpdatedOutcomeSchema,
-    delegationConflictAcknowledgedOutcomeSchema,
-    delegationDependenciesUpdatedOutcomeSchema,
-    delegationAmendmentProposedOutcomeSchema,
-    delegationSpecificationAmendedOutcomeSchema,
-    delegationVerificationRecordedOutcomeSchema,
-    exportCancelOutcomeSchema,
-    exportCreateOutcomeSchema,
-    followUpQueuedOutcomeSchema,
-    followUpStartedRunOutcomeSchema,
-    messageStartedRunOutcomeSchema,
-    messageQueuedFollowUpOutcomeSchema,
-    ...sessionOrganizationOutcomeSchemas,
-    startStartedRunOutcomeSchema,
-    steeredRunOutcomeSchema,
-    interruptionRequestedOutcomeSchema,
-    interactionResolvedOutcomeSchema,
-    authorizationUpdatedOutcomeSchema,
-    descendantInterruptionsRequestedOutcomeSchema,
-    promotedFollowUpOutcomeSchema,
-    replacedRunOutcomeSchema,
-    acceptedReportOutcomeSchema,
-    queueUpdatedOutcomeSchema,
-    queueResumeStartedRunOutcomeSchema,
-    followUpEditHeldOutcomeSchema,
-    rejectedMutationOutcomeSchema,
-  )
+export const sessionControlMutationOutcomeSchema = Schema.Union(
+  delegationUpdatedOutcomeSchema,
+  delegationClaimsUpdatedOutcomeSchema,
+  delegationConflictAcknowledgedOutcomeSchema,
+  delegationDependenciesUpdatedOutcomeSchema,
+  delegationAmendmentProposedOutcomeSchema,
+  delegationSpecificationAmendedOutcomeSchema,
+  delegationVerificationRecordedOutcomeSchema,
+  exportCancelOutcomeSchema,
+  exportCreateOutcomeSchema,
+  followUpQueuedOutcomeSchema,
+  followUpStartedRunOutcomeSchema,
+  messageStartedRunOutcomeSchema,
+  messageQueuedFollowUpOutcomeSchema,
+  ...sessionOrganizationOutcomeSchemas,
+  startStartedRunOutcomeSchema,
+  steeredRunOutcomeSchema,
+  interruptionRequestedOutcomeSchema,
+  interactionResolvedOutcomeSchema,
+  authorizationUpdatedOutcomeSchema,
+  descendantInterruptionsRequestedOutcomeSchema,
+  promotedFollowUpOutcomeSchema,
+  replacedRunOutcomeSchema,
+  acceptedReportOutcomeSchema,
+  queueUpdatedOutcomeSchema,
+  queueResumeStartedRunOutcomeSchema,
+  followUpEditHeldOutcomeSchema,
+  rejectedMutationOutcomeSchema,
+)

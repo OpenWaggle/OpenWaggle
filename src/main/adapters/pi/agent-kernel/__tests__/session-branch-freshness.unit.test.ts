@@ -13,12 +13,12 @@ const {
   resolveTrackedBranchMock,
   runGitMock,
 } = vi.hoisted(() => ({
-  resolveTrackedBranchMock: vi.fn(
-    async (_projectPath: string): Promise<{ branch: string; upstream: string } | null> => ({
-      branch: 'main',
-      upstream: 'origin/main',
-    }),
-  ),
+  resolveTrackedBranchMock: vi.fn<
+    (_projectPath: string) => Promise<{ branch: string; upstream: string } | null>
+  >(async (_projectPath: string) => ({
+    branch: 'main',
+    upstream: 'origin/main',
+  })),
   fetchRemoteBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
   isLocalBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
   localBranchIsBehindRemoteMock: vi.fn(async (_projectPath: string, _branch: string) => false),
@@ -44,9 +44,8 @@ vi.mock('../../../git/remote-sync', () => ({
   resolveTrackedBranch: resolveTrackedBranchMock,
 }))
 
-const { refreshFirstRunBranch, resolveFreshWorktreeBaseRef } = await import(
-  '../session-branch-freshness'
-)
+const { refreshFirstRunBranch, resolveFreshWorktreeBaseRef } =
+  await import('../session-branch-freshness')
 
 describe('resolveFreshWorktreeBaseRef', () => {
   beforeEach(() => {

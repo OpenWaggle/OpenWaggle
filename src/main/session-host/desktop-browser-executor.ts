@@ -3,10 +3,7 @@ import {
   decodeDesktopBrowserCommand,
   decodeDesktopBrowserResult,
 } from '@shared/schemas/desktop-browser-service'
-import type {
-  DesktopBrowserCommand,
-  DesktopBrowserResult,
-} from '@shared/types/desktop-browser-service'
+import type { DesktopBrowserCommand } from '@shared/types/desktop-browser-service'
 import { Effect } from 'effect'
 import type { BrowserPreviewAutomationServiceShape } from '../ports/browser-preview-automation-service'
 
@@ -14,7 +11,7 @@ import type { BrowserPreviewAutomationServiceShape } from '../ports/browser-prev
 export function executeDesktopBrowserCommand(
   service: BrowserPreviewAutomationServiceShape,
   command: DesktopBrowserCommand,
-): Effect.Effect<DesktopBrowserResult, Error> {
+) {
   return Effect.try({
     try: () => decodeDesktopBrowserCommand(command),
     catch: () => new Error('Desktop browser service received an invalid command.'),

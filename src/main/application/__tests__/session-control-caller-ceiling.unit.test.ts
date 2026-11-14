@@ -81,8 +81,8 @@ describe('Session Control caller authorization ceiling', () => {
     })
   })
 
-  function pausedQueueHeadedBy(callerId: string): SessionControlSessionState {
-    return {
+  function pausedQueueHeadedBy(callerId: string) {
+    const result: SessionControlSessionState = {
       sessionId: SessionId('session-target'),
       revision: 2,
       run: { state: 'idle' },
@@ -104,6 +104,7 @@ describe('Session Control caller authorization ceiling', () => {
         ],
       },
     }
+    return result
   }
 
   function resumeAsLimitedCaller(

@@ -8,7 +8,7 @@ import Database from 'better-sqlite3'
  * own copy of SQLite, POSIX advisory locks belong to the process, and one copy closing a file
  * descriptor drops the locks the other copy holds on the same file, which can corrupt it
  * (https://www.sqlite.org/howtocorrupt.html#_multiple_copies_of_sqlite_linked_into_the_same_application).
- * `pnpm check:repository-standards` rejects `node:sqlite` outside the files it allows (#371).
+ * `bun run check:repository-standards` rejects `node:sqlite` outside the files it allows (#371).
  */
 export type HostSqliteDatabase = Database.Database
 
@@ -18,12 +18,12 @@ export type HostSqliteDatabase = Database.Database
  */
 const NO_BUSY_TIMEOUT_MS = 0
 
-export function openHostSqliteDatabase(
+/** Typed as a value: declarations cannot name better-sqlite3's inferred `Database` type. */
+export const openHostSqliteDatabase: (
   filePath: string,
-  options: { readonly readonly?: boolean } = {},
-): HostSqliteDatabase {
-  return new Database(filePath, {
+  options?: { readonly readonly?: boolean },
+) => HostSqliteDatabase = (filePath, options = {}) =>
+  new Database(filePath, {
     readonly: options.readonly ?? false,
     timeout: NO_BUSY_TIMEOUT_MS,
   })
-}

@@ -2,16 +2,18 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../turn-fold-aliases'
 
-const user = (id: string, text: string): UIMessage => ({
-  id,
-  role: 'user',
-  parts: [{ type: 'text', content: text }],
-})
-const assistant = (id: string): UIMessage => ({
-  id,
-  role: 'assistant',
-  parts: [{ type: 'text', content: 'reply' }],
-})
+const user = (id: string, text: string) =>
+  ({
+    id,
+    role: 'user',
+    parts: [{ type: 'text', content: text }],
+  }) satisfies UIMessage
+const assistant = (id: string) =>
+  ({
+    id,
+    role: 'assistant',
+    parts: [{ type: 'text', content: 'reply' }],
+  }) satisfies UIMessage
 
 describe('turn fold aliases', () => {
   it('pairs a persisted user message with the optimistic copy shown before it', () => {

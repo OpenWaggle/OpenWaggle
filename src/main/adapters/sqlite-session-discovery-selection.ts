@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import type { SemanticDiscoveryReadiness, SessionQuerySummary } from '@shared/types/session-query'
 import { SESSION_DISCOVERY_WINDOW_LIMIT } from './session-discovery-window-store'
 import {
@@ -10,12 +11,10 @@ import {
 import { decodeSessionQueryCursor } from './sqlite-session-query-support'
 
 export function discoveryCursor(request: DiscoverySearchRequest) {
-  const cursor = decodeSessionQueryCursor(request.query.cursor)
-  if (cursor === 'invalid') return 'invalid' as const
-  if (!cursor) return null
-  return typeof cursor.windowId === 'string' && typeof cursor.offset === 'number'
-    ? { windowId: cursor.windowId, offset: cursor.offset }
-    : ('invalid' as const)
+  return decodeSessionQueryCursor(
+    request.query.cursor,
+    Schema.Struct({ windowId: Schema.String, offset: Schema.Number }),
+  )
 }
 
 export function selectDiscoveryEntries(

@@ -1,0 +1,31 @@
+{
+  /*
+   * The publishable packages, sources and tests, checked under the strictness flags in
+   * tsconfig.package.base.json. tsconfig.node.json also includes the package sources, at the
+   * main process's flags; each package's tsconfig.build.json builds it.
+   */
+  "extends": "./tsconfig.package.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "./.typecheck/packages",
+    "rootDir": ".",
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["node", "@testing-library/jest-dom/vitest"],
+    "paths": {
+      "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
+      "@openwaggle/extension-sdk/*": ["./packages/extension-sdk/src/*"],
+      "@openwaggle/extension-react": ["./packages/extension-react/src/index.tsx"],
+      "@openwaggle/pi-waggle": ["./packages/pi-waggle/src/index.ts"],
+      "@openwaggle/pi-waggle/*": ["./packages/pi-waggle/src/*"],
+      "@openwaggle/waggle-core": ["./packages/waggle-core/src/index.ts"],
+      "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"]
+}

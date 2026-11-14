@@ -42,7 +42,7 @@ function columnsByTextIndex(line: TerminalBufferLineLike, text: string) {
 export function collectWrappedTerminalLinkLine(
   bufferLineNumber: number,
   getLine: (bufferLineIndex: number) => TerminalBufferLineLike | null | undefined,
-): WrappedTerminalLinkLine | null {
+) {
   const anchorLine = getLine(bufferLineNumber - 1)
   if (anchorLine === null || anchorLine === undefined) return null
 
@@ -81,14 +81,14 @@ export function collectWrappedTerminalLinkLine(
 function resolveCharacterPosition(
   segments: readonly WrappedTerminalLinkLineSegment[],
   characterIndex: number,
-): TerminalLinkBufferPosition {
+) {
   for (const segment of segments) {
     if (characterIndex < segment.endIndex) {
       const localIndex = Math.max(0, characterIndex - segment.startIndex)
       return {
         x: segment.columnsByTextIndex[localIndex] ?? localIndex + 1,
         y: segment.bufferLineNumber,
-      }
+      } satisfies TerminalLinkBufferPosition
     }
   }
   const last = segments.at(-1)
@@ -96,13 +96,13 @@ function resolveCharacterPosition(
   return {
     x: last?.columnsByTextIndex[finalTextIndex] ?? finalTextIndex + 1,
     y: last?.bufferLineNumber ?? 1,
-  }
+  } satisfies TerminalLinkBufferPosition
 }
 
 export function resolveWrappedTerminalLinkRange(
   wrappedLine: WrappedTerminalLinkLine,
   match: Pick<TerminalLinkMatch, 'start' | 'end'>,
-): TerminalLinkBufferRange {
+) {
   return {
     start: resolveCharacterPosition(wrappedLine.segments, match.start),
     end: resolveCharacterPosition(wrappedLine.segments, Math.max(match.start, match.end - 1)),

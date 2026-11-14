@@ -24,12 +24,17 @@ const HIVE_WAKE_START_GRACE_MS = 30_000
 const SETTLED_SWEEP_GRACE_MS = 10_000
 
 /** Who a Run acts for, as notifications judge it. */
-export function originOfRun(run: DesktopNotificationRunFacts | null): DesktopNotificationRunOrigin {
-  if (!run) return { kind: 'person' }
+export function originOfRun(run: DesktopNotificationRunFacts | null) {
+  if (!run) return { kind: 'person' } satisfies DesktopNotificationRunOrigin
   if (run.scheduledTaskPolicy !== null) {
-    return { kind: 'scheduled-task', policy: run.scheduledTaskPolicy }
+    return {
+      kind: 'scheduled-task',
+      policy: run.scheduledTaskPolicy,
+    } satisfies DesktopNotificationRunOrigin
   }
-  return desktopNotificationOriginOfCaller(run.originCallerId)
+  return desktopNotificationOriginOfCaller(
+    run.originCallerId,
+  ) satisfies DesktopNotificationRunOrigin
 }
 
 export const READY_TO_READ: DesktopNotificationCandidate = {
@@ -61,7 +66,7 @@ interface ReadyToReadAfterWorkersDependencies {
 }
 
 /**
- * Ready to read waits for the work (ADR 0063, CONTEXT.md). A root Session's completed Run notifies
+ * Ready to read waits for the work (ADR 0065, CONTEXT.md). A root Session's completed Run notifies
  * when nothing runs in its Hive and no Hive wake is coming, or at once when the person asked while
  * Workers ran; otherwise the latest such Run is held, one per root, and shown once when the Hive
  * settles. Held notifications live in memory, like the last reply: a Host restart forgets them.
@@ -73,7 +78,11 @@ export class ReadyToReadAfterWorkers {
   /** When the sweep showed a root's held Ready to read without its wake Run saying so. */
   private readonly sweptAt = new Map<string, number>()
 
-  constructor(private readonly dependencies: ReadyToReadAfterWorkersDependencies) {}
+  private readonly dependencies: ReadyToReadAfterWorkersDependencies
+
+  constructor(dependencies: ReadyToReadAfterWorkersDependencies) {
+    this.dependencies = dependencies
+  }
 
   /** The root Session's request ended another way (stopped, failed, archived or deleted). */
   drop(rootSessionId: string) {

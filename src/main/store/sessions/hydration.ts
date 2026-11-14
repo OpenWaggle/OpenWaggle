@@ -13,11 +13,6 @@ import { interruptedRunsByBranchId } from './active-run-hydration'
 import { DEFAULT_UI_STATE_JSON, MAIN_BRANCH_NAME, STANDARD_FUTURE_MODE } from './constants'
 import { parseJson } from './json'
 import { expandedNodeIdsSchema, waggleConfigSchema } from './schemas'
-import { SESSION_SUMMARY_COLUMN_NAMES } from './types'
-
-export { hydrateRecoverableActiveRun, interruptedRunsByBranchId } from './active-run-hydration'
-export { buildSessionNodes, visibleNodeIdForHead } from './node-hydration'
-
 import type {
   SessionActiveRunRow,
   SessionBranchRow,
@@ -26,6 +21,10 @@ import type {
   SessionSummaryRow,
   SessionTreeUiStateRow,
 } from './types'
+import { SESSION_SUMMARY_COLUMN_NAMES } from './types'
+
+export { hydrateRecoverableActiveRun, interruptedRunsByBranchId } from './active-run-hydration'
+export { buildSessionNodes, visibleNodeIdForHead } from './node-hydration'
 
 export function mainBranchId(sessionId: SessionId) {
   return SessionBranchId(`${sessionId}:${MAIN_BRANCH_NAME}`)
@@ -91,7 +90,7 @@ export function attachSessionNavigationState(
 
   return sessions.map((session) => {
     const latestRun = latestRunBySessionId.get(String(session.id))
-    return {
+    const summary: SessionSummary = {
       ...session,
       branches: branchesBySessionId.get(String(session.id)) ?? [fallbackMainBranch(session)],
       treeUiState: uiStateBySessionId.get(String(session.id)) ?? null,
@@ -99,6 +98,7 @@ export function attachSessionNavigationState(
         ? { latestRun: { status: latestRun.status, updatedAt: latestRun.updated_at } }
         : {}),
     }
+    return summary
   })
 }
 
@@ -106,6 +106,7 @@ export function hydrateBranch(
   row: SessionBranchRow,
   interruptedRunByBranchId?: ReadonlyMap<string, SessionInterruptedRun>,
 ) {
+  const interruptedRun = interruptedRunByBranchId?.get(row.id)
   return {
     id: SessionBranchId(row.id),
     sessionId: SessionId(row.session_id),
@@ -113,19 +114,20 @@ export function hydrateBranch(
     headNodeId: row.head_node_id ? SessionNodeId(row.head_node_id) : null,
     name: row.name,
     isMain: row.is_main === 1,
-    archived: row.archived_at === null ? undefined : true,
+    ...(row.archived_at === null ? {} : { archived: true }),
     archivedAt: row.archived_at,
-    interruptedRun: interruptedRunByBranchId?.get(row.id),
+    ...(interruptedRun === undefined ? {} : { interruptedRun }),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
 export function hydrateBranchState(row: SessionBranchStateRow) {
+  const waggleConfig = parseWaggleConfig(row.waggle_config_json)
   return {
     branchId: SessionBranchId(row.branch_id),
     futureMode: row.future_mode,
-    waggleConfig: parseWaggleConfig(row.waggle_config_json),
+    ...(waggleConfig === undefined ? {} : { waggleConfig }),
     lastActiveAt: row.last_active_at,
     uiStateJson: row.ui_state_json,
   }
@@ -142,12 +144,12 @@ export function hydrateUiState(row: SessionTreeUiStateRow) {
   }
 }
 
-export function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
-  return {
+export function hydrateSessionSummary(row: SessionSummaryRow) {
+  const summary: SessionSummary = {
     id: SessionId(row.id),
     title: row.title,
     projectPath: row.project_path,
-    archived: row.archived === 1 ? true : undefined,
+    ...(row.archived === 1 ? { archived: true } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastActiveNodeId: row.last_active_node_id ? SessionNodeId(row.last_active_node_id) : null,
@@ -157,13 +159,13 @@ export function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
     environmentMode: row.environment_mode === 'worktree' ? 'worktree' : 'local',
     worktreePath: row.worktree_path,
   }
+  return summary
 }
 
 export function fallbackBranchStates(session: SessionSummary) {
   const branchState = {
     branchId: mainBranchId(session.id),
     futureMode: STANDARD_FUTURE_MODE,
-    waggleConfig: undefined,
     lastActiveAt: session.updatedAt,
     uiStateJson: DEFAULT_UI_STATE_JSON,
   } satisfies SessionBranchState
@@ -177,6 +179,7 @@ export function fallbackBranches(
   interruptedRunByBranchId: ReadonlyMap<string, SessionInterruptedRun>,
 ) {
   const lastNode = nodes[nodes.length - 1]
+  const interruptedRun = interruptedRunByBranchId.get(String(mainBranchId(session.id)))
   return [
     {
       id: mainBranchId(session.id),
@@ -186,7 +189,7 @@ export function fallbackBranches(
       name: MAIN_BRANCH_NAME,
       isMain: true,
       archivedAt: null,
-      interruptedRun: interruptedRunByBranchId.get(String(mainBranchId(session.id))),
+      ...(interruptedRun === undefined ? {} : { interruptedRun }),
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     },
@@ -216,19 +219,20 @@ function parseExpandedNodeIds(raw: string) {
   return parsed.success ? parsed.data.map((id) => SessionNodeId(id)) : []
 }
 
-function parseWaggleConfig(raw: string | null): WaggleConfig | undefined {
+function parseWaggleConfig(raw: string | null) {
   if (!raw) return undefined
 
   const parsed = safeDecodeUnknown(waggleConfigSchema, parseJson(raw, 'branch-state:waggle-config'))
   if (!parsed.success) return undefined
 
-  return {
+  const config: WaggleConfig = {
     ...parsed.data,
     agents: [
       { ...parsed.data.agents[0], model: createWaggleModelBinding(parsed.data.agents[0].model) },
       { ...parsed.data.agents[1], model: createWaggleModelBinding(parsed.data.agents[1].model) },
     ],
   }
+  return config
 }
 
 /**

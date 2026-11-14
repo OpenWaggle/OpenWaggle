@@ -1,4 +1,4 @@
-import { sameWaggleTurn } from './chat-message-row-model'
+import { sameWaggleTurn, waggleTurnDividerProps } from './chat-message-row-model'
 import type { ChatRow, MessageChatRow, WaggleTurnChatRow } from './types-chat-row'
 
 function getWaggleTurnId(meta: NonNullable<MessageChatRow['waggleMeta']>, firstMessageId: string) {
@@ -12,11 +12,9 @@ function getWaggleTurnId(meta: NonNullable<MessageChatRow['waggleMeta']>, firstM
 }
 
 function withoutInlineTurnDivider(row: MessageChatRow) {
-  return {
-    ...row,
-    showTurnDivider: false,
-    turnDividerProps: undefined,
-  }
+  const { turnDividerProps: _divider, ...withoutDivider } = row
+  const result: MessageChatRow = { ...withoutDivider, showTurnDivider: false }
+  return result
 }
 
 function isAgentLoopCard(row: ChatRow) {
@@ -69,12 +67,7 @@ export function groupWaggleTurnRows(rows: readonly ChatRow[]) {
       type: 'waggle-turn',
       id: getWaggleTurnId(row.waggleMeta, row.message.id),
       agentColor: row.waggleMeta.agentColor,
-      turnDividerProps: {
-        turnNumber: row.waggleMeta.turnNumber,
-        agentLabel: row.waggleMeta.agentLabel,
-        agentColor: row.waggleMeta.agentColor,
-        agentModel: row.waggleMeta.agentModel,
-      },
+      turnDividerProps: waggleTurnDividerProps(row.waggleMeta),
       messages: [withoutInlineTurnDivider(row)],
     })
   }
@@ -127,11 +120,11 @@ function lastTurnFailureHidden(input: {
 export function withWaggleTurnFailures(
   rows: readonly ChatRow[],
   run: { readonly isLoading?: boolean } = {},
-): ChatRow[] {
+) {
   const currentRunStart = lastIndexOf(rows, isUserRow)
   const lastTurn = lastIndexOf(rows, (row) => row.type === 'waggle-turn')
   const runError = shownRunError(rows)
-  return rows.map((row, index) => {
+  const result: ChatRow[] = rows.map((row, index) => {
     if (row.type !== 'waggle-turn') return row
     const failure = row.messages.at(-1)?.message.metadata?.error
     if (!failure) return row
@@ -145,4 +138,5 @@ export function withWaggleTurnFailures(
       })
     return hidden ? row : { ...row, failure }
   })
+  return result
 }

@@ -203,7 +203,7 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
       {/* A new requested secret remounts the panel with its name filled in. */}
       <McpSecretsPanel
         key={requestedSecret}
-        requestedName={requestedSecret}
+        {...(requestedSecret === undefined ? {} : { requestedName: requestedSecret })}
         onSaved={() => setRequestedSecret(undefined)}
       />
     </div>

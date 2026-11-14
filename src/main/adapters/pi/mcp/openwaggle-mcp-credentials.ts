@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { McpOAuthCredentialStore } from '@earendil-works/pi-coding-agent'
-import { safeStorage } from 'electron'
+import { secureStorage } from '../../../desktop-shell/secure-storage'
 import { createLogger } from '../../../logger'
 import {
   mcpBuildStateDirectory,
@@ -26,7 +26,7 @@ function getBackend() {
     piAuthPath: path.join(getPiAgentDir(), 'mcp-auth.json'),
     storePath: path.join(mcpBuildStateDirectory(), OAUTH_STORE_FILE_NAME),
     legacyStorePath: path.join(sharedMcpStateDirectory(), OAUTH_STORE_FILE_NAME),
-    encryption: safeStorage,
+    encryption: secureStorage,
     onWarning: (message, context) => logger.warn(message, context),
   })
   return backend

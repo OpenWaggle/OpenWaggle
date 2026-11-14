@@ -246,9 +246,7 @@ function recoverPendingDeletions(input: DeletionDependencies) {
   })
 }
 
-export function createSessionProjectionDeletionMethods(
-  input: DeletionDependencies,
-): Pick<SessionProjectionRepositoryShape, 'delete' | 'recoverPendingDeletions'> {
+export function createSessionProjectionDeletionMethods(input: DeletionDependencies) {
   return {
     delete: (id, options) =>
       Effect.tryPromise({
@@ -256,7 +254,7 @@ export function createSessionProjectionDeletionMethods(
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
       }),
     recoverPendingDeletions: () => recoverPendingDeletions(input),
-  }
+  } satisfies Pick<SessionProjectionRepositoryShape, 'delete' | 'recoverPendingDeletions'>
 }
 
 export async function archiveSessionWorkspace(input: DeletionDependencies, id: SessionId) {

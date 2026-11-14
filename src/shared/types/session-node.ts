@@ -1,18 +1,21 @@
 import type { Message, MessageRole } from './agent'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 
-export type SessionNodeKind =
-  | 'user_message'
-  | 'assistant_message'
-  | 'system_message'
-  | 'tool_result'
-  | 'custom'
-  | 'session_info'
-  | 'label'
-  | 'model_change'
-  | 'thinking_level_change'
-  | 'branch_summary'
-  | 'compaction_summary'
+export const SESSION_NODE_KINDS = [
+  'user_message',
+  'assistant_message',
+  'system_message',
+  'tool_result',
+  'custom',
+  'session_info',
+  'label',
+  'model_change',
+  'thinking_level_change',
+  'branch_summary',
+  'compaction_summary',
+] as const
+
+export type SessionNodeKind = (typeof SESSION_NODE_KINDS)[number]
 
 /**
  * A Session tree node as the desktop window reads it: structure without content.

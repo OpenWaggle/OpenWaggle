@@ -1,7 +1,8 @@
 import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from '../../services/session-host-transcript-term-schema'
 import { type HostSqliteDatabase, openHostSqliteDatabase } from '../host-sqlite-database'
 
-export function createTranscriptTermCutoverDatabase(): HostSqliteDatabase {
+/** Typed as a value: declarations cannot name better-sqlite3's inferred `Database` type. */
+export const createTranscriptTermCutoverDatabase: () => HostSqliteDatabase = () => {
   const database = openHostSqliteDatabase(':memory:')
   database.exec(`
     PRAGMA foreign_keys = ON;

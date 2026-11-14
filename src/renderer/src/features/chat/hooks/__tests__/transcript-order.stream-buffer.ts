@@ -11,8 +11,8 @@ import { MODEL, SESSION_ID } from './transcript-order.persisted'
  * keeps it.
  */
 
-export function emptyBuffer(runId: string, startedAt: number): BackgroundRunSnapshot {
-  return {
+export function emptyBuffer(runId: string, startedAt: number) {
+  const snapshot: BackgroundRunSnapshot = {
     activity: 'agent-run',
     sessionId: SESSION_ID,
     runId,
@@ -22,6 +22,7 @@ export function emptyBuffer(runId: string, startedAt: number): BackgroundRunSnap
     activityEvents: [],
     parts: [],
   }
+  return snapshot
 }
 
 function appendText(parts: readonly MessagePart[], delta: string, contentIndex: number) {
@@ -30,13 +31,13 @@ function appendText(parts: readonly MessagePart[], delta: string, contentIndex: 
   return [...parts, { type: 'text' as const, text: delta, contentIndex }]
 }
 
-function withToolCall(parts: readonly MessagePart[], toolCallId: string): MessagePart[] {
+function withToolCall(parts: readonly MessagePart[], toolCallId: string) {
   const has = parts.some((part) => part.type === 'tool-call' && part.toolCall.id === toolCallId)
-  if (has) return [...parts]
+  if (has) return [...parts] satisfies MessagePart[]
   return [
     ...parts,
     { type: 'tool-call', toolCall: { id: ToolCallId(toolCallId), name: 'bash', args: {} } },
-  ]
+  ] satisfies MessagePart[]
 }
 
 /**
@@ -57,8 +58,9 @@ function withReasoning(parts: readonly MessagePart[], contentIndex: number, delt
     (part) => part.type === 'reasoning' && part.contentIndex === contentIndex,
   )
   const part = parts[index]
-  if (part?.type !== 'reasoning')
+  if (part?.type !== 'reasoning') {
     return [...parts, { type: 'reasoning' as const, text: delta, contentIndex }]
+  }
   return parts.map((other, at) => (at === index ? { ...part, text: part.text + delta } : other))
 }
 
@@ -71,8 +73,9 @@ export function startedBuffer(
   runId: string,
   startedAt: number,
 ) {
-  if (!previous?.runId || runId !== `waggle-of-${previous.runId}`)
+  if (!previous?.runId || runId !== `waggle-of-${previous.runId}`) {
     return emptyBuffer(runId, startedAt)
+  }
   const { userMessages, assistantMessages } = withFinishedAnswer(previous)
   return {
     ...emptyBuffer(runId, previous.startedAt),
@@ -82,11 +85,15 @@ export function startedBuffer(
 }
 
 /** The buffer with the answer it streamed retained as finished, as the next one starts. */
-function withFinishedAnswer(buffer: BackgroundRunSnapshot): BackgroundRunSnapshot {
+function withFinishedAnswer(buffer: BackgroundRunSnapshot) {
   const { messageId, parts } = buffer
   if (!messageId || parts.length === 0) return buffer
   const finished = { messageId, timestamp: buffer.messageStartedAt ?? buffer.startedAt, parts }
-  return { ...buffer, assistantMessages: [...(buffer.assistantMessages ?? []), finished] }
+  const snapshot: BackgroundRunSnapshot = {
+    ...buffer,
+    assistantMessages: [...(buffer.assistantMessages ?? []), finished],
+  }
+  return snapshot
 }
 
 /** What the stream buffer keeps of an event. */
@@ -123,11 +130,10 @@ export function projectEvent(buffer: BackgroundRunSnapshot, event: AgentTranspor
  */
 export type Retention = 'all' | 'noHistory' | 'none'
 
-export function withRetention(
-  buffer: BackgroundRunSnapshot,
-  retention: Retention,
-): BackgroundRunSnapshot {
+export function withRetention(buffer: BackgroundRunSnapshot, retention: Retention) {
   if (retention === 'all') return buffer
   const { assistantMessages: _answers, ...withoutHistory } = buffer
-  return retention === 'noHistory' ? withoutHistory : { ...withoutHistory, userMessages: [] }
+  const snapshot: BackgroundRunSnapshot =
+    retention === 'noHistory' ? withoutHistory : { ...withoutHistory, userMessages: [] }
+  return snapshot
 }

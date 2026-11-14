@@ -212,10 +212,7 @@ function createAppearancePreferencesActions(set: PreferencesSet, get: Preference
   }
 }
 
-export function createPreferencesActions(
-  set: PreferencesSet,
-  get: PreferencesGet,
-): PreferencesActions {
+export function createPreferencesActions(set: PreferencesSet, get: PreferencesGet) {
   return {
     ...createBrowserAndScalarPreferencesActions(set),
     ...createProjectHivePreferencesActions(set, get),
@@ -301,5 +298,5 @@ export function createPreferencesActions(
       mergeSettings(set, references)
     },
     loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),
-  }
+  } satisfies PreferencesActions
 }

@@ -6,7 +6,7 @@ vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
 
 import { withStuckCandidateWorkers } from '../useSessionHostRefresh'
 
-function worker(id: string, parent: string, state: 'needs_attention' | 'working'): SessionSummary {
+function worker(id: string, parent: string, state: 'needs_attention' | 'working') {
   return {
     id: SessionId(id),
     title: id,
@@ -20,7 +20,7 @@ function worker(id: string, parent: string, state: 'needs_attention' | 'working'
       activeDirectWorkerCount: 0,
       delegationState: state,
     },
-  }
+  } satisfies SessionSummary
 }
 
 describe('withStuckCandidateWorkers', () => {

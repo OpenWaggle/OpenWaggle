@@ -57,7 +57,14 @@ export function registerBrowserPreviewInspectionTools(input: RegistrationInput) 
     executionMode: 'sequential',
     async execute(_id, params, signal, _update, ctx) {
       const operation = 'inspect browser preview page'
-      if (!(await authorizeBrowserPreviewTool({ operation, params, signal, ctx }))) {
+      if (
+        !(await authorizeBrowserPreviewTool({
+          operation,
+          params,
+          ...(signal === undefined ? {} : { signal }),
+          ctx,
+        }))
+      ) {
         return deniedBrowserPreviewResult(operation)
       }
       const { include, ...target } = params

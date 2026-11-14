@@ -248,8 +248,10 @@ describe('error event scrubbing', () => {
   })
 
   it('keeps message text only for a handled error the app reported as its own', () => {
-    const report = (tags: object, values: object[]) =>
-      scrubSentryEvent({ tags, exception: { values } })?.exception
+    const report = (tags: object, values: object[]) => {
+      const { exception } = scrubSentryEvent({ tags, exception: { values } }) ?? {}
+      return exception
+    }
     const application = { 'openwaggle.error_origin': 'application' }
     const handled = { value: 'Saving failed', mechanism: { handled: true } }
 

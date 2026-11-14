@@ -12,7 +12,7 @@ const NO_SIGNALS: SourceControlHostSignals = {
   detectedHosts: {},
 }
 
-function signals(overrides: Partial<SourceControlHostSignals>): SourceControlHostSignals {
+function signals(overrides: Partial<SourceControlHostSignals>) {
   return { ...NO_SIGNALS, ...overrides }
 }
 

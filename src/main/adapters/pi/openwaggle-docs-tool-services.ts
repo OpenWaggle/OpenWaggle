@@ -59,13 +59,13 @@ function withRuntimeEnabledExtensionDocs(
 export function createOpenWaggleDocsToolServices(dependencies: {
   readonly docsBundle: DocsBundleServiceShape
   readonly extensionSelection: OpenWagglePiExtensionSelectionServices
-}): OpenWaggleDocsToolServices {
+}) {
   const { docsBundle, extensionSelection } = dependencies
   return {
     bundlePath: () => docsBundle.getBundlePath(),
     availableBundlePath: () =>
       docsBundle.loadBundle().pipe(
-        Effect.map((bundle): string | null => bundle.bundlePath),
+        Effect.map((bundle) => bundle.bundlePath),
         Effect.catchAllCause((cause) =>
           Effect.gen(function* () {
             if (reportedUnavailableBundle) return null
@@ -86,5 +86,5 @@ export function createOpenWaggleDocsToolServices(dependencies: {
         Effect.provideService(ExtensionLifecycleRepository, extensionSelection.lifecycleRepository),
         Effect.flatMap((view) => withRuntimeEnabledExtensionDocs(view, input, extensionSelection)),
       ),
-  }
+  } satisfies OpenWaggleDocsToolServices
 }

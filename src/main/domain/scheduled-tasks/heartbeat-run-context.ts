@@ -47,9 +47,9 @@ const heartbeatRunContextSchema: Schema.Schema<HeartbeatRunContext> = Schema.Str
   endsAt: nullableCount,
   maxRuns: nullableCount,
   remainingRuns: nullableCount,
-  modelId: Schema.optional(Schema.String.pipe(Schema.minLength(1))),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  wakeCheck: Schema.optional(
+  modelId: Schema.optionalWith(Schema.String.pipe(Schema.minLength(1)), { exact: true }),
+  thinkingLevel: Schema.optionalWith(Schema.Literal(...THINKING_LEVELS), { exact: true }),
+  wakeCheck: Schema.optionalWith(
     Schema.Struct({
       command: Schema.String,
       result: Schema.Literal('woke', 'failed'),
@@ -58,8 +58,9 @@ const heartbeatRunContextSchema: Schema.Schema<HeartbeatRunContext> = Schema.Str
       stdout: Schema.String,
       stderr: Schema.String,
       truncated: Schema.Boolean,
-      failure: Schema.optional(Schema.String),
+      failure: Schema.optionalWith(Schema.String, { exact: true }),
     }),
+    { exact: true },
   ),
 })
 

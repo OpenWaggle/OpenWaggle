@@ -50,7 +50,7 @@ async function retryAgainstFreshQueue(
   followUpId: string,
   anchor: QueuedMessageAnchor,
   { refresh, reorder, onToast }: QueueMoveRetry,
-): Promise<QueuedMessageMove | null> {
+) {
   try {
     const fresh = await refresh()
     const locks = lockedIds(id)
@@ -63,7 +63,8 @@ async function retryAgainstFreshQueue(
     // Null here means the queue already has this order: someone made the same move.
     if (!planned) return null
     await reorder(planned.order, fresh.revision)
-    return planned
+    const move: QueuedMessageMove | null = planned
+    return move
   } catch (error) {
     onToast(isStaleRevision(error) ? MOVE_NOT_APPLIED_MESSAGE : errorMessage(error))
     return null
@@ -83,15 +84,15 @@ export function useQueuedMessageReorder(
 ) {
   const { snapshot, refresh, reorder } = useSessionFollowUpQueue(sessionId)
 
-  async function move(
-    followUpId: string,
-    anchor: QueuedMessageAnchor,
-  ): Promise<QueuedMessageMove | null> {
+  async function move(followUpId: string, anchor: QueuedMessageAnchor) {
     if (!sessionId) return null
     const planned = planMove(sessionId, snapshot, followUpId, anchor)
     if (!planned) return null
     const moved = await attempt(() => reorder(planned.order, snapshot.revision))
-    if (moved.ok) return planned
+    if (moved.ok) {
+      const result: QueuedMessageMove | null = planned
+      return result
+    }
     if (isStaleRevision(moved.error)) {
       return retryAgainstFreshQueue(sessionId, followUpId, anchor, { refresh, reorder, onToast })
     }

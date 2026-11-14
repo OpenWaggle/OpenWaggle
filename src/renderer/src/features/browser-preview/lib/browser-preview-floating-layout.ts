@@ -35,7 +35,7 @@ export function fitBrowserPreviewFloatingFrame(
   position: BrowserPreviewFloatingPosition | null,
   container: BrowserPreviewFloatingSize,
   source: BrowserPreviewFloatingSize,
-): FloatingFrame {
+) {
   const { width: sourceWidth, ratio } = sourceGeometry(source)
   const maxWidth = Math.max(
     1,
@@ -85,7 +85,7 @@ export function resizeBrowserPreviewFloatingFrame(
   delta: BrowserPreviewFloatingPosition,
   container: BrowserPreviewFloatingSize,
   source: BrowserPreviewFloatingSize,
-): FloatingFrame {
+) {
   const west = direction.includes('west')
   const north = direction.includes('north')
   const horizontal = west || direction.includes('east')
@@ -117,7 +117,7 @@ export function resizeBrowserPreviewFloatingFrame(
 export function clampBrowserPreviewFloatingSize(
   size: BrowserPreviewFloatingSize,
   container: BrowserPreviewFloatingSize,
-): BrowserPreviewFloatingSize {
+) {
   const availableWidth = Math.max(
     1,
     finite(container.width, 1) - BROWSER_PREVIEW_FLOATING_EDGE_GAP * EDGE_COUNT,
@@ -146,7 +146,7 @@ export function clampBrowserPreviewFloatingPosition(
   position: BrowserPreviewFloatingPosition,
   container: BrowserPreviewFloatingSize,
   player: BrowserPreviewFloatingSize,
-): BrowserPreviewFloatingPosition {
+) {
   const maxX = Math.max(
     BROWSER_PREVIEW_FLOATING_EDGE_GAP,
     finite(container.width, 1) - player.width - BROWSER_PREVIEW_FLOATING_EDGE_GAP,

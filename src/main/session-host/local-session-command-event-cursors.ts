@@ -16,7 +16,7 @@ import type { LocalSessionCursorResolution } from './local-session-event-cursor-
 export function resolveLocalSessionCommandCursor(
   payload: LocalSessionCommandPayload,
   resolve: (cursor: SessionHostEventCursor) => LocalSessionCursorResolution,
-): LocalSessionCommandPayload {
+) {
   if (payload.contract !== 'session-query-v2') return payload
   const query = payload.request.query
   if ((query.operation !== 'wait' && query.operation !== 'exports-wait') || !query.after) {
@@ -36,7 +36,7 @@ export function resolveLocalSessionCommandCursor(
 export function exposeLocalSessionCommandResultCursor(
   result: LocalSessionCommandResult,
   expose: (cursor: SessionHostEventCursor) => SessionHostEventCursor,
-): LocalSessionCommandResult {
+) {
   if (result.contract !== 'session-query-v2') return result
   const outcome = result.response.outcome
   if (

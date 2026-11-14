@@ -6,14 +6,14 @@ import { placeReconnectedRunMessages } from '../chat-stream-user-messages'
 
 const DIGEST = 'a'.repeat(64)
 
-function userRow(id: string, metadata?: UIMessage['metadata']): UIMessage {
+function userRow(id: string, metadata?: UIMessage['metadata']) {
   return {
     id,
     role: 'user',
     parts: [{ type: 'text', content: 'Queued question' }],
     createdAt: new Date(1),
     ...(metadata ? { metadata } : {}),
-  }
+  } satisfies UIMessage
 }
 
 describe('live incorporated rows in snapshot reconciliation', () => {

@@ -6,10 +6,9 @@ import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-n
 import { readLegacyMcpServerNames } from './adapters/mcp/migration/legacy-server-names'
 import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
-import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
 import { MCP_REACH_TOOL_NAMES } from './domain/agents/agent-tool-allowlist'
 import { legacyMcpServerAliases } from './domain/mcp/migration/legacy-server-references'
-import { getEnvWithOverrides } from './env'
+import { readLiveEnv } from './env'
 import { ExtensionLifecycleRepository } from './ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from './ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from './ports/extension-project-overrides-repository'
@@ -36,8 +35,7 @@ export interface LoadAgentDefinitionSemanticCatalogInput {
 
 function piAgentDirFor(input: LoadAgentDefinitionSemanticCatalogInput) {
   if (input.piAgentDir) return input.piAgentDir
-  const configured =
-    input.userHome === homedir() ? getEnvWithOverrides({}).PI_CODING_AGENT_DIR : undefined
+  const configured = input.userHome === homedir() ? readLiveEnv().PI_CODING_AGENT_DIR : undefined
   return configured ?? path.join(input.userHome, '.pi', 'agent')
 }
 
@@ -60,7 +58,7 @@ async function loadDefaultExtensionSelectionServices() {
 
 export async function loadAgentDefinitionSemanticCatalog(
   input: LoadAgentDefinitionSemanticCatalogInput,
-): Promise<AgentDefinitionSemanticCatalog> {
+) {
   const loadDiagnostics: string[] = []
   let models: readonly string[] | undefined
   let tools: readonly string[] | undefined

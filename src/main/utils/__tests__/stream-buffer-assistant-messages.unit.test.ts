@@ -26,23 +26,28 @@ function apply(event: AgentTransportEvent) {
   applyEventToStreamBuffer(SESSION_ID, event)
 }
 
-function assistantStart(messageId: string, timestamp: number): AgentTransportEvent {
-  return { type: 'message_start', messageId, role: 'assistant', timestamp }
+function assistantStart(messageId: string, timestamp: number) {
+  return {
+    type: 'message_start',
+    messageId,
+    role: 'assistant',
+    timestamp,
+  } satisfies AgentTransportEvent
 }
 
-function text(messageId: string, delta: string): AgentTransportEvent {
+function text(messageId: string, delta: string) {
   return {
     type: 'message_update',
     messageId,
     role: 'assistant',
     assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta },
     timestamp: 0,
-  }
+  } satisfies AgentTransportEvent
 }
 
-function toolRun(messageId: string, toolCallId: string): AgentTransportEvent[] {
+function toolRun(messageId: string, toolCallId: string) {
   const args = { command: 'ls' }
-  return [
+  const event: AgentTransportEvent[] = [
     {
       type: 'tool_execution_start',
       toolCallId,
@@ -60,6 +65,7 @@ function toolRun(messageId: string, toolCallId: string): AgentTransportEvent[] {
       timestamp: 0,
     },
   ]
+  return event
 }
 
 /*

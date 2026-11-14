@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 import { resolveRemoteRepositoryOffline } from '../../../services/source-control/__tests__/source-control-test-deps'
 import type { StackedActionDeps } from '../stacked-action-service'
 
-export function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedActionDeps {
+export function makeDeps(overrides: Partial<StackedActionDeps> = {}) {
   return {
     hasWorkingTreeChanges: vi.fn(async () => ({ ok: true, hasChanges: true }) as const),
     listBranchNames: vi.fn(async () => ['main']),
@@ -42,5 +42,5 @@ export function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedAct
     })),
     buildChangeRequestFallbackUrl: vi.fn(async () => 'https://example.test/new-change-request'),
     ...overrides,
-  }
+  } satisfies StackedActionDeps
 }

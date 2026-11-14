@@ -3,13 +3,16 @@ import { describe, expect, it } from 'vitest'
 import type { ChatRow } from '../../lib/types-chat-row'
 import { useTranscriptWindowRange } from '../useTranscriptWindowRange'
 
-const row = (id: string): ChatRow => ({
-  type: 'message',
-  message: { id, role: 'user', parts: [{ type: 'text', content: id }] },
-  isStreaming: false,
-  isRunActive: false,
-  showTurnDivider: false,
-})
+const row = (id: string) => {
+  const row: ChatRow = {
+    type: 'message',
+    message: { id, role: 'user', parts: [{ type: 'text', content: id }] },
+    isStreaming: false,
+    isRunActive: false,
+    showTurnDivider: false,
+  }
+  return row
+}
 const rowsOf = (count: number) =>
   Array.from({ length: count }, (_, index) => row(`m-${String(index)}`))
 

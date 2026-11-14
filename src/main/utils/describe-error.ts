@@ -16,6 +16,12 @@ export function unwrapFiberFailure(error: unknown) {
   return Cause.squash(error[Runtime.FiberFailureCauseId])
 }
 
+/** An object with nothing that identifies it is named by its class; its fields may hold secrets. */
+function className(value: object) {
+  const { constructor } = value
+  return typeof constructor === 'function' && constructor.name ? constructor.name : 'Object'
+}
+
 function describeOne(error: unknown) {
   if (typeof error !== 'object' || error === null) return String(error)
   const tag = readString(error, '_tag') ?? (error instanceof Error ? error.name : null)
@@ -24,7 +30,7 @@ function describeOne(error: unknown) {
   const code = readString(error, 'code')
   const label = [tag, operation ? `(${operation})` : null].filter(Boolean).join(' ')
   const detail = [code && code !== tag ? code : null, message].filter(Boolean).join(': ')
-  return [label, detail].filter(Boolean).join(': ') || String(error)
+  return [label, detail].filter(Boolean).join(': ') || className(error)
 }
 
 /**
@@ -35,13 +41,13 @@ function describeOne(error: unknown) {
  * (ADR 0037). This keeps the tag, the repository operation, and every cause, including the one an
  * Effect `FiberFailure` hides behind a symbol.
  */
-export function describeError(error: unknown): string {
+export function describeError(error: unknown) {
   if (error === undefined || error === null) return String(error)
   return errorCauseChain(error).map(describeOne).join(' <- ')
 }
 
 /** The error and each of its causes, outermost first, unwrapping Effect `FiberFailure`s. */
-export function errorCauseChain(error: unknown): unknown[] {
+export function errorCauseChain(error: unknown) {
   const chain: unknown[] = []
   const seen = new Set<unknown>()
   let current: unknown = error
@@ -55,8 +61,8 @@ export function errorCauseChain(error: unknown): unknown[] {
     seen.add(unwrapped)
     chain.push(unwrapped)
     current =
-      typeof unwrapped === 'object' && unwrapped !== null
-        ? Reflect.get(unwrapped, 'cause')
+      typeof unwrapped === 'object' && unwrapped !== null && 'cause' in unwrapped
+        ? unwrapped.cause
         : undefined
   }
   return chain

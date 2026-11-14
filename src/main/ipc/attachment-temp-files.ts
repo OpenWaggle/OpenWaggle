@@ -4,7 +4,7 @@ import path from 'node:path'
 import { PERCENT_BASE } from '@shared/constants/math'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { TIME_UNIT } from '@shared/constants/time'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 
@@ -49,7 +49,7 @@ export async function createTempPromptPath(name: string | undefined, timestamp =
 }
 
 export async function ensureTempAttachmentsDirectory() {
-  const tempAttachmentsDir = path.join(app.getPath('userData'), TEMP_ATTACHMENTS_DIRECTORY_NAME)
+  const tempAttachmentsDir = path.join(appPaths.userData(), TEMP_ATTACHMENTS_DIRECTORY_NAME)
   await fs.mkdir(tempAttachmentsDir, { recursive: true })
   return tempAttachmentsDir
 }

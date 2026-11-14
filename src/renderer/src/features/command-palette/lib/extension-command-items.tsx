@@ -26,12 +26,14 @@ export function resolveExtensionCommandInvocationScope(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly projectPath: string | null | undefined
   readonly sessionId?: string | null
-}): ExtensionInvokeScope | null {
+}) {
   const { entry, projectPath, sessionId } = input
   const declaredScopes = entry.declaredScopes
 
   if (declaredScopes === undefined) {
-    return projectPath ? { kind: 'project', projectPath } : { kind: 'app' }
+    return (
+      projectPath ? { kind: 'project', projectPath } : { kind: 'app' }
+    ) satisfies ExtensionInvokeScope | null
   }
 
   if (
@@ -40,7 +42,7 @@ export function resolveExtensionCommandInvocationScope(input: {
     declaredScopes.includes('session') &&
     entry.projectPaths.includes(projectPath)
   ) {
-    return { kind: 'session', projectPath, sessionId }
+    return { kind: 'session', projectPath, sessionId } satisfies ExtensionInvokeScope
   }
 
   if (
@@ -48,11 +50,11 @@ export function resolveExtensionCommandInvocationScope(input: {
     declaredScopes.includes('project') &&
     entry.projectPaths.includes(projectPath)
   ) {
-    return { kind: 'project', projectPath }
+    return { kind: 'project', projectPath } satisfies ExtensionInvokeScope
   }
 
   if (declaredScopes.includes('app')) {
-    return { kind: 'app' }
+    return { kind: 'app' } satisfies ExtensionInvokeScope
   }
 
   return null

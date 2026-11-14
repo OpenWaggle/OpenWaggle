@@ -12,7 +12,7 @@ import {
 } from '../extension-contribution-registry-cache'
 import { makePackage } from './extension-contribution-registry-test-utils'
 
-function packageWithBrokenCacheKey(): DiscoveredExtensionPackage {
+function packageWithBrokenCacheKey() {
   return fromPartial<DiscoveredExtensionPackage>(
     Object.defineProperty(
       {

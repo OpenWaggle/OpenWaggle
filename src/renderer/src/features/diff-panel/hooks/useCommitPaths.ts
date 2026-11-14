@@ -45,7 +45,7 @@ export interface CommitPaths {
   readonly changedFileCount: number
 }
 
-export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0): CommitPaths {
+export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0) {
   const refreshStatus = useGitStore((state) => state.refreshStatus)
   const workingTreeStatus = useGitStore((state) => selectWorkingTreeStatus(state, workingPath))
 

@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { systemIntegration } from '../desktop-shell/system-integration'
 
 interface DesktopInstanceLock {
   readonly hasSingleInstanceLock: () => boolean
@@ -8,8 +8,8 @@ interface DesktopInstanceLock {
 
 export async function withLegacySessionWriterFence<T>(
   operation: () => Promise<T>,
-  lock: DesktopInstanceLock = app,
-): Promise<T> {
+  lock: DesktopInstanceLock = systemIntegration,
+) {
   const alreadyOwned = lock.hasSingleInstanceLock()
   if (!alreadyOwned && !lock.requestSingleInstanceLock()) {
     throw new Error(

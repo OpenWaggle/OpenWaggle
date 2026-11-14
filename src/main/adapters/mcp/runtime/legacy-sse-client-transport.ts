@@ -1,5 +1,11 @@
 import type { Transport } from '@modelcontextprotocol/client'
 
+/**
+ * The SDK marks this export deprecated and OpenWaggle keeps it on purpose, so it is looked up by
+ * its export name instead of bound as a symbol (`typescript/no-deprecated` would refuse that).
+ */
+const LEGACY_SSE_TRANSPORT_EXPORT = 'SSEClientTransport'
+
 type LegacySseConstructor = new (url: URL, options: object) => Transport
 
 function isLegacySseConstructor(value: unknown): value is LegacySseConstructor {
@@ -13,7 +19,7 @@ function isLegacySseConstructor(value: unknown): value is LegacySseConstructor {
  */
 export async function createLegacySseClientTransport(url: URL, options: object) {
   const clientModule = await import('@modelcontextprotocol/client')
-  const transportConstructor: unknown = Reflect.get(clientModule, 'SSEClientTransport')
+  const transportConstructor: unknown = Reflect.get(clientModule, LEGACY_SSE_TRANSPORT_EXPORT)
   if (!isLegacySseConstructor(transportConstructor)) {
     throw new Error(
       'The installed MCP SDK does not provide its legacy SSE compatibility transport.',

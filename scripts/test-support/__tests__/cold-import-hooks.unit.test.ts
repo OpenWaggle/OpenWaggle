@@ -4,13 +4,17 @@ import { describe, expect, it } from 'vitest'
 import { coldImportHookFindings } from '../cold-import-hooks'
 
 function findingsOf(source: string) {
-  return coldImportHookFindings('fixture.component.test.tsx', source).map((finding) => finding.reason)
+  return coldImportHookFindings('fixture.component.test.tsx', source).map(
+    (finding) => finding.reason,
+  )
 }
 
 describe('cold imports in component test hooks', () => {
   it('rejects a dynamic import in beforeEach, which the first test pays for under the hook deadline', () => {
     expect(
-      findingsOf(`beforeEach(async () => {\n  reset()\n  ;({ hook } = await import('../hook'))\n})`),
+      findingsOf(
+        `beforeEach(async () => {\n  reset()\n  ;({ hook } = await import('../hook'))\n})`,
+      ),
     ).toEqual(['beforeEach'])
     expect(findingsOf(`beforeEach(async () => {\n  ;({ hook } = await loadHook())\n})`)).toEqual([
       'beforeEach',

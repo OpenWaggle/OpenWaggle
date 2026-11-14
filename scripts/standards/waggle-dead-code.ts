@@ -1,4 +1,6 @@
 import { isRecord } from './records'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 
 /**
  * The Waggle scope of the production-only dead-code check (`scripts/check-waggle-dead-code.ts`):
@@ -9,9 +11,10 @@ import { isRecord } from './records'
  * Waggle.
  */
 const WAGGLE_PACKAGE_PATH = /^packages\/(?:pi-waggle|waggle-core)\//
-const DESKTOP_AGENT_POLICY_PATH = /^src\/main\/agent\//
+const DESKTOP_AGENT_POLICY_PREFIX = 'src/main/agent/'
 const WAGGLE_DIRECTORY = /(?:^|\/)waggle(?:-run)?\//
-const WAGGLE_PACKAGE_IMPORT = /(?:from\s+|import\s*\(\s*)['"]@openwaggle\/(?:pi-waggle|waggle-core)(?:\/[^'"]*)?['"]/
+const WAGGLE_PACKAGE_IMPORT =
+  /(?:from\s+|import\s*\(\s*)['"]@openwaggle\/(?:pi-waggle|waggle-core)(?:\/[^'"]*)?['"]/
 /** Waggle in a file or symbol name, constants included, but not as part of OpenWaggle. */
 const WAGGLE_SYMBOL_NAME = /(?<![Oo]pen|OPEN)(?:[Ww]aggle|WAGGLE)/
 const TEST_PATH = /(?:^|\/)__tests__\/|\.test\.[cm]?tsx?$|(?:^|\/)test-(?:utils|support)(?:\/|\.)/
@@ -44,7 +47,7 @@ export function isWaggleScopeFile(filePath: string, contents: string) {
   if (WAGGLE_PACKAGE_PATH.test(filePath)) return true
   if (!filePath.startsWith('src/')) return false
   return (
-    DESKTOP_AGENT_POLICY_PATH.test(filePath) ||
+    filePath.startsWith(DESKTOP_AGENT_POLICY_PREFIX) ||
     WAGGLE_DIRECTORY.test(filePath) ||
     WAGGLE_SYMBOL_NAME.test(filePath.slice(filePath.lastIndexOf('/') + 1)) ||
     WAGGLE_PACKAGE_IMPORT.test(contents)
@@ -59,12 +62,34 @@ function findingName(issue: Readonly<Record<string, unknown>>) {
   return undefined
 }
 
+const fallowReportSchema = Schema.Struct({ schema_version: unknownField })
+const fallowIssueSchema = Schema.Struct({ path: Schema.String })
+
+function issueFinding(kind: WaggleDeadCodeFinding['kind'], issue: unknown) {
+  const path = objectFields(fallowIssueSchema, issue)?.path
+  if (!isRecord(issue) || path === undefined) throw new Error(`fallow ${kind} entry has no path.`)
+  const name = findingName(issue)
+  const finding: WaggleDeadCodeFinding = { kind, path, ...(name ? { name } : {}) }
+  return finding
+}
+
+/** A Waggle-named symbol in production source is a finding wherever it lives. */
+function isWaggleSymbol({ name, path }: WaggleDeadCodeFinding) {
+  return (
+    name !== undefined &&
+    WAGGLE_SYMBOL_NAME.test(name) &&
+    path.startsWith('src/') &&
+    !TEST_PATH.test(path)
+  )
+}
+
 /** The findings of a `fallow dead-code --format json` report in files of `scope`. */
 export function waggleDeadCodeFindings(report: unknown, scope: ReadonlySet<string>) {
   if (!isRecord(report)) throw new Error('fallow did not return a JSON report object.')
-  if (report.schema_version !== FALLOW_REPORT_SCHEMA_VERSION) {
+  const { schema_version: schemaVersion } = objectFields(fallowReportSchema, report) ?? {}
+  if (schemaVersion !== FALLOW_REPORT_SCHEMA_VERSION) {
     throw new Error(
-      `fallow report schema ${String(report.schema_version)} is not ${String(FALLOW_REPORT_SCHEMA_VERSION)}; check the keys this check reads before updating it.`,
+      `fallow report schema ${String(schemaVersion)} is not ${String(FALLOW_REPORT_SCHEMA_VERSION)}; check the keys this check reads before updating it.`,
     )
   }
   const findings: WaggleDeadCodeFinding[] = []
@@ -72,17 +97,8 @@ export function waggleDeadCodeFindings(report: unknown, scope: ReadonlySet<strin
     const issues = report[kind]
     if (!Array.isArray(issues)) throw new Error(`fallow report has no ${kind} list.`)
     for (const issue of issues) {
-      if (!isRecord(issue) || typeof issue.path !== 'string') {
-        throw new Error(`fallow ${kind} entry has no path.`)
-      }
-      const name = findingName(issue)
-      const waggleSymbol =
-        name !== undefined &&
-        WAGGLE_SYMBOL_NAME.test(name) &&
-        issue.path.startsWith('src/') &&
-        !TEST_PATH.test(issue.path)
-      if (!scope.has(issue.path) && !waggleSymbol) continue
-      findings.push({ kind, path: issue.path, ...(name ? { name } : {}) })
+      const finding = issueFinding(kind, issue)
+      if (scope.has(finding.path) || isWaggleSymbol(finding)) findings.push(finding)
     }
   }
   return findings

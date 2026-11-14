@@ -11,8 +11,8 @@ import type { AgentInteractionEvent } from '../types-chat-row'
 
 const SESSION_ID = SessionId('session-1')
 
-function notifyRequest(id: string): AgentInteractionEvent {
-  return {
+function notifyRequest(id: string) {
+  const event: AgentInteractionEvent = {
     type: 'agent_interaction_request',
     interaction: {
       interactionId: id,
@@ -26,9 +26,10 @@ function notifyRequest(id: string): AgentInteractionEvent {
     },
     timestamp: 1,
   }
+  return event
 }
 
-function confirmRequest(id: string): AgentInteractionEvent {
+function confirmRequest(id: string) {
   return {
     type: 'agent_interaction_request',
     interaction: {
@@ -43,10 +44,10 @@ function confirmRequest(id: string): AgentInteractionEvent {
       purpose: 'authorization',
     },
     timestamp: 1,
-  }
+  } satisfies AgentInteractionEvent
 }
 
-function confirmResolved(id: string): AgentInteractionEvent {
+function confirmResolved(id: string) {
   return {
     type: 'agent_interaction_resolved',
     runId: 'run-1',
@@ -54,7 +55,7 @@ function confirmResolved(id: string): AgentInteractionEvent {
     kind: 'confirm',
     status: 'resolved',
     timestamp: 2,
-  }
+  } satisfies AgentInteractionEvent
 }
 
 describe('notification lifetimes', () => {

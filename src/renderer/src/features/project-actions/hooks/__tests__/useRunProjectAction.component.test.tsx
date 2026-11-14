@@ -5,8 +5,10 @@ import { useUIStore } from '@/shell/ui-store'
 import { TEST_ACTION } from '../../components/__tests__/native-action-fixtures'
 
 const mocks = vi.hoisted(() => ({ manage: vi.fn(), open: vi.fn(), toast: vi.fn() }))
-vi.mock('@/features/chat/hooks', () => ({
-  useChat: () => ({ activeSession: { id: 'session', projectPath: '/repo' } }),
+vi.mock('@/features/chat/state', () => ({
+  useChatStore: (
+    select: (state: { readonly activeSession: { id: string; projectPath: string } }) => unknown,
+  ) => select({ activeSession: { id: 'session', projectPath: '/repo' } }),
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions: mocks.manage } }))
 vi.mock('@/shell/workspace-panel-actions', () => ({ openWorkspaceAction: mocks.open }))

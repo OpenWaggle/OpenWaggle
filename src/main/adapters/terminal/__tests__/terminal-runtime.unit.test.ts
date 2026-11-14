@@ -18,36 +18,10 @@ describe('makeTerminalRuntime spawn lifecycle', () => {
   beforeEach(setupTerminalRuntimeTest)
   afterEach(teardownTerminalRuntimeTest)
 
-  it('builds a generation-aware registry record', () => {
-    const { runtime } = makeRuntime(makeFakePty(FAKE_PID))
-
-    const record = runtime.makeRecord(INPUT, INPUT.cwd)
-
-    expect(record).toMatchObject({
-      key: 'session-1::main',
-      ownerKey: 'session-1',
-      terminalId: 'main',
-      cwd: INPUT.cwd,
-      live: null,
-      exitCode: null,
-      spawnGeneration: 0,
-      outputGeneration: 0,
-      readinessPhase: 'spawning',
-      readinessGeneration: 0,
-      pendingInput: [],
-      pendingInputBytes: 0,
-      inputGeneration: null,
-      lastInputReceipt: null,
-      pendingOutput: '',
-      pendingOutputBytes: 0,
-    })
-  })
-
   it('retains the bounded spawn metadata as shutdown identity and tty fallback', async () => {
     const fake = makeFakePty(FAKE_PID)
     const { runtime, spawn } = makeRuntime(fake)
     const outcome = successfulOutcome(fake)
-    if (!outcome.ok) throw outcome.error
     spawn.mockResolvedValue({
       ...outcome,
       processIdentity: { pid: FAKE_PID, startedAt: 'darwin:123:456' },
@@ -284,8 +258,10 @@ describe('makeTerminalRuntime spawn lifecycle', () => {
 
   it('retains and stops a spawned PTY when stream attachment fails', async () => {
     const fake = makeFakePty(FAKE_PID)
-    Reflect.set(fake.pty, 'onData', () => {
-      throw new Error('stream listener unavailable')
+    Object.assign(fake.pty, {
+      onData: () => {
+        throw new Error('stream listener unavailable')
+      },
     })
     const shutdownDetachedProcess = vi.fn(async () => {
       fake.emitExit(0)

@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { allInOrder } from '@shared/utils/all-in-order'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import { ensureDirectoryPathPinned } from '../utils/pinned-directory-creation'
 import { abortValidatedChild, waitForChildExit } from '../utils/validated-child-process'
@@ -127,8 +129,10 @@ export async function runManagedShimMutationInternal(
   const directory = path.dirname(input.target)
   await ensureDirectoryPathPinned({ targetDirectory: directory, mode: EXECUTABLE_MODE })
   const directoryHandle = await fs.open(directory, OPEN_DIRECTORY_NO_FOLLOW)
-  const directoryStats = await directoryHandle.stat()
-  const expectedCanonicalDirectory = await fs.realpath(directory)
+  const [directoryStats, expectedCanonicalDirectory] = await allInOrder([
+    directoryHandle.stat(),
+    fs.realpath(directory),
+  ])
   const workingRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cli-shim-'))
   await fs.chmod(workingRoot, OWNER_DIRECTORY_MODE)
   const sourcePath = path.join(workingRoot, 'shim.pending')
@@ -145,7 +149,7 @@ export async function runManagedShimMutationInternal(
     }
     await input.service.beforeManagedSpawn?.({ directory, pendingName })
     const child = spawn(
-      process.execPath,
+      childScriptRuntime.executable(),
       mutationArguments(
         {
           mode: input.mode,
@@ -158,7 +162,7 @@ export async function runManagedShimMutationInternal(
       ),
       {
         cwd: directory,
-        env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+        env: childScriptRuntime.environment(getSafeChildEnv()),
         stdio: ['pipe', 'pipe', 'pipe', sourceHandle?.fd ?? 'ignore'],
       },
     )

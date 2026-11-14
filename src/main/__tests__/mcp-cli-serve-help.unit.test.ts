@@ -20,7 +20,7 @@ const { runMcpCli } = await import('../mcp-cli')
 describe('openwaggle mcp serve help (#350)', () => {
   beforeEach(() => {
     output.stdout.length = 0
-    output.env.OPENWAGGLE_AGENT_RUN = undefined
+    delete output.env.OPENWAGGLE_AGENT_RUN
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   })
 

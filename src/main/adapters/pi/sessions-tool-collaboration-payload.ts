@@ -52,12 +52,12 @@ export function isSessionsToolCollaborationAction(
 function reportPayload(
   input: Extract<SessionsToolParameters, { action: 'report' }>,
   source: SessionsToolSource,
-): LocalSessionCommandPayload {
+) {
   const target =
     input.target.type === 'worker_reference'
       ? { type: 'worker-reference' as const, reference: input.target.reference }
       : input.target
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -76,6 +76,7 @@ function reportPayload(
       },
     },
   }
+  return payload
 }
 
 type DelegationInput = Exclude<SessionsToolCollaborationParameters, { action: 'report' }>
@@ -112,12 +113,9 @@ function ensureUniqueDependencyIds(
   }
 }
 
-function reviewCommand(
-  input: ReviewInput,
-  source: SessionsToolSource,
-): SessionControlMutationCommand {
+function reviewCommand(input: ReviewInput, source: SessionsToolSource) {
   if (input.action === 'delegation_request_revision') {
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-request-revision',
       sessionId: source.sessionId,
       delegationId: input.delegationId,
@@ -125,9 +123,10 @@ function reviewCommand(
       feedback: input.feedback,
       ...(input.revisedSpecification ? { revisedSpecification: input.revisedSpecification } : {}),
     }
+    return command
   }
   if (input.action === 'delegation_verify') {
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-verify',
       sessionId: source.sessionId,
       delegationId: input.delegationId,
@@ -136,28 +135,28 @@ function reviewCommand(
       summary: input.summary,
       evidence: input.evidence ?? [],
     }
+    return command
   }
   if (input.action === 'delegation_accept') {
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-accept',
       sessionId: source.sessionId,
       delegationId: input.delegationId,
       submissionRevision: input.submissionRevision,
       ...(input.note ? { note: input.note } : {}),
     }
+    return command
   }
-  return {
+  const command: SessionControlMutationCommand = {
     operation: input.action === 'delegation_reopen' ? 'delegation-reopen' : 'delegation-cancel',
     sessionId: source.sessionId,
     delegationId: input.delegationId,
     reason: input.reason,
   }
+  return command
 }
 
-function delegationPayload(
-  input: DelegationInput,
-  source: SessionsToolSource,
-): LocalSessionCommandPayload {
+function delegationPayload(input: DelegationInput, source: SessionsToolSource) {
   if (input.action === 'delegation_propose_amendment' || input.action === 'delegation_amend') {
     ensureUniqueDependencyIds(input)
   }
@@ -223,7 +222,7 @@ function delegationPayload(
                     reason: input.reason,
                     ...(input.proposalId ? { proposalId: input.proposalId } : {}),
                   }
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -232,6 +231,7 @@ function delegationPayload(
       command,
     },
   }
+  return payload
 }
 
 export function buildSessionsToolCollaborationPayload(

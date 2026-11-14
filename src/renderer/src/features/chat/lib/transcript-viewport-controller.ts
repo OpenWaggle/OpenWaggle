@@ -61,7 +61,11 @@ export class TranscriptViewportController {
   }
   private endSpace = 0
 
-  constructor(private readonly geometry: ViewportGeometry) {}
+  private readonly geometry: ViewportGeometry
+
+  constructor(geometry: ViewportGeometry) {
+    this.geometry = geometry
+  }
 
   get mode() {
     return this.currentMode
@@ -90,7 +94,7 @@ export class TranscriptViewportController {
   }
 
   /** The reading position worth saving: `null` while following the live end. */
-  readingPosition(): ReadingPosition | null {
+  readingPosition() {
     // The bottom of a capped window is not the live end: that reader is still in history.
     const atLiveEnd = !this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX
     const mode = this.currentMode

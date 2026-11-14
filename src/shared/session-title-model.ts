@@ -18,7 +18,7 @@ export type SessionTitleModelSetting =
 export const DEFAULT_SESSION_TITLE_MODEL: SessionTitleModelSetting = SESSION_TITLE_MODEL_AUTOMATIC
 
 /** Accepts the two keywords or a well-formed model reference; anything else is not a setting. */
-export function parseSessionTitleModelSetting(raw: unknown): SessionTitleModelSetting | null {
+export function parseSessionTitleModelSetting(raw: unknown) {
   if (typeof raw !== 'string') return null
   const trimmed = raw.trim()
   if (trimmed === SESSION_TITLE_MODEL_AUTOMATIC) return SESSION_TITLE_MODEL_AUTOMATIC

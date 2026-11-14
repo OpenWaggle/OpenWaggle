@@ -12,10 +12,7 @@ import { ExtensionContributionSummary } from './ExtensionContributionSummary'
 import { ExtensionDiagnostics } from './ExtensionDiagnostics'
 import { ExtensionPackageCard } from './ExtensionPackageCard'
 import { ExtensionsErrorAlert, ExtensionsSectionHeading } from './ExtensionsSectionPanels'
-import {
-  type PackageContributionSummary,
-  summarizePackageContributions,
-} from './extension-contribution-summary-model'
+import { summarizePackageContributions } from './extension-contribution-summary-model'
 import type { ExtensionPackageCardActions } from './extension-package-card-model'
 import { SettingsContributionHost } from './SettingsContributionHost'
 
@@ -43,7 +40,7 @@ interface ExtensionMutationHandlers {
 function packageActions(
   extensionPackage: ExtensionPackageSummary,
   handlers: ExtensionMutationHandlers,
-): ExtensionPackageCardActions {
+) {
   return {
     onSetTrusted: (trusted) => handlers.setTrusted(extensionPackage, trusted),
     onSetEnabled: (enabled) => handlers.setEnabled(extensionPackage, enabled),
@@ -53,7 +50,7 @@ function packageActions(
     onApproveBuild: () => handlers.approveBuild(extensionPackage),
     onReload: () => handlers.reload(extensionPackage),
     onRemove: () => handlers.remove(extensionPackage),
-  }
+  } satisfies ExtensionPackageCardActions
 }
 
 function addProjectPath(projectPaths: string[], projectPath: string | null) {
@@ -102,7 +99,7 @@ function packagesForProject(packages: readonly ExtensionPackageSummary[], projec
 function packageContributionSummary(
   registry: ExtensionContributionRegistryView | null,
   extensionPackage: ExtensionPackageSummary,
-): PackageContributionSummary | null {
+) {
   if (!registry) {
     return null
   }
@@ -123,7 +120,7 @@ function buildScopeGroups({
   readonly packages: readonly ExtensionPackageSummary[]
   readonly projectPaths: readonly string[]
   readonly projectLabel: (projectPath: string) => string
-}): readonly ExtensionScopeGroup[] {
+}) {
   const globalPackages = packages.filter(
     (extensionPackage) => extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
   )
@@ -142,7 +139,7 @@ function buildScopeGroups({
       packages: globalPackages,
     },
     ...projectGroups,
-  ]
+  ] satisfies readonly ExtensionScopeGroup[]
 }
 
 function ExtensionScopeSection({

@@ -11,19 +11,19 @@ import { reconcileSnapshotUserMessages } from '../chat-message-reconciliation'
 
 const SESSION_ID = SessionId('session-1')
 
-function message(id: string, role: UIMessage['role'], text: string): UIMessage {
+function message(id: string, role: UIMessage['role'], text: string) {
   return {
     id,
     role,
     parts: [{ type: 'text', content: text }],
-  }
+  } satisfies UIMessage
 }
 
 function node(
   id: string,
   parentId: string | null,
   overrides?: { readonly kind?: SessionNodeKind; readonly text?: string },
-): SessionNode {
+) {
   const kind = overrides?.kind ?? 'user_message'
   return {
     id: SessionNodeId(id),
@@ -47,7 +47,7 @@ function node(
       : {}),
     contentJson: '{}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 function workspace(entryNode: SessionNode, allNodes: readonly SessionNode[] = [entryNode]) {

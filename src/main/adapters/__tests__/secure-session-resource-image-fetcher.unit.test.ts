@@ -1,7 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import { MAX_REMOTE_IMAGE_BYTES } from '../../domain/session-resource-image'
-import type { SecureMcpFetch } from '../mcp/runtime/secure-fetch'
 import { createSecureSessionResourceImageFetcher } from '../secure-session-resource-image-fetcher'
 
 const PNG_BYTES = Buffer.from(
@@ -9,7 +8,7 @@ const PNG_BYTES = Buffer.from(
   'base64',
 )
 
-function fakeSecureFetch(response: Response): SecureMcpFetch {
+function fakeSecureFetch(response: Response) {
   return Object.assign(
     vi.fn(async () => response),
     { close: vi.fn(async () => undefined) },

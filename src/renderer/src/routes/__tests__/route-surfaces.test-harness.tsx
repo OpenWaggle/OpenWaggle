@@ -43,7 +43,10 @@ const mocks = vi.hoisted(() => {
     setLastPanel: (panel: RightSidebarPanel) => {
       lastRightSidebarPanel = panel
     },
-    shellState: (): ShellState => ({ lastRightSidebarPanel, setLastRightSidebarPanel }),
+    shellState: () => {
+      const state: ShellState = { lastRightSidebarPanel, setLastRightSidebarPanel }
+      return state
+    },
     setLastRightSidebarPanel,
     chatRouteEffects: vi.fn<() => void>(),
     sidePanelRefetch: vi.fn<() => void>(),
@@ -52,6 +55,7 @@ const mocks = vi.hoisted(() => {
 
 export const routeSurfaceMocks: RouteSurfaceMocks = mocks
 
+// The chat sections read the whole transcript pipeline; the route only routes their props.
 vi.mock('@/features/chat/hooks', () => ({
   useChatPanelSections: () => ({
     diff: {
@@ -63,6 +67,7 @@ vi.mock('@/features/chat/hooks', () => ({
   }),
 }))
 
+// The chat panel and lazy diff pane are heavy surfaces with their own tests; these expose the route's props.
 vi.mock('@/features/chat/components', () => ({
   ChatPanelContent: ({
     onOpenSessionTree,
@@ -91,6 +96,7 @@ vi.mock('@/features/chat/components', () => ({
     }),
 }))
 
+// A lazily loaded heavy panel with its own tests; the stand-in exposes its close action.
 vi.mock('@/features/session-tree/components', () => ({
   loadSessionTreePanel: () =>
     Promise.resolve({
@@ -105,6 +111,7 @@ vi.mock('@/features/session-tree/components', () => ({
     }),
 }))
 
+// A lazily loaded heavy panel with its own tests; the stand-in exposes its close action.
 vi.mock('@/features/hive-panel/components', () => ({
   loadHivePanel: () =>
     Promise.resolve({
@@ -119,6 +126,7 @@ vi.mock('@/features/hive-panel/components', () => ({
     }),
 }))
 
+// Change-request and resources panels are other features' surfaces; these expose their targets.
 vi.mock('@/features/session-summary/components', () => ({
   ChangeRequestPanel: ({
     requestUrl,
@@ -155,6 +163,7 @@ vi.mock('@/features/session-summary/components', () => ({
   ),
 }))
 
+// Extension side panels host extension iframes; the stand-in shows which panel the route opened.
 vi.mock('@/features/extensions/components', () => ({
   ExtensionSidePanelSurface: ({
     target,
@@ -172,6 +181,7 @@ vi.mock('@/features/extensions/components', () => ({
   ),
 }))
 
+// The contributions query needs the extension host; the route reads only its projectPaths.
 vi.mock('@/features/extensions', () => ({
   useExtensionSidePanelContributions: () => ({
     error: null,
@@ -182,10 +192,7 @@ vi.mock('@/features/extensions', () => ({
   }),
 }))
 
-vi.mock('@/shared/ui/PanelErrorBoundary', () => ({
-  PanelErrorBoundary: ({ children }: { readonly children: React.ReactNode }) => <>{children}</>,
-}))
-
+// The resizable layout measures the window; -route-surfaces reads open state from this stand-in.
 vi.mock('@/shared/ui/RightSidebarLayout', () => ({
   RightSidebarLayout: ({
     children,
@@ -212,6 +219,7 @@ vi.mock('@/shared/ui/RightSidebarLayout', () => ({
   ),
 }))
 
+// The '@/shell' barrel loads the whole app shell; -route-surfaces asserts the remembered panel here.
 vi.mock('@/shell', () => ({
   CHAT_MIN_WIDTH: 420,
   DIFF_PANEL_MAX: 900,
@@ -220,6 +228,7 @@ vi.mock('@/shell', () => ({
   useUIStore: <T,>(selector: (state: ShellState) => T) => selector(mocks.shellState()),
 }))
 
+// The route effects navigate and load Sessions; -chat-route-effects*.component.test.tsx cover them.
 vi.mock('../-chat-route-effects', () => ({
   useChatRouteEffects: mocks.chatRouteEffects,
 }))
@@ -234,8 +243,8 @@ export function renderChatRoute({
   readonly workspace?: ChatRouteProps['workspace']
   readonly rightSidebar: Partial<ChatRouteProps['rightSidebar']>
   readonly actions?: Partial<ChatRouteProps['rightSidebarActions']>
-}): ChatRouteProps['rightSidebarActions'] {
-  const rightSidebarActions = {
+}) {
+  const rightSidebarActions: ChatRouteProps['rightSidebarActions'] = {
     onDiffOpenChange: vi.fn(),
     onExtensionSidePanelOpenChange: vi.fn(),
     onResourcesTargetChange: vi.fn(),

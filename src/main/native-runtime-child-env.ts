@@ -6,9 +6,7 @@ import { env, getSafeChildEnv } from './env'
  * profile directories its caches resolve from, which `HOME`/`TMPDIR` do not provide there. No
  * secrets pass through.
  */
-export function getNativeRuntimeChildEnv(
-  platform: NodeJS.Platform = process.platform,
-): Record<string, string | undefined> {
+export function getNativeRuntimeChildEnv(platform: NodeJS.Platform = process.platform) {
   if (platform !== 'win32') return getSafeChildEnv()
   return {
     ...getSafeChildEnv(),

@@ -5,14 +5,14 @@ import { type OptimisticSteerPreview, useOptimisticSteerStore } from '../optimis
 
 const SESSION_ID = SessionId('session-1')
 
-function preview(id: string): OptimisticSteerPreview {
+function preview(id: string) {
   const message: UIMessage = {
     id,
     role: 'user',
     parts: [{ type: 'text', content: id }],
     createdAt: new Date(),
   }
-  return {
+  const result: OptimisticSteerPreview = {
     id,
     content: id,
     incorporatedContent: { text: id, attachmentCount: 0 },
@@ -21,6 +21,7 @@ function preview(id: string): OptimisticSteerPreview {
     baselineMaxCreatedOrder: -1,
     message,
   }
+  return result
 }
 
 describe('optimistic steer store', () => {

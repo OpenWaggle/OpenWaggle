@@ -3,24 +3,21 @@ import { describe, expect, it } from 'vitest'
 import { devAppEnvironment, devAppLaunchCommand } from '../dev-app-startup-smoke'
 
 describe('development app startup smoke', () => {
-  it('runs `pnpm dev` through cmd.exe on Windows, as pnpm runs package scripts there', () => {
-    expect(devAppLaunchCommand('win32', 'C:\\Windows\\system32\\cmd.exe')).toEqual({
-      command: 'C:\\Windows\\system32\\cmd.exe',
-      args: ['/d', '/s', '/c', 'pnpm dev -- --use-mock-keychain'],
-    })
-  })
-
   it.each([
+    ['win32', ['--use-mock-keychain']],
     ['darwin', ['--use-mock-keychain']],
     ['linux', ['--use-mock-keychain', '--password-store=basic']],
   ] satisfies [NodeJS.Platform, string[]][])(
-    'runs `pnpm dev` directly on %s with the mock credential store',
+    'runs `bun run dev` on %s with the mock credential store after a second `--`',
     (platform, switches) => {
-      expect(devAppLaunchCommand(platform)).toEqual({ command: 'pnpm', args: ['dev', '--', ...switches] })
+      expect(devAppLaunchCommand(platform, '/opt/bun/bin/bun')).toEqual({
+        command: '/opt/bun/bin/bun',
+        args: ['run', 'dev', '--', '--', ...switches],
+      })
     },
   )
 
-  it('keeps the caller environment for pnpm but no Session identity or real profile', () => {
+  it('keeps the caller environment for Bun but no Session identity or real profile', () => {
     const root = path.join('/tmp', 'dev-startup')
     const environment = devAppEnvironment(root, {
       PATH: '/bin',

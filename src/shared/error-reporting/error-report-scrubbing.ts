@@ -21,9 +21,8 @@
 import { classifyErrorMessage, isAgentErrorCode } from '../domain/error-classifier'
 import {
   ERROR_REPORT_ORIGIN_TAG,
-  type ErrorReportOrigin,
-  type ErrorReportTaggedOrigin,
   isErrorReportOrigin,
+  type ErrorReportTaggedOrigin,
 } from './error-report-constants'
 import {
   createErrorReportPathScrubber,
@@ -43,10 +42,9 @@ import {
   scrubErrorReportDebugMeta,
   scrubErrorReportExceptionType,
   scrubErrorReportFrameLocation,
+  ownErrorReportCode,
 } from './error-report-rules'
 import { scrubStringsInPlace } from './error-report-string-scrubbing'
-
-export { scrubStringsInPlace }
 
 export interface ErrorReportStackFrame {
   filename?: string
@@ -78,9 +76,9 @@ export interface ErrorReportEvent {
   exception?: { values?: ErrorReportException[] }
   threads?: { values?: { stacktrace?: ErrorReportStackTrace }[] }
   stacktrace?: ErrorReportStackTrace
-  tags?: { [key: string]: unknown }
-  extra?: { [key: string]: unknown }
-  contexts?: { [key: string]: { [key: string]: unknown } | undefined }
+  tags?: Record<string, unknown>
+  extra?: Record<string, unknown>
+  contexts?: Record<string, Record<string, unknown> | undefined>
   user?: unknown
   request?: unknown
   server_name?: string
@@ -100,8 +98,6 @@ export interface ErrorReportScrubOptions extends ErrorReportKnownDirectories {
 }
 
 const UNKNOWN_ERROR_CODE = 'unknown'
-const HTTP_STATUS_MIN = 100
-const HTTP_STATUS_MAX = 599
 /**
  * Error classes raised for a failed provider or MCP request: the OpenAI and Anthropic SDKs, Pi's
  * provider adapters, Google's SDK, the MCP SDK, and Bedrock's AWS service exceptions.
@@ -124,30 +120,17 @@ function isErrorReportCode(text: string) {
   )
 }
 
-function ownErrorCode(error: unknown) {
-  if (typeof error !== 'object' || error === null) return undefined
-  const code: unknown = Reflect.get(error, 'code')
-  if (typeof code === 'string' && NODE_ERROR_CODE_PATTERN.test(code)) return code
-  const status: unknown = Reflect.get(error, 'status') ?? Reflect.get(error, 'statusCode')
-  return typeof status === 'number' &&
-    Number.isInteger(status) &&
-    status >= HTTP_STATUS_MIN &&
-    status <= HTTP_STATUS_MAX
-    ? `http-${String(status)}`
-    : undefined
-}
-
 /**
  * The code an error is reported by when its message text is dropped: the message itself when it
  * already is a code, OpenWaggle's error classification of the message, the error's own Node.js
  * error code or HTTP status, the Node.js error code the message starts with, or `unknown`.
  */
-export function errorReportCode(message: string | undefined, error?: unknown): string {
+export function errorReportCode(message: string | undefined, error?: unknown) {
   if (message !== undefined && isErrorReportCode(message)) return message
   const classified = message ? classifyErrorMessage(message).code : UNKNOWN_ERROR_CODE
   if (classified !== UNKNOWN_ERROR_CODE) return classified
   return (
-    ownErrorCode(error) ??
+    ownErrorReportCode(error) ??
     (message ? leadingNodeErrorCode(message) : undefined) ??
     UNKNOWN_ERROR_CODE
   )
@@ -172,7 +155,7 @@ function looksLikeProviderFailure(event: ErrorReportEvent) {
   )
 }
 
-function taggedOrigin(event: ErrorReportEvent): ErrorReportOrigin | undefined {
+function taggedOrigin(event: ErrorReportEvent) {
   const tagged = event.tags?.[ERROR_REPORT_ORIGIN_TAG]
   return isErrorReportOrigin(tagged) ? tagged : undefined
 }
@@ -184,14 +167,20 @@ function taggedOrigin(event: ErrorReportEvent): ErrorReportOrigin | undefined {
  * classification or the error class marks a failed provider request, else the `application`
  * origin its reporter tagged. An error reported without an origin has none.
  */
-export function errorReportOrigin(event: ErrorReportEvent): ErrorReportTaggedOrigin | undefined {
-  if (hasUnhandledErrorReportException(event)) return 'unhandled'
+export function errorReportOrigin(event: ErrorReportEvent) {
+  if (hasUnhandledErrorReportException(event)) return 'unhandled' as const
   const tagged = taggedOrigin(event)
-  if (tagged === 'tool-execution' || tagged === 'provider-response') return tagged
+  if (tagged === 'tool-execution' || tagged === 'provider-response') {
+    const origin: ErrorReportTaggedOrigin | undefined = tagged
+    return origin
+  }
   // A summary's `code=ECONNREFUSED` or `exit=503` names no provider request.
-  if (tagged === 'application' && isStartupFailureSummaryReport(event)) return tagged
-  if (looksLikeProviderFailure(event)) return 'provider-response'
-  return tagged
+  if (tagged === 'application' && isStartupFailureSummaryReport(event)) {
+    return 'application' as const
+  }
+  if (looksLikeProviderFailure(event)) return 'provider-response' as const
+  const origin: ErrorReportTaggedOrigin | undefined = tagged
+  return origin
 }
 
 function dropMessageText(event: ErrorReportEvent, originalException: unknown) {
@@ -269,7 +258,7 @@ function scrubText(event: ErrorReportEvent, options: ErrorReportScrubOptions) {
 export function scrubErrorReportEvent(
   event: ErrorReportEvent,
   options: ErrorReportScrubOptions = {},
-): void {
+) {
   for (const key of ERROR_REPORT_DROPPED_EVENT_KEYS) Reflect.deleteProperty(event, key)
   if (event.extra) delete event.extra[SERIALIZED_THROWN_VALUE_KEY]
   scrubCodeLocations(event)

@@ -91,11 +91,17 @@ interface BatchRejection {
 
 type BatchCheck = { readonly ok: true; readonly batch: AcceptedBatch } | BatchRejection
 
-function rejection(status: number, field: string, reason: string, rejected = 0): BatchRejection {
-  return { ok: false, status, field: publishedFieldName(field), reason, rejected }
+function rejection(status: number, field: string, reason: string, rejected = 0) {
+  return {
+    ok: false,
+    status,
+    field: publishedFieldName(field),
+    reason,
+    rejected,
+  } satisfies BatchRejection
 }
 
-function rejectedResult(status: number, field: string, reason: string, rejected = 0): RouteResult {
+function rejectedResult(status: number, field: string, reason: string, rejected = 0) {
   const loggedField = publishedFieldName(field)
   return {
     response: jsonResponse(status, { accepted: 0, rejected, error: reason, field: loggedField }),
@@ -103,7 +109,7 @@ function rejectedResult(status: number, field: string, reason: string, rejected 
     field: loggedField,
     accepted: 0,
     rejected,
-  }
+  } satisfies RouteResult
 }
 
 function validateEvents(candidates: readonly unknown[], todayEpochDay: number) {
@@ -118,30 +124,53 @@ function validateEvents(candidates: readonly unknown[], todayEpochDay: number) {
 }
 
 /** Checks a parsed request: its fields, the context, every event and the request's shape. */
-function checkBatch(payload: Readonly<Record<string, unknown>>, todayEpochDay: number): BatchCheck {
+function checkBatch(payload: Readonly<Record<string, unknown>>, todayEpochDay: number) {
   if (firstUnexpectedKey(payload, REQUEST_KEYS) !== undefined) {
-    return rejection(HTTP_STATUS.badRequest, 'request', 'unknown field')
+    const check: BatchCheck = rejection(HTTP_STATUS.badRequest, 'request', 'unknown field')
+    return check
   }
-  if (payload.schema !== USAGE_STATISTICS_SCHEMA_VERSION) {
+  const { schema, events: list, context: contextPayload } = payload
+  if (schema !== USAGE_STATISTICS_SCHEMA_VERSION) {
     return rejection(HTTP_STATUS.badRequest, 'schema', 'unsupported schema version')
   }
-  const list: unknown = payload.events
   if (!Array.isArray(list)) return rejection(HTTP_STATUS.badRequest, 'events', 'expected a list')
   const candidates: readonly unknown[] = list
   if (candidates.length > USAGE_STATISTICS_MAX_EVENTS_PER_REQUEST) {
-    return rejection(HTTP_STATUS.payloadTooLarge, 'events', 'too many events', candidates.length)
+    const check: BatchCheck = rejection(
+      HTTP_STATUS.payloadTooLarge,
+      'events',
+      'too many events',
+      candidates.length,
+    )
+    return check
   }
-  const context = validateUsageStatisticsContext(payload.context)
+  const context = validateUsageStatisticsContext(contextPayload)
   if (!context.ok) {
-    return rejection(HTTP_STATUS.badRequest, context.field, context.reason, candidates.length)
+    const check: BatchCheck = rejection(
+      HTTP_STATUS.badRequest,
+      context.field,
+      context.reason,
+      candidates.length,
+    )
+    return check
   }
   const { events, rejected, rejectedField } = validateEvents(candidates, todayEpochDay)
   const shape = checkRequestShape(events)
   if (!shape.ok) {
-    return rejection(HTTP_STATUS.badRequest, shape.field, shape.reason, candidates.length)
+    const check: BatchCheck = rejection(
+      HTTP_STATUS.badRequest,
+      shape.field,
+      shape.reason,
+      candidates.length,
+    )
+    return check
   }
   const batch = { context: context.value, events, rejected }
-  return { ok: true, batch: rejectedField === undefined ? batch : { ...batch, rejectedField } }
+  const check: BatchCheck = {
+    ok: true,
+    batch: rejectedField === undefined ? batch : { ...batch, rejectedField },
+  }
+  return check
 }
 
 /**
@@ -200,7 +229,7 @@ async function readPayload(request: Request) {
  * it reads only the Origin and Content-Type headers, which turn browsers away, and Cloudflare's
  * country.
  */
-export async function handleEventsRequest(context: RouteContext): Promise<RouteResult> {
+export async function handleEventsRequest(context: RouteContext) {
   const { request } = context
   if (carriesBrowserOrigin(request)) {
     return rejectedResult(HTTP_STATUS.forbidden, 'origin', 'browser requests are not accepted')
@@ -213,7 +242,7 @@ export async function handleEventsRequest(context: RouteContext): Promise<RouteR
     const response = jsonResponse(HTTP_STATUS.serviceUnavailable, {
       error: 'STATS_KV is not bound',
     })
-    return { response, outcome: 'skipped' }
+    return { response, outcome: 'skipped' } satisfies RouteResult
   }
   const payload = await readPayload(request)
   if (!payload.ok) return payload.result
@@ -225,7 +254,12 @@ export async function handleEventsRequest(context: RouteContext): Promise<RouteR
   const field = batch.rejectedField === undefined ? {} : { field: batch.rejectedField }
   if (first === undefined) {
     const outcome = batch.rejected > 0 ? 'rejected' : 'skipped'
-    return { response: jsonResponse(HTTP_STATUS.accepted, counts), outcome, ...field, ...counts }
+    return {
+      response: jsonResponse(HTTP_STATUS.accepted, counts),
+      outcome,
+      ...field,
+      ...counts,
+    } satisfies RouteResult
   }
   const builder = new BufferEntryBuilder()
   const country = requestCountry(request)
@@ -241,7 +275,12 @@ export async function handleEventsRequest(context: RouteContext): Promise<RouteR
   )
   if (!stored) {
     const response = jsonResponse(HTTP_STATUS.serviceUnavailable, { error: 'storage failed' })
-    return { response, outcome: 'forward_failed', accepted: 0, rejected: batch.rejected }
+    return {
+      response,
+      outcome: 'forward_failed',
+      accepted: 0,
+      rejected: batch.rejected,
+    } satisfies RouteResult
   }
-  return { ...summary, response: jsonResponse(HTTP_STATUS.accepted, counts) }
+  return { ...summary, response: jsonResponse(HTTP_STATUS.accepted, counts) } satisfies RouteResult
 }

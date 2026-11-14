@@ -42,7 +42,7 @@ async function newestModification(directory: string) {
 
 /**
  * Whether another profile's namespace can go. A marked namespace goes once the user-data directory
- * it names is gone, such as a throwaway `pnpm dev:debug` profile, and never while that profile
+ * it names is gone, such as a throwaway `bun run dev:debug` profile, and never while that profile
  * exists: its own Host sweeps its Sessions. An unmarked one goes once nothing touched it for a week.
  */
 async function namespaceAbandoned(namespace: string, now: number) {

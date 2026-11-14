@@ -109,11 +109,11 @@ export function plainSyntaxResult(input: {
   readonly theme: string
   readonly diagnostic?: string
   readonly lineRange?: SyntaxLineRange
-}): SyntaxHighlightResult {
+}) {
   const allLines = input.source.split('\n')
   const start = Math.max(0, Math.min(input.lineRange?.start ?? 0, allLines.length))
   const end = Math.max(start, Math.min(input.lineRange?.end ?? allLines.length, allLines.length))
-  return {
+  const result: SyntaxHighlightResult = {
     status: 'plain-text',
     language: input.language,
     theme: input.theme,
@@ -122,4 +122,5 @@ export function plainSyntaxResult(input: {
     ...(input.diagnostic ? { diagnostic: input.diagnostic } : {}),
     elapsedMs: 0,
   }
+  return result
 }

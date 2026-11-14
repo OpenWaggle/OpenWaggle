@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { loadInBatches } from '@shared/utils/batches'
 import { coalescedRead } from '@/shared/lib/coalesced-read'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -128,12 +129,9 @@ async function refreshCatalogSessions(
     targetedSessionOperationIds.set(String(sessionId), operationId)
   }
   try {
-    const refreshed: SessionSummary[] = []
-    for (let offset = 0; offset < requestedIds.length; offset += PAGE_SIZE) {
-      refreshed.push(
-        ...(await api.listSessionsByIds(requestedIds.slice(offset, offset + PAGE_SIZE))),
-      )
-    }
+    const refreshed = await loadInBatches(requestedIds, PAGE_SIZE, (ids) =>
+      api.listSessionsByIds(ids),
+    )
     const requested = new Set(
       requestedIds
         .filter((sessionId) => targetedSessionOperationIds.get(String(sessionId)) === operationId)
@@ -177,10 +175,10 @@ async function refreshCatalogSessions(
   }
 }
 
-export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): SessionCatalogState {
+export function createSessionCatalogState(set: CatalogSet, get: CatalogGet) {
   // The chat and sidebar stores both load the catalog at startup; one load serves both.
   const loadSessions = coalescedRead(() => loadCatalog(set))
-  return {
+  const result: SessionCatalogState = {
     sessions: [],
     archivedSessions: [],
     hiveSessions: [],
@@ -251,4 +249,5 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
       }
     },
   }
+  return result
 }

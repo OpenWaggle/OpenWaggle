@@ -95,6 +95,29 @@ describe('invokeExtensionCapability settings capability', () => {
     })
   })
 
+  // Regression: an explicit undefined that postMessage or IPC kept was refused as an invalid payload.
+  it('accepts a settings update whose omitted fields arrive as explicit undefined', async () => {
+    const extensionPackage = makeSettingsBrokerPackage()
+    const harness = makeBrokerHarness({
+      packages: [extensionPackage],
+      lifecycles: [makeLifecycle(extensionPackage)],
+    })
+
+    const result = await harness.run({
+      extensionId: BROKER_EXTENSION_ID,
+      contributionId: SETTINGS_CONTRIBUTION_ID,
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
+      scope: { kind: 'app' },
+      payload: { selectedModel: undefined, favoriteModels: ['openai/gpt-5.5'] },
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { settings: { modelPreferences: { favoriteModels: ['openai/gpt-5.5'] } } },
+    })
+  })
+
   it("ignores a thinking level, so an extension never changes Pi's global default", async () => {
     const extensionPackage = makeSettingsBrokerPackage()
     const harness = makeBrokerHarness({

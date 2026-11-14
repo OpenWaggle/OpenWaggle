@@ -11,6 +11,7 @@ import {
   validateHostHeader,
   validateOriginHeader,
 } from '@modelcontextprotocol/server'
+import { mcpNodeRequestLike } from './mcp-node-request-like'
 import {
   McpHttpRequestBodyCapacityError,
   type McpHttpRequestBodyOptions,
@@ -50,7 +51,7 @@ function authorizedHeader(header: string | undefined, expectedDigest: Buffer) {
   )
 }
 
-function firstHeaderValue(value: string | string[] | undefined): string | undefined {
+function firstHeaderValue(value: string | string[] | undefined) {
   if (typeof value === 'string') return value
   return value?.[0]
 }
@@ -84,7 +85,7 @@ function validateRawRequest(
   response: ServerResponse,
   expectedDigest: Buffer,
   maxRequestBodyBytes: number,
-): { readonly declaredBodyBytes?: number } | undefined {
+) {
   const path = requestPath(request)
   if (path === undefined) {
     rejectRawRequest(request, response, HTTP_BAD_REQUEST, 'Invalid request target.')
@@ -190,7 +191,7 @@ function makeLoopbackRequestListener(input: {
     const method = (request.method ?? 'GET').toUpperCase()
     if (method === 'GET' || method === 'HEAD') {
       void Promise.resolve()
-        .then(() => input.nodeHandler(request, response, undefined))
+        .then(() => input.nodeHandler(mcpNodeRequestLike(request), response, undefined))
         .catch((error: unknown) => respondToRequestFailure(request, response, error, input.onerror))
       return
     }
@@ -213,7 +214,7 @@ function makeLoopbackRequestListener(input: {
       timeoutMs: input.bodyPolicy.timeoutMs,
       retainChunk: admission.lease.retainChunk,
     })
-      .then((parsedBody) => input.nodeHandler(request, response, parsedBody))
+      .then((parsedBody) => input.nodeHandler(mcpNodeRequestLike(request), response, parsedBody))
       .catch((error: unknown) => respondToRequestFailure(request, response, error, input.onerror))
   }
 }

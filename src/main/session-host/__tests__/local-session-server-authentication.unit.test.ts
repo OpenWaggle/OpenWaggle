@@ -47,6 +47,18 @@ describe('Local Session server authentication', () => {
     ).resolves.toBeUndefined()
   })
 
+  it.each([
+    { name: 'an undeclared member', extra: { scope: 'all' } },
+    { name: 'an explicitly undefined profile', extra: { profile: undefined } },
+    { name: 'an empty profile', extra: { profile: '' } },
+  ])('refuses a request with $name', ({ extra }) => {
+    const request = { kind: 'server-authentication-request', nonce: 'b'.repeat(43), ...extra }
+
+    expect(() => createLocalSessionServerAuthenticationResponse(request, CREDENTIAL)).toThrow(
+      'Invalid Local Session server-authentication request.',
+    )
+  })
+
   it('authenticates a Windows profile without reading the owner credential', async () => {
     const profile = 'restricted-worker'
     const profileCredential = generateProfileCredential()

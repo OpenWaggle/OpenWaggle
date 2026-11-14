@@ -5,6 +5,8 @@ import type {
   TerminalProcessIdentity,
 } from './terminal-process-identity'
 import { installTerminalWindowsTelemetry } from './terminal-windows-telemetry'
+import { terminalBackendModule, type TerminalBackendNative } from './terminal-pty-backend-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export type TerminalKernelProcessRead =
   | { readonly status: 'found'; readonly info: TerminalKernelProcessInfo }
@@ -34,16 +36,17 @@ function nullableIdentity(value: unknown): value is string | null {
   return value === null || (typeof value === 'string' && value.length > 0)
 }
 
-function parseKernelProcessInfo(pid: number, value: unknown): TerminalKernelProcessInfo | null {
-  if (value === null || typeof value !== 'object') return null
-  const observedPid: unknown = Reflect.get(value, 'pid')
-  const startedAt: unknown = Reflect.get(value, 'startedAt')
-  const ppid: unknown = Reflect.get(value, 'ppid')
-  const pgid: unknown = Reflect.get(value, 'pgid')
-  const tpgid: unknown = Reflect.get(value, 'tpgid')
-  const ttyIdentity: unknown = Reflect.get(value, 'ttyIdentity')
-  const zombie: unknown = Reflect.get(value, 'zombie')
-  const name: unknown = Reflect.get(value, 'name')
+function parseKernelProcessInfo(pid: number, value: unknown) {
+  const {
+    pid: observedPid,
+    startedAt,
+    ppid,
+    pgid,
+    tpgid,
+    ttyIdentity,
+    zombie,
+    name,
+  } = uncheckedFields<TerminalKernelProcessInfo>(value)
   if (
     observedPid !== pid ||
     !positiveInteger(observedPid) ||
@@ -60,19 +63,30 @@ function parseKernelProcessInfo(pid: number, value: unknown): TerminalKernelProc
   ) {
     return null
   }
-  return { pid, startedAt, ppid, pgid, tpgid, ttyIdentity, zombie, name }
+  const info: TerminalKernelProcessInfo | null = {
+    pid,
+    startedAt,
+    ppid,
+    pgid,
+    tpgid,
+    ttyIdentity,
+    zombie,
+    name,
+  }
+  return info
 }
 
 /** Install the already-loaded node-pty kernel API without defeating lazy native loading. */
 export function installTerminalProcessKernelApi(pty: typeof NodePtyModule) {
   installTerminalWindowsTelemetry(pty)
-  const native: unknown = Reflect.get(pty, 'native')
+  const native: unknown = terminalBackendModule(pty).native
+  const nativeFields = uncheckedFields<TerminalBackendNative>(native)
   if (native === null || typeof native !== 'object') {
     installedApi = null
     return
   }
-  const readMany: unknown = Reflect.get(native, 'processInfos')
-  const signal: unknown = Reflect.get(native, 'signalProcess')
+  const readMany: unknown = nativeFields.processInfos
+  const signal: unknown = nativeFields.signalProcess
   if (typeof readMany !== 'function') {
     installedApi = null
     return
@@ -92,11 +106,16 @@ export function installTerminalProcessKernelApi(pty: typeof NodePtyModule) {
   }
 }
 
-export function readTerminalKernelProcessInfo(pid: number): TerminalKernelProcessRead {
+export function readTerminalKernelProcessInfo(pid: number) {
   const result = readTerminalKernelProcessInfos([pid])
-  if (result === null) return { status: 'unavailable' }
+  if (result === null) {
+    const read: TerminalKernelProcessRead = { status: 'unavailable' }
+    return read
+  }
   const info = result.get(pid)
-  return info === undefined ? { status: 'absent' } : { status: 'found', info }
+  const read: TerminalKernelProcessRead =
+    info === undefined ? { status: 'absent' } : { status: 'found', info }
+  return read
 }
 
 function addKernelProcessInfo(
@@ -104,8 +123,7 @@ function addKernelProcessInfo(
   requestedPids: ReadonlySet<number>,
   infos: Map<number, TerminalKernelProcessInfo>,
 ) {
-  const pid: unknown =
-    candidate !== null && typeof candidate === 'object' ? Reflect.get(candidate, 'pid') : undefined
+  const { pid } = uncheckedFields<TerminalKernelProcessInfo>(candidate)
   if (!positiveInteger(pid) || !requestedPids.has(pid) || infos.has(pid)) return false
   const info = parseKernelProcessInfo(pid, candidate)
   if (info === null) return false
@@ -176,20 +194,35 @@ export function readStableTerminalKernelProcessInfos(
 export function signalTerminalProcessIdentity(
   identity: TerminalProcessIdentity,
   signal: 'SIGKILL',
-): TerminalIdentitySignalResult {
+) {
   if (!positiveInteger(identity.pid) || installedApi?.signal === null || installedApi === null) {
-    return 'unavailable'
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
   }
   const signalNumber = osConstants.signals[signal]
-  if (!positiveInteger(signalNumber)) return 'unavailable'
+  if (!positiveInteger(signalNumber)) {
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
+  }
   try {
     const result = installedApi.signal(identity.pid, identity.startedAt, signalNumber)
-    if (result === 1) return 'signaled'
-    if (result === 0) return 'absent'
-    if (result === -1) return 'mismatch'
-    return 'unavailable'
+    if (result === 1) {
+      const value: TerminalIdentitySignalResult = 'signaled'
+      return value
+    }
+    if (result === 0) {
+      const value: TerminalIdentitySignalResult = 'absent'
+      return value
+    }
+    if (result === -1) {
+      const value: TerminalIdentitySignalResult = 'mismatch'
+      return value
+    }
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
   } catch {
-    return 'unavailable'
+    const value: TerminalIdentitySignalResult = 'unavailable'
+    return value
   }
 }
 

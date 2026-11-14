@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { safeStorage } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -14,6 +13,7 @@ vi.mock('electron', () => ({
   },
 }))
 
+import { secureStorage } from '../../desktop-shell/secure-storage'
 import { generateProfileCredential } from '../profile-credential'
 import {
   readStoredProfileCredential,
@@ -221,7 +221,7 @@ describe('profile credential pending destination scope', () => {
     const legacyPath = legacyPendingPath(root, 'old-cli')
     await fs.rename(file.recoveryLocation, legacyPath)
     const original = await fs.readFile(legacyPath)
-    const decrypt = vi.spyOn(safeStorage, 'decryptString')
+    const decrypt = vi.spyOn(secureStorage, 'decryptString')
     const credential = generateProfileCredential()
     const store = await stageProfileCredential({
       destination: { kind: 'credential-store', stateRoot: root },

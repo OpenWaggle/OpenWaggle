@@ -11,9 +11,8 @@ vi.mock('electron', () => ({
 }))
 
 const { commitGit } = await import('../commit-handler')
-const { createRepositoryWithWorktree, filesystemConflatesCase, git } = await import(
-  './commit.test-harness'
-)
+const { createRepositoryWithWorktree, filesystemConflatesCase, git } =
+  await import('./commit.test-harness')
 
 /**
  * How `commitGit` behaves when the filesystem folds letter case, which git's pathspec matching folds with it.

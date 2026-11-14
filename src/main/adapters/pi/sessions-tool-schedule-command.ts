@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { decodeTaskSchedule } from '@shared/schemas/scheduled-task'
 import {
-  type LaunchScheduleWorkspace,
   type LocalScheduledTasksCommandPayload,
   SCHEDULED_TASKS_CONTRACT_VERSION,
   type ScheduledTaskKind,
@@ -10,7 +9,6 @@ import {
   type ScheduledTasksCommand,
   type ScheduledTasksOperation,
   type ScheduledTaskTarget,
-  type TaskSchedule,
 } from '@shared/types/scheduled-task'
 import {
   assertHeartbeatCanFinish,
@@ -61,8 +59,9 @@ const LAUNCH_ONLY_FIELDS = ['projectPath', 'workspace', 'agent', 'archiveFinishe
 const MODEL_FIELDS = ['model', 'thinking'] as const
 
 function requiredTaskId(fields: ScheduleCommandFields, operation: ScheduledTasksOperation) {
-  if (!fields.scheduleTaskId)
+  if (!fields.scheduleTaskId) {
     throw new Error(`Scheduled task ${operation} requires scheduleTaskId.`)
+  }
   return fields.scheduleTaskId
 }
 
@@ -75,7 +74,7 @@ export function scheduleTimestamp(value: string | number, field: string) {
   return epoch
 }
 
-function taskSchedule(value: unknown): TaskSchedule {
+function taskSchedule(value: unknown) {
   try {
     return decodeTaskSchedule(value)
   } catch (error) {
@@ -87,7 +86,7 @@ function taskSchedule(value: unknown): TaskSchedule {
   }
 }
 
-function launchWorkspace(value: string | undefined): LaunchScheduleWorkspace | undefined {
+function launchWorkspace(value: string | undefined) {
   if (value === undefined) return undefined
   if (value === 'new-worktree' || value === 'local') return value
   throw new Error('A Launch schedule workspace is new-worktree or local.')
@@ -123,7 +122,7 @@ function launchTarget(
   fields: ScheduleCommandFields,
   base: LaunchTarget | undefined,
   defaults: ScheduleCommandDefaults,
-): ScheduledTaskTarget {
+) {
   const projectPath = fields.projectPath ?? base?.projectPath ?? defaults.launchProjectPath
   if (!projectPath) throw new Error('A Launch schedule requires projectPath.')
   return {
@@ -133,13 +132,10 @@ function launchTarget(
     ...launchSpecialization(fields, base),
     archiveFinishedSessions:
       fields.archiveFinishedSessions ?? base?.archiveFinishedSessions ?? false,
-  }
+  } satisfies ScheduledTaskTarget
 }
 
-function createTarget(
-  fields: ScheduleCommandFields,
-  defaults: ScheduleCommandDefaults,
-): ScheduledTaskTarget {
+function createTarget(fields: ScheduleCommandFields, defaults: ScheduleCommandDefaults) {
   if (fields.scheduleKind === 'heartbeat') {
     const launchOnly = givenLaunchFields(fields)
     if (launchOnly.length > 0) {
@@ -147,7 +143,7 @@ function createTarget(
     }
     const sessionId = fields.sessionId ?? defaults.heartbeatSessionId
     if (!sessionId) throw new Error('A Heartbeat requires sessionId, the Session it delivers into.')
-    return heartbeatTarget(sessionId, fields)
+    return heartbeatTarget(sessionId, fields) satisfies ScheduledTaskTarget
   }
   if (fields.scheduleKind !== 'launch') {
     throw new Error('Scheduled task create requires scheduleKind heartbeat or launch.')
@@ -156,7 +152,7 @@ function createTarget(
   if (fields.sessionId !== undefined) {
     throw new Error('sessionId applies only to a Heartbeat; a Launch schedule names a project.')
   }
-  return launchTarget(fields, undefined, defaults)
+  return launchTarget(fields, undefined, defaults) satisfies ScheduledTaskTarget
 }
 
 function assertNoHeartbeatSettings(fields: ScheduleCommandFields) {
@@ -179,10 +175,7 @@ function timingFields(fields: ScheduleCommandFields) {
   }
 }
 
-function createCommand(
-  fields: ScheduleCommandFields,
-  defaults: ScheduleCommandDefaults,
-): ScheduledTasksCommand {
+function createCommand(fields: ScheduleCommandFields, defaults: ScheduleCommandDefaults) {
   if (!fields.name) throw new Error('Scheduled task create requires name.')
   if (!fields.prompt) throw new Error('Scheduled task create requires prompt.')
   if (fields.schedule === undefined) throw new Error('Scheduled task create requires schedule.')
@@ -208,7 +201,7 @@ function createCommand(
       target,
       ...(heartbeat ? { heartbeat } : {}),
     },
-  }
+  } satisfies ScheduledTasksCommand
 }
 
 /** The target an update sets from the given target fields, merged into the current target. */
@@ -229,7 +222,7 @@ function updatedTarget(
 function updateCommand(
   fields: ScheduleCommandFields,
   currentTarget: ScheduledTaskTarget | undefined,
-): ScheduledTasksCommand {
+) {
   const taskId = requiredTaskId(fields, 'update')
   if (fields.scheduleKind !== undefined) {
     throw new Error('A Scheduled task cannot change kind; delete it and create a new one.')
@@ -251,7 +244,7 @@ function updateCommand(
   if (Object.keys(patch).length === 0) {
     throw new Error('Scheduled task update needs at least one field to change.')
   }
-  return { operation: 'update', taskId, patch }
+  return { operation: 'update', taskId, patch } satisfies ScheduledTasksCommand
 }
 
 /** Maps flat Scheduled task fields onto one `scheduled-tasks-v1` command. */
@@ -261,14 +254,14 @@ export function buildScheduledTasksCommand(input: {
   readonly defaults?: ScheduleCommandDefaults
   /** The task's current target, which an update of Launch target fields merges into. */
   readonly currentTarget?: ScheduledTaskTarget
-}): ScheduledTasksCommand {
+}) {
   const { operation, fields } = input
   if (operation === 'list') {
     return {
       operation,
       ...(fields.projectPath ? { projectPath: fields.projectPath } : {}),
       ...(fields.sessionId ? { sessionId: fields.sessionId } : {}),
-    }
+    } satisfies ScheduledTasksCommand
   }
   if (operation === 'runs') {
     return {
@@ -278,22 +271,25 @@ export function buildScheduledTasksCommand(input: {
       ...(fields.before !== undefined
         ? { before: scheduleTimestamp(fields.before, 'before') }
         : {}),
-    }
+    } satisfies ScheduledTasksCommand
   }
-  if (operation === 'create') return createCommand(fields, input.defaults ?? {})
-  if (operation === 'update') return updateCommand(fields, input.currentTarget)
-  if (operation === 'report-outcome') return reportOutcomeCommand(fields, input.defaults?.runId)
+  if (operation === 'create') {
+    return createCommand(fields, input.defaults ?? {}) satisfies ScheduledTasksCommand
+  }
+  if (operation === 'update') {
+    return updateCommand(fields, input.currentTarget) satisfies ScheduledTasksCommand
+  }
+  if (operation === 'report-outcome') {
+    return reportOutcomeCommand(fields, input.defaults?.runId) satisfies ScheduledTasksCommand
+  }
   if (operation === 'approve-wake-check') {
     throw new Error('A Wake check is approved by the user, never by a tool argument.')
   }
-  return { operation, taskId: requiredTaskId(fields, operation) }
+  return { operation, taskId: requiredTaskId(fields, operation) } satisfies ScheduledTasksCommand
 }
 
-export function scheduledTasksPayload(
-  command: ScheduledTasksCommand,
-  idempotencyKey?: string,
-): LocalScheduledTasksCommandPayload {
-  return {
+export function scheduledTasksPayload(command: ScheduledTasksCommand, idempotencyKey?: string) {
+  const payload: LocalScheduledTasksCommandPayload = {
     contract: 'scheduled-tasks-v1',
     request: {
       contractVersion: SCHEDULED_TASKS_CONTRACT_VERSION,
@@ -302,4 +298,5 @@ export function scheduledTasksPayload(
       command,
     },
   }
+  return payload
 }

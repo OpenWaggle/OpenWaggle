@@ -1,5 +1,5 @@
 import type { BrowserPreviewState } from '@shared/types/browser-preview'
-import { type SyntheticEvent, useCallback, useEffect, useState } from 'react'
+import { type SyntheticEvent, useCallback, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { trackBrowserPreviewOwnerWork } from '@/shared/lib/browser-preview-owner-work'
 import { api } from '@/shared/lib/ipc'
@@ -23,16 +23,22 @@ interface ControlOptions extends Pick<BrowserPreviewPanelCallbacks, 'onError' | 
 
 export function useBrowserPreviewControls(options: ControlOptions) {
   const [address, setAddress] = useState(options.tab.url)
-  useEffect(() => setAddress(options.tab.url), [options.tab.url])
+  // The page navigating on its own replaces whatever the address bar held.
+  const [shownUrl, setShownUrl] = useState(options.tab.url)
+  if (shownUrl !== options.tab.url) {
+    setShownUrl(options.tab.url)
+    setAddress(options.tab.url)
+  }
+  const { onError, onState } = options
   const runControl = useCallback(
     (action: () => Promise<BrowserPreviewState>, fallback: string) => {
       void action()
-        .then(options.onState)
+        .then(onState)
         .catch((error: unknown) => {
-          options.onError(error instanceof Error ? error.message : fallback)
+          onError(error instanceof Error ? error.message : fallback)
         })
     },
-    [options.onError, options.onState],
+    [onError, onState],
   )
   const navigate = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()

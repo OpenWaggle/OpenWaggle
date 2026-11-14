@@ -48,4 +48,18 @@ describe('extension frame syntax request backpressure', () => {
     )
     requests.dispose()
   })
+
+  it('passes fields a frame sent as undefined on as absent', () => {
+    const requests = createExtensionFrameSyntaxRequests()
+    requests.highlight(
+      'request-undefined-fields',
+      { source: 'plain', language: undefined, path: undefined, priority: undefined },
+      () => true,
+      vi.fn(),
+    )
+
+    const [input] = syntaxMock.highlightExtensionSyntax.mock.calls[0] ?? []
+    expect(input).toStrictEqual({ source: 'plain' })
+    requests.dispose()
+  })
 })

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { writeWritableChunk } from '../cli-stdout'
 
 class ControlledWritable extends Writable {
-  readonly callbacks: Array<(error?: Error | null) => void> = []
+  readonly callbacks: ((error?: Error | null) => void)[] = []
 
   constructor(options: WritableOptions = {}) {
     super({ highWaterMark: 1, ...options })

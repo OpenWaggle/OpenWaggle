@@ -22,8 +22,8 @@ vi.mock('@pierre/diffs/react', async () => ({
   useWorkerPool: () => undefined,
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     getGitDiff: vi.fn(),
     getGitBranchDiff: vi.fn(),
     getGitStatus: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     stageAllGitChanges: vi.fn(),
     revertAllGitChanges: vi.fn(),
     showConfirm: vi.fn(),
-  },
+  }),
 }))
 
 /** Status keyed by working path (ADR 0018). */

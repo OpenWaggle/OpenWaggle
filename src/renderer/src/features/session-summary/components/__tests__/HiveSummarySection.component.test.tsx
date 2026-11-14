@@ -16,7 +16,7 @@ function renderHive(sessionId: string) {
   return renderWithQueryClient(<HiveSummarySection sessionId={sessionId} />)
 }
 
-function queen(activeDirectWorkerCount: number, directWorkerCount = 1): SessionSummary {
+function queen(activeDirectWorkerCount: number, directWorkerCount = 1) {
   return {
     id: SessionId('queen'),
     title: 'Queen session',
@@ -29,14 +29,14 @@ function queen(activeDirectWorkerCount: number, directWorkerCount = 1): SessionS
       activeDirectWorkerCount,
       agentDefinitionName: 'Coordinator',
     },
-  }
+  } satisfies SessionSummary
 }
 
 function worker(
   state: 'working' | 'ready_for_review' | 'accepted' | 'needs_attention' | 'revision_requested',
   id = 'worker',
   facts: { readonly parentWillAct?: boolean } = {},
-): SessionSummary {
+) {
   return {
     id: SessionId(id),
     title: 'Worker session',
@@ -51,7 +51,7 @@ function worker(
       delegationState: state,
       ...facts,
     },
-  }
+  } satisfies SessionSummary
 }
 
 function hiveRelations(

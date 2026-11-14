@@ -7,7 +7,6 @@ import {
 import type {
   SessionExportFormat,
   SessionExportOperationStatus,
-  SessionExportOperationSummary,
 } from '@shared/types/session-export-operation'
 import type { SessionExportOperationRecord } from '../ports/session-export-operation-repository'
 
@@ -59,9 +58,7 @@ function parseError(value: string | null) {
     : undefined
 }
 
-export function sessionExportOperationRecord(
-  row: SessionExportOperationRow,
-): SessionExportOperationRecord {
+export function sessionExportOperationRecord(row: SessionExportOperationRow) {
   const manifest = parseManifest(row.manifest_json)
   const error = parseError(row.error_json)
   return {
@@ -107,7 +104,7 @@ export function sessionExportOperationRecord(
 export function sessionExportOperationSummary(
   record: SessionExportOperationRecord,
   options: { readonly includeQueueBodies: boolean },
-): SessionExportOperationSummary {
+) {
   const manifest = record.manifest
     ? options.includeQueueBodies
       ? record.manifest

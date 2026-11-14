@@ -7,13 +7,13 @@ import { revertAllGitChanges, stageAllGitChanges } from '../working-tree-service
 
 let projectPath: string | null = null
 
-async function runGit(args: readonly string[]): Promise<string> {
+async function runGit(args: readonly string[]) {
   if (!projectPath) throw new Error('Temporary Git repository is not initialized.')
   const result = await execFileAsync('git', args, { cwd: projectPath })
   return typeof result === 'string' ? result : (result.stdout ?? '')
 }
 
-async function createRepository(): Promise<string> {
+async function createRepository() {
   projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-git-actions-'))
   await runGit(['init'])
   await runGit(['config', 'user.name', 'OpenWaggle Test'])
@@ -26,7 +26,7 @@ async function createRepository(): Promise<string> {
   return projectPath
 }
 
-async function pathExists(filePath: string): Promise<boolean> {
+async function pathExists(filePath: string) {
   try {
     await access(filePath)
     return true

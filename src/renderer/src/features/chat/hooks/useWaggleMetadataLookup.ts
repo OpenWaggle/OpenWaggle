@@ -124,7 +124,7 @@ export function useWaggleMetadataLookup(
   session: SessionDetail | null,
   messages: UIMessage[],
   workspace: SessionWorkspace | null = null,
-): Readonly<Record<string, WaggleMessageMetadata>> {
+) {
   const activeConfig = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
   const configSessionId = useWaggleStore((s) => s.configSessionId)

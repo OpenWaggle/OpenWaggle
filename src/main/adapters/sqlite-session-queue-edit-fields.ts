@@ -4,7 +4,6 @@ import type { AttachmentKind, AttachmentOrigin } from '@shared/types/agent'
 import {
   FOLLOW_UP_EDIT_CALLER_ID,
   type SessionFollowUpAttachmentDescriptor,
-  type SessionFollowUpEditHoldSummary,
 } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
 import { canEditFollowUp } from '../domain/session-control/follow-up-edit'
@@ -15,7 +14,7 @@ import { listSessionFollowUpEditHolds } from './sqlite-follow-up-edit-holds'
 /** The provenance fields that decide who may edit a queued Follow-up. */
 const intentProvenanceSchema = Schema.Struct({
   callerId: Schema.String,
-  authorCallerId: Schema.optional(Schema.String),
+  authorCallerId: Schema.optionalWith(Schema.String, { exact: true }),
   attachmentIds: Schema.Array(Schema.String),
 })
 
@@ -48,7 +47,7 @@ function holdSummary(
   hold: SessionControlFollowUpEditHold,
   callerId: string | undefined,
   now: number,
-): SessionFollowUpEditHoldSummary {
+) {
   const holderIsCaller = callerId !== undefined && hold.holderCallerId === callerId
   return {
     // Only the holder learns what it saves, cancels, or re-adopts the edit with.

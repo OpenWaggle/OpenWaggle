@@ -15,7 +15,7 @@ import {
 import { listSessions } from '../sessions/session-list'
 import { getSessionTree } from '../sessions/session-tree'
 import { updateSessionTreeUiState } from '../sessions/tree-ui-state'
-import { SESSION_SUMMARY_COLUMN_NAMES } from '../sessions/types'
+import { SESSION_SUMMARY_COLUMN_NAMES, sessionSummaryRowSchema } from '../sessions/types'
 import { runStoreEffect } from '../store-runtime'
 
 const { state, getPathMock } = vi.hoisted(() => ({
@@ -144,6 +144,8 @@ describe('session summary columns survive the live SQL path', () => {
     const listed = (await listSessions()).find((entry) => entry.id === sessionId)
     expect(listed?.latestRun).toEqual({ status: 'failed', updatedAt: 200 })
     expect(listed?.treeUiState?.lastVisitedAt).toBe(0)
+    // The tree read once left the receipt out of its SELECT and reported none.
+    expect((await getSessionTree(sessionId))?.uiState?.lastVisitedAt).toBe(0)
     await expect(
       runStoreEffect(
         Effect.gen(function* () {
@@ -224,25 +226,11 @@ describe('session summary columns survive the live SQL path', () => {
     expect([plain?.agentModelId, plain?.agentThinkingLevel]).toEqual([undefined, undefined])
   })
 
-  /**
-   * The shared column list is only a single source if it stays in step with the row type.
-   * Reading the interface's own keys keeps this honest: adding a field to
-   * `SessionSummaryRow` without adding its column fails here.
-   */
-  it('lists exactly the columns the row type declares', async () => {
-    const typeSource = await lifecycleFs.readFile(
-      lifecyclePath.join(process.cwd(), 'src/main/store/sessions/types.ts'),
-      'utf8',
+  /** The shared column list is the row schema's own fields, so the two cannot drift apart. */
+  it('lists exactly the columns the row schema declares', () => {
+    expect([...SESSION_SUMMARY_COLUMN_NAMES].sort()).toEqual(
+      Object.keys(sessionSummaryRowSchema.fields).sort(),
     )
-    const interfaceBody = typeSource.slice(
-      typeSource.indexOf('export interface SessionSummaryRow'),
-      typeSource.indexOf('}', typeSource.indexOf('export interface SessionSummaryRow')),
-    )
-    const declaredColumns = [...interfaceBody.matchAll(/readonly ([a-z_]+):/gu)].map(
-      (match) => match[1],
-    )
-
-    expect([...SESSION_SUMMARY_COLUMN_NAMES].sort()).toEqual(declaredColumns.sort())
   })
 
   it('keyset-pages catalogs and Hives above the classic SQLite bind-variable limit', async () => {

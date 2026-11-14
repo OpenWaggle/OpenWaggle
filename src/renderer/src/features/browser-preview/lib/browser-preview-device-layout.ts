@@ -29,7 +29,7 @@ export function resolveBrowserPreviewDeviceLayout(
   container: { readonly width: number; readonly height: number },
   viewport: BrowserPreviewViewport,
   zoomFactor = 1,
-): BrowserPreviewDeviceLayout {
+) {
   const containerWidth = Math.max(1, Math.round(container.width))
   const containerHeight = Math.max(1, Math.round(container.height))
   if (viewport.mode === 'fill') {
@@ -40,7 +40,7 @@ export function resolveBrowserPreviewDeviceLayout(
       height: containerHeight,
       scale: 1,
       fillsContainer: true,
-    }
+    } satisfies BrowserPreviewDeviceLayout
   }
   const zoom = normalizedZoom(zoomFactor)
   const requestedWidth = viewport.width * zoom
@@ -55,7 +55,7 @@ export function resolveBrowserPreviewDeviceLayout(
     height,
     scale,
     fillsContainer: false,
-  }
+  } satisfies BrowserPreviewDeviceLayout
 }
 
 export function resolveBrowserPreviewResizeArea(container: {
@@ -76,7 +76,7 @@ export function resolveBrowserPreviewResizableDeviceLayout(
   container: { readonly width: number; readonly height: number },
   viewport: BrowserPreviewFixedViewport,
   zoomFactor = 1,
-): BrowserPreviewDeviceLayout {
+) {
   const layout = resolveBrowserPreviewDeviceLayout(
     resolveBrowserPreviewResizeArea(container),
     viewport,
@@ -91,7 +91,7 @@ export function resolveBrowserPreviewResizableDeviceLayout(
 export function responsiveBrowserPreviewViewport(
   container: { readonly width: number; readonly height: number },
   zoomFactor = 1,
-): BrowserPreviewFixedViewport {
+) {
   const zoom = normalizedZoom(zoomFactor)
   const width = Math.min(
     BROWSER_PREVIEW_VIEWPORT_MAX_DIMENSION,
@@ -107,5 +107,5 @@ export function responsiveBrowserPreviewViewport(
     width: Math.max(BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION, Math.floor(width * scale)),
     height: Math.max(BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION, Math.floor(height * scale)),
     presetId: null,
-  }
+  } satisfies BrowserPreviewFixedViewport
 }

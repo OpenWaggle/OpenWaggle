@@ -16,8 +16,8 @@ import {
   sessionResourceTestLayer,
 } from './session-resource-capture.fixtures'
 
-function imageMessage(index: number): Message {
-  return {
+function imageMessage(index: number) {
+  const message: Message = {
     id: MessageId(`assistant-backfill-${String(index)}`),
     role: 'assistant',
     parts: [
@@ -35,9 +35,10 @@ function imageMessage(index: number): Message {
     ],
     createdAt: index,
   }
+  return message
 }
 
-function attachmentMessage(index: number): Message {
+function attachmentMessage(index: number) {
   return {
     id: MessageId(`user-attachment-${String(index)}`),
     role: 'user',
@@ -56,10 +57,10 @@ function attachmentMessage(index: number): Message {
       },
     ],
     createdAt: index,
-  }
+  } satisfies Message
 }
 
-function capturedResource(input: UpsertSessionResourceInput): SessionResource {
+function capturedResource(input: UpsertSessionResourceInput) {
   return {
     id: input.id,
     sessionId: input.sessionId,
@@ -75,7 +76,7 @@ function capturedResource(input: UpsertSessionResourceInput): SessionResource {
     occurrences: [input.occurrence],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
-  }
+  } satisfies SessionResource
 }
 
 describe('captureProjectedSessionResources', () => {
@@ -120,7 +121,7 @@ describe('captureProjectedSessionResources', () => {
     const existingResource: SessionResource = {
       id: 'existing-image',
       sessionId: SessionId('session-1'),
-      canonicalKey: `sha256:${'unused'}`,
+      canonicalKey: `sha256:unused`,
       kind: 'image',
       title: 'Generated image.png',
       mimeType: 'image/png',

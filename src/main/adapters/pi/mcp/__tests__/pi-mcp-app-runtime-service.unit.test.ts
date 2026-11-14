@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => {
   return {
     loads,
     upstreams,
-    respond: (_method: string): unknown => ({}),
+    respond: (_method: string) => {
+      const result: unknown = {}
+      return result
+    },
     open: vi.fn(),
     legacyIdentity: '',
     enabled: true,
@@ -177,6 +180,30 @@ describe("MCP Apps over the Session's connection", () => {
     await expect(listing).resolves.toEqual({
       resources: [{ uri: 'file:///a', name: 'a' }],
       prompts: [],
+    })
+  })
+
+  it("reports the resources list's failure when both lists fail, whichever answers first", async () => {
+    mocks.respond = () => undefined
+    const listing = run((runtime) => runtime.listCatalog(APP)).catch((error: unknown) => error)
+    await vi.waitFor(() => expect(mocks.upstreams[0]?.requests('prompts/list')).toHaveLength(1))
+    const upstream = mocks.upstreams[0]
+    const [prompts] = upstream?.requests('prompts/list') ?? []
+    const [resources] = upstream?.requests('resources/list') ?? []
+    upstream?.push({
+      jsonrpc: '2.0',
+      id: prompts?.id ?? 0,
+      error: { code: -32000, message: 'prompts are broken' },
+    })
+    await flush()
+    upstream?.push({
+      jsonrpc: '2.0',
+      id: resources?.id ?? 0,
+      error: { code: -32000, message: 'resources are broken' },
+    })
+
+    await expect(listing).resolves.toMatchObject({
+      message: expect.stringContaining('resources are broken'),
     })
   })
 

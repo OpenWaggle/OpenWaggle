@@ -107,7 +107,7 @@ describe('SourceView virtualization', () => {
   })
 
   it('keeps one source request alive across viewport changes and aborts it on unmount', async () => {
-    const pending: Array<() => void> = []
+    const pending: (() => void)[] = []
     syntaxMocks.highlight.mockImplementationOnce(
       ({ language, theme, lineRange }) =>
         new Promise((resolve) => {
@@ -187,8 +187,9 @@ describe('SourceView virtualization', () => {
   })
 
   it('retains compatible tokens while a theme replacement is pending', async () => {
-    let resolveReplacement: (value: Awaited<ReturnType<typeof syntaxMocks.highlight>>) => void =
-      () => undefined
+    let resolveReplacement: (
+      value: Awaited<ReturnType<typeof syntaxMocks.highlight>>,
+    ) => void = () => undefined
     syntaxMocks.highlight
       .mockResolvedValueOnce({
         status: 'highlighted',

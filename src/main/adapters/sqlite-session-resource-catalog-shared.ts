@@ -92,7 +92,7 @@ function hasCursorBase(
   )
 }
 
-function imageCursorFrom(parsed: unknown, revision: string): ImageCursor {
+function imageCursorFrom(parsed: unknown, revision: string) {
   if (
     !hasCursorBase(parsed, 'images', revision) ||
     !('group' in parsed) ||
@@ -102,7 +102,7 @@ function imageCursorFrom(parsed: unknown, revision: string): ImageCursor {
   ) {
     throw new Error('Session image catalog cursor is invalid.')
   }
-  return {
+  const cursor: ImageCursor = {
     version: 1,
     view: 'images',
     revision,
@@ -110,13 +110,10 @@ function imageCursorFrom(parsed: unknown, revision: string): ImageCursor {
     orderAt: parsed.orderAt,
     id: parsed.id,
   }
+  return cursor
 }
 
-function browserCursorFrom(
-  parsed: unknown,
-  view: BrowserCursor['view'],
-  revision: string,
-): BrowserCursor {
+function browserCursorFrom(parsed: unknown, view: BrowserCursor['view'], revision: string) {
   if (
     !hasCursorBase(parsed, view, revision) ||
     !('updatedAt' in parsed) ||
@@ -124,14 +121,21 @@ function browserCursorFrom(
   ) {
     throw new Error('Session resource catalog cursor is invalid.')
   }
-  return { version: 1, view, revision, updatedAt: parsed.updatedAt, id: parsed.id }
+  const cursor: BrowserCursor = {
+    version: 1,
+    view,
+    revision,
+    updatedAt: parsed.updatedAt,
+    id: parsed.id,
+  }
+  return cursor
 }
 
 export function decodeCatalogCursor(
   raw: string | null | undefined,
   view: SessionResourceCatalogView,
   revision: string,
-): CatalogCursor | null {
+) {
   if (!raw) return null
   const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'))
   if (view === 'images') return imageCursorFrom(parsed, revision)
@@ -152,7 +156,7 @@ export function decodeNodeCursor(
   raw: string | null | undefined,
   revision: string,
   signature: string,
-): NodeCursor | null {
+) {
   if (!raw) return null
   const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'))
   if (
@@ -171,11 +175,11 @@ export function decodeNodeCursor(
     signature,
     createdAt: parsed.createdAt,
     id: parsed.id,
-  }
+  } satisfies NodeCursor
 }
 
 export function activityFilter(sql: SqlClient.SqlClient, view: SessionResourceCatalogView) {
-  if (view === 'sources')
+  if (view === 'sources') {
     return sql.literal(
       // Occurrences a person can find under Sources, plus images the agent embedded in its own
       // message: those are captured with activity 'created', but Sources must still show the
@@ -183,6 +187,7 @@ export function activityFilter(sql: SqlClient.SqlClient, view: SessionResourceCa
       //
       "(activity IN ('provided', 'read') OR (actor = 'agent' AND EXISTS (SELECT 1 FROM session_resources WHERE session_resources.id = session_resource_occurrences.resource_id AND session_resources.kind = 'image')))",
     )
+  }
   if (view === 'outputs') return sql.literal("activity IN ('created', 'updated')")
   return sql.literal('1 = 1')
 }

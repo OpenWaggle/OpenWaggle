@@ -18,7 +18,7 @@ export function workspaceExternalEditorLaunchArguments(
   filePath: string,
   line?: number,
   column?: number,
-): readonly string[] {
+) {
   const editor = workspaceExternalEditorDefinition(editorId)
   if (editor === undefined) return [filePath]
   const baseArgs = 'baseArgs' in editor ? editor.baseArgs : []
@@ -44,7 +44,7 @@ export function workspaceExternalEditorMacApplicationLaunchArguments(
   filePath: string,
   line?: number,
   column?: number,
-): readonly string[] {
+) {
   if (line === undefined || line < 1) return ['-a', application, filePath]
   return [
     '-a',
@@ -59,9 +59,9 @@ export async function openWorkspaceFileInExternalEditor(input: {
   readonly filePath: string
   readonly line?: number
   readonly column?: number
-}): Promise<void> {
+}) {
   const editor = workspaceExternalEditorDefinition(input.editor)
-  if (editor === undefined) throw new Error(`Unknown external editor: ${String(input.editor)}`)
+  if (editor === undefined) throw new Error(`Unknown external editor: ${input.editor}`)
 
   const command = await findAvailableWorkspaceExternalEditorCommand(editor.commands, (candidate) =>
     workspaceExternalEditorCommandAvailable(candidate),

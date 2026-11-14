@@ -4,7 +4,7 @@ import { profileAuthorityForCapabilities } from '../local-session-derived-author
 
 const PROJECT_PATH = '/project'
 
-function callerWithDerivedReportAuthority(): LocalSessionCallerIdentity {
+function callerWithDerivedReportAuthority() {
   const scope = {
     projectPaths: [PROJECT_PATH],
     exportRoots: [PROJECT_PATH],
@@ -27,7 +27,7 @@ function callerWithDerivedReportAuthority(): LocalSessionCallerIdentity {
         authorizationCeiling: 'ask-for-approval',
       },
     ],
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 describe('local Session derived authority', () => {

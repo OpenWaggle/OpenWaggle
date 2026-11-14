@@ -24,9 +24,9 @@ export function mcpLocalRefusal(code: SessionHostRefusalCode, message: string) {
 
 /** A query error the MCP server meets on its own reads, such as a scope check's `read`. */
 export function mcpQueryErrorRefusal(error: object) {
-  const code: unknown = Reflect.get(error, 'code')
-  const message: unknown = Reflect.get(error, 'message')
-  const declared: unknown = Reflect.get(error, 'kind')
+  const code = 'code' in error ? error.code : undefined
+  const message = 'message' in error ? error.message : undefined
+  const declared = 'kind' in error ? error.kind : undefined
   const refusalCode = typeof code === 'string' ? code : 'query_failed'
   return new Error(
     mcpRefusalMessage(
@@ -38,7 +38,7 @@ export function mcpQueryErrorRefusal(error: object) {
 }
 
 /** A refusal the Session Host threw, worded like the outcomes it rejects. */
-export function mcpThrownRefusal(error: unknown): unknown {
+export function mcpThrownRefusal(error: unknown) {
   if (!(error instanceof LocalSessionClientProtocolError)) return error
   const kind = error.errorKind ?? sessionHostErrorKindForThrownCode(error.code)
   return new Error(mcpRefusalMessage(error.code, kind, error.message), { cause: error })

@@ -68,13 +68,13 @@ function interactionKey(options: BrowserPreviewViewportResizeOptions) {
   ].join(':')
 }
 
-function fixedViewport(draft: BrowserPreviewViewportDraft): BrowserPreviewFixedViewport {
+function fixedViewport(draft: BrowserPreviewViewportDraft) {
   return {
     mode: 'fixed',
     width: draft.width,
     height: draft.height,
     presetId: null,
-  }
+  } satisfies BrowserPreviewFixedViewport
 }
 
 export function useBrowserPreviewViewportResize(options: BrowserPreviewViewportResizeOptions) {

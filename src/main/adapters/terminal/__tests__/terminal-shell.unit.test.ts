@@ -165,12 +165,12 @@ describe('terminal shell resolution', () => {
   })
 })
 
-function accountInfo(shell: string): ReturnType<typeof os.userInfo> {
+function accountInfo(shell: string) {
   return {
     username: 'openwaggle-test',
     uid: 1000,
     gid: 1000,
     shell,
     homedir: '/home/openwaggle-test',
-  }
+  } satisfies ReturnType<typeof os.userInfo>
 }

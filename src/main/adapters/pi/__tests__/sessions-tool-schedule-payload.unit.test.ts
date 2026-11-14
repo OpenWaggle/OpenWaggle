@@ -19,8 +19,9 @@ function scheduledCommand(input: SessionsToolParameters, from: typeof source | o
     runId: 'run-current',
     ...from,
   })
-  if (payload.contract !== 'scheduled-tasks-v1')
+  if (payload.contract !== 'scheduled-tasks-v1') {
     throw new Error('expected a Scheduled task payload')
+  }
   return payload.request
 }
 

@@ -13,26 +13,30 @@ const workspace: ActionRunWorkspace = {
 it('undoes a shared setup approval if saving the reviewed snapshot fails', async () => {
   const storage = new Map<string, StoredWorkspacePreparation>()
   let review: 'required' | 'enabled' = 'required'
-  const catalog = async (): Promise<ActionCatalog> => ({
-    revision: 'one',
-    actions: [],
-    profiles: [{ source: 'local', definition: { id: 'default', name: 'Default' } }],
-    preparation: [
-      {
-        source: 'project',
-        review,
-        definition: {
-          id: 'setup',
-          profileId: 'default',
-          phase: 'setup',
-          invocation: { type: 'command', command: 'export READY=yes', directory: '.' },
+  const catalog = async () => {
+    const catalog: ActionCatalog = {
+      revision: 'one',
+      actions: [],
+      profiles: [{ source: 'local', definition: { id: 'default', name: 'Default' } }],
+      preparation: [
+        {
+          source: 'project',
+          review,
+          definition: {
+            id: 'setup',
+            profileId: 'default',
+            phase: 'setup',
+            invocation: { type: 'command', command: 'export READY=yes', directory: '.' },
+          },
         },
-      },
-    ],
-  })
+      ],
+    }
+    return catalog
+  }
   const write = vi.fn(async (state: StoredWorkspacePreparation, expectedRevision: number) => {
-    if ((storage.get(state.workspaceId)?.revision ?? 0) !== expectedRevision)
+    if ((storage.get(state.workspaceId)?.revision ?? 0) !== expectedRevision) {
       throw new Error('revision conflict')
+    }
     storage.set(state.workspaceId, structuredClone(state))
   })
   const rememberReview = vi.fn(async () => {

@@ -76,7 +76,7 @@ export function useFileAttachment({
   addAttachments,
   setAttachmentError,
   onToast,
-}: UseFileAttachmentParams): UseFileAttachmentResult {
+}: UseFileAttachmentParams) {
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounterRef = useRef(0)
   const captureInputGuard = useComposerInputGuard(disabled)

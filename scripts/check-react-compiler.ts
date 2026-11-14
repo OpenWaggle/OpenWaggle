@@ -17,12 +17,12 @@ const bailouts = reactCompilerBailouts(process.cwd(), CHECKED_ROOTS)
 const { unexpected, stale } = evaluateReactCompilerGate(bailouts, KNOWN_BAILOUTS)
 
 for (const bailout of unexpected) {
-  console.error(
-    `${bailout.file}:${String(bailout.line ?? '?')} ${bailout.kind}: ${bailout.reason}`,
-  )
+  console.error(`${bailout.file}:${String(bailout.line ?? '?')} ${bailout.kind}: ${bailout.reason}`)
 }
 for (const file of stale) {
-  console.error(`${file} now has fewer React Compiler bailouts; lower or remove its allowlist entry.`)
+  console.error(
+    `${file} now has fewer React Compiler bailouts; lower or remove its allowlist entry.`,
+  )
 }
 if (unexpected.length > 0 || stale.length > 0) {
   console.error(

@@ -1,9 +1,4 @@
-import type {
-  SourceControlAttention,
-  SourceControlCli,
-  SourceControlProviderId,
-  VcsStatus,
-} from '@shared/types/git'
+import type { SourceControlCli, SourceControlProviderId, VcsStatus } from '@shared/types/git'
 
 /** Install guides linked next to the copyable install command. */
 export const SOURCE_CONTROL_CLI_INSTALL_GUIDES: Readonly<Record<SourceControlCli, string>> = {
@@ -26,9 +21,7 @@ export function formatAlternatives(values: readonly string[]) {
  * What the user must fix before change requests work. The remote half wins because it is the
  * newer answer; an offline provider question is moot once the remote probe decided a provider.
  */
-export function effectiveChangeRequestAttention(
-  status: VcsStatus | null,
-): SourceControlAttention | null {
+export function effectiveChangeRequestAttention(status: VcsStatus | null) {
   if (status === null) return null
   if (status.changeRequestAttention) return status.changeRequestAttention
   const local = status.sourceControlAttention
@@ -37,7 +30,7 @@ export function effectiveChangeRequestAttention(
 }
 
 /** Best-effort provider of a change request URL, for provider-specific fallback copy. */
-export function changeRequestProviderFromUrl(url: string): SourceControlProviderId | null {
+export function changeRequestProviderFromUrl(url: string) {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -45,9 +38,11 @@ export function changeRequestProviderFromUrl(url: string): SourceControlProvider
     return null
   }
   if (parsed.pathname.includes('/-/merge_requests/') || parsed.hostname.includes('gitlab')) {
-    return 'gitlab'
+    return 'gitlab' as const
   }
-  if (/\/pull\/\d+/u.test(parsed.pathname) || parsed.hostname.includes('github')) return 'github'
+  if (/\/pull\/\d+/u.test(parsed.pathname) || parsed.hostname.includes('github')) {
+    return 'github' as const
+  }
   return null
 }
 

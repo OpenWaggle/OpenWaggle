@@ -60,7 +60,7 @@ const otherProjectPackage: DiscoveredExtensionPackage = {
 
 describe('listExtensionPackagesView multi-project aggregation', () => {
   it('collects global packages once and project packages for every requested project', async () => {
-    const listInputs: Array<string | null | undefined> = []
+    const listInputs: (string | null | undefined)[] = []
     const layer = Layer.mergeAll(
       Layer.succeed(ExtensionManagerService, {
         listPackages: (input) =>

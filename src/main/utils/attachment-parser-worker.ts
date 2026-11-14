@@ -173,13 +173,13 @@ const createParserWorker: ParserWorkerFactory = (input) =>
     },
   })
 
-function parserWorkerMessage(value: unknown): ParserWorkerMessage | undefined {
+function parserWorkerMessage(value: unknown) {
   if (typeof value !== 'object' || value === null || !('ok' in value)) return undefined
   if (value.ok === true && 'text' in value && typeof value.text === 'string') {
-    return { ok: true, text: value.text }
+    return { ok: true, text: value.text } satisfies ParserWorkerMessage
   }
   if (value.ok === false && 'error' in value && typeof value.error === 'string') {
-    return { ok: false, error: value.error }
+    return { ok: false, error: value.error } satisfies ParserWorkerMessage
   }
   return undefined
 }

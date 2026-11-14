@@ -12,6 +12,8 @@ export interface WorktreePlanOverride {
 interface WorktreePlanState {
   readonly bySessionId: Record<string, WorktreePlanOverride>
   readonly setOverride: (sessionId: string, patch: WorktreePlanOverride) => void
+  /** Removes the chosen Preparation profile, so the plan falls back to none. */
+  readonly clearPreparationProfile: (sessionId: string) => void
   readonly takeOverride: (key: string) => WorktreePlanOverride | undefined
 }
 
@@ -19,7 +21,7 @@ interface WorktreePlanState {
 export const PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY = 'draft:projectless'
 
 /** Store key for a not-yet-created session's plan, keyed by the opened project. */
-export function draftWorktreePlanKey(projectPath: string): string {
+export function draftWorktreePlanKey(projectPath: string) {
   return `draft:${projectPath}`
 }
 
@@ -31,7 +33,7 @@ export function draftWorktreePlanKey(projectPath: string): string {
 export function prepareDraftWorktreePlan(
   previousProjectPath: string | null,
   nextProjectPath: string | null,
-): void {
+) {
   useWorktreePlanStore.setState((state) => {
     const next = { ...state.bySessionId }
     const projectless = next[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY]
@@ -67,6 +69,13 @@ export const useWorktreePlanStore = create<WorktreePlanState>()((set, get) => ({
         [sessionId]: { ...state.bySessionId[sessionId], ...patch },
       },
     })),
+  clearPreparationProfile: (sessionId) =>
+    set((state) => {
+      const current = state.bySessionId[sessionId]
+      if (current === undefined) return state
+      const { preparationProfileId: _cleared, ...rest } = current
+      return { bySessionId: { ...state.bySessionId, [sessionId]: rest } }
+    }),
   takeOverride: (key) => {
     const override = get().bySessionId[key]
     if (override) {

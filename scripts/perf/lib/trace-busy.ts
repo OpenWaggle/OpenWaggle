@@ -1,3 +1,6 @@
+import { Schema } from '@shared/schema'
+import { unknownField } from '../../support/object-fields'
+
 interface TraceEvent {
   readonly name: string
   readonly ph: string
@@ -14,36 +17,58 @@ const MICROSECONDS_PER_MILLISECOND = 1_000
 const PERCENT = 100
 const LONG_FRAME_MS = 33
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+/** A Chrome trace event; a numeric field of another type reads as its default. */
+const rawTraceEventSchema = Schema.Struct({
+  name: Schema.String,
+  ph: Schema.String,
+  pid: unknownField,
+  tid: unknownField,
+  ts: unknownField,
+  dur: unknownField,
+  args: unknownField,
+})
+/** A `thread_name` metadata event names its thread in `args.name`. */
+const threadNameArgsSchema = Schema.Struct({ name: Schema.String })
+
+function numberOr(value: unknown, fallback: number) {
+  return typeof value === 'number' ? value : fallback
 }
 
-function traceEventOf(value: unknown): TraceEvent | null {
-  if (!isRecord(value) || typeof value.name !== 'string' || typeof value.ph !== 'string') return null
-  const args = isRecord(value.args) ? value.args : {}
-  return {
+function traceEventOf(value: unknown) {
+  if (!Schema.is(rawTraceEventSchema)(value)) return null
+  const event: TraceEvent | null = {
     name: value.name,
     ph: value.ph,
-    pid: typeof value.pid === 'number' ? value.pid : -1,
-    tid: typeof value.tid === 'number' ? value.tid : -1,
-    ts: typeof value.ts === 'number' ? value.ts : 0,
-    dur: typeof value.dur === 'number' ? value.dur : 0,
-    threadName: typeof args.name === 'string' ? args.name : null,
+    pid: numberOr(value.pid, -1),
+    tid: numberOr(value.tid, -1),
+    ts: numberOr(value.ts, 0),
+    dur: numberOr(value.dur, 0),
+    threadName: Schema.is(threadNameArgsSchema)(value.args) ? value.args.name : null,
   }
+  return event
 }
 
 /**
  * The share of a window the renderer main thread spent running tasks, from a Chrome trace: the
  * busiest `CrRendererMain` thread's top-level tasks, without double-counting nested ones.
  */
-export function rendererMainThreadBusy(rawEvents: readonly unknown[], windowStartUs: number, windowEndUs: number) {
+export function rendererMainThreadBusy(
+  rawEvents: readonly unknown[],
+  windowStartUs: number,
+  windowEndUs: number,
+) {
   const events = rawEvents.flatMap((raw) => {
     const event = traceEventOf(raw)
     return event ? [event] : []
   })
   const mainThreads = new Set(
     events
-      .filter((event) => event.ph === 'M' && event.name === 'thread_name' && event.threadName === RENDERER_MAIN_THREAD)
+      .filter(
+        (event) =>
+          event.ph === 'M' &&
+          event.name === 'thread_name' &&
+          event.threadName === RENDERER_MAIN_THREAD,
+      )
       .map((event) => `${String(event.pid)}:${String(event.tid)}`),
   )
   const counts = new Map<string, number>()
@@ -53,7 +78,12 @@ export function rendererMainThreadBusy(rawEvents: readonly unknown[], windowStar
   }
   const busiest = [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0]
   const tasks = events
-    .filter((event) => `${String(event.pid)}:${String(event.tid)}` === busiest && event.ph === 'X' && TOP_LEVEL_TASKS.has(event.name))
+    .filter(
+      (event) =>
+        `${String(event.pid)}:${String(event.tid)}` === busiest &&
+        event.ph === 'X' &&
+        TOP_LEVEL_TASKS.has(event.name),
+    )
     .filter((event) => event.ts >= windowStartUs && event.ts <= windowEndUs)
     .sort((left, right) => left.ts - right.ts)
   let coveredUntil = 0

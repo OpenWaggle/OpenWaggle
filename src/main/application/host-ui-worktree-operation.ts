@@ -1,6 +1,10 @@
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import {
+  gitWorktreeCreatePayloadSchema,
+  gitWorktreeRemovePayloadSchema,
+} from '@shared/schemas/git-requests'
 import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
@@ -21,20 +25,16 @@ import { invalidateGitStatusCache } from '../services/git-status-cache'
 import { removePreparedWorktree } from './prepared-worktree-removal'
 import { worktreeRemovalBlockers } from './worktree-usage'
 
-export const worktreeCreatePayloadSchema = Schema.Struct({
-  path: Schema.String,
-  branch: Schema.String,
-  baseRef: Schema.String,
-  /** Main resolves the authoritative branch for Session-bound worktrees. */
-  sessionId: Schema.optional(Schema.String),
-})
-
-export const worktreeRemovePayloadSchema = Schema.Struct({
-  path: Schema.String.pipe(Schema.minLength(1), Schema.filter(path.isAbsolute)),
-  force: Schema.optional(Schema.Boolean),
-  lockOnly: Schema.optional(Schema.Boolean),
-  skipCleanup: Schema.optional(Schema.Boolean),
-})
+/** The shared remove payload, with the absolute path only Node can check here. */
+const worktreeRemovePayloadSchema = gitWorktreeRemovePayloadSchema.pipe(
+  Schema.filter(
+    (payload) =>
+      path.isAbsolute(payload.path) || {
+        path: ['path'],
+        message: 'Worktree path must be absolute.',
+      },
+  ),
+)
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
 const logger = createLogger('host-ui-worktree-operation')
@@ -107,7 +107,7 @@ function captureCreatedWorktreePreparation(
 export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(worktreeCreatePayloadSchema, rawPayload)
+    const payload = decodeUnknownOrThrow(gitWorktreeCreatePayloadSchema, rawPayload)
     const sessionId = payload.sessionId
     const gitWorktrees = yield* GitWorktreeService
     const workspaces = yield* SessionWorkspaceResourceRepository

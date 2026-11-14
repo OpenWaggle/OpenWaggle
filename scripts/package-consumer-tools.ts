@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { basename, delimiter, join } from 'node:path'
+import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const OFFICIAL_NPM_REGISTRY = 'https://registry.npmjs.org/'
@@ -17,28 +17,35 @@ const PACKAGE_TOOLS = [
     name: 'npm',
     spec: 'npm@11.18.0',
     version: '11.18.0',
-    integrity: 'sha512-T67M4L5wNm0cZ7EBLErcEkY1SmzEW/WJ+SADBzsFUY1UdAPfFHXFQtZ6SEXiK0+vzXysCvAsepbMaBTwnrAD+w==',
+    integrity:
+      'sha512-T67M4L5wNm0cZ7EBLErcEkY1SmzEW/WJ+SADBzsFUY1UdAPfFHXFQtZ6SEXiK0+vzXysCvAsepbMaBTwnrAD+w==',
   },
   {
     name: 'yarn',
     spec: '@yarnpkg/cli-dist@4.17.1',
     version: '4.17.1',
-    integrity: 'sha512-2tiSQuJNl/L3QwTdrq6lKWDpkcnp9MGvCT/rIldHcbu3SWfnLdmehvt3eulX1hT7FFt1Gjfq3CesF+kvhFip6g==',
+    integrity:
+      'sha512-2tiSQuJNl/L3QwTdrq6lKWDpkcnp9MGvCT/rIldHcbu3SWfnLdmehvt3eulX1hT7FFt1Gjfq3CesF+kvhFip6g==',
   },
 ] as const
 const EXISTING_TOOLS = [
   { name: 'pnpm', version: '11.15.1' },
-  { name: 'bun', version: '1.3.14' },
+  { name: 'bun', version: '1.4.4' },
 ] as const
 
-type CommandRunner = (command: string, args: readonly string[]) => Promise<string>
+/**
+ * Runs a consumer tool in `cwd`. Every call passes the tool root, never the repository:
+ * pnpm reads the nearest package.json's `packageManager` field and refuses to run in a
+ * project that pins another package manager, and the repository pins Bun.
+ */
+type CommandRunner = (command: string, args: readonly string[], cwd: string) => Promise<string>
 
-type InstallInput = {
+interface InstallInput {
   readonly toolRoot: string
   readonly githubPath: string
 }
 
-type InstallDependencies = {
+interface InstallDependencies {
   readonly runCommand?: CommandRunner
   readonly appendSearchPath?: (filePath: string, contents: string) => Promise<void>
   readonly prepareDirectory?: (directoryPath: string) => Promise<void>
@@ -46,14 +53,15 @@ type InstallDependencies = {
   readonly writeUserConfig?: (filePath: string, contents: string) => Promise<void>
 }
 
-type VerifyDependencies = {
+interface VerifyDependencies {
   readonly runCommand?: CommandRunner
   readonly resolveExecutable?: (name: string) => Promise<string | undefined>
 }
 
-function runCommand(command: string, args: readonly string[]) {
+function runCommand(command: string, args: readonly string[], cwd: string) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, {
+      cwd,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -71,13 +79,16 @@ function runCommand(command: string, args: readonly string[]) {
         resolve(stdout.trim())
         return
       }
-      reject(new Error(`${command} ${args.join(' ')} exited with ${String(code)}: ${stderr.trim()}`))
+      reject(
+        new Error(`${command} ${args.join(' ')} exited with ${String(code)}: ${stderr.trim()}`),
+      )
     })
   })
 }
 
 async function resolveExecutable(name: string) {
-  const pathEntries = process.env['PATH']?.split(delimiter) ?? []
+  const { PATH: searchPath } = process.env
+  const pathEntries = searchPath?.split(delimiter) ?? []
   for (const pathEntry of pathEntries) {
     const candidate = join(pathEntry, name)
     try {
@@ -111,7 +122,9 @@ export async function verifyDownloadedPackageIntegrity(
   filePath: string,
   expectedIntegrity: string,
 ) {
-  const digest = createHash('sha512').update(await readFile(filePath)).digest('base64')
+  const digest = createHash('sha512')
+    .update(await readFile(filePath))
+    .digest('base64')
   const actualIntegrity = `sha512-${digest}`
   if (actualIntegrity !== expectedIntegrity) {
     throw new Error(`${basename(filePath)} integrity mismatch: ${actualIntegrity}`)
@@ -124,8 +137,10 @@ export async function installPackageConsumerTools(
 ) {
   const execute = dependencies.runCommand ?? runCommand
   const appendSearchPath = dependencies.appendSearchPath ?? appendFile
-  const prepareDirectory = dependencies.prepareDirectory ?? ((directoryPath) => mkdir(directoryPath, { recursive: true }))
-  const verifyDownloadedPackage = dependencies.verifyDownloadedPackage ?? verifyDownloadedPackageIntegrity
+  const prepareDirectory =
+    dependencies.prepareDirectory ?? ((directoryPath) => mkdir(directoryPath, { recursive: true }))
+  const verifyDownloadedPackage =
+    dependencies.verifyDownloadedPackage ?? verifyDownloadedPackageIntegrity
   const writeUserConfig = dependencies.writeUserConfig ?? writeFile
   const userConfigPath = join(input.toolRoot, 'empty.npmrc')
   const downloadDirectory = join(input.toolRoot, 'downloads')
@@ -135,29 +150,37 @@ export async function installPackageConsumerTools(
 
   const tarballPaths: string[] = []
   for (const tool of PACKAGE_TOOLS) {
-    const packOutput = await execute('npm', [
-      'pack',
-      tool.spec,
-      '--json',
-      '--ignore-scripts',
-      `--pack-destination=${downloadDirectory}`,
-      `--registry=${OFFICIAL_NPM_REGISTRY}`,
-      `--userconfig=${userConfigPath}`,
-    ])
+    const packOutput = await execute(
+      'npm',
+      [
+        'pack',
+        tool.spec,
+        '--json',
+        '--ignore-scripts',
+        `--pack-destination=${downloadDirectory}`,
+        `--registry=${OFFICIAL_NPM_REGISTRY}`,
+        `--userconfig=${userConfigPath}`,
+      ],
+      input.toolRoot,
+    )
     const tarballPath = packedTarballPath(packOutput, downloadDirectory)
     await verifyDownloadedPackage(tarballPath, tool.integrity)
     tarballPaths.push(tarballPath)
   }
 
-  await execute('npm', [
-    'install',
-    '--global',
-    '--ignore-scripts',
-    `--prefix=${input.toolRoot}`,
-    `--registry=${OFFICIAL_NPM_REGISTRY}`,
-    `--userconfig=${userConfigPath}`,
-    ...tarballPaths,
-  ])
+  await execute(
+    'npm',
+    [
+      'install',
+      '--global',
+      '--ignore-scripts',
+      `--prefix=${input.toolRoot}`,
+      `--registry=${OFFICIAL_NPM_REGISTRY}`,
+      `--userconfig=${userConfigPath}`,
+      ...tarballPaths,
+    ],
+    input.toolRoot,
+  )
   await appendSearchPath(input.githubPath, `${join(input.toolRoot, 'bin')}\n`)
 }
 
@@ -176,7 +199,7 @@ export async function verifyPackageConsumerTools(
         throw new Error(`${tool.name} resolved from ${executable}, expected ${expectedExecutable}.`)
       }
     }
-    const actualVersion = await execute(executable, ['--version'])
+    const actualVersion = await execute(executable, ['--version'], toolRoot)
     if (actualVersion !== tool.version) {
       throw new Error(`${tool.name} version mismatch: ${actualVersion} != ${tool.version}`)
     }
@@ -190,10 +213,25 @@ function readFlag(args: readonly string[], flag: string) {
   return value
 }
 
+/**
+ * Resolves the tool root, which is also where every tool runs, and rejects one inside the
+ * repository: a tool started there would read the repository's `packageManager: bun` pin.
+ */
+export function resolveToolRoot(toolRoot: string, repositoryRoot: string) {
+  const resolvedToolRoot = resolve(repositoryRoot, toolRoot)
+  const fromRepository = relative(repositoryRoot, resolvedToolRoot)
+  const outside =
+    fromRepository === '..' || fromRepository.startsWith(`..${sep}`) || isAbsolute(fromRepository)
+  if (!outside) {
+    throw new Error(`${TOOL_ROOT_FLAG} must be outside the repository: ${resolvedToolRoot}.`)
+  }
+  return resolvedToolRoot
+}
+
 async function main() {
   const mode = process.argv[MODE_ARGUMENT_INDEX]
   const args = process.argv.slice(FLAG_ARGUMENT_START_INDEX)
-  const toolRoot = readFlag(args, TOOL_ROOT_FLAG)
+  const toolRoot = resolveToolRoot(readFlag(args, TOOL_ROOT_FLAG), process.cwd())
   if (mode === INSTALL_MODE) {
     await installPackageConsumerTools({
       toolRoot,
@@ -205,7 +243,9 @@ async function main() {
     await verifyPackageConsumerTools(toolRoot)
     return
   }
-  throw new Error(`Usage: package-consumer-tools.ts <${INSTALL_MODE}|${VERIFY_MODE}> ${TOOL_ROOT_FLAG} <path> [${GITHUB_PATH_FLAG} <path>]`)
+  throw new Error(
+    `Usage: package-consumer-tools.ts <${INSTALL_MODE}|${VERIFY_MODE}> ${TOOL_ROOT_FLAG} <path> [${GITHUB_PATH_FLAG} <path>]`,
+  )
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

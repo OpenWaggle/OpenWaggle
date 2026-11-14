@@ -69,13 +69,15 @@ export function delegationRevisionMessage(input: {
   )}\n\nAddress the feedback, then submit the new revision.`
 }
 
-type RevisionMessageInput = Parameters<typeof delegationRevisionMessage>[0]
+type RevisionMessage = Parameters<typeof delegationRevisionMessage>[0] & {
+  readonly workerSessionId: string
+}
 
 /** The message for a command that sent its Worker back to work, or undefined. */
 function revisionMessageInput(
   request: SessionControlMutationRequest,
   response: SessionControlMutationResponse,
-): (RevisionMessageInput & { readonly workerSessionId: string }) | undefined {
+) {
   const { command } = request
   const { outcome } = response
   if (outcome.effect === 'delegation-updated') {
@@ -99,7 +101,7 @@ function revisionMessageInput(
       ...(outcome.specificationChanged
         ? { specificationRevision: outcome.specificationRevision }
         : {}),
-    }
+    } satisfies RevisionMessage
   }
   if (
     outcome.effect !== 'delegation-specification-amended' &&
@@ -119,7 +121,7 @@ function revisionMessageInput(
     submissionRevision: outcome.revisionRequest.submissionRevision,
     feedback: command.reason.trim(),
     specificationRevision: outcome.specificationRevision,
-  }
+  } satisfies RevisionMessage
 }
 
 /**
@@ -134,7 +136,7 @@ function revisionMessageInput(
 export function delegationRevisionFollowUp(
   request: SessionControlMutationRequest,
   response: SessionControlMutationResponse,
-): SessionControlFollowUpMutationRequest | undefined {
+) {
   if (response.replayed) return undefined
   const message = revisionMessageInput(request, response)
   if (!message) return undefined
@@ -148,5 +150,5 @@ export function delegationRevisionFollowUp(
       sessionId: workerSessionId,
       input: { text: delegationRevisionMessage(messageInput), attachmentIds: [] },
     },
-  }
+  } satisfies SessionControlFollowUpMutationRequest
 }

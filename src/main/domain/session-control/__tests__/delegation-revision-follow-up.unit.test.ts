@@ -6,19 +6,19 @@ import {
 import { describe, expect, it } from 'vitest'
 import { delegationRevisionFollowUp } from '../delegation-revision-follow-up'
 
-function request(command: SessionControlMutationRequest['command']): SessionControlMutationRequest {
+function request(command: SessionControlMutationRequest['command']) {
   return {
     contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
     requestId: 'review-request',
     idempotencyKey: 'review-key',
     command,
-  }
+  } satisfies SessionControlMutationRequest
 }
 
 function updated(
   operation: 'delegation-request-revision' | 'delegation-reopen' | 'delegation-accept',
   overrides: { readonly replayed?: boolean; readonly specificationChanged?: true } = {},
-): SessionControlMutationResponse {
+) {
   return {
     contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
     requestId: 'review-request',
@@ -36,7 +36,7 @@ function updated(
       submissionRevision: 3,
       ...(overrides.specificationChanged ? { specificationChanged: true } : {}),
     },
-  }
+  } satisfies SessionControlMutationResponse
 }
 
 const revisionCommand = {

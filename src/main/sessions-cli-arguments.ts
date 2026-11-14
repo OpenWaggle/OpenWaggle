@@ -37,13 +37,16 @@ export function nonNegativeInteger(value: string | undefined, label: string) {
   return parsed
 }
 
-export function discoveryMode(value: string | undefined): SessionDiscoveryMode | undefined {
+export function discoveryMode(value: string | undefined) {
   if (value === undefined) return undefined
-  if (value === 'hybrid' || value === 'lexical' || value === 'semantic') return value
+  if (value === 'hybrid' || value === 'lexical' || value === 'semantic') {
+    const mode: SessionDiscoveryMode | undefined = value
+    return mode
+  }
   throw new CommandCliUsageError('--mode must be one of hybrid, lexical, semantic.')
 }
 
-export function runAuthorization(arguments_: ParsedArguments): AgentAuthorizationMode | undefined {
+export function runAuthorization(arguments_: ParsedArguments) {
   const explicit = option(arguments_, 'authorization')
   if (hasFlag(arguments_, 'yolo')) {
     if (explicit && explicit !== 'yolo') {
@@ -51,71 +54,122 @@ export function runAuthorization(arguments_: ParsedArguments): AgentAuthorizatio
         '--yolo cannot be combined with a different --authorization value.',
       )
     }
-    return 'yolo'
+    const mode: AgentAuthorizationMode | undefined = 'yolo'
+    return mode
   }
   if (!explicit || explicit === 'inherit') return undefined
-  if (explicit === 'ask-for-approval' || explicit === 'yolo') return explicit
+  if (explicit === 'ask-for-approval' || explicit === 'yolo') {
+    const mode: AgentAuthorizationMode | undefined = explicit
+    return mode
+  }
   throw new CommandCliUsageError('--authorization must be inherit, ask-for-approval, or yolo.')
 }
 
 export function thinkingLevel(value: string | undefined, label = '--thinking') {
   if (!value) return undefined
   const resolved = THINKING_LEVELS.find((candidate) => candidate === value)
-  if (!resolved)
+  if (!resolved) {
     throw new CommandCliUsageError(`${label} must be one of ${THINKING_LEVELS.join(', ')}.`)
+  }
   return resolved
 }
 
-export function specialization(
-  arguments_: ParsedArguments,
-): SessionExecutionSpecialization | undefined {
+export function specialization(arguments_: ParsedArguments) {
   const modelId = option(arguments_, 'model')
   const resolvedThinkingLevel = thinkingLevel(option(arguments_, 'thinking'))
   const agentDefinitionName = option(arguments_, 'agent')
-  return modelId || resolvedThinkingLevel || agentDefinitionName
-    ? {
-        ...(modelId ? { modelId } : {}),
-        ...(resolvedThinkingLevel ? { thinkingLevel: resolvedThinkingLevel } : {}),
-        ...(agentDefinitionName ? { agentDefinitionName } : {}),
-      }
-    : undefined
+  const result: SessionExecutionSpecialization | undefined =
+    modelId || resolvedThinkingLevel || agentDefinitionName
+      ? {
+          ...(modelId ? { modelId } : {}),
+          ...(resolvedThinkingLevel ? { thinkingLevel: resolvedThinkingLevel } : {}),
+          ...(agentDefinitionName ? { agentDefinitionName } : {}),
+        }
+      : undefined
+  return result
+}
+
+/**
+ * `{ [key]: value }` for an option given a non-empty value, else `{}`, so a payload omits the key
+ * rather than carrying an explicit undefined.
+ */
+export function optionEntry<Key extends string>(
+  arguments_: ParsedArguments,
+  name: string,
+  key: Key,
+) {
+  const value = option(arguments_, name)
+  if (!value) {
+    const partial: Partial<Record<Key, string>> = {}
+    return partial
+  }
+  const entry: Partial<Record<Key, string>> = {}
+  entry[key] = value
+  return entry
 }
 
 function worktreeSelection(arguments_: ParsedArguments) {
+  const baseRef = option(arguments_, 'base-ref')
   return {
     mode: 'new-worktree' as const,
-    ...(option(arguments_, 'base-ref') ? { baseRef: option(arguments_, 'base-ref') } : {}),
+    ...(baseRef ? { baseRef } : {}),
     ...(hasFlag(arguments_, 'start-from-origin') ? { startFromOrigin: true } : {}),
   }
 }
 
-export function launchWorkspace(arguments_: ParsedArguments): LaunchWorkspaceSelection | undefined {
+export function launchWorkspace(arguments_: ParsedArguments) {
   const mode = option(arguments_, 'workspace')
   if (!mode) return undefined
-  if (mode === 'current' || mode === 'local') return { mode }
-  if (mode === 'existing') {
-    return { mode, workspaceId: required(option(arguments_, 'workspace-id'), '--workspace-id') }
+  if (mode === 'current' || mode === 'local') {
+    const selection: LaunchWorkspaceSelection | undefined = { mode }
+    return selection
   }
-  if (mode === 'new-worktree') return worktreeSelection(arguments_)
+  if (mode === 'existing') {
+    const selection: LaunchWorkspaceSelection | undefined = {
+      mode,
+      workspaceId: required(option(arguments_, 'workspace-id'), '--workspace-id'),
+    }
+    return selection
+  }
+  if (mode === 'new-worktree') {
+    const selection: LaunchWorkspaceSelection | undefined = worktreeSelection(arguments_)
+    return selection
+  }
   throw new CommandCliUsageError(`Unsupported launch Workspace mode: ${mode}.`)
 }
 
-export function spawnWorkspace(arguments_: ParsedArguments): SpawnWorkspaceSelection | undefined {
+export function spawnWorkspace(arguments_: ParsedArguments) {
   const mode = option(arguments_, 'workspace')
   if (!mode) return undefined
-  if (mode === 'share-parent' || mode === 'local') return { mode }
-  if (mode === 'new-worktree') return worktreeSelection(arguments_)
+  if (mode === 'share-parent' || mode === 'local') {
+    const selection: SpawnWorkspaceSelection | undefined = { mode }
+    return selection
+  }
+  if (mode === 'new-worktree') {
+    const selection: SpawnWorkspaceSelection | undefined = worktreeSelection(arguments_)
+    return selection
+  }
   throw new CommandCliUsageError(`Unsupported spawn Workspace mode: ${mode}.`)
 }
 
-export function forkWorkspace(arguments_: ParsedArguments): ForkWorkspaceSelection | undefined {
+export function forkWorkspace(arguments_: ParsedArguments) {
   const mode = option(arguments_, 'workspace')
   if (!mode) return undefined
-  if (mode === 'share-source' || mode === 'local') return { mode }
-  if (mode === 'existing') {
-    return { mode, workspaceId: required(option(arguments_, 'workspace-id'), '--workspace-id') }
+  if (mode === 'share-source' || mode === 'local') {
+    const selection: ForkWorkspaceSelection | undefined = { mode }
+    return selection
   }
-  if (mode === 'new-worktree') return worktreeSelection(arguments_)
+  if (mode === 'existing') {
+    const selection: ForkWorkspaceSelection | undefined = {
+      mode,
+      workspaceId: required(option(arguments_, 'workspace-id'), '--workspace-id'),
+    }
+    return selection
+  }
+  if (mode === 'new-worktree') {
+    const selection: ForkWorkspaceSelection | undefined = worktreeSelection(arguments_)
+    return selection
+  }
   throw new CommandCliUsageError(`Unsupported fork Workspace mode: ${mode}.`)
 }
 

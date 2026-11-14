@@ -13,7 +13,7 @@ export interface SessionWorktreeRef {
 
 export { formatWorktreePathForDisplay } from '@shared/utils/worktree'
 
-export function normalizeWorktreePath(worktreePath: string | null | undefined): string | null {
+export function normalizeWorktreePath(worktreePath: string | null | undefined) {
   const trimmed = worktreePath?.trim()
   return trimmed ? trimmed : null
 }
@@ -25,7 +25,7 @@ export function normalizeWorktreePath(worktreePath: string | null | undefined): 
 export function getOrphanedWorktreePathForSession(
   sessions: readonly SessionWorktreeRef[],
   sessionId: string,
-): string | null {
+) {
   const target = sessions.find((session) => session.sessionId === sessionId)
   if (!target) return null
 

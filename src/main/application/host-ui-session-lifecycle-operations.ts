@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
+import { sessionDeleteRequestOptionsSchema } from '@shared/schemas/session-operation-requests'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDeleteOptions } from '@shared/types/session'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
@@ -15,16 +15,18 @@ import { SettingsService } from '../services/settings-service'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import {
+  decodeSessionOperationArgument,
   invalid,
   requireArgCount,
   requiredString,
   requireOptionalArgCount,
   validateOptionalModel,
+  validateOptionalThinkingLevel,
   validateSessionId,
   validateSessionNodeId,
   validateWorktreePlan,
 } from './host-ui-session-operation-validation'
-import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
+import { dispatchNestedLocalSessionCommand } from './local-session-nested-command'
 import {
   beginPiSessionProjectRemoval,
   deleteSessionForProjectRemoval,
@@ -36,24 +38,14 @@ const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
 const FOUR_ARGUMENTS = 4
 
-function validateOptionalThinkingLevel(
-  value: unknown,
-): Effect.Effect<ThinkingLevel | undefined, Error> {
-  if (value === undefined) return Effect.succeed(undefined)
-  const level = THINKING_LEVELS.find((candidate) => candidate === value)
-  return level
-    ? Effect.succeed(level)
-    : invalid(`Thinking level must be one of ${THINKING_LEVELS.join(', ')}.`)
-}
-
 export function mutateLocalUiSession(
   command: Extract<
-    Parameters<typeof dispatchLocalSessionCommand>[0]['payload'],
+    Parameters<typeof dispatchNestedLocalSessionCommand>[0]['payload'],
     { contract: 'local-ui-v1' }
   >['request']['command'],
 ) {
   return Effect.gen(function* () {
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'local-ui-v1',
@@ -82,7 +74,7 @@ export function createSession(args: readonly unknown[]) {
     const thinkingLevel = yield* validateOptionalThinkingLevel(args[THREE_ARGUMENTS])
     const settings = yield* (yield* SettingsService).get()
     const environmentMode = worktreePlan?.environmentMode ?? settings.defaultSessionEnvironmentMode
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: normalizedProjectPath },
       payload: {
         contract: 'session-lifecycle-v2',
@@ -134,7 +126,7 @@ export function forkSession(args: readonly unknown[], position: 'before' | 'at')
     const sourceSessionId = yield* validateSessionId(args[0])
     yield* requiredString(args[1], 'Session model')
     const targetNodeId = yield* validateSessionNodeId(args[TWO_ARGUMENTS])
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'session-lifecycle-v2',
@@ -189,7 +181,7 @@ export function organizeSession(
   expectedEffect: 'session-renamed' | 'session-archived' | 'session-unarchived',
 ) {
   return Effect.gen(function* () {
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'session-control-v2',
@@ -218,7 +210,7 @@ export function setAuthorizationMode(args: readonly unknown[]) {
     if (mode !== null && !isAgentAuthorizationMode(mode)) {
       return yield* invalid('Session authorization mode is invalid.')
     }
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'session-control-v2',
@@ -257,19 +249,13 @@ export function beginProjectRemoval(args: readonly unknown[]) {
   })
 }
 
+/** The window's delete options; `removingProject` defaults to false. */
 function validateDeleteOptions(value: unknown) {
-  if (value === undefined) return Effect.succeed({ removingProject: false })
-  const removingProject =
-    typeof value === 'object' && value !== null && 'removingProject' in value
-      ? value.removingProject
-      : undefined
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return invalid('Session delete options are invalid.')
-  }
-  if (removingProject !== undefined && typeof removingProject !== 'boolean') {
-    return invalid('Session delete option removingProject must be a boolean.')
-  }
-  return Effect.succeed({ removingProject: removingProject === true })
+  return value === undefined
+    ? Effect.succeed({ removingProject: false })
+    : decodeSessionOperationArgument(sessionDeleteRequestOptionsSchema, value).pipe(
+        Effect.map((options) => ({ removingProject: options.removingProject === true })),
+      )
 }
 
 /**

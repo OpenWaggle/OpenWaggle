@@ -14,14 +14,17 @@ export async function resolveManagedActionLaunch(
   if (
     input.expectedExecutionKey !== undefined &&
     input.expectedExecutionKey !== actionExecutionKey(definition)
-  )
+  ) {
     throw new Error(
       'The action changed during authorization. Review its current execution before starting.',
     )
+  }
   const invocation = await resolveActionInvocation(
     input.workspace.workspacePath,
     definition.invocation,
   )
+  // Only after the invocation resolved: reading the environment can complete a pending worktree's
+  // setup, which a launch that fails here must not do.
   const environment = await deps.environment(input.workspace)
   await deps.runner.validate(invocation, environment)
   return { definition, invocation, environment }

@@ -20,7 +20,7 @@ const SECONDARY_MODEL = 'anthropic/claude-sonnet-4'
 type RegisteredCommandOptions = Parameters<ExtensionAPI['registerCommand']>[1]
 type RegisteredToolOptions = Parameters<ExtensionAPI['registerTool']>[0]
 
-export function modelFor(modelReference: string): PiWaggleModel {
+export function modelFor(modelReference: string) {
   const separatorIndex = modelReference.indexOf('/')
   if (separatorIndex <= FIRST_PROVIDER_CHARACTER_INDEX) {
     throw new Error(`Expected provider/model id, received ${modelReference}`)
@@ -53,22 +53,22 @@ export function waggleConfig() {
   } as const
 }
 
-export function assistantToolCallMessage(toolCallId: string): AgentEndEvent['messages'][number] {
+export function assistantToolCallMessage(toolCallId: string) {
   return fromPartial<AgentEndEvent['messages'][number]>({
     role: 'assistant',
     content: [{ type: 'toolCall', id: toolCallId, name: 'read', arguments: {} }],
   })
 }
 
-export function assistantTextMessage(text: string): AgentEndEvent['messages'][number] {
+export function assistantTextMessage(text: string) {
   return fromPartial<AgentEndEvent['messages'][number]>({
     role: 'assistant',
     content: [{ type: 'text', text }],
   })
 }
 
-export function toolResultMessage(toolCallId: string): TurnEndEvent['toolResults'][number] {
-  return {
+export function toolResultMessage(toolCallId: string) {
+  const event: TurnEndEvent['toolResults'][number] = {
     role: 'toolResult',
     toolCallId,
     toolName: 'read',
@@ -76,10 +76,16 @@ export function toolResultMessage(toolCallId: string): TurnEndEvent['toolResults
     isError: false,
     timestamp: Date.now(),
   }
+  return event
 }
 
-export function inputImage(): NonNullable<InputEvent['images']>[number] {
-  return { type: 'image', data: 'base64-image', mimeType: 'image/png' }
+export function inputImage() {
+  const nullable: NonNullable<InputEvent['images']>[number] = {
+    type: 'image',
+    data: 'base64-image',
+    mimeType: 'image/png',
+  }
+  return nullable
 }
 
 export function enabledModeStateEntry() {
@@ -106,9 +112,7 @@ export interface DefaultExtensionHarness {
 }
 
 /** The default extension loaded the way Pi loads it, with Pi's API and context faked. */
-export function createHarness(
-  input: { readonly branchEntries?: readonly unknown[] } = {},
-): DefaultExtensionHarness {
+export function createHarness(input: { readonly branchEntries?: readonly unknown[] } = {}) {
   const commands = new Map<string, RegisteredCommandOptions>()
   const tools = new Map<string, RegisteredToolOptions>()
   const eventHandlers = new Map<string, (...args: unknown[]) => unknown>()
@@ -166,7 +170,7 @@ export function createHarness(
     await agentSettled({ type: 'agent_settled', aborted: true }, ctx)
   }
 
-  return {
+  const harness: DefaultExtensionHarness = {
     abort,
     commands,
     ctx,
@@ -177,4 +181,5 @@ export function createHarness(
     settle,
     tools,
   }
+  return harness
 }

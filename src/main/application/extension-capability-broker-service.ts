@@ -13,7 +13,7 @@ import { ExtensionProjectOverridesRepository } from '../ports/extension-project-
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
-import { auditedFailure } from './extension-capability-broker-audit'
+import { auditedFailure, cyclicPayloadFailure } from './extension-capability-broker-audit'
 import {
   contributionEntryDeclaresCapability,
   contributionEntryDeclaresMethod,
@@ -41,20 +41,18 @@ type ScopeResolution =
   | { readonly _tag: 'ok' }
   | { readonly _tag: 'failure'; readonly message: string }
 
-function scopeOk(): ScopeResolution {
-  return { _tag: 'ok' }
+function scopeOk() {
+  return { _tag: 'ok' } satisfies ScopeResolution
 }
 
-function scopeFailure(message: string): ScopeResolution {
-  return { _tag: 'failure', message }
+function scopeFailure(message: string) {
+  return { _tag: 'failure', message } satisfies ScopeResolution
 }
 
 function resolveActiveProjectScope(scope: ExtensionInvokeScope) {
   return Effect.gen(function* () {
     const projectPath = getScopeProjectPath(scope)
-    if (!projectPath) {
-      return scopeOk()
-    }
+    if (!projectPath) return scopeOk()
 
     const settings = yield* SettingsService
     const activeProjectPath = (yield* settings.get()).projectPath
@@ -209,8 +207,10 @@ export function invokeExtensionCapability(
   dependencies: InvokeExtensionCapabilityDependencies = {},
 ) {
   return Effect.gen(function* () {
-    const input = normalizeInput(rawInput)
     const timestamp = dependencies.now?.() ?? Date.now()
+    const normalized = normalizeInput(rawInput)
+    if (normalized._tag === 'Left') return yield* cyclicPayloadFailure(normalized.left, timestamp)
+    const input = normalized.right
     const scopeProjectPath = getScopeProjectPath(input.scope)
     const lookupProjectPath = yield* resolveInvocationLookupProjectPath(input.scope)
     const scopeResolution = yield* resolveScopeContext(input.scope)

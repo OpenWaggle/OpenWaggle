@@ -6,7 +6,10 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ app: {}, net: {}, protocol: {} }))
-vi.mock('@electron-toolkit/utils', () => ({ is: { dev: false } }))
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => true } }
+})
 
 import { RENDERER_PROTOCOL_ORIGIN } from '../renderer-protocol'
 

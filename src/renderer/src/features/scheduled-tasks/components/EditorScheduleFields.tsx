@@ -3,7 +3,7 @@ import { machineTimeZone } from '@shared/utils/zoned-time'
 import { Checkbox } from '@/shared/ui/Checkbox'
 import { Select } from '@/shared/ui/Select'
 import { TextInput } from '@/shared/ui/TextInput'
-import { useNow } from '../hooks/useNow'
+import { useNow } from '@/shared/hooks/useNow'
 import type { ScheduledTaskEditorState } from '../hooks/useScheduledTaskEditor'
 import {
   type IntervalUnit,

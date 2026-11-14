@@ -11,7 +11,7 @@ import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
  * `session-tool-cross-project-authority.unit.test.ts` runs this exact payload through the Host's
  * authorization.
  */
-export function agentDefinitionProjectProbe(projectPath: string): LocalSessionCommandPayload {
+export function agentDefinitionProjectProbe(projectPath: string) {
   return {
     contract: 'session-query-v2',
     request: {
@@ -19,5 +19,5 @@ export function agentDefinitionProjectProbe(projectPath: string): LocalSessionCo
       requestId: randomUUID(),
       query: { operation: 'list', limit: 1, projectPath },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }

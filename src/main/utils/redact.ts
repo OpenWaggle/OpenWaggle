@@ -42,7 +42,7 @@ const SECRET_REDACTION_PATTERNS = [
   },
 ] as const
 
-export function redactSensitiveText(value: string): string {
+export function redactSensitiveText(value: string) {
   let redacted = value
   for (const matcher of SECRET_REDACTION_PATTERNS) {
     redacted = redacted.replace(matcher.pattern, matcher.replacement)

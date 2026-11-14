@@ -43,7 +43,7 @@ function resourcesPackage() {
   })
 }
 
-function invocation(payload: unknown): ExtensionInvokeInput {
+function invocation(payload: unknown) {
   return {
     extensionId: BROKER_EXTENSION_ID,
     contributionId: CONTRIBUTION_ID,
@@ -51,7 +51,7 @@ function invocation(payload: unknown): ExtensionInvokeInput {
     method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
     scope: { kind: 'session', projectPath: PROJECT_PATH, sessionId: SESSION_ID },
     payload,
-  }
+  } satisfies ExtensionInvokeInput
 }
 
 function resource(input: {
@@ -61,8 +61,8 @@ function resource(input: {
   readonly title: string
   readonly available?: boolean
   readonly occurrences?: SessionResource['occurrences']
-}): SessionResource {
-  return {
+}) {
+  const result: SessionResource = {
     id: input.id,
     sessionId: SessionId(SESSION_ID),
     canonicalKey: input.canonicalKey,
@@ -78,6 +78,7 @@ function resource(input: {
     createdAt: 1000,
     updatedAt: 1000,
   }
+  return result
 }
 
 function harness(resources: SessionResource[] = []) {

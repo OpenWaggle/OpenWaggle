@@ -47,7 +47,7 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-async function waitFor<T>(read: () => T | undefined, timeoutMs = 10_000): Promise<T> {
+async function waitFor<T>(read: () => T | undefined, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs
   let value = read()
   while (value === undefined) {

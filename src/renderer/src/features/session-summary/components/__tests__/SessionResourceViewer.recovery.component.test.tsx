@@ -33,12 +33,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function image(
-  id = 'image-1',
-  title = 'first.png',
-  locator = `session-resource://${id}`,
-): SessionResource {
-  return {
+function image(id = 'image-1', title = 'first.png', locator = `session-resource://${id}`) {
+  const resource: SessionResource = {
     id,
     sessionId: SessionId('session-1'),
     canonicalKey: `resource:${id}`,
@@ -54,6 +50,7 @@ function image(
     createdAt: 1000,
     updatedAt: 1000,
   }
+  return resource
 }
 
 function renderViewer() {

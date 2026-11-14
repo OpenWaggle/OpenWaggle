@@ -57,7 +57,9 @@ function extensionSection(
       placement={placement}
       resources={controller.resources.all}
       onOpenResources={input.onOpenResources}
-      onOpenSidePanel={input.onOpenExtensionSidePanel}
+      {...(input.onOpenExtensionSidePanel === undefined
+        ? {}
+        : { onOpenSidePanel: input.onOpenExtensionSidePanel })}
     />
   )
 }

@@ -1,6 +1,5 @@
 import type {
   ArchivedItemKindFilter,
-  ArchivedItemsFilter,
   ArchivedItemsSort,
   ArchivedWithinFilter,
 } from '@shared/types/archived-items'
@@ -32,13 +31,13 @@ export function isSearching(view: Pick<ArchivedItemsView, 'text'>) {
   return view.text.trim().length > 0
 }
 
-export function effectiveArchivedSort(view: ArchivedItemsView): ArchivedItemsSort {
+export function effectiveArchivedSort(view: ArchivedItemsView) {
   if (view.sort !== 'auto') return view.sort
-  return isSearching(view) ? 'match' : 'recent'
+  return isSearching(view) ? ('match' as const) : ('recent' as const)
 }
 
 /** The filter half of a query: omitted fields mean "any", so equal views share one cache key. */
-export function archivedItemsFilter(view: ArchivedItemsView): ArchivedItemsFilter {
+export function archivedItemsFilter(view: ArchivedItemsView) {
   const text = view.text.trim()
   return {
     ...(text ? { text } : {}),
@@ -65,20 +64,20 @@ function startOfDay(time: number) {
 }
 
 /** Which local-calendar group an Archive time falls in, as of `now`. Weeks start on Monday. */
-export function archivedDateGroup(archivedAt: number, now: number): ArchivedDateGroup {
+export function archivedDateGroup(archivedAt: number, now: number) {
   const today = startOfDay(now)
-  if (archivedAt >= today.getTime()) return 'Today'
+  if (archivedAt >= today.getTime()) return 'Today' as const
   const yesterday = new Date(today)
   yesterday.setDate(today.getDate() - 1)
-  if (archivedAt >= yesterday.getTime()) return 'Yesterday'
+  if (archivedAt >= yesterday.getTime()) return 'Yesterday' as const
   const weekStart = new Date(today)
   weekStart.setDate(today.getDate() - ((today.getDay() + DAYS_PER_WEEK - 1) % DAYS_PER_WEEK))
-  if (archivedAt >= weekStart.getTime()) return 'Earlier this week'
+  if (archivedAt >= weekStart.getTime()) return 'Earlier this week' as const
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-  if (archivedAt >= monthStart.getTime()) return 'Earlier this month'
+  if (archivedAt >= monthStart.getTime()) return 'Earlier this month' as const
   const yearStart = new Date(today.getFullYear(), 0, 1)
-  if (archivedAt >= yearStart.getTime()) return 'Earlier this year'
-  return 'Older'
+  if (archivedAt >= yearStart.getTime()) return 'Earlier this year' as const
+  return 'Older' as const
 }
 
 export type TextRange = readonly [start: number, end: number]
@@ -105,15 +104,15 @@ function foldedWithSources(text: string) {
     const start = cluster.index
     const part = foldText(cluster[0])
     folded += part
-    for (let unit = 0; unit < part.length; unit += 1) {
-      sources.push([start, start + cluster[0].length])
-    }
+    // One source span per UTF-16 code unit, not per code point, so no string iteration here.
+    const end = start + cluster[0].length
+    sources.push(...Array.from({ length: part.length }, () => [start, end] satisfies TextRange))
   }
   return { folded, sources }
 }
 
 /** Where the search words occur in `text`, case-insensitively, merged where they overlap. */
-export function searchHighlightRanges(text: string, search: string): readonly TextRange[] {
+export function searchHighlightRanges(text: string, search: string) {
   const { folded, sources } = foldedWithSources(text)
   const words = [...new Set(foldText(search).split(/\s+/u))].filter((word) => word.length > 0)
   const ranges: [number, number][] = []

@@ -24,7 +24,7 @@ type ToolRegistration = Pick<ExtensionAPI, 'registerTool'>
  * system prompt, and its cache, the moment `tool_search` loads the tool. Put what the model needs
  * in the description, which arrives with the tool.
  */
-export function onDemandToolRegistration(pi: ExtensionAPI): ToolRegistration {
+export function onDemandToolRegistration(pi: ExtensionAPI) {
   return {
     registerTool: (tool) => {
       const { promptSnippet: _snippet, promptGuidelines: _guidelines, ...definition } = tool
@@ -34,7 +34,7 @@ export function onDemandToolRegistration(pi: ExtensionAPI): ToolRegistration {
         namespace: OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE,
       })
     },
-  }
+  } satisfies ToolRegistration
 }
 
 function activateToolSearch(pi: ExtensionAPI) {

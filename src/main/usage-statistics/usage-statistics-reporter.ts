@@ -151,8 +151,8 @@ function deliverDay(
 /** Sends every completed day not reported yet, oldest first. */
 export function reportCompletedUsageStatisticsDays(
   dependencies: UsageStatisticsReporterDependencies,
-): Effect.Effect<UsageStatisticsReportOutcome, unknown> {
-  return Effect.gen(function* () {
+) {
+  const effect: Effect.Effect<UsageStatisticsReportOutcome, unknown> = Effect.gen(function* () {
     if (!dependencies.isEnabled()) return { status: 'disabled' } as const
     const today = usageStatisticsDay(dependencies.now())
     const guiDays = pruneUsageStatisticsDays(dependencies.readGuiDays(), today)
@@ -178,12 +178,14 @@ export function reportCompletedUsageStatisticsDays(
         report,
         request: { schema: USAGE_STATISTICS_SCHEMA_VERSION, context, events },
       })
-      if (result.kind === 'retry')
+      if (result.kind === 'retry') {
         return { status: 'retry', sentDays, reason: result.reason } as const
+      }
       if (result.sent) sentDays += 1
     }
     return { status: 'done', sentDays } as const
   })
+  return effect
 }
 
 /** Delay before the next attempt: hourly, or exponential backoff after a retryable failure. */
@@ -199,7 +201,7 @@ export function runUsageStatisticsReporter(
   dependencies: UsageStatisticsReporterDependencies & {
     readonly sleep: (milliseconds: number) => Effect.Effect<void>
   },
-): Effect.Effect<never> {
+) {
   return Effect.gen(function* () {
     yield* abandonInterruptedUsageStatisticsDay(dependencies).pipe(
       Effect.catchAllCause((cause) =>

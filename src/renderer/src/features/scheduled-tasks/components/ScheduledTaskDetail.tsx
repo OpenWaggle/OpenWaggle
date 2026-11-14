@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { scheduledTaskDetailQueryOptions } from '@/queries/scheduled-tasks'
 import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
-import { useNow } from '../hooks/useNow'
+import { useNow } from '@/shared/hooks/useNow'
 import { useOpenScheduledSession } from '../hooks/useOpenScheduledSession'
 import {
   differingTimeZone,

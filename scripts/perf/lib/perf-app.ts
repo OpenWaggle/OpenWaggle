@@ -41,7 +41,7 @@ export function resolvePerfApp(
   appPath: string,
   label = path.basename(appPath),
   platform: NodeJS.Platform = process.platform,
-): PerfApp {
+) {
   if (platform !== 'darwin') {
     throw new Error(
       `The OpenWaggle perf harnesses run on macOS only (this is ${platform}): they read process environments with BSD ps -E, clone profiles with cp -c and launch .app bundles.`,
@@ -49,14 +49,20 @@ export function resolvePerfApp(
   }
   const resolved = path.resolve(appPath)
   if (resolved.endsWith('.app')) {
-    return { label, executable: path.join(resolved, PACKAGED_EXECUTABLE), leadingArguments: [] }
+    const app: PerfApp = {
+      label,
+      executable: path.join(resolved, PACKAGED_EXECUTABLE),
+      leadingArguments: [],
+    }
+    return app
   }
   if (existsSync(path.join(resolved, 'out', 'main', 'index.js'))) {
-    return {
+    const app: PerfApp = {
       label,
       executable: path.join(resolved, DEVELOPMENT_ELECTRON),
       leadingArguments: [resolved],
     }
+    return app
   }
   throw new Error(`${appPath} is neither an OpenWaggle.app bundle nor a built checkout.`)
 }
@@ -99,7 +105,7 @@ export function launchApp(
   app: PerfApp,
   environment: Readonly<Record<string, string>>,
   appArguments: readonly string[],
-): LaunchedApp {
+) {
   const spawnedAt = Date.now()
   const child = spawn(app.executable, [...app.leadingArguments, ...appArguments], {
     env: environment,

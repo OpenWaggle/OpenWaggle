@@ -11,7 +11,7 @@ const isWorkspaceContextName = (name: string) => WORKSPACE_CONTEXT_NAMES.has(nam
 
 export function withoutWorkspaceContext<T extends string | null | undefined>(
   environment: Readonly<Record<string, T>>,
-): Record<string, T> {
+) {
   return Object.fromEntries(
     Object.entries(environment).filter(([name]) => !isWorkspaceContextName(name)),
   )
@@ -21,12 +21,13 @@ export function applyPreparedEnvironment<T extends string | undefined>(
   inherited: Readonly<Record<string, T>>,
   prepared: PreparedEnvironment,
   caseInsensitive = false,
-): Record<string, T | string> {
+) {
   const environment = new Map<string, T | string>(Object.entries(inherited))
   for (const [name, value] of Object.entries(prepared)) {
     if (caseInsensitive) {
-      for (const key of environment.keys())
+      for (const key of environment.keys()) {
         if (key.toUpperCase() === name.toUpperCase()) environment.delete(key)
+      }
     }
     if (value === null) environment.delete(name)
     else environment.set(name, value)
@@ -39,7 +40,7 @@ export function capturePreparedEnvironment(
   previous: PreparedEnvironment,
   exported: Readonly<Record<string, string>>,
   caseInsensitive = false,
-): PreparedEnvironment {
+) {
   const normalize = (name: string) => (caseInsensitive ? name.toUpperCase() : name)
   const inherited = new Map(
     Object.entries(baseline).map(([name, value]) => [normalize(name), value]),
@@ -51,8 +52,9 @@ export function capturePreparedEnvironment(
       !TRANSIENT_NAMES.has(normalize(name)) &&
       !isWorkspaceContextName(name) &&
       value !== inherited.get(normalize(name))
-    )
+    ) {
       changes.set(name, value)
+    }
   }
   // Keep prior removals even if that variable is absent from the Host on this attempt.
   for (const name of new Set([...Object.keys(baseline), ...Object.keys(previous)])) {
@@ -60,8 +62,9 @@ export function capturePreparedEnvironment(
       !TRANSIENT_NAMES.has(normalize(name)) &&
       !isWorkspaceContextName(name) &&
       !captured.has(normalize(name))
-    )
+    ) {
       changes.set(name, null)
+    }
   }
   return Object.fromEntries(changes)
 }

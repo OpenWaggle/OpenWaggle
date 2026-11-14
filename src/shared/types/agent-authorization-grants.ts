@@ -20,12 +20,6 @@ export const AGENT_AUTHORIZATION_CAPABILITIES = [
 
 export type AgentAuthorizationCapability = (typeof AGENT_AUTHORIZATION_CAPABILITIES)[number]
 
-export function isAgentAuthorizationCapability(
-  value: unknown,
-): value is AgentAuthorizationCapability {
-  return AGENT_AUTHORIZATION_CAPABILITIES.some((capability) => capability === value)
-}
-
 /**
  * What a grant is bound to.
  *
@@ -62,21 +56,13 @@ export interface ScopedAuthorizationGrant extends AgentAuthorizationScopeKey {
  */
 export const AGENT_AUTHORIZATION_DECISION_SCOPES = ['once', 'session', 'project'] as const
 
-export type AgentAuthorizationDecisionScope = (typeof AGENT_AUTHORIZATION_DECISION_SCOPES)[number]
-
-export function isAgentAuthorizationDecisionScope(
-  value: unknown,
-): value is AgentAuthorizationDecisionScope {
-  return AGENT_AUTHORIZATION_DECISION_SCOPES.some((scope) => scope === value)
-}
-
 /**
  * Stable string form of a key, for map lookups and for comparing two keys.
  *
  * Built from `requesterId`, never the display name, so a rename neither drops a grant nor lets a
  * reused name inherit one.
  */
-export function authorizationScopeKeyId(key: AgentAuthorizationScopeKey): string {
+export function authorizationScopeKeyId(key: AgentAuthorizationScopeKey) {
   return `${key.capability}\u0000${key.requesterId}\u0000${key.resource ?? ''}`
 }
 
@@ -90,7 +76,7 @@ export function authorizationScopeKeyId(key: AgentAuthorizationScopeKey): string
 export function authorizationScopeKeysMatch(
   left: AgentAuthorizationScopeKey,
   right: AgentAuthorizationScopeKey,
-): boolean {
+) {
   return authorizationScopeKeyId(left) === authorizationScopeKeyId(right)
 }
 
@@ -98,7 +84,7 @@ export function authorizationScopeKeysMatch(
 export function findMatchingGrant(
   grants: readonly ScopedAuthorizationGrant[],
   key: AgentAuthorizationScopeKey,
-): ScopedAuthorizationGrant | undefined {
+) {
   return grants.find((grant) => authorizationScopeKeysMatch(grant, key))
 }
 
@@ -115,6 +101,6 @@ export const AGENT_AUTHORIZATION_CAPABILITY_LABELS = {
 } satisfies Record<AgentAuthorizationCapability, string>
 
 /** Modes in which a matching grant is consulted at all. */
-export function modeConsultsGrants(mode: AgentAuthorizationMode): boolean {
+export function modeConsultsGrants(mode: AgentAuthorizationMode) {
   return mode === 'ask-for-approval'
 }

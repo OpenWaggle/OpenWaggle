@@ -17,7 +17,7 @@ export function negotiateLocalSessionProtocol(
       readonly targetScope: string
     }[]
   } = { blockingRuns: [], blockingOperations: [] },
-): LocalSessionNegotiationResult {
+) {
   const revision = LOCAL_SESSION_SUPPORTED_REVISIONS.find((candidate) =>
     hello.supportedRevisions.includes(candidate),
   )
@@ -31,14 +31,14 @@ export function negotiateLocalSessionProtocol(
         hostInstanceId,
         supportedRevisions: LOCAL_SESSION_SUPPORTED_REVISIONS,
         ...blockers,
-      }
+      } satisfies LocalSessionNegotiationResult
     }
     return {
       accepted: false,
       protocol: LOCAL_SESSION_PROTOCOL_NAME,
       code: 'incompatible_protocol',
       supportedRevisions: LOCAL_SESSION_SUPPORTED_REVISIONS,
-    }
+    } satisfies LocalSessionNegotiationResult
   }
   return {
     accepted: true,
@@ -46,5 +46,5 @@ export function negotiateLocalSessionProtocol(
     revision,
     hostInstanceId,
     capabilities: LOCAL_SESSION_CAPABILITIES,
-  }
+  } satisfies LocalSessionNegotiationResult
 }

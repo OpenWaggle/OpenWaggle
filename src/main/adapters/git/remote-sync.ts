@@ -16,9 +16,7 @@ export interface RemoteSyncResult {
  * The checked-out branch and the upstream it tracks, read locally without touching the network.
  * Null for a detached HEAD or a branch with no upstream, where a pull could only fail.
  */
-export async function resolveTrackedBranch(
-  projectPath: string,
-): Promise<{ readonly branch: string; readonly upstream: string } | null> {
+export async function resolveTrackedBranch(projectPath: string) {
   const [branch, upstream] = await Promise.all([
     runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD']),
     runGit(projectPath, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']),
@@ -32,9 +30,12 @@ export async function resolveTrackedBranch(
 export async function pullCurrentBranchFastForward(
   projectPath: string,
   options: { readonly signal?: AbortSignal } = {},
-): Promise<RemoteSyncResult> {
+) {
   if (!(await isGitRepository(projectPath))) {
-    return { ok: false, message: 'Selected folder is not a Git repository.' }
+    return {
+      ok: false,
+      message: 'Selected folder is not a Git repository.',
+    } satisfies RemoteSyncResult
   }
   const result = await runWithGitNetworkLock(projectPath, () =>
     runGit(projectPath, ['pull', '--ff-only'], {
@@ -42,9 +43,11 @@ export async function pullCurrentBranchFastForward(
       ...(options.signal ? { signal: options.signal } : {}),
     }),
   )
-  return result.code === 0
-    ? { ok: true, message: 'Pulled latest changes.' }
-    : { ok: false, message: result.stderr.trim() || 'Failed to pull.' }
+  return (
+    result.code === 0
+      ? { ok: true, message: 'Pulled latest changes.' }
+      : { ok: false, message: result.stderr.trim() || 'Failed to pull.' }
+  ) satisfies RemoteSyncResult
 }
 
 /**
@@ -56,7 +59,7 @@ export async function fetchRemoteBranch(
   projectPath: string,
   branch: string,
   options: { readonly signal?: AbortSignal } = {},
-): Promise<boolean> {
+) {
   const result = await runWithGitNetworkLock(projectPath, () =>
     runGit(projectPath, ['fetch', '--quiet', 'origin', branch], {
       ...networkGitOptions(REMOTE_SYNC_TIMEOUT_MS),
@@ -70,10 +73,7 @@ export async function fetchRemoteBranch(
  * Whether the local branch is an ancestor of (or equal to) its remote-tracking tip, so basing work
  * on `origin/<branch>` keeps every local commit while gaining the remote's latest work.
  */
-export async function localBranchIsBehindRemote(
-  projectPath: string,
-  branch: string,
-): Promise<boolean> {
+export async function localBranchIsBehindRemote(projectPath: string, branch: string) {
   const result = await runGit(projectPath, [
     'merge-base',
     '--is-ancestor',
@@ -87,7 +87,7 @@ export async function localBranchIsBehindRemote(
  * Whether `<branch>` names a local branch, including slash-named ones (`feature/foo`). Used to
  * distinguish a chosen local branch from an already remote-qualified or namespaced ref.
  */
-export async function isLocalBranch(projectPath: string, branch: string): Promise<boolean> {
+export async function isLocalBranch(projectPath: string, branch: string) {
   const result = await runGit(projectPath, [
     'rev-parse',
     '--verify',

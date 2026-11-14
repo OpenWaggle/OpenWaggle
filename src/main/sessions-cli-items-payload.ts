@@ -5,9 +5,14 @@ import {
   SESSION_QUERY_DISCOVERY_LIMIT,
 } from '@shared/types/session-query'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
-import { nonNegativeInteger, positiveInteger, requiredSessionId } from './sessions-cli-arguments'
+import {
+  nonNegativeInteger,
+  positiveInteger,
+  requiredSessionId,
+  optionEntry,
+} from './sessions-cli-arguments'
 
-export function itemsPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
+export function itemsPayload(arguments_: ParsedArguments) {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   const branchScope = option(arguments_, 'scope') ?? 'active-branch'
   if (branchScope !== 'active-branch' && branchScope !== 'tree') {
@@ -25,8 +30,8 @@ export function itemsPayload(arguments_: ParsedArguments): LocalSessionCommandPa
         operation: 'items',
         sessionId,
         branchScope,
-        ...(option(arguments_, 'branch') ? { branchId: option(arguments_, 'branch') } : {}),
-        ...(option(arguments_, 'run') ? { runId: option(arguments_, 'run') } : {}),
+        ...optionEntry(arguments_, 'branch', 'branchId'),
+        ...optionEntry(arguments_, 'run', 'runId'),
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
@@ -36,10 +41,8 @@ export function itemsPayload(arguments_: ParsedArguments): LocalSessionCommandPa
         ...(option(arguments_, 'through')
           ? { throughCreatedOrder: nonNegativeInteger(option(arguments_, 'through'), '--through') }
           : {}),
-        ...(option(arguments_, 'snapshot-head')
-          ? { snapshotHeadNodeId: option(arguments_, 'snapshot-head') }
-          : {}),
+        ...optionEntry(arguments_, 'snapshot-head', 'snapshotHeadNodeId'),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }

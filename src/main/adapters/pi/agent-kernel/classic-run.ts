@@ -170,12 +170,18 @@ export async function runPiSession(
     signal: input.signal,
     onEvent: input.onEvent,
     ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
-    skillToggles: input.skillToggles,
-    skillAllowlist: input.skillAllowlist,
-    enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
-    enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
+    ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
+    ...(input.enabledOpenWaggleExtensionPackages
+      ? { enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages }
+      : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
     ...sessionDirectories(input),
-    recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
+    ...(input.recordOpenWaggleExtensionRuntimeFailure
+      ? { recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure }
+      : {}),
     ...runtimeResources(input, extensionFactories),
   })
 

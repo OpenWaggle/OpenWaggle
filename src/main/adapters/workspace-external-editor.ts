@@ -185,7 +185,7 @@ export function workspaceExternalEditorDefinition(editorId: WorkspaceExternalEdi
 export async function workspaceExternalEditorCommandAvailable(
   command: string,
   platform: NodeJS.Platform = process.platform,
-): Promise<boolean> {
+) {
   const lookupCommand = platform === 'win32' ? 'where.exe' : 'which'
   try {
     await execFileAsync(lookupCommand, [command], {
@@ -200,9 +200,7 @@ export async function workspaceExternalEditorCommandAvailable(
   }
 }
 
-export async function workspaceExternalEditorPathAvailable(
-  candidatePath: string,
-): Promise<boolean> {
+export async function workspaceExternalEditorPathAvailable(candidatePath: string) {
   try {
     await fs.access(candidatePath)
     return true
@@ -229,7 +227,7 @@ export async function findAvailableWorkspaceExternalEditorCommand(
   commandAvailable: (command: string) => Promise<boolean>,
 ) {
   const available = await Promise.all(commands.map((command) => commandAvailable(command)))
-  return commands.find((_command, index) => available[index] === true)
+  return commands.find((_command, index) => available[index])
 }
 
 export async function findAvailableWorkspaceExternalEditorMacApplication(
@@ -246,7 +244,7 @@ export async function findAvailableWorkspaceExternalEditorMacApplication(
 async function discoverWorkspaceExternalEditorsUncached(
   options: Required<Pick<WorkspaceExternalEditorProbeOptions, 'platform' | 'homeDirectory'>> &
     Pick<WorkspaceExternalEditorProbeOptions, 'commandAvailable' | 'pathAvailable'>,
-): Promise<WorkspaceExternalEditor[]> {
+) {
   const commandAvailable =
     options.commandAvailable ??
     ((command: string) => workspaceExternalEditorCommandAvailable(command, options.platform))
@@ -280,7 +278,7 @@ async function discoverWorkspaceExternalEditorsUncached(
 
 export async function discoverWorkspaceExternalEditors(
   options: WorkspaceExternalEditorProbeOptions = {},
-): Promise<WorkspaceExternalEditor[]> {
+) {
   return discoverWorkspaceExternalEditorsUncached({
     platform: options.platform ?? process.platform,
     homeDirectory: options.homeDirectory ?? homedir(),
@@ -289,9 +287,11 @@ export async function discoverWorkspaceExternalEditors(
   })
 }
 
-export async function listAvailableWorkspaceExternalEditors(): Promise<WorkspaceExternalEditor[]> {
+export async function listAvailableWorkspaceExternalEditors() {
   const now = Date.now()
-  if (discoveryCache && discoveryCache.expiresAt > now) return [...discoveryCache.editors]
+  if (discoveryCache && discoveryCache.expiresAt > now) {
+    return [...discoveryCache.editors] satisfies WorkspaceExternalEditor[]
+  }
   if (discoveryInFlight) return discoveryInFlight
 
   discoveryInFlight = discoverWorkspaceExternalEditors()
@@ -307,9 +307,4 @@ export async function listAvailableWorkspaceExternalEditors(): Promise<Workspace
     })
 
   return discoveryInFlight
-}
-
-export function clearWorkspaceExternalEditorDiscoveryCache() {
-  discoveryCache = null
-  discoveryInFlight = null
 }

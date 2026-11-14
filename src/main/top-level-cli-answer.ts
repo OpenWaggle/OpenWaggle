@@ -15,15 +15,20 @@ export interface TopLevelCliAnswer {
  * the main bundle (top-level-cli-entry.ts) and the boot shim (boot-top-level-cli.ts) print it,
  * so the answer is the same whichever process gives it.
  */
-export function topLevelCliAnswer(
-  route: TopLevelCliRoute,
-  version: string,
-): TopLevelCliAnswer | null {
+export function topLevelCliAnswer(route: TopLevelCliRoute, version: string) {
   if (route.kind === 'help') {
-    return { stream: 'stdout', text: `${topLevelCliUsage(version)}\n`, exitCode: CLI_EXIT.SUCCESS }
+    return {
+      stream: 'stdout',
+      text: `${topLevelCliUsage(version)}\n`,
+      exitCode: CLI_EXIT.SUCCESS,
+    } satisfies TopLevelCliAnswer
   }
   if (route.kind === 'version') {
-    return { stream: 'stdout', text: `${version}\n`, exitCode: CLI_EXIT.SUCCESS }
+    return {
+      stream: 'stdout',
+      text: `${version}\n`,
+      exitCode: CLI_EXIT.SUCCESS,
+    } satisfies TopLevelCliAnswer
   }
   if (route.kind !== 'usage-error') return null
   const text =
@@ -34,5 +39,5 @@ export function topLevelCliAnswer(
           error: { kind: 'usage', message: route.message },
         })}\n`
       : `openwaggle: ${route.message}\n\n${topLevelCliUsage(version)}\n`
-  return { stream: 'stderr', text, exitCode: CLI_EXIT.USAGE }
+  return { stream: 'stderr', text, exitCode: CLI_EXIT.USAGE } satisfies TopLevelCliAnswer
 }

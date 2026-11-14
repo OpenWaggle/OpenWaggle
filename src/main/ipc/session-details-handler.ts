@@ -1,6 +1,6 @@
 import { hostHandle } from './typed-ipc'
 
-export function registerSessionDetailsHandlers(): void {
+export function registerSessionDetailsHandlers() {
   hostHandle('sessions:get-detail')
   hostHandle('sessions:turn-checkpoints:list')
   hostHandle('sessions:turn-diff:get')

@@ -118,7 +118,7 @@ async function hive() {
   return { queen, planner, implementer, reviewer }
 }
 
-describe('Running Workers on a parent summary (ADR 0063)', () => {
+describe('Running Workers on a parent summary (ADR 0065)', () => {
   it('counts live Runs over the whole subtree and the last Run that ended below it', async () => {
     const { queen, planner, implementer, reviewer } = await hive()
 

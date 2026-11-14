@@ -1,7 +1,8 @@
 import type { JsonObject } from '@shared/types/json'
 import { sessionsToolScheduleAction } from './sessions-tool-schedule'
-import { arrayLength, plural, stringArg, type ToolLabel, withDetail } from './tool-label-parts'
+import { arrayLength, plural, stringArg, withDetail } from './tool-label-parts'
 import { SCHEDULE_ACTION_NAMES, scheduleLabel } from './tool-labels-schedule'
+import { hiveToolTargetFields } from './hive-tool-args'
 
 /** How much of a title or objective a row shows; the full text is in the expanded arguments. */
 const DETAIL_MAX_CHARS = 80
@@ -24,12 +25,12 @@ interface ActionVerbs {
   readonly targeted: boolean
 }
 
-function targeted(running: string, done: string): ActionVerbs {
+function targeted(running: string, done: string) {
   return { running, done, targeted: true }
 }
 
-function untargeted(running: string, done: string): ActionVerbs {
-  return { running, done, targeted: false }
+function untargeted(running: string, done: string) {
+  return { running, done, targeted: false } satisfies ActionVerbs
 }
 
 /** Every action of the hive tool (`sessions-tool-*-parameters.ts`), by what it does. */
@@ -116,7 +117,7 @@ export function isWholeSessionsAction(action: string) {
   )
 }
 
-function actionVerbs(action: string): ActionVerbs | null {
+function actionVerbs(action: string) {
   const known = ACTION_VERBS.get(action)
   if (known) return known
   // A delegation action added after this list still reads as one.
@@ -143,21 +144,28 @@ function workerPhrase(agentName: string | null, title: string | null) {
 }
 
 /** A new Session's name before the Hive knows it: what the spawning call asked for. */
-function requestedTarget(action: string, args: JsonObject): SessionsToolTarget | null {
+function requestedTarget(action: string, args: JsonObject) {
   const title = stringArg(args, 'title') ?? stringArg(args, 'objective')
   if (action === 'spawn') {
-    return { title: title ?? '', agentName: stringArg(args, 'agent'), isWorker: true }
+    return {
+      title: title ?? '',
+      agentName: stringArg(args, 'agent'),
+      isWorker: true,
+    } satisfies SessionsToolTarget
   }
   if (action === 'launch' || action === 'create') {
-    return { title: title ?? '', agentName: stringArg(args, 'agent'), isWorker: false }
+    return {
+      title: title ?? '',
+      agentName: stringArg(args, 'agent'),
+      isWorker: false,
+    } satisfies SessionsToolTarget
   }
   return null
 }
 
 /** Who an unresolved report went to; a reported Session the Hive does not know is a Worker. */
 function reportTargetPhrase(args: JsonObject) {
-  const target = args.target
-  if (target === null || typeof target !== 'object' || Array.isArray(target)) return 'Worker'
+  const target = hiveToolTargetFields(args)
   if (target.type === 'queen') return 'the Queen'
   if (target.type === 'upstream') return 'its parent'
   if (target.type === 'sessions' && Array.isArray(target.sessionIds)) {
@@ -181,7 +189,7 @@ function targetPhrase(action: string, args: JsonObject, target: SessionsToolTarg
   return withDetail(name, shortDetail(known.title))
 }
 
-function waitLabel(args: JsonObject): ToolLabel {
+function waitLabel(args: JsonObject) {
   const count = arrayLength(args, 'sessionIds')
   const workers = count === null ? 'Workers' : plural(count, 'Worker')
   return {
@@ -199,7 +207,7 @@ function requestedText(running: string) {
  * The hive tool, named for the Workers it coordinates (ADR 0053). `target` is the Session the
  * call acts on as the Hive knows it now, so a row keeps the title the Hive panel shows.
  */
-export function sessionsLabel(args: JsonObject, target: SessionsToolTarget | null): ToolLabel {
+export function sessionsLabel(args: JsonObject, target: SessionsToolTarget | null) {
   const action = stringArg(args, 'action') ?? ''
   if (action === 'wait') return waitLabel(args)
   const scheduleAction = sessionsToolScheduleAction(args)

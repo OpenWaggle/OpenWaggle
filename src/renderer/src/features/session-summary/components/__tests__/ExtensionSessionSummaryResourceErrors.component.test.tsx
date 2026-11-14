@@ -1,3 +1,4 @@
+import type { SessionResource } from '@shared/types/session-resource'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -16,7 +17,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
 
-function renderSummary(resources = [sessionResource('image')]) {
+function renderSummary(resources: readonly SessionResource[] = [sessionResource('image')]) {
   render(
     <ExtensionSessionSummarySections
       registry={registry([summaryEntry()])}

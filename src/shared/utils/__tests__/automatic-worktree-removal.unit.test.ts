@@ -9,10 +9,8 @@ const DAY = 86_400_000
 const ARCHIVED_AT = 1_000 * DAY
 const ON = { enabled: true, archivedDays: 30 } as const
 
-function candidate(
-  overrides: Partial<AutomaticWorktreeRemovalCandidate> = {},
-): AutomaticWorktreeRemovalCandidate {
-  return {
+function candidate(overrides: Partial<AutomaticWorktreeRemovalCandidate> = {}) {
+  const result: AutomaticWorktreeRemovalCandidate = {
     managed: true,
     archivedAt: ARCHIVED_AT,
     group: 'safe',
@@ -20,6 +18,7 @@ function candidate(
     attention: [],
     ...overrides,
   }
+  return result
 }
 
 describe('Automatic worktree removal decision', () => {

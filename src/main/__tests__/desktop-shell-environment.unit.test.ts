@@ -6,6 +6,7 @@ import {
   readLoginShellEnvironment,
   type ShellEnvironmentCommand,
 } from '../desktop-shell-environment-probes'
+import { required } from '../test-support/required'
 
 function captured(name: string, value: string) {
   return `__OPENWAGGLE_ENV_${name}_START__\n${value}\n__OPENWAGGLE_ENV_${name}_END__\n`
@@ -17,8 +18,9 @@ describe('desktop shell environment inference', () => {
     async () => {
       const environment = await readLoginShellEnvironment('/bin/sh', async (input) => {
         // Reproduce environments that terminate long -c arguments before execution.
-        expect(input.args[1].length).toBeLessThan(512)
-        return execFileSync('/bin/sh', ['-c', input.args[1]], {
+        const script = required(input.args[1], 'the -c script')
+        expect(script.length).toBeLessThan(512)
+        return execFileSync('/bin/sh', ['-c', script], {
           encoding: 'utf8',
           timeout: 5_000,
           env: {
@@ -62,10 +64,10 @@ describe('desktop shell environment inference', () => {
 
     await installDesktopShellEnvironment({ env, platform: 'darwin', runCommand })
 
-    expect(env.PATH).toBe('/Users/test/.volta/bin:/usr/local/bin:/usr/bin:/bin')
-    expect(env.SSH_AUTH_SOCK).toBe('/private/tmp/agent.sock')
-    expect(env.XDG_CURRENT_DESKTOP).toBe('Aqua')
-    expect(env.LC_CTYPE).toBe('en_GB.UTF-8')
+    expect(env).toHaveProperty('PATH', '/Users/test/.volta/bin:/usr/local/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('SSH_AUTH_SOCK', '/private/tmp/agent.sock')
+    expect(env).toHaveProperty('XDG_CURRENT_DESKTOP', 'Aqua')
+    expect(env).toHaveProperty('LC_CTYPE', 'en_GB.UTF-8')
     expect(runCommand).toHaveBeenCalledTimes(1)
   })
 
@@ -82,8 +84,8 @@ describe('desktop shell environment inference', () => {
       runCommand,
     })
 
-    expect(env.PATH).toBe('/opt/homebrew/bin:/usr/bin')
-    expect(env.LC_CTYPE).toBe('en_US.UTF-8')
+    expect(env).toHaveProperty('PATH', '/opt/homebrew/bin:/usr/bin')
+    expect(env).toHaveProperty('LC_CTYPE', 'en_US.UTF-8')
     expect(runCommand.mock.calls.some(([input]) => input.probe === 'launchctl-path')).toBe(true)
   })
 
@@ -101,8 +103,8 @@ describe('desktop shell environment inference', () => {
       runCommand,
     })
 
-    expect(env.XDG_RUNTIME_DIR).toBe('/run/user/501')
-    expect(env.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/run/user/501/bus')
+    expect(env).toHaveProperty('XDG_RUNTIME_DIR', '/run/user/501')
+    expect(env).toHaveProperty('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/501/bus')
   })
 
   it('merges PowerShell profile and system paths without case-insensitive duplicates', async () => {
@@ -123,13 +125,16 @@ describe('desktop shell environment inference', () => {
 
     await installDesktopShellEnvironment({ env, platform: 'win32', runCommand })
 
-    expect(env.PATH?.split(';')).toEqual([
-      'C:\\Profile',
-      'C:\\WINDOWS\\SYSTEM32',
-      'C:\\Users\\test\\AppData\\Roaming\\npm',
-      'C:\\System',
-      'C:\\Existing',
-    ])
-    expect(env.FNM_DIR).toBe('C:\\Users\\test\\.fnm')
+    expect(env).toHaveProperty(
+      'PATH',
+      [
+        'C:\\Profile',
+        'C:\\WINDOWS\\SYSTEM32',
+        'C:\\Users\\test\\AppData\\Roaming\\npm',
+        'C:\\System',
+        'C:\\Existing',
+      ].join(';'),
+    )
+    expect(env).toHaveProperty('FNM_DIR', 'C:\\Users\\test\\.fnm')
   })
 })

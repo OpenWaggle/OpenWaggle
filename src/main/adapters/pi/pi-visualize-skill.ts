@@ -115,9 +115,7 @@ export function ensurePiVisualizeSkill(agentDir: string) {
  * concrete load error when that runtime resource cannot be prepared so the command never
  * looks usable while silently doing nothing.
  */
-export async function getPiVisualizeSkillDiagnostic(
-  agentDir = getAgentDir(),
-): Promise<SkillDiscoveryItem | null> {
+export async function getPiVisualizeSkillDiagnostic(agentDir = getAgentDir()) {
   try {
     await ensurePiVisualizeSkill(agentDir)
     return null
@@ -137,6 +135,6 @@ export async function getPiVisualizeSkillDiagnostic(
       enabled: false,
       loadStatus: 'error',
       loadError: error instanceof Error ? error.message : String(error),
-    }
+    } satisfies SkillDiscoveryItem
   }
 }

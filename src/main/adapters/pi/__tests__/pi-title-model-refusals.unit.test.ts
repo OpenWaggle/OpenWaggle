@@ -13,7 +13,7 @@ import {
   TitleModelRefusals,
 } from '../pi-title-model-refusals'
 
-function model(id: string, input: number, output: number): Model<Api> {
+function model(id: string, input: number, output: number) {
   return fromPartial({
     id,
     provider: 'amazon-bedrock',
@@ -21,7 +21,7 @@ function model(id: string, input: number, output: number): Model<Api> {
     input: ['text', 'image'],
     cost: { input, output, cacheRead: 0, cacheWrite: 0 },
     maxTokens: 8_192,
-  })
+  }) satisfies Model<Api>
 }
 
 describe('isTitleModelRefusal', () => {

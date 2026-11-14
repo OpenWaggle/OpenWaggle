@@ -2,13 +2,10 @@ import { SessionId } from '@shared/types/brand'
 import type {
   SessionResource,
   SessionResourceBackfillStatus,
-  SessionResourceContent,
   SessionResourceList,
-  SessionResourceThumbnailPreview,
 } from '@shared/types/session-resource'
 import { type QueryClient, queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import type { OpenWaggleQueryOptions } from '@/queries/query-options'
 import { whenRendererIdle } from '@/shared/lib/idle-task'
 import { api } from '@/shared/lib/ipc'
 
@@ -19,18 +16,6 @@ export {
   useSessionResource,
   useSessionResourceCatalog,
 } from './useSessionResourceCatalog'
-
-type SessionResourcesQueryKey = readonly ['session-resources', string]
-type SessionResourceBackfillQueryKey = readonly ['session-resource-backfill', string]
-type SessionResourceContentQueryKey =
-  | readonly ['session-resource-content', string, string, number]
-  | readonly ['session-resource-content', string, string, number, string]
-type SessionResourceThumbnailQueryKey = readonly [
-  'session-resource-thumbnail',
-  string,
-  string,
-  number,
-]
 
 const SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS = 100
 const SESSION_RESOURCE_BACKFILL_MAX_POLL_INTERVAL_MS = 2_000
@@ -45,7 +30,7 @@ interface SessionResourceBackfillState extends SessionResourceBackfillStatus {
   readonly stalledAttempts: number
 }
 
-export const sessionResourcesQueryKey = (sessionId: string): SessionResourcesQueryKey =>
+export const sessionResourcesQueryKey = (sessionId: string) =>
   ['session-resources', sessionId] as const
 
 export function invalidateSessionResourceQueries(queryClient: QueryClient, sessionId: string) {
@@ -95,18 +80,17 @@ export function useSessionResourceBackfill(sessionId: string | null) {
   return query
 }
 
-export function sessionResourceBackfillQueryOptions(
-  sessionId: string | null,
-): OpenWaggleQueryOptions<
-  SessionResourceBackfillState,
-  Error,
-  SessionResourceBackfillState,
-  SessionResourceBackfillQueryKey
-> {
+export function sessionResourceBackfillQueryOptions(sessionId: string | null) {
   return queryOptions({
     queryKey: ['session-resource-backfill', sessionId ?? 'none'] as const,
-    queryFn: async ({ client, queryKey }): Promise<SessionResourceBackfillState> => {
-      if (!sessionId) return { backfillComplete: true, progressed: false, stalledAttempts: 0 }
+    queryFn: async ({ client, queryKey }) => {
+      if (!sessionId) {
+        return {
+          backfillComplete: true,
+          progressed: false,
+          stalledAttempts: 0,
+        } satisfies SessionResourceBackfillState
+      }
       const previous = client.getQueryData<SessionResourceBackfillState>(queryKey)
       // Each slice is background work: it waits for the renderer to be idle.
       await whenRendererIdle()
@@ -118,7 +102,7 @@ export function sessionResourceBackfillQueryOptions(
           'Historical session resource indexing stalled. Retry to continue.',
         )
       }
-      return { ...status, stalledAttempts }
+      return { ...status, stalledAttempts } satisfies SessionResourceBackfillState
     },
     enabled: sessionId !== null,
     refetchInterval: (current) => {
@@ -138,20 +122,13 @@ interface SessionResourceQueryState extends SessionResourceList {
   readonly stalledAttempts: number
 }
 
-function normalizeSessionResourceList(
-  result: SessionResourceList | SessionResource[],
-): SessionResourceList {
-  return 'resources' in result ? result : { resources: result, backfillComplete: true }
+function normalizeSessionResourceList(result: SessionResourceList | SessionResource[]) {
+  return (
+    'resources' in result ? result : { resources: result, backfillComplete: true }
+  ) satisfies SessionResourceList
 }
 
-export function sessionResourcesQueryOptions(
-  sessionId: string | null,
-): OpenWaggleQueryOptions<
-  SessionResourceQueryState,
-  Error,
-  SessionResource[],
-  SessionResourcesQueryKey
-> {
+export function sessionResourcesQueryOptions(sessionId: string | null) {
   return queryOptions({
     queryKey: sessionResourcesQueryKey(sessionId ?? 'none'),
     queryFn: async ({ client, queryKey }) => {
@@ -176,8 +153,9 @@ export function sessionResourcesQueryOptions(
     },
     select: (result) => result.resources,
     refetchInterval: (query) => {
-      if (query.state.status === 'error' || query.state.data?.backfillComplete !== false)
+      if (query.state.status === 'error' || query.state.data?.backfillComplete !== false) {
         return false
+      }
       return Math.min(
         SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS *
           SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER ** query.state.data.stalledAttempts,
@@ -192,12 +170,7 @@ export function sessionResourceContentQueryOptions(
   resourceId: string,
   resourceRevision: number,
   preferredFileName?: string,
-): OpenWaggleQueryOptions<
-  SessionResourceContent | null,
-  Error,
-  SessionResourceContent | null,
-  SessionResourceContentQueryKey
-> {
+) {
   return queryOptions({
     queryKey: preferredFileName
       ? ([
@@ -224,12 +197,7 @@ export function sessionResourceThumbnailQueryOptions(
   sessionId: string,
   resourceId: string,
   resourceRevision: number,
-): OpenWaggleQueryOptions<
-  SessionResourceThumbnailPreview | null,
-  Error,
-  SessionResourceThumbnailPreview | null,
-  SessionResourceThumbnailQueryKey
-> {
+) {
   return queryOptions({
     queryKey: ['session-resource-thumbnail', sessionId, resourceId, resourceRevision] as const,
     queryFn: () => api.readSessionResourceThumbnail(SessionId(sessionId), resourceId),
@@ -249,7 +217,6 @@ export function useSessionResources(sessionId: string | null) {
 export function useSessionResourceInvalidation() {
   const queryClient = useQueryClient()
   useEffect(() => {
-    if (typeof api.onSessionResourcesInvalidated !== 'function') return
     return api.onSessionResourcesInvalidated((payload) => {
       void invalidateSessionResourceQueries(queryClient, String(payload.sessionId))
     })

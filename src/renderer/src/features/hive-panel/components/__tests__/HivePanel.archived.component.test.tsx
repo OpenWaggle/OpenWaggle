@@ -10,7 +10,7 @@ import { useHivePanelViewStore } from '../../state/hive-panel-view-store'
 
 const listHiveTreeSessionCatalogPage = vi.hoisted(() => vi.fn())
 const unarchiveSession = vi.hoisted(() => vi.fn())
-type NavigateOptions = {
+interface NavigateOptions {
   to: string
   params: Record<string, string>
   search: (previous: Record<string, unknown>) => Record<string, unknown>

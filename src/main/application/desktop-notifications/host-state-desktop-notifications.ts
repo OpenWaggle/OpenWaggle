@@ -23,13 +23,17 @@ interface HostStateNotificationDependencies {
 export class HostStateDesktopNotifications {
   private stuckWorkers: ReadonlySet<string> | null = null
 
-  constructor(private readonly dependencies: HostStateNotificationDependencies) {}
+  private readonly dependencies: HostStateNotificationDependencies
+
+  constructor(dependencies: HostStateNotificationDependencies) {
+    this.dependencies = dependencies
+  }
 
   /**
    * Workers that became Stuck notify once; one that stops being Stuck withdraws its notice. The
    * first scan only records who is Stuck, so a Host restart does not announce them again.
    */
-  scanStuckWorkers(): Effect.Effect<void> {
+  scanStuckWorkers() {
     return Effect.gen(this, function* () {
       const current = new Set(yield* this.dependencies.facts.stuckWorkerIds())
       const previous = this.stuckWorkers
@@ -49,7 +53,7 @@ export class HostStateDesktopNotifications {
       Effect.catchAllCause((cause) =>
         Effect.logWarning('Stuck Workers could not be checked for Desktop notifications', cause),
       ),
-    )
+    ) satisfies Effect.Effect<void>
   }
 
   private notifyStuck(sessionId: string) {
@@ -67,7 +71,7 @@ export class HostStateDesktopNotifications {
   }
 
   /** Runs that recovery found interrupted because the Host was lost, announced after start. */
-  notifyRunsInterruptedByHostLoss(since: number): Effect.Effect<void> {
+  notifyRunsInterruptedByHostLoss(since: number) {
     const candidate = runSettlementCandidate('interrupted-by-host-loss')
     return Effect.gen(this, function* () {
       if (!candidate) return
@@ -89,20 +93,20 @@ export class HostStateDesktopNotifications {
       Effect.catchAllCause((cause) =>
         Effect.logWarning('Interrupted Runs could not be announced', cause),
       ),
-    )
+    ) satisfies Effect.Effect<void>
   }
 
   /**
    * A Scheduled task the Host stopped for attention always notifies as Failed or interrupted,
    * whatever its policy; one stopped because the person archived its Session does not.
    */
-  notifyScheduledTaskAttention(signal: ScheduledTaskAttentionSignal): Effect.Effect<void> {
+  notifyScheduledTaskAttention(signal: ScheduledTaskAttentionSignal) {
     if (signal.attention.reason === 'target-session-archived') return Effect.void
     const candidate = {
       category: 'failed-or-interrupted',
       reason: 'scheduled-task-attention',
     } as const
-    return Effect.gen(this, function* () {
+    const effect: Effect.Effect<void> = Effect.gen(this, function* () {
       const found = signal.targetSessionId
         ? yield* this.dependencies.facts.session(signal.targetSessionId)
         : null
@@ -126,5 +130,6 @@ export class HostStateDesktopNotifications {
         Effect.logWarning('A Scheduled task notification failed', cause),
       ),
     )
+    return effect
   }
 }

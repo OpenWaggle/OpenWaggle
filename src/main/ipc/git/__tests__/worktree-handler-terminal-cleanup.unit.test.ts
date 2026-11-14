@@ -22,7 +22,7 @@ type WorktreeRemoveHandler = (
 const handlers = new Map<string, WorktreeRemoveHandler>()
 
 const mocks = vi.hoisted(() => {
-  const statusInvalidations: Array<string | undefined> = []
+  const statusInvalidations: (string | undefined)[] = []
   return {
     removeGitWorktree: vi.fn(),
     statusInvalidations,
@@ -53,7 +53,7 @@ vi.mock('../../../services/git-status-cache', () => ({
   },
 }))
 
-const closeAllUnderPathCalls: Array<readonly [string, boolean]> = []
+const closeAllUnderPathCalls: (readonly [string, boolean])[] = []
 const operationOrder: string[] = []
 const mutationScopes: unknown[] = []
 let closeAllUnderPathFailure: Error | null = null
@@ -128,7 +128,7 @@ const REMOVE_FAILURE: GitWorktreeMutationResult = {
 const { registerGitWorktreeHandlers } = await import('../worktree-handler')
 const { runPromise } = await import('effect/Effect')
 
-async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult> {
+async function invokeRemove(payload: unknown) {
   const handler = handlers.get('git:worktrees:remove')
   if (!handler) throw new Error('the worktree remove handler was not registered')
   return runPromise(

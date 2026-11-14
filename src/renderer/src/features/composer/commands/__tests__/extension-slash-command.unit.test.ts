@@ -11,11 +11,10 @@ import {
   invokableExtensionSlashCommandEntries,
   parseExtensionSlashCommand,
 } from '../extension-slash-command'
+import { omitKey } from '@/test-utils/omit-key'
 
-function slashEntry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function slashEntry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample.extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -46,15 +45,14 @@ function slashEntry(
     contentHash: 'content-hash-1',
     ...overrides,
   }
+  return entry
 }
 
-function registry(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): ExtensionContributionRegistryView {
+function registry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return {
     projectPaths: ['/tmp/project'],
     entries,
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
 describe('extension slash command parsing', () => {
@@ -76,7 +74,7 @@ describe('extension slash command parsing', () => {
         registry([
           slashEntry(),
           slashEntry({ family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS }),
-          slashEntry({ contributionId: 'sample.missing-method', method: undefined }),
+          omitKey(slashEntry({ contributionId: 'sample.missing-method' }), 'method'),
           slashEntry({ contributionId: 'compact', title: 'Conflicting compact command' }),
           slashEntry({ contributionId: 'visualize', title: 'Conflicting visualize command' }),
           disabledEntry,

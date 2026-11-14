@@ -21,7 +21,6 @@ import {
 } from '@shared/utils/extension-panel-shortcuts'
 import type { ExtensionSidePanelSurfaceEntry } from '@/features/extensions'
 import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
-import type { ShortcutConflictSource } from './shortcut-browser-model'
 
 export interface PanelCommandShortcutRow {
   readonly kind: 'command'
@@ -73,9 +72,9 @@ function commandRow(
   command: ShortcutCommand,
   label: string,
   description: string,
-): PanelCommandShortcutRow {
+) {
   const binding = shortcutBindingsFromRules(rules)[command]
-  return {
+  const row: PanelCommandShortcutRow = {
     kind: 'command',
     id: `command:${command}`,
     label,
@@ -87,12 +86,11 @@ function commandRow(
       commandRuleIdentities(DEFAULT_SHORTCUT_RULES, command),
     clearable: binding !== null && !hasDefaultBinding(command),
   }
+  return row
 }
 
 /** Built-in panel commands in Panel rail order, then the Right panel toggle. */
-export function buildBuiltInPanelShortcutRows(
-  rules: ShortcutRules,
-): readonly PanelCommandShortcutRow[] {
+export function buildBuiltInPanelShortcutRows(rules: ShortcutRules) {
   const toggle = shortcutDefinition(TOGGLE_RIGHT_PANEL_COMMAND)
   return [
     ...BUILT_IN_RIGHT_PANEL_SURFACES.map((surface) =>
@@ -104,7 +102,7 @@ export function buildBuiltInPanelShortcutRows(
       toggle?.label ?? 'Toggle right panel',
       'Show or hide the Right panel with the surface it last showed',
     ),
-  ]
+  ] satisfies readonly PanelCommandShortcutRow[]
 }
 
 function extensionPanelLabel(surfaceId: string, panels: readonly ExtensionSidePanelSurfaceEntry[]) {
@@ -121,7 +119,7 @@ function extensionPanelLabel(surfaceId: string, panels: readonly ExtensionSidePa
 export function buildExtensionPanelShortcutGroups(
   panels: readonly ExtensionSidePanelSurfaceEntry[],
   bindings: ExtensionPanelShortcutBindings,
-): readonly PanelShortcutGroup[] {
+) {
   const groups = new Map<string, { title: string; rows: ExtensionPanelShortcutRow[] }>()
   for (const panel of panels) {
     const key = panel.entry.extensionId
@@ -158,7 +156,7 @@ export function buildExtensionPanelShortcutGroups(
       ]
     },
   )
-  return [
+  const result: readonly PanelShortcutGroup[] = [
     ...[...groups.entries()]
       .sort(([, left], [, right]) => left.title.localeCompare(right.title))
       .map(([key, group]) => ({ id: `extension:${key}`, title: group.title, rows: group.rows })),
@@ -166,13 +164,14 @@ export function buildExtensionPanelShortcutGroups(
       ? [{ id: 'not-installed', title: 'Extensions not installed', rows: remembered }]
       : []),
   ]
+  return result
 }
 
 /** Extension panel bindings as sources for the rule browser's conflict labels. */
 export function extensionPanelConflictSources(
   panels: readonly ExtensionSidePanelSurfaceEntry[],
   bindings: ExtensionPanelShortcutBindings,
-): readonly ShortcutConflictSource[] {
+) {
   return Object.entries(bindings).map(([surfaceId, binding]) => ({
     id: `extension-panel:${surfaceId}`,
     label: extensionPanelLabel(surfaceId, panels),
@@ -186,15 +185,18 @@ export function panelCommandRulesWithBinding(
   rules: ShortcutRules,
   command: ShortcutCommand,
   binding: ShortcutBinding,
-): ShortcutRules {
+) {
   const representative = rules.filter((rule) => rule.command === command).at(-1)
   const defaultRule = DEFAULT_SHORTCUT_RULES.find((rule) => rule.command === command)
   const scope = shortcutDefinition(command)?.scope ?? 'global'
   const when = (representative ?? defaultRule)?.when ?? shortcutWhenForScope(scope)
   const next: ShortcutRule = { command, shortcut: binding, ...(when.length > 0 ? { when } : {}) }
-  if (representative === undefined) return [...rules, next]
+  if (representative === undefined) return [...rules, next] satisfies ShortcutRules
   const replaced = shortcutRuleIdentity(representative)
-  return [...rules.filter((rule) => shortcutRuleIdentity(rule) !== replaced), next]
+  return [
+    ...rules.filter((rule) => shortcutRuleIdentity(rule) !== replaced),
+    next,
+  ] satisfies ShortcutRules
 }
 
 /** Rules without any rule for the command; the store restores defaults for commands that have them. */

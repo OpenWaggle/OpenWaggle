@@ -56,7 +56,7 @@ function hashValue(value: unknown) {
 function readPiStates(
   piAuthPath: string,
   warn: (message: string, context: Record<string, unknown>) => void,
-): States {
+) {
   let text: string
   try {
     text = readFileSync(piAuthPath, 'utf8')
@@ -102,16 +102,14 @@ function applyChanges(pi: States, layer: OwnLayer, merged: States, next: string)
   }
 }
 
-export function createMcpOAuthStateBackend(
-  options: McpOAuthStateBackendOptions,
-): McpOAuthStorageBackend {
+export function createMcpOAuthStateBackend(options: McpOAuthStateBackendOptions) {
   let memoryLayer: OwnLayer | undefined
   let queue: Promise<unknown> = Promise.resolve()
   const warn = (message: string, context: Record<string, unknown>) =>
     options.onWarning?.(message, context)
   const file = new OwnLayerFile(options, warn)
 
-  function readOwnLayer(): OwnLayer | undefined {
+  function readOwnLayer() {
     if (options.encryption.isEncryptionAvailable()) return file.read()
     memoryLayer ??= { states: {}, tombstones: {} }
     return memoryLayer
@@ -171,5 +169,5 @@ export function createMcpOAuthStateBackend(
       return operation
     },
     persistsWrites: () => options.encryption.isEncryptionAvailable(),
-  }
+  } satisfies McpOAuthStorageBackend
 }

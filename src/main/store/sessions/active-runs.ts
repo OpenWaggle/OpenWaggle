@@ -1,14 +1,14 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionActiveRunRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import type {
   PersistSessionActiveRunInput,
-  RecoverableSessionActiveRun,
   SessionActiveRunIdentity,
   SessionInterruptedRunScope,
 } from '../../ports/session-repository'
 import { runStoreEffect } from '../store-runtime'
 import { hydrateRecoverableActiveRun } from './hydration'
-import type { SessionActiveRunRow } from './types'
 
 export async function recordSessionActiveRun(input: PersistSessionActiveRunInput) {
   const now = Date.now()
@@ -73,11 +73,11 @@ export async function clearInterruptedSessionRuns(input: SessionInterruptedRunSc
   )
 }
 
-export async function listSessionActiveRunsForRecovery(): Promise<RecoverableSessionActiveRun[]> {
+export async function listSessionActiveRunsForRecovery() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<SessionActiveRunRow>`
+      const rows = yield* sql`
         SELECT
           run_id,
           session_id,
@@ -89,7 +89,7 @@ export async function listSessionActiveRunsForRecovery(): Promise<RecoverableSes
         FROM session_active_runs
         WHERE status = ${'running'}
         ORDER BY updated_at ASC
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionActiveRunRowSchema, 'session_active_runs')))
 
       return rows.flatMap((row) => {
         const activeRun = hydrateRecoverableActiveRun(row)

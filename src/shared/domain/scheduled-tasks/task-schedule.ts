@@ -51,7 +51,7 @@ export type ScheduleValidation =
       readonly message: string
     }
 
-function dailyRule(schedule: Extract<TaskSchedule, { kind: 'daily' }>): RecurrenceRule {
+function dailyRule(schedule: Extract<TaskSchedule, { kind: 'daily' }>) {
   const [hour, minute] = schedule.at.split(':').map(Number)
   return {
     frequency: 'DAILY',
@@ -61,16 +61,18 @@ function dailyRule(schedule: Extract<TaskSchedule, { kind: 'daily' }>): Recurren
     ...(schedule.weekdays && schedule.weekdays.length < DAYS_PER_WEEK
       ? { byWeekday: [...new Set(schedule.weekdays)].map((weekday) => ({ weekday })) }
       : {}),
-  }
+  } satisfies RecurrenceRule
 }
 
-function recurrenceOf(schedule: TaskSchedule): RecurrenceRule | string {
+function recurrenceOf(schedule: TaskSchedule) {
   if (schedule.kind === 'interval') {
-    return { frequency: 'MINUTELY', interval: schedule.everyMinutes }
+    return { frequency: 'MINUTELY', interval: schedule.everyMinutes } satisfies
+      | RecurrenceRule
+      | string
   }
-  if (schedule.kind === 'daily') return dailyRule(schedule)
+  if (schedule.kind === 'daily') return dailyRule(schedule) satisfies RecurrenceRule | string
   const parsed = parseRecurrenceRule(schedule.rule)
-  return parsed.ok ? parsed.rule : parsed.message
+  return (parsed.ok ? parsed.rule : parsed.message) satisfies RecurrenceRule | string
 }
 
 export function minimumIntervalMinutes(kind: ScheduledTaskKind) {
@@ -174,10 +176,7 @@ export function jitterMs(taskId: string, nominalAt: number) {
 }
 
 /** The next firing after `after`, with its jitter. */
-export function planNextFiring(
-  definition: ScheduleDefinition,
-  after: number,
-): PlannedFiring | null {
+export function planNextFiring(definition: ScheduleDefinition, after: number) {
   const rule = recurrenceOf(definition.schedule)
   if (typeof rule === 'string') return null
   const nominal = nominalAfter(definition, rule, after)
@@ -185,7 +184,8 @@ export function planNextFiring(
   const runAt = isJittered(definition, rule)
     ? nominal + jitterMs(definition.taskId, nominal)
     : nominal
-  return { nominalAt: nominal, runAt: Math.max(after, runAt) }
+  const firing: PlannedFiring | null = { nominalAt: nominal, runAt: Math.max(after, runAt) }
+  return firing
 }
 
 /** The first look-back window when counting stopped early; it doubles until it holds a firing. */
@@ -254,24 +254,26 @@ export function validateTaskSchedule(input: {
   readonly schedule: TaskSchedule
   readonly timeZone: string
   readonly now: number
-}): ScheduleValidation {
+}) {
   if (!isValidTimeZone(input.timeZone)) {
     return {
       ok: false,
       code: 'invalid_time_zone',
       message: `${input.timeZone} is not a known time zone.`,
-    }
+    } satisfies ScheduleValidation
   }
   const minimum = minimumIntervalMinutes(input.kind)
   const kindLabel = input.kind === 'heartbeat' ? 'A Heartbeat' : 'A Launch schedule'
   const rule = recurrenceOf(input.schedule)
-  if (typeof rule === 'string') return { ok: false, code: 'invalid_schedule', message: rule }
+  if (typeof rule === 'string') {
+    return { ok: false, code: 'invalid_schedule', message: rule } satisfies ScheduleValidation
+  }
   if (input.schedule.kind === 'interval' && input.schedule.everyMinutes < minimum) {
     return {
       ok: false,
       code: 'invalid_schedule',
       message: `${kindLabel} fires at most every ${String(minimum)} minutes.`,
-    }
+    } satisfies ScheduleValidation
   }
   const definition: ScheduleDefinition = {
     taskId: 'validation',
@@ -282,14 +284,18 @@ export function validateTaskSchedule(input: {
   }
   const gap = smallestGapMinutes(definition, rule, input.now)
   if (gap === null) {
-    return { ok: false, code: 'invalid_schedule', message: 'This schedule never fires.' }
+    return {
+      ok: false,
+      code: 'invalid_schedule',
+      message: 'This schedule never fires.',
+    } satisfies ScheduleValidation
   }
   if (gap < minimum) {
     return {
       ok: false,
       code: 'invalid_schedule',
       message: `${kindLabel} fires at most every ${String(minimum)} minutes; this schedule fires ${String(Math.round(gap))} minutes apart.`,
-    }
+    } satisfies ScheduleValidation
   }
-  return { ok: true }
+  return { ok: true } satisfies ScheduleValidation
 }

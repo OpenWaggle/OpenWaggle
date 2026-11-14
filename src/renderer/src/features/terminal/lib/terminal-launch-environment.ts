@@ -1,5 +1,7 @@
 import type { TerminalOpenInput } from '@shared/types/terminal'
 import { createProjectActionTerminalEnvironment } from '@shared/utils/terminal-environment'
+import { uncheckedFields } from '@shared/utils/object-shape'
+import type { ProjectActionContextEnvironment } from '@shared/utils/terminal-environment'
 
 export type TerminalLaunchEnvironment = TerminalOpenInput['env']
 
@@ -21,8 +23,9 @@ export function projectActionEnvironmentForWorktree(
   worktreePath: string,
 ) {
   if (launchEnv === undefined) return undefined
-  const projectRoot = launchEnv.OPENWAGGLE_PROJECT_ROOT
-  if (projectRoot === undefined || projectRoot.length === 0) return undefined
+  const { OPENWAGGLE_PROJECT_ROOT: projectRoot } =
+    uncheckedFields<ProjectActionContextEnvironment>(launchEnv)
+  if (typeof projectRoot !== 'string' || projectRoot.length === 0) return undefined
   return createProjectActionTerminalEnvironment({
     projectRoot,
     worktreePath,

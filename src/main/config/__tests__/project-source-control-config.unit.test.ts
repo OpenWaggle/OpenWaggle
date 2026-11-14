@@ -15,8 +15,11 @@ async function writeSettings(value: unknown) {
   await writeFile(join(projectPath, '.openwaggle', 'settings.json'), JSON.stringify(value))
 }
 
-async function readSettingsFile(): Promise<unknown> {
-  return JSON.parse(await readFile(join(projectPath, '.openwaggle', 'settings.json'), 'utf-8'))
+async function readSettingsFile() {
+  const parsed: unknown = JSON.parse(
+    await readFile(join(projectPath, '.openwaggle', 'settings.json'), 'utf-8'),
+  )
+  return parsed
 }
 
 describe('project source-control declarations', () => {

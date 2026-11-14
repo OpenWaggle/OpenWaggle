@@ -17,7 +17,7 @@ const TRAILING_FILE_REFERENCE_PUNCTUATION = /[.,!?;:)\]}>'"]+$/u
  * Splits text into an array of ReactNode items, replacing composer references
  * with inline file or skill chips. Plain text segments are returned as strings.
  */
-export function renderTextWithMentions(text: string): ReactNode[] {
+export function renderTextWithMentions(text: string) {
   const parts: ReactNode[] = []
   let lastIndex = 0
   let key = 0

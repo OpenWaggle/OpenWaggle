@@ -20,6 +20,6 @@ export function installPromptCacheWarming(service: PromptCacheWarming) {
 }
 
 /** The Host's prompt cache warming, or one that does nothing before it is installed. */
-export function promptCacheWarming(): PromptCacheWarming {
+export function promptCacheWarming() {
   return current
 }

@@ -27,7 +27,7 @@ export function grantForSession(
   sessionId: SessionId,
   key: AgentAuthorizationScopeKey,
   grantedAt = Date.now(),
-): void {
+) {
   const existing = sessionGrants.get(sessionId) ?? new Map<string, ScopedAuthorizationGrant>()
   existing.set(authorizationScopeKeyId(key), {
     requester: key.requester,
@@ -40,12 +40,15 @@ export function grantForSession(
 }
 
 /** Every session grant held for a session. */
-export function listSessionGrants(sessionId: SessionId): readonly ScopedAuthorizationGrant[] {
-  return [...(sessionGrants.get(sessionId)?.values() ?? [])]
+export function listSessionGrants(sessionId: SessionId) {
+  const grant: readonly ScopedAuthorizationGrant[] = [
+    ...(sessionGrants.get(sessionId)?.values() ?? []),
+  ]
+  return grant
 }
 
 /** Drops a session's grants, for session deletion and for tests. */
-export function clearSessionGrants(sessionId?: SessionId): void {
+export function clearSessionGrants(sessionId?: SessionId) {
   if (sessionId === undefined) {
     sessionGrants.clear()
     return
@@ -71,9 +74,11 @@ export async function findGrantCovering(input: {
   readonly sessionId: SessionId
   readonly projectPath: string | null
   readonly key: AgentAuthorizationScopeKey
-}): Promise<MatchedAuthorizationGrant | undefined> {
+}) {
   const sessionMatch = findMatchingGrant(listSessionGrants(input.sessionId), input.key)
-  if (sessionMatch) return { source: 'session', grant: sessionMatch }
+  if (sessionMatch) {
+    return { source: 'session', grant: sessionMatch } satisfies MatchedAuthorizationGrant
+  }
 
   if (!input.projectPath) return undefined
 
@@ -82,7 +87,9 @@ export async function findGrantCovering(input: {
       await listProjectAuthorizationGrants(input.projectPath),
       input.key,
     )
-    return projectMatch ? { source: 'project', grant: projectMatch } : undefined
+    return (projectMatch ? { source: 'project', grant: projectMatch } : undefined) satisfies
+      | MatchedAuthorizationGrant
+      | undefined
   } catch (cause) {
     // An unreadable project config must not be read as "granted".
     logger.warn('Failed to read project authorization grants; treating as no grant', {
@@ -94,24 +101,16 @@ export async function findGrantCovering(input: {
 }
 
 /** Persists a grant for the project, surviving restarts until revoked. */
-export async function grantForProject(
-  projectPath: string,
-  key: AgentAuthorizationScopeKey,
-): Promise<void> {
+export async function grantForProject(projectPath: string, key: AgentAuthorizationScopeKey) {
   await grantProjectAuthorization(projectPath, key)
 }
 
 /** Removes a persisted project grant. Applies from the next request, never retroactively. */
-export async function revokeForProject(
-  projectPath: string,
-  key: AgentAuthorizationScopeKey,
-): Promise<void> {
+export async function revokeForProject(projectPath: string, key: AgentAuthorizationScopeKey) {
   await revokeProjectAuthorization(projectPath, key)
 }
 
 /** Every persisted grant for a project, for the Settings list. */
-export async function listGrantsForProject(
-  projectPath: string,
-): Promise<readonly ScopedAuthorizationGrant[]> {
+export async function listGrantsForProject(projectPath: string) {
   return listProjectAuthorizationGrants(projectPath)
 }

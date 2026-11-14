@@ -90,7 +90,7 @@ function selfArchivingExecutor(
   runtime: () => Runtime.Runtime<HostContext>,
   observed: ObservedRun,
   scenario: Scenario,
-): SessionControlRunExecutorShape {
+) {
   let runs = 0
   return {
     execute: ({ sessionId, runId, controller }) =>
@@ -113,7 +113,7 @@ function selfArchivingExecutor(
           ? { terminalStatus, finalResponse: FINAL_RESPONSE }
           : { terminalStatus }
       }),
-  }
+  } satisfies SessionControlRunExecutorShape
 }
 
 function waitUntil(check: () => boolean, label: string, timeout: '5 seconds' | '40 seconds') {
@@ -304,21 +304,19 @@ describe('a Session agent archiving its own Session', () => {
     ])
   }, 45_000)
 
-  it('does not archive when the Run that asked is stopped', async () => {
-    const result = await runScenario(database('interrupted'), { terminalStatus: 'interrupted' })
+  it.each([
+    ['is stopped', 'interrupted'],
+    ['fails', 'failed'],
+  ] as const)(
+    'does not archive when the Run that asked %s',
+    async (_label, terminalStatus) => {
+      const result = await runScenario(database(terminalStatus), { terminalStatus })
 
-    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
-    expect(result.archivedAfterRun).toBe(false)
-    expect(result.runs).toEqual([{ id: result.runId, status: 'interrupted' }])
-    expect(result.journal).toEqual([])
-  }, 45_000)
-
-  it('does not archive when the Run that asked fails', async () => {
-    const result = await runScenario(database('failed'), { terminalStatus: 'failed' })
-
-    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
-    expect(result.archivedAfterRun).toBe(false)
-    expect(result.runs).toEqual([{ id: result.runId, status: 'failed' }])
-    expect(result.journal).toEqual([])
-  }, 45_000)
+      expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
+      expect(result.archivedAfterRun).toBe(false)
+      expect(result.runs).toEqual([{ id: result.runId, status: terminalStatus }])
+      expect(result.journal).toEqual([])
+    },
+    45_000,
+  )
 })

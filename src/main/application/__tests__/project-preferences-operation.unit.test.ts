@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  grantPending: vi.fn(),
+  resolveMode: vi.fn(),
   setPreferences: vi.fn(),
 }))
 
@@ -22,17 +22,19 @@ vi.mock('../../utils/project-path-validation', async () => {
   }
 })
 
-vi.mock('../agent-loop-authorization-grants', () => ({
-  grantPendingAuthorizationsWhereFullAccess: mocks.grantPending,
-}))
-
 vi.mock('../agent-authorization-mode', () => ({
-  resolveEffectiveAuthorizationMode: vi.fn(),
+  resolveEffectiveAuthorizationMode: mocks.resolveMode,
 }))
 
+import { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
-import { SettingsService, type SettingsServiceShape } from '../../services/settings-service'
+import { SettingsService } from '../../services/settings-service'
+import {
+  clearAgentLoopInteractionBrokerForTests,
+  listPendingAgentLoopInteractions,
+  requestAgentLoopInteraction,
+} from '../agent-loop-interaction-broker'
 import {
   getProjectPreferencesOperation,
   setProjectPreferencesOperation,
@@ -49,12 +51,12 @@ async function writeLegacyModelFile(projectPath: string) {
 
 describe('Host-backed project preferences', () => {
   let storedModels: Record<string, string>
-  let updates: Array<{ selectedModelsByProject?: Record<string, string> }>
-  let projectModelWrites: Array<[string, string | null]> | undefined
-  let projectModelMigrations: Array<[string, string]> | undefined
+  let updates: { selectedModelsByProject?: Record<string, string> }[]
+  let projectModelWrites: [string, string | null][] | undefined
+  let projectModelMigrations: [string, string][] | undefined
   let projectPath: string
 
-  function makeService(): SettingsServiceShape {
+  function makeService() {
     return {
       get: () =>
         Effect.succeed({ ...DEFAULT_SETTINGS, selectedModelsByProject: { ...storedModels } }),
@@ -94,7 +96,8 @@ describe('Host-backed project preferences', () => {
     Effect.runPromise(effect.pipe(Effect.provideService(SettingsService, makeService())))
 
   beforeEach(() => {
-    mocks.grantPending.mockReset().mockResolvedValue(undefined)
+    clearAgentLoopInteractionBrokerForTests()
+    mocks.resolveMode.mockReset().mockResolvedValue('ask-for-approval')
     mocks.setPreferences.mockReset().mockResolvedValue(undefined)
     storedModels = {}
     updates = []
@@ -110,12 +113,36 @@ describe('Host-backed project preferences', () => {
   })
 
   it('settles authoritative pending prompts after enabling full access', async () => {
+    const authorization = (sessionId: SessionId) =>
+      requestAgentLoopInteraction({
+        interaction: {
+          interactionId: `authorize-${sessionId}`,
+          sessionId,
+          runId: 'run-1',
+          kind: 'confirm',
+          source: 'pi-ui',
+          createdAt: 1,
+          title: 'Allow?',
+          message: 'Allow the tool call?',
+          purpose: 'authorization',
+        },
+        onEvent: () => undefined,
+      })
+    const fullAccess = SessionId('full-access-session')
+    const asking = SessionId('asking-session')
+    mocks.resolveMode.mockImplementation((sessionId: SessionId) =>
+      Promise.resolve(sessionId === fullAccess ? 'yolo' : 'ask-for-approval'),
+    )
+    const granted = authorization(fullAccess)
+    void authorization(asking)
+
     await run(setProjectPreferencesOperation('/project', { authorizationMode: 'yolo' }))
 
     expect(mocks.setPreferences).toHaveBeenCalledWith('/project', {
       authorizationMode: 'yolo',
     })
-    expect(mocks.grantPending).toHaveBeenCalledOnce()
+    await expect(granted).resolves.toEqual({ kind: 'confirm', accepted: true })
+    expect(listPendingAgentLoopInteractions()).toMatchObject([{ sessionId: asking }])
   })
 
   it('stores the model in the app settings DB, never in the project settings file', async () => {
@@ -140,16 +167,6 @@ describe('Host-backed project preferences', () => {
     expect(mocks.setPreferences).not.toHaveBeenCalled()
   })
 
-  it('strips a legacy file model when an explicit model replaces it', async () => {
-    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
-    await writeLegacyModelFile(projectPath)
-
-    await run(setProjectPreferencesOperation(projectPath, { model: 'openai/gpt-4.1' }))
-
-    // A model-only set must still rewrite the file so the repo sheds the stale legacy value.
-    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {})
-  })
-
   it('never stores a thinking level as a project preference', async () => {
     await expect(
       run(setProjectPreferencesOperation('/project', { thinkingLevel: 'high' })),
@@ -170,14 +187,18 @@ describe('Host-backed project preferences', () => {
     expect(mocks.setPreferences).not.toHaveBeenCalled()
   })
 
-  it('rewrites the file on an explicit clear when the file still carries a legacy model', async () => {
-    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
-    await writeLegacyModelFile(projectPath)
+  it.each(['openai/gpt-4.1', null])(
+    'rewrites the file to shed a legacy model when the model is set to %s',
+    async (model) => {
+      projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+      await writeLegacyModelFile(projectPath)
 
-    await run(setProjectPreferencesOperation(projectPath, { model: null }))
+      await run(setProjectPreferencesOperation(projectPath, { model }))
 
-    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {})
-  })
+      // A model-only set must still rewrite the file so the repo sheds the stale legacy value.
+      expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {})
+    },
+  )
 
   it('migrates a legacy file model to the DB before an unrelated write strips it', async () => {
     projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
@@ -197,33 +218,23 @@ describe('Host-backed project preferences', () => {
     })
   })
 
-  it('does not resurrect a cleared override when a stale legacy file read migrates', async () => {
+  it.each([
+    { stored: '', reason: 'a cleared override' },
+    { stored: 'db/newer', reason: 'a newer DB value' },
+  ])('does not overwrite $reason when a stale legacy file read migrates', async ({ stored }) => {
     projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
     await writeLegacyModelFile(projectPath)
     projectModelMigrations = []
-    // A queued explicit clear already wrote its tombstone when this write's legacy read started.
-    storedModels = { [projectPath]: '' }
+    // A queued explicit clear or model write landed when this write's legacy read started.
+    storedModels = { [projectPath]: stored }
 
     await run(
       setProjectPreferencesOperation(projectPath, { authorizationMode: 'ask-for-approval' }),
     )
 
-    // The insert-if-absent writer sees the tombstone and leaves the cleared override cleared.
+    // The insert-if-absent writer sees the existing entry and leaves it as it is.
     expect(projectModelMigrations).toEqual([[projectPath, 'legacy/file']])
-    expect(storedModels).toEqual({ [projectPath]: '' })
-  })
-
-  it('does not overwrite a newer DB value when migrating a legacy file model', async () => {
-    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
-    storedModels = { [projectPath]: 'db/newer' }
-    await writeLegacyModelFile(projectPath)
-    projectModelMigrations = []
-
-    await run(
-      setProjectPreferencesOperation(projectPath, { authorizationMode: 'ask-for-approval' }),
-    )
-
-    expect(storedModels).toEqual({ [projectPath]: 'db/newer' })
+    expect(storedModels).toEqual({ [projectPath]: stored })
     expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {
       authorizationMode: 'ask-for-approval',
     })

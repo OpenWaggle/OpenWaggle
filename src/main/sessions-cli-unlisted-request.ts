@@ -11,7 +11,6 @@ import { option, type ParsedArguments } from './mcp-cli-arguments'
 import { sessionControlPayload } from './run-cli-interactions'
 import { sessionCliResultErrorKind } from './session-cli-exit-status'
 import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
-import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
 import {
   type InteractionAnswer,
   interactionResponseFromAnswerAlone,
@@ -75,9 +74,7 @@ async function whyUnlisted(
  * retry whose option alone names the answer's kind is sent as it is, so the Host replays the
  * outcome it recorded for the key.
  */
-export async function unlistedRequestResponse(
-  input: UnlistedRequest,
-): Promise<SessionsCliStructuredInput> {
+export async function unlistedRequestResponse(input: UnlistedRequest) {
   const missing = `Run ${input.runId} of Session ${input.sessionId} has no pending request ${input.interactionId} that this caller may answer.`
   const refusal = await whyUnlisted(input, missing)
   if (refusal) throw refusal
@@ -97,9 +94,7 @@ export async function unlistedRequestResponse(
  * with it, so the CLI asks it with the same probe it uses for an unlisted request. The caller
  * then gets the same exit whether or not `requests-list` showed it the approval.
  */
-export async function approvalRequestError(
-  input: Omit<UnlistedRequest, 'answer' | 'arguments'>,
-): Promise<CliError> {
+export async function approvalRequestError(input: Omit<UnlistedRequest, 'answer' | 'arguments'>) {
   const approve = `openwaggle hive approval-respond ${input.sessionId} ${input.runId} ${input.interactionId} allow|deny`
   const missing = `Run ${input.runId} of Session ${input.sessionId} has no pending request ${input.interactionId} that this caller may answer.`
   const hint = `Request ${input.interactionId} is an approval request. Answer it with '${approve}'.`

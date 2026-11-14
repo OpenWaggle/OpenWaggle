@@ -27,25 +27,23 @@ type CommitPathSelectionResult =
  * callers to understand that detail. If something now occupies the old path, we leave it out so the commit
  * cannot include a replacement file that the user did not select.
  */
-export async function resolveSelectedCommitPaths(
-  projectPath: string,
-  paths: readonly string[],
-): Promise<CommitPathSelectionResult> {
-  if (paths.length === 0) return { ok: true, paths }
+export async function resolveSelectedCommitPaths(projectPath: string, paths: readonly string[]) {
+  if (paths.length === 0) {
+    const result: CommitPathSelectionResult = { ok: true, paths }
+    return result
+  }
 
   const renameResult = await resolveSelectedRenames(projectPath, paths)
   if (!renameResult.ok) return renameResult
-  return { ok: true, paths: expandRenameSources(paths, renameResult.renames) }
+  const result: CommitPathSelectionResult = {
+    ok: true,
+    paths: expandRenameSources(paths, renameResult.renames),
+  }
+  return result
 }
 
 /** The renames among the selected paths, read from the working tree rather than trusted from the caller. */
-async function resolveSelectedRenames(
-  projectPath: string,
-  paths: readonly string[],
-): Promise<
-  | { readonly ok: true; readonly renames: readonly SelectedRename[] }
-  | { readonly ok: false; readonly failure: GitCommitFailure }
-> {
+async function resolveSelectedRenames(projectPath: string, paths: readonly string[]) {
   const status = await runGit(projectPath, [
     ...GIT_RAW_PATHS,
     'status',
@@ -55,7 +53,9 @@ async function resolveSelectedRenames(
   ])
   if (status.code !== 0) {
     const detail = status.stderr.trim()
-    return {
+    const result:
+      | { readonly ok: true; readonly renames: readonly SelectedRename[] }
+      | { readonly ok: false; readonly failure: GitCommitFailure } = {
       ok: false,
       failure: {
         ok: false,
@@ -65,6 +65,7 @@ async function resolveSelectedRenames(
           : 'Could not inspect selected Git paths.',
       },
     }
+    return result
   }
 
   const selected = new Set(paths)
@@ -83,7 +84,9 @@ async function resolveSelectedRenames(
   const renames: SelectedRename[] = []
   for (const entry of inspected) {
     if (!entry.occupancy.ok) {
-      return {
+      const result:
+        | { readonly ok: true; readonly renames: readonly SelectedRename[] }
+        | { readonly ok: false; readonly failure: GitCommitFailure } = {
         ok: false,
         failure: {
           ok: false,
@@ -91,16 +94,17 @@ async function resolveSelectedRenames(
           message: `Could not inspect selected rename source "${entry.pair.from}": ${describeFileSystemError(entry.occupancy.error)}.`,
         },
       }
+      return result
     }
     renames.push({ ...entry.pair, sourceOccupied: entry.occupancy.occupied })
   }
-  return { ok: true, renames }
+  const result:
+    | { readonly ok: true; readonly renames: readonly SelectedRename[] }
+    | { readonly ok: false; readonly failure: GitCommitFailure } = { ok: true, renames }
+  return result
 }
 
-function expandRenameSources(
-  paths: readonly string[],
-  renames: readonly SelectedRename[],
-): readonly string[] {
+function expandRenameSources(paths: readonly string[], renames: readonly SelectedRename[]) {
   if (renames.length === 0) return paths
 
   const selected = new Set(paths)
@@ -124,13 +128,15 @@ function describeFileSystemError(error: unknown) {
 }
 
 /** Check whether anything sits at this path without following broken symlinks. */
-async function inspectPathOccupancy(absolutePath: string): Promise<PathOccupancyResult> {
+async function inspectPathOccupancy(absolutePath: string) {
   try {
     await lstat(absolutePath)
-    return { ok: true, occupied: true }
+    return { ok: true, occupied: true } satisfies PathOccupancyResult
   } catch (error) {
     const code = fileSystemErrorCode(error)
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, occupied: false }
-    return { ok: false, error }
+    if (code === 'ENOENT' || code === 'ENOTDIR') {
+      return { ok: true, occupied: false } satisfies PathOccupancyResult
+    }
+    return { ok: false, error } satisfies PathOccupancyResult
   }
 }

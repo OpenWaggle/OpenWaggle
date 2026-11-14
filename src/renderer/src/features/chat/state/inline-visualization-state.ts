@@ -47,10 +47,7 @@ export function retainInlineVisualizationState(
   }
 }
 
-export function retainedInlineVisualizationState(
-  sessionId: SessionId,
-  sourcePath: string,
-): JsonValue | null {
+export function retainedInlineVisualizationState(sessionId: SessionId, sourcePath: string) {
   const key = retainedStateKey(sessionId, sourcePath)
   const state = retainedStates.get(key)
   if (state === undefined) return null
@@ -61,8 +58,8 @@ export function retainedInlineVisualizationState(
 }
 
 function hasBoundedJsonShape(value: unknown) {
-  const pending: Array<{ readonly depth: number; readonly value: unknown }> = [{ depth: 0, value }]
-  const seen = new WeakSet<object>()
+  const pending: { readonly depth: number; readonly value: unknown }[] = [{ depth: 0, value }]
+  const seen = new WeakSet()
   let nodes = 0
 
   while (pending.length > 0) {
@@ -72,8 +69,9 @@ function hasBoundedJsonShape(value: unknown) {
     if (
       nodes > MAX_INLINE_VISUALIZATION_STATE_NODES ||
       current.depth > MAX_INLINE_VISUALIZATION_STATE_DEPTH
-    )
+    ) {
       return false
+    }
     if (
       current.value === null ||
       typeof current.value === 'string' ||
@@ -91,13 +89,14 @@ function hasBoundedJsonShape(value: unknown) {
   return true
 }
 
-export function decodeInlineVisualizationState(value: unknown): JsonValue | null {
+export function decodeInlineVisualizationState(value: unknown) {
   if (!hasBoundedJsonShape(value)) return null
   const decoded = safeDecodeUnknown(jsonValueSchema, value)
   if (!decoded.success) return null
   const serialized = JSON.stringify(decoded.data)
-  if (new TextEncoder().encode(serialized).byteLength > MAX_INLINE_VISUALIZATION_STATE_BYTES)
+  if (new TextEncoder().encode(serialized).byteLength > MAX_INLINE_VISUALIZATION_STATE_BYTES) {
     return null
+  }
   return decoded.data
 }
 
@@ -116,9 +115,7 @@ export function clearInlineVisualizationState(instanceId: string) {
   mountedStates.delete(instanceId)
 }
 
-export function latestInlineVisualizationContext(
-  sessionId: SessionId,
-): InlineVisualizationContext | null {
+export function latestInlineVisualizationContext(sessionId: SessionId) {
   let latest: MountedVisualizationState | null = null
   for (const value of mountedStates.values()) {
     if (value.sessionId !== sessionId || (latest && value.sequence <= latest.sequence)) continue
@@ -128,10 +125,7 @@ export function latestInlineVisualizationContext(
   return { title: latest.title, sourcePath: latest.sourcePath, state: latest.state }
 }
 
-export function withInlineVisualizationContext(
-  sessionId: SessionId,
-  payload: AgentSendPayload,
-): AgentSendPayload {
+export function withInlineVisualizationContext(sessionId: SessionId, payload: AgentSendPayload) {
   if (payload.visualizationContext) return payload
   const visualizationContext = latestInlineVisualizationContext(sessionId)
   return visualizationContext ? { ...payload, visualizationContext } : payload

@@ -9,15 +9,15 @@ import {
   type PiContextMessage,
 } from '../pi-visualization-context'
 
-function user(text: string, timestamp: number): PiContextMessage {
-  return { role: 'user', content: [{ type: 'text', text }], timestamp }
+function user(text: string, timestamp: number) {
+  return { role: 'user', content: [{ type: 'text', text }], timestamp } satisfies PiContextMessage
 }
 
 function assistant(
   text: string,
   timestamp: number,
   stopReason: 'stop' | 'toolUse' | 'length' = 'stop',
-): PiContextMessage {
+) {
   return {
     role: 'assistant',
     api: 'openai-completions',
@@ -34,17 +34,17 @@ function assistant(
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     },
     timestamp,
-  }
+  } satisfies PiContextMessage
 }
 
-function visualizationContext(timestamp: number): PiContextMessage {
+function visualizationContext(timestamp: number) {
   return {
     role: 'custom',
     customType: PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
     content: 'current visualization state',
     display: false,
     timestamp,
-  }
+  } satisfies PiContextMessage
 }
 
 describe('Pi visualization context filtering', () => {

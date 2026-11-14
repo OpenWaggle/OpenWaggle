@@ -12,14 +12,14 @@ export interface ChildLineagePlan {
   readonly hiveRole: 'worker'
 }
 
-export function planChildLineage(parent: ParentLineageSnapshot): ChildLineagePlan {
+export function planChildLineage(parent: ParentLineageSnapshot) {
   return {
     hiveRootSessionId: parent.hiveRootSessionId ?? parent.parentSessionId,
     depth: (parent.depth ?? 0) + 1,
     hiveRole: 'worker',
-  }
+  } satisfies ChildLineagePlan
 }
 
-export function classifyRootHiveRole(hasChildren: boolean): 'independent-root' | 'queen' {
-  return hasChildren ? 'queen' : 'independent-root'
+export function classifyRootHiveRole(hasChildren: boolean) {
+  return hasChildren ? ('queen' as const) : ('independent-root' as const)
 }

@@ -1,6 +1,6 @@
 import type { SessionControlMutationCommand } from '@shared/types/session-control'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
-import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
+import { positiveInteger, required, requiredSessionId, optionEntry } from './sessions-cli-arguments'
 import {
   delegationClaims,
   delegationEvidence,
@@ -19,11 +19,7 @@ const DEPENDENCY_REASON_POSITION = 5
 const VERIFICATION_OUTCOME_POSITION = 3
 const VERIFICATION_SUMMARY_POSITION = 4
 
-function stateCommand(
-  arguments_: ParsedArguments,
-  sessionId: string,
-  delegationId: string,
-): SessionControlMutationCommand {
+function stateCommand(arguments_: ParsedArguments, sessionId: string, delegationId: string) {
   const state = arguments_.positionals[REVISION_POSITION]
   if (state !== 'working' && state !== 'waiting' && state !== 'needs_attention') {
     throw new Error('Delegation state must be working, waiting, or needs_attention.')
@@ -34,7 +30,7 @@ function stateCommand(
     delegationId,
     state,
     reason: required(arguments_.positionals.slice(CONTENT_START).join(' '), 'Transition reason'),
-  }
+  } satisfies SessionControlMutationCommand
 }
 
 function contributionCommand(
@@ -55,11 +51,7 @@ function contributionCommand(
   }
 }
 
-function dependencyCommand(
-  arguments_: ParsedArguments,
-  sessionId: string,
-  delegationId: string,
-): SessionControlMutationCommand {
+function dependencyCommand(arguments_: ParsedArguments, sessionId: string, delegationId: string) {
   const action = arguments_.positionals[REVISION_POSITION]
   if (action !== 'add' && action !== 'remove') {
     throw new Error('Delegation dependency action must be add or remove.')
@@ -82,7 +74,7 @@ function dependencyCommand(
       arguments_.positionals.slice(DEPENDENCY_REASON_POSITION).join(' '),
       'Dependency reason',
     ),
-  }
+  } satisfies SessionControlMutationCommand
 }
 
 function nonReviewCommand(
@@ -117,13 +109,13 @@ function revisionCommand(
   delegationId: string,
   revision: number,
   structured: SessionsCliStructuredInput,
-): SessionControlMutationCommand {
+) {
   if (action === 'verify') {
     const outcome = arguments_.positionals[VERIFICATION_OUTCOME_POSITION]
     if (outcome !== 'passed' && outcome !== 'failed' && outcome !== 'inconclusive') {
       throw new Error('Delegation verification outcome must be passed, failed, or inconclusive.')
     }
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-verify',
       sessionId,
       delegationId,
@@ -135,9 +127,10 @@ function revisionCommand(
       ),
       evidence: delegationEvidence(arguments_, structured.evidence),
     }
+    return command
   }
   if (action === 'propose-amendment') {
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-propose-amendment',
       sessionId,
       delegationId,
@@ -145,20 +138,22 @@ function revisionCommand(
       specification: delegationSpecification(structured.specification),
       reason: required(arguments_.positionals.slice(CONTENT_START).join(' '), 'Amendment reason'),
     }
+    return command
   }
   if (action === 'amend') {
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-amend',
       sessionId,
       delegationId,
       expectedSpecificationRevision: revision,
       specification: delegationSpecification(structured.specification),
       reason: required(arguments_.positionals.slice(CONTENT_START).join(' '), 'Amendment reason'),
-      ...(option(arguments_, 'proposal') ? { proposalId: option(arguments_, 'proposal') } : {}),
+      ...optionEntry(arguments_, 'proposal', 'proposalId'),
     }
+    return command
   }
   if (action === 'accept') {
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-accept',
       sessionId,
       delegationId,
@@ -167,10 +162,11 @@ function revisionCommand(
         ? { note: arguments_.positionals.slice(CONTENT_START).join(' ') }
         : {}),
     }
+    return command
   }
   if (action === 'request-revision') {
     const revisedObjective = option(arguments_, 'revised-objective')
-    return {
+    const command: SessionControlMutationCommand = {
       operation: 'delegation-request-revision',
       sessionId,
       delegationId,
@@ -190,6 +186,7 @@ function revisionCommand(
           }
         : {}),
     }
+    return command
   }
   throw new Error(`Unsupported Delegation action: ${action}.`)
 }
@@ -199,7 +196,7 @@ export function delegationCommand(
   command: string,
   arguments_: ParsedArguments,
   structured: SessionsCliStructuredInput = {},
-): SessionControlMutationCommand {
+) {
   const action = command.slice('delegation-'.length)
   const sessionId = requiredSessionId(arguments_.positionals[SESSION_POSITION])
   const delegationId = required(arguments_.positionals[DELEGATION_POSITION], 'Delegation ID')
@@ -213,7 +210,7 @@ export function delegationCommand(
         'Submission summary',
       ),
       evidence: delegationEvidence(arguments_, structured.evidence),
-    }
+    } satisfies SessionControlMutationCommand
   }
   const nonReview = nonReviewCommand(action, arguments_, sessionId, delegationId, structured)
   if (nonReview) return nonReview
@@ -226,7 +223,7 @@ export function delegationCommand(
         arguments_.positionals.slice(REVISION_POSITION).join(' '),
         'Transition reason',
       ),
-    }
+    } satisfies SessionControlMutationCommand
   }
   const revisionLabel =
     action === 'amend' || action === 'propose-amendment'
@@ -234,5 +231,12 @@ export function delegationCommand(
       : 'Submission revision'
   const revision = positiveInteger(arguments_.positionals[REVISION_POSITION], revisionLabel)
   if (revision === 0) throw new Error(`${revisionLabel} must be positive.`)
-  return revisionCommand(action, arguments_, sessionId, delegationId, revision, structured)
+  return revisionCommand(
+    action,
+    arguments_,
+    sessionId,
+    delegationId,
+    revision,
+    structured,
+  ) satisfies SessionControlMutationCommand
 }

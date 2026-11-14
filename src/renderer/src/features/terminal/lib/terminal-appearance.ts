@@ -34,9 +34,7 @@ export interface TerminalAppearance {
   readonly fontSize: number
 }
 
-function importedAnsiTheme(
-  colors: Readonly<Record<string, string>>,
-): Partial<Pick<ITheme, AnsiThemeRole>> {
+function importedAnsiTheme(colors: Readonly<Record<string, string>>) {
   const theme: Partial<Pick<ITheme, AnsiThemeRole>> = {}
   for (const [role, key] of ANSI_THEME_ENTRIES) {
     const color = normalizeTerminalPaletteColor(colors[key])
@@ -46,7 +44,7 @@ function importedAnsiTheme(
 }
 
 /** Maps OpenWaggle's semantic CSS custom properties onto xterm's theme shape. */
-export function readTerminalAppearance(): TerminalAppearance {
+export function readTerminalAppearance() {
   const styles = getComputedStyle(document.documentElement)
   const color = (name: string) => styles.getPropertyValue(name).trim()
   const accent = color('--color-accent')
@@ -78,11 +76,12 @@ export function readTerminalAppearance(): TerminalAppearance {
   }
 
   const fontSize = Number.parseFloat(styles.getPropertyValue('--font-terminal-size'))
-  return {
+  const appearance: TerminalAppearance = {
     fontFamily: terminalFontFamilyWithSymbols(styles.getPropertyValue('--font-terminal').trim()),
     fontSize: Number.isFinite(fontSize) ? fontSize : DEFAULT_TERMINAL_FONT_SIZE,
     theme,
   }
+  return appearance
 }
 
 /** Live-updates a terminal's appearance from OpenWaggle's design tokens. */
@@ -91,7 +90,7 @@ export function observeTerminalAppearance(
     options: { theme?: ITheme; fontFamily?: string; fontSize?: number }
   },
   refit: () => void,
-): () => void {
+) {
   const apply = () => {
     const appearance = readTerminalAppearance()
     term.options.theme = appearance.theme

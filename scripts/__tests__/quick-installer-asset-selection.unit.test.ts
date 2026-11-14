@@ -21,7 +21,8 @@ ${BLOCKMAP_CHECKSUM}  openwaggle-1.0.0-beta.3-arm64.dmg.blockmap
 
 function releaseJson(assetNames: readonly string[]) {
   const assets = assetNames.map(
-    (name) => `    {\n      "name": "${name}",\n      "browser_download_url": "${DOWNLOAD_ROOT}/${name}"\n    }`,
+    (name) =>
+      `    {\n      "name": "${name}",\n      "browser_download_url": "${DOWNLOAD_ROOT}/${name}"\n    }`,
   )
   return `{\n  "tag_name": "v1.0.0-beta.3",\n  "assets": [\n${assets.join(',\n')}\n  ]\n}`
 }
@@ -50,7 +51,9 @@ describe('quick installer asset selection', () => {
       await expect(
         runResolution(lookup, checksumFile, 'openwaggle-1.0.0-beta.3-x86_64.AppImage'),
       ).resolves.toBe('1111111111111111111111111111111111111111111111111111111111111111')
-      await expect(runResolution(lookup, checksumFile, 'openwaggle-1.0.0-beta.3-x64.dmg')).resolves.toBe('')
+      await expect(
+        runResolution(lookup, checksumFile, 'openwaggle-1.0.0-beta.3-x64.dmg'),
+      ).resolves.toBe('')
     } finally {
       await fs.rm(directory, { recursive: true, force: true })
     }

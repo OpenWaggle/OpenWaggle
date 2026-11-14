@@ -25,10 +25,10 @@ import {
  * these operations must get right, so the validation module is not mocked here.
  */
 describe('project preference operations retain canonical identities for aliases', () => {
-  let aliasRecords: Array<[string, string]>
-  let aliasRemovals: Array<string>
-  let modelWrites: Array<[string, string | null]>
-  let removals: Array<string>
+  let aliasRecords: [string, string][]
+  let aliasRemovals: string[]
+  let modelWrites: [string, string | null][]
+  let removals: string[]
 
   beforeEach(() => {
     aliasRecords = []

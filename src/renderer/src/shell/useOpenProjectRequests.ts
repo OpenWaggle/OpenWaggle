@@ -28,7 +28,7 @@ async function openRequestedProject(
   }
 }
 
-export function useOpenProjectRequests(): void {
+export function useOpenProjectRequests() {
   const navigate = useNavigate()
   const settingsLoaded = usePreferencesStore((state) => state.isLoaded)
 

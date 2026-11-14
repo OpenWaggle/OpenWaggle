@@ -10,18 +10,19 @@ import { appendThinkingDelta } from '../chat-stream-state-helpers'
  * drop a tool call or thinking block from the live view, and the byte caps can cut the buffer.
  */
 
-const text = (content: string): UIMessagePart => ({ type: 'text', content })
-const thought = (content: string, step?: number): UIMessagePart =>
-  step === undefined
+const text = (content: string) => ({ type: 'text', content }) satisfies UIMessagePart
+const thought = (content: string, step?: number) =>
+  (step === undefined
     ? { type: 'thinking', content }
-    : { type: 'thinking', content, stepId: `a1:thinking:${String(step)}` }
-const tool = (id: string): UIMessagePart => ({
-  type: 'tool-call',
-  id,
-  name: 'bash',
-  arguments: '{}',
-  state: 'complete',
-})
+    : { type: 'thinking', content, stepId: `a1:thinking:${String(step)}` }) satisfies UIMessagePart
+const tool = (id: string) =>
+  ({
+    type: 'tool-call',
+    id,
+    name: 'bash',
+    arguments: '{}',
+    state: 'complete',
+  }) satisfies UIMessagePart
 
 function merge(input: {
   readonly buffer: readonly UIMessagePart[]
@@ -131,7 +132,7 @@ describe('reconnect merge of the streaming answer parts', () => {
   })
 
   /** A running codemode call that made `count` nested calls. */
-  function codemode(count: number): UIMessagePart {
+  function codemode(count: number) {
     return {
       type: 'tool-call',
       id: 'code-1',
@@ -147,7 +148,7 @@ describe('reconnect merge of the streaming answer parts', () => {
         })),
         complete: true,
       },
-    }
+    } satisfies UIMessagePart
   }
 
   function nestedCallCount(parts: readonly UIMessagePart[] | undefined) {
@@ -180,17 +181,18 @@ describe('reconnect merge of the streaming answer parts', () => {
   })
 
   it('takes a nested call the buffer saw finish over the shown copy that still runs it', () => {
-    const withCall = (status: 'ok' | 'unfinished'): UIMessagePart => ({
-      type: 'tool-call',
-      id: 'code-1',
-      name: 'codemode',
-      arguments: '{}',
-      state: 'executing',
-      nestedCalls: {
-        calls: [{ id: 'code-1/1', name: 'read', args: {}, status }],
-        complete: status === 'ok',
-      },
-    })
+    const withCall = (status: 'ok' | 'unfinished') =>
+      ({
+        type: 'tool-call',
+        id: 'code-1',
+        name: 'codemode',
+        arguments: '{}',
+        state: 'executing',
+        nestedCalls: {
+          calls: [{ id: 'code-1/1', name: 'read', args: {}, status }],
+          complete: status === 'ok',
+        },
+      }) satisfies UIMessagePart
 
     const merged = merge({
       buffer: [withCall('ok')],

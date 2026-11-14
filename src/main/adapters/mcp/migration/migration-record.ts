@@ -27,13 +27,13 @@ const fileRecordSchema = Schema.Struct({
 const oauthRecordSchema = Schema.Struct({
   migratedAt: Schema.String,
   status: Schema.Literal('migrated', 'skipped'),
-  reason: Schema.optional(Schema.String),
+  reason: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 const sessionSwitchRecordSchema = Schema.Struct({ migratedAt: Schema.String })
 
 const legacyServerIdentitySchema = Schema.Struct({
-  configHash: Schema.optional(Schema.String),
+  configHash: Schema.optionalWith(Schema.String, { exact: true }),
   identity: Schema.String,
 })
 
@@ -54,7 +54,7 @@ const migrationRecordSchema = Schema.Struct({
    * Decided on the first run: the projects whose on/off state the migration keeps, or null when
    * OpenWaggle had no MCP setup to keep (no old state.json and no ~/.openwaggle/mcp.json).
    */
-  legacyProjects: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+  legacyProjects: Schema.optionalWith(Schema.NullOr(Schema.Array(Schema.String)), { exact: true }),
   /**
    * The server name each old instance ID (state.json `servers[*].instanceId`) stood for, so Agent
    * definitions and Session profiles that still name a server by that ID keep reaching it.
@@ -75,7 +75,7 @@ const migrationRecordSchema = Schema.Struct({
   /** Home-folder projects whose left-out on/off choices were already logged. */
   homeFolderNotices: Schema.optionalWith(Schema.Array(Schema.String), { default: () => [] }),
   /** Every old MCP-off Session switch was carried over, so the old state is needed no more. */
-  sessionSwitchesDone: Schema.optional(Schema.Boolean),
+  sessionSwitchesDone: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type
@@ -88,20 +88,44 @@ export function migrationRecordPath(homeDir: string) {
 
 /** Mutable in-memory view of the record, persisted after every handled file. */
 export class McpMigrationRecord {
+  private readonly fs: McpMigrationFs
+  private readonly filePath: string
+  private readonly files: Record<string, McpMigrationFileRecord>
+  private readonly oauth: Record<string, McpMigrationOAuthRecord>
+  private readonly sessionSwitches: Record<string, McpMigrationSessionSwitchRecord>
+  private legacy: readonly string[] | null | undefined
+  private readonly serverNames: Record<string, string>
+  private readonly serverIdentities: Record<string, McpLegacyServerIdentity>
+  private readonly homeNotices: Set<string>
+  private switchesDone: boolean
+  /** Whether the record is on disk: a marker alone never creates it. */
+  private onDisk: boolean
+
   private constructor(
-    private readonly fs: McpMigrationFs,
-    private readonly filePath: string,
-    private readonly files: Record<string, McpMigrationFileRecord>,
-    private readonly oauth: Record<string, McpMigrationOAuthRecord>,
-    private readonly sessionSwitches: Record<string, McpMigrationSessionSwitchRecord>,
-    private legacy: readonly string[] | null | undefined,
-    private readonly serverNames: Record<string, string> = {},
-    private readonly serverIdentities: Record<string, McpLegacyServerIdentity> = {},
-    private readonly homeNotices: Set<string> = new Set(),
-    private switchesDone = false,
-    /** Whether the record is on disk: a marker alone never creates it. */
-    private onDisk = false,
-  ) {}
+    fs: McpMigrationFs,
+    filePath: string,
+    files: Record<string, McpMigrationFileRecord>,
+    oauth: Record<string, McpMigrationOAuthRecord>,
+    sessionSwitches: Record<string, McpMigrationSessionSwitchRecord>,
+    legacy: readonly string[] | null | undefined,
+    serverNames: Record<string, string> = {},
+    serverIdentities: Record<string, McpLegacyServerIdentity> = {},
+    homeNotices = new Set<string>(),
+    switchesDone = false,
+    onDisk = false,
+  ) {
+    this.fs = fs
+    this.filePath = filePath
+    this.files = files
+    this.oauth = oauth
+    this.sessionSwitches = sessionSwitches
+    this.legacy = legacy
+    this.serverNames = serverNames
+    this.serverIdentities = serverIdentities
+    this.homeNotices = homeNotices
+    this.switchesDone = switchesDone
+    this.onDisk = onDisk
+  }
 
   static async load(fs: McpMigrationFs, homeDir: string) {
     const filePath = migrationRecordPath(homeDir)
@@ -137,13 +161,13 @@ export class McpMigrationRecord {
   }
 
   /** Old instance ID to server name; see `legacyServerNames` in the schema. */
-  get legacyServerNames(): ReadonlyMap<string, string> {
-    return new Map(Object.entries(this.serverNames))
+  get legacyServerNames() {
+    return new Map<string, string>(Object.entries(this.serverNames))
   }
 
   /** Old instance ID to what its server was; see `legacyServerIdentities` in the schema. */
-  get legacyServerIdentities(): ReadonlyMap<string, McpLegacyServerIdentity> {
-    return new Map(Object.entries(this.serverIdentities))
+  get legacyServerIdentities() {
+    return new Map<string, McpLegacyServerIdentity>(Object.entries(this.serverIdentities))
   }
 
   noteLegacyServerIdentities(identities: ReadonlyMap<string, McpLegacyServerIdentity>) {

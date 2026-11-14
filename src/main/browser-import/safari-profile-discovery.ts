@@ -9,12 +9,7 @@ import {
 const SAFARI_DEFAULT_PROFILE_ID = 'DefaultProfile'
 const SAFARI_PROFILE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 
-interface SafariProfileRow {
-  readonly title: string | null
-  readonly external_uuid: string
-}
-
-function asSafariProfileRow(value: unknown): SafariProfileRow | undefined {
+function asSafariProfileRow(value: unknown) {
   if (
     typeof value !== 'object' ||
     value === null ||
@@ -67,9 +62,7 @@ async function scannedSafariProfiles(storesRoot: string) {
   }
 }
 
-export async function listSafariProfiles(
-  cookieRoot: string,
-): Promise<readonly BrowserImportSourceProfile[]> {
+export async function listSafariProfiles(cookieRoot: string) {
   const libraryRoot = path.dirname(cookieRoot)
   const declared = declaredSafariProfiles(path.join(libraryRoot, 'Safari', 'SafariTabs.db'))
   const defaultProfile = declared.find(

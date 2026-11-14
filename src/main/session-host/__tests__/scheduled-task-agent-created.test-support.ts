@@ -47,7 +47,7 @@ export function fakeScheduledTaskDispatch() {
 /** The Run in which the agent schedules work. */
 export const AGENT_RUN = 'run-agent'
 
-export function launchInput(projectPath: string): ScheduledTaskInput {
+export function launchInput(projectPath: string) {
   return {
     name: 'Daily triage',
     prompt: 'Triage the new errors.',
@@ -60,7 +60,7 @@ export function launchInput(projectPath: string): ScheduledTaskInput {
       workspace: 'new-worktree',
       archiveFinishedSessions: true,
     },
-  }
+  } satisfies ScheduledTaskInput
 }
 
 export function setCeiling(sessionId: string, ceiling: 'yolo' | 'ask-for-approval') {

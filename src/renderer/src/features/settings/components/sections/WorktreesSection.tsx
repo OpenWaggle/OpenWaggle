@@ -126,8 +126,13 @@ function InventoryProblems(props: {
   )
 }
 
-function removalRequest(entry: WorktreeInventoryEntry): WorktreeRemovalRequest {
-  return { path: entry.path, projectPath: entry.projectPath, skipCleanup: false, force: false }
+function removalRequest(entry: WorktreeInventoryEntry) {
+  return {
+    path: entry.path,
+    projectPath: entry.projectPath,
+    skipCleanup: false,
+    force: false,
+  } satisfies WorktreeRemovalRequest
 }
 
 /** The filters and the three groups of worktrees. */

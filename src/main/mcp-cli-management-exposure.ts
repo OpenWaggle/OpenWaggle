@@ -14,7 +14,7 @@ export const MCP_CLI_DIRECT_EXPOSURE_MESSAGE =
   'Use --exposure codemode.'
 
 /** `--exposure` as OpenWaggle writes it; `direct` is refused, not rewritten. */
-export function mcpCliExposureOption(value: string | undefined): McpRuntimeExposure | undefined {
+export function mcpCliExposureOption(value: string | undefined) {
   if (value === undefined) return undefined
   if (value === 'direct') throw new McpCliUsageError(MCP_CLI_DIRECT_EXPOSURE_MESSAGE)
   const exposure = MCP_CLI_EXPOSURE_VALUES.find((candidate) => candidate === value)
@@ -30,6 +30,6 @@ export function mcpCliExposureOption(value: string | undefined): McpRuntimeExpos
  * The exposure a CLI report shows: the one OpenWaggle runs. A file that says `direct` is read as
  * it is and shown as `codemode`; the file is never rewritten.
  */
-export function mcpCliShownExposure(exposure: McpServerExposure): McpRuntimeExposure {
+export function mcpCliShownExposure(exposure: McpServerExposure) {
   return openWaggleMcpExposure(exposure)
 }

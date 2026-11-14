@@ -5,9 +5,7 @@ import {
   submitAgentLoopInteractionResponse,
 } from './agent-loop-interaction-broker'
 
-export function grantPendingAuthorizationsForSession(input: {
-  readonly sessionId: SessionId
-}): number {
+export function grantPendingAuthorizationsForSession(input: { readonly sessionId: SessionId }) {
   let granted = 0
   const pending = listPendingAgentLoopInteractions(input.sessionId)
   for (const interaction of pending) {
@@ -29,7 +27,7 @@ export function grantPendingAuthorizationsForSession(input: {
 
 export async function grantPendingAuthorizationsWhereFullAccess(
   resolveMode: (sessionId: SessionId) => Promise<AgentAuthorizationMode>,
-): Promise<number> {
+) {
   const sessionIds = new Set<SessionId>()
   for (const interaction of listPendingAgentLoopInteractions()) {
     if (interaction.kind !== 'confirm' || interaction.purpose !== 'authorization') continue

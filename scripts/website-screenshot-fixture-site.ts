@@ -81,7 +81,7 @@ function isAddressInUse(error: unknown) {
 }
 
 /** Serves the dashboard on a loopback port for as long as the capture needs it. */
-export async function startFixtureSite(): Promise<FixtureSite> {
+export async function startFixtureSite() {
   const server = http.createServer((_request, response) => {
     response.writeHead(HTTP_OK, { 'content-type': 'text/html; charset=utf-8' })
     response.end(JOTTER_PAGE)

@@ -46,7 +46,7 @@ function validateOAuthProvider(provider: string) {
 
 let stopAuthLifecycle: (() => void) | null = null
 
-export function registerAuthHandlers(): void {
+export function registerAuthHandlers() {
   if (stopAuthLifecycle) stopAuthLifecycle()
   stopAuthLifecycle = startAuthLifecycle(broadcastOAuthStatus)
 

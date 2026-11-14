@@ -3,7 +3,6 @@ import {
   MCP_CATALOG_FILL_WAIT_MS,
   MCP_TOOL_CATALOG_MAX_AGE_MS,
   McpCatalogFills,
-  type McpToolCatalog,
   mcpStartupWaitMs,
   memoryMcpToolCatalogStore,
 } from '../mcp-connection-catalog'
@@ -44,7 +43,7 @@ async function connect(lease: ReturnType<McpSessionConnectionPool['lease']>) {
   await flush()
 }
 
-function seeded(savedAt = Date.now()): McpToolCatalog {
+function seeded(savedAt = Date.now()) {
   return { initialize: INSTRUCTED, toolsPages: { '': TOOLS }, savedAt }
 }
 

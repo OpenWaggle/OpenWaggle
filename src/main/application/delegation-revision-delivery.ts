@@ -13,6 +13,12 @@ import { publishControlResponse } from './session-control-event-projection'
 
 const logger = createLogger('delegation-revision')
 
+/** Why a revision request did not reach its Worker: a refusal code or the failure. */
+interface UnsentDetails {
+  readonly code?: string
+  readonly cause?: string
+}
+
 /**
  * After a command sent the Worker back to work (`revision_requested`, next actor the Worker),
  * queue its revision request as the reviewer's Follow-up (`delegationRevisionFollowUp`), which
@@ -32,11 +38,11 @@ export function sendDelegationRevisionToWorker<R>(input: {
   readonly execute: (
     request: SessionControlFollowUpMutationRequest,
   ) => Effect.Effect<SessionControlMutationResponse, unknown, R>
-}): Effect.Effect<void, never, R | SessionDelegationRepository> {
+}) {
   const request = delegationRevisionFollowUp(input.review, input.response)
   if (!request) return Effect.void
   const workerSessionId = request.command.sessionId
-  const unsent = (details: Readonly<Record<string, unknown>>) =>
+  const unsent = (details: UnsentDetails) =>
     Effect.sync(() =>
       logger.warn('A Delegation revision request did not reach its Worker', {
         workerSessionId,

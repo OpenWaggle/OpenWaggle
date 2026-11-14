@@ -44,8 +44,8 @@ vi.mock('@/shared/hooks/useEscapeHotkey', () => ({
   },
 }))
 
-function focusHarnessNodes(): readonly SessionNode[] {
-  return [node({ id: 'root', depth: 0, order: 1 })]
+function focusHarnessNodes() {
+  return [node({ id: 'root', depth: 0, order: 1 })] satisfies readonly SessionNode[]
 }
 
 function FocusHarness() {

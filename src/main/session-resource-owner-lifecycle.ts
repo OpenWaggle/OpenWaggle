@@ -1,6 +1,9 @@
 import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import type { SessionId } from '@shared/types/brand'
-import type { Event, WebContents, WebContentsDidStartNavigationEventParams } from 'electron'
+import type {
+  RendererSurface,
+  RendererSurfaceNavigationStart,
+} from './ports/desktop-shell/renderer-surfaces'
 import {
   isSessionResourceDownloadNavigation,
   unregisterSessionResourceContentReferencesForOwner,
@@ -9,7 +12,7 @@ import {
 type PurgeOwner = (ownerId: number) => void
 
 interface MonitoredOwner {
-  readonly sender: WebContents
+  readonly sender: RendererSurface
   readonly purgeOwner: PurgeOwner
   sessionId: SessionId | null
   controller: AbortController
@@ -31,7 +34,7 @@ function startOwnerSession(owner: MonitoredOwner, sessionId: SessionId) {
 }
 
 export function monitorSessionResourceContentOwner(
-  sender: WebContents,
+  sender: RendererSurface,
   purgeOwner: PurgeOwner = unregisterSessionResourceContentReferencesForOwner,
 ) {
   const existing = monitoredOwners.get(sender.id)
@@ -44,14 +47,15 @@ export function monitorSessionResourceContentOwner(
     routeSessionKnown: false,
   }
   monitoredOwners.set(sender.id, owner)
-  const onNavigation = (event: Event<WebContentsDidStartNavigationEventParams>) => {
+  const onNavigation = (event: RendererSurfaceNavigationStart) => {
     if (!event.isMainFrame || event.isSameDocument) return
     // Chromium announces attachment downloads as navigation even though the document stays open.
     if (
       event.url.startsWith(`${SESSION_RESOURCE_PROTOCOL.SCHEME}:`) &&
       isSessionResourceDownloadNavigation(event.url, sender.id, sender.getURL())
-    )
+    ) {
       return
+    }
     invalidateOwner(owner, true)
   }
   const stopMonitoring = () => {
@@ -74,7 +78,7 @@ export function monitorSessionResourceContentOwner(
   return owner
 }
 
-export function beginSessionResourceContentRequest(sender: WebContents, sessionId: SessionId) {
+export function beginSessionResourceContentRequest(sender: RendererSurface, sessionId: SessionId) {
   const owner = monitorSessionResourceContentOwner(sender)
   // Older renderer documents do not announce their route. Preserve their single-Session behavior,
   // but once a current renderer has announced B (or explicitly cleared its route), a delayed read
@@ -99,7 +103,7 @@ export function beginSessionResourceContentRequest(sender: WebContents, sessionI
  * image element or copied capability URL cannot retain access to the previously displayed Session.
  */
 export function activateSessionResourceContentOwner(
-  sender: WebContents,
+  sender: RendererSurface,
   sessionId: SessionId | null,
 ) {
   const owner = monitorSessionResourceContentOwner(sender)

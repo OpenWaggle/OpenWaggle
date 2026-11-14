@@ -1,10 +1,6 @@
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
-import type {
-  LocalSessionProfileManagementEnvelope,
-  LocalSessionProfileScope,
-} from '@shared/types/local-session-profile'
-import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
+import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
+import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
 import { sessionIdsFromReferences } from '@shared/utils/session-link'
 import { resolveCliProjectPaths } from './cli-project-path'
 import { CommandCliUsageError } from './command-cli-option-contract'
@@ -36,7 +32,7 @@ const MANAGEMENT_TARGET_OPTIONS = [
 export function parseProfileCapabilities(
   values: readonly string[] | undefined,
   label = 'capability',
-): readonly SessionCapability[] {
+) {
   const requested = values ?? []
   const invalid = requested.filter(
     (value) => !SESSION_CAPABILITIES.some((capability) => capability === value),
@@ -54,25 +50,25 @@ function scopeFromOptions(
   arguments_: ParsedArguments,
   prefix: '' | 'manage-',
   workingDirectory: string,
-): LocalSessionProfileScope {
+) {
   const values = (name: string) => arguments_.options.get(`${prefix}${name}`)
   const paths = (name: string) => resolveCliProjectPaths(values(name), workingDirectory)
+  const projectPaths = paths('project')
+  const exportRoots = paths('export-root')
+  const attachmentRoots = paths('attachment-root')
   const sessions = values('session')
   const hives = values('hive')
   return {
     ...(hasFlag(arguments_, `${prefix}all`) ? { all: true } : {}),
-    ...(values('project') ? { projectPaths: paths('project') } : {}),
-    ...(values('export-root') ? { exportRoots: paths('export-root') } : {}),
-    ...(values('attachment-root') ? { attachmentRoots: paths('attachment-root') } : {}),
+    ...(projectPaths ? { projectPaths } : {}),
+    ...(exportRoots ? { exportRoots } : {}),
+    ...(attachmentRoots ? { attachmentRoots } : {}),
     ...(sessions ? { sessionIds: sessionIdsFromReferences(sessions, `--${prefix}session`) } : {}),
     ...(hives ? { hiveRootSessionIds: sessionIdsFromReferences(hives, `--${prefix}hive`) } : {}),
-  }
+  } satisfies LocalSessionProfileScope
 }
 
-export function parseProfileScope(
-  arguments_: ParsedArguments,
-  workingDirectory = process.cwd(),
-): LocalSessionProfileScope {
+export function parseProfileScope(arguments_: ParsedArguments, workingDirectory = process.cwd()) {
   const selected = scopeFromOptions(arguments_, '', workingDirectory)
   if (
     !selected.all &&
@@ -85,7 +81,7 @@ export function parseProfileScope(
   return selected
 }
 
-function authorizationMode(arguments_: ParsedArguments, name: string): AgentAuthorizationMode {
+function authorizationMode(arguments_: ParsedArguments, name: string) {
   const value = option(arguments_, name) ?? 'ask-for-approval'
   if (!isAgentAuthorizationMode(value)) {
     throw new CommandCliUsageError(`--${name} must be ask-for-approval or yolo.`)
@@ -93,7 +89,7 @@ function authorizationMode(arguments_: ParsedArguments, name: string): AgentAuth
   return value
 }
 
-export function parseProfileAuthorization(arguments_: ParsedArguments): AgentAuthorizationMode {
+export function parseProfileAuthorization(arguments_: ParsedArguments) {
   return authorizationMode(arguments_, 'authorization')
 }
 
@@ -105,7 +101,7 @@ export function parseProfileAuthorization(arguments_: ParsedArguments): AgentAut
 export function parseManagementEnvelope(
   arguments_: ParsedArguments,
   workingDirectory = process.cwd(),
-): LocalSessionProfileManagementEnvelope | undefined {
+) {
   if (!MANAGEMENT_ENVELOPE_OPTIONS.some((name) => arguments_.options.has(name))) return undefined
   const capabilities = parseProfileCapabilities(
     arguments_.options.get('manage-capability'),

@@ -67,7 +67,7 @@ function declaredDigest(identifier: string) {
 }
 
 function validateOciIdentifier(identifier: string) {
-  const hasForbiddenCharacter = [...identifier].some((character) => {
+  const hasForbiddenCharacter = Array.from(identifier).some((character) => {
     const code = character.charCodeAt(0)
     return (
       /\s/.test(character) || code <= MAX_CONTROL_CHARACTER_CODE || code === DELETE_CHARACTER_CODE
@@ -105,10 +105,8 @@ function parseRepoDigests(stdout: string) {
   return value.filter((candidate): candidate is string => typeof candidate === 'string')
 }
 
-export function createDockerOciImageResolver(
-  runCommand: OciCommandRunner = runDocker,
-): OciImageResolver {
-  return async (identifier) => {
+export function createDockerOciImageResolver(runCommand: OciCommandRunner = runDocker) {
+  return (async (identifier) => {
     const requested = validateOciIdentifier(identifier)
     await runCommand(['pull', '--quiet', identifier])
     const repoDigests = parseRepoDigests(
@@ -126,7 +124,7 @@ export function createDockerOciImageResolver(
     }
     const digest = coordinate.slice(coordinate.indexOf('@') + 1)
     return { coordinate, digest }
-  }
+  }) satisfies OciImageResolver
 }
 
 export const resolveOciImageWithDocker = createDockerOciImageResolver()

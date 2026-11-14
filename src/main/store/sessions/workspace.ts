@@ -1,7 +1,6 @@
 import type {
   SessionBranch,
   SessionContentTree,
-  SessionContentWorkspace,
   SessionNode,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
@@ -73,7 +72,7 @@ function buildTranscriptPath(tree: SessionContentTree, activeNodeId: SessionNode
     getParentId: (node) => (node.parentId ? String(node.parentId) : null),
   }).map((node) => ({
     node,
-    branchId: node.branchId,
+    ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
     isActive: node.id === activeNodeId,
   }))
 }
@@ -81,7 +80,7 @@ function buildTranscriptPath(tree: SessionContentTree, activeNodeId: SessionNode
 export function buildSessionWorkspace(
   tree: SessionContentTree,
   selection?: SessionWorkspaceSelection,
-): SessionContentWorkspace {
+) {
   const selectedNode = findNodeById(tree.nodes, selection?.nodeId)
   const activeBranch = resolveWorkspaceBranch(tree, selection, selectedNode)
   const activeNode = resolveWorkspaceNode(tree, selection, activeBranch)
@@ -91,7 +90,7 @@ export function buildSessionWorkspace(
     tree,
     activeBranchId: activeBranch?.id ?? null,
     activeNodeId: activeNode?.id ?? null,
-    activeBranchState,
+    ...(activeBranchState === undefined ? {} : { activeBranchState }),
     transcriptPath: buildTranscriptPath(tree, activeNode?.id ?? null),
   }
 }

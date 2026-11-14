@@ -49,29 +49,26 @@ function appliesHere(entry: ExtensionContributionRegistryEntry, requested: reado
  * listed in All panels, disabled with what they need. Keeping trust as one label among others
  * lets it disappear later without changing the rail.
  */
-function entryVisibility(
-  entry: ExtensionContributionRegistryEntry,
-  requested: readonly string[],
-): EntryVisibility {
+function entryVisibility(entry: ExtensionContributionRegistryEntry, requested: readonly string[]) {
   const { eligibility } = entry
-  if (!eligibility.runtimeEnabled || !eligibility.enabled) return 'hidden'
-  if (!isLoadable(entry)) return 'hidden'
-  if (!appliesHere(entry, requested)) return 'hidden'
+  if (!eligibility.runtimeEnabled || !eligibility.enabled) return 'hidden' as const
+  if (!isLoadable(entry)) return 'hidden' as const
+  if (!appliesHere(entry, requested)) return 'hidden' as const
   if (!eligibility.trusted) {
     return {
       kind: 'needs',
       label: 'Needs trust',
       reason: `Trust ${entry.extensionName} in Settings › Extensions to use this panel.`,
-    }
+    } satisfies EntryVisibility
   }
   if (eligibility.sdkCompatible === false || eligibility.updateAvailable) {
     return {
       kind: 'needs',
       label: 'Needs update',
       reason: `Update ${entry.extensionName} in Settings › Extensions to use this panel.`,
-    }
+    } satisfies EntryVisibility
   }
-  return { kind: 'available' }
+  return { kind: 'available' } satisfies EntryVisibility
 }
 
 function statusRank(status: RailExtensionPanelStatus) {
@@ -82,10 +79,8 @@ function statusRank(status: RailExtensionPanelStatus) {
  * Every installed side panel's surface id, including panels hidden here (turned off or not for
  * this project), so a first reorder keeps their install-order slot (ADR 0043).
  */
-export function installedExtensionPanelIds(
-  registry: ExtensionContributionRegistryView | null,
-): ExtensionRightPanelSurfaceId[] {
-  if (registry === null) return []
+export function installedExtensionPanelIds(registry: ExtensionContributionRegistryView | null) {
+  if (registry === null) return [] satisfies ExtensionRightPanelSurfaceId[]
   const ids = registry.entries
     .filter((entry) => entry.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS)
     .map((entry) =>
@@ -94,15 +89,15 @@ export function installedExtensionPanelIds(
         sidePanelId: entry.contributionId,
       }),
     )
-  return [...new Set(ids)]
+  return [...new Set(ids)] satisfies ExtensionRightPanelSurfaceId[]
 }
 
 /** Every listable extension side panel, one per stable surface id, in registry (install) order. */
 export function railExtensionPanels(
   registry: ExtensionContributionRegistryView | null,
   requestedProjectPaths: readonly string[],
-): RailExtensionPanel[] {
-  if (registry === null) return []
+) {
+  if (registry === null) return [] satisfies RailExtensionPanel[]
   const panels = new Map<ExtensionRightPanelSurfaceId, RailExtensionPanel>()
   for (const entry of registry.entries) {
     if (entry.family !== OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS) continue
@@ -126,5 +121,5 @@ export function railExtensionPanels(
       status: visibility,
     })
   }
-  return [...panels.values()]
+  return [...panels.values()] satisfies RailExtensionPanel[]
 }

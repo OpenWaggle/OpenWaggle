@@ -50,12 +50,21 @@ describe('prunedRuntimeIssues', () => {
 
 describe('source maps of the minified bundles (R6 P3-5)', () => {
   it('are emitted hidden for the main process and the renderer', async () => {
-    const source = await readFile(path.join(import.meta.dirname, '..', '..', 'electron.vite.config.ts'), 'utf8')
+    const source = await readFile(
+      path.join(import.meta.dirname, '..', '..', 'electron.vite.config.ts'),
+      'utf8',
+    )
     expect(source.match(/sourcemap: 'hidden'/gu)).toHaveLength(2)
     expect(source).not.toMatch(/sourcemap: (?:true|'inline')/u)
   })
 
   it('are left out of the packaged app', () => {
     expect(config.files).toContain('!out/**/*.map')
+  })
+})
+
+describe('TypeScript project configs', () => {
+  it('are left out of the packaged app, including the strict, shared and website projects', () => {
+    expect(config.files).toContain('!tsconfig*.json')
   })
 })

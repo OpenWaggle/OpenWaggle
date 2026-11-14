@@ -46,12 +46,14 @@ const prepareTerminalShellLaunchMock = vi.hoisted(() =>
     }>
   >(),
 )
-export const ptyExitListeners: Array<(event: { readonly exitCode: number }) => void> = []
+export const ptyExitListeners: ((event: { readonly exitCode: number }) => void)[] = []
 
 vi.mock('../../../env', () => ({
-  desktopShellEnvironmentReady: desktopShellEnvironmentReadyMock,
   getInteractiveTerminalEnv: getInteractiveTerminalEnvMock,
   logLevel: 'error',
+}))
+vi.mock('../../../desktop-shell-environment-process', () => ({
+  desktopShellEnvironmentReady: desktopShellEnvironmentReadyMock,
 }))
 
 vi.mock('../terminal-shell', () => ({
@@ -116,7 +118,7 @@ export function resetPtyRunnerHarness() {
 
 export function fakePty(
   socket?: { readonly pause: () => void; readonly resume: () => void },
-  privatePtyValue: unknown | null = '/dev/ttys123',
+  privatePtyValue: unknown = '/dev/ttys123',
 ) {
   const pty = fromPartial<NodePtyModule.IPty>({
     pid: 4321,
@@ -129,13 +131,13 @@ export function fakePty(
     resize: () => {},
     kill: () => {},
   })
-  if (socket !== undefined) Reflect.set(pty, '_socket', socket)
-  if (privatePtyValue !== null) Reflect.set(pty, '_pty', privatePtyValue)
-  Reflect.set(pty, 'spawnProcessIdentity', 'darwin:123:456')
-  Reflect.set(pty, 'ttyIdentity', 'darwin:16:123')
-  Reflect.set(pty, 'fd', 42)
-  Reflect.set(pty, 'closeDescriptor', vi.fn())
-  Reflect.set(pty, 'waitForResourceDrain', () => new Promise<void>(() => {}))
+  if (socket !== undefined) Object.assign(pty, { _socket: socket })
+  if (privatePtyValue !== null) Object.assign(pty, { _pty: privatePtyValue })
+  Object.assign(pty, { spawnProcessIdentity: 'darwin:123:456' })
+  Object.assign(pty, { ttyIdentity: 'darwin:16:123' })
+  Object.assign(pty, { fd: 42 })
+  Object.assign(pty, { closeDescriptor: vi.fn() })
+  Object.assign(pty, { waitForResourceDrain: () => new Promise<void>(() => {}) })
   return pty
 }
 
@@ -147,9 +149,9 @@ export function makeRunner(
   },
 ) {
   const ptyModule = fromPartial<typeof NodePtyModule>({ spawn: spawnMock })
-  Reflect.set(ptyModule, 'processTable', async () => [])
-  Reflect.set(ptyModule, 'listeningPorts', async () => [])
-  if (native !== undefined) Reflect.set(ptyModule, 'native', native)
+  Object.assign(ptyModule, { processTable: async () => [] })
+  Object.assign(ptyModule, { listeningPorts: async () => [] })
+  if (native !== undefined) Object.assign(ptyModule, { native: native })
   return makePtyRunner({
     appVersion: '1.2.3-test',
     loadPty: async () => ptyModule,

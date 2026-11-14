@@ -4,7 +4,7 @@ const EXPLICIT_SCHEME = /^[a-z][a-z\d+.-]*:\/\//iu
 const LOCAL_HOST = /^(?:localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)(?::\d+)?(?:[/#?]|$)/iu
 
 /** Canonicalizes address-bar style input while rejecting non-HTTP and credentialed URLs. */
-export function normalizeBrowserPreviewAddress(input: string): string | null {
+export function normalizeBrowserPreviewAddress(input: string) {
   const trimmed = input.trim()
   if (trimmed.length === 0 || trimmed.length > BROWSER_PREVIEW_LIMITS.URL_LENGTH) return null
   const candidate = EXPLICIT_SCHEME.test(trimmed)

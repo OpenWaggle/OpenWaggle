@@ -1,8 +1,13 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  localSessionAuthorityScopeSchema,
+  localSessionProfileAuthoritySchema,
+  localSessionProfileManagementEnvelopeSchema,
+} from '@shared/schemas/local-session-profile'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { SessionCapability } from './session-capability'
 
 export const LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH = 128
-export const LOCAL_SESSION_PROFILE_CREDENTIAL_LENGTH = 43
 export const LOCAL_SESSION_PROFILE_SCOPE_ENTRY_LIMIT = 128
 export const LOCAL_SESSION_PROFILE_SCOPE_VALUE_MAX_LENGTH = 4096
 const LOCAL_SESSION_PROFILE_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/
@@ -11,33 +16,12 @@ export function isLocalSessionProfileCredential(value: string) {
   return LOCAL_SESSION_PROFILE_CREDENTIAL_PATTERN.test(value)
 }
 
-export interface LocalSessionProfileScope {
-  readonly all?: boolean
-  /** Canonical directory roots used only by machine-authenticated transient authorities. */
-  readonly workspaceRoots?: readonly string[]
-  /** Explicit roots within which Session exports may read resources and create artifacts. */
-  readonly exportRoots?: readonly string[]
-  /** Explicit roots from which Session commands may snapshot attachment files. */
-  readonly attachmentRoots?: readonly string[]
-  readonly projectPaths?: readonly string[]
-  readonly sessionIds?: readonly string[]
-  readonly hiveRootSessionIds?: readonly string[]
-}
-
-export interface LocalSessionProfileAuthority {
-  readonly profileId: string
-  readonly profileName: string
-  readonly capabilities: readonly SessionCapability[]
-  readonly scope: LocalSessionProfileScope
-  readonly authorizationCeiling: AgentAuthorizationMode
-  readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
-}
-
-export interface LocalSessionProfileManagementEnvelope {
-  readonly capabilities: readonly SessionCapability[]
-  readonly scope: LocalSessionProfileScope
-  readonly authorizationCeiling: AgentAuthorizationMode
-}
+/** Every root and id a caller is scoped to; only a transient authority holds `workspaceRoots`. */
+export type LocalSessionProfileScope = SchemaType<typeof localSessionAuthorityScopeSchema>
+export type LocalSessionProfileAuthority = SchemaType<typeof localSessionProfileAuthoritySchema>
+export type LocalSessionProfileManagementEnvelope = SchemaType<
+  typeof localSessionProfileManagementEnvelopeSchema
+>
 
 export interface LocalSessionCallerIdentity {
   readonly callerId: string

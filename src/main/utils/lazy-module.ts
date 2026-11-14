@@ -4,7 +4,7 @@
  * so a static import of a native or many-file package costs every process its load time even if
  * it never uses it (startup-main.md, A-F4). A failed load is not cached: the next call retries.
  */
-export function lazyModule<Module>(load: () => Promise<Module>): () => Promise<Module> {
+export function lazyModule<Module>(load: () => Promise<Module>) {
   let pending: Promise<Module> | null = null
   return () => {
     pending ??= load().catch((error: unknown) => {

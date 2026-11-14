@@ -17,7 +17,7 @@ const ACCESSORS = {
 }
 
 /** A linear Pi log: each entry is the child of the one before it. */
-function log(...entries: readonly Omit<Entry, 'parentId'>[]): Entry[] {
+function log(...entries: readonly Omit<Entry, 'parentId'>[]) {
   return entries.map((entry, index) => ({ ...entry, parentId: entries[index - 1]?.id ?? null }))
 }
 

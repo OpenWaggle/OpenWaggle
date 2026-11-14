@@ -7,11 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { preserveVisualizationOwnership } from '../session-details/visualization-ownership-projection'
 
-function assistantNode(
-  id: string,
-  contentJson: string,
-  metadataJson: string,
-): ProjectedSessionNodeInput {
+function assistantNode(id: string, contentJson: string, metadataJson: string) {
   return {
     id,
     parentId: null,
@@ -23,7 +19,7 @@ function assistantNode(
     metadataJson,
     pathDepth: 0,
     createdOrder: 0,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 describe('preserveVisualizationOwnership', () => {

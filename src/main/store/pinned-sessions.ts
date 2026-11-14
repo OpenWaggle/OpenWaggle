@@ -12,7 +12,7 @@
 
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
-import type { PinnedSession, PinnedSessionMove } from '@shared/types/session'
+import type { PinnedSessionMove } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { keyBetween } from './pinned-sessions-sort-key'
 import { runStoreEffect } from './store-runtime'
@@ -23,7 +23,7 @@ interface PinnedSessionRow {
   readonly sort_key: string
 }
 
-function toPinnedSession(row: PinnedSessionRow): PinnedSession {
+function toPinnedSession(row: PinnedSessionRow) {
   return {
     sessionId: SessionId(row.session_id),
     pinnedAt: row.pinned_at,
@@ -37,7 +37,7 @@ function toPinnedSession(row: PinnedSessionRow): PinnedSession {
  * Rows for archived sessions are included: archiving keeps the pin, and hiding the
  * row while archived is a presentation decision the renderer owns.
  */
-export async function listPinnedSessions(): Promise<PinnedSession[]> {
+export async function listPinnedSessions() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -56,7 +56,7 @@ export async function listPinnedSessions(): Promise<PinnedSession[]> {
  * their position and their Pinned shortcut. Pinning an already-pinned session is a
  * no-op rather than a move — the caller asked for it to be pinned, and it is.
  */
-export async function pinSession(sessionId: SessionId): Promise<void> {
+export async function pinSession(sessionId: SessionId) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -74,7 +74,7 @@ export async function pinSession(sessionId: SessionId): Promise<void> {
 }
 
 /** Remove a pin. Unpinning something that is not pinned is a no-op. */
-export async function unpinSession(sessionId: SessionId): Promise<void> {
+export async function unpinSession(sessionId: SessionId) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -89,7 +89,7 @@ export async function unpinSession(sessionId: SessionId): Promise<void> {
  * Ids that are no longer pinned are treated as absent bounds, which makes a stale drop
  * degrade into a move to the nearest end instead of failing.
  */
-export async function movePinnedSession(input: PinnedSessionMove): Promise<void> {
+export async function movePinnedSession(input: PinnedSessionMove) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

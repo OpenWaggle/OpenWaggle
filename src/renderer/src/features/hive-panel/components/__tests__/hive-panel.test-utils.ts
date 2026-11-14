@@ -5,8 +5,8 @@ import type { registerSidebarSessionActions } from '@/features/sidebar/lib'
 
 type SidebarSessionActions = NonNullable<Parameters<typeof registerSidebarSessionActions>[0]>
 
-export function summary(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
-  return {
+export function summary(id: string, overrides: Partial<SessionSummary> = {}) {
+  const result: SessionSummary = {
     id: SessionId(id),
     title: id,
     projectPath: '/project',
@@ -23,6 +23,7 @@ export function summary(id: string, overrides: Partial<SessionSummary> = {}): Se
     },
     ...overrides,
   }
+  return result
 }
 
 export const queen = summary('queen', {
@@ -49,8 +50,8 @@ export function hivePage(members: readonly SessionSummary[], nextCursor?: string
 }
 
 /** The Sidebar's session actions, as Hive panel rows receive them. */
-export function sessionActionsStub(): SidebarSessionActions {
-  return {
+export function sessionActionsStub() {
+  const actions: SidebarSessionActions = {
     select: vi.fn(),
     delete: vi.fn(),
     archive: vi.fn(),
@@ -58,4 +59,5 @@ export function sessionActionsStub(): SidebarSessionActions {
     clone: vi.fn(),
     togglePin: vi.fn(),
   }
+  return actions
 }

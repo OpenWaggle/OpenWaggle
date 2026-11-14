@@ -151,10 +151,7 @@ async function runQueryPreflight(operations: QueryOperations, sparseWorkingPath:
     list: await operations.list(),
     sparseWorkingPathList: coldSparseWorkingPathList,
     missingWorkingPathList: await operations.list('/benchmark/missing'),
-    rareLexical: await operations.lexical(
-      RARE_LEXICAL_TERM,
-      'benchmark-preflight-rare-lexical',
-    ),
+    rareLexical: await operations.lexical(RARE_LEXICAL_TERM, 'benchmark-preflight-rare-lexical'),
     commonLexical: await operations.lexical(
       COMMON_LEXICAL_TERM,
       'benchmark-preflight-common-lexical',
@@ -197,11 +194,7 @@ async function measureQueries(operations: QueryOperations, sparseWorkingPath: st
       operations.lexical('commonterm', 'benchmark-common-lexical'),
     ),
     fullTranscriptLexical: await measure(() =>
-      operations.lexical(
-        'benchmarktoken',
-        'benchmark-full-transcript-lexical',
-        'full-transcript',
-      ),
+      operations.lexical('benchmarktoken', 'benchmark-full-transcript-lexical', 'full-transcript'),
     ),
     commonFullTranscriptLexical: await measure(() =>
       operations.lexical(

@@ -78,12 +78,13 @@ export function prepareActionWorkspace(
                 const workspace = { ...(yield* resolveWorkspace()), workspacePath: worktreePath }
                 const existing = yield* services.preparation.read(workspace)
                 yield* services.preparation.capture(workspace)
-                if (resumingClaim && !existing)
+                if (resumingClaim && !existing) {
                   return yield* Effect.fail(
                     new Error(
                       'A previous setup dispatch has no confirmed result. Review Workspace preparation and explicitly run setup or continue.',
                     ),
                   )
+                }
                 yield* requireSetup(workspace)
               }),
             ),

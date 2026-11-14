@@ -1,5 +1,5 @@
 /**
- * Types of the agent-context evaluation (`pnpm evaluate:agent-context`, decision 7 of the v1
+ * Types of the agent-context evaluation (`bun run evaluate:agent-context`, decision 7 of the v1
  * performance plan): script-graded tasks that a real model runs through a packaged build.
  */
 
@@ -25,7 +25,9 @@ export interface EvalOutcome {
   readonly sessionCount: number
   readonly compactions: number
   /** The output of `verify` commands the task runs in the project after the Run, by command. */
-  readonly verifications: Readonly<Record<string, { readonly exitCode: number; readonly output: string }>>
+  readonly verifications: Readonly<
+    Record<string, { readonly exitCode: number; readonly output: string }>
+  >
 }
 
 export interface EvalGrade {
@@ -73,11 +75,11 @@ export const EMPTY_OUTCOME: EvalOutcome = {
   verifications: {},
 }
 
-export function outcomeWith(partial: Partial<EvalOutcome>): EvalOutcome {
+export function outcomeWith(partial: Partial<EvalOutcome>) {
   return { ...EMPTY_OUTCOME, ...partial }
 }
 
-export function grade(pass: boolean, reason: string): EvalGrade {
+export function grade(pass: boolean, reason: string) {
   return { pass, reason }
 }
 

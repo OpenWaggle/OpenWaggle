@@ -1,5 +1,4 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { SessionHostRefusalCode } from '@shared/domain/session-host-refusals'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
 import { delegationRevisionKey } from '../domain/session-control/delegation-revision-follow-up'
@@ -38,7 +37,7 @@ export function revisionDeliveryRefusal(
     readonly operation: string
     readonly idempotencyKey: string
   },
-): Effect.Effect<SessionHostRefusalCode | undefined, unknown> {
+) {
   return Effect.gen(function* () {
     const blocked = yield* liveCallerMessageBlockReason(sql, {
       sessionId: input.workerSessionId,

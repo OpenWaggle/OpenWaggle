@@ -1,4 +1,16 @@
+import type {
+  extensionCapabilityAuditEntrySchema,
+  extensionInvokeErrorSchema,
+  extensionInvokeInputSchema,
+  extensionInvokeScopeSchema,
+} from './broker-schemas-core.js'
+import type {
+  extensionInvokeFailureSchema,
+  extensionInvokeSuccessSchema,
+  extensionInvokeSuccessValueSchema,
+} from './broker-schemas-result.js'
 import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import type { SchemaType } from './schema.js'
 
 type ConstantValue<TObject> = TObject[keyof TObject]
 
@@ -13,54 +25,22 @@ export type ExtensionStateSelector = ConstantValue<
 >
 export type ExtensionSettingsKey = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY>
 
-export type ExtensionInvokeScope =
-  | { readonly kind: 'app' }
-  | { readonly kind: 'project'; readonly projectPath: string }
-  | { readonly kind: 'session'; readonly projectPath: string; readonly sessionId: string }
-  | {
-      readonly kind: 'branch'
-      readonly projectPath: string
-      readonly sessionId: string
-      readonly branchId: string
-    }
+export type ExtensionInvokeScope = SchemaType<typeof extensionInvokeScopeSchema>
+export type ExtensionCapabilityAuditEntry = SchemaType<typeof extensionCapabilityAuditEntrySchema>
+export type ExtensionInvokeInput = SchemaType<typeof extensionInvokeInputSchema>
+export type ExtensionInvokeError = SchemaType<typeof extensionInvokeErrorSchema>
+export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>
+/** Every result value the broker returns, one per capability method. */
+export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>
 
-export interface ExtensionCapabilityAuditEntry {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: string
-  readonly method: string
-  readonly scope: ExtensionInvokeScope
-  readonly outcome: ExtensionInvokeOutcome
-  readonly timestamp: number
-  readonly failureCode?: ExtensionInvokeFailureCode
-}
-
-export interface ExtensionInvokeInput {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: string
-  readonly method: string
-  readonly scope: ExtensionInvokeScope
-  readonly payload?: unknown
-}
-
-export interface ExtensionInvokeError {
-  readonly code: ExtensionInvokeFailureCode
-  readonly message: string
-  readonly issues?: readonly string[]
-}
-
-export interface ExtensionInvokeSuccess<TValue = unknown> {
-  readonly ok: true
-  readonly value: TValue
-  readonly audit: ExtensionCapabilityAuditEntry
-}
-
-export interface ExtensionInvokeFailure {
-  readonly ok: false
-  readonly error: ExtensionInvokeError
-  readonly audit?: ExtensionCapabilityAuditEntry
-}
+/**
+ * A broker success whose value one operation's decoder has narrowed. It is the decoded success
+ * (`extensionInvokeSuccessSchema`) with `value` replaced; the default is a value not decoded yet.
+ */
+export type ExtensionInvokeSuccess<TValue = unknown> = Omit<
+  SchemaType<typeof extensionInvokeSuccessSchema>,
+  'value'
+> & { readonly value: TValue }
 
 export type ExtensionInvokeResult<TValue = unknown> =
   | ExtensionInvokeSuccess<TValue>

@@ -1,5 +1,6 @@
 import nodePath from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { isRecord } from '../../src/shared/utils/validation'
 import { RETRY_SOURCE } from '../website-screenshot-essentials-project'
 import { toolRowsAssistantParts } from '../website-screenshot-essentials-tool-rows'
@@ -14,40 +15,52 @@ function toolResult(name: string) {
   throw new Error(`The tool rows fixture has no ${name} result.`)
 }
 
+/** The text block of a Pi tool result. */
+const toolResultContentSchema = Schema.Struct({
+  content: Schema.Array(Schema.Struct({ text: Schema.String })),
+})
+/** Pi's edit tool row: its arguments and the diff details it reported. */
+const editStepSchema = Schema.Struct({
+  args: Schema.Struct({
+    path: Schema.String,
+    edits: Schema.Array(Schema.Struct({ oldText: Schema.String, newText: Schema.String })),
+  }),
+  result: Schema.Struct({
+    content: Schema.Unknown,
+    details: Schema.Struct({
+      patch: Schema.Unknown,
+      diff: Schema.Unknown,
+      firstChangedLine: Schema.Unknown,
+    }),
+  }),
+})
+
 function editStep() {
-  const step = toolResult('edit')
-  const { args, result } = step
-  if (!isRecord(args) || !isRecord(result) || !isRecord(result.details)) {
-    throw new Error('The edit row has no arguments or details.')
-  }
-  const { path, edits } = args
-  if (typeof path !== 'string' || !Array.isArray(edits)) throw new Error('Malformed edit args.')
-  return { path, edits: edits.filter(isRecord), result, details: result.details }
+  const { args, result } = decodeUnknownOrThrow(editStepSchema, toolResult('edit'))
+  return { path: args.path, edits: args.edits, result, details: result.details }
 }
 
-function textOf(result: Record<string, unknown>) {
-  const [block] = Array.isArray(result.content) ? result.content : []
-  return isRecord(block) ? block.text : undefined
+function textOf(result: unknown) {
+  return decodeUnknownOrThrow(toolResultContentSchema, result).content.at(0)?.text
 }
 
 describe('website tool rows fixture', () => {
   it("records the edit exactly as Pi's edit tool reports it on the committed source", async () => {
-    const { generateDiffString, generateUnifiedPatch } = await import(
-      '@earendil-works/pi-coding-agent'
-    )
+    const { generateDiffString, generateUnifiedPatch } =
+      await import('@earendil-works/pi-coding-agent')
     const { path, edits, result, details } = editStep()
     let edited = RETRY_SOURCE
-    for (const edit of edits) {
-      const { oldText, newText } = edit
-      if (typeof oldText !== 'string' || typeof newText !== 'string') throw new Error('Bad edit.')
+    for (const { oldText, newText } of edits) {
       expect(edited.split(oldText)).toHaveLength(2)
       edited = edited.replace(oldText, newText)
     }
     const diff = generateDiffString(RETRY_SOURCE, edited)
 
-    expect(details.patch).toBe(generateUnifiedPatch(path, RETRY_SOURCE, edited))
-    expect(details.diff).toBe(diff.diff)
-    expect(details.firstChangedLine).toBe(diff.firstChangedLine)
+    expect(details).toEqual({
+      patch: generateUnifiedPatch(path, RETRY_SOURCE, edited),
+      diff: diff.diff,
+      firstChangedLine: diff.firstChangedLine,
+    })
     expect(textOf(result)).toBe(
       `Successfully replaced ${String(edits.length)} block(s) in ${path}.`,
     )
@@ -63,7 +76,6 @@ describe('website tool rows fixture', () => {
 
   it('names the absolute path Pi resolved in the failed read', () => {
     const { result } = toolResult('read')
-    if (!isRecord(result)) throw new Error('The read row has no result.')
 
     expect(textOf(result)).toBe(
       `ENOENT: no such file or directory, access '${nodePath.join(PROJECT_PATH, 'src/upload/policy.ts')}'`,

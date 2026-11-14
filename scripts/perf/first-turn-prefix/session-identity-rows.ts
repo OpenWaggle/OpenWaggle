@@ -36,7 +36,7 @@ interface IdentityRowInput {
   readonly modelId: string
 }
 
-function baseRow(input: IdentityRowInput): SessionRunExecutionProfileRow {
+function baseRow(input: IdentityRowInput) {
   return {
     session_id: input.sessionId,
     title: 'Untitled',
@@ -55,17 +55,19 @@ function baseRow(input: IdentityRowInput): SessionRunExecutionProfileRow {
     capabilities_json: null,
     delegation_id: null,
     delegation_state: null,
-  }
+  } satisfies SessionRunExecutionProfileRow
 }
 
 /** The Host's Session row for the role, as `resolveSessionRunExecution` reads it. */
-export function identityRowForRole(
-  role: PrefixSessionRole,
-  input: IdentityRowInput,
-): SessionRunExecutionProfileRow {
+export function identityRowForRole(role: PrefixSessionRole, input: IdentityRowInput) {
   const row = baseRow(input)
   if (role === 'independent') return row
-  if (role === 'queen') return { ...row, direct_worker_count: QUEEN_WORKER_COUNT }
+  if (role === 'queen') {
+    return {
+      ...row,
+      direct_worker_count: QUEEN_WORKER_COUNT,
+    } satisfies SessionRunExecutionProfileRow
+  }
   return {
     ...row,
     title: 'Measure the first-turn prefix',
@@ -77,5 +79,5 @@ export function identityRowForRole(
     capabilities_json: JSON.stringify(WORKER_CAPABILITIES),
     delegation_id: DELEGATION_ID,
     delegation_state: 'working',
-  }
+  } satisfies SessionRunExecutionProfileRow
 }

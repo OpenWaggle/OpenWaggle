@@ -22,15 +22,23 @@ export type RequestShapeCheck =
   | { readonly ok: false; readonly field: 'day' | 'events'; readonly reason: string }
 
 /** Whether validated events have the shape of one app request: one day, within the limits. */
-export function checkRequestShape(events: readonly UsageStatisticsEvent[]): RequestShapeCheck {
+export function checkRequestShape(events: readonly UsageStatisticsEvent[]) {
   if (new Set(events.map((event) => event.day)).size > 1) {
-    return { ok: false, field: 'day', reason: 'events of more than one day' }
+    return {
+      ok: false,
+      field: 'day',
+      reason: 'events of more than one day',
+    } satisfies RequestShapeCheck
   }
   for (const [names, limit] of EVENT_LIMITS) {
     const count = events.filter((event) => names.includes(event.name)).length
     if (count > limit) {
-      return { ok: false, field: 'events', reason: `too many ${names.join(' and ')} events` }
+      return {
+        ok: false,
+        field: 'events',
+        reason: `too many ${names.join(' and ')} events`,
+      } satisfies RequestShapeCheck
     }
   }
-  return { ok: true }
+  return { ok: true } satisfies RequestShapeCheck
 }

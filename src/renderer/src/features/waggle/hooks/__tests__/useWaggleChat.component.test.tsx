@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWaggleStore } from '../../state/waggle-store'
 import { useWaggleChat } from '../useWaggleChat'
 
+/** The message whose live Waggle metadata these cases read. */
+const MESSAGE_ID = 'm1'
+
 type WaggleTurnPayload = IpcEventChannelMap['waggle:turn-event']['payload']
 type WaggleEventPayload = IpcEventChannelMap['waggle:event']['payload']
 type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
@@ -50,7 +53,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 const SESSION_ID = SessionId('session-1')
 const OTHER_SESSION_ID = SessionId('session-2')
 
-function waggleMeta(): WaggleStreamMetadata {
+function waggleMeta() {
   return {
     agentIndex: 1,
     agentLabel: 'Reviewer',
@@ -59,7 +62,7 @@ function waggleMeta(): WaggleStreamMetadata {
     turnNumber: 2,
     collaborationMode: 'sequential',
     sessionId: String(SESSION_ID),
-  }
+  } satisfies WaggleStreamMetadata
 }
 
 function requireTurnHandler() {
@@ -129,7 +132,7 @@ describe('useWaggleChat', () => {
     })
     requireRunCompletedHandler()({ sessionId: SESSION_ID })
 
-    expect(useWaggleStore.getState().liveMessageMetadata.m1?.agentLabel).toBe('Reviewer')
+    expect(useWaggleStore.getState().liveMessageMetadata[MESSAGE_ID]?.agentLabel).toBe('Reviewer')
     expect(useWaggleStore.getState().status).toBe('completed')
   })
 })

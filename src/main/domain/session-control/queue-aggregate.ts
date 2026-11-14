@@ -68,7 +68,7 @@ export interface ApplyQueueMutationInput {
   readonly nextRunId: RunId
 }
 
-function operationForMutation(mutation: SessionControlQueueMutation): QueueMutationOperation {
+function operationForMutation(mutation: SessionControlQueueMutation) {
   return matchBy(mutation, 'type')
     .with('withdraw', () => 'queue-withdraw')
     .with('reorder', () => 'queue-reorder')
@@ -77,9 +77,12 @@ function operationForMutation(mutation: SessionControlQueueMutation): QueueMutat
     .exhaustive()
 }
 
-export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMutationResult {
+export function applyQueueMutation(input: ApplyQueueMutationInput) {
   const queueResult = mutateFollowUpQueue(input.state.followUpQueue, input.mutation)
-  if (!queueResult.accepted) return { ...queueResult, state: input.state }
+  if (!queueResult.accepted) {
+    const result: ApplyQueueMutationResult = { ...queueResult, state: input.state }
+    return result
+  }
 
   const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
   const nextFollowUp = queueResult.queue.items[0]
@@ -90,7 +93,7 @@ export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMu
     !nextFollowUp.editHold
   ) {
     const queueRevision = queueResult.queue.revision + STATE_REVISION_INCREMENT
-    return {
+    const result: ApplyQueueMutationResult = {
       accepted: true,
       state: {
         ...input.state,
@@ -112,8 +115,9 @@ export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMu
         stateRevision: nextRevision,
       },
     }
+    return result
   }
-  return {
+  const result: ApplyQueueMutationResult = {
     accepted: true,
     state: {
       ...input.state,
@@ -133,4 +137,5 @@ export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMu
       stateRevision: nextRevision,
     },
   }
+  return result
 }

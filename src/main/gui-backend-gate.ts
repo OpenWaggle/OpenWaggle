@@ -26,6 +26,6 @@ export function isGuiBackendGateHeld() {
 }
 
 /** Resolves once the backend is ready; never rejects. A failed start keeps requests waiting. */
-export function waitForGuiBackend(): Promise<void> {
+export function waitForGuiBackend() {
   return gate
 }

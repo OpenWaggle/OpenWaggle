@@ -23,8 +23,6 @@ export const KNOWN_DUPLICATE_EXPORTED_TYPES: readonly string[] = [
   'ExtensionReloadStatus',
   'ExtensionStorageKind',
   'ExtensionStorageScope',
-  'SessionActiveRunRow',
-  'SessionBranchRow',
   'SessionBranchStateRow',
   'SessionSummaryRow',
   'UpdateSessionRuntimeInput',
@@ -35,9 +33,7 @@ const DUPLICATE_DECLARATION_THRESHOLD = 2
 
 const EXPORTED_TYPE_DECLARATION = /^export (?:interface|type) ([A-Za-z0-9_]+)/gmu
 
-export function collectDuplicateExportedTypes(
-  filesWithContents: ReadonlyMap<string, string>,
-): readonly Violation[] {
+export function collectDuplicateExportedTypes(filesWithContents: ReadonlyMap<string, string>) {
   const declarationsByName = new Map<string, string[]>()
   for (const [file, contents] of filesWithContents) {
     /*
@@ -58,14 +54,14 @@ export function collectDuplicateExportedTypes(
   return [
     ...findUnlistedDuplicates(declarationsByName),
     ...findStaleDuplicateExemptions(declarationsByName),
-  ]
+  ] satisfies readonly Violation[]
 }
 
-function findUnlistedDuplicates(
-  declarationsByName: ReadonlyMap<string, readonly string[]>,
-): readonly Violation[] {
+function findUnlistedDuplicates(declarationsByName: ReadonlyMap<string, readonly string[]>) {
   const violations: Violation[] = []
-  for (const [name, declaringFiles] of [...declarationsByName].sort()) {
+  for (const [name, declaringFiles] of [...declarationsByName].toSorted(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
     const unique = [...new Set(declaringFiles)].sort()
     if (unique.length < DUPLICATE_DECLARATION_THRESHOLD) continue
     if (KNOWN_DUPLICATE_EXPORTED_TYPES.includes(name)) continue
@@ -79,9 +75,7 @@ function findUnlistedDuplicates(
 }
 
 /** The exemption list can only shrink: a resolved collision must be removed from it. */
-function findStaleDuplicateExemptions(
-  declarationsByName: ReadonlyMap<string, readonly string[]>,
-): readonly Violation[] {
+function findStaleDuplicateExemptions(declarationsByName: ReadonlyMap<string, readonly string[]>) {
   const violations: Violation[] = []
   for (const name of KNOWN_DUPLICATE_EXPORTED_TYPES) {
     const unique = new Set(declarationsByName.get(name) ?? [])
@@ -93,4 +87,3 @@ function findStaleDuplicateExemptions(
   }
   return violations
 }
-

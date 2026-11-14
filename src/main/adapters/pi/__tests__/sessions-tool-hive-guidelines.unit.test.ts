@@ -9,7 +9,7 @@ import { hiveHelpText } from './hive-help.test-utils'
 describe('Hive tool Hive cleanup guidance', () => {
   it('tells the Queen that finished untouched Workers are archived and come back with new work', async () => {
     const registerTool = vi.fn()
-    await createSessionsToolExtension({
+    createSessionsToolExtension({
       sessionId: 'session-queen',
       runId: 'run-current',
       workingDirectory: '/project',
@@ -39,7 +39,7 @@ describe('Hive tool Hive cleanup guidance', () => {
 describe('Hive tool cross-project guidance', () => {
   it('tells the agent how to reach Sessions and start work in another repository', async () => {
     const registerTool = vi.fn()
-    await createSessionsToolExtension({
+    createSessionsToolExtension({
       sessionId: 'session-independent',
       runId: 'run-current',
       workingDirectory: '/project',
@@ -59,7 +59,7 @@ describe('Hive tool cross-project guidance', () => {
 describe('Hive tool next-actor guidance (#380)', () => {
   it('explains nextActor in the description and the guidelines', async () => {
     const registerTool = vi.fn()
-    await createSessionsToolExtension({
+    createSessionsToolExtension({
       sessionId: 'session-queen',
       runId: 'run-current',
       workingDirectory: '/project',
@@ -82,7 +82,7 @@ describe('Hive tool next-actor guidance (#380)', () => {
 describe('Hive tool status guidance', () => {
   it('explains status queueState and activeRunId', async () => {
     const registerTool = vi.fn()
-    await createSessionsToolExtension({
+    createSessionsToolExtension({
       sessionId: 'session-queen',
       runId: 'run-current',
       workingDirectory: '/project',
@@ -148,7 +148,7 @@ describe('Hive tool self-archive guidance', () => {
   it('explains a deferred self-archive only to a Session that may archive', async () => {
     const helpFor = async (sessionCapabilities?: readonly SessionCapability[]) => {
       const registerTool = vi.fn()
-      await createSessionsToolExtension({
+      createSessionsToolExtension({
         sessionId: 'session-self',
         runId: 'run-current',
         workingDirectory: '/project',
@@ -165,9 +165,9 @@ describe('Hive tool self-archive guidance', () => {
 })
 
 describe('Hive tool revision guidance (#454)', () => {
-  async function queenTool() {
+  function queenTool() {
     const registerTool = vi.fn()
-    await createSessionsToolExtension({
+    createSessionsToolExtension({
       sessionId: 'session-queen',
       runId: 'run-current',
       workingDirectory: '/project',
@@ -176,7 +176,7 @@ describe('Hive tool revision guidance (#454)', () => {
   }
 
   it('tells a reviewer that a revision request reaches the Worker and starts its Run', async () => {
-    const tool = await queenTool()
+    const tool = queenTool()
     const overview = await hiveHelpText(tool)
     expect(overview).toMatch(
       /request revision \(it starts the Worker's Run with the feedback\) or accept/,
@@ -204,7 +204,7 @@ describe('Hive tool revision guidance (#454)', () => {
   })
 
   it('tells a Worker what a revision request from its parent looks like', async () => {
-    const tool = await queenTool()
+    const tool = queenTool()
     expect(await hiveHelpText(tool)).toMatch(
       /revision request from your parent arrives as its Follow-up starting "OpenWaggle Delegation revision request", naming delegationId, submissionRevision and feedback/,
     )

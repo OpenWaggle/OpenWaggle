@@ -6,7 +6,7 @@ import type { ChatRow } from './types-chat-row'
  * the turn before it, so it does not start a turn. The turn fold and the reply actions both use
  * this, so they agree on which turn is still running.
  */
-export function activeTurnStartIndex(rows: readonly ChatRow[], isLoading: boolean): number | null {
+export function activeTurnStartIndex(rows: readonly ChatRow[], isLoading: boolean) {
   if (!isLoading) return null
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const row = rows[index]

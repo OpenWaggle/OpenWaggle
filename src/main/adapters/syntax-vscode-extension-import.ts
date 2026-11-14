@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import type { SyntaxImportFormat, SyntaxResourceScope } from '@shared/types/syntax-resources'
 import JSZip from 'jszip'
 import { normalizedLanguage } from './syntax-language-normalization'
@@ -11,7 +12,6 @@ import {
   confinedExtensionPath,
   createThemeIncludeBudget,
   emptySyntaxCatalog,
-  isRecord,
   parseJsonText,
   parseTextMatePlist,
   readBoundedFile,
@@ -20,7 +20,17 @@ import {
   type SyntaxReadBudget,
   safeArchivePath,
   type ThemeIncludeBudget,
+  toJsonObject,
 } from './syntax-resource-import-utils'
+import {
+  decodeSource,
+  extensionManifestSourceSchema,
+  grammarDeclarationSourceSchema,
+  hasResourcePath,
+  isSourceObject,
+  languageDeclarationSourceSchema,
+  themeContributionSchema,
+} from './syntax-source-schemas'
 import { normalizedTheme } from './syntax-theme-normalization'
 
 interface ExtensionResourceReader {
@@ -32,8 +42,9 @@ interface ExtensionResourceReader {
 }
 
 interface ExtensionManifest {
-  readonly raw: Readonly<Record<string, unknown>>
-  readonly contributes: Readonly<Record<string, unknown>>
+  readonly themes: readonly unknown[]
+  readonly grammars: readonly unknown[]
+  readonly languages: readonly unknown[]
   readonly packageId: string
 }
 
@@ -86,12 +97,6 @@ function readBoundedArchiveText(
   })
 }
 
-function hasResourcePath(
-  value: unknown,
-): value is Readonly<Record<string, unknown>> & { readonly path: string } {
-  return isRecord(value) && typeof value.path === 'string'
-}
-
 async function mapExtensionResources<Input, Output>(
   inputs: readonly Input[],
   concurrency: number,
@@ -113,13 +118,18 @@ async function mapExtensionResources<Input, Output>(
   return results
 }
 
-function extensionManifest(raw: unknown, fallbackName: string): ExtensionManifest {
-  if (!isRecord(raw) || !isRecord(raw.contributes)) {
-    throw new Error('VS Code extension does not declare contributions.')
+function extensionManifest(raw: unknown, fallbackName: string) {
+  const manifest = decodeSource(extensionManifestSourceSchema, raw)
+  const contributes = manifest?.contributes
+  if (!contributes) throw new Error('VS Code extension does not declare contributions.')
+  const publisher = manifest.publisher ?? 'local'
+  const packageName = manifest.name ?? fallbackName
+  return {
+    themes: contributes.themes ?? [],
+    grammars: contributes.grammars ?? [],
+    languages: contributes.languages ?? [],
+    packageId: `${publisher}.${packageName}`,
   }
-  const publisher = typeof raw.publisher === 'string' ? raw.publisher : 'local'
-  const packageName = typeof raw.name === 'string' ? raw.name : fallbackName
-  return { raw, contributes: raw.contributes, packageId: `${publisher}.${packageName}` }
 }
 
 async function importExtensionThemes(
@@ -127,40 +137,34 @@ async function importExtensionThemes(
   reader: ExtensionResourceReader,
   scope: SyntaxResourceScope,
 ) {
-  const declarations = Array.isArray(manifest.contributes.themes) ? manifest.contributes.themes : []
-  const concurrency = reader.format === 'vscode-vsix' ? 1 : UNPACKED_EXTENSION_IMPORT_CONCURRENCY
-  return mapExtensionResources(
-    declarations.filter(hasResourcePath),
-    concurrency,
-    async (declaration) => {
-      const resourcePath = reader.resolveDeclared(declaration.path)
-      const includeBudget =
-        reader.format === 'vscode-extension' ? createThemeIncludeBudget() : undefined
-      const resolved = await resolveThemeDeclaration(
-        resourcePath,
-        async (candidate) =>
-          parseJsonText(await reader.readText(candidate, includeBudget), includeBudget),
-        reader.resolveInclude,
-      )
-      const label =
-        typeof declaration.label === 'string'
-          ? declaration.label
-          : path.basename(resourcePath, path.extname(resourcePath))
-      const forcedVariant = appearanceVariantFromUiTheme(declaration.uiTheme)
-      return normalizedTheme({
-        raw: resolved.raw,
-        originalRaw: resolved.original,
-        label,
-        packageId: manifest.packageId,
-        declaredIdentity:
-          typeof declaration.id === 'string' ? declaration.id : safeArchivePath(declaration.path),
-        format: reader.format,
-        sourcePath: reader.sourcePath(resourcePath),
-        scope,
-        ...(forcedVariant ? { forcedVariant } : {}),
-      })
-    },
+  const declarations = manifest.themes.flatMap(
+    (candidate) => decodeSource(themeContributionSchema, candidate) ?? [],
   )
+  const concurrency = reader.format === 'vscode-vsix' ? 1 : UNPACKED_EXTENSION_IMPORT_CONCURRENCY
+  return mapExtensionResources(declarations, concurrency, async (declaration) => {
+    const resourcePath = reader.resolveDeclared(declaration.path)
+    const includeBudget =
+      reader.format === 'vscode-extension' ? createThemeIncludeBudget() : undefined
+    const resolved = await resolveThemeDeclaration(
+      resourcePath,
+      async (candidate) =>
+        parseJsonText(await reader.readText(candidate, includeBudget), includeBudget),
+      reader.resolveInclude,
+    )
+    const label = declaration.label ?? path.basename(resourcePath, path.extname(resourcePath))
+    const forcedVariant = appearanceVariantFromUiTheme(declaration.uiTheme)
+    return normalizedTheme({
+      raw: resolved.raw,
+      originalRaw: resolved.original,
+      label,
+      packageId: manifest.packageId,
+      declaredIdentity: declaration.id ?? safeArchivePath(declaration.path),
+      format: reader.format,
+      sourcePath: reader.sourcePath(resourcePath),
+      scope,
+      ...(forcedVariant ? { forcedVariant } : {}),
+    })
+  })
 }
 
 async function importExtensionGrammars(
@@ -168,34 +172,37 @@ async function importExtensionGrammars(
   reader: ExtensionResourceReader,
   scope: SyntaxResourceScope,
 ) {
-  const languageDeclarations = Array.isArray(manifest.contributes.languages)
-    ? manifest.contributes.languages.filter(isRecord)
-    : []
-  const declarations = Array.isArray(manifest.contributes.grammars)
-    ? manifest.contributes.grammars
-    : []
+  const languageDeclarations = manifest.languages.filter(isSourceObject).map((candidate) => {
+    const raw = toJsonObject(candidate)
+    return { raw, source: decodeUnknownOrThrow(languageDeclarationSourceSchema, raw) }
+  })
   const concurrency = reader.format === 'vscode-vsix' ? 1 : UNPACKED_EXTENSION_IMPORT_CONCURRENCY
   return mapExtensionResources(
-    declarations.filter(hasResourcePath),
+    manifest.grammars.filter(hasResourcePath),
     concurrency,
     async (declaration) => {
       const resourcePath = reader.resolveDeclared(declaration.path)
+      const rawDeclaration = toJsonObject(declaration)
       const source = await reader.readText(resourcePath)
       const grammar = resourcePath.toLowerCase().endsWith('.json')
         ? parseJsonText(source)
         : parseTextMatePlist(source)
-      const languageId = typeof declaration.language === 'string' ? declaration.language : null
+      const languageId = decodeUnknownOrThrow(
+        grammarDeclarationSourceSchema,
+        rawDeclaration,
+      ).language
       const language = languageDeclarations.find(
-        (candidate) => languageId !== null && candidate.id === languageId,
+        (candidate) => languageId !== undefined && candidate.source.id === languageId,
       )
+      const configurationPath = language?.source.configuration
       const configuration =
-        typeof language?.configuration === 'string'
-          ? parseJsonText(await reader.readText(reader.resolveDeclared(language.configuration)))
-          : undefined
+        configurationPath === undefined
+          ? undefined
+          : parseJsonText(await reader.readText(reader.resolveDeclared(configurationPath)))
       return normalizedLanguage({
         grammar,
-        declaration,
-        language,
+        declaration: rawDeclaration,
+        language: language?.raw,
         packageId: manifest.packageId,
         format: reader.format,
         sourcePath: reader.sourcePath(resourcePath),
@@ -211,15 +218,9 @@ async function importExtensionResources(
   reader: ExtensionResourceReader,
   scope: SyntaxResourceScope,
 ) {
-  const themeDeclarations = Array.isArray(manifest.contributes.themes)
-    ? manifest.contributes.themes
-    : []
-  const grammarDeclarations = Array.isArray(manifest.contributes.grammars)
-    ? manifest.contributes.grammars
-    : []
   if (
-    themeDeclarations.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
-    grammarDeclarations.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT
+    manifest.themes.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
+    manifest.grammars.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT
   ) {
     throw new Error('A VS Code syntax extension declares too many resources of one kind.')
   }

@@ -104,13 +104,48 @@ function retainBest(heap: SessionVectorMatch[], match: SessionVectorMatch, limit
   sinkWorstDown(heap)
 }
 
+interface GroupBestRecord {
+  readonly similarity: number
+  readonly recordId: string
+}
+
+/** Keeps a group's most similar record; equal similarities go to the lower record id. */
+function keepBestGroupRecord(
+  bestByGroup: Map<string, GroupBestRecord>,
+  groupId: string,
+  candidate: GroupBestRecord,
+) {
+  const previous = bestByGroup.get(groupId)
+  if (
+    previous === undefined ||
+    candidate.similarity > previous.similarity ||
+    (candidate.similarity === previous.similarity &&
+      candidate.recordId.localeCompare(previous.recordId) < 0)
+  ) {
+    bestByGroup.set(groupId, candidate)
+  }
+}
+
+function bestGroupMatches(bestByGroup: ReadonlyMap<string, GroupBestRecord>, limit: number) {
+  const matches: SessionVectorMatch[] = []
+  for (const [sessionId, best] of bestByGroup) {
+    retainBest(
+      matches,
+      { sessionId, similarity: best.similarity, matchedRecordId: best.recordId },
+      limit,
+    )
+  }
+  return matches.toSorted(compareBestFirst)
+}
+
 /** Exact, allocation-light cosine index for the bounded session-discovery corpus. */
 export class SessionFlatVectorIndex {
   readonly #records = new Map<string, IndexedSessionVector>()
 
-  constructor(
-    private readonly maximumRecordCount: number = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
-  ) {
+  private readonly maximumRecordCount: number
+
+  constructor(maximumRecordCount: number = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit) {
+    this.maximumRecordCount = maximumRecordCount
     if (!Number.isSafeInteger(maximumRecordCount) || maximumRecordCount < 1) {
       throw new Error('Vector index record limit must be a positive safe integer.')
     }
@@ -209,32 +244,14 @@ export class SessionFlatVectorIndex {
   searchGrouped(query: Float32Array, limit: number, allowedGroupIds: ReadonlySet<string>) {
     if (limit <= 0) return []
     const queryMagnitude = vectorMagnitude(query)
-    const bestByGroup = new Map<
-      string,
-      { readonly similarity: number; readonly recordId: string }
-    >()
+    const bestByGroup = new Map<string, GroupBestRecord>()
     for (const [recordId, vector] of this.#records) {
       if (!allowedGroupIds.has(vector.groupId)) continue
       const similarity = cosineSimilarity(query, queryMagnitude, vector)
       if (!Number.isFinite(similarity)) continue
-      const previous = bestByGroup.get(vector.groupId)
-      if (
-        previous === undefined ||
-        similarity > previous.similarity ||
-        (similarity === previous.similarity && recordId.localeCompare(previous.recordId) < 0)
-      ) {
-        bestByGroup.set(vector.groupId, { similarity, recordId })
-      }
+      keepBestGroupRecord(bestByGroup, vector.groupId, { similarity, recordId })
     }
-    const matches: SessionVectorMatch[] = []
-    for (const [sessionId, best] of bestByGroup) {
-      retainBest(
-        matches,
-        { sessionId, similarity: best.similarity, matchedRecordId: best.recordId },
-        limit,
-      )
-    }
-    return matches.toSorted(compareBestFirst)
+    return bestGroupMatches(bestByGroup, limit)
   }
 
   async searchGroupedCooperatively(input: {
@@ -247,10 +264,7 @@ export class SessionFlatVectorIndex {
     input.signal?.throwIfAborted()
     if (input.limit <= 0) return []
     const queryMagnitude = vectorMagnitude(input.query)
-    const bestByGroup = new Map<
-      string,
-      { readonly similarity: number; readonly recordId: string }
-    >()
+    const bestByGroup = new Map<string, GroupBestRecord>()
     const yieldEveryRecords = cooperativeYieldInterval(input.yieldEveryRecords)
     let processed = 0
     for (const [recordId, vector] of this.#records) {
@@ -263,24 +277,9 @@ export class SessionFlatVectorIndex {
       if (!input.allowedGroupIds.has(vector.groupId)) continue
       const similarity = cosineSimilarity(input.query, queryMagnitude, vector)
       if (!Number.isFinite(similarity)) continue
-      const previous = bestByGroup.get(vector.groupId)
-      if (
-        previous === undefined ||
-        similarity > previous.similarity ||
-        (similarity === previous.similarity && recordId.localeCompare(previous.recordId) < 0)
-      ) {
-        bestByGroup.set(vector.groupId, { similarity, recordId })
-      }
+      keepBestGroupRecord(bestByGroup, vector.groupId, { similarity, recordId })
     }
-    const matches: SessionVectorMatch[] = []
-    for (const [sessionId, best] of bestByGroup) {
-      retainBest(
-        matches,
-        { sessionId, similarity: best.similarity, matchedRecordId: best.recordId },
-        input.limit,
-      )
-    }
-    return matches.toSorted(compareBestFirst)
+    return bestGroupMatches(bestByGroup, input.limit)
   }
 
   get size() {

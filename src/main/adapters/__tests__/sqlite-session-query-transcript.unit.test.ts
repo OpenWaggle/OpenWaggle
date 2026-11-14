@@ -12,7 +12,7 @@ import { collectLargeTranscriptPages } from './sqlite-session-query-transcript-t
 
 describe('SQLite Session transcript queries', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-transcript-query-'))
@@ -140,10 +140,14 @@ describe('SQLite Session transcript queries', () => {
       operation: 'items',
       sessionId: 'worker',
       branchScope: 'active-branch',
-      branchId: first.outcome.selectedBranchId ?? undefined,
-      snapshotHeadNodeId: first.outcome.snapshotHeadNodeId ?? undefined,
+      ...(first.outcome.selectedBranchId ? { branchId: first.outcome.selectedBranchId } : {}),
+      ...(first.outcome.snapshotHeadNodeId
+        ? { snapshotHeadNodeId: first.outcome.snapshotHeadNodeId }
+        : {}),
       throughCreatedOrder: first.outcome.highWaterMark,
-      afterCreatedOrder: first.outcome.nextCreatedOrder,
+      ...(first.outcome.nextCreatedOrder === undefined
+        ? {}
+        : { afterCreatedOrder: first.outcome.nextCreatedOrder }),
       limit: 10,
     })
     expect(second.outcome).toMatchObject({

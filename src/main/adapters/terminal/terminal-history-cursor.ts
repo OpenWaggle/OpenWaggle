@@ -7,24 +7,30 @@ type PendingCursor =
 const validOffset = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 
-function parseCursor(raw: string): number | PendingCursor {
+function parseCursor(raw: string) {
   if (/^\d+$/.test(raw)) {
     const endOffset = Number(raw)
     if (validOffset(endOffset)) return endOffset
   }
   const value: unknown = JSON.parse(raw)
-  if (typeof value !== 'object' || value === null)
+  if (typeof value !== 'object' || value === null) {
     throw new Error('Invalid terminal history cursor.')
-  const readField = (name: string): unknown => Reflect.get(value, name)
+  }
+  const readField = (name: string) => {
+    const result: unknown = Reflect.get(value, name)
+    return result
+  }
   const kind = readField('kind')
   const endOffset = readField('endOffset')
   const text = readField('text')
-  if (!validOffset(endOffset) || typeof text !== 'string')
+  if (!validOffset(endOffset) || typeof text !== 'string') {
     throw new Error('Invalid terminal history cursor.')
+  }
   if (kind === 'replace') return { kind, endOffset, text }
   const previousBytes = readField('previousBytes')
-  if (kind === 'append' && validOffset(previousBytes))
+  if (kind === 'append' && validOffset(previousBytes)) {
     return { kind, endOffset, previousBytes, text }
+  }
   throw new Error('Invalid terminal history cursor.')
 }
 
@@ -38,11 +44,13 @@ export async function recoverHistoryCursor(files: TerminalHistoryFiles, entry: H
   if (cursor.kind === 'append') {
     const current = (await files.readIfPresent(entry.logFile)) ?? ''
     const prefix = Buffer.from(current).subarray(0, cursor.previousBytes)
-    if (prefix.byteLength !== cursor.previousBytes)
+    if (prefix.byteLength !== cursor.previousBytes) {
       throw new Error('Terminal history log is shorter than its cursor journal.')
+    }
     desired = prefix.toString('utf8') + cursor.text
-    if (Buffer.byteLength(desired) !== cursor.previousBytes + Buffer.byteLength(cursor.text))
+    if (Buffer.byteLength(desired) !== cursor.previousBytes + Buffer.byteLength(cursor.text)) {
       throw new Error('Terminal history log has an invalid cursor journal prefix.')
+    }
     if (current !== desired) await files.writePrivateAtomically(entry.logFile, desired)
   } else {
     const current = await files.readIfPresent(entry.logFile)

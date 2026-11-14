@@ -4,7 +4,7 @@ import {
   type LexicalDiscoverySearchRow,
 } from '../sqlite-session-lexical-evidence'
 
-function row(overrides: Partial<LexicalDiscoverySearchRow> = {}): LexicalDiscoverySearchRow {
+function row(overrides: Partial<LexicalDiscoverySearchRow> = {}) {
   return {
     session_id: 'evidence-session',
     title: 'Evidence Session',
@@ -28,7 +28,7 @@ function row(overrides: Partial<LexicalDiscoverySearchRow> = {}): LexicalDiscove
     discovery_initial_objective: 'cafe',
     discovery_current_preview: 'cafe',
     ...overrides,
-  }
+  } satisfies LexicalDiscoverySearchRow
 }
 
 describe('SQLite lexical discovery evidence', () => {

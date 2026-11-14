@@ -24,8 +24,9 @@ import {
   errorReportingRelease,
 } from '@shared/error-reporting/error-report-constants'
 import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
-import { app } from 'electron'
-import { env } from './env'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
+import { usageStatisticsEnv } from './usage-statistics-env'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
 import type { ErrorReporter, ErrorReportOrigin } from './ports/error-reporter'
@@ -35,7 +36,7 @@ const logger = createLogger('error-reporting')
 
 /** Loaded only when this process reports errors, so a process that never does skips the SDK. */
 const importSentryMainErrorReporter = () =>
-  import('./adapters/error-reporting/sentry-main-error-reporter')
+  import('./adapters/electron/error-reporting/sentry-main-error-reporter')
 /** Loaded on start, after Settings: it reads the settings store, which startup loads late. */
 const importUsageStatisticsEnablement = () =>
   import('./usage-statistics/usage-statistics-enablement')
@@ -79,12 +80,7 @@ function fixedOptOutApplies() {
   return (
     resolveUsageStatisticsEnvironmentBlock({
       buildChannel: BUILD_CHANNEL,
-      env: {
-        DO_NOT_TRACK: env.DO_NOT_TRACK,
-        PI_TELEMETRY: env.PI_TELEMETRY,
-        CI: env.CI,
-        OPENWAGGLE_AUTOMATION: env.OPENWAGGLE_AUTOMATION,
-      },
+      env: usageStatisticsEnv(),
     }) !== null
   )
 }
@@ -103,7 +99,7 @@ async function startSdk(
   const { startSentryMainErrorReporter } = await importSentryMainErrorReporter()
   reporter = startSentryMainErrorReporter({
     process: processKind,
-    release: errorReportingRelease(app.getVersion()),
+    release: errorReportingRelease(appLifecycle.version()),
     environment: BUILD_CHANNEL,
     homeDirectory: homedir(),
     temporaryDirectory: tmpdir(),
@@ -136,7 +132,7 @@ function startSdkWhenEnabled(
 async function recordLastKnownSetting() {
   try {
     const lastKnown = await importLastKnownSetting()
-    lastKnown.recordLastKnownUsageStatisticsSetting(app.getPath('userData'))
+    lastKnown.recordLastKnownUsageStatisticsSetting(appPaths.userData())
   } catch (error) {
     logger.warn('The Usage statistics Setting will not be saved', describeError(error))
   }
@@ -158,7 +154,7 @@ async function beginErrorReporting(processKind: ErrorReportingProcess) {
  * Starts error reporting for this process once Settings have loaded; later calls return the
  * same attempt. Never rejects.
  */
-export function startErrorReporting(processKind: ErrorReportingProcess): Promise<void> {
+export function startErrorReporting(processKind: ErrorReportingProcess) {
   if (startup) return startup
   // Only a Host whose Settings loaded saves the Setting, so a Host that fails before then (and
   // may not own the profile) never writes the file. Not awaited: it never delays reporting.
@@ -175,9 +171,7 @@ export function startErrorReporting(processKind: ErrorReportingProcess): Promise
  * Settings that never loaded, as in a Host whose Settings read failed, the saved Setting applies
  * to that attempt. Never rejects.
  */
-export function startErrorReportingWithoutSettings(
-  processKind: ErrorReportingProcess,
-): Promise<void> {
+export function startErrorReportingWithoutSettings(processKind: ErrorReportingProcess) {
   if (fixedOptOutApplies()) {
     startup ??= beginErrorReporting(processKind)
     return startup
@@ -204,7 +198,7 @@ async function assumeLastKnownSetting() {
     const current = enablement.currentUsageStatisticsEnablement()
     if (current.enabled || current.reason !== 'settings-unavailable') return
     enablement.assumeUsageStatisticsSettingUntilSettingsLoad(
-      lastKnown.usageStatisticsSettingWithoutSettings(app.getPath('userData')),
+      lastKnown.usageStatisticsSettingWithoutSettings(appPaths.userData()),
     )
   } catch (error) {
     logger.warn('The last known Usage statistics Setting could not be read', describeError(error))
@@ -215,7 +209,7 @@ async function assumeLastKnownSetting() {
  * Arguments for the main window's renderer: the switch that lets it start its SDK. A renderer
  * report reaches nothing until this process's SDK runs, and is dropped while statistics are off.
  */
-export function errorReportingRendererArguments(): readonly string[] {
+export function errorReportingRendererArguments() {
   return failed || fixedOptOutApplies() ? [] : [ERROR_REPORTING_RENDERER_SWITCH]
 }
 
@@ -223,7 +217,7 @@ export function errorReportingRendererArguments(): readonly string[] {
  * Reports an error the app caught. Only an `origin` of `application` keeps the message text, so
  * pass it only where the message cannot hold user content. Does nothing while reporting is off.
  */
-export function reportError(error: unknown, origin?: ErrorReportOrigin): void {
+export function reportError(error: unknown, origin?: ErrorReportOrigin) {
   void startup?.then(() => reporter?.captureException(error, origin))
 }
 
@@ -255,10 +249,7 @@ export async function flushErrorReporting(timeoutMs = ERROR_REPORT_FLUSH_TIMEOUT
  * message (startup-failure-summary.ts). Reporting starts here when it has not, from the Setting
  * the Session Host last saved when Settings never loaded ({@link startErrorReportingWithoutSettings}).
  */
-export function reportStartupFailure(
-  error: unknown,
-  context: StartupFailureContext,
-): Promise<void> {
+export function reportStartupFailure(error: unknown, context: StartupFailureContext) {
   const started = startErrorReportingWithoutSettings(
     context === 'session-host' ? 'session-host' : 'gui',
   )

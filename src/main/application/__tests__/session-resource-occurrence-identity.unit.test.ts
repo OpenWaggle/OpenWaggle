@@ -8,7 +8,7 @@ import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { captureSuccessfulRunResources } from '../session-resource-capture'
 import { resourceMessages, sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
-function capturedResource(input: UpsertSessionResourceInput): SessionResource {
+function capturedResource(input: UpsertSessionResourceInput) {
   return {
     id: input.id,
     sessionId: input.sessionId,
@@ -24,7 +24,7 @@ function capturedResource(input: UpsertSessionResourceInput): SessionResource {
     occurrences: [input.occurrence],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
-  }
+  } satisfies SessionResource
 }
 
 const attachment = {
@@ -37,7 +37,7 @@ const attachment = {
   extractedText: 'x',
 }
 
-function persistedMessages(): readonly Message[] {
+function persistedMessages() {
   return [
     {
       id: MessageId('user-live-resource'),
@@ -49,7 +49,7 @@ function persistedMessages(): readonly Message[] {
       createdAt: 1000,
     },
     ...resourceMessages().filter((message) => message.role === 'assistant'),
-  ]
+  ] satisfies readonly Message[]
 }
 
 describe('session resource occurrence identity', () => {

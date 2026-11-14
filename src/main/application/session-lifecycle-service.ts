@@ -2,10 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import type { SessionCapability } from '@shared/types/session-capability'
-import type {
-  SessionLifecycleRequest,
-  SessionLifecycleResponse,
-} from '@shared/types/session-lifecycle'
+import type { SessionLifecycleRequest } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { SessionLifecycleIdentityService } from '../ports/session-lifecycle-identity-service'
@@ -86,13 +83,7 @@ function allocateLifecycleIdentities(request: SessionLifecycleRequest) {
   })
 }
 
-export function executeSessionLifecycle(
-  input: ExecuteSessionLifecycleCommandInput,
-): Effect.Effect<
-  SessionLifecycleResponse,
-  unknown,
-  SessionLifecycleIdentityService | SessionLifecyclePreparationService | SessionLifecycleRepository
-> {
+export function executeSessionLifecycle(input: ExecuteSessionLifecycleCommandInput) {
   return Effect.gen(function* () {
     const identities = yield* SessionLifecycleIdentityService
     const preparation = yield* SessionLifecyclePreparationService

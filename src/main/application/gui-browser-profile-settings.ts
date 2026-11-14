@@ -21,7 +21,7 @@ export async function getGuiBrowserProfiles(settings: SettingsServiceShape) {
 export async function updateGuiBrowserProfiles(
   settings: SettingsServiceShape,
   profiles: readonly BrowserProfile[],
-): Promise<void> {
+) {
   const remote = await invokeConfiguredHostUi('settings:update', [
     { browserProfiles: [...profiles] },
   ])

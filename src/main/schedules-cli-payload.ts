@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -6,14 +7,12 @@ import {
   type IsoWeekday,
   SCHEDULED_TASKS_CONTRACT_VERSION,
   type ScheduledTaskInput,
-  type ScheduledTaskNotificationPolicy,
   type ScheduledTaskPatch,
   type ScheduledTasksCommand,
-  type ScheduledTasksRequest,
   type ScheduledTaskTarget,
   type TaskSchedule,
 } from '@shared/types/scheduled-task'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import { THINKING_LEVELS } from '@shared/types/settings'
 import { sessionIdFromReference } from '@shared/utils/session-link'
 import { CommandCliUsageError } from './command-cli-option-contract'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
@@ -37,22 +36,26 @@ function sessionArgument(value: string | undefined, label: string) {
 }
 
 function positiveWhole(value: string, label: string) {
-  if (!/^\d+$/.test(value) || Number(value) < 1)
+  if (!/^\d+$/.test(value) || Number(value) < 1) {
     throw new CommandCliUsageError(`${label} must be a whole number.`)
+  }
   return Number(value)
 }
 
 /** `--every 30m`, `--every 2h`, or a plain number of minutes. */
 function everyMinutes(value: string) {
-  const match = /^(?<amount>\d+)\s*(?<unit>m|min|h|hr)?$/i.exec(value.trim())
-  const amountText = match?.groups?.amount
+  const match = namedGroups(/^(?<amount>\d+)\s*(?<unit>m|min|h|hr)?$/i.exec(value.trim()), [
+    'amount',
+    'unit',
+  ])
+  const amountText = match?.amount
   if (!amountText) throw new CommandCliUsageError('--every takes minutes (30, 30m) or hours (2h).')
   const amount = Number(amountText)
-  const unit = (match?.groups?.unit ?? 'm').toLowerCase()
+  const unit = (match?.unit ?? 'm').toLowerCase()
   return unit.startsWith('h') ? amount * MINUTES_PER_HOUR : amount
 }
 
-function weekdays(value: string | undefined): readonly IsoWeekday[] | undefined {
+function weekdays(value: string | undefined) {
   if (value === undefined) return undefined
   if (value === 'weekdays') return WORKDAYS
   if (!DAYS_PER_WEEK_PATTERN.test(value)) {
@@ -66,49 +69,55 @@ function weekdays(value: string | undefined): readonly IsoWeekday[] | undefined 
 }
 
 /** The schedule the options name, or undefined when they name none. */
-export function scheduleFromOptions(arguments_: ParsedArguments): TaskSchedule | undefined {
+export function scheduleFromOptions(arguments_: ParsedArguments) {
   const every = option(arguments_, 'every')
   const daily = option(arguments_, 'daily')
   const rule = option(arguments_, 'rrule')
   const named = [every, daily, rule].filter((value) => value !== undefined)
-  if (named.length > 1)
+  if (named.length > 1) {
     throw new CommandCliUsageError('Choose one of --every, --daily, or --rrule.')
-  if (every !== undefined) return { kind: 'interval', everyMinutes: everyMinutes(every) }
+  }
+  if (every !== undefined) {
+    return { kind: 'interval', everyMinutes: everyMinutes(every) } satisfies TaskSchedule
+  }
   if (daily !== undefined) {
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(daily))
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(daily)) {
       throw new CommandCliUsageError('--daily takes HH:MM (24-hour).')
+    }
     const days = weekdays(option(arguments_, 'weekdays'))
-    return { kind: 'daily', at: daily, ...(days ? { weekdays: days } : {}) }
+    return { kind: 'daily', at: daily, ...(days ? { weekdays: days } : {}) } satisfies TaskSchedule
   }
   if (option(arguments_, 'weekdays') !== undefined) {
     throw new CommandCliUsageError('--weekdays needs --daily HH:MM.')
   }
-  return rule !== undefined ? { kind: 'rrule', rule } : undefined
+  return (rule !== undefined ? { kind: 'rrule', rule } : undefined) satisfies
+    | TaskSchedule
+    | undefined
 }
 
 function timestamp(value: string | undefined, label: string) {
   if (value === undefined) return undefined
   if (value === 'none') return null
   const parsed = /^\d+$/.test(value) ? Number(value) : Date.parse(value)
-  if (!Number.isFinite(parsed))
+  if (!Number.isFinite(parsed)) {
     throw new CommandCliUsageError(`${label} takes an ISO date or epoch milliseconds.`)
+  }
   return parsed
 }
 
-function thinkingLevel(value: string | undefined): ThinkingLevel | undefined {
+function thinkingLevel(value: string | undefined) {
   if (value === undefined) return undefined
   const level = THINKING_LEVELS.find((candidate) => candidate === value)
-  if (!level)
+  if (!level) {
     throw new CommandCliUsageError(`--thinking must be one of ${THINKING_LEVELS.join(', ')}.`)
+  }
   return level
 }
 
-function notificationPolicy(
-  value: string | undefined,
-): ScheduledTaskNotificationPolicy | undefined {
+function notificationPolicy(value: string | undefined) {
   if (value === undefined) return undefined
-  if (value === 'every-run') return 'every-run'
-  if (value === 'failures-only') return 'failures-only'
+  if (value === 'every-run') return 'every-run' as const
+  if (value === 'failures-only') return 'failures-only' as const
   throw new CommandCliUsageError('--notify must be every-run or failures-only.')
 }
 
@@ -122,8 +131,9 @@ async function promptFrom(arguments_: ParsedArguments, words: readonly string[])
   const file = option(arguments_, 'prompt-file')
   const inline = option(arguments_, 'prompt')
   const sources = [file, inline, words.length > 0 ? 'words' : undefined].filter(Boolean)
-  if (sources.length > 1)
+  if (sources.length > 1) {
     throw new CommandCliUsageError('Give the prompt once: --prompt, --prompt-file, or words.')
+  }
   if (file) return (await readFile(file, 'utf8')).trimEnd()
   if (inline) return inline
   return words.length > 0 ? words.join(' ') : undefined
@@ -141,17 +151,18 @@ function modelChoice(arguments_: ParsedArguments) {
 
 const LAUNCH_ONLY_OPTIONS = ['workspace', 'agent', 'archive-finished'] as const
 
-function heartbeatTarget(sessionId: string, arguments_: ParsedArguments): ScheduledTaskTarget {
+function heartbeatTarget(sessionId: string, arguments_: ParsedArguments) {
   const launchOnly = LAUNCH_ONLY_OPTIONS.filter((name) => option(arguments_, name) !== undefined)
   if (launchOnly.length > 0) {
     throw new CommandCliUsageError(
       `${launchOnly.map((name) => `--${name}`).join(', ')} apply only to a Launch schedule.`,
     )
   }
-  return { kind: 'heartbeat', sessionId, ...modelChoice(arguments_) }
+  const target: ScheduledTaskTarget = { kind: 'heartbeat', sessionId, ...modelChoice(arguments_) }
+  return target
 }
 
-function launchTarget(projectPath: string, arguments_: ParsedArguments): ScheduledTaskTarget {
+function launchTarget(projectPath: string, arguments_: ParsedArguments) {
   const agent = option(arguments_, 'agent')
   return {
     kind: 'launch',
@@ -160,7 +171,7 @@ function launchTarget(projectPath: string, arguments_: ParsedArguments): Schedul
     ...modelChoice(arguments_),
     ...(agent ? { agentDefinitionName: agent } : {}),
     archiveFinishedSessions: hasFlag(arguments_, 'archive-finished'),
-  }
+  } satisfies ScheduledTaskTarget
 }
 
 function commonFields(arguments_: ParsedArguments) {
@@ -178,7 +189,7 @@ function commonFields(arguments_: ParsedArguments) {
   }
 }
 
-async function createCommand(arguments_: ParsedArguments): Promise<ScheduledTasksCommand> {
+async function createCommand(arguments_: ParsedArguments) {
   const [kind, targetArgument, ...words] = arguments_.positionals
   if (kind !== 'heartbeat' && kind !== 'launch') {
     throw new CommandCliUsageError('create needs heartbeat <session> or launch <project-path>.')
@@ -207,10 +218,11 @@ async function createCommand(arguments_: ParsedArguments): Promise<ScheduledTask
     ...common,
     ...(heartbeat ? { heartbeat } : {}),
   }
-  return { operation: 'create', input }
+  const command: ScheduledTasksCommand = { operation: 'create', input }
+  return command
 }
 
-async function updateCommand(arguments_: ParsedArguments): Promise<ScheduledTasksCommand> {
+async function updateCommand(arguments_: ParsedArguments) {
   const [taskId, ...words] = arguments_.positionals
   const schedule = scheduleFromOptions(arguments_)
   const name = option(arguments_, 'name')
@@ -223,22 +235,28 @@ async function updateCommand(arguments_: ParsedArguments): Promise<ScheduledTask
     ...commonFields(arguments_),
     ...(heartbeat ? { heartbeat } : {}),
   }
-  if (Object.keys(patch).length === 0)
+  if (Object.keys(patch).length === 0) {
     throw new CommandCliUsageError('update needs at least one change.')
-  return { operation: 'update', taskId: required(taskId, 'the task id'), patch }
+  }
+  const command: ScheduledTasksCommand = {
+    operation: 'update',
+    taskId: required(taskId, 'the task id'),
+    patch,
+  }
+  return command
 }
 
-function listCommand(arguments_: ParsedArguments): ScheduledTasksCommand {
+function listCommand(arguments_: ParsedArguments) {
   const project = option(arguments_, 'project')
   const session = option(arguments_, 'session')
   return {
     operation: 'list',
     ...(project ? { projectPath: path.resolve(project) } : {}),
     ...(session ? { sessionId: sessionIdFromReference(session, '--session') } : {}),
-  }
+  } satisfies ScheduledTasksCommand
 }
 
-function runsCommand(arguments_: ParsedArguments): ScheduledTasksCommand {
+function runsCommand(arguments_: ParsedArguments) {
   const limit = option(arguments_, 'limit')
   const before = timestamp(option(arguments_, 'before'), '--before')
   return {
@@ -246,7 +264,7 @@ function runsCommand(arguments_: ParsedArguments): ScheduledTasksCommand {
     taskId: required(arguments_.positionals[0], 'the task id'),
     ...(limit ? { limit: positiveWhole(limit, '--limit') } : {}),
     ...(typeof before === 'number' ? { before } : {}),
-  }
+  } satisfies ScheduledTasksCommand
 }
 
 function taskId(arguments_: ParsedArguments) {
@@ -277,20 +295,18 @@ const COMMAND_BUILDERS: Readonly<Record<string, CommandBuilder>> = {
 }
 
 /** The commands one CLI invocation sends; `import` sends one create per task. */
-export async function buildSchedulesCliCommands(
-  command: string,
-  arguments_: ParsedArguments,
-): Promise<readonly ScheduledTasksCommand[]> {
+export async function buildSchedulesCliCommands(command: string, arguments_: ParsedArguments) {
   const builder = COMMAND_BUILDERS[command]
-  if (!builder)
+  if (!builder) {
     throw new CommandCliUsageError(`Unsupported OpenWaggle Schedules command: ${command}.`)
+  }
   return builder(arguments_)
 }
 
 export function schedulesCliRequest(
   command: ScheduledTasksCommand,
   idempotencyKey: string | undefined,
-): ScheduledTasksRequest {
+) {
   return {
     contractVersion: SCHEDULED_TASKS_CONTRACT_VERSION,
     requestId: randomUUID(),

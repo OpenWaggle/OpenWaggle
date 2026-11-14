@@ -226,9 +226,15 @@ describe('applying MCP imports through the config writer', () => {
     })
 
     const writes = writer.calls.flatMap((call) => call.writes)
-    expect(writes.map((write) => [write.name, write.entry.headers])).toEqual([
-      ['github-2', { Authorization: { secret: 'GITHUB_2_AUTHORIZATION' } }],
-      ['github-3', { Authorization: { secret: 'GITHUB_3_AUTHORIZATION' } }],
+    expect(writes).toMatchObject([
+      {
+        name: 'github-2',
+        entry: { headers: { Authorization: { secret: 'GITHUB_2_AUTHORIZATION' } } },
+      },
+      {
+        name: 'github-3',
+        entry: { headers: { Authorization: { secret: 'GITHUB_3_AUTHORIZATION' } } },
+      },
     ])
     expect(result.imported.map((item) => [item.targetName, item.secrets])).toEqual([
       ['github-2', ['GITHUB_2_AUTHORIZATION']],

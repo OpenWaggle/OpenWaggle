@@ -1,12 +1,7 @@
 import { TERMINAL } from '@shared/constants/resource-limits'
 import { isAllowedTerminalEnvironmentName } from '@shared/utils/terminal-environment'
 import { createJSONStorage, type StateStorage } from 'zustand/middleware'
-import type {
-  TerminalGroupState,
-  TerminalPaneState,
-  TerminalSplitDirection,
-  TerminalTabState,
-} from './terminal-store'
+import type { TerminalGroupState, TerminalPaneState, TerminalTabState } from './terminal-store'
 
 export const TERMINAL_STORAGE_KEY = 'openwaggle:terminal-layout:v1'
 const TERMINAL_WRITE_DELAY_MS = 500
@@ -16,8 +11,8 @@ export const MAX_PANEL_HEIGHT = 720
 const textEncoder = new TextEncoder()
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
-export function resolveTerminalStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+export function resolveTerminalStorage() {
+  if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
     getItem: (key) => memory.get(key) ?? null,
@@ -27,14 +22,11 @@ export function resolveTerminalStorage(): StateStorage {
     removeItem: (key) => {
       memory.delete(key)
     },
-  }
+  } satisfies StateStorage
 }
 
 /** Defer and coalesce writes so bursty terminal layout changes cost one write. */
-export function debouncedTerminalStorage(
-  inner: StateStorage,
-  delayMs = TERMINAL_WRITE_DELAY_MS,
-): StateStorage {
+export function debouncedTerminalStorage(inner: StateStorage, delayMs = TERMINAL_WRITE_DELAY_MS) {
   const pending = new Map<string, string>()
   let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -63,17 +55,18 @@ export function debouncedTerminalStorage(
       pending.delete(key)
       inner.removeItem(key)
     },
-  }
+  } satisfies StateStorage
 }
 
-export function readStoredField(source: unknown, key: string): unknown {
+export function readStoredField(source: unknown, key: string) {
   if (source === null || typeof source !== 'object') return undefined
-  return Reflect.get(source, key)
+  const result: unknown = Reflect.get(source, key)
+  return result
 }
 
 /** A pane state is valid only with non-empty string id and cwd. */
-function sanitizePanes(value: unknown, terminalIds: Set<string>): TerminalPaneState[] {
-  if (!Array.isArray(value)) return []
+function sanitizePanes(value: unknown, terminalIds: Set<string>) {
+  if (!Array.isArray(value)) return [] satisfies TerminalPaneState[]
   const panes: TerminalPaneState[] = []
   for (const entry of value) {
     if (terminalIds.size >= TERMINAL.MAX_TERMINALS_PER_OWNER) break
@@ -113,7 +106,7 @@ function sanitizeLaunchEnv(value: unknown) {
   return Object.keys(launchEnv).length > 0 ? launchEnv : undefined
 }
 
-function sanitizePane(entry: unknown): TerminalPaneState | null {
+function sanitizePane(entry: unknown) {
   const terminalId = readStoredField(entry, 'terminalId')
   const cwd = readStoredField(entry, 'cwd')
   if (
@@ -136,11 +129,11 @@ function sanitizePane(entry: unknown): TerminalPaneState | null {
   return { terminalId, cwd, ...(launchEnv ? { launchEnv } : {}) }
 }
 
-function sanitizeSplitDirection(value: unknown): TerminalSplitDirection {
-  return value === 'stacked' ? 'stacked' : 'side-by-side'
+function sanitizeSplitDirection(value: unknown) {
+  return value === 'stacked' ? ('stacked' as const) : ('side-by-side' as const)
 }
 
-function sanitizeTab(entry: unknown, terminalIds: Set<string>): TerminalTabState | null {
+function sanitizeTab(entry: unknown, terminalIds: Set<string>) {
   const id = readStoredField(entry, 'id')
   if (
     typeof id !== 'string' ||
@@ -151,14 +144,15 @@ function sanitizeTab(entry: unknown, terminalIds: Set<string>): TerminalTabState
     return null
   }
   const panes = sanitizePanes(readStoredField(entry, 'panes'), terminalIds)
-  if (panes.length === 0) return null
+  const firstPane = panes[0]
+  if (firstPane === undefined) return null
   const customName: unknown = readStoredField(entry, 'customName')
   const storedActivePaneId = readStoredField(entry, 'activePaneId')
   const activePaneId =
     typeof storedActivePaneId === 'string' &&
     panes.some((pane) => pane.terminalId === storedActivePaneId)
       ? storedActivePaneId
-      : panes[0].terminalId
+      : firstPane.terminalId
   return {
     id,
     panes,
@@ -171,11 +165,11 @@ function sanitizeTab(entry: unknown, terminalIds: Set<string>): TerminalTabState
       !customName.includes('\0')
         ? customName
         : null,
-  }
+  } satisfies TerminalTabState
 }
 
-function sanitizeTabs(value: unknown): TerminalTabState[] {
-  if (!Array.isArray(value)) return []
+function sanitizeTabs(value: unknown) {
+  if (!Array.isArray(value)) return [] satisfies TerminalTabState[]
   const tabs: TerminalTabState[] = []
   const tabIds = new Set<string>()
   const terminalIds = new Set<string>()
@@ -193,14 +187,14 @@ function sanitizeTabs(value: unknown): TerminalTabState[] {
 
 function sanitizeActiveTabId(value: unknown, tabs: readonly TerminalTabState[]) {
   if (typeof value === 'string' && tabs.some((tab) => tab.id === value)) return value
-  return tabs[tabs.length - 1].id
+  return tabs.at(-1)?.id ?? null
 }
 
 /** Keep only structurally valid tabs and groups, so a corrupt entry cannot poison the panel. */
 export function sanitizeStoredGroups(
   value: unknown,
   legacyPanelHeight = TERMINAL_PANEL_DEFAULT_HEIGHT,
-): Record<string, TerminalGroupState> {
+) {
   const groups: Record<string, TerminalGroupState> = {}
   let groupCount = 0
   if (value === null || typeof value !== 'object') return groups
@@ -230,7 +224,7 @@ export function sanitizeStoredGroups(
   return groups
 }
 
-export function sanitizeStoredPanelHeight(value: unknown): number {
+export function sanitizeStoredPanelHeight(value: unknown) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return TERMINAL_PANEL_DEFAULT_HEIGHT
   return Math.max(MIN_PANEL_HEIGHT, Math.min(MAX_PANEL_HEIGHT, Math.round(value)))
 }

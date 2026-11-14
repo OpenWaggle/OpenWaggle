@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs'
 import type { SessionDetail } from '@shared/types/session'
-import { isRecord } from '@shared/utils/validation'
+import { errorCode } from '@shared/utils/node-error'
 import { piSessionSearchDirectories, resolveSessionWorkingPath } from './session-manager'
 
 /** Where a Run of `session` would run; undefined when there is none, as once its worktree is gone. */
@@ -17,7 +17,8 @@ function isUnsearchable(folder: string) {
     readdirSync(folder)
     return false
   } catch (error) {
-    return isRecord(error) && (error.code === 'EACCES' || error.code === 'EPERM')
+    const code = errorCode(error)
+    return code === 'EACCES' || code === 'EPERM'
   }
 }
 

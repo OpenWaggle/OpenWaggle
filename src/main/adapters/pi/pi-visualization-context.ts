@@ -31,10 +31,10 @@ function readWaggleVisualizationContext(message: PiContextMessage) {
   return typeof context === 'string' && context.length > 0 ? context : null
 }
 
-function transientWaggleVisualizationAside(message: PiContextMessage): PiContextMessage | null {
+function transientWaggleVisualizationAside(message: PiContextMessage) {
   const context = readWaggleVisualizationContext(message)
   if (!context) return null
-  return {
+  const result: PiContextMessage = {
     role: 'custom',
     customType: PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
     content: context,
@@ -42,9 +42,10 @@ function transientWaggleVisualizationAside(message: PiContextMessage): PiContext
     details: { source: 'openwaggle', kind: 'inline-visualization-context' },
     timestamp: message.timestamp,
   }
+  return result
 }
 
-function stripWaggleVisualizationContext(message: PiContextMessage): PiContextMessage {
+function stripWaggleVisualizationContext(message: PiContextMessage) {
   if (message.role !== 'custom' || message.customType !== PI_WAGGLE_TURN_CUSTOM_TYPE) {
     return message
   }
@@ -122,7 +123,7 @@ export async function filterConsumedVisualizationContext(
   messages: PiContextMessage[],
   referenceMessages: PiContextMessage[] = messages,
   options: { willRetry?: boolean } = {},
-): Promise<PiContextMessage[]> {
+) {
   let latestPromptIndex = -1
   let latestVisualizationAsideIndex = -1
   for (const [index, message] of messages.entries()) {
@@ -230,5 +231,6 @@ export function bindVisualizationContextFilter(session: AgentSession) {
       options,
     )
   }
-  Reflect.set(session.agent, 'transformCompactionContext', transformCompactionContext)
+  // Pi's agent reads this optional hook, which its published types do not declare yet.
+  Object.assign(session.agent, { transformCompactionContext })
 }

@@ -83,7 +83,7 @@ const SESSIONS: readonly UsageCostSessionRow[] = [
   },
 ]
 
-function baseState(overrides: Partial<UsageCostPageState> = {}): UsageCostPageState {
+function baseState(overrides: Partial<UsageCostPageState> = {}) {
   return {
     query: { preset: '30d', origin: 'all' },
     drillDown: {},
@@ -101,7 +101,7 @@ function baseState(overrides: Partial<UsageCostPageState> = {}): UsageCostPageSt
     toggleProject: vi.fn(),
     clearDrillDown: vi.fn(),
     ...overrides,
-  }
+  } satisfies UsageCostPageState
 }
 
 describe('UsageCostPage', () => {

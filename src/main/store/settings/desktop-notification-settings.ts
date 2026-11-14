@@ -3,53 +3,52 @@
  * not decode is refused by persisted-settings validation rather than read as the defaults; each
  * field is still read on its own here, so a patch never loses a field it did not name.
  */
+import { Schema } from '@shared/schema'
+import {
+  desktopNotificationFocusedBehaviorSchema,
+  desktopNotificationSettingsSchema,
+  notificationSoundSchema,
+} from '@shared/schemas/desktop-notification'
+import { lenientResolved, lenientWithFallback } from '@shared/schemas/lenient-exact'
 import {
   DEFAULT_DESKTOP_NOTIFICATION_SETTINGS,
-  DESKTOP_NOTIFICATION_FOCUSED_BEHAVIORS,
   DESKTOP_NOTIFICATION_MUTE_LIMIT,
   type DesktopNotificationCategory,
   type DesktopNotificationSettings,
-  NOTIFICATION_SOUND_IDS,
-  type NotificationSoundId,
 } from '@shared/types/desktop-notification'
 import type { Settings } from '@shared/types/settings'
+import { Option } from 'effect'
 import { SETTINGS_KEY_DESKTOP_NOTIFICATIONS } from './keys'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 
 const DEFAULTS = DEFAULT_DESKTOP_NOTIFICATION_SETTINGS
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+function booleanOr(fallback: boolean) {
+  return lenientWithFallback(Schema.Boolean, () => fallback)
 }
 
-function booleanOr(value: unknown, fallback: boolean) {
-  return typeof value === 'boolean' ? value : fallback
-}
-
-function soundOr(value: unknown, fallback: NotificationSoundId): NotificationSoundId {
-  return NOTIFICATION_SOUND_IDS.find((sound) => sound === value) ?? fallback
-}
-
-function perCategory<V>(
-  raw: unknown,
-  fallback: Readonly<Record<DesktopNotificationCategory, V>>,
-  read: (value: unknown, fallback: V) => V,
-): Record<DesktopNotificationCategory, V> {
-  const source = isRecord(raw) ? raw : {}
-  return {
-    'needs-you': read(source['needs-you'], fallback['needs-you']),
-    'ready-to-read': read(source['ready-to-read'], fallback['ready-to-read']),
-    'failed-or-interrupted': read(
-      source['failed-or-interrupted'],
-      fallback['failed-or-interrupted'],
-    ),
-    'agent-errors': read(source['agent-errors'], fallback['agent-errors']),
-  }
+/** Each category's value when it decodes, else that category's default. */
+function perCategory<A, I>(
+  value: Schema.Schema<A, I>,
+  fallback: Readonly<Record<DesktopNotificationCategory, NoInfer<A>>>,
+) {
+  const decode = Schema.decodeUnknownOption(
+    Schema.Struct({
+      'needs-you': lenientWithFallback(value, () => fallback['needs-you']),
+      'ready-to-read': lenientWithFallback(value, () => fallback['ready-to-read']),
+      'failed-or-interrupted': lenientWithFallback(value, () => fallback['failed-or-interrupted']),
+      'agent-errors': lenientWithFallback(value, () => fallback['agent-errors']),
+    }),
+  )
+  return (raw: unknown) => Option.getOrElse(decode(raw), () => fallback)
 }
 
 /** Distinct, non-empty keys in their saved order, at most the mute limit. */
-function muteList(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) return []
+function muteList(value: unknown) {
+  if (!Array.isArray(value)) {
+    const result: readonly string[] = []
+    return result
+  }
   const seen = new Set<string>()
   for (const entry of value) {
     if (typeof entry !== 'string') continue
@@ -57,26 +56,41 @@ function muteList(value: unknown): readonly string[] {
     if (key) seen.add(key)
     if (seen.size >= DESKTOP_NOTIFICATION_MUTE_LIMIT) break
   }
-  return [...seen]
+  const result: readonly string[] = [...seen]
+  return result
 }
 
-export function resolveDesktopNotificationSettings(raw: unknown): DesktopNotificationSettings {
-  if (!isRecord(raw)) return DEFAULTS
-  return {
-    enabled: booleanOr(raw.enabled, DEFAULTS.enabled),
-    categories: perCategory(raw.categories, DEFAULTS.categories, booleanOr),
-    sounds: perCategory(raw.sounds, DEFAULTS.sounds, soundOr),
-    whileFocused:
-      DESKTOP_NOTIFICATION_FOCUSED_BEHAVIORS.find((behavior) => behavior === raw.whileFocused) ??
-      DEFAULTS.whileFocused,
-    showBadge: booleanOr(raw.showBadge, DEFAULTS.showBadge),
-    showPreviews: booleanOr(raw.showPreviews, DEFAULTS.showPreviews),
-    mutedProjectPaths: muteList(raw.mutedProjectPaths),
-    mutedSessionIds: muteList(raw.mutedSessionIds),
-    permissionRequested: booleanOr(raw.permissionRequested, DEFAULTS.permissionRequested),
-    introductionShown: booleanOr(raw.introductionShown, DEFAULTS.introductionShown),
-    blockedNoticeShown: booleanOr(raw.blockedNoticeShown, DEFAULTS.blockedNoticeShown),
-  }
+const fields = desktopNotificationSettingsSchema.fields
+
+const decodeStoredDesktopNotificationSettings = Schema.decodeUnknownOption(
+  Schema.Struct({
+    enabled: booleanOr(DEFAULTS.enabled),
+    categories: lenientResolved(
+      fields.categories,
+      perCategory(Schema.Boolean, DEFAULTS.categories),
+    ),
+    sounds: lenientResolved(fields.sounds, perCategory(notificationSoundSchema, DEFAULTS.sounds)),
+    whileFocused: lenientWithFallback(
+      desktopNotificationFocusedBehaviorSchema,
+      () => DEFAULTS.whileFocused,
+    ),
+    showBadge: booleanOr(DEFAULTS.showBadge),
+    showPreviews: booleanOr(DEFAULTS.showPreviews),
+    mutedProjectPaths: lenientResolved(fields.mutedProjectPaths, muteList),
+    mutedSessionIds: lenientResolved(fields.mutedSessionIds, muteList),
+    permissionRequested: booleanOr(DEFAULTS.permissionRequested),
+    introductionShown: booleanOr(DEFAULTS.introductionShown),
+    blockedNoticeShown: booleanOr(DEFAULTS.blockedNoticeShown),
+  }),
+)
+
+export function resolveDesktopNotificationSettings(value: unknown) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return DEFAULTS
+  const settings: DesktopNotificationSettings = Option.getOrElse(
+    decodeStoredDesktopNotificationSettings(value),
+    () => DEFAULTS,
+  )
+  return settings
 }
 
 export function resolveStoredDesktopNotificationSettings(

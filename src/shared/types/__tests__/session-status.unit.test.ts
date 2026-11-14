@@ -6,11 +6,11 @@ describe('resolveSessionStatusPill', () => {
     expect(resolveSessionStatusPill('idle')).toBeNull()
   })
 
-  const statusCases: Array<{
+  const statusCases: {
     status: SessionStatus
     icon: string
     animateClass: string | null
-  }> = [
+  }[] = [
     { status: 'working', icon: 'GitCompareArrows', animateClass: 'animate-pulse' },
     { status: 'connecting', icon: 'Loader2', animateClass: 'animate-spin' },
     { status: 'completed', icon: 'CircleCheck', animateClass: null },

@@ -1,8 +1,8 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import { parseJsonUnknown } from '@shared/schema'
+import { parseJsonUnknown, Schema } from '@shared/schema'
 import type { SessionHandoffWorkspaceSelection } from '@shared/types/session-organization'
-import { isRecord } from '@shared/utils/validation'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
+import { Option } from 'effect'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import {
@@ -197,6 +197,16 @@ function prepareNewTransfer(input: PrepareHandoffInput, source: SourceWorkspaceR
   )
 }
 
+/** The refs a completed Workspace handoff recorded for its replay to release. */
+const decodeHandoffCleanup = Schema.decodeUnknownOption(
+  Schema.Struct({
+    kind: Schema.Literal('workspace-handoff-refs'),
+    projectPath: Schema.String,
+    snapshotRef: Schema.String,
+    targetSnapshotRef: Schema.String,
+  }),
+)
+
 function prepareWorkspaceHandoff(sql: SqlClient.SqlClient, input: PrepareHandoffInput) {
   return Effect.gen(function* () {
     const replay = (yield* operationAlreadyExists(sql, {
@@ -206,14 +216,10 @@ function prepareWorkspaceHandoff(sql: SqlClient.SqlClient, input: PrepareHandoff
     }))[0]
     if (replay?.status === 'completed') {
       if (!replay.cleanup_json) return undefined
-      const cleanup = parseJsonUnknown(replay.cleanup_json)
-      if (
-        isRecord(cleanup) &&
-        cleanup.kind === 'workspace-handoff-refs' &&
-        typeof cleanup.projectPath === 'string' &&
-        typeof cleanup.snapshotRef === 'string' &&
-        typeof cleanup.targetSnapshotRef === 'string'
-      ) {
+      const cleanup = Option.getOrUndefined(
+        decodeHandoffCleanup(parseJsonUnknown(replay.cleanup_json)),
+      )
+      if (cleanup) {
         return {
           transfer: 'release-existing-refs' as const,
           projectPath: cleanup.projectPath,

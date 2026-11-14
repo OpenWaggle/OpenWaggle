@@ -1,23 +1,19 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
-import { isUpdateChannel, type UpdateChannel } from '@shared/types/update-channel'
+import { isUpdateChannel } from '@shared/types/update-channel'
 import type { UpdateStatus } from '@shared/types/updater'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
 import {
   dispatchGuiSessionCommand,
   GuiSessionCommandNotAttachedError,
 } from '../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../application/gui-session-command-router'
 import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { getAllBrowserWindows, showMessageBox } from '../desktop-ui'
 import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
-import {
-  createUpdateRestartController,
-  type UpdateRestartChoice,
-  type UpdateRestartState,
-} from '../update-restart'
+import { createUpdateRestartController, type UpdateRestartChoice } from '../update-restart'
 import { getUpdateStatus, setUpdateWaitingForRuns } from '../update-status'
 import { lazyModule } from '../utils/lazy-module'
 import { typedHandle } from './typed-ipc'
@@ -37,10 +33,10 @@ const CANCEL_CHOICE_INDEX = 2
 // instead of making Restart to update fail.
 const activeActivitiesSchema = Schema.Array(Schema.Struct({ sessionId: Schema.String }))
 
-function updateRestartState(status: UpdateStatus): UpdateRestartState {
-  if (status.type === 'downloaded') return 'installable'
+function updateRestartState(status: UpdateStatus) {
+  if (status.type === 'downloaded') return 'installable' as const
   // Already handed over to the installer; a further Restart to update has nothing to do.
-  if (status.type === 'installing') return 'none'
+  if (status.type === 'installing') return 'none' as const
   // A failed re-check is usually transient; the next check restores the downloaded update.
   if (
     status.type === 'checking' ||
@@ -48,12 +44,12 @@ function updateRestartState(status: UpdateStatus): UpdateRestartState {
     status.type === 'downloading' ||
     status.type === 'error'
   ) {
-    return 'pending'
+    return 'pending' as const
   }
-  return 'none'
+  return 'none' as const
 }
 
-function parseUpdateChannel(value: unknown): UpdateChannel | undefined {
+function parseUpdateChannel(value: unknown) {
   if (value === undefined || isUpdateChannel(value)) return value
   throw new Error('Invalid update channel')
 }
@@ -75,7 +71,7 @@ async function interruptActiveRuns() {
   )
 }
 
-async function chooseRestart(activeRuns: number): Promise<UpdateRestartChoice> {
+async function chooseRestart(activeRuns: number) {
   const runs = activeRuns === 1 ? '1 agent run is' : `${activeRuns} agent runs are`
   const { response } = await showMessageBox(getAllBrowserWindows()[0] ?? null, {
     type: 'question',
@@ -106,7 +102,7 @@ const updateRestart = createUpdateRestartController({
   },
 })
 
-export function registerUpdaterHandlers(): void {
+export function registerUpdaterHandlers() {
   typedHandle('updater:check', (_event, rawChannel?: unknown) =>
     Effect.promise(async () => {
       const channel = parseUpdateChannel(rawChannel)
@@ -120,5 +116,5 @@ export function registerUpdaterHandlers(): void {
 
   typedHandle('updater:get-status', () => Effect.sync(() => getUpdateStatus()))
 
-  typedHandle('app:get-version', () => Effect.sync(() => app.getVersion()))
+  typedHandle('app:get-version', () => Effect.sync(() => appLifecycle.version()))
 }

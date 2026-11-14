@@ -8,9 +8,10 @@ import { githubRepositorySelector } from './repository-context'
 /** Runs one repository-scoped gh command, possibly as a specific Provider account. */
 export type GhRun = (args: readonly string[], cwd: string) => Promise<CliResult>
 
-function safeJsonParse(text: string): unknown {
+function safeJsonParse(text: string) {
   try {
-    return JSON.parse(text)
+    const parsed: unknown = JSON.parse(text)
+    return parsed
   } catch {
     return null
   }
@@ -21,12 +22,12 @@ export async function viewForkParent(
   run: GhRun,
   repository: SourceControlRepositoryIdentity,
   projectPath: string,
-): Promise<ForkParentLookup> {
+) {
   const result = await run(
     ['repo', 'view', githubRepositorySelector(repository), '--json', 'parent'],
     projectPath,
   )
-  if (result.code !== 0) return { ok: false }
+  if (result.code !== 0) return { ok: false } satisfies ForkParentLookup
   const parent = jsonObjectProperty(safeJsonParse(result.stdout), 'parent')
   const name = parent ? stringProperty(parent, 'name') : null
   const ownerRecord = parent ? jsonObjectProperty(parent, 'owner') : null
@@ -35,7 +36,7 @@ export async function viewForkParent(
     ok: true,
     parent:
       name && owner ? { provider: 'github', host: repository.host, owner, repository: name } : null,
-  }
+  } satisfies ForkParentLookup
 }
 
 function jsonObjectProperty(raw: unknown, property: string) {
@@ -54,9 +55,9 @@ function stringProperty(record: Readonly<Record<string, unknown>>, property: str
 export function noAccountAccessFailure(
   repository: SourceControlRepositoryIdentity,
   accounts: readonly string[],
-): SourceControlFailure {
+) {
   const name = `${repository.owner}/${repository.repository}`
-  return {
+  const failure: SourceControlFailure = {
     ok: false,
     code: 'not-authenticated',
     message: `None of your GitHub accounts on ${repository.host} can see ${name}.`,
@@ -69,4 +70,5 @@ export function noAccountAccessFailure(
       accounts,
     },
   }
+  return failure
 }

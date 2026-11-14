@@ -65,7 +65,7 @@ describe('terminal attach history replay', () => {
   })
 
   it('reports a replay in flight until xterm has parsed its last slice', () => {
-    const { delivery, write } = setup(`${'0123456789abcdef\r\n'.repeat(1_000)}`)
+    const { delivery, write } = setup('0123456789abcdef\r\n'.repeat(1_000))
 
     expect(delivery.isReplaying()).toBe(true)
     for (const [, callback] of write.mock.calls.slice(0, -1)) callback?.()

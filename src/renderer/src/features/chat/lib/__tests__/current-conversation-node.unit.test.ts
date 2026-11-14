@@ -10,8 +10,8 @@ vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 const SESSION_ID = SessionId('session-1')
 const BRANCH_ID = SessionBranchId('session-1:branch')
 
-function workspace(activeNodeId: string, branchHead: string | null): SessionWorkspace {
-  return {
+function workspace(activeNodeId: string, branchHead: string | null) {
+  const result: SessionWorkspace = {
     tree: {
       session: {
         id: SESSION_ID,
@@ -44,6 +44,7 @@ function workspace(activeNodeId: string, branchHead: string | null): SessionWork
     activeNodeId: SessionNodeId(activeNodeId),
     transcriptPath: [],
   }
+  return result
 }
 
 describe('resolveCurrentConversationNode', () => {

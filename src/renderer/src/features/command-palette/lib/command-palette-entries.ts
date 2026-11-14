@@ -56,9 +56,7 @@ export interface CommandPaletteGroup {
 }
 
 /** Consecutive items of one section, for a listbox that exposes each section as a `group`. */
-export function groupCommandPaletteItems(
-  items: readonly CommandPaletteItem[],
-): readonly CommandPaletteGroup[] {
+export function groupCommandPaletteItems(items: readonly CommandPaletteItem[]) {
   const groups: { key: string; label: string | undefined; entries: CommandPaletteGroupEntry[] }[] =
     []
   const sectionOccurrences = new Map<string, number>()
@@ -78,5 +76,6 @@ export function groupCommandPaletteItems(
       entries: [{ item, index }],
     })
   })
-  return groups
+  const result: readonly CommandPaletteGroup[] = groups
+  return result
 }

@@ -26,10 +26,14 @@ export function persistWaggleSnapshot(input: {
       sessionId: input.sessionId,
       nodes: input.snapshot.nodes,
       activeNodeId: input.snapshot.activeNodeId,
-      piProjection: input.snapshot.piProjection,
+      ...(input.snapshot.piProjection === undefined
+        ? {}
+        : { piProjection: input.snapshot.piProjection }),
       piSessionId: input.result.piSessionId,
-      piSessionFile: input.result.piSessionFile,
-      waggleConfig: input.waggleConfig,
+      ...(input.result.piSessionFile === undefined
+        ? {}
+        : { piSessionFile: input.result.piSessionFile }),
+      ...(input.waggleConfig === undefined ? {} : { waggleConfig: input.waggleConfig }),
     })
     announceReplacedPiTranscript(before, input.result.piSessionFile)
   }).pipe(

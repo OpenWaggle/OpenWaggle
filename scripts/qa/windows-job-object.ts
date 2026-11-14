@@ -48,7 +48,9 @@ function parsePositiveInteger(value: string) {
 
 function parseWindowsExitCode(value: string) {
   const parsed = Number(value)
-  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= MAX_WINDOWS_EXIT_CODE ? parsed : null
+  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= MAX_WINDOWS_EXIT_CODE
+    ? parsed
+    : null
 }
 
 function parseWindowsJobStates(contents: string) {
@@ -74,7 +76,7 @@ function parseWindowsJobStates(contents: string) {
   return states
 }
 
-export function parseWindowsJobStatus(contents: string): WindowsJobState | null {
+export function parseWindowsJobStatus(contents: string) {
   return parseWindowsJobStates(contents).at(-1) ?? null
 }
 
@@ -160,7 +162,7 @@ function jobController(input: {
   readonly rootPid: number
   readonly statusPath: string
   readonly stopPath: string
-}): WindowsJobObjectProcess {
+}) {
   const waitForState = (expected: 'assigned' | 'empty' | 'normal-exit', timeoutMs: number) =>
     waitForWindowsJobState(expected, timeoutMs, {
       childExited: () => childExited(input.child),
@@ -173,7 +175,7 @@ function jobController(input: {
       throw new Error(`Windows Job Object owner would not exit: ${input.controlRoot}`)
     }
   }
-  return {
+  const process: WindowsJobObjectProcess = {
     logs: input.logs,
     rootPid: input.rootPid,
     waitForNormalExit: async () => {
@@ -202,6 +204,7 @@ function jobController(input: {
       await fs.rm(input.controlRoot, { recursive: true, force: true })
     },
   }
+  return process
 }
 
 export async function launchInWindowsJobObject(
@@ -270,6 +273,15 @@ export async function launchInWindowsJobObject(
       { cause: error },
     )
   }
-  if (assigned.status !== 'assigned') throw new Error('Windows Job Object assignment was not proven.')
-  return jobController({ child, controlRoot, logs: () => logs, rootPid: assigned.rootPid, statusPath, stopPath })
+  if (assigned.status !== 'assigned') {
+    throw new Error('Windows Job Object assignment was not proven.')
+  }
+  return jobController({
+    child,
+    controlRoot,
+    logs: () => logs,
+    rootPid: assigned.rootPid,
+    statusPath,
+    stopPath,
+  })
 }

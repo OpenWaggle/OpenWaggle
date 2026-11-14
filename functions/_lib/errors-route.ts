@@ -43,8 +43,12 @@ const DECOMPRESSION_FORMATS: ReadonlyMap<string, CompressionFormat> = new Map([
   ['deflate', 'deflate'],
 ])
 
-function rejectReport(status: number, reason: string, field = 'envelope'): RouteResult {
-  return { response: jsonResponse(status, { error: reason }), outcome: 'rejected', field }
+function rejectReport(status: number, reason: string, field = 'envelope') {
+  return {
+    response: jsonResponse(status, { error: reason }),
+    outcome: 'rejected',
+    field,
+  } satisfies RouteResult
 }
 
 function skipReport(status: number, counts: { accepted?: number; rejected?: number } = {}) {
@@ -65,7 +69,8 @@ function decodedBody(request: IncomingRequest) {
 function forwardedItems(envelope: SentryEnvelope) {
   const items: OutgoingEnvelopeItem[] = []
   for (const item of envelope.items) {
-    if (item.header.type !== FORWARDED_ITEM_TYPE) continue
+    const { type } = item.header
+    if (type !== FORWARDED_ITEM_TYPE) continue
     const parsed = parseJsonBytes(item.payload)
     const payload = parsed.ok && isRecord(parsed.value) ? scrubSentryEvent(parsed.value) : undefined
     if (payload !== undefined) items.push({ type: FORWARDED_ITEM_TYPE, payload })
@@ -76,7 +81,7 @@ function forwardedItems(envelope: SentryEnvelope) {
 async function relayResponse(
   upstream: Response,
   counts: { readonly accepted: number; readonly rejected: number },
-): Promise<RouteResult> {
+) {
   const headers: Record<string, string> = { 'Cache-Control': 'no-store' }
   for (const name of RELAYED_RESPONSE_HEADERS) {
     const value = upstream.headers.get(name)
@@ -85,8 +90,13 @@ async function relayResponse(
   const contentType = upstream.headers.get('Content-Type')
   if (contentType !== null) headers['Content-Type'] = contentType
   const response = new Response(await upstream.text(), { status: upstream.status, headers })
-  if (upstream.ok) return { response, outcome: 'accepted', ...counts }
-  return { response, outcome: 'forward_failed', accepted: 0, rejected: counts.rejected }
+  if (upstream.ok) return { response, outcome: 'accepted', ...counts } satisfies RouteResult
+  return {
+    response,
+    outcome: 'forward_failed',
+    accepted: 0,
+    rejected: counts.rejected,
+  } satisfies RouteResult
 }
 
 /**
@@ -99,7 +109,7 @@ async function relayResponse(
  * when it is not an EU Sentry DSN, 202 when nothing in the envelope may be forwarded, and
  * Sentry's own status otherwise.
  */
-export async function handleErrorsRequest(context: RouteContext): Promise<RouteResult> {
+export async function handleErrorsRequest(context: RouteContext) {
   const { request, environment, dependencies } = context
   if (carriesWebPageOrigin(request)) {
     return rejectReport(HTTP_STATUS.forbidden, 'browser requests are not accepted', 'origin')
@@ -141,7 +151,7 @@ export async function handleErrorsRequest(context: RouteContext): Promise<RouteR
       outcome: 'forward_failed',
       accepted: 0,
       rejected: counts.rejected,
-    }
+    } satisfies RouteResult
   }
   return relayResponse(upstream, counts)
 }

@@ -1,6 +1,5 @@
 import { lstatSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
-import type { SessionDetail } from '@shared/types/session'
 import { mcpLocalRefusal } from './openwaggle-mcp-refusal-message'
 
 interface WorkspaceGrantScope {
@@ -83,19 +82,4 @@ export function assertProjectAllowed(options: WorkspaceGrantScope, projectPath: 
 
 export function canonicalizeExistingProjectPath(projectPath: string) {
   return assertProjectAllowed({ workspaceRoots: [], sessionIds: new Set() }, projectPath)
-}
-
-export function sessionAllowed(options: WorkspaceGrantScope, session: SessionDetail) {
-  if (options.sessionIds.size > 0 && !options.sessionIds.has(session.id)) return false
-  if (!session.projectPath) return options.workspaceRoots.length === 0
-  if (options.workspaceRoots.length === 0) return true
-  try {
-    const projectPath = canonicalExistingPath(session.projectPath)
-    if (!statSync(projectPath).isDirectory()) return false
-    return options.workspaceRoots.some((root) =>
-      isWithinRoot(projectPath, assertCanonicalGrantRoot(root)),
-    )
-  } catch {
-    return false
-  }
 }

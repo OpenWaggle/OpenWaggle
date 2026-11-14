@@ -1,22 +1,25 @@
 import path from 'node:path'
-import { parse } from 'yaml'
 import { isRecord } from './records'
 import type { Violation } from './violation'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 
 /**
  * Every direct dependency OpenWaggle installs is pinned to an exact version, so an upgrade shows
- * up in a manifest diff and `pnpm update` cannot move it (docs/dependency-updates.md). Only the
- * repository's own manifests and pnpm catalogs are checked: fixture packages are test inputs, peer
- * dependencies state what a published package accepts from its host, and `overrides` in
- * pnpm-workspace.yaml hold deliberate vulnerability floors.
+ * up in a manifest diff and `bun update` cannot move it (docs/dependency-updates.md). Only the
+ * repository's own manifests and the workspace catalogs of the root package.json are checked:
+ * fixture packages are test inputs, peer dependencies state what a published package accepts from
+ * its host, and the root `overrides` hold deliberate vulnerability floors.
  */
-const CHECKED_MANIFESTS = /^(?:package\.json|packages\/[^/]+\/package\.json|website\/package\.json)$/
-const PNPM_WORKSPACE = 'pnpm-workspace.yaml'
+const CHECKED_MANIFESTS =
+  /^(?:package\.json|(?:packages|tools)\/[^/]+\/package\.json|website\/package\.json)$/
+const ROOT_MANIFEST = 'package.json'
 const PINNED_SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 /**
- * `catalog:` versions are checked where they are defined, in pnpm-workspace.yaml, and `workspace:`
- * links a monorepo package that pnpm rewrites when it publishes.
+ * `catalog:` versions are checked where they are defined, in `workspaces` of the root
+ * package.json, and `workspace:` links a monorepo package that `bun pm pack` rewrites when it
+ * publishes.
  */
 const PINNED_PROTOCOL = /^(?:catalog|workspace):/
 
@@ -33,7 +36,10 @@ function manifestViolations(file: string, contents: string) {
     const dependencies = manifest[section]
     if (!isRecord(dependencies)) continue
     for (const [name, version] of Object.entries(dependencies)) {
-      if (typeof version === 'string' && (EXACT_VERSION.test(version) || PINNED_PROTOCOL.test(version))) {
+      if (
+        typeof version === 'string' &&
+        (EXACT_VERSION.test(version) || PINNED_PROTOCOL.test(version))
+      ) {
         continue
       }
       violations.push({
@@ -46,12 +52,17 @@ function manifestViolations(file: string, contents: string) {
   return violations
 }
 
-/** The default `catalog` and every named catalog under `catalogs`. */
-function catalogEntries(workspace: Readonly<Record<string, unknown>>) {
+/** The root manifest's `workspaces` object, read for its catalogs. */
+const workspacesManifestSchema = Schema.Struct({ workspaces: unknownField })
+const workspaceCatalogsSchema = Schema.Struct({ catalog: unknownField, catalogs: unknownField })
+
+/** The default `workspaces.catalog` and every named catalog under `workspaces.catalogs`. */
+function catalogEntries(workspace: Schema.Schema.Type<typeof workspaceCatalogsSchema>) {
   const catalogs: [string, Readonly<Record<string, unknown>>][] = []
-  if (isRecord(workspace.catalog)) catalogs.push(['catalog', workspace.catalog])
-  if (isRecord(workspace.catalogs)) {
-    for (const [name, catalog] of Object.entries(workspace.catalogs)) {
+  const { catalog: defaultCatalog, catalogs: namedCatalogs } = workspace
+  if (isRecord(defaultCatalog)) catalogs.push(['catalog', defaultCatalog])
+  if (isRecord(namedCatalogs)) {
+    for (const [name, catalog] of Object.entries(namedCatalogs)) {
       if (isRecord(catalog)) catalogs.push([`catalogs.${name}`, catalog])
     }
   }
@@ -59,8 +70,12 @@ function catalogEntries(workspace: Readonly<Record<string, unknown>>) {
 }
 
 function catalogViolations(file: string, contents: string) {
-  const workspace: unknown = parse(contents)
-  if (!isRecord(workspace)) return []
+  const manifest: unknown = JSON.parse(contents)
+  const workspace = objectFields(
+    workspaceCatalogsSchema,
+    objectFields(workspacesManifestSchema, manifest)?.workspaces,
+  )
+  if (workspace === undefined) return []
 
   const violations: Violation[] = []
   for (const [catalogName, catalog] of catalogEntries(workspace)) {
@@ -78,7 +93,9 @@ function catalogViolations(file: string, contents: string) {
 
 export function collectExactDependencyVersionViolations(file: string, contents: string) {
   const normalized = normalizePath(file)
-  if (normalized === PNPM_WORKSPACE) return catalogViolations(normalized, contents)
-  if (CHECKED_MANIFESTS.test(normalized)) return manifestViolations(normalized, contents)
-  return []
+  if (!CHECKED_MANIFESTS.test(normalized)) return []
+  const violations = manifestViolations(normalized, contents)
+  return normalized === ROOT_MANIFEST
+    ? [...violations, ...catalogViolations(normalized, contents)]
+    : violations
 }

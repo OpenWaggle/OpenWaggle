@@ -8,13 +8,12 @@ import {
   resolveExtensionAgentLoopContribution,
   resolveExtensionAgentLoopContributionEntries,
 } from '../extension-agent-loop-resolution'
+import { omitKey } from '@/test-utils/omit-key'
 
 const PROJECT_PATH = '/tmp/project'
 
-function entry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function entry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const result: ExtensionContributionRegistryEntry = {
     extensionId: 'sample-extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -49,15 +48,14 @@ function entry(
     diagnostics: [],
     ...overrides,
   }
+  return result
 }
 
-function registry(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): ExtensionContributionRegistryView {
+function registry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return {
     projectPaths: [PROJECT_PATH],
     entries,
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
 describe('resolveExtensionAgentLoopContribution', () => {
@@ -94,7 +92,7 @@ describe('resolveExtensionAgentLoopContribution', () => {
 
   it('does not treat missing Pi event matches as a wildcard renderer binding', () => {
     const resolution = resolveExtensionAgentLoopContribution({
-      registry: registry([entry({ matches: undefined })]),
+      registry: registry([omitKey(entry(), 'matches')]),
       target: { surface: 'tool', toolName: 'sample.tool' },
       requestedProjectPaths: [PROJECT_PATH],
     })
@@ -259,11 +257,10 @@ describe('resolveExtensionAgentLoopContribution', () => {
   })
 
   it('uses a later eligible renderer when an earlier matching renderer is invalid', () => {
-    const invalidEntry = entry({
-      extensionId: 'invalid-project',
-      contributionId: 'invalid.tool-renderer',
-      entryPath: undefined,
-    })
+    const invalidEntry = omitKey(
+      entry({ extensionId: 'invalid-project', contributionId: 'invalid.tool-renderer' }),
+      'entryPath',
+    )
     const eligibleEntry = entry({
       extensionId: 'eligible-project',
       contributionId: 'eligible.tool-renderer',

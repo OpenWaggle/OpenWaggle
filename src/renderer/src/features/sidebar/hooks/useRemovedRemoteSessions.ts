@@ -16,7 +16,6 @@ export function useRemovedRemoteSessions() {
   const [resyncToken, setResyncToken] = useState(0)
 
   useEffect(() => {
-    if (typeof api.onSessionHostEvent !== 'function') return
     return api.onSessionHostEvent((event) => {
       const payload = event.payload
       if (payload.kind !== 'session-list-changed') return
@@ -34,7 +33,6 @@ export function useRemovedRemoteSessions() {
   }, [])
 
   useEffect(() => {
-    if (typeof api.onSessionHostResyncRequired !== 'function') return
     return api.onSessionHostResyncRequired(() => setResyncToken((token) => token + 1))
   }, [])
 

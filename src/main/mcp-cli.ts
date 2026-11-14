@@ -1,8 +1,9 @@
 import path from 'node:path'
-import { app } from 'electron'
 import { asUsageErrorsSync, CLI_EXIT, cliExitCodeForKind } from './cli-error'
 import { resolveCliProjectPath } from './cli-project-path'
 import { writeCliStdout } from './cli-stdout'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
 import {
   formatMcpCliOutput,
   hasFlag,
@@ -158,7 +159,7 @@ function readServeCommand(arguments_: ParsedArguments) {
 
 async function runServeCommand(arguments_: ParsedArguments) {
   const command = asUsageErrorsSync(() => readServeCommand(arguments_))
-  const userDataRoot = app.getPath('userData')
+  const userDataRoot = appPaths.userData()
   await serveOpenWaggleMcpServer({
     transport: command.stdio ? 'stdio' : 'streamable-http',
     ...(command.httpPort === undefined ? {} : { httpPort: command.httpPort }),
@@ -171,7 +172,7 @@ async function runServeCommand(arguments_: ParsedArguments) {
     ...(command.originSessionId ? { originSessionId: command.originSessionId } : {}),
     identity: await resolveServeIdentity(command.identity, userDataRoot),
     userDataRoot,
-    version: app.getVersion(),
+    version: appLifecycle.version(),
     stderr: process.stderr,
   })
 }
@@ -204,11 +205,6 @@ function isServeHelp(arguments_: ParsedArguments) {
     arguments_.positionals.includes('-h') ||
     arguments_.positionals.includes('help')
   )
-}
-
-export function getMcpCliArguments(argv: readonly string[]) {
-  const marker = argv.indexOf('mcp')
-  return marker < 0 ? null : argv.slice(marker + 1)
 }
 
 export async function runMcpCli(args: readonly string[]) {
@@ -245,8 +241,4 @@ export async function runMcpCli(args: readonly string[]) {
   } catch (error) {
     return cliExitCodeForKind(writeSessionsCliError(error, command === 'serve' ? false : json))
   }
-}
-
-export function mcpCliVersion() {
-  return app.getVersion()
 }

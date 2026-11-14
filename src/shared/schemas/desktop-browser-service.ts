@@ -38,13 +38,14 @@ const positiveIntegerSchema = finiteSchema.pipe(
   Schema.positive(),
   Schema.lessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
 )
-const timeoutSchema = Schema.optional(
+const timeoutSchema = Schema.optionalWith(
   positiveIntegerSchema.pipe(Schema.lessThanOrEqualTo(LIMITS.MAX_TIMEOUT_MS)),
+  { exact: true },
 )
-const targetFields = { tabId: Schema.optional(sessionInputIdSchema) }
+const targetFields = { tabId: Schema.optionalWith(sessionInputIdSchema, { exact: true }) }
 const selectorFields = {
-  selector: Schema.optional(nonemptyTextSchema),
-  locator: Schema.optional(nonemptyTextSchema),
+  selector: Schema.optionalWith(nonemptyTextSchema, { exact: true }),
+  locator: Schema.optionalWith(nonemptyTextSchema, { exact: true }),
 }
 const targetSchema = Schema.Struct(targetFields)
 const scopeSchema = Schema.Struct({
@@ -63,8 +64,10 @@ const navigationTargetSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal('environment-port'),
     port: positiveIntegerSchema.pipe(Schema.lessThanOrEqualTo(MAX_TCP_PORT)),
-    protocol: Schema.optional(Schema.Literal('http', 'https')),
-    path: Schema.optional(Schema.String.pipe(Schema.maxLength(MAX_URL_LENGTH))),
+    protocol: Schema.optionalWith(Schema.Literal('http', 'https'), { exact: true }),
+    path: Schema.optionalWith(Schema.String.pipe(Schema.maxLength(MAX_URL_LENGTH)), {
+      exact: true,
+    }),
   }),
 )
 const resizeSchema = Schema.Union(
@@ -81,7 +84,7 @@ const resizeSchema = Schema.Union(
     ...targetFields,
     mode: Schema.Literal('preset'),
     preset: Schema.Literal(...BROWSER_PREVIEW_VIEWPORT_PRESET_IDS),
-    orientation: Schema.optional(Schema.Literal('portrait', 'landscape')),
+    orientation: Schema.optionalWith(Schema.Literal('portrait', 'landscape'), { exact: true }),
   }),
 )
 function command<Operation extends DesktopBrowserOperation, Encoded>(
@@ -103,18 +106,20 @@ const desktopBrowserCommandWireSchema = Schema.Union(
     'open',
     Schema.Struct({
       ...targetFields,
-      url: Schema.optional(urlSchema),
-      open: Schema.optional(Schema.Boolean),
-      reuseExistingTab: Schema.optional(Schema.Boolean),
+      url: Schema.optionalWith(urlSchema, { exact: true }),
+      open: Schema.optionalWith(Schema.Boolean, { exact: true }),
+      reuseExistingTab: Schema.optionalWith(Schema.Boolean, { exact: true }),
     }),
   ),
   command(
     'navigate',
     Schema.Struct({
       ...targetFields,
-      url: Schema.optional(urlSchema),
-      target: Schema.optional(navigationTargetSchema),
-      readiness: Schema.optional(Schema.Literal('load', 'domContentLoaded', 'none')),
+      url: Schema.optionalWith(urlSchema, { exact: true }),
+      target: Schema.optionalWith(navigationTargetSchema, { exact: true }),
+      readiness: Schema.optionalWith(Schema.Literal('load', 'domContentLoaded', 'none'), {
+        exact: true,
+      }),
       timeoutMs: timeoutSchema,
     }),
   ),
@@ -129,8 +134,8 @@ const desktopBrowserCommandWireSchema = Schema.Union(
     Schema.Struct({
       ...targetFields,
       ...selectorFields,
-      x: Schema.optional(finiteSchema),
-      y: Schema.optional(finiteSchema),
+      x: Schema.optionalWith(finiteSchema, { exact: true }),
+      y: Schema.optionalWith(finiteSchema, { exact: true }),
       timeoutMs: timeoutSchema,
     }),
   ),
@@ -140,7 +145,7 @@ const desktopBrowserCommandWireSchema = Schema.Union(
       ...targetFields,
       ...selectorFields,
       text: textSchema,
-      clear: Schema.optional(Schema.Boolean),
+      clear: Schema.optionalWith(Schema.Boolean, { exact: true }),
       timeoutMs: timeoutSchema,
     }),
   ),
@@ -149,10 +154,11 @@ const desktopBrowserCommandWireSchema = Schema.Union(
     Schema.Struct({
       ...targetFields,
       key: nonemptyTextSchema,
-      modifiers: Schema.optional(
+      modifiers: Schema.optionalWith(
         Schema.Array(Schema.Literal('Alt', 'Control', 'Meta', 'Shift')).pipe(
           Schema.maxItems(MAX_MODIFIERS),
         ),
+        { exact: true },
       ),
     }),
   ),
@@ -161,8 +167,8 @@ const desktopBrowserCommandWireSchema = Schema.Union(
     Schema.Struct({
       ...targetFields,
       ...selectorFields,
-      deltaX: Schema.optional(finiteSchema),
-      deltaY: Schema.optional(finiteSchema),
+      deltaX: Schema.optionalWith(finiteSchema, { exact: true }),
+      deltaY: Schema.optionalWith(finiteSchema, { exact: true }),
     }),
   ),
   command(
@@ -173,8 +179,8 @@ const desktopBrowserCommandWireSchema = Schema.Union(
         Schema.minLength(1),
         Schema.maxLength(LIMITS.EXPRESSION_LENGTH),
       ),
-      awaitPromise: Schema.optional(Schema.Boolean),
-      returnByValue: Schema.optional(Schema.Boolean),
+      awaitPromise: Schema.optionalWith(Schema.Boolean, { exact: true }),
+      returnByValue: Schema.optionalWith(Schema.Boolean, { exact: true }),
     }),
   ),
   command(
@@ -182,8 +188,8 @@ const desktopBrowserCommandWireSchema = Schema.Union(
     Schema.Struct({
       ...targetFields,
       ...selectorFields,
-      text: Schema.optional(textSchema),
-      urlIncludes: Schema.optional(textSchema),
+      text: Schema.optionalWith(textSchema, { exact: true }),
+      urlIncludes: Schema.optionalWith(textSchema, { exact: true }),
       timeoutMs: timeoutSchema,
     }),
   ),
@@ -254,10 +260,10 @@ export const desktopBrowserResultSchema: Schema.Schema<DesktopBrowserResult> = S
   desktopBrowserResultWireSchema,
 )
 
-export function decodeDesktopBrowserCommand(value: unknown): DesktopBrowserCommand {
+export function decodeDesktopBrowserCommand(value: unknown) {
   return decodeUnknownExactOrThrow(desktopBrowserCommandSchema, value)
 }
 
-export function decodeDesktopBrowserResult(value: unknown): DesktopBrowserResult {
+export function decodeDesktopBrowserResult(value: unknown) {
   return decodeUnknownExactOrThrow(desktopBrowserResultSchema, value)
 }

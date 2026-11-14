@@ -4,8 +4,8 @@ import { type BaseRefControlState, DiffScopeTabs } from '../DiffScopeTabs'
 
 const BRANCH_SELECTION = { kind: 'branch', baseRef: null } as const
 
-function baseRefControl(overrides: Partial<BaseRefControlState> = {}): BaseRefControlState {
-  return {
+function baseRefControl(overrides: Partial<BaseRefControlState> = {}) {
+  const state: BaseRefControlState = {
     current: null,
     choices: [],
     choicesLoaded: true,
@@ -14,6 +14,7 @@ function baseRefControl(overrides: Partial<BaseRefControlState> = {}): BaseRefCo
     onChange: vi.fn(),
     ...overrides,
   }
+  return state
 }
 
 function renderTabs(control: BaseRefControlState, selection = BRANCH_SELECTION) {

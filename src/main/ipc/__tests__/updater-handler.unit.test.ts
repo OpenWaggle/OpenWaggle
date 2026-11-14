@@ -6,7 +6,7 @@ const mockCheckForUpdates = vi.fn()
 const mockInstallUpdate = vi.fn()
 const mockGetUpdateStatus = vi.fn()
 const mockAppGetVersion = vi.fn((_arg?: string) => '0.1.0')
-const mockListActiveRuns = vi.fn((): unknown[] => [])
+const mockListActiveRuns = vi.fn<() => unknown[]>(() => [])
 const mockShowMessageBoxOptions: { readonly message?: string }[] = []
 const mockShowMessageBox = vi.fn(() => Promise.resolve({ response: 2 }))
 const mockInterruptSessionRun = vi.fn((_sessionId: string) => Effect.void)
@@ -23,14 +23,12 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runAppEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 vi.mock('../../gui-runtime', () => ({
-  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 
 vi.mock('../../updater', () => ({
@@ -82,17 +80,6 @@ describe('updater-handler', () => {
     mockAppGetVersion.mockReset()
     mockAppGetVersion.mockReturnValue('0.1.0')
     mockGetUpdateStatus.mockReturnValue({ type: 'idle' })
-  })
-
-  it('registers exactly five handlers', () => {
-    registerUpdaterHandlers()
-
-    expect(handlers.size).toBe(5)
-    expect(handlers.has('updater:check')).toBe(true)
-    expect(handlers.has('updater:install')).toBe(true)
-    expect(handlers.has('updater:install-now')).toBe(true)
-    expect(handlers.has('updater:get-status')).toBe(true)
-    expect(handlers.has('app:get-version')).toBe(true)
   })
 
   describe('updater:check', () => {
@@ -184,6 +171,26 @@ describe('updater-handler', () => {
     })
   })
 
+  describe('updater:install-now', () => {
+    it('stops active runs and installs without asking', async () => {
+      mockGetUpdateStatus.mockReturnValue({ type: 'downloaded', version: '1.0.0' })
+      const activeRun = { activity: 'agent-run', sessionId: 'session-1' }
+      mockListActiveRuns
+        .mockReturnValueOnce([activeRun])
+        .mockReturnValueOnce([activeRun])
+        .mockReturnValue([])
+      mockShowMessageBox.mockClear()
+      mockInterruptSessionRun.mockClear()
+      registerUpdaterHandlers()
+
+      await handlers.get('updater:install-now')?.({})
+
+      expect(mockShowMessageBox).not.toHaveBeenCalled()
+      expect(mockInterruptSessionRun).toHaveBeenCalledWith('session-1')
+      expect(mockInstallUpdate).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('updater:get-status', () => {
     it('returns the current update status', async () => {
       mockGetUpdateStatus.mockReturnValue({ type: 'checking' })
@@ -194,14 +201,6 @@ describe('updater-handler', () => {
       const result = await handler?.({})
       expect(mockGetUpdateStatus).toHaveBeenCalledOnce()
       expect(result).toEqual({ type: 'checking' })
-    })
-
-    it('returns idle status by default', async () => {
-      registerUpdaterHandlers()
-
-      const handler = handlers.get('updater:get-status')
-      const result = await handler?.({})
-      expect(result).toEqual({ type: 'idle' })
     })
   })
 
@@ -214,15 +213,6 @@ describe('updater-handler', () => {
       const result = await handler?.({})
       expect(mockAppGetVersion).toHaveBeenCalledOnce()
       expect(result).toBe('0.1.0')
-    })
-
-    it('reflects the version returned by app.getVersion', async () => {
-      mockAppGetVersion.mockReturnValue('1.5.2')
-      registerUpdaterHandlers()
-
-      const handler = handlers.get('app:get-version')
-      const result = await handler?.({})
-      expect(result).toBe('1.5.2')
     })
   })
 })

@@ -53,12 +53,8 @@ export interface TerminalInputDispatcherContext {
 
 const READINESS_RANK = { spawning: 0, 'awaiting-prompt': 1, ready: 2 } as const
 
-export function createTerminalInputState(
-  ownerKey: string,
-  terminalId: string,
-  generation: string,
-): TerminalInputState {
-  return {
+export function createTerminalInputState(ownerKey: string, terminalId: string, generation: string) {
+  const state: TerminalInputState = {
     ownerKey,
     terminalId,
     generation,
@@ -84,9 +80,10 @@ export function createTerminalInputState(
     error: null,
     errorKind: null,
   }
+  return state
 }
 
-export function terminalInputSnapshot(state: TerminalInputState): TerminalInputDispatchSnapshot {
+export function terminalInputSnapshot(state: TerminalInputState) {
   return {
     waiting: state.waiting,
     error: state.error,

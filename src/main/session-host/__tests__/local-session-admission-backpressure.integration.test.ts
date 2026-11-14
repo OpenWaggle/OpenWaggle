@@ -14,7 +14,11 @@ import {
 } from '../local-session-profile-invalidation'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
 import { writeLocalSessionSocketFrame } from '../local-session-server-frame'
-import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  isTestServerFrame,
+  TestFrameReader,
+} from './local-session-server-test-client'
 
 describe('Local Session admission backpressure', () => {
   let temporaryRoot = ''
@@ -50,11 +54,7 @@ describe('Local Session admission backpressure', () => {
         liveness,
         profileAdmissionDrainTimeoutMs: 25,
         writeFrame: async (input) => {
-          if (
-            typeof input.value !== 'object' ||
-            input.value === null ||
-            Reflect.get(input.value, 'kind') !== 'event'
-          ) {
+          if (!isTestServerFrame(input.value, 'event')) {
             return writeLocalSessionSocketFrame(input)
           }
           eventWriteStarted()

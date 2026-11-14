@@ -6,7 +6,7 @@ import { placeReconnectedRunMessages } from '../chat-stream-user-messages'
 import { type AgentCompactionStatus, acknowledgeCompactionStatus } from '../compaction-lifecycle'
 import { placeSeededRunMessages } from '../seeded-run-messages'
 
-function user(id: string, content: string, order?: number, live = false): UIMessage {
+function user(id: string, content: string, order?: number, live = false) {
   return {
     id,
     role: 'user',
@@ -17,21 +17,27 @@ function user(id: string, content: string, order?: number, live = false): UIMess
       : {
           metadata: { sessionNodeCreatedOrder: order, ...(live ? { liveIncorporated: true } : {}) },
         }),
-  }
+  } satisfies UIMessage
 }
 
-function assistant(id: string, content: string): UIMessage {
-  return { id, role: 'assistant', parts: [{ type: 'text', content }], createdAt: new Date(2) }
-}
-
-function summary(id: string): UIMessage {
+function assistant(id: string, content: string) {
   return {
+    id,
+    role: 'assistant',
+    parts: [{ type: 'text', content }],
+    createdAt: new Date(2),
+  } satisfies UIMessage
+}
+
+function summary(id: string) {
+  const message: UIMessage = {
     id,
     role: 'assistant',
     parts: [{ type: 'text', content: 'Summary' }],
     createdAt: new Date(1),
     metadata: { compactionSummary: { summary: 'Summary', tokensBefore: 10 } },
   }
+  return message
 }
 
 const ids = (messages: readonly UIMessage[]) => messages.map((message) => message.id)

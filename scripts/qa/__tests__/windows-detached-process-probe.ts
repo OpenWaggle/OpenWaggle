@@ -68,10 +68,7 @@ async function cleanupProbe(input: {
   await fs.rm(input.directory, { recursive: true, force: true, maxRetries: 5 })
 }
 
-async function finishProbe(
-  input: Parameters<typeof cleanupProbe>[0],
-  originalFailure: unknown,
-) {
+async function finishProbe(input: Parameters<typeof cleanupProbe>[0], originalFailure: unknown) {
   try {
     await cleanupProbe(input)
   } catch (error) {
@@ -100,7 +97,9 @@ export async function probeWindowsDetachedHandleIsolation() {
     },
     ssr: { noExternal: true, external: ['electron'] },
     build: {
-      ssr: fileURLToPath(new URL('./fixtures/windows-detached-process.fixture.ts', import.meta.url)),
+      ssr: fileURLToPath(
+        new URL('./fixtures/windows-detached-process.fixture.ts', import.meta.url),
+      ),
       outDir: directory,
       emptyOutDir: false,
       target: 'node24',
@@ -139,17 +138,21 @@ export async function probeWindowsDetachedHandleIsolation() {
   parent.on('error', (error) => {
     processError = error
   })
-  parent.stderr?.on('data', (chunk: Buffer) => {
+  parent.stderr.on('data', (chunk: Buffer) => {
     stderr = `${stderr}${chunk.toString()}`.slice(-OUTPUT_LIMIT)
   })
   for (const [index, pipe] of parent.stdio.entries()) {
     pipe?.on('close', () => closedPipes.add(index))
   }
-  parent.stdout?.resume()
+  parent.stdout.resume()
 
   try {
-    if (!(await waitUntil(() => exists(path.join(directory, 'parent-ready.json')), READY_TIMEOUT_MS))) {
-      throw new Error(`Detached-process fixture did not become ready: ${String(processError)} ${stderr}`)
+    if (
+      !(await waitUntil(() => exists(path.join(directory, 'parent-ready.json')), READY_TIMEOUT_MS))
+    ) {
+      throw new Error(
+        `Detached-process fixture did not become ready: ${String(processError)} ${stderr}`,
+      )
     }
     const identity = await fs.readFile(path.join(directory, 'parent-ready.json'), 'utf8')
     const childIdentity = await fs.readFile(path.join(directory, 'child-ready.json'), 'utf8')
@@ -175,7 +178,7 @@ export async function probeWindowsDetachedHandleIsolation() {
       exited,
       exitCode: parent.exitCode,
       pipesClosedBeforeChildRelease,
-      closedPipes: [...closedPipes].toSorted(),
+      closedPipes: [...closedPipes].toSorted((left, right) => left - right),
       childStoppedBeforeRelease,
       childAliveAfterParentClose,
       childArguments: parsedChildIdentity.arguments,
@@ -191,6 +194,9 @@ export async function probeWindowsDetachedHandleIsolation() {
     originalFailure = error
     throw error
   } finally {
-    await finishProbe({ directory, parent, isParentClosed: () => closed, childSnapshot }, originalFailure)
+    await finishProbe(
+      { directory, parent, isParentClosed: () => closed, childSnapshot },
+      originalFailure,
+    )
   }
 }

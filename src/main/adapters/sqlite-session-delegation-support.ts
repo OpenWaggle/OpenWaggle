@@ -85,7 +85,7 @@ export function updatedDelegationOutcome(
   submissionRevision: number,
   specificationRevision = contract.current_specification_revision,
   specificationChanged = false,
-): Extract<SessionControlMutationOutcome, { readonly effect: 'delegation-updated' }> {
+) {
   const operation = input.request.command.operation
   if (
     operation === 'delegation-claim' ||

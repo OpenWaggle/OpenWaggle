@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { literalUnionsAsEnums } from '../tool-schema-enums'
 
 function json(schema: unknown) {
-  const plain: unknown = JSON.parse(JSON.stringify(schema))
+  const plain: unknown = structuredClone(schema)
   if (typeof plain !== 'object' || plain === null || Array.isArray(plain)) throw new Error('object')
   return Object.fromEntries(Object.entries(plain))
 }

@@ -3,7 +3,6 @@
 // renderer graph. Load them lazily from `@/features/terminal/components`.
 export { useTerminalActivityMonitor } from './hooks/useTerminalActivityMonitor'
 export { createSidePanelTerminal, useTerminalCommands } from './hooks/useTerminalCommands'
-export type { ActionOutputView } from './lib/action-output-view-model'
 export {
   openActionOutputTerminalView,
   syncActionOutputViewRuns,
@@ -19,40 +18,21 @@ export {
   rememberTerminalLayoutFocus,
   resolveTerminalCommandLayoutOwner,
 } from './lib/terminal-focus-location'
-export {
-  type TerminalInputEnqueueResult,
-  type TerminalProjectActionEnqueueResult,
-  terminalInputDispatcher,
-} from './lib/terminal-input-dispatcher'
-export {
-  sameTerminalLaunchEnvironment,
-  type TerminalLaunchEnvironment,
-} from './lib/terminal-launch-environment'
+export { terminalInputDispatcher } from './lib/terminal-input-dispatcher'
 export {
   runtimeKeyOf,
   type TerminalOwnerContext,
   terminalOwnerContext,
   terminalSidePanelLayoutKey,
-  terminalTabTitle,
 } from './lib/terminal-owner'
 export { matchesTerminalShortcutBinding } from './lib/terminal-shortcuts'
 export { migrateTerminalSurfaceLeases } from './lib/terminal-surface-lease'
-export { useActionOutputViewStore } from './state/action-output-view-store'
 export {
-  getRunningTerminalCount,
-  getTerminalActivityStatus,
-  getTerminalProjectActionPending,
   useRunningTerminalCount,
   useRunningTerminalCounts,
   useTerminalActivityStore,
 } from './state/terminal-activity-store'
-export {
-  type TerminalGroupState,
-  type TerminalPaneState,
-  type TerminalSplitDirection,
-  type TerminalTabState,
-  useTerminalStore,
-} from './state/terminal-store'
+export { type TerminalGroupState, useTerminalStore } from './state/terminal-store'
 export {
   MAX_PANEL_HEIGHT,
   MIN_PANEL_HEIGHT,

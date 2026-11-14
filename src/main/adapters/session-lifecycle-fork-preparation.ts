@@ -32,15 +32,15 @@ function forkError(operation: string, cause: unknown) {
   return new SessionLifecyclePreparationError({ operation, cause })
 }
 
-function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionDetail {
-  return {
+function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand) {
+  const detail: SessionDetail = {
     id: SessionId(command.sourceSessionId),
     title: row.title,
     projectPath: row.project_path,
     piSessionId: row.pi_session_id,
     ...(row.pi_session_file ? { piSessionFile: row.pi_session_file } : {}),
     messages: [],
-    archived: row.archived === 1 ? true : undefined,
+    ...(row.archived === 1 ? { archived: true } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     environmentMode: row.environment_mode ?? 'local',
@@ -57,6 +57,7 @@ function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionD
       : {}),
     ...(row.pi_cwd ? { piSessionCwd: row.pi_cwd } : {}),
   }
+  return detail
 }
 
 /** Names the Pi file a preparation attempt made, so a failed or interrupted one is cleaned up. */

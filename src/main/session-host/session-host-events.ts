@@ -118,7 +118,7 @@ export function installSessionHostEventPublisher(
   }
 }
 
-export function publishSessionHostEvent(payload: SessionHostEventPayload): void {
+export function publishSessionHostEvent(payload: SessionHostEventPayload) {
   publishEvent?.(payload)
   if (changesSemanticDiscoverySource(payload)) {
     semanticDiscoverySourceRevision += 1

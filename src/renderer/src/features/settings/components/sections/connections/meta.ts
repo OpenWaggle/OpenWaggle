@@ -59,11 +59,9 @@ export const PROVIDER_META: Partial<Record<Provider, ProviderMeta>> = {
   },
 }
 
-export function getProviderMeta(provider: Provider): ProviderMeta {
-  return (
-    PROVIDER_META[provider] ?? {
-      icon: getProviderIcon(provider),
-      iconClassName: 'text-text-tertiary',
-    }
-  )
+export function getProviderMeta(provider: Provider) {
+  return (PROVIDER_META[provider] ?? {
+    icon: getProviderIcon(provider),
+    iconClassName: 'text-text-tertiary',
+  }) satisfies ProviderMeta
 }

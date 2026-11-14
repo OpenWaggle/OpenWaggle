@@ -31,7 +31,7 @@ interface HiveActivityRow {
   readonly waking_parent_ids: string
 }
 
-function decodeSessionIds(value: string): readonly string[] {
+function decodeSessionIds(value: string) {
   const decoded: unknown = parseJsonUnknown(value)
   if (!Array.isArray(decoded)) return []
   const entries: readonly unknown[] = decoded
@@ -74,7 +74,7 @@ function selectHiveRootSessionId(sql: SqlClient.SqlClient, sessionId: string) {
 }
 
 /**
- * What still runs in the spawn subtree of `rootSessionId` (ADR 0063), every depth and archived
+ * What still runs in the spawn subtree of `rootSessionId` (ADR 0065), every depth and archived
  * Workers included; historical `session_lineage` is not a Hive. `runId`, a Run of the root, started
  * mid-work when a Worker Run below began at or before it and was still running when it began.
  */
@@ -144,7 +144,7 @@ function factsError(operation: string) {
     new Error(`Desktop notification facts could not be read (${operation}).`, { cause })
 }
 
-function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
+function makeFacts(sql: SqlClient.SqlClient) {
   return {
     session: (sessionId) =>
       sql<SessionRow>`
@@ -211,7 +211,7 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
         Effect.map((rows) => rows.map((row) => ({ sessionId: row.session_id, runId: row.id }))),
         Effect.mapError(factsError('host-loss-runs')),
       ),
-  }
+  } satisfies DesktopNotificationFactsShape
 }
 
 export const SqliteDesktopNotificationFactsLive = Layer.effect(

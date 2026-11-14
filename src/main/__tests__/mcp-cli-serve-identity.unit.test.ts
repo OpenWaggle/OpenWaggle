@@ -33,8 +33,8 @@ function parse(args: readonly string[], stdio = true) {
 
 describe('mcp serve authority (#350)', () => {
   beforeEach(() => {
-    mocks.env.OPENWAGGLE_AGENT_RUN = undefined
-    mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE = undefined
+    delete mocks.env.OPENWAGGLE_AGENT_RUN
+    delete mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
     mocks.readCredentialFile.mockClear()
     mocks.readStoredCredential.mockClear()
   })
@@ -105,7 +105,7 @@ describe('mcp serve authority (#350)', () => {
     expect(() => parse(['--stdio', '--owner'])).toThrow('requires --profile <name>')
     mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE = ''
     expect(parse(['--stdio', '--owner']).identity).toMatchObject({ kind: 'owner' })
-    mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE = undefined
+    delete mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
     expect(
       parse(['--http', '0', '--owner', '--authorization-ceiling', 'yolo'], false).identity,
     ).toEqual({

@@ -1,8 +1,8 @@
+import type { WaggleSendReport } from '@shared/types/local-session-waggle'
 import { randomUUID } from 'node:crypto'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import { toWaggleConfig, waggleConfigSchema } from '@shared/schemas/waggle'
-import type { AgentSendReport } from '@shared/types/agent'
 import { RunId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import {
@@ -45,7 +45,7 @@ function waggleRunId() {
 function explicitWaggleResponse(
   request: SessionWagglePayload['request'],
   replayed: boolean,
-  report: AgentSendReport,
+  report: WaggleSendReport,
 ) {
   return {
     contract: 'session-waggle-v1',
@@ -63,10 +63,7 @@ function pendingWaggleCancellationError() {
   return new Error('Pending explicit Waggle run was cancelled.')
 }
 
-async function waitForPendingWaggleOwner(
-  settled: Promise<void>,
-  signal: AbortSignal,
-): Promise<void> {
+async function waitForPendingWaggleOwner(settled: Promise<void>, signal: AbortSignal) {
   if (signal.aborted) throw pendingWaggleCancellationError()
   await new Promise<void>((resolve, reject) => {
     let finished = false

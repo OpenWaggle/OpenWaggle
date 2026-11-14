@@ -27,7 +27,7 @@ export function defaultRailOrder(known: readonly RightPanelSurfaceId[]) {
 export function fullRailOrder(
   stored: readonly RightPanelSurfaceId[] | null,
   known: readonly RightPanelSurfaceId[],
-): RightPanelSurfaceId[] {
+) {
   if (stored === null) return defaultRailOrder(known)
   const order: RightPanelSurfaceId[] = stored.filter((id) => id !== 'all-panels')
   DEFAULT_BUILT_IN_RAIL_ORDER.forEach((id, defaultIndex) => {
@@ -70,7 +70,7 @@ export function moveRailSurface(
   visible: readonly RightPanelSurfaceId[],
   surface: RightPanelSurfaceId,
   move: RailMove,
-): RightPanelSurfaceId[] {
+) {
   const placement =
     move.type === 'up'
       ? { target: neighbour(visible, surface, -1), after: false }
@@ -78,7 +78,9 @@ export function moveRailSurface(
         ? { target: neighbour(visible, surface, 1), after: true }
         : { target: move.target, after: move.type === 'after' }
   const target = placement.target
-  if (target === null || target === surface || !full.includes(target)) return [...full]
+  if (target === null || target === surface || !full.includes(target)) {
+    return [...full] satisfies RightPanelSurfaceId[]
+  }
   const order = full.filter((id) => id !== surface)
   const targetIndex = order.indexOf(target)
   order.splice(placement.after ? targetIndex + 1 : targetIndex, 0, surface)

@@ -65,12 +65,7 @@ function validateRecentProjectPaths(projects: readonly string[] | undefined) {
 
 type ShortcutBindingsPatch = Readonly<Partial<Record<ShortcutCommand, ShortcutBinding | null>>>
 
-function validateShortcutBindingsUpdate(
-  current: ShortcutBindings,
-  patch: ShortcutBindingsPatch,
-):
-  | { readonly ok: true; readonly value: ShortcutBindings }
-  | { readonly ok: false; readonly error: string } {
+function validateShortcutBindingsUpdate(current: ShortcutBindings, patch: ShortcutBindingsPatch) {
   const candidate: Record<ShortcutCommand, ShortcutBinding | null> = { ...current }
   for (const command of SHORTCUT_COMMANDS) {
     if (Object.hasOwn(patch, command)) candidate[command] = patch[command] ?? null
@@ -81,20 +76,29 @@ function validateShortcutBindingsUpdate(
     const binding = candidate[command]
     if (!binding) {
       if (isMandatoryShortcutCommand(command)) {
-        return { ok: false, error: `Shortcut ${command} must stay assigned.` }
+        return { ok: false, error: `Shortcut ${command} must stay assigned.` } satisfies
+          | { readonly ok: true; readonly value: ShortcutBindings }
+          | { readonly ok: false; readonly error: string }
       }
       continue
     }
     if (!binding.key.trim() || binding.key.trim().length > MAX_SHORTCUT_KEY_LENGTH) {
-      return { ok: false, error: `Shortcut ${command} has an invalid key.` }
+      return { ok: false, error: `Shortcut ${command} has an invalid key.` } satisfies
+        | { readonly ok: true; readonly value: ShortcutBindings }
+        | { readonly ok: false; readonly error: string }
     }
     const key = shortcutBindingKey(binding)
     const owner = owners.get(key)?.find((existing) => shortcutScopesOverlap(command, existing))
-    if (owner !== undefined)
-      return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` }
+    if (owner !== undefined) {
+      return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` } satisfies
+        | { readonly ok: true; readonly value: ShortcutBindings }
+        | { readonly ok: false; readonly error: string }
+    }
     owners.set(key, [...(owners.get(key) ?? []), command])
   }
-  return { ok: true, value: candidate }
+  return { ok: true, value: candidate } satisfies
+    | { readonly ok: true; readonly value: ShortcutBindings }
+    | { readonly ok: false; readonly error: string }
 }
 
 /**
@@ -154,9 +158,11 @@ function validateShortcutSettingsUpdate(patch: ShortcutSettingsPatch) {
       shortcutBindings = validated.value
     }
     const error = validateExtensionPanelShortcutUpdate(current, {
-      shortcutRules: patch.shortcutRules,
-      shortcutBindings,
-      extensionPanelShortcutBindings: patch.extensionPanelShortcutBindings,
+      ...(patch.shortcutRules === undefined ? {} : { shortcutRules: patch.shortcutRules }),
+      ...(shortcutBindings === undefined ? {} : { shortcutBindings }),
+      ...(patch.extensionPanelShortcutBindings === undefined
+        ? {}
+        : { extensionPanelShortcutBindings: patch.extensionPanelShortcutBindings }),
     })
     if (error !== null) {
       logger.warn('Invalid extension panel shortcut update', { error })
@@ -193,21 +199,29 @@ export function updateSettingsOperation(raw: unknown) {
       return { ok: false, error: shortcuts.error } satisfies { ok: false; error: string }
     }
     const shortcutBindings = shortcuts.shortcutBindings
+    const {
+      projectPath,
+      selectedModel,
+      sessionTitleModel,
+      favoriteModels,
+      enabledModels,
+      ...unchanged
+    } = result.data
+    const titleModel =
+      sessionTitleModel === undefined ? null : parseSessionTitleModelSetting(sessionTitleModel)
     yield* settings.update({
-      ...result.data,
-      projectPath: result.data.projectPath !== undefined ? projectPathValidation.value : undefined,
-      recentProjects,
-      selectedModel:
-        result.data.selectedModel !== undefined
-          ? SupportedModelId(result.data.selectedModel)
-          : undefined,
-      sessionTitleModel:
-        result.data.sessionTitleModel !== undefined
-          ? (parseSessionTitleModelSetting(result.data.sessionTitleModel) ?? undefined)
-          : undefined,
-      favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
-      enabledModels: result.data.enabledModels?.map(SupportedModelId),
-      shortcutBindings,
+      ...unchanged,
+      ...(projectPath === undefined ? {} : { projectPath: projectPathValidation.value }),
+      ...(recentProjects === undefined ? {} : { recentProjects }),
+      ...(selectedModel === undefined ? {} : { selectedModel: SupportedModelId(selectedModel) }),
+      ...(titleModel === null ? {} : { sessionTitleModel: titleModel }),
+      ...(favoriteModels === undefined
+        ? {}
+        : { favoriteModels: favoriteModels.map(SupportedModelId) }),
+      ...(enabledModels === undefined
+        ? {}
+        : { enabledModels: enabledModels.map(SupportedModelId) }),
+      ...(shortcutBindings === undefined ? {} : { shortcutBindings }),
     })
     if (result.data.projectPath !== undefined) {
       if (projectPathValidation.value !== null) {

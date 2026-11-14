@@ -34,9 +34,8 @@ vi.mock('../../../../store/session-details/workspace-root-authorization', () => 
         : [],
 }))
 
-const { knownMcpProjectPaths, migrateOpenWaggleMcpFilesAtHostStart } = await import(
-  '../openwaggle-mcp-migration'
-)
+const { knownMcpProjectPaths, migrateOpenWaggleMcpFilesAtHostStart } =
+  await import('../openwaggle-mcp-migration')
 
 describe('the projects whose old MCP on/off state the migration keeps', () => {
   it('include projects known only through their Sessions, like workspace authorization', async () => {

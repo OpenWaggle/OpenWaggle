@@ -4,9 +4,10 @@
  * (DevTools Cmd+R, a crash reload) or a window that closed no longer wants what it asked for, so a
  * request of theirs is dropped when the gate opens instead of running then.
  */
-import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
+import type { IpcInvocation } from '../ports/desktop-shell/ipc-transport'
+import type { RendererSurface } from '../ports/desktop-shell/renderer-surfaces'
 
-type GatedSender = Pick<IpcMainEvent['sender'], 'isDestroyed' | 'on'>
+type GatedSender = Pick<RendererSurface, 'isDestroyed' | 'on'>
 
 /** Counts the main-frame documents a sender has loaded since the gate first held one of its requests. */
 const documentGenerations = new WeakMap<GatedSender, { value: number }>()
@@ -26,9 +27,7 @@ function documentGeneration(sender: GatedSender) {
 }
 
 /** Remembers the document sending `event`; the returned check says whether it is still there. */
-export function rememberGatedSender(
-  event: Pick<IpcMainEvent | IpcMainInvokeEvent, 'sender'>,
-): () => boolean {
+export function rememberGatedSender(event: IpcInvocation) {
   const { sender } = event
   const generation = documentGeneration(sender)
   const sentFrom = generation.value

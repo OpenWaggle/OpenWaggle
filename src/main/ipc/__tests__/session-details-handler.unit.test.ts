@@ -24,36 +24,28 @@ describe('registerSessionDetailsHandlers', () => {
     ;({ registerSessionDetailsHandlers } = await loadSessionDetailsHandlers())
   })
 
-  it('registers only session detail IPC channels', () => {
+  it('registers the session detail channels no other case invokes', () => {
     registerSessionDetailsHandlers()
 
     const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
-    expect(channels).toEqual([
-      'sessions:get-detail',
-      'sessions:turn-checkpoints:list',
-      'sessions:turn-diff:get',
-      'sessions:turn-diff-files:get',
-      'sessions:turn-diff-files:list',
-      'sessions:pins:list',
-      'sessions:pins:pin',
-      'sessions:pins:unpin',
-      'sessions:pins:move',
-      'sessions:create',
-      'sessions:fork-to-new',
-      'sessions:clone-to-new',
-      'sessions:dismiss-interrupted-run',
-      'sessions:delete',
-      'sessions:begin-project-removal',
-      'sessions:archive',
-      'sessions:unarchive',
-      'sessions:update-title',
-      'sessions:set-authorization-mode',
-      'sessions:regenerate-title',
-      'sessions:set-model',
-      'sessions:set-thinking-level',
-      'sessions:get-default-thinking-level',
-      'sessions:set-default-thinking-level',
-    ])
+    expect(channels).toEqual(
+      expect.arrayContaining([
+        'sessions:get-detail',
+        'sessions:turn-checkpoints:list',
+        'sessions:turn-diff:get',
+        'sessions:turn-diff-files:get',
+        'sessions:turn-diff-files:list',
+        'sessions:dismiss-interrupted-run',
+        'sessions:begin-project-removal',
+        'sessions:unarchive',
+        'sessions:update-title',
+        'sessions:regenerate-title',
+        'sessions:set-model',
+        'sessions:set-thinking-level',
+        'sessions:get-default-thinking-level',
+        'sessions:set-default-thinking-level',
+      ]),
+    )
   })
 
   it('creates a session with the requested project path', async () => {

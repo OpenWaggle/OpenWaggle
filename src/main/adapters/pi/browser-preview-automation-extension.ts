@@ -13,8 +13,8 @@ import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on
 export function createBrowserPreviewAutomationExtension(input: {
   readonly scope: BrowserPreviewAutomationScope
   readonly service: BrowserPreviewAutomationServiceShape
-}): ExtensionFactory {
-  return (pi) => {
+}) {
+  const factory: ExtensionFactory = (pi) => {
     const registration = {
       pi: onDemandToolRegistration(pi),
       scope: input.scope,
@@ -26,4 +26,5 @@ export function createBrowserPreviewAutomationExtension(input: {
     registerBrowserPreviewRecordingTools(registration)
     announceOnDemandTools(pi, { rule: BROWSER_PREVIEW_AUTOMATION_RULE })
   }
+  return factory
 }

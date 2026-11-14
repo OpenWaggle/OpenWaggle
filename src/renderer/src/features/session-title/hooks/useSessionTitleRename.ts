@@ -49,10 +49,7 @@ const PROGRAMMATIC_BLUR_GRACE_MS = 1_000
  * and closed the rename. A blur just after the edit starts, with no pointer or key input since,
  * puts the caret back instead.
  */
-export function useSessionTitleRename(
-  sessionId: SessionId | null,
-  title: string,
-): SessionTitleRenameController {
+export function useSessionTitleRename(sessionId: SessionId | null, title: string) {
   const [edit, setEdit] = useState<RenameEdit | null>(null)
   const editingRef = useRef(false)
   const startedAtRef = useRef(0)
@@ -106,7 +103,7 @@ export function useSessionTitleRename(
     })
   }
 
-  return {
+  const controller: SessionTitleRenameController = {
     isEditing,
     draft: edit?.draft ?? '',
     inputRef,
@@ -131,4 +128,5 @@ export function useSessionTitleRename(
       returnFocus()
     },
   }
+  return controller
 }

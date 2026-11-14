@@ -31,10 +31,10 @@ describe('terminal link activation', () => {
     )
   })
 
-  it('keeps project files in the confined preview route', () => {
+  it('keeps project files in the confined preview route', async () => {
     const openWorkspaceFile = vi.fn()
 
-    activateTerminalLinkTarget(
+    await activateTerminalLinkTarget(
       {
         kind: 'file',
         source: 'plain',

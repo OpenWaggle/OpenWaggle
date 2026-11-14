@@ -1,10 +1,6 @@
 import type { SessionCapability } from '@shared/types/session-capability'
 import type { TSchema } from 'typebox'
-import {
-  type SessionsToolRuntimeVariant,
-  sessionsToolParameterVariants,
-  variantActionName,
-} from './sessions-tool-flat-schema'
+import { sessionsToolParameterVariants, variantActionName } from './sessions-tool-flat-schema'
 import { HIVE_HELP_ACTION, hiveToolSchema } from './sessions-tool-hot-schema'
 import { SCHEDULES_WITHHELD_REASON } from './sessions-tool-schedule-guidelines'
 
@@ -98,21 +94,27 @@ export type SessionsToolActionPermission =
     }
 
 /** Whether this Session's grant can use a hive action, and if not, why. */
-export function sessionsToolActionPermission(
-  action: string,
-  grant: SessionsToolActionGrant,
-): SessionsToolActionPermission {
-  if (!KNOWN_ACTIONS.has(action)) return { permitted: false, reason: 'unknown-action' }
-  if (grant.capabilities === undefined) return { permitted: true }
+export function sessionsToolActionPermission(action: string, grant: SessionsToolActionGrant) {
+  if (!KNOWN_ACTIONS.has(action)) {
+    return { permitted: false, reason: 'unknown-action' } satisfies SessionsToolActionPermission
+  }
+  if (grant.capabilities === undefined) {
+    return { permitted: true } satisfies SessionsToolActionPermission
+  }
   if ((action === 'launch' || action === 'spawn') && !grant.modelMultiAgentEnabled) {
-    return { permitted: false, reason: 'multi-agent-disabled' }
+    return {
+      permitted: false,
+      reason: 'multi-agent-disabled',
+    } satisfies SessionsToolActionPermission
   }
   const required = REQUIRED_CAPABILITIES.get(action) ?? []
   const available = new Set(grant.capabilities)
   const missing = required.filter((capability) => !available.has(capability))
-  return missing.length === 0
-    ? { permitted: true }
-    : { permitted: false, reason: 'capability-denied', required, missing }
+  return (
+    missing.length === 0
+      ? { permitted: true }
+      : { permitted: false, reason: 'capability-denied', required, missing }
+  ) satisfies SessionsToolActionPermission
 }
 
 export function permitsSessionsToolAction(action: string, grant: SessionsToolActionGrant) {
@@ -129,10 +131,7 @@ export function joinCapabilities(capabilities: readonly string[], conjunction: '
  * The schema offers only permitted actions, so a call to another one would fail validation with
  * a constant mismatch per action. Name what is missing instead, before validation runs.
  */
-export function assertSessionsToolActionPermitted(
-  args: unknown,
-  grant: SessionsToolActionGrant,
-): void {
+export function assertSessionsToolActionPermitted(args: unknown, grant: SessionsToolActionGrant) {
   if (typeof args !== 'object' || args === null || !('action' in args)) return
   const action: unknown = args.action
   if (typeof action !== 'string' || action === HIVE_HELP_ACTION) return
@@ -151,9 +150,7 @@ export function assertSessionsToolActionPermitted(
 }
 
 /** The parameter variants of the actions a grant permits; every action without a derived grant. */
-export function permittedSessionsToolVariants(
-  grant: SessionsToolActionGrant,
-): readonly SessionsToolRuntimeVariant[] {
+export function permittedSessionsToolVariants(grant: SessionsToolActionGrant) {
   if (grant.capabilities === undefined) return sessionsToolParameterVariants
   return sessionsToolParameterVariants.filter((variant) => {
     const action = variantActionName(variant)
@@ -169,6 +166,8 @@ export function sessionsToolSchemaForCapabilities(input: {
 }
 
 /** The provider schema of the hive tool; a Session without a derived grant gets every action. */
-export function sessionsToolSchemaForGrant(grant: SessionsToolActionGrant): TSchema {
-  return hiveToolSchema(permittedSessionsToolVariants(grant))
+export function sessionsToolSchemaForGrant(grant: SessionsToolActionGrant) {
+  // A plain TSchema: the arguments stay unknown until parseSessionsToolActionArguments.
+  const schema: TSchema = hiveToolSchema(permittedSessionsToolVariants(grant))
+  return schema
 }

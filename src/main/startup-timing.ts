@@ -6,7 +6,7 @@
  * Host's marks on one wall clock. Off unless the switch, or the variable the GUI passes to the
  * Host it launches, is set.
  */
-import { app } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { readEnvironmentVariables } from './env'
 import { createLogger } from './logger'
 import {
@@ -23,7 +23,7 @@ export type StartupMark = (label: string) => void
 export function startupTimingsRequested() {
   return startupTimingsRequestedBy({
     environment: readEnvironmentVariables([STARTUP_TIMINGS_ENVIRONMENT_VARIABLE]),
-    commandLine: app.commandLine,
+    commandLine: appLifecycle.commandLine,
   })
 }
 
@@ -31,10 +31,10 @@ function rounded(milliseconds: number) {
   return Number(milliseconds.toFixed(STARTUP_TIMING_PRECISION))
 }
 
-export function createStartupMark(namespace: string): StartupMark {
+export function createStartupMark(namespace: string) {
   const logger = createLogger(namespace)
   let enabled: boolean | undefined
-  return (label) => {
+  return ((label) => {
     try {
       enabled ??= startupTimingsRequested()
     } catch {
@@ -48,5 +48,5 @@ export function createStartupMark(namespace: string): StartupMark {
       `Startup timing at ${String(rounded(process.uptime() * MILLISECONDS_PER_SECOND))} ms uptime`,
       { label, elapsedMs: rounded(performance.now() - moduleLoadedAt) },
     )
-  }
+  }) satisfies StartupMark
 }

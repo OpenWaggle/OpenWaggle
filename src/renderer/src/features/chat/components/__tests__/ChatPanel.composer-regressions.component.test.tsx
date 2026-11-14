@@ -13,8 +13,8 @@ import type { AgentInteractionEvent, ChatRow } from '../../lib/types-chat-row'
 import { ChatPanelContent } from '../ChatPanel'
 import { createSections, makeMessage } from './ChatPanel.test-utils'
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     activateSessionResourceOwner: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
@@ -42,7 +42,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     }),
     onWaggleEvent: vi.fn(() => () => undefined),
     onWaggleTurnEvent: vi.fn(() => () => undefined),
-  },
+  }),
 }))
 
 function renderSections(sections = createSections()) {

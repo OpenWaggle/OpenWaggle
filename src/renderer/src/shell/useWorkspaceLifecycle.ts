@@ -76,12 +76,14 @@ function toggleSurfaceOr(id: RightPanelSurfaceId, legacyToggle: () => void) {
 function availableExtensionPanelShortcuts(
   bindings: ExtensionPanelShortcutBindings,
   available: ReadonlySet<string>,
-): readonly ExtensionPanelShortcut[] {
-  return Object.entries(bindings).flatMap(([surfaceId, shortcut]) =>
-    isExtensionRightPanelSurfaceId(surfaceId) && available.has(surfaceId)
-      ? [{ surfaceId, shortcut }]
-      : [],
+) {
+  const result: readonly ExtensionPanelShortcut[] = Object.entries(bindings).flatMap(
+    ([surfaceId, shortcut]) =>
+      isExtensionRightPanelSurfaceId(surfaceId) && available.has(surfaceId)
+        ? [{ surfaceId, shortcut }]
+        : [],
   )
+  return result
 }
 
 /** Extension panel shortcuts are live exactly when the Panel rail offers the panel here. */
@@ -123,13 +125,13 @@ function useActiveShortcutRules(shortcutRules: ShortcutRules, viewedSessionId: s
 function previewShortcutHandlers(
   ownerKey: string,
   showToast: (message: string, type: 'error') => void,
-): PreviewShortcutHandlers {
+) {
   const run = (action: () => Promise<boolean>, fallback: string) => {
     void action().catch((error: unknown) => {
       showToast(error instanceof Error ? error.message : fallback, 'error')
     })
   }
-  return {
+  const handlers: PreviewShortcutHandlers = {
     'preview.toggle': toggleSurfaceOr('browser', () => void toggleWorkspacePreview(ownerKey)),
     'preview.refresh': () =>
       run(() => refreshWorkspacePreview(ownerKey), 'Preview could not reload.'),
@@ -145,9 +147,10 @@ function previewShortcutHandlers(
     'preview.resetZoom': () =>
       run(() => zoomWorkspacePreview(ownerKey, 'reset'), 'Preview zoom could not reset.'),
   }
+  return handlers
 }
 
-export function useWorkspaceLifecycle(): void {
+export function useWorkspaceLifecycle() {
   useSessionResourceInvalidation()
   useSessionHiveInvalidation()
   const { projectPath } = useProject()

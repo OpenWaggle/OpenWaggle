@@ -65,7 +65,7 @@ export function serializedTool(tool: PrefixTool) {
   })
 }
 
-function part(name: string, text: string): PrefixPartTokens {
+function part(name: string, text: string) {
   return { name, chars: text.length, o200k: countO200kTokens(text) }
 }
 
@@ -73,7 +73,7 @@ function sum(parts: readonly PrefixPartTokens[], key: 'chars' | 'o200k') {
   return parts.reduce((total, entry) => total + entry[key], 0)
 }
 
-export function measurePrefixTokens(content: PrefixContent): PrefixTokenReport {
+export function measurePrefixTokens(content: PrefixContent) {
   const sections = content.sections.map((section) => part(section.name, section.text))
   const tools = content.tools
     .map((tool) => part(tool.name, serializedTool(tool)))
@@ -83,7 +83,7 @@ export function measurePrefixTokens(content: PrefixContent): PrefixTokenReport {
   const toolsO200k = sum(tools, 'o200k')
   const runContextO200k = sum(runContext, 'o200k')
   const o200kTotal = systemO200k + toolsO200k + runContextO200k
-  return {
+  const report: PrefixTokenReport = {
     o200kTotal,
     opusEstimateTotal: opusTokenEstimate(o200kTotal),
     charsTotal: sum(sections, 'chars') + sum(tools, 'chars') + sum(runContext, 'chars'),
@@ -94,4 +94,5 @@ export function measurePrefixTokens(content: PrefixContent): PrefixTokenReport {
     sections,
     tools,
   }
+  return report
 }

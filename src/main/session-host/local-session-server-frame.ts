@@ -1,5 +1,6 @@
 import type { Socket } from 'node:net'
 import type { LocalSessionProfileManagementResponse } from '@shared/types/local-session-profile-management'
+import { errorCode } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
@@ -38,10 +39,23 @@ function describeDetails(value: object) {
   return details.length > MAX_DETAIL_LENGTH ? `${details.slice(0, MAX_DETAIL_LENGTH)}…` : details
 }
 
-function describeFailure(failure: unknown, depth = 0): string | undefined {
-  if (typeof failure !== 'object' || failure === null) {
-    return failure === undefined ? undefined : String(failure)
+/** A thrown value that is not an object; a function is named, since its source says nothing. */
+function describeThrownValue(value: unknown) {
+  if (typeof value === 'string') return value
+  if (typeof value === 'function') return value.name || 'anonymous function'
+  if (
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean' ||
+    typeof value === 'symbol'
+  ) {
+    return String(value)
   }
+  return value === null ? 'null' : undefined
+}
+
+function describeFailure(failure: unknown, depth = 0): string | undefined {
+  if (typeof failure !== 'object' || failure === null) return describeThrownValue(failure)
   const message = stringField(failure, 'message')
   if (message && message !== EFFECT_DEFAULT_ERROR_MESSAGE) return message
   // A tagged error without a message still says what failed through its tag, code,
@@ -51,7 +65,7 @@ function describeFailure(failure: unknown, depth = 0): string | undefined {
   const label = [tag, code].filter(Boolean).join(': ')
   const operation = stringField(failure, 'operation')
   if (!tag && !code && !operation) return describeDetails(failure)
-  const cause: unknown = Reflect.get(failure, 'cause')
+  const cause = 'cause' in failure ? failure.cause : undefined
   const reason = depth < MAX_DESCRIBED_CAUSES ? describeFailure(cause, depth + 1) : undefined
   const described = [
     label ? `${label}${operation ? ` (${operation})` : ''}` : operation,
@@ -86,8 +100,7 @@ const CLIENT_DISCONNECT_ERROR_CODES = new Set([
 ])
 
 function isClientDisconnect(error: unknown, socket: Socket) {
-  const code: unknown =
-    typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined
+  const code = errorCode(error)
   return (
     (typeof code === 'string' && CLIENT_DISCONNECT_ERROR_CODES.has(code)) ||
     socket.destroyed ||
@@ -113,8 +126,8 @@ function describeServerError(error: unknown) {
   return describeFailure(failure) ?? UNDESCRIBED_FAILURE
 }
 
-function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
-  return new Promise((resolve, reject) => {
+function writeSocketSegment(socket: Socket, segment: Buffer) {
+  return new Promise<void>((resolve, reject) => {
     socket.write(segment, (error) => {
       if (!error) {
         resolve()
@@ -169,12 +182,12 @@ interface FrameWriteInput {
   readonly budget: LocalSessionOutboundByteBudget
   readonly signal: AbortSignal
   /** Names the connection's caller in logs, such as `gui:local-user`. */
-  readonly peer?: (() => string | undefined) | undefined
+  readonly peer?: () => string | undefined
   /** The most bytes the frame encodes to, for small frames such as the handshake's. */
-  readonly maxBytes?: number | undefined
+  readonly maxBytes?: number
 }
 
-export async function writeLocalSessionSocketFrame(input: FrameWriteInput): Promise<void> {
+export async function writeLocalSessionSocketFrame(input: FrameWriteInput) {
   const lease = await input.budget
     .encode(
       input.value,
@@ -239,7 +252,7 @@ function isLocalAccessPayload(value: unknown): value is LocalAccessPayload {
   )
 }
 
-export function invalidatedProfileId(value: unknown): string | undefined {
+export function invalidatedProfileId(value: unknown) {
   if (!isLocalAccessPayload(value)) return
   const outcome = value.response.outcome
   return outcome.effect === 'profile-revoked' || outcome.effect === 'profile-rotated'
@@ -247,7 +260,7 @@ export function invalidatedProfileId(value: unknown): string | undefined {
     : undefined
 }
 
-export function refreshedProfileId(value: unknown): string | undefined {
+export function refreshedProfileId(value: unknown) {
   if (!isLocalAccessPayload(value)) return
   const outcome = value.response.outcome
   return outcome.effect === 'profile-updated' ? outcome.profile.id : undefined

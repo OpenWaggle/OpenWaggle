@@ -1,17 +1,20 @@
 import { readFile, stat } from 'node:fs/promises'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import type { PersistSessionSnapshotInput } from '../../../ports/session-repository'
 import {
   SessionTranscriptRepair,
   SessionTranscriptRepairError,
 } from '../../../ports/session-transcript-repair'
-import { rekeySessionLines, writeSessionLinesAtomically } from './fork-entry-identity'
+import {
+  rekeySessionLines,
+  sessionEntryIdOf,
+  writeSessionLinesAtomically,
+} from './fork-entry-identity'
 import { projectPiSessionSnapshot } from './session-projection'
 
 /** Parses every line, or returns null: a file Pi could only partly read is never rewritten. */
-function parseSessionLines(text: string): unknown[] | null {
+function parseSessionLines(text: string) {
   const lines: unknown[] = []
   for (const line of text.split('\n')) {
     if (line.trim().length === 0) continue
@@ -27,7 +30,8 @@ function parseSessionLines(text: string): unknown[] | null {
 function entryIdsOf(lines: readonly unknown[]) {
   const ids = new Set<string>()
   for (const line of lines) {
-    if (isRecord(line) && line.type !== 'session' && typeof line.id === 'string') ids.add(line.id)
+    const id = sessionEntryIdOf(line)
+    if (id !== undefined) ids.add(id)
   }
   return ids
 }
@@ -36,8 +40,9 @@ function entryIdsOf(lines: readonly unknown[]) {
 function changedEntryIds(before: readonly unknown[], after: readonly unknown[]) {
   const changed = new Set<string>()
   before.forEach((line, index) => {
-    if (!isRecord(line) || line.type === 'session' || typeof line.id !== 'string') return
-    if (JSON.stringify(line) !== JSON.stringify(after[index])) changed.add(line.id)
+    const id = sessionEntryIdOf(line)
+    if (id === undefined) return
+    if (JSON.stringify(line) !== JSON.stringify(after[index])) changed.add(id)
   })
   return changed
 }
@@ -66,7 +71,7 @@ function changedEntryIds(before: readonly unknown[], after: readonly unknown[]) 
 export async function repairForeignSnapshotEntryIds(
   input: PersistSessionSnapshotInput,
   foreignNodeIds: ReadonlySet<string>,
-): Promise<PersistSessionSnapshotInput | null> {
+) {
   const sessionFile = input.piSessionFile
   if (!sessionFile || foreignNodeIds.size === 0) return null
   // An append that lands while the file is rewritten makes the rewrite stand down; try again.
@@ -83,7 +88,7 @@ async function renameEntriesOnce(
   input: PersistSessionSnapshotInput,
   sessionFile: string,
   foreignNodeIds: ReadonlySet<string>,
-): Promise<PersistSessionSnapshotInput | null | 'file-changed'> {
+) {
   const before = await stat(sessionFile)
   const lines = parseSessionLines(await readFile(sessionFile, 'utf8'))
   if (!lines) return null
@@ -98,7 +103,7 @@ async function renameEntriesOnce(
   const written = await writeSessionLinesAtomically(sessionFile, rekeyed.lines, {
     unchangedSince: { size: before.size, mtimeMs: before.mtimeMs },
   })
-  if (!written) return 'file-changed'
+  if (!written) return 'file-changed' as const
 
   const reprojected = projectPiSessionSnapshot({ sessionManager: SessionManager.open(sessionFile) })
   const reprojectedById = new Map(reprojected.nodes.map((node) => [node.id, node]))
@@ -124,7 +129,7 @@ async function renameEntriesOnce(
     ...input,
     nodes,
     activeNodeId: input.activeNodeId === null ? null : remap(input.activeNodeId),
-  }
+  } satisfies PersistSessionSnapshotInput | 'file-changed'
 }
 
 export const PiSessionTranscriptRepairLive = Layer.succeed(

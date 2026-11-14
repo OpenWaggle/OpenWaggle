@@ -23,7 +23,7 @@ export const workspacePreparationSnapshotSchema = Schema.Struct({
       definition: preparationDefinitionSchema,
       source: Schema.Literal('local', 'project', 'override'),
       review: Schema.Literal('enabled', 'disabled', 'required'),
-      previous: Schema.optional(preparationReviewSchema),
+      previous: Schema.optionalWith(preparationReviewSchema, { exact: true }),
     }),
   ),
 })
@@ -34,12 +34,14 @@ export const storedWorkspacePreparationSchema = Schema.Struct({
   setup: preparationExecutionSchema,
   cleanup: preparationExecutionSchema,
   environment: Schema.Record({ key: Schema.String, value: Schema.NullOr(Schema.String) }),
-  workspaceIdentity: Schema.optional(
+  workspaceIdentity: Schema.optionalWith(
     Schema.Struct({ device: Schema.String, inode: Schema.String, birthtime: Schema.String }),
+    { exact: true },
   ),
-  awaitingWorktreeBirth: Schema.optional(Schema.Boolean),
-  awaitingWorktreeBirthSince: Schema.optional(
+  awaitingWorktreeBirth: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  awaitingWorktreeBirthSince: Schema.optionalWith(
     Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    { exact: true },
   ),
-  runBirthSetupOwed: Schema.optional(Schema.Literal(true)),
+  runBirthSetupOwed: Schema.optionalWith(Schema.Literal(true), { exact: true }),
 })

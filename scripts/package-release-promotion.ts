@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { lstat, readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import type {
@@ -12,7 +11,7 @@ export type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
 } from './package-release-artifact-contract'
-export type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
+export type { PackageReleasePlan } from './package-release-plan'
 
 /*
  * npm can take well over a minute to serve a version it has accepted: the 0.2.0 release
@@ -61,11 +60,13 @@ export function verifyPackageReleasePublicationEnvironment(
 }
 
 export interface PackageReleasePromotionDependencies {
-  readonly ensureGitHubRelease: (input: Readonly<{
-    artifact: PackageReleaseArtifact
-    artifactRoot: string
-    sourceSha: string
-  }>) => Promise<void>
+  readonly ensureGitHubRelease: (
+    input: Readonly<{
+      artifact: PackageReleaseArtifact
+      artifactRoot: string
+      sourceSha: string
+    }>,
+  ) => Promise<void>
   readonly ensureTag: (tag: string, sourceSha: string) => Promise<void>
   readonly publish: (artifact: PackageReleaseArtifact, tarballPath: string) => Promise<void>
   readonly readRegistryIntegrity: (name: string, version: string) => Promise<string | null>
@@ -73,26 +74,37 @@ export interface PackageReleasePromotionDependencies {
 }
 
 interface ArtifactContractModule {
-  readonly decodePackageReleaseArtifactManifest: (
-    value: unknown,
-  ) => PackageReleaseArtifactManifest
+  readonly decodePackageReleaseArtifactManifest: (value: unknown) => PackageReleaseArtifactManifest
+  readonly verifyReleaseArtifactFile: (
+    artifactRoot: string,
+    artifact: PackageReleaseArtifact,
+  ) => Promise<string>
 }
 
 interface PlanModule {
   readonly decodePackageReleasePlan: (value: unknown) => PackageReleasePlan
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
-  return isJsonObject(value) &&
-    typeof value.decodePackageReleaseArtifactManifest === 'function'
+  return (
+    isJsonObject(value) &&
+    'decodePackageReleaseArtifactManifest' in value &&
+    typeof value.decodePackageReleaseArtifactManifest === 'function' &&
+    'verifyReleaseArtifactFile' in value &&
+    typeof value.verifyReleaseArtifactFile === 'function'
+  )
 }
 
 function isPlanModule(value: unknown): value is PlanModule {
-  return isJsonObject(value) && typeof value.decodePackageReleasePlan === 'function'
+  return (
+    isJsonObject(value) &&
+    'decodePackageReleasePlan' in value &&
+    typeof value.decodePackageReleasePlan === 'function'
+  )
 }
 
 async function loadArtifactContractModule() {
@@ -113,8 +125,9 @@ async function loadPlanModule() {
   return loaded
 }
 
-async function readJson(filePath: string): Promise<unknown> {
-  return JSON.parse(await readFile(filePath, 'utf8'))
+async function readJson(filePath: string) {
+  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'))
+  return parsed
 }
 
 export async function readPackageReleasePlan(planPath: string) {
@@ -129,9 +142,13 @@ export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRo
   )
   const packageMismatch = plan.packages.some((plannedPackage, index) => {
     const artifact = manifest.packages[index]
-    return artifact === undefined || artifact.key !== plannedPackage.key ||
-      artifact.name !== plannedPackage.name || artifact.tag !== plannedPackage.tag ||
+    return (
+      artifact === undefined ||
+      artifact.key !== plannedPackage.key ||
+      artifact.name !== plannedPackage.name ||
+      artifact.tag !== plannedPackage.tag ||
       artifact.version !== plannedPackage.version
+    )
   })
   if (
     manifest.sourceTree !== plan.sourceTree ||
@@ -140,33 +157,28 @@ export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRo
   ) {
     throw new Error('Package release artifact manifest does not match the source tree plan.')
   }
-  const expectedFiles = new Set(['release-artifacts.json', ...manifest.packages.map(({ file }) => file)])
+  const expectedFiles = new Set([
+    'release-artifacts.json',
+    ...manifest.packages.map(({ file }) => file),
+  ])
   const actualFiles = await readdir(artifactRoot)
-  if (actualFiles.length !== expectedFiles.size || actualFiles.some((file) => !expectedFiles.has(file))) {
+  if (
+    actualFiles.length !== expectedFiles.size ||
+    actualFiles.some((file) => !expectedFiles.has(file))
+  ) {
     throw new Error('Package release artifact bundle contains unexpected files.')
   }
   for (const artifact of manifest.packages) {
-    if (path.basename(artifact.file) !== artifact.file || !artifact.file.endsWith('.tgz')) {
-      throw new Error(`${artifact.name} artifact filename is invalid.`)
-    }
-    const tarballPath = path.join(artifactRoot, artifact.file)
-    if (!(await lstat(tarballPath)).isFile()) {
-      throw new Error(`${artifact.name} artifact must be a regular file.`)
-    }
-    const contents = await readFile(tarballPath)
-    if (createHash('sha256').update(contents).digest('hex') !== artifact.sha256) {
-      throw new Error(`${artifact.name} artifact SHA-256 is invalid.`)
-    }
-    if (`sha512-${createHash('sha512').update(contents).digest('base64')}` !== artifact.integrity) {
-      throw new Error(`${artifact.name} artifact npm integrity is invalid.`)
-    }
+    await artifactContract.verifyReleaseArtifactFile(artifactRoot, artifact)
   }
   return manifest
 }
 
 function isTransientPublicationFailure(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
-  return /EAI_AGAIN|ECONNREFUSED|ECONNRESET|ENETUNREACH|EPIPE|ETIMEDOUT|socket hang up|E(?:408|429|500|502|503|504)|\b(?:408|429|500|502|503|504)\b|network/i.test(message)
+  return /EAI_AGAIN|ECONNREFUSED|ECONNRESET|ENETUNREACH|EPIPE|ETIMEDOUT|socket hang up|E(?:408|429|500|502|503|504)|\b(?:408|429|500|502|503|504)\b|network/i.test(
+    message,
+  )
 }
 
 async function readRegistryIntegrityWithRetry(
@@ -235,10 +247,9 @@ async function publishOrResume(
       )
       if (acceptedIntegrity === artifact.integrity) return
       if (acceptedIntegrity !== null) {
-        throw new Error(
-          `${artifact.name}@${artifact.version} has different integrity on npm.`,
-          { cause: error },
-        )
+        throw new Error(`${artifact.name}@${artifact.version} has different integrity on npm.`, {
+          cause: error,
+        })
       }
       if (!isTransientPublicationFailure(error) || attempt + 1 >= PUBLISH_ATTEMPTS) throw error
       await dependencies.sleep(TRANSIENT_RETRY_DELAY_MS)
@@ -253,13 +264,17 @@ export async function promoteVerifiedPackageRelease(
   dependencies: PackageReleasePromotionDependencies,
 ) {
   for (const artifact of manifest.packages) {
-    if (artifact.dependency !== undefined &&
-      await readRegistryIntegrityWithRetry(
+    if (
+      artifact.dependency !== undefined &&
+      (await readRegistryIntegrityWithRetry(
         artifact.dependency.name,
         artifact.dependency.version,
         dependencies,
-      ) === null) {
-      throw new Error(`${artifact.dependency.name}@${artifact.dependency.version} is unavailable for ${artifact.name}.`)
+      )) === null
+    ) {
+      throw new Error(
+        `${artifact.dependency.name}@${artifact.dependency.version} is unavailable for ${artifact.name}.`,
+      )
     }
     await publishOrResume(artifact, artifactRoot, dependencies)
   }

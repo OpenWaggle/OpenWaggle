@@ -1,4 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import * as Either from 'effect/Either'
+import * as Option from 'effect/Option'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionCapabilityAuditEntry,
@@ -7,10 +9,11 @@ import type {
   ExtensionInvokeScope,
 } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import { withoutUndefinedProperties } from '@shared/utils/undefined-properties'
 import type { DiscoveredExtensionPackage } from '../extensions/types'
 import { contributionMethodIsDeclared } from './extension-contribution-authorization-model'
 
-export function normalizeScope(scope: ExtensionInvokeScope): ExtensionInvokeScope {
+export function normalizeScope(scope: ExtensionInvokeScope) {
   return matchBy(scope, 'kind')
     .with('app', (value) => value)
     .with('project', (value) => ({ ...value, projectPath: value.projectPath.trim() }))
@@ -28,8 +31,21 @@ export function normalizeScope(scope: ExtensionInvokeScope): ExtensionInvokeScop
     .exhaustive()
 }
 
-export function normalizeInput(input: ExtensionInvokeInput): ExtensionInvokeInput {
-  return { ...input, scope: normalizeScope(input.scope) }
+/**
+ * The invocation with its scope trimmed and its payload without explicit-undefined keys: an
+ * extension that builds `{ cursor: undefined }` over postMessage or IPC means no cursor, and the
+ * exact optional payload schemas would refuse the key. A payload that contains itself gives
+ * `Left` with the invocation without its payload, which the broker refuses as an invalid payload.
+ */
+export function normalizeInput(input: ExtensionInvokeInput) {
+  const { payload: rawPayload, ...rest } = input
+  const invocation = { ...rest, scope: normalizeScope(input.scope) } satisfies ExtensionInvokeInput
+  const payload = withoutUndefinedProperties(rawPayload)
+  if (Option.isNone(payload)) return Either.left(invocation)
+  return Either.right({
+    ...invocation,
+    ...(payload.value === undefined ? {} : { payload: payload.value }),
+  } satisfies ExtensionInvokeInput)
 }
 
 export function getScopeProjectPath(scope: ExtensionInvokeScope) {
@@ -88,7 +104,7 @@ export function makeCapabilityAudit(input: {
   readonly outcome: ExtensionCapabilityAuditEntry['outcome']
   readonly timestamp: number
   readonly failureCode?: ExtensionInvokeFailureCode
-}): ExtensionCapabilityAuditEntry {
+}) {
   return {
     extensionId: input.invocation.extensionId,
     contributionId: input.invocation.contributionId,

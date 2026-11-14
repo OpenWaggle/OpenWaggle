@@ -35,7 +35,7 @@ export const useDraftAuthorizationModeStore = create<DraftAuthorizationModeState
 export async function flushDraftAuthorizationModeToSession(
   projectPath: string,
   sessionId: SessionId,
-): Promise<void> {
+) {
   const override = useDraftAuthorizationModeStore.getState().byProjectPath[projectPath]
   if (override === undefined) return
 

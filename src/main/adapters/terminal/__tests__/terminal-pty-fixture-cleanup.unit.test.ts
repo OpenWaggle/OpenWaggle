@@ -22,12 +22,12 @@ it('keeps the temporary home until shell exit and descriptor drain have complete
   try {
     expect(kill).toHaveBeenCalledOnce()
     await new Promise((resolve) => setTimeout(resolve, EVENT_LOOP_SETTLE_MS))
-    await expect(access(home)).resolves.toBeUndefined()
+    await expect(access(home)).resolves.not.toThrow()
     // Model Bash persisting its history after receiving the kill signal.
     await writeFile(join(home, '.bash_history'), 'last command\n')
     exited.resolve()
     await new Promise((resolve) => setTimeout(resolve, EVENT_LOOP_SETTLE_MS))
-    await expect(access(home)).resolves.toBeUndefined()
+    await expect(access(home)).resolves.not.toThrow()
     drained.resolve(true)
     await cleanup
     await expect(access(home)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -52,7 +52,7 @@ it('preserves the fixture when native resource teardown reports failure', async 
         home,
       ),
     ).rejects.toThrow('PTY fixture resource drain failed.')
-    await expect(access(home)).resolves.toBeUndefined()
+    await expect(access(home)).resolves.not.toThrow()
   } finally {
     await rm(home, { recursive: true, force: true })
   }
@@ -77,10 +77,10 @@ it('escalates a surviving shell without removing its home before exit and drain'
     await vi.advanceTimersByTimeAsync(1_000)
     expect(kill.mock.calls).toEqual([[], ['SIGKILL']])
     expect(closeDescriptor).toHaveBeenCalledOnce()
-    await expect(access(home)).resolves.toBeUndefined()
+    await expect(access(home)).resolves.not.toThrow()
     exited.resolve()
     await Promise.resolve()
-    await expect(access(home)).resolves.toBeUndefined()
+    await expect(access(home)).resolves.not.toThrow()
     drained.resolve(true)
     await cleanup
     await expect(access(home)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -110,7 +110,7 @@ it('retains the home and fails at the original deadline if force cannot prove te
   try {
     await vi.advanceTimersByTimeAsync(10_000)
     await failure
-    await expect(access(home)).resolves.toBeUndefined()
+    await expect(access(home)).resolves.not.toThrow()
     expect(vi.getTimerCount()).toBe(0)
   } finally {
     vi.useRealTimers()

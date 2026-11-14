@@ -99,7 +99,7 @@ function invalidActionReference(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly registrations: readonly ContributionRegistrationEntry[]
   readonly entries: readonly ExtensionContributionRegistryEntry[]
-}): InvalidActionReference | null {
+}) {
   const actionEntries = matchingActionEntries(input.entries, input.action)
   if (actionEntries.length > 0) {
     return actionEntries.some((entry) => actionEntryIsAvailable(entry, input.action))
@@ -173,7 +173,7 @@ function actionFailureDiagnostic(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly section: ExtensionContributionRegistryEntry
   readonly reference: InvalidActionReference
-}): ExtensionDiagnostic {
+}) {
   return {
     severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
     code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.CONTRIBUTION_REGISTRATION_FAILED,

@@ -7,8 +7,10 @@ import { Select } from '@/shared/ui/Select'
 import type { BrowserPreviewPanelCallbacks, BrowserPreviewTab } from '../browser-preview-model'
 import { clearBrowserPreviewExternalFallback } from '../lib/browser-preview-external-fallback'
 
-interface BrowserPreviewProfileSelectorProps
-  extends Pick<BrowserPreviewPanelCallbacks, 'onError' | 'onUpdate'> {
+interface BrowserPreviewProfileSelectorProps extends Pick<
+  BrowserPreviewPanelCallbacks,
+  'onError' | 'onUpdate'
+> {
   readonly tab: BrowserPreviewTab
 }
 

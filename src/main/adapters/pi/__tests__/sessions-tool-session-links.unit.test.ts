@@ -100,7 +100,7 @@ describe('Session links in the Hive tool', () => {
 
   it('tells the agent that pasted Session links work as identities', async () => {
     const registerTool = vi.fn()
-    await createSessionsToolExtension({
+    createSessionsToolExtension({
       sessionId: 'session-caller',
       runId: 'run-current',
       workingDirectory: '/project',

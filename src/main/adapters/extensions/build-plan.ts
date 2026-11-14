@@ -1,22 +1,13 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type {
-  ExtensionBuildPlan,
-  ExtensionDiagnostic,
-  ExtensionInstallSource,
-} from '../../extensions/types'
+import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
+import type { ExtensionBuildPlan, ExtensionDiagnostic } from '../../extensions/types'
 import { calculateBuildPlanHash } from './package-files'
 
-interface ManifestBuildPlanSource {
-  readonly builtArtifacts: readonly string[]
-  readonly sourceFiles: readonly string[]
-  readonly install?: {
-    readonly source: ExtensionInstallSource
-  }
-  readonly build?: {
-    readonly command: string
-    readonly outputs?: readonly string[]
-  }
-}
+/** The manifest fields the build plan reads, as a decoded manifest carries them. */
+type ManifestBuildPlanSource = Pick<
+  OpenWaggleExtensionManifest,
+  'builtArtifacts' | 'sourceFiles' | 'install' | 'build'
+>
 
 function normalizeManifestPath(relativePath: string) {
   return relativePath.replaceAll(
@@ -25,7 +16,7 @@ function normalizeManifestPath(relativePath: string) {
   )
 }
 
-function getManifestInstallSource(manifest: ManifestBuildPlanSource): ExtensionInstallSource {
+function getManifestInstallSource(manifest: ManifestBuildPlanSource) {
   return manifest.install?.source ?? OPENWAGGLE_EXTENSION.INSTALL_SOURCE.PREBUILT
 }
 
@@ -33,7 +24,7 @@ function getManifestBuildOutputPaths(manifest: ManifestBuildPlanSource) {
   return manifest.build?.outputs ?? manifest.builtArtifacts
 }
 
-function buildPlanDiagnostics(manifest: ManifestBuildPlanSource): readonly ExtensionDiagnostic[] {
+function buildPlanDiagnostics(manifest: ManifestBuildPlanSource) {
   const diagnostics: ExtensionDiagnostic[] = []
   const installSource = getManifestInstallSource(manifest)
   const buildCommand = manifest.build?.command
@@ -68,16 +59,16 @@ export async function getExtensionBuildPlan(
   packagePath: string,
   rawManifest: string,
   manifest: ManifestBuildPlanSource,
-): Promise<{
-  readonly buildPlan: ExtensionBuildPlan | null
-  readonly diagnostics: readonly ExtensionDiagnostic[]
-}> {
+) {
   const installSource = getManifestInstallSource(manifest)
   const buildCommand = manifest.build?.command ?? null
   const diagnostics = buildPlanDiagnostics(manifest)
 
   if (installSource === OPENWAGGLE_EXTENSION.INSTALL_SOURCE.PREBUILT && buildCommand === null) {
-    return { buildPlan: null, diagnostics }
+    return { buildPlan: null, diagnostics } satisfies {
+      readonly buildPlan: ExtensionBuildPlan | null
+      readonly diagnostics: readonly ExtensionDiagnostic[]
+    }
   }
 
   const buildPlanHash =
@@ -97,5 +88,8 @@ export async function getExtensionBuildPlan(
       inputHash: buildPlanHash.contentHash,
     },
     diagnostics: [...diagnostics, ...buildPlanHash.diagnostics],
+  } satisfies {
+    readonly buildPlan: ExtensionBuildPlan | null
+    readonly diagnostics: readonly ExtensionDiagnostic[]
   }
 }

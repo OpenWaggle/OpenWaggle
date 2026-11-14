@@ -4,7 +4,7 @@ function getServerSnapshot() {
   return false
 }
 
-export function useMediaQuery(query: string): boolean {
+export function useMediaQuery(query: string) {
   function subscribe(callback: () => void) {
     if (typeof window === 'undefined') return () => {}
     const mediaQueryList = window.matchMedia(query)

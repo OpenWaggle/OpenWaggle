@@ -1,15 +1,11 @@
-import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownExactOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
 import { backgroundRunUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import {
   backgroundRunActivityEventsSchema,
-  worktreeLaunchEnvironmentSchema,
-  worktreeLaunchStageSchema,
-  worktreeLaunchStepSchema,
-  worktreeSetupActionTerminalSchema,
+  worktreeLaunchSnapshotSchema,
 } from '@shared/schemas/background-run'
 import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import { isRecord } from './local-session-client-connection'
 import {
   decodeAssistantMessageSnapshots,
   decodeStreamingParts,
@@ -18,55 +14,36 @@ import {
   withUndecodableParts,
 } from './local-session-snapshot-parts'
 
-function decodeStringArray(value: unknown) {
-  if (!Array.isArray(value)) return undefined
-  const strings = value.filter((item): item is string => typeof item === 'string')
-  return strings.length === value.length ? strings : undefined
-}
+const degradedSnapshotSchema = Schema.Struct({
+  reason: Schema.Literal('content-limit'),
+  omittedBytes: Schema.Number,
+  toolCallIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  messageCutShort: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
-function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded'] | undefined {
-  if (
-    !isRecord(value) ||
-    value.reason !== 'content-limit' ||
-    typeof value.omittedBytes !== 'number'
-  ) {
-    return undefined
-  }
-  const toolCallIds = value.toolCallIds === undefined ? [] : decodeStringArray(value.toolCallIds)
-  if (!toolCallIds) return undefined
-  return {
+function decodeDegradedSnapshot(value: unknown) {
+  const decoded = safeDecodeUnknown(degradedSnapshotSchema, value)
+  if (!decoded.success) return undefined
+  const { omittedBytes, toolCallIds = [], messageCutShort } = decoded.data
+  const snapshot: BackgroundRunSnapshot['degraded'] | undefined = {
     reason: 'content-limit',
-    omittedBytes: value.omittedBytes,
+    omittedBytes,
     ...(toolCallIds.length > 0 ? { toolCallIds } : {}),
     // One that does not say whether the caps cut the streaming message counts as cut: its parts
     // must not pass for the whole message over a longer shown copy.
-    messageCutShort: value.messageCutShort !== false,
+    messageCutShort: messageCutShort !== false,
   }
+  return snapshot
 }
 
-const worktreeLaunchSnapshotSchema = Schema.Struct({
-  status: Schema.Literal('running', 'complete', 'failed'),
-  stage: worktreeLaunchStageSchema,
-  startedAt: Schema.Number,
-  updatedAt: Schema.Number,
-  details: Schema.Array(Schema.String),
-  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
-  steps: Schema.optional(Schema.Array(worktreeLaunchStepSchema)),
-  progressPercentage: Schema.optional(Schema.Number),
-  worktreePath: Schema.optional(Schema.String),
-  branch: Schema.optional(Schema.String),
-  baseRef: Schema.optional(Schema.String),
-  setupAction: Schema.optional(worktreeSetupActionTerminalSchema),
-  errorMessage: Schema.optional(Schema.String),
-})
-
-function decodeWorktreeLaunchSnapshot(
-  value: unknown,
-  context: SnapshotContext,
-): WorktreeLaunchSnapshot | undefined {
+function decodeWorktreeLaunchSnapshot(value: unknown, context: SnapshotContext) {
   if (value === undefined) return undefined
   try {
-    return decodeUnknownExactOrThrow(worktreeLaunchSnapshotSchema, value)
+    const snapshot: WorktreeLaunchSnapshot | undefined = decodeUnknownExactOrThrow(
+      worktreeLaunchSnapshotSchema,
+      value,
+    )
+    return snapshot
   } catch (error) {
     reportUndecodable(context, 'the worktree launch', error)
     return undefined
@@ -75,18 +52,21 @@ function decodeWorktreeLaunchSnapshot(
 
 const userMessageSnapshotSchema = Schema.Array(backgroundRunUserMessageSchema)
 
-function decodeUserMessageSnapshots(
-  value: unknown,
-  context: SnapshotContext,
-): Pick<BackgroundRunSnapshot, 'userMessages'> {
-  if (value === undefined) return {}
+function decodeUserMessageSnapshots(value: unknown, context: SnapshotContext) {
+  if (value === undefined) {
+    const pick: Pick<BackgroundRunSnapshot, 'userMessages'> = {}
+    return pick
+  }
   try {
     const userMessages = decodeUnknownExactOrThrow(userMessageSnapshotSchema, value)
-    return userMessages.length > 0 ? { userMessages } : {}
+    const pick: Pick<BackgroundRunSnapshot, 'userMessages'> =
+      userMessages.length > 0 ? { userMessages } : {}
+    return pick
   } catch (error) {
     // Without them the reconnect places the Run's user messages from the Session detail.
     reportUndecodable(context, 'the incorporated user messages', error)
-    return {}
+    const pick: Pick<BackgroundRunSnapshot, 'userMessages'> = {}
+    return pick
   }
 }
 
@@ -99,33 +79,35 @@ function decodeActivityEvents(value: unknown, context: SnapshotContext) {
   }
 }
 
-function isOptionalString(value: unknown) {
-  return value === undefined || typeof value === 'string'
-}
+/**
+ * The members every active Run snapshot has, and the others still undecoded: each of those is
+ * decoded on its own, so one this client cannot read costs only that member.
+ */
+const activeRunSnapshotCandidateSchema = Schema.Struct({
+  activity: Schema.Literal('agent-run'),
+  sessionId: Schema.String,
+  model: Schema.String,
+  mode: Schema.Literal('classic', 'waggle'),
+  startedAt: Schema.Number,
+  parts: Schema.Array(Schema.Unknown),
+  messageId: Schema.optionalWith(Schema.String, { exact: true }),
+  runId: Schema.optionalWith(Schema.String, { exact: true }),
+  messageStartedAt: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  degraded: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  worktreeLaunch: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  activityEvents: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  userMessages: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  assistantMessages: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
-interface ActiveRunSnapshotCandidate extends Record<string, unknown> {
-  readonly activity: 'agent-run'
-  readonly sessionId: string
-  readonly model: string
-  readonly mode: 'classic' | 'waggle'
-  readonly startedAt: number
-  readonly parts: readonly unknown[]
-  readonly messageId?: string
-  readonly runId?: string
-}
+const snapshotSessionIdSchema = Schema.Struct({ sessionId: Schema.String })
 
-function hasActiveRunSnapshotShape(
-  candidate: Record<string, unknown>,
-): candidate is ActiveRunSnapshotCandidate {
-  return (
-    candidate.activity === 'agent-run' &&
-    typeof candidate.sessionId === 'string' &&
-    typeof candidate.model === 'string' &&
-    (candidate.mode === 'classic' || candidate.mode === 'waggle') &&
-    typeof candidate.startedAt === 'number' &&
-    Array.isArray(candidate.parts) &&
-    isOptionalString(candidate.messageId) &&
-    isOptionalString(candidate.runId)
+function invalidSnapshot(candidate: unknown, index: number) {
+  const session = Schema.is(snapshotSessionIdSchema)(candidate)
+    ? `, Session ${candidate.sessionId}`
+    : ''
+  return new Error(
+    `Local Session Host returned an invalid active Run snapshot (index ${String(index)}${session}).`,
   )
 }
 
@@ -136,17 +118,12 @@ function hasActiveRunSnapshotShape(
  * the snapshots as a settled Run. Anything else this client cannot decode is logged and left out of
  * that Run's snapshot alone (see `reportUndecodable`).
  */
-export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
+export function decodeActiveRunSnapshots(value: unknown) {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
-  return value.map((candidate, index) => {
-    if (!isRecord(candidate) || !hasActiveRunSnapshotShape(candidate)) {
-      const sessionId = isRecord(candidate) ? candidate.sessionId : undefined
-      throw new Error(
-        `Local Session Host returned an invalid active Run snapshot (index ${String(index)}${
-          typeof sessionId === 'string' ? `, Session ${sessionId}` : ''
-        }).`,
-      )
-    }
+  const snapshot: BackgroundRunSnapshot[] = value.map((value: unknown, index) => {
+    const decoded = safeDecodeUnknown(activeRunSnapshotCandidateSchema, value)
+    if (!decoded.success) throw invalidSnapshot(value, index)
+    const candidate = decoded.data
     const context: SnapshotContext = {
       sessionId: candidate.sessionId,
       ...(candidate.runId ? { runId: candidate.runId } : {}),
@@ -173,4 +150,5 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
       ...(worktreeLaunch ? { worktreeLaunch } : {}),
     }
   })
+  return snapshot
 }

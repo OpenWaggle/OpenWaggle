@@ -16,17 +16,19 @@ import { option, type ParsedArguments } from './mcp-cli-arguments'
 const APPROVAL_DECISION_POSITIONAL = 3
 
 /** `approval-respond <session> <run> <request> allow|deny [--for once|session|project]`. */
-export function approvalResponse(arguments_: ParsedArguments): AgentLoopConfirmResponse {
+export function approvalResponse(arguments_: ParsedArguments) {
   const decision = arguments_.positionals[APPROVAL_DECISION_POSITIONAL]
   if (decision !== 'allow' && decision !== 'deny') {
     throw new CommandCliUsageError('approval-respond takes allow or deny after the request ID.')
   }
   const reach = option(arguments_, 'for')
-  if (reach === undefined) return { kind: 'confirm', accepted: decision === 'allow' }
+  if (reach === undefined) {
+    return { kind: 'confirm', accepted: decision === 'allow' } satisfies AgentLoopConfirmResponse
+  }
   const scope = AGENT_AUTHORIZATION_DECISION_SCOPES.find((candidate) => candidate === reach)
   if (!scope) throw new CommandCliUsageError('--for must be once, session or project.')
   if (decision === 'deny') throw new CommandCliUsageError('--for applies only to allow.')
-  return { kind: 'confirm', accepted: true, scope }
+  return { kind: 'confirm', accepted: true, scope } satisfies AgentLoopConfirmResponse
 }
 
 /**
@@ -38,8 +40,9 @@ export function interactionResponseFromInput(
   arguments_: ParsedArguments,
   structured: unknown,
 ) {
-  if (structured !== undefined)
+  if (structured !== undefined) {
     return decodeUnknownExactOrThrow(agentLoopResponseSchema, structured)
+  }
   if (command === 'approval-respond') return approvalResponse(arguments_)
   // The CLI reads the pending request to pick the response kind (sessions-cli-host-input.ts).
   throw new Error('request-respond needs the response for the pending request.')
@@ -79,7 +82,7 @@ function isJsonValue(value: unknown): value is JsonValue {
   return false
 }
 
-function parseValueFile(text: string): JsonValue {
+function parseValueFile(text: string) {
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -97,7 +100,7 @@ export async function readInteractionAnswer(
     readonly stdin: () => Promise<string>
     readonly file: (filePath: string) => Promise<string>
   },
-): Promise<InteractionAnswer> {
+) {
   const given = ANSWER_OPTIONS.filter((name) => arguments_.options.has(name))
   const [answer] = given
   if (given.length !== 1 || answer === undefined) {
@@ -146,7 +149,7 @@ function mismatch(interaction: AgentLoopInteraction, answer: InteractionAnswer, 
 function confirmResponse(
   interaction: Extract<AgentLoopInteraction, { readonly kind: 'confirm' }>,
   answer: InteractionAnswer,
-): AgentLoopInteractionResponse {
+) {
   if (interaction.purpose === 'authorization') {
     // request-respond asks the Session Host first (approvalRequestError); this is the Host's
     // answer to a caller that may answer it, should one get here without asking.
@@ -157,10 +160,12 @@ function confirmResponse(
       { code },
     )
   }
-  if (answer.kind === 'confirm') return { kind: 'confirm', accepted: true }
+  if (answer.kind === 'confirm') {
+    return { kind: 'confirm', accepted: true } satisfies AgentLoopInteractionResponse
+  }
   // Dismissing a confirmation declines it, as closing the dialog does.
   if (answer.kind === 'decline' || answer.kind === 'dismiss') {
-    return { kind: 'confirm', accepted: false }
+    return { kind: 'confirm', accepted: false } satisfies AgentLoopInteractionResponse
   }
   throw mismatch(interaction, answer, '--confirm or --decline')
 }
@@ -171,29 +176,39 @@ function confirmResponse(
  * the answer it recorded. `--text`, `--stdin`, `--input-file` and `--dismiss` fit more than one
  * kind, so they give none.
  */
-export function interactionResponseFromAnswerAlone(
-  answer: InteractionAnswer,
-): AgentLoopInteractionResponse | undefined {
+export function interactionResponseFromAnswerAlone(answer: InteractionAnswer) {
   return matchBy(answer, 'kind')
     .with(
       'choice',
-      (choice): AgentLoopInteractionResponse => ({
-        kind: 'select',
-        selected: choice.choice,
-      }),
+      (choice) =>
+        ({
+          kind: 'select',
+          selected: choice.choice,
+        }) satisfies AgentLoopInteractionResponse,
     )
-    .with('confirm', (): AgentLoopInteractionResponse => ({ kind: 'confirm', accepted: true }))
-    .with('decline', (): AgentLoopInteractionResponse => ({ kind: 'confirm', accepted: false }))
+    .with(
+      'confirm',
+      () => ({ kind: 'confirm', accepted: true }) satisfies AgentLoopInteractionResponse,
+    )
+    .with(
+      'decline',
+      () => ({ kind: 'confirm', accepted: false }) satisfies AgentLoopInteractionResponse,
+    )
     .with(
       'acknowledge',
-      (): AgentLoopInteractionResponse => ({
-        kind: 'notify',
-        acknowledged: true,
-      }),
+      () =>
+        ({
+          kind: 'notify',
+          acknowledged: true,
+        }) satisfies AgentLoopInteractionResponse,
     )
     .with(
       'value',
-      (value): AgentLoopInteractionResponse => ({ kind: 'custom', value: value.value }),
+      (value) =>
+        ({
+          kind: 'custom',
+          value: value.value,
+        }) satisfies AgentLoopInteractionResponse,
     )
     .with('text', 'dismiss', () => undefined)
     .exhaustive()
@@ -211,27 +226,39 @@ function listedChoice(select: { readonly choices: readonly string[] }, choice: s
 export function interactionResponseFor(
   interaction: AgentLoopInteraction,
   answer: InteractionAnswer,
-): AgentLoopInteractionResponse {
+) {
   return matchBy(interaction, 'kind')
     .with('confirm', (confirm) => confirmResponse(confirm, answer))
-    .with('select', (select): AgentLoopInteractionResponse => {
-      if (answer.kind === 'choice')
-        return { kind: 'select', selected: listedChoice(select, answer.choice) }
-      if (answer.kind === 'dismiss') return { kind: 'select', selected: null }
+    .with('select', (select) => {
+      if (answer.kind === 'choice') {
+        return {
+          kind: 'select',
+          selected: listedChoice(select, answer.choice),
+        } satisfies AgentLoopInteractionResponse
+      }
+      if (answer.kind === 'dismiss') {
+        return { kind: 'select', selected: null } satisfies AgentLoopInteractionResponse
+      }
       throw mismatch(select, answer, '--choice <item> or --dismiss')
     })
-    .with('input', 'editor', (question): AgentLoopInteractionResponse => {
+    .with('input', 'editor', (question) => {
       if (answer.kind === 'text') return { kind: question.kind, value: answer.text }
       if (answer.kind === 'dismiss') return { kind: question.kind, value: null }
       throw mismatch(question, answer, '--text, --stdin, --input-file or --dismiss')
     })
-    .with('notify', (notice): AgentLoopInteractionResponse => {
-      if (answer.kind === 'acknowledge') return { kind: 'notify', acknowledged: true }
+    .with('notify', (notice) => {
+      if (answer.kind === 'acknowledge') {
+        return { kind: 'notify', acknowledged: true } satisfies AgentLoopInteractionResponse
+      }
       throw mismatch(notice, answer, '--acknowledge')
     })
-    .with('custom', (custom): AgentLoopInteractionResponse => {
-      if (answer.kind === 'value') return { kind: 'custom', value: answer.value }
-      if (answer.kind === 'dismiss') return { kind: 'custom', value: null }
+    .with('custom', (custom) => {
+      if (answer.kind === 'value') {
+        return { kind: 'custom', value: answer.value } satisfies AgentLoopInteractionResponse
+      }
+      if (answer.kind === 'dismiss') {
+        return { kind: 'custom', value: null } satisfies AgentLoopInteractionResponse
+      }
       throw mismatch(custom, answer, '--value-file <path|-> or --dismiss')
     })
     .exhaustive()

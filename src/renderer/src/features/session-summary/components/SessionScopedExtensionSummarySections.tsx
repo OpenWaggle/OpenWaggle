@@ -58,7 +58,7 @@ export function SessionScopedExtensionSummarySections({
     messageCount,
     resources: sessionResources,
     onOpenResources,
-    onOpenSidePanel,
+    ...(onOpenSidePanel === undefined ? {} : { onOpenSidePanel }),
   })
   if (!registry) return null
 

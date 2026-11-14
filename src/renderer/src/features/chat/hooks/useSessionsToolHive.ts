@@ -15,7 +15,7 @@ const NO_SESSIONS: readonly HiveSession[] = []
  * Workers as the panel does and refreshes with it. Only pages already loaded are read (the first,
  * unless the Hive panel loaded more); a Worker on a later page keeps the bare "Worker".
  */
-export function useSessionsToolHive(): readonly HiveSession[] {
+export function useSessionsToolHive() {
   const sessionId = useToolRowSessionId()
   const query = useInfiniteQuery({
     ...sessionHiveTreeQueryOptions(SessionId(sessionId ?? '')),
@@ -24,5 +24,7 @@ export function useSessionsToolHive(): readonly HiveSession[] {
   const pages = query.data?.pages
   if (!pages) return NO_SESSIONS
   const root = hiveTreeRoot(pages)
-  return root ? [root, ...hiveTreeMembers(pages)] : hiveTreeMembers(pages)
+  return (
+    root ? [root, ...hiveTreeMembers(pages)] : hiveTreeMembers(pages)
+  ) satisfies readonly HiveSession[]
 }

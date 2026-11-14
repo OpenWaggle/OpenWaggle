@@ -63,9 +63,10 @@ export class McpHttpRequestBodyTimeoutError extends Error {
   }
 }
 
+/** Its functions use no `this`, so callers pass them as listeners. */
 interface RequestBodyLease {
-  retainChunk(bytes: number): boolean
-  release(): void
+  readonly retainChunk: (bytes: number) => boolean
+  readonly release: () => void
 }
 
 type AdmissionResult =
@@ -79,13 +80,13 @@ export function makeMcpHttpRequestBodyAdmission(input: {
   let activeRequests = 0
   let retainedBytes = 0
   return {
-    acquire(declaredBytes: number | undefined): AdmissionResult {
+    acquire(declaredBytes: number | undefined) {
       if (activeRequests >= input.maxConcurrentBodies) {
-        return { accepted: false, reason: 'concurrency' }
+        return { accepted: false, reason: 'concurrency' } satisfies AdmissionResult
       }
       const initialBytes = declaredBytes ?? 0
       if (retainedBytes + initialBytes > input.maxAggregateBytes) {
-        return { accepted: false, reason: 'aggregate-bytes' }
+        return { accepted: false, reason: 'aggregate-bytes' } satisfies AdmissionResult
       }
       activeRequests += 1
       retainedBytes += initialBytes
@@ -94,21 +95,21 @@ export function makeMcpHttpRequestBodyAdmission(input: {
       return {
         accepted: true,
         lease: {
-          retainChunk(bytes) {
+          retainChunk: (bytes) => {
             if (declaredBytes !== undefined) return true
             if (retainedBytes + bytes > input.maxAggregateBytes) return false
             retainedBytes += bytes
             heldBytes += bytes
             return true
           },
-          release() {
+          release: () => {
             if (released) return
             released = true
             activeRequests -= 1
             retainedBytes -= heldBytes
           },
         },
-      }
+      } satisfies AdmissionResult
     },
   }
 }

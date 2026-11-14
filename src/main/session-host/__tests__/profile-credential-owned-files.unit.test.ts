@@ -9,7 +9,7 @@ import { readOwnedFile, unlinkOwnedFile } from '../profile-credential-owned-file
 const execFileAsync = promisify(execFile)
 const itPosix = process.platform === 'win32' ? it.skip : it
 
-async function settleWithin<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+async function settleWithin<T>(promise: Promise<T>, milliseconds: number) {
   let timeout: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([

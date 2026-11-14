@@ -13,7 +13,7 @@ vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
 
 const REASON = 'AccessDeniedException: Model access is denied due to IAM user or service role'
 
-function refusal(sequence: number): SessionHostEventEnvelope {
+function refusal(sequence: number) {
   return {
     cursor: { hostInstanceId: 'host', sequence },
     timestamp: 1,
@@ -23,7 +23,7 @@ function refusal(sequence: number): SessionHostEventEnvelope {
       reason: REASON,
       retryAt: 2,
     },
-  }
+  } satisfies SessionHostEventEnvelope
 }
 
 beforeEach(() => {

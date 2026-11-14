@@ -19,7 +19,7 @@ function model(
     readonly reasoning?: boolean
     readonly contextWindow?: number
   } = {},
-): ModelDisplayInfo {
+) {
   const [provider = '', ...rest] = ref.split('/')
   const levels: readonly ThinkingLevel[] = options.reasoning ? ['off', 'low', 'high'] : ['off']
   return {
@@ -30,7 +30,7 @@ function model(
     available: options.available ?? true,
     availableThinkingLevels: levels,
     ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
-  }
+  } satisfies ModelDisplayInfo
 }
 
 const GROUPS: readonly AvailableModelsProvider[] = [

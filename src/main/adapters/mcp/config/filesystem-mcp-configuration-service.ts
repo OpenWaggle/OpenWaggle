@@ -83,11 +83,11 @@ function fileExists(reader: McpConfigFileReader, filePath: string) {
   }
 }
 
-function serverView(server: McpMergedServer): McpConfiguredServerView {
+function serverView(server: McpMergedServer) {
   const { config } = server
   const isUrl = 'url' in config
   const vaultSecrets = vaultSecretsOf(config)
-  return {
+  const view: McpConfiguredServerView = {
     name: server.name,
     transport: server.transport,
     target: isUrl ? config.url : [config.command, ...(config.args ?? [])].join(' '),
@@ -102,6 +102,7 @@ function serverView(server: McpMergedServer): McpConfiguredServerView {
     usesOAuth: isUrl && !config.auth && !hasAuthorizationHeader(config.headers),
     ...(vaultSecrets.length > 0 ? { vaultSecrets } : {}),
   }
+  return view
 }
 
 interface ServiceContext {
@@ -141,10 +142,7 @@ function findServer(context: ServiceContext, input: McpConfigurationScopeInput, 
   return server
 }
 
-function buildView(
-  context: ServiceContext,
-  input: McpConfigurationScopeInput,
-): McpConfigurationView {
+function buildView(context: ServiceContext, input: McpConfigurationScopeInput) {
   const roots = context.roots(input)
   const merged = loadMcpMergedConfig(roots, context.reader)
   const locations = mcpConfigFileLocations(roots)
@@ -155,7 +153,7 @@ function buildView(
     exists: fileExists(context.reader, file.path),
     openWaggleOwned: isOpenWaggleMcpConfigFile(file.fileId),
   }))
-  return {
+  const view: McpConfigurationView = {
     projectPath: input.projectPath,
     files,
     servers: merged.servers.map(serverView),
@@ -163,6 +161,7 @@ function buildView(
     ...(merged.warnings ? { warnings: merged.warnings } : {}),
     ...(merged.orphanedOverrides ? { orphanedOverrides: merged.orphanedOverrides } : {}),
   }
+  return view
 }
 
 function setEnabled(context: ServiceContext, input: McpSetServerEnabledInput) {
@@ -253,7 +252,7 @@ function removeServer(
 
 export function createFilesystemMcpConfigurationService(
   options: FilesystemMcpConfigurationOptions,
-): McpConfigurationServiceShape {
+) {
   const context: ServiceContext = {
     reader: options.reader ?? nodeMcpConfigFileReader,
     roots: (input) => ({
@@ -288,7 +287,7 @@ export function createFilesystemMcpConfigurationService(
           : new McpConfigurationError({ reason: 'io', message: describe(error) }),
     })
 
-  return {
+  const shape: McpConfigurationServiceShape = {
     getView: (input) =>
       Effect.try({
         try: () => buildView(context, input),
@@ -313,4 +312,5 @@ export function createFilesystemMcpConfigurationService(
       }
     },
   }
+  return shape
 }

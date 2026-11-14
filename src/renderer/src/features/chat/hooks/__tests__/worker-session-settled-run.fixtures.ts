@@ -27,19 +27,14 @@ import {
 const { useAgentChat } = await loadWorkerTranscriptHooks()
 const { apiMock, chatStoreMock } = getWorkerTranscriptMocks()
 
-export function persistedMessage(
-  id: string,
-  role: Message['role'],
-  text: string,
-  order: number,
-): Message {
+export function persistedMessage(id: string, role: Message['role'], text: string, order: number) {
   return {
     id: MessageId(id),
     role,
     parts: [{ type: 'text', text }],
     createdAt: order,
     metadata: { sessionNodeCreatedOrder: order },
-  }
+  } satisfies Message
 }
 
 /** Everything before Run 1. */
@@ -63,8 +58,13 @@ export const EXPECTED_TRANSCRIPT = [
   ['assistant', 'R2 working'],
 ]
 
-export function workerDetail(messages: readonly Message[], updatedAt = 1): SessionDetail {
-  return { ...workerDetailWithoutRunMessages(), updatedAt, messages: [...messages] }
+export function workerDetail(messages: readonly Message[], updatedAt = 1) {
+  const detail: SessionDetail = {
+    ...workerDetailWithoutRunMessages(),
+    updatedAt,
+    messages: [...messages],
+  }
+  return detail
 }
 
 export function emitUserMessage(messageId: string, text: string, order: number, timestamp: number) {
@@ -83,8 +83,8 @@ export function runBuffer(input: {
   readonly order: number
   readonly assistantMessageId: string
   readonly answer: string
-}): BackgroundRunSnapshot {
-  return {
+}) {
+  const snapshot: BackgroundRunSnapshot = {
     ...workerReconnectBuffer(),
     messageId: input.assistantMessageId,
     parts: [{ type: 'text', text: input.answer }],
@@ -97,6 +97,7 @@ export function runBuffer(input: {
       },
     ],
   }
+  return snapshot
 }
 
 export const RUN_1_BUFFER = runBuffer({

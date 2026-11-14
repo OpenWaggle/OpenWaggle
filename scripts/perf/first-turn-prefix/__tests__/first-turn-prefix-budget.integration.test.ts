@@ -6,6 +6,7 @@ import { captureFirstTurnPrefix } from '../capture-first-turn'
 import { FIRST_TURN_PREFIX_BUDGETS } from '../first-turn-prefix-budget'
 import { measurePrefixTokens } from '../prefix-tokens'
 import { PREFIX_SESSION_ROLES } from '../session-identity-rows'
+import { scriptEnv } from '../../../support/env'
 
 /**
  * The first-turn prefix budget (decision 6 of the v1 performance plan): what an empty project's
@@ -17,9 +18,11 @@ import { PREFIX_SESSION_ROLES } from '../session-identity-rows'
  * budget applies), and `OPENWAGGLE_PERF_PREFIX_SECOND_REQUEST_MS` captures a second request after
  * MCP servers had that long to connect.
  */
-const reportDirectory = process.env.OPENWAGGLE_PERF_PREFIX_OUT
-const measuredProject = process.env.OPENWAGGLE_PERF_PREFIX_PROJECT
-const secondRequestAfterMs = process.env.OPENWAGGLE_PERF_PREFIX_SECOND_REQUEST_MS
+const {
+  OPENWAGGLE_PERF_PREFIX_OUT: reportDirectory,
+  OPENWAGGLE_PERF_PREFIX_PROJECT: measuredProject,
+  OPENWAGGLE_PERF_PREFIX_SECOND_REQUEST_MS: secondRequestAfterMs,
+} = scriptEnv()
 const MEASUREMENT_TIMEOUT_MS = 120_000
 const JSON_INDENT = 2
 
@@ -27,7 +30,7 @@ const cleanups: string[] = []
 
 // The Run's MCP extension keeps its sign-in state under Electron's user data, as in the Host.
 vi.mock('electron', () => ({
-  app: { getPath: () => process.env.OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
+  app: { getPath: () => scriptEnv().OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
   safeStorage: { isEncryptionAvailable: () => false },
   shell: {},
 }))

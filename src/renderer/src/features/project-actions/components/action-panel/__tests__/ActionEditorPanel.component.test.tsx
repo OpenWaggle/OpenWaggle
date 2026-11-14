@@ -33,8 +33,9 @@ const scope = { projectPath: '/repo' }
 let discovery: ProjectTaskDiscovery = { tasks: [TEST_TASK], diagnostics: [] }
 function serve(catalog: ActionCatalog) {
   mocks.manage.mockImplementation(async ({ operation }) => {
-    if (operation.type === 'catalog' || operation.type === 'edit')
+    if (operation.type === 'catalog' || operation.type === 'edit') {
       return { type: 'catalog', catalog }
+    }
     if (operation.type === 'discover') return { type: 'discovery', discovery }
     throw new Error(`Unexpected operation ${operation.type}`)
   })

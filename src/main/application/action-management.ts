@@ -1,7 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { actionManagementRequestSchema } from '@shared/schemas/action-management'
-import type { ActionManagementResult, ActionManagementScope } from '@shared/types/action-management'
+import type { ActionManagementScope } from '@shared/types/action-management'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { ActionCatalogService } from '../ports/action-catalog-service'
@@ -17,8 +17,9 @@ export function resolveActionManagementWorkspace(scope: ActionManagementScope) {
   return Effect.gen(function* () {
     const authorization = yield* WorkspaceProjectAuthorization
     const projectPath = yield* authorization.authorize(scope.projectPath)
-    if (!scope.sessionId && !scope.workspaceId)
+    if (!scope.sessionId && !scope.workspaceId) {
       return { projectPath, workspacePath: projectPath, workspaceId: null }
+    }
     const repository = yield* SessionWorkspaceResourceRepository
     const workspace = yield* scope.sessionId
       ? repository.getBound(SessionId(scope.sessionId))
@@ -45,10 +46,13 @@ export function manageProjectActions(rawRequest: unknown) {
     const workspace = yield* resolveActionManagementWorkspace(request.scope)
     const catalog = yield* ActionCatalogService
     const runs = yield* ActionRunService
-    const requireWorkspace = (): Effect.Effect<ActionRunWorkspace, Error> =>
-      workspace.workspaceId === null
-        ? Effect.fail(new Error('Select a Session to run or inspect actions in its Workspace.'))
-        : Effect.succeed({ ...workspace, workspaceId: workspace.workspaceId })
+    const requireWorkspace = () => {
+      const effect: Effect.Effect<ActionRunWorkspace, Error> =
+        workspace.workspaceId === null
+          ? Effect.fail(new Error('Select a Session to run or inspect actions in its Workspace.'))
+          : Effect.succeed({ ...workspace, workspaceId: workspace.workspaceId })
+      return effect
+    }
     return yield* match(request.operation)
       .with(
         { type: 'preparation' },
@@ -114,7 +118,19 @@ export function manageProjectActions(rawRequest: unknown) {
       )
       .with({ type: 'start' }, (operation) =>
         requireWorkspace().pipe(
-          Effect.flatMap((workspace) => runs.start({ ...operation, workspace })),
+          Effect.flatMap((workspace) =>
+            runs.start({
+              workspace,
+              actionId: operation.actionId,
+              requestId: operation.requestId,
+              ...(operation.expectedExecutionKey === undefined
+                ? {}
+                : { expectedExecutionKey: operation.expectedExecutionKey }),
+              ...(operation.restartRunId === undefined
+                ? {}
+                : { restartRunId: operation.restartRunId }),
+            }),
+          ),
           Effect.map((run) => ({ type: 'run', run }) as const),
         ),
       )
@@ -131,5 +147,5 @@ export function manageProjectActions(rawRequest: unknown) {
         ),
       )
       .exhaustive()
-  }).pipe(Effect.map((result): ActionManagementResult => result))
+  })
 }

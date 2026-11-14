@@ -17,6 +17,7 @@ import {
   type ShellEnvironmentCommandRunner,
   type ShellEnvironmentPatch,
 } from './desktop-shell-environment-probes'
+import { environmentVariables } from './env-live-schema'
 import { fillLinuxSessionBusAddress } from './linux-session-bus-environment'
 
 export interface DesktopShellEnvironmentOptions {
@@ -34,16 +35,19 @@ const FALLBACK_LC_CTYPE = 'en_US.UTF-8'
 function loginShellCandidates(options: DesktopShellEnvironmentOptions) {
   const fallback =
     options.platform === 'darwin' ? '/bin/zsh' : options.platform === 'linux' ? '/bin/bash' : ''
-  return [...new Set([options.env.SHELL, options.userShell, fallback].map(trimNonEmpty))].filter(
-    (candidate): candidate is string => candidate !== undefined,
-  )
+  return [
+    ...new Set(
+      [environmentVariables(options.env).SHELL, options.userShell, fallback].map(trimNonEmpty),
+    ),
+  ].filter((candidate): candidate is string => candidate !== undefined)
 }
 
 function knownWindowsCliDirs(env: MutableEnvironment) {
   const paths: string[] = []
-  const appData = trimNonEmpty(env.APPDATA)
-  const localAppData = trimNonEmpty(env.LOCALAPPDATA)
-  const userProfile = trimNonEmpty(env.USERPROFILE)
+  const variables = environmentVariables(env)
+  const appData = trimNonEmpty(variables.APPDATA)
+  const localAppData = trimNonEmpty(variables.LOCALAPPDATA)
+  const userProfile = trimNonEmpty(variables.USERPROFILE)
   if (appData) paths.push(`${appData}\\npm`)
   if (localAppData) {
     paths.push(
@@ -81,12 +85,12 @@ async function installWindowsEnvironment(
     readWindowsShellEnvironment(runner, true),
   ])
   const path = mergePaths(options.platform, [
-    trimNonEmpty(profile.PATH),
+    trimNonEmpty(environmentVariables(profile).PATH),
     knownWindowsCliDirs(options.env).join(';'),
-    trimNonEmpty(noProfile.PATH),
+    trimNonEmpty(environmentVariables(noProfile).PATH),
     readEnvPath(options.env),
   ])
-  if (path) options.env.PATH = path
+  if (path) Object.assign(options.env, { PATH: path })
   fillMissingEnvironment(options.env, profile, ['FNM_DIR', 'FNM_MULTISHELL_PATH'])
 }
 
@@ -98,7 +102,7 @@ async function readPreferredLoginShellEnvironment(
   const environment: ShellEnvironmentPatch = {}
   for (const shell of loginShellCandidates(options)) {
     Object.assign(environment, await readLoginShellEnvironment(shell, runner, launchEnvironment))
-    if (environment.PATH) break
+    if (environmentVariables(environment).PATH) break
   }
   return environment
 }
@@ -114,7 +118,7 @@ function installLocaleEnvironment(
     if (shellEnvironment[name]) options.env[name] = shellEnvironment[name]
   }
   if (!LOCALE_ENV_NAMES.some((name) => trimNonEmpty(options.env[name]))) {
-    options.env.LC_CTYPE = FALLBACK_LC_CTYPE
+    Object.assign(options.env, { LC_CTYPE: FALLBACK_LC_CTYPE })
   }
 }
 
@@ -155,10 +159,12 @@ async function probePosixEnvironment(
   options: DesktopShellEnvironmentOptions,
   runner: ShellEnvironmentCommandRunner,
   launchEnvironment: Readonly<MutableEnvironment>,
-): Promise<ResolvedShellEnvironment> {
+) {
   const environment = await readPreferredLoginShellEnvironment(options, runner, launchEnvironment)
   const launchctlPath =
-    options.platform === 'darwin' && !environment.PATH ? await readLaunchctlPath(runner) : undefined
+    options.platform === 'darwin' && !environmentVariables(environment).PATH
+      ? await readLaunchctlPath(runner)
+      : undefined
   return { environment, ...(launchctlPath === undefined ? {} : { launchctlPath }) }
 }
 
@@ -186,13 +192,14 @@ function applyPosixEnvironment(
   restoreBaseEnvironment(options, base)
   const shellEnvironment = resolved.environment
   const path = mergePaths(options.platform, [
-    trimNonEmpty(shellEnvironment.PATH) ?? resolved.launchctlPath,
+    trimNonEmpty(environmentVariables(shellEnvironment).PATH) ?? resolved.launchctlPath,
     readEnvPath(base),
   ])
-  if (path) options.env.PATH = path
+  if (path) Object.assign(options.env, { PATH: path })
   for (const name of FILLED_ENV_NAMES) {
-    if (!trimNonEmpty(base[name]) && shellEnvironment[name])
+    if (!trimNonEmpty(base[name]) && shellEnvironment[name]) {
       options.env[name] = shellEnvironment[name]
+    }
   }
   for (const name of REPLACED_ENV_NAMES) {
     if (source === 'cache' && trimNonEmpty(base[name])) continue
@@ -202,13 +209,11 @@ function applyPosixEnvironment(
   installLinuxDbusEnvironment(options)
 }
 
-function snapshotBase(env: MutableEnvironment): MutableEnvironment {
+function snapshotBase(env: MutableEnvironment) {
   return Object.fromEntries(BASE_ENV_NAMES.map((name) => [name, env[name]]))
 }
 
-export async function installDesktopShellEnvironment(
-  options: DesktopShellEnvironmentOptions,
-): Promise<void> {
+export async function installDesktopShellEnvironment(options: DesktopShellEnvironmentOptions) {
   const runner = options.runCommand ?? runBoundedShellEnvironmentCommand
   if (options.platform === 'win32') {
     await installWindowsEnvironment(options, runner)
@@ -222,7 +227,7 @@ export async function installDesktopShellEnvironment(
 
 /** A probe that found neither a PATH nor launchd's: nothing worth applying or caching. */
 export function resolvedNothing(resolved: ResolvedShellEnvironment) {
-  return !trimNonEmpty(resolved.environment.PATH) && !resolved.launchctlPath
+  return !trimNonEmpty(environmentVariables(resolved.environment).PATH) && !resolved.launchctlPath
 }
 
 /** One POSIX hydration of `options.env`: whose shell it is, and its probe and results. */
@@ -244,20 +249,18 @@ export interface PosixShellEnvironment {
 }
 
 /** Snapshots the launch environment; call it before any result is applied. */
-export function preparePosixShellEnvironment(
-  options: DesktopShellEnvironmentOptions,
-): PosixShellEnvironment {
+export function preparePosixShellEnvironment(options: DesktopShellEnvironmentOptions) {
   const runner = options.runCommand ?? runBoundedShellEnvironmentCommand
   const base = snapshotBase(options.env)
   // The probe runs in the launch environment: a login shell keeps the PATH it inherits.
   const launchEnvironment = { ...options.env }
   const shell = loginShellCandidates(options)[0]
-  const home = trimNonEmpty(options.env.HOME)
+  const home = trimNonEmpty(environmentVariables(options.env).HOME)
   return {
     key: shell && home ? { platform: options.platform, shell, home } : null,
     apply: (resolved, source) => applyPosixEnvironment(options, base, resolved, source),
     probe: () => probePosixEnvironment(options, runner, launchEnvironment),
     cacheable: (resolved, previous) =>
       withoutLaunchOnlyPath(options.platform, resolved, launchEnvironment, previous),
-  }
+  } satisfies PosixShellEnvironment
 }

@@ -57,10 +57,10 @@ const TOOL_KINDS_BY_NAME: ReadonlyMap<string, ToolKind> = new Map<string, ToolKi
 ])
 
 /** A script's `models.*` calls are not tools and fall to `other`. */
-export function toolKind(name: string): ToolKind {
+export function toolKind(name: string) {
   const known = TOOL_KINDS_BY_NAME.get(name)
   if (known) return known
-  if (isMcpServerReachToolName(name) || parseMcpToolName(name)) return 'mcp'
-  if (name.startsWith(BROWSER_PREVIEW_TOOL_PREFIX)) return 'browser'
-  return 'other'
+  if (isMcpServerReachToolName(name) || parseMcpToolName(name)) return 'mcp' as const
+  if (name.startsWith(BROWSER_PREVIEW_TOOL_PREFIX)) return 'browser' as const
+  return 'other' as const
 }

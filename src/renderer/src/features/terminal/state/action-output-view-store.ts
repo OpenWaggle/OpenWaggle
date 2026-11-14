@@ -9,6 +9,7 @@ import {
   MAX_FOLLOWED_ACTION_RUNS,
 } from '../lib/action-output-view-model'
 import { resolveTerminalStorage } from './terminal-store-persistence'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const ACTION_OUTPUT_VIEW_STORAGE_KEY = 'openwaggle:terminal-action-output-views:v1'
 const ACTION_OUTPUT_VIEW_PERSISTENCE_VERSION = 1
@@ -56,7 +57,7 @@ const storedViewSchema = Schema.Struct({
   runIds: Schema.Array(Schema.String.pipe(Schema.minLength(1))).pipe(Schema.minItems(1)),
 })
 
-function sanitizeStoredViews(value: unknown): Record<string, readonly ActionOutputView[]> {
+function sanitizeStoredViews(value: unknown) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   const views: Record<string, readonly ActionOutputView[]> = {}
   for (const [ownerKey, candidates] of Object.entries(value).slice(
@@ -74,8 +75,9 @@ function sanitizeStoredViews(value: unknown): Record<string, readonly ActionOutp
         continue
       }
       const view = decoded.data
-      if (view.ownerKey !== ownerKey || owned.some((entry) => entry.actionId === view.actionId))
+      if (view.ownerKey !== ownerKey || owned.some((entry) => entry.actionId === view.actionId)) {
         continue
+      }
       owned.push({ ...view, runIds: view.runIds.slice(-MAX_FOLLOWED_ACTION_RUNS) })
     }
     if (owned.length > 0) views[ownerKey] = owned.slice(-MAX_ACTION_OUTPUT_VIEWS_PER_OWNER)
@@ -93,15 +95,13 @@ function withOwnerViews(
   delete next[ownerKey]
   if (owned.length > 0) next[ownerKey] = owned.slice(-MAX_ACTION_OUTPUT_VIEWS_PER_OWNER)
   const owners = Object.keys(next)
-  for (const stale of owners.slice(0, Math.max(0, owners.length - MAX_ACTION_OUTPUT_VIEW_OWNERS)))
+  for (const stale of owners.slice(0, Math.max(0, owners.length - MAX_ACTION_OUTPUT_VIEW_OWNERS))) {
     delete next[stale]
+  }
   return next
 }
 
-function withoutActive(
-  active: Readonly<Record<string, ActiveActionOutputView>>,
-  ownerKey: string,
-): Record<string, ActiveActionOutputView> {
+function withoutActive(active: Readonly<Record<string, ActiveActionOutputView>>, ownerKey: string) {
   const next = { ...active }
   delete next[ownerKey]
   return next
@@ -113,8 +113,13 @@ export const useActionOutputViewStore = create<ActionOutputViewState>()(
       views: {},
       active: {},
       open: (input, coveredTabId) => {
-        if (input.ownerKey.length === 0 || input.actionId.length === 0 || input.runId.length === 0)
+        if (
+          input.ownerKey.length === 0 ||
+          input.actionId.length === 0 ||
+          input.runId.length === 0
+        ) {
           return null
+        }
         const owned = get().views[input.ownerKey] ?? []
         const existing = owned.find((view) => view.actionId === input.actionId)
         const view: ActionOutputView = existing
@@ -196,11 +201,7 @@ export const useActionOutputViewStore = create<ActionOutputViewState>()(
       partialize: (state) => ({ views: state.views }),
       merge: (persisted, current) => ({
         ...current,
-        views: sanitizeStoredViews(
-          persisted !== null && typeof persisted === 'object'
-            ? Reflect.get(persisted, 'views')
-            : undefined,
-        ),
+        views: sanitizeStoredViews(uncheckedFields<{ readonly views: unknown }>(persisted).views),
       }),
     },
   ),
@@ -211,7 +212,7 @@ export function shownActionOutputView(
   state: Pick<ActionOutputViewState, 'views' | 'active'>,
   ownerKey: string,
   activeTabId: string | null,
-): ActionOutputView | null {
+) {
   const active = state.active[ownerKey]
   if (active === undefined || active.coveredTabId !== activeTabId) return null
   return state.views[ownerKey]?.find((view) => view.actionId === active.actionId) ?? null

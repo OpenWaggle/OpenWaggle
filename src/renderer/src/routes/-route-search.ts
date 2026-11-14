@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
@@ -17,37 +18,38 @@ export interface ChatExtensionSidePanelTarget {
   readonly contentHash?: string
 }
 
+/** The router's raw search values, by the names ChatRouteSearch declares, each still unchecked. */
+type RawChatSearch = UncheckedFields<ChatRouteSearch>
+
 export interface ChatRouteSearch {
-  readonly branch?: string
-  readonly node?: string
-  readonly diff?: 1
-  readonly panel?: ChatRightPanel
-  readonly filePath?: string
-  readonly fileLine?: number
-  readonly resourceView?: 'sources' | 'outputs'
-  readonly resourceId?: string
-  readonly sidePanelExtensionId?: string
-  readonly sidePanelId?: string
-  readonly sidePanelPackagePath?: string
-  readonly sidePanelContentHash?: string
-  readonly changeRequestUrl?: string
-  readonly changeRequestSessionId?: string
-}
-
-export interface ChatBuiltInRouteSearch extends ChatRouteSearch {
-  readonly panel?: ChatBuiltInRightPanel
-  readonly sidePanelExtensionId?: undefined
-  readonly sidePanelId?: undefined
-  readonly sidePanelPackagePath?: undefined
-  readonly sidePanelContentHash?: undefined
-}
-
-export interface ChatExtensionSidePanelRouteSearch extends ChatRouteSearch {
-  readonly panel: typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
-  readonly sidePanelExtensionId: string
-  readonly sidePanelId: string
-  readonly sidePanelPackagePath?: string
-  readonly sidePanelContentHash?: string
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly branch?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly node?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly diff?: 1 | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly panel?: ChatRightPanel | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly filePath?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly fileLine?: number | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly resourceView?: 'sources' | 'outputs' | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly resourceId?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly sidePanelExtensionId?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly sidePanelId?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly sidePanelPackagePath?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly sidePanelContentHash?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly changeRequestUrl?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
+  readonly changeRequestSessionId?: string | undefined
 }
 
 function parseSearchString(value: unknown) {
@@ -91,27 +93,25 @@ function parseResourceView(value: unknown) {
   return isMatching(P.union('sources', 'outputs'), value) ? value : undefined
 }
 
-function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
+function parseBaseChatSearch(search: RawChatSearch) {
   const branch = parseSearchString(search.branch)
   const node = parseSearchString(search.node)
-  return {
+  const result: ChatRouteSearch = {
     ...(branch ? { branch } : {}),
     ...(node ? { node } : {}),
     ...(search.diff === 1 || search.diff === '1' ? { diff: 1 } : {}),
   }
+  return result
 }
 
-function parseExtensionPanelSearch(
-  search: Record<string, unknown>,
-  base: ChatRouteSearch,
-): ChatRouteSearch {
+function parseExtensionPanelSearch(search: RawChatSearch, base: ChatRouteSearch) {
   const sidePanelExtensionId = parseSearchToken(search.sidePanelExtensionId)
   const sidePanelId = parseSearchToken(search.sidePanelId)
   if (!sidePanelExtensionId || !sidePanelId) return base
 
   const sidePanelPackagePath = parseSearchToken(search.sidePanelPackagePath)
   const sidePanelContentHash = parseSearchToken(search.sidePanelContentHash)
-  return {
+  const result: ChatRouteSearch = {
     ...base,
     panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
     sidePanelExtensionId,
@@ -119,9 +119,12 @@ function parseExtensionPanelSearch(
     ...(sidePanelPackagePath ? { sidePanelPackagePath } : {}),
     ...(sidePanelContentHash ? { sidePanelContentHash } : {}),
   }
+  return result
 }
 
-export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
+/** The router hands over every search key it parsed; only ChatRouteSearch's keys are read. */
+export function parseChatRouteSearch(rawSearch: object) {
+  const search: RawChatSearch = rawSearch
   const panel = parseRightPanel(search.panel)
   const base = parseBaseChatSearch(search)
 
@@ -133,41 +136,46 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
     const filePath = parseSearchToken(search.filePath)
     const fileLine = parseFileLine(search.fileLine)
     // Files without a path is the navigator on its own (ADR 0043).
-    return filePath
+    const result: ChatRouteSearch = filePath
       ? { ...base, panel, filePath, ...(fileLine ? { fileLine } : {}) }
       : { ...base, panel }
+    return result
   }
 
   if (panel === 'resources') {
     const resourceView = parseResourceView(search.resourceView)
     const resourceId = parseSearchToken(search.resourceId)
-    return {
+    const result: ChatRouteSearch = {
       ...base,
       panel,
       ...(resourceView ? { resourceView } : {}),
       ...(resourceId ? { resourceId } : {}),
     }
+    return result
   }
 
   if (panel === 'change-request') {
     const changeRequestUrl = parseSearchToken(search.changeRequestUrl)
     const changeRequestSessionId = parseSearchToken(search.changeRequestSessionId)
-    return changeRequestUrl && changeRequestSessionId
-      ? { ...base, panel, changeRequestUrl, changeRequestSessionId }
-      : base
+    const result: ChatRouteSearch =
+      changeRequestUrl && changeRequestSessionId
+        ? { ...base, panel, changeRequestUrl, changeRequestSessionId }
+        : base
+    return result
   }
 
-  return {
+  const result: ChatRouteSearch = {
     ...base,
     ...(panel ? { panel } : {}),
   }
+  return result
 }
 
 /** Prevent a request route retained during navigation from binding to another opened Session. */
 export function changeRequestUrlFromSearch(
   search: ChatRouteSearch,
   openedSessionId: string | null,
-): string | null {
+) {
   if (
     search.panel !== 'change-request' ||
     !search.changeRequestUrl ||
@@ -176,22 +184,20 @@ export function changeRequestUrlFromSearch(
   ) {
     return null
   }
-  return search.changeRequestUrl
+  const result: string | null = search.changeRequestUrl
+  return result
 }
 
-export function resourceBrowserTargetFromSearch(
-  search: ChatRouteSearch,
-): SessionResourceBrowserTarget | null {
+export function resourceBrowserTargetFromSearch(search: ChatRouteSearch) {
   if (search.panel !== 'resources') return null
-  return {
+  const target: SessionResourceBrowserTarget | null = {
     view: search.resourceView ?? 'sources',
     ...(search.resourceId ? { resourceId: search.resourceId } : {}),
   }
+  return target
 }
 
-export function extensionSidePanelTargetFromSearch(
-  search: ChatRouteSearch,
-): ChatExtensionSidePanelTarget | null {
+export function extensionSidePanelTargetFromSearch(search: ChatRouteSearch) {
   if (
     search.panel !== EXTENSION_SIDE_PANEL_ROUTE_PANEL ||
     !search.sidePanelExtensionId ||
@@ -200,12 +206,13 @@ export function extensionSidePanelTargetFromSearch(
     return null
   }
 
-  return {
+  const target: ChatExtensionSidePanelTarget | null = {
     extensionId: search.sidePanelExtensionId,
     sidePanelId: search.sidePanelId,
     ...(search.sidePanelPackagePath ? { packagePath: search.sidePanelPackagePath } : {}),
     ...(search.sidePanelContentHash ? { contentHash: search.sidePanelContentHash } : {}),
   }
+  return target
 }
 
 export function isSettingsTab(value: string): value is SettingsTab {

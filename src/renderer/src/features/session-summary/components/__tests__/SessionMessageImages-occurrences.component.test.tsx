@@ -5,16 +5,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { SessionMessageImages, SessionMessageResourcesProvider } from '../SessionMessageImages'
+import { required } from '@/test-utils/required'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
 const readSessionResourceThumbnail = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { listSessionResources, readSessionResource, readSessionResourceThumbnail },
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(listSessionResources),
+    readSessionResource,
+    readSessionResourceThumbnail,
+  }),
 }))
 
-function image(id: string, nodeId: string): SessionResource {
+function image(id: string, nodeId: string) {
   return {
     id,
     sessionId: SessionId('session-1'),
@@ -41,20 +49,20 @@ function image(id: string, nodeId: string): SessionResource {
     ],
     createdAt: 1000,
     updatedAt: 1000,
-  }
+  } satisfies SessionResource
 }
 
-function remoteImage(id: string, nodeId: string): SessionResource {
+function remoteImage(id: string, nodeId: string) {
   return {
     ...image(id, nodeId),
     canonicalKey: `url:https://images.example/${id}.png`,
     mimeType: null,
     locator: `https://images.example/${id}.png`,
     managed: false,
-  }
+  } satisfies SessionResource
 }
 
-function agentImage(id: string, nodeId: string): SessionResource {
+function agentImage(id: string, nodeId: string) {
   const resource = image(id, nodeId)
   return {
     ...resource,
@@ -65,7 +73,7 @@ function agentImage(id: string, nodeId: string): SessionResource {
       actor: 'agent' as const,
       activity: 'created' as const,
     })),
-  }
+  } satisfies SessionResource
 }
 
 function renderAgentImages() {
@@ -129,7 +137,7 @@ describe('SessionMessageImages occurrence ordering', () => {
       'Open image middle.png',
       'Open image same.png',
     ])
-    fireEvent.click(buttons[2])
+    fireEvent.click(required(buttons[2]))
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'same',

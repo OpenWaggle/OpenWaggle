@@ -5,15 +5,15 @@ import * as Effect from 'effect/Effect'
 import { LocalSessionCommandAuthorizationError } from '../errors'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 
-type RunInput = {
+interface RunInput {
   readonly sessionId: string
   readonly runId: string
   readonly followUpId?: string
 }
 
-function runInput(payload: LocalSessionCommandPayload): RunInput | undefined {
+function runInput(payload: LocalSessionCommandPayload) {
   if (payload.contract !== 'session-control-v2') return undefined
-  return matchBy(payload.request.command, 'operation')
+  const input: RunInput | undefined = matchBy(payload.request.command, 'operation')
     .with('steer', (command) => ({ sessionId: command.sessionId, runId: command.expectedRunId }))
     .with('promote', (command) => ({
       sessionId: command.sessionId,
@@ -25,6 +25,7 @@ function runInput(payload: LocalSessionCommandPayload): RunInput | undefined {
       runId: command.runId,
     }))
     .otherwise(() => undefined)
+  return input
 }
 
 /**

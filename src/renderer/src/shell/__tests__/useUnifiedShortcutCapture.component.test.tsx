@@ -4,10 +4,7 @@ import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { DEFAULT_SHORTCUT_RULES } from '@shared/types/shortcuts'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  type BuiltInShortcutHandlers,
-  useUnifiedShortcutCapture,
-} from '../useUnifiedShortcutCapture'
+import { useUnifiedShortcutCapture } from '../useUnifiedShortcutCapture'
 
 const ipcMocks = vi.hoisted(() => {
   const listeners = new Set<(event: BrowserPreviewKeyEvent) => void>()
@@ -31,7 +28,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function handlers(): BuiltInShortcutHandlers {
+function handlers() {
   return {
     'commandPalette.toggle': vi.fn(),
     'filePicker.toggle': vi.fn(),
@@ -129,7 +126,9 @@ describe('useUnifiedShortcutCapture', () => {
       }),
     )
 
-    act(() => window.dispatchEvent(keyEvent('keydown')))
+    act(() => {
+      window.dispatchEvent(keyEvent('keydown'))
+    })
     expect(onRunProjectAction).toHaveBeenCalledWith(action)
     expect(commandHandlers['diff.toggle']).not.toHaveBeenCalled()
   })
@@ -146,10 +145,12 @@ describe('useUnifiedShortcutCapture', () => {
       }),
     )
     const capture = document.createElement('button')
-    capture.dataset.shortcutCapture = ''
+    capture.setAttribute('data-shortcut-capture', '')
     document.body.append(capture)
     const event = keyEvent('keydown')
-    act(() => capture.dispatchEvent(event))
+    act(() => {
+      capture.dispatchEvent(event)
+    })
 
     expect(event.defaultPrevented).toBe(false)
     expect(commandHandlers['diff.toggle']).not.toHaveBeenCalled()
@@ -169,7 +170,7 @@ describe('useUnifiedShortcutCapture', () => {
       }),
     )
     const pane = document.createElement('div')
-    pane.dataset.terminalPane = 'terminal-1'
+    pane.setAttribute('data-terminal-pane', 'terminal-1')
     const input = document.createElement('textarea')
     pane.append(input)
     document.body.append(pane)
@@ -230,7 +231,9 @@ describe('useUnifiedShortcutCapture', () => {
       cancelable: true,
     })
 
-    act(() => window.dispatchEvent(unavailable))
+    act(() => {
+      window.dispatchEvent(unavailable)
+    })
 
     expect(unavailable.defaultPrevented).toBe(false)
     expect(commandHandlers['rightPanel.close']).not.toHaveBeenCalled()
@@ -243,7 +246,9 @@ describe('useUnifiedShortcutCapture', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => window.dispatchEvent(available))
+    act(() => {
+      window.dispatchEvent(available)
+    })
 
     expect(available.defaultPrevented).toBe(true)
     expect(commandHandlers['rightPanel.close']).toHaveBeenCalledOnce()

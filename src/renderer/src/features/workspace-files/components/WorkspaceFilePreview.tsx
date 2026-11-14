@@ -117,15 +117,21 @@ function OversizedSourcePreview({
       )
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError))
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
+  }
+
+  // Another file starts loading its first page at once.
+  const pageSource = `${projectPath}\u0000${file.path}`
+  const [loadedSource, setLoadedSource] = useState<string | null>(null)
+  if (loadedSource !== pageSource) {
+    setLoadedSource(pageSource)
+    setLoading(true)
+    setError(null)
   }
 
   useEffect(() => {
     let active = true
-    setLoading(true)
-    setError(null)
     void api
       .readWorkspaceFilePage(
         projectPath,
@@ -149,6 +155,7 @@ function OversizedSourcePreview({
     }
   }, [file.path, projectPath])
 
+  const language = page?.language ?? file.language
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PagedSourceToolbar
@@ -163,7 +170,7 @@ function OversizedSourcePreview({
       {page ? (
         <SourceView
           source={page.content}
-          language={page.language ?? file.language}
+          {...(language === undefined ? {} : { language })}
           path={file.path}
           className="min-h-0 flex-1"
           ariaLabel={`Paged source for ${file.path}`}

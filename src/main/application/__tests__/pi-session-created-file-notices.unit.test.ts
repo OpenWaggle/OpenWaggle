@@ -15,7 +15,7 @@ import {
   type SessionProjectionRepositoryShape,
 } from '../../ports/session-projection-repository'
 
-const published = vi.hoisted((): unknown[] => [])
+const published = vi.hoisted<unknown[]>(() => [])
 vi.mock('../../session-host/session-host-events', () => ({
   publishSessionHostEvent: (event: unknown) => published.push(event),
 }))

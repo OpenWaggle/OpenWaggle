@@ -3,7 +3,7 @@ import type { UsageStatsSnapshot } from '../snapshot-contract'
 import { computeSnapshotDeltas, parseSnapshotState, type SnapshotState } from '../snapshot-deltas'
 import { NOW } from './test-support'
 
-function snapshot(overrides: Partial<UsageStatsSnapshot> = {}): UsageStatsSnapshot {
+function snapshot(overrides: Partial<UsageStatsSnapshot> = {}) {
   return {
     schema: 1,
     releases: [
@@ -24,7 +24,7 @@ function snapshot(overrides: Partial<UsageStatsSnapshot> = {}): UsageStatsSnapsh
     },
     npm: [{ name: '@openwaggle/extension-sdk', days: [{ day: '2026-09-30', downloads: 3 }] }],
     ...overrides,
-  }
+  } satisfies UsageStatsSnapshot
 }
 
 const DAY = 86_400_000
@@ -37,7 +37,7 @@ describe('snapshot deltas', () => {
   it('forwards everything on the first snapshot and marks downloads as a baseline', () => {
     const first = events(null, snapshot())
 
-    expect(first.events.map((event) => [event.event, event.properties.count])).toEqual([
+    expect(first.events.map(({ event, properties: { count } }) => [event, count])).toEqual([
       ['github.download', 5],
       ['github.download', 40],
       ['github.traffic', 30],
@@ -205,7 +205,7 @@ describe('snapshot deltas', () => {
     expect(
       caughtUp.events
         .filter((event) => event.event === 'npm.downloads')
-        .map((event) => [event.timestamp, event.properties.count]),
+        .map(({ timestamp, properties: { count } }) => [timestamp, count]),
     ).toEqual([
       ['2026-09-30T12:00:00Z', 1],
       ['2026-10-01T12:00:00Z', 6],

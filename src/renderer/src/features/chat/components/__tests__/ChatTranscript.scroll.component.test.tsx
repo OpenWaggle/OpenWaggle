@@ -44,30 +44,28 @@ vi.mock('@/shared/lib/ipc', () => ({
 import type { ChatRow, MessageChatRow } from '../../lib/types-chat-row'
 import { ChatTranscript } from '../ChatTranscript'
 
-function createTextMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
+function createTextMessage(id: string, role: UIMessage['role'], content: string) {
   return {
     id,
     role,
     parts: [{ type: 'text', content }],
-  }
+  } satisfies UIMessage
 }
 
-function createMessageChatRow(message: UIMessage): MessageChatRow {
+function createMessageChatRow(message: UIMessage) {
   return {
     type: 'message',
     message,
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-  }
+  } satisfies MessageChatRow
 }
 
-function createSection(
-  overrides: Partial<ChatTranscriptSectionState> = {},
-): ChatTranscriptSectionState {
+function createSection(overrides: Partial<ChatTranscriptSectionState> = {}) {
   const defaultMessage = createTextMessage('msg-1', 'user', 'hello')
 
-  return {
+  const state: ChatTranscriptSectionState = {
     messages: [defaultMessage],
     isLoading: false,
     projectPath: PROJECT_PATH,
@@ -98,6 +96,7 @@ function createSection(
     turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
+  return state
 }
 
 function configureScrollableElement(scroller: HTMLElement) {
@@ -272,7 +271,9 @@ describe('ChatTranscript pinned-turn scroll behavior', () => {
     // A token re-renders only its bubble (B2); the content column's observer must see it grow.
     class RecordingResizeObserver {
       readonly targets: Element[] = []
-      constructor(readonly callback: ResizeObserverCallback) {
+      readonly callback: ResizeObserverCallback
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
         observers.push(this)
       }
       observe(target: Element) {
@@ -308,10 +309,8 @@ describe('ChatTranscript pinned-turn scroll behavior', () => {
 
     layout.setNaturalScrollHeight(1200)
     const contentObserver = observers.find((observer) => observer.targets.includes(content))
-    expect(contentObserver).toBeDefined()
-    act(() => {
-      if (contentObserver) contentObserver.callback([], contentObserver)
-    })
+    if (contentObserver === undefined) throw new Error('Content observer not found')
+    act(() => contentObserver.callback([], contentObserver))
 
     expect(layout.getScrollTop()).toBe(700)
   })

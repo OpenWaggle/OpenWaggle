@@ -3,34 +3,42 @@ import type {
   ActionManagementRequest,
   ActionManagementResult,
 } from '@shared/types/action-management'
+import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { useActionPanelStore } from '../../state/action-panel-store'
 import { ActionPanel } from '../action-panel/ActionPanel'
 import { actionCatalog, TEST_ACTION, TEST_TASK } from './native-action-fixtures'
 
+/*
+ * Only the preload and the router are replaced: the project and session hooks, the chat,
+ * preference and action panel stores, and the guided panel are the real ones.
+ */
 const mocks = vi.hoisted(() => ({
   manage: vi.fn<(request: ActionManagementRequest) => Promise<ActionManagementResult>>(),
   navigate: vi.fn(),
-  projectPath: ((): string | null => '/repo')(),
-  selectFolder: vi.fn(),
-  projectPage: vi.fn(async () => ({ paths: [], nextCursor: null })),
 }))
+// The shortcut row links to Settings in the app route tree, which a component test does not build.
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
-vi.mock('@/features/sessions/hooks', () => ({
-  useProject: () => ({ projectPath: mocks.projectPath, selectFolder: mocks.selectFolder }),
-  useSessionProjectPath: () => mocks.projectPath,
-}))
-vi.mock('@/features/chat/hooks', () => ({
-  useChat: () => ({ activeSession: { id: 'session', projectPath: '/repo' } }),
-}))
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { manageProjectActions: mocks.manage, listSessionProjectPage: mocks.projectPage },
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    manageProjectActions: mocks.manage,
+    listSessionProjectPage: async () => ({ paths: [], nextCursor: null }),
+  }),
 }))
 
 import { ProjectActionsSettings } from '../ProjectActionsSettings'
+
+const SESSION_ID = SessionId('session')
+const initialChat = useChatStore.getInitialState()
+const initialPreferences = usePreferencesStore.getInitialState()
+const initialActionPanel = useActionPanelStore.getInitialState()
 
 /** The shell docks the panel; these tests render its content beside Settings. */
 function PanelHost() {
@@ -50,8 +58,9 @@ function renderSettings() {
 let discovery: ProjectTaskDiscovery | Error = { tasks: [TEST_TASK], diagnostics: [] }
 function serve(catalog: ActionCatalog) {
   mocks.manage.mockImplementation(async ({ operation }) => {
-    if (operation.type === 'catalog' || operation.type === 'edit')
+    if (operation.type === 'catalog' || operation.type === 'edit') {
       return { type: 'catalog', catalog }
+    }
     if (operation.type === 'runs') return { type: 'runs', runs: [] }
     if (operation.type === 'discover') {
       if (discovery instanceof Error) throw discovery
@@ -71,11 +80,14 @@ describe('native action settings with the guided action panel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Linux')
-    mocks.projectPath = '/repo'
     discovery = { tasks: [TEST_TASK], diagnostics: [] }
-    usePreferencesStore.setState((state) => ({
-      settings: { ...state.settings, recentProjects: [], projectDisplayNames: {} },
-    }))
+    usePreferencesStore.setState({
+      settings: { ...DEFAULT_SETTINGS, projectPath: '/repo', recentProjects: [] },
+    })
+    useChatStore.setState({
+      activeSessionId: SESSION_ID,
+      activeSession: fromPartial<SessionDetail>({ id: SESSION_ID, projectPath: '/repo' }),
+    })
     useActionPanelStore.setState({
       request: null,
       drafts: {},
@@ -83,7 +95,12 @@ describe('native action settings with the guided action panel', () => {
     })
     serve(actionCatalog())
   })
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    useChatStore.setState(initialChat, true)
+    usePreferencesStore.setState(initialPreferences, true)
+    useActionPanelStore.setState(initialActionPanel, true)
+  })
 
   it('picks a script, suggests a readable name and saves a linked task locally', async () => {
     renderSettings()

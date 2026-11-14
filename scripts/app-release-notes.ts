@@ -27,9 +27,10 @@ export function isStableAppVersion(version: string) {
  */
 export function changelogEntry(changelog: string, version: string) {
   const lines = changelog.split(/\r?\n/u)
-  const start = lines.findIndex(
-    (line) => ENTRY_HEADING_PATTERN.exec(line)?.groups?.version === version,
-  )
+  const start = lines.findIndex((line) => {
+    const { version: entryVersion } = ENTRY_HEADING_PATTERN.exec(line)?.groups ?? {}
+    return entryVersion === version
+  })
   if (start < 0) return null
   const rest = lines.slice(start + 1)
   const end = rest.findIndex((line) => line.startsWith('## '))

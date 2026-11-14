@@ -29,9 +29,7 @@ interface PanelDraftInput<T extends ActionPanelDraft> {
  * One Project action draft per project, kept across leaving the panel and restarting (ADR 0038).
  * A matching draft resumes; a pristine one is replaced; an unfinished one asks first.
  */
-export function usePanelDraft<T extends ActionPanelDraft>(
-  input: PanelDraftInput<T>,
-): PanelDraftState<T> {
+export function usePanelDraft<T extends ActionPanelDraft>(input: PanelDraftInput<T>) {
   const stored = useActionPanelStore((state) => state.drafts[input.projectPath])
   const setDraft = useActionPanelStore((state) => state.setDraft)
   const discardDraft = useActionPanelStore((state) => state.discardDraft)
@@ -44,13 +42,14 @@ export function usePanelDraft<T extends ActionPanelDraft>(
   useEffect(() => {
     if (needsFresh) setDraft(projectPath, createDraft())
   }, [needsFresh, projectPath, setDraft])
-  if (resumable && stored && input.matches(stored))
+  if (resumable && stored && input.matches(stored)) {
     return {
       status: 'ready',
       draft: stored,
       update: (next) => setDraft(projectPath, next),
       discard: () => discardDraft(projectPath),
-    }
-  if (blocking && stored) return { status: 'switch', existing: stored }
-  return { status: 'loading' }
+    } satisfies PanelDraftState<T>
+  }
+  if (blocking && stored) return { status: 'switch', existing: stored } satisfies PanelDraftState<T>
+  return { status: 'loading' } satisfies PanelDraftState<T>
 }

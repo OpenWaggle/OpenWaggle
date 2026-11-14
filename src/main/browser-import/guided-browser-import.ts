@@ -67,7 +67,7 @@ async function prepareTarget(
   input: GuidedBrowserImportInput,
   options: GuidedBrowserImportOptions,
   sourceName: string,
-): Promise<PreparedGuidedTarget> {
+) {
   const configured = await options.getConfiguredProfiles()
   const resolved = resolveBrowserProfiles(configured)
 
@@ -90,21 +90,22 @@ async function prepareTarget(
     .exhaustive()
 }
 
-async function clearFailedTarget(
+/** Clears the failed target's profile data and returns the error to throw for it. */
+async function failureAfterClearingTarget(
   profileId: string,
   options: GuidedBrowserImportOptions,
   failure: BrowserImportError,
-): Promise<never> {
+) {
   try {
     await options.clearProfileData(profileId)
   } catch (cause) {
-    throw new BrowserImportError(
+    return new BrowserImportError(
       'profile-cleanup-failed',
       'The failed browser profile could not be cleared.',
       cause,
     )
   }
-  throw failure
+  return failure
 }
 
 export function createGuidedBrowserImporter(options: GuidedBrowserImportOptions) {
@@ -122,13 +123,17 @@ export function createGuidedBrowserImporter(options: GuidedBrowserImportOptions)
   async function finishExistingImport(
     prepared: Extract<PreparedGuidedTarget, { readonly kind: 'existing' }>,
     result: BrowserImportResult,
-  ): Promise<GuidedBrowserImportResult> {
-    return serializeFinalization(async () => {
+  ) {
+    return serializeFinalization<GuidedBrowserImportResult>(async () => {
       const current = resolveBrowserProfiles(await options.getConfiguredProfiles()).find(
         (profile) => profile.id === prepared.profile.id,
       )
       if (current?.kind !== 'persistent') {
-        return clearFailedTarget(prepared.profile.id, options, unavailableTargetError())
+        throw await failureAfterClearingTarget(
+          prepared.profile.id,
+          options,
+          unavailableTargetError(),
+        )
       }
       return {
         ok: true,
@@ -142,17 +147,17 @@ export function createGuidedBrowserImporter(options: GuidedBrowserImportOptions)
   async function finishNewImport(
     prepared: Extract<PreparedGuidedTarget, { readonly kind: 'new' }>,
     result: BrowserImportResult,
-  ): Promise<GuidedBrowserImportResult> {
+  ) {
     if (result.imported === 0) {
       return {
         ok: true,
         result,
         targetName: prepared.profile.name,
         createdProfile: null,
-      }
+      } satisfies GuidedBrowserImportResult
     }
 
-    return serializeFinalization(async () => {
+    return serializeFinalization<GuidedBrowserImportResult>(async () => {
       const configured = await options.getConfiguredProfiles()
       const existing = resolveBrowserProfiles(configured).find(
         (profile) => profile.id === prepared.profile.id,
@@ -166,7 +171,7 @@ export function createGuidedBrowserImporter(options: GuidedBrowserImportOptions)
         }
       }
       if (configured.length >= BROWSER_PROFILE_LIMITS.USER_PROFILES) {
-        return clearFailedTarget(prepared.profile.id, options, profileLimitError())
+        throw await failureAfterClearingTarget(prepared.profile.id, options, profileLimitError())
       }
 
       const createdProfile: BrowserProfile = {
@@ -176,7 +181,7 @@ export function createGuidedBrowserImporter(options: GuidedBrowserImportOptions)
       try {
         await options.updateConfiguredProfiles([...configured, createdProfile])
       } catch (cause) {
-        return clearFailedTarget(
+        throw await failureAfterClearingTarget(
           prepared.profile.id,
           options,
           new BrowserImportError(
@@ -196,7 +201,7 @@ export function createGuidedBrowserImporter(options: GuidedBrowserImportOptions)
   }
 
   return {
-    importCookies: async (input: GuidedBrowserImportInput): Promise<GuidedBrowserImportResult> => {
+    importCookies: async (input: GuidedBrowserImportInput) => {
       try {
         const definition = browserImportSourceDefinition(input.sourceId)
         if (!definition) {
@@ -219,7 +224,7 @@ export function createGuidedBrowserImporter(options: GuidedBrowserImportOptions)
           .with('new', (target) => finishNewImport(target, result))
           .exhaustive()
       } catch (cause) {
-        return { ok: false, ...browserImportFailure(cause) }
+        return { ok: false, ...browserImportFailure(cause) } satisfies GuidedBrowserImportResult
       }
     },
   }

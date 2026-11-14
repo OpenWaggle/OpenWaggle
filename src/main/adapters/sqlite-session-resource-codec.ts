@@ -1,12 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
 import { SessionId } from '@shared/types/brand'
-import type {
-  SessionResource,
-  SessionResourceActivity,
-  SessionResourceActor,
-  SessionResourceKind,
-  SessionResourceOccurrence,
-} from '@shared/types/session-resource'
 
 export interface SessionResourceRow {
   readonly id: string
@@ -38,7 +31,7 @@ export interface SessionResourceOccurrenceRow {
   readonly created_at: number
 }
 
-function decodeKind(value: string): SessionResourceKind {
+function decodeKind(value: string) {
   return match(value)
     .with(
       'image',
@@ -56,7 +49,7 @@ function decodeKind(value: string): SessionResourceKind {
     })
 }
 
-function decodeActor(value: string): SessionResourceActor {
+function decodeActor(value: string) {
   return match(value)
     .with('user', 'agent', 'tool', 'extension', (actor) => actor)
     .otherwise(() => {
@@ -64,7 +57,7 @@ function decodeActor(value: string): SessionResourceActor {
     })
 }
 
-function decodeActivity(value: string): SessionResourceActivity {
+function decodeActivity(value: string) {
   return match(value)
     .with('provided', 'read', 'created', 'updated', (activity) => activity)
     .otherwise(() => {
@@ -72,7 +65,7 @@ function decodeActivity(value: string): SessionResourceActivity {
     })
 }
 
-function rowToOccurrence(row: SessionResourceOccurrenceRow): SessionResourceOccurrence {
+function rowToOccurrence(row: SessionResourceOccurrenceRow) {
   return {
     id: row.id,
     nodeId: row.node_id,
@@ -102,7 +95,7 @@ function normalizedLocator(locator: string | null) {
 export function rowToResource(
   row: SessionResourceRow,
   occurrenceRows: readonly SessionResourceOccurrenceRow[],
-): SessionResource {
+) {
   const occurrences = occurrenceRows.map(rowToOccurrence)
   return {
     id: row.id,

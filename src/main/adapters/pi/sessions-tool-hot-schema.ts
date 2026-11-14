@@ -1,6 +1,7 @@
-import { type TUnsafe, Type } from 'typebox'
+import { Type } from 'typebox'
 import {
   isJsonSchemaObject,
+  keywordsOf,
   type JsonSchemaObject,
   propertiesOf,
   requiredOf,
@@ -49,21 +50,27 @@ export function isHotHiveAction(action: string) {
  * properties and the properties all shapes require: a looser, much shorter declaration. The
  * exact shape is still checked against the action's contract before the call runs.
  */
-function mergedObjectUnion(schema: JsonSchemaObject): JsonSchemaObject {
+function mergedObjectUnion(schema: JsonSchemaObject) {
   const { anyOf, ...rest } = schema
   const members = schemaArray(anyOf)
-  if (!members || members.length === 0 || members.some((member) => member.type !== 'object')) {
+  if (
+    !members ||
+    members.length === 0 ||
+    members.some((member) => keywordsOf(member).type !== 'object')
+  ) {
     return schema
   }
   const properties = new Map<string, JsonSchemaObject[]>()
   for (const member of members) {
     for (const [key, property] of Object.entries(propertiesOf(member))) {
-      if (isJsonSchemaObject(property))
+      if (isJsonSchemaObject(property)) {
         properties.set(key, [...(properties.get(key) ?? []), property])
+      }
     }
   }
+  const membersRequired = members.map((member) => new Set(requiredOf(member)))
   const required = requiredOf(members[0] ?? {}).filter((key) =>
-    members.every((member) => requiredOf(member).includes(key)),
+    membersRequired.every((memberRequired) => memberRequired.has(key)),
   )
   return {
     ...rest,
@@ -75,12 +82,12 @@ function mergedObjectUnion(schema: JsonSchemaObject): JsonSchemaObject {
       ]),
     ),
     required,
-  }
+  } satisfies JsonSchemaObject
 }
 
 function plainSchema(schema: unknown) {
   // TypeBox keeps its markers non-enumerable; the provider payload is the JSON form.
-  const plain: unknown = JSON.parse(JSON.stringify(schema))
+  const plain: unknown = structuredClone(schema)
   if (!isJsonSchemaObject(plain)) throw new Error('The hive tool schema is not an object.')
   return plain
 }
@@ -90,9 +97,7 @@ function plainSchema(schema: unknown) {
  * plus `help`, and only the hot actions' main properties are typed. A property shared with a
  * rarer action keeps the union of both, so declaring it never refuses the rarer action's value.
  */
-export function hiveToolSchema(
-  variants: readonly SessionsToolRuntimeVariant[],
-): TUnsafe<SessionsToolParameters> {
+export function hiveToolSchema(variants: readonly SessionsToolRuntimeVariant[]) {
   const actions = variants.flatMap((variant) => variantActionName(variant) ?? [])
   const hot = actions.filter(isHotHiveAction)
   const declared = new Set(hot.flatMap((action) => HOT_ACTION_PROPERTIES.get(action) ?? []))

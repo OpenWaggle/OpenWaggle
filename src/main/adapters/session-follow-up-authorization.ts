@@ -42,7 +42,7 @@ function loadDerivedAuthority(sql: SqlClient.SqlClient, callerId: string, sessio
 function directProfileBlockReason(sql: SqlClient.SqlClient, callerId: string, target: TargetRow) {
   return Effect.gen(function* () {
     const row = yield* loadProfile(sql, callerId)
-    if (!row || row.revoked_at !== null) return 'profile_revoked' as const
+    if (row?.revoked_at !== null) return 'profile_revoked' as const
     const authority = profileAuthority(row)
     const derived = yield* loadDerivedAuthority(sql, callerId, target.session_id)
     const authorization = authorizeSessionTargetForCaller(

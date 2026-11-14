@@ -17,24 +17,18 @@ import { BUILT_IN_WAGGLE_PRESETS } from './settings-waggle-presets-built-ins'
 
 const logger = createLogger('waggle-presets-repository')
 
-interface ScopedWagglePresets {
-  readonly hiddenBuiltInPresetIds: readonly string[]
-  readonly presets: readonly WagglePreset[]
-  readonly write: (presets: readonly WagglePreset[]) => Promise<void>
-}
-
 function describeError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-function hydratePreset(raw: unknown): WagglePreset | null {
+function hydratePreset(raw: unknown) {
   const result = safeDecodeUnknown(wagglePresetSchema, raw)
   if (!result.success) {
     return null
   }
 
   const preset = result.data
-  return {
+  const value: WagglePreset = {
     ...preset,
     id: WagglePresetId(preset.id),
     config: {
@@ -51,11 +45,12 @@ function hydratePreset(raw: unknown): WagglePreset | null {
       ],
     },
   }
+  return value
 }
 
-function hydratePresets(rawPresets: readonly unknown[] | undefined): WagglePreset[] {
+function hydratePresets(rawPresets: readonly unknown[] | undefined) {
   if (!rawPresets) {
-    return []
+    return [] satisfies WagglePreset[]
   }
 
   const presets: WagglePreset[] = []
@@ -113,7 +108,7 @@ async function writeProjectPresets(
   })
 }
 
-async function loadScopedPresets(projectPath?: string | null): Promise<ScopedWagglePresets> {
+async function loadScopedPresets(projectPath?: string | null) {
   if (projectPath) {
     const state = await readProjectPresetState(projectPath)
     return {
@@ -131,7 +126,7 @@ async function loadScopedPresets(projectPath?: string | null): Promise<ScopedWag
   }
 }
 
-function validatePresetForSave(preset: WagglePreset): WagglePreset {
+function validatePresetForSave(preset: WagglePreset) {
   const hydrated = hydratePreset(preset)
   if (!hydrated) {
     throw new Error('Invalid Waggle preset. Select a model for each agent or use $inherit.')
@@ -139,7 +134,7 @@ function validatePresetForSave(preset: WagglePreset): WagglePreset {
   return hydrated
 }
 
-function normalizeSavedPreset(preset: WagglePreset): WagglePreset {
+function normalizeSavedPreset(preset: WagglePreset) {
   const now = Date.now()
   const validatedPreset = validatePresetForSave(preset)
   return {
@@ -148,16 +143,16 @@ function normalizeSavedPreset(preset: WagglePreset): WagglePreset {
     isBuiltIn: false,
     createdAt: validatedPreset.createdAt > 0 ? validatedPreset.createdAt : now,
     updatedAt: now,
-  }
+  } satisfies WagglePreset
 }
 
 async function listWagglePresets(projectPath?: string | null) {
   const [userState, projectState] = await Promise.all([
-    readUserPresetState().catch((error) => {
+    readUserPresetState().catch((error: unknown) => {
       logger.warn('Failed to read user Waggle presets', { error: describeError(error) })
       return { presets: [], hiddenBuiltInPresetIds: [] }
     }),
-    readProjectPresetState(projectPath).catch((error) => {
+    readProjectPresetState(projectPath).catch((error: unknown) => {
       logger.warn('Failed to read project Waggle presets', {
         projectPath,
         error: describeError(error),

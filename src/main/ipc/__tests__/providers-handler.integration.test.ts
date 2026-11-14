@@ -21,7 +21,7 @@ vi.mock('../typed-ipc', async () => {
   }
 })
 
-function makeModel(id: string): ProviderModelCapabilities {
+function makeModel(id: string) {
   return {
     id: `openai/${id}`,
     modelId: id,
@@ -31,7 +31,7 @@ function makeModel(id: string): ProviderModelCapabilities {
     input: ['text'],
     contextWindow: 1_000_000,
     maxTokens: 32_768,
-  }
+  } satisfies ProviderModelCapabilities
 }
 
 const fallbackProvider: ProviderCapabilities = {

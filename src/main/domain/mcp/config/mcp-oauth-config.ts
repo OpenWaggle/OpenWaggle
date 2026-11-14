@@ -1,9 +1,19 @@
-import {
-  isJsonRecord,
-  type JsonRecord,
-  MCP_LOOPBACK_HOSTS,
-  type McpOAuthConfig,
-} from './mcp-server-config'
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
+import { isJsonRecord, MCP_LOOPBACK_HOSTS, type McpOAuthConfig } from './mcp-server-config'
+
+/** The `oauth` members the rules check, each still unchecked so a rule names the one it refuses. */
+const oauthFieldsSchema = Schema.Struct({
+  clientId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  clientSecret: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  callbackPort: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  callbackUrl: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  scope: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  clientName: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  clientRegistration: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  authServerMetadataUrl: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+type OAuthFields = SchemaType<typeof oauthFieldsSchema>
 
 const MIN_PORT = 1
 const MAX_PORT = 65_535
@@ -23,10 +33,12 @@ function optionalString(value: unknown) {
   return value === undefined || typeof value === 'string'
 }
 
-type OAuthRule = (value: JsonRecord) => string | undefined
+type OAuthRule = (value: OAuthFields) => string | undefined
 
-function stringField(field: 'clientId' | 'clientSecret' | 'scope'): OAuthRule {
-  return (value) => (optionalString(value[field]) ? undefined : `oauth.${field} must be a string`)
+function stringField(field: 'clientId' | 'clientSecret' | 'scope') {
+  const rule: OAuthRule = (value) =>
+    optionalString(value[field]) ? undefined : `oauth.${field} must be a string`
+  return rule
 }
 
 const callbackPortRule: OAuthRule = ({ callbackPort: port }) =>
@@ -94,7 +106,7 @@ const OAUTH_RULES: readonly OAuthRule[] = [
   metadataUrlRule,
 ]
 
-function oauthConfig(value: JsonRecord): McpOAuthConfig {
+function oauthConfig(value: OAuthFields) {
   const config: McpOAuthConfig = {}
   if (typeof value.clientId === 'string') config.clientId = value.clientId
   if (typeof value.clientSecret === 'string') config.clientSecret = value.clientSecret
@@ -115,12 +127,26 @@ export type McpOAuthValidation =
   | { readonly ok: true; readonly oauth: McpOAuthConfig | undefined }
   | { readonly ok: false; readonly error: string }
 
-export function validateMcpOAuthConfig(name: string, value: unknown): McpOAuthValidation {
-  if (value === undefined) return { ok: true, oauth: undefined }
-  if (!isJsonRecord(value)) return { ok: false, error: `server "${name}": oauth must be an object` }
-  for (const rule of OAUTH_RULES) {
-    const error = rule(value)
-    if (error) return { ok: false, error: `server "${name}": ${error}` }
+export function validateMcpOAuthConfig(name: string, value: unknown) {
+  if (value === undefined) {
+    const validation: McpOAuthValidation = { ok: true, oauth: undefined }
+    return validation
   }
-  return { ok: true, oauth: oauthConfig(value) }
+  if (!isJsonRecord(value)) {
+    const validation: McpOAuthValidation = {
+      ok: false,
+      error: `server "${name}": oauth must be an object`,
+    }
+    return validation
+  }
+  const fields = decodeUnknownOrThrow(oauthFieldsSchema, value)
+  for (const rule of OAUTH_RULES) {
+    const error = rule(fields)
+    if (error) {
+      const validation: McpOAuthValidation = { ok: false, error: `server "${name}": ${error}` }
+      return validation
+    }
+  }
+  const validation: McpOAuthValidation = { ok: true, oauth: oauthConfig(fields) }
+  return validation
 }

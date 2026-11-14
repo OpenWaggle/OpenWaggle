@@ -42,8 +42,13 @@ export const activeFence: DesktopFenceRecord = {
 export function envelope(
   command: DesktopServiceCommand = browserCommand,
   commandId = 'command-one',
-): DesktopCommandEnvelope {
-  return { commandId, leaseId: 'lease-one', deadline: Date.now() + 60_000, command }
+) {
+  return {
+    commandId,
+    leaseId: 'lease-one',
+    deadline: Date.now() + 60_000,
+    command,
+  } satisfies DesktopCommandEnvelope
 }
 
 export function executorHarness(

@@ -45,6 +45,10 @@ const PACKAGE_SLUG_GROUP = 1
 const PACKAGE_VERSION_GROUP = 2
 const WEBSITE_DOC_LINK_PATTERN = /(\]\()((?:\/docs(?:\/[^)\s]*|[?#][^)\s]*)?|\.\.?\/[^)\s]+))(\))/gu
 
+/** The `aliases` frontmatter as an `aliasesFor` input field, left out when the page has none. */
+function extraAliasesField(extraAliases: string | undefined) {
+  return extraAliases === undefined ? {} : { extraAliases }
+}
 function websiteDocumentationRoute(slug: string) {
   const routeSlug = slug.endsWith('/index') ? slug.slice(0, -'/index'.length) : slug
   return `/docs/${routeSlug}`
@@ -185,7 +189,7 @@ async function buildOpenWaggleTopics(outputRoot: string) {
         title,
         section,
         source: OPENWAGGLE_GROUP.id,
-        extraAliases: parsed.fields.get('aliases'),
+        ...extraAliasesField(parsed.fields.get('aliases')),
       }),
       keywords: keywordsFor({ slug: file.slug, title, description, section }),
       contentHash: hashContent(installedContent),

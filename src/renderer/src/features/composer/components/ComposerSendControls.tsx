@@ -38,7 +38,7 @@ export function ComposerSendControls({
         isLoading={isLoading && !savesEdit}
         savesEdit={savesEdit}
         canSend={canSend}
-        sendTitle={sendTitle}
+        {...(sendTitle === undefined ? {} : { sendTitle })}
         onSend={onSend}
       />
     </>

@@ -6,7 +6,7 @@ import { TIME_UNIT } from '@shared/constants/time'
  *
  * Minutes roll over into hours so long runs read "2h 5m 0s" instead of "125m 0s".
  */
-export function formatElapsed(ms: number): string {
+export function formatElapsed(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / TIME_UNIT.MILLISECONDS_PER_SECOND))
   if (totalSeconds < TIME_UNIT.SECONDS_PER_MINUTE) return `${totalSeconds}s`
   const totalMinutes = Math.floor(totalSeconds / TIME_UNIT.SECONDS_PER_MINUTE)
@@ -20,18 +20,19 @@ export function formatElapsed(ms: number): string {
 /**
  * Format a duration in ms to a human readable string.
  */
-export function formatDuration(ms: number): string {
+export function formatDuration(ms: number) {
   const value = Math.max(0, ms)
   if (value < TIME_UNIT.MILLISECONDS_PER_SECOND) return `${value}ms`
-  if (value < TIME_UNIT.ONE_MINUTE_MS)
+  if (value < TIME_UNIT.ONE_MINUTE_MS) {
     return `${(value / TIME_UNIT.MILLISECONDS_PER_SECOND).toFixed(1)}s`
+  }
   return formatElapsed(value)
 }
 
 /**
  * Format a timestamp to a relative time string.
  */
-export function formatRelativeTime(timestamp: number): string {
+export function formatRelativeTime(timestamp: number) {
   const diff = Date.now() - timestamp
   const seconds = Math.floor(diff / TIME_UNIT.MILLISECONDS_PER_SECOND)
   const minutes = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
@@ -51,7 +52,7 @@ export function formatRelativeTime(timestamp: number): string {
  * form's 21px, and those 14px come out of the session title. Prose contexts keep
  * `formatRelativeTime`, where "Updated 4h" would read as unfinished.
  */
-export function formatCompactRelativeTime(timestamp: number): string {
+export function formatCompactRelativeTime(timestamp: number) {
   const diff = Date.now() - timestamp
   const seconds = Math.floor(diff / TIME_UNIT.MILLISECONDS_PER_SECOND)
   const minutes = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
@@ -67,7 +68,7 @@ export function formatCompactRelativeTime(timestamp: number): string {
 /**
  * Truncate a string to a max length.
  */
-export function truncate(str: string, maxLength: number): string {
+export function truncate(str: string, maxLength: number) {
   if (str.length <= maxLength) return str
   return `${str.slice(0, maxLength - TRIPLE_FACTOR)}...`
 }
@@ -75,7 +76,7 @@ export function truncate(str: string, maxLength: number): string {
 /**
  * Extract a short project name from a full path.
  */
-export function projectName(path: string | null): string {
+export function projectName(path: string | null) {
   if (!path) return 'No project'
   const parts = path.split(/[\\/]/u).filter((part) => part.length > 0)
   return parts.at(-1) ?? path
@@ -89,7 +90,7 @@ const usdFormat = new Intl.NumberFormat('en-US', {
 })
 
 /** A provider cost in US dollars with three significant digits, so cents-fractions stay visible. */
-export function formatUsd(amount: number): string {
+export function formatUsd(amount: number) {
   return usdFormat.format(amount)
 }
 

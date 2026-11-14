@@ -1,8 +1,8 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import type { SqlError } from '@effect/sql/SqlError'
 import type { SessionReportWaitObservation, SessionWaitTarget } from '@shared/types/session-wait'
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
-import type { PendingSessionReport } from '../ports/session-report-repository'
 
 function deliveryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
@@ -28,7 +28,7 @@ export function listPendingReports(sql: SqlClient.SqlClient, targetSessionId: st
     WHERE deliveries.target_session_id = ${targetSessionId} AND deliveries.status = ${'pending'}
     ORDER BY reports.created_at, reports.id
   `.pipe(
-    Effect.map((rows): readonly PendingSessionReport[] =>
+    Effect.map((rows) =>
       rows.map((row) => ({
         reportId: row.report_id,
         correlationId: row.correlation_id,
@@ -82,7 +82,7 @@ export function observeReportWaitCondition(
   >,
 ) {
   if (target.condition === 'report-delivered') {
-    return sql<{
+    const effect: Effect.Effect<SessionReportWaitObservation, SqlError> = sql<{
       status: 'pending' | 'delivered'
       delivered_run_id: string | null
       delivered_at: number | null
@@ -93,9 +93,9 @@ export function observeReportWaitCondition(
         AND target_session_id = ${target.sessionId}
       LIMIT 1
     `.pipe(
-      Effect.map((rows): SessionReportWaitObservation => {
+      Effect.map((rows) => {
         const row = rows[0]
-        return {
+        const observation: SessionReportWaitObservation = {
           condition: 'report-delivered',
           reportId: target.reportId,
           deliveryStatus: row?.status ?? 'not-found',
@@ -104,11 +104,13 @@ export function observeReportWaitCondition(
             ? { deliveredAt: row.delivered_at }
             : {}),
         }
+        return observation
       }),
     )
+    return effect
   }
 
-  return sql<{
+  const effect: Effect.Effect<SessionReportWaitObservation, SqlError> = sql<{
     report_id: string
     reply_to_report_id: string
     source_session_id: string
@@ -125,9 +127,9 @@ export function observeReportWaitCondition(
     ORDER BY reports.created_at, reports.id
     LIMIT 1
   `.pipe(
-    Effect.map((rows): SessionReportWaitObservation => {
+    Effect.map((rows) => {
       const row = rows[0]
-      return {
+      const observation: SessionReportWaitObservation = {
         condition: 'correlated-reply',
         correlationId: target.correlationId,
         ...(row
@@ -139,6 +141,8 @@ export function observeReportWaitCondition(
             }
           : {}),
       }
+      return observation
     }),
   )
+  return effect
 }

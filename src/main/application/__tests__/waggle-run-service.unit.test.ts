@@ -140,7 +140,7 @@ describe('executeWaggleRun', () => {
   })
 
   it('delegates the full collaboration to a single Pi-native Waggle kernel run', async () => {
-    const emitted: Array<{ event: AgentTransportEvent; meta: WaggleStreamMetadata }> = []
+    const emitted: { event: AgentTransportEvent; meta: WaggleStreamMetadata }[] = []
 
     const result = await Effect.runPromise(
       executeWaggleRun({

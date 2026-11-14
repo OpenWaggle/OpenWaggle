@@ -38,13 +38,13 @@ interface SidebarViewState {
 export function isProjectExpanded(
   projectExpandedByPath: Readonly<Record<string, boolean>>,
   projectPath: string,
-): boolean {
+) {
   return projectExpandedByPath[projectPath] ?? true
 }
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
-function resolveStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+function resolveStorage() {
+  if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
     getItem: (key) => memory.get(key) ?? null,
@@ -54,7 +54,7 @@ function resolveStorage(): StateStorage {
     removeItem: (key) => {
       memory.delete(key)
     },
-  }
+  } satisfies StateStorage
 }
 
 /**
@@ -69,7 +69,7 @@ function resolveStorage(): StateStorage {
  * `setState`, including calls where a mutator returned the identical state. Comparing the
  * serialised payload is what makes a no-op click cost no disk write at all.
  */
-function debouncedStorage(inner: StateStorage, delayMs = WRITE_DELAY_MS): StateStorage {
+function debouncedStorage(inner: StateStorage, delayMs = WRITE_DELAY_MS) {
   const pending = new Map<string, string>()
   const lastWritten = new Map<string, string>()
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -107,21 +107,22 @@ function debouncedStorage(inner: StateStorage, delayMs = WRITE_DELAY_MS): StateS
       lastWritten.delete(key)
       inner.removeItem(key)
     },
-  }
+  } satisfies StateStorage
 }
 
-function sanitizeSortMode(value: unknown): SidebarSessionSortMode {
+function sanitizeSortMode(value: unknown) {
   return SORT_MODES.find((mode) => mode === value) ?? DEFAULT_SESSION_SORT_MODE
 }
 
 /** Read one property off an unknown payload without asserting its shape. */
-function readField(source: unknown, key: string): unknown {
+function readField(source: unknown, key: string) {
   if (source === null || typeof source !== 'object') return undefined
-  return Reflect.get(source, key)
+  const result: unknown = Reflect.get(source, key)
+  return result
 }
 
 /** Keep only string keys mapped to booleans, so a corrupt entry cannot poison the rest. */
-function sanitizeExpandedByPath(value: unknown): Record<string, boolean> {
+function sanitizeExpandedByPath(value: unknown) {
   const result: Record<string, boolean> = {}
   if (value === null || typeof value !== 'object') return result
   for (const path of Object.keys(value)) {

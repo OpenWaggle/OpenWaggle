@@ -21,7 +21,7 @@ const {
     autoDownload: boolean
     autoInstallOnAppQuit: boolean
     logger: null
-    once: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
     off: ReturnType<typeof vi.fn>
   } = {
     channel: null,
@@ -30,7 +30,7 @@ const {
     autoDownload: true,
     autoInstallOnAppQuit: true,
     logger: null,
-    once: vi.fn(),
+    on: vi.fn(),
     off: vi.fn(),
   }
   return {
@@ -48,6 +48,9 @@ const {
     updater,
   }
 })
+
+/** The update engine's feed setter, which `configureUpdaterFeed` receives. */
+const FEED_TARGET = expect.objectContaining({ setFeedURL: expect.any(Function) })
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 vi.mock('electron', () => ({
@@ -142,7 +145,7 @@ describe('update CLI', () => {
     // --check is read-only: the saved channel is neither changed nor needed.
     expect(executeLocalSessionCommandMock).not.toHaveBeenCalled()
     expect(createClientMock).not.toHaveBeenCalled()
-    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(updater, 'alpha')
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(FEED_TARGET, 'alpha')
     expect(updater.channel).toBe('alpha')
     expect(updater.allowPrerelease).toBe(true)
     expect(updater.allowDowngrade).toBe(false)
@@ -173,7 +176,7 @@ describe('update CLI', () => {
         },
       }),
     )
-    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(updater, 'alpha')
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(FEED_TARGET, 'alpha')
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
       'OpenWaggle is up to date on the alpha channel.\n',
     )
@@ -205,7 +208,7 @@ describe('update CLI', () => {
     })
 
     expect(updater.channel).toBe('beta')
-    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(updater, 'beta')
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(FEED_TARGET, 'beta')
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
@@ -308,7 +311,7 @@ describe('update CLI', () => {
     process.on('unhandledRejection', onUnhandled)
     try {
       checkForUpdatesMock.mockImplementation(() => {
-        const errorRegistration = updater.once.mock.calls.find(([event]) => event === 'error')
+        const errorRegistration = updater.on.mock.calls.find(([event]) => event === 'error')
         const errorListener = errorRegistration?.[1]
         if (typeof errorListener === 'function') errorListener(new Error('download failed'))
         return Promise.reject(new Error('metadata failed'))

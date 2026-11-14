@@ -57,9 +57,11 @@ function withHistory(
     readonly assistantMessages: readonly BackgroundRunAssistantMessage[]
     readonly assistantMessageBytes: readonly number[]
   },
-): ActiveStreamBuffer {
+) {
   const { assistantMessages: _messages, assistantMessageBytes: _bytes, ...rest } = buffer
-  return history.assistantMessages.length > 0 ? { ...rest, ...history } : rest
+  const result: ActiveStreamBuffer =
+    history.assistantMessages.length > 0 ? { ...rest, ...history } : rest
+  return result
 }
 
 /**
@@ -118,17 +120,24 @@ export function continuedRunContent(
   previous: ActiveStreamBuffer | undefined,
   runId: string | undefined,
   totalHistoryBytes: number,
-): Partial<ActiveStreamBuffer> {
-  if (!previous?.runId || !runId || previous.runId === runId) return {}
-  if (durableSessionRunId(previous.runId) !== durableSessionRunId(runId)) return {}
+) {
+  if (!previous?.runId || !runId || previous.runId === runId) {
+    const partial: Partial<ActiveStreamBuffer> = {}
+    return partial
+  }
+  if (durableSessionRunId(previous.runId) !== durableSessionRunId(runId)) {
+    const partial: Partial<ActiveStreamBuffer> = {}
+    return partial
+  }
   const finished = retainFinishedAssistantMessage(previous, totalHistoryBytes).buffer
   const { startedAt, assistantMessages, assistantMessageBytes, userMessages, userMessagesBytes } =
     finished
-  return {
+  const partial: Partial<ActiveStreamBuffer> = {
     startedAt,
     ...(assistantMessages && assistantMessageBytes
       ? { assistantMessages, assistantMessageBytes }
       : {}),
     ...(userMessages ? { userMessages, userMessagesBytes: userMessagesBytes ?? 0 } : {}),
   }
+  return partial
 }

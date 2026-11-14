@@ -31,7 +31,7 @@ export const PINNED_SHORTCUT_HOTKEYS = [
  * different session than the row it sits on. Rows past the ninth simply have no shortcut;
  * the list is never capped, so a pin is never refused.
  */
-export function usePinnedSessionShortcuts(): void {
+export function usePinnedSessionShortcuts() {
   const navigate = useNavigate()
   const pins = usePinnedSessionsStore((state) => state.pins)
   const sortMode = usePinnedSessionsStore((state) => state.sortMode)

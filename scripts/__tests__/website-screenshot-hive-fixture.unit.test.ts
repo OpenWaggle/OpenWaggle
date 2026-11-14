@@ -22,13 +22,7 @@ describe('website Hive screenshot fixture', () => {
       })
 
     expect(new Set(groups)).toEqual(
-      new Set([
-        'user:',
-        'parent:Queen',
-        'parent:Review the Hive user guide',
-        'worker:',
-        'none:',
-      ]),
+      new Set(['user:', 'parent:Queen', 'parent:Review the Hive user guide', 'worker:', 'none:']),
     )
     expect(workers.some((worker) => worker.archived === true)).toBe(true)
   })

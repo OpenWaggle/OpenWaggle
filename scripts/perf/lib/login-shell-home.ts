@@ -1,5 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { scriptEnv } from '../../support/env'
 
 /** How long the real-ish login shell takes to start, like a `.zshrc` with nvm or a prompt theme. */
 const LOGIN_SHELL_SLEEP_SECONDS = 0.3
@@ -13,7 +14,7 @@ export async function writeSlowLoginShellHome(home: string) {
   const lines = [
     '# A real-ish login shell for measurements: slow to start, with the user PATH.',
     `sleep ${String(LOGIN_SHELL_SLEEP_SECONDS)}`,
-    `export PATH=${JSON.stringify(process.env.PATH ?? '/usr/bin:/bin')}`,
+    `export PATH=${JSON.stringify(scriptEnv().PATH ?? '/usr/bin:/bin')}`,
     '',
   ]
   await writeFile(path.join(home, '.zshrc'), lines.join('\n'))

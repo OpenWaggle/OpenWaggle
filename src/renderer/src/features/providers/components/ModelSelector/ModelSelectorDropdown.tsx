@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useId } from 'react'
+import { type RefObject, useEffect, useId, useRef } from 'react'
 import { useProviderStore } from '../../state/provider-store'
 import { ModelSelectorList } from './ModelSelectorList'
 import type { FlatModel } from './types'
@@ -11,7 +11,7 @@ interface ModelSelectorDropdownProps {
   readonly dropdownRef: RefObject<HTMLDivElement | null>
   readonly models: readonly FlatModel[]
   readonly selectedModel: FlatModel | undefined
-  readonly onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
+  readonly onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void
   readonly onSelectModel: (model: FlatModel) => void
 }
 
@@ -52,26 +52,33 @@ export function ModelSelectorDropdown({
 }: ModelSelectorDropdownProps) {
   const isEmpty = models.length === 0
   const emptyStateId = useId()
+  const dialogRef = useRef<HTMLDialogElement>(null)
   // The empty dialog has no option to tab to, so it takes focus to be read and closed with Escape.
   useEffect(() => {
-    if (isEmpty) dropdownRef.current?.focus()
-  }, [isEmpty, dropdownRef])
+    if (isEmpty) dialogRef.current?.focus()
+  }, [isEmpty])
 
-  // A listbox may only own options, so with none the popup is a dialog holding the notice.
+  // A listbox may only own options, so with none the popup is a dialog holding the notice. The
+  // non-modal `<dialog open>` fills the positioned panel; its user-agent box styles are reset.
   if (isEmpty) {
     return (
       <div
         ref={dropdownRef}
-        role="dialog"
-        aria-label="Models"
-        aria-describedby={emptyStateId}
         data-model-picker-open
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
         className={DROPDOWN_CLASS}
         style={DROPDOWN_STYLE}
       >
-        <ModelSelectorEmptyState id={emptyStateId} />
+        <dialog
+          ref={dialogRef}
+          open
+          aria-label="Models"
+          aria-describedby={emptyStateId}
+          tabIndex={-1}
+          onKeyDown={onKeyDown}
+          className="static m-0 w-full border-0 bg-transparent p-0 text-inherit"
+        >
+          <ModelSelectorEmptyState id={emptyStateId} />
+        </dialog>
       </div>
     )
   }

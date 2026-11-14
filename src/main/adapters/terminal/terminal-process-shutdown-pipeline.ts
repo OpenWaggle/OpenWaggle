@@ -100,9 +100,7 @@ function mergeProcessPids(...groups: readonly (readonly number[])[]) {
   return [...new Set(groups.flat())]
 }
 
-async function attemptGracefulShutdown(
-  context: ShutdownContext,
-): Promise<{ readonly finished: true } | PendingGracefulShutdown> {
+async function attemptGracefulShutdown(context: ShutdownContext) {
   const gracefulDeadline = Date.now() + TERMINAL_GRACEFUL_SHUTDOWN_MS
   const snapshotBudget = remainingSnapshotBudget(gracefulDeadline, TERMINAL_PRE_SIGNAL_SNAPSHOT_MS)
   const preflightPromise = refreshAndConfirmExit(
@@ -156,14 +154,18 @@ async function attemptGracefulShutdown(
     closeRequested,
     remainingSnapshotBudget(gracefulDeadline),
   )
-  if (finishWhenConfirmed(refreshed.confirmed, context)) return { finished: true }
-  return { finished: false, refreshed, ttyClosed, closeRequested, gracefulDeadline }
+  if (finishWhenConfirmed(refreshed.confirmed, context)) return { finished: true } as const
+  const pending: PendingGracefulShutdown = {
+    finished: false,
+    refreshed,
+    ttyClosed,
+    closeRequested,
+    gracefulDeadline,
+  }
+  return pending
 }
 
-async function attemptForcedShutdown(
-  context: ShutdownContext,
-  graceful: PendingGracefulShutdown,
-): Promise<{ readonly finished: true } | PendingForcedShutdown> {
+async function attemptForcedShutdown(context: ShutdownContext, graceful: PendingGracefulShutdown) {
   const forceDeadline = graceful.gracefulDeadline + TERMINAL_FORCE_SHUTDOWN_MS
   const ttySignalResult = await retryLiveTerminalTtySignal(
     context.live,
@@ -213,7 +215,7 @@ async function attemptForcedShutdown(
     closeRequested,
     remainingSnapshotBudget(forceDeadline, TERMINAL_FORCE_CONFIRM_SNAPSHOT_MS),
   )
-  if (finishWhenConfirmed(forceRefreshed.confirmed, context)) return { finished: true }
+  if (finishWhenConfirmed(forceRefreshed.confirmed, context)) return { finished: true } as const
 
   await forceValidatedTree(
     context.live,
@@ -256,8 +258,9 @@ async function attemptForcedShutdown(
     closeRequested,
     remainingSnapshotBudget(forceDeadline),
   )
-  if (finishWhenConfirmed(refreshed.confirmed, context)) return { finished: true }
-  return { finished: false, refreshed, ttyClosed, closeRequested }
+  if (finishWhenConfirmed(refreshed.confirmed, context)) return { finished: true } as const
+  const pending: PendingForcedShutdown = { finished: false, refreshed, ttyClosed, closeRequested }
+  return pending
 }
 
 function reportUnconfirmedExit(context: ShutdownContext, forced: PendingForcedShutdown) {

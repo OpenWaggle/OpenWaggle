@@ -5,7 +5,7 @@ const DIFF_STAT_COMPACT_MILLION = 1_000_000
 const DIFF_STAT_COMPACT_PRECISION = 10
 
 /** Diff stat label mirroring the T3 Code reference: mono, tabular, +green/-red. */
-export function hasNonZeroStat(stat: { additions: number; deletions: number }): boolean {
+export function hasNonZeroStat(stat: { additions: number; deletions: number }) {
   return stat.additions > 0 || stat.deletions > 0
 }
 
@@ -14,7 +14,7 @@ function countLabel(count: number, singular: string, plural: string) {
 }
 
 /** Spoken form of a diff stat, e.g. "1 addition, 3 deletions". */
-export function describeDiffStat(stat: { additions: number; deletions: number }): string {
+export function describeDiffStat(stat: { additions: number; deletions: number }) {
   return `${countLabel(stat.additions, 'addition', 'additions')}, ${countLabel(stat.deletions, 'deletion', 'deletions')}`
 }
 

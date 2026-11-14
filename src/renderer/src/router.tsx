@@ -32,7 +32,7 @@ const initialRouteLoadListeners = new Set<() => void>()
  * fallback and so never holds the chat behind its 300 ms Suspense fallback throttle
  * (renderer-load B1). The returned promise settles once; repeated calls share it.
  */
-export function startInitialRouteLoad(): Promise<void> {
+export function startInitialRouteLoad() {
   initialRouteLoad ??= router
     .load()
     .catch((error: unknown) => {
@@ -62,7 +62,7 @@ function readInitialRouteLoadSettled() {
  * Whether the launch route load has settled, so the boot gate can mount `RouterProvider` without
  * a suspended first route render. Starts the load if the entry has not.
  */
-export function useInitialRouteLoadSettled(): boolean {
+export function useInitialRouteLoadSettled() {
   return useSyncExternalStore(subscribeToInitialRouteLoad, readInitialRouteLoadSettled)
 }
 

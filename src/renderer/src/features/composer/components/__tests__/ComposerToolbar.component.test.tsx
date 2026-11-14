@@ -1,5 +1,5 @@
 import { SupportedModelId } from '@shared/types/brand'
-import type { ProviderInfo } from '@shared/types/llm'
+import type { ModelDisplayInfo, ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, type ThinkingLevel } from '@shared/types/settings'
 import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,31 +23,31 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 const SELECTED_MODEL = SupportedModelId('openai/gpt-5')
-const PROVIDER_MODELS: ProviderInfo[] = [
-  {
-    provider: 'openai',
-    displayName: 'OpenAI',
-    auth: {
-      configured: true,
-      source: 'api-key',
-      apiKeyConfigured: true,
-      apiKeySource: 'api-key',
-      oauthConnected: false,
-      supportsApiKey: true,
-      supportsOAuth: true,
-    },
-    models: [
-      {
-        id: SELECTED_MODEL,
-        modelId: 'gpt-5',
-        name: 'GPT 5',
-        provider: 'openai',
-        available: true,
-        availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
-      },
-    ],
+const OPENAI_MODEL: ModelDisplayInfo = {
+  id: SELECTED_MODEL,
+  modelId: 'gpt-5',
+  name: 'GPT 5',
+  provider: 'openai',
+  available: true,
+  availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
+}
+
+const OPENAI_PROVIDER: ProviderInfo = {
+  provider: 'openai',
+  displayName: 'OpenAI',
+  auth: {
+    configured: true,
+    source: 'api-key',
+    apiKeyConfigured: true,
+    apiKeySource: 'api-key',
+    oauthConnected: false,
+    supportsApiKey: true,
+    supportsOAuth: true,
   },
-]
+  models: [OPENAI_MODEL],
+}
+
+const PROVIDER_MODELS: ProviderInfo[] = [OPENAI_PROVIDER]
 
 function renderToolbar(
   overrides: Partial<Parameters<typeof ComposerToolbar>[0]> = {},
@@ -174,10 +174,10 @@ describe('ComposerToolbar', () => {
     useProviderStore.setState({
       providerModels: [
         {
-          ...PROVIDER_MODELS[0],
+          ...OPENAI_PROVIDER,
           models: [
             {
-              ...PROVIDER_MODELS[0].models[0],
+              ...OPENAI_MODEL,
               availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
             },
           ],
@@ -225,7 +225,7 @@ describe('ComposerToolbar', () => {
     useProviderStore.setState({
       providerModels: [
         {
-          ...PROVIDER_MODELS[0],
+          ...OPENAI_PROVIDER,
           models: [
             {
               id: SELECTED_MODEL,

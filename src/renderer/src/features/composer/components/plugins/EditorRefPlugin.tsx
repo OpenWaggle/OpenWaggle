@@ -13,7 +13,7 @@ interface EditorRefPluginProps {
  * (voice insertion, history navigation, skill/mention insertion, etc.)
  * Also stores the editor in the composer Zustand store for cross-component access.
  */
-export function EditorRefPlugin({ editorRef }: EditorRefPluginProps): null {
+export function EditorRefPlugin({ editorRef }: EditorRefPluginProps) {
   const [editor] = useLexicalComposerContext()
 
   useLayoutEffect(() => {

@@ -1,91 +1,104 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { developerDocsNav, docsNav, flatNavItems, getPrevNext, isDeveloperDoc } from '../docs-nav';
-import { packageDocumentation } from '../package-docs';
+import { existsSync, readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+import { developerDocsNav, docsNav, flatNavItems, getPrevNext, isDeveloperDoc } from '../docs-nav'
+import { packageDocumentation } from '../package-docs'
 
-const userItems = docsNav.flatMap((section) => section.items);
-const developerItems = developerDocsNav.flatMap((section) => section.items);
+const userItems = docsNav.flatMap((section) => section.items)
+const developerItems = developerDocsNav.flatMap((section) => section.items)
 
 describe('documentation navigation', () => {
   it('links only to existing pages or current package aliases', () => {
     for (const item of flatNavItems()) {
-      const definition = packageDocumentation.find((entry) => item.slug === `packages/${entry.slug}`);
-      const slug = definition ? `${item.slug}/${definition.currentVersion}/index` : item.slug;
+      const definition = packageDocumentation.find(
+        (entry) => item.slug === `packages/${entry.slug}`,
+      )
+      const slug = definition ? `${item.slug}/${definition.currentVersion}/index` : item.slug
       const exists = ['md', 'mdx'].some((extension) =>
         existsSync(new URL(`../../content/docs/${slug}.${extension}`, import.meta.url)),
-      );
-      expect(exists, `Missing navigation destination: ${item.slug}`).toBe(true);
+      )
+      expect(exists, `Missing navigation destination: ${item.slug}`).toBe(true)
     }
-  });
+  })
 
   it('starts with the walkthrough and exposes the core app workflows', () => {
-    expect(userItems[0]).toEqual({ title: 'Get started', slug: 'getting-started/first-run' });
-    expect(userItems.map((item) => item.slug)).toEqual(expect.arrayContaining([
-      'developer-workflow/browser-preview',
-      'using-openwaggle/session-tree',
-      'using-openwaggle/session-summary',
-      'configuration/mcp',
-    ]));
+    expect(userItems[0]).toEqual({ title: 'Get started', slug: 'getting-started/first-run' })
+    expect(userItems.map((item) => item.slug)).toEqual(
+      expect.arrayContaining([
+        'developer-workflow/browser-preview',
+        'using-openwaggle/session-tree',
+        'using-openwaggle/session-summary',
+        'configuration/mcp',
+      ]),
+    )
     expect(docsNav.map((section) => section.title)).toEqual([
-      'Getting started', 'Using OpenWaggle', 'Customize', 'Multiple agents', 'Help', 'Reference',
-    ]);
-  });
+      'Getting started',
+      'Using OpenWaggle',
+      'Customize',
+      'Multiple agents',
+      'Help',
+      'Reference',
+    ])
+  })
 
   it('ships the same walkthrough redirect in Astro and Cloudflare Pages', () => {
-    const destination = '/docs/getting-started/first-run/';
-    const redirects = readFileSync(new URL('../../../public/_redirects', import.meta.url), 'utf8');
-    const docsRedirect = redirects.split(/\r?\n/).find((line) => line.startsWith('/docs '));
-    expect(docsRedirect?.trim().split(/\s+/)).toEqual(['/docs', destination, '301']);
+    const destination = '/docs/getting-started/first-run/'
+    const redirects = readFileSync(new URL('../../../public/_redirects', import.meta.url), 'utf8')
+    const docsRedirect = redirects.split(/\r?\n/).find((line) => line.startsWith('/docs '))
+    expect(docsRedirect?.trim().split(/\s+/)).toEqual(['/docs', destination, '301'])
 
-    const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8');
-    expect(config).toContain(`'/docs': '${destination}'`);
-  });
+    const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8')
+    expect(config).toContain(`'/docs': '${destination}'`)
+  })
 
   it('sends the former Sessions CLI page to the Hive CLI page in Astro and Cloudflare Pages', () => {
-    const destination = '/docs/developer-workflow/hive-cli/';
+    const destination = '/docs/developer-workflow/hive-cli/'
     const redirects = readFileSync(new URL('../../../public/_redirects', import.meta.url), 'utf8')
       .split(/\r?\n/)
       .filter((line) => line.startsWith('/docs/developer-workflow/sessions-cli'))
-      .map((line) => line.trim().split(/\s+/));
+      .map((line) => line.trim().split(/\s+/))
     expect(redirects).toEqual([
       ['/docs/developer-workflow/sessions-cli', destination, '301'],
       ['/docs/developer-workflow/sessions-cli/', destination, '301'],
-    ]);
-    const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8');
-    expect(config).toContain(`'/docs/developer-workflow/sessions-cli': '${destination}'`);
-    expect(existsSync(new URL('../../content/docs/developer-workflow/hive-cli.md', import.meta.url))).toBe(true);
-    expect(existsSync(new URL('../../content/docs/developer-workflow/sessions-cli.md', import.meta.url))).toBe(false);
-  });
+    ])
+    const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8')
+    expect(config).toContain(`'/docs/developer-workflow/sessions-cli': '${destination}'`)
+    expect(
+      existsSync(new URL('../../content/docs/developer-workflow/hive-cli.md', import.meta.url)),
+    ).toBe(true)
+    expect(
+      existsSync(new URL('../../content/docs/developer-workflow/sessions-cli.md', import.meta.url)),
+    ).toBe(false)
+  })
 
   it.each([
     { source: 'configuration/app-settings', target: 'configuration/per-project-config' },
     { source: 'providers/overview', target: 'configuration/thinking-levels' },
   ])('keeps $target discoverable from $source', ({ source, target }) => {
-    expect(userItems.some((item) => item.slug === source)).toBe(true);
-    const page = readFileSync(new URL(`../../content/docs/${source}.md`, import.meta.url), 'utf8');
-    expect(page).toContain(`](/docs/${target})`);
-    expect(existsSync(new URL(`../../content/docs/${target}.md`, import.meta.url))).toBe(true);
-  });
+    expect(userItems.some((item) => item.slug === source)).toBe(true)
+    const page = readFileSync(new URL(`../../content/docs/${source}.md`, import.meta.url), 'utf8')
+    expect(page).toContain(`](/docs/${target})`)
+    expect(existsSync(new URL(`../../content/docs/${target}.md`, import.meta.url))).toBe(true)
+  })
 
   it('keeps technical references separate without duplicate destinations', () => {
-    const slugs = flatNavItems().map((item) => item.slug);
-    expect(new Set(slugs).size).toBe(slugs.length);
-    expect(isDeveloperDoc('packages/extension-sdk/0.1/api-reference')).toBe(true);
-    expect(isDeveloperDoc('developer-guide/architecture')).toBe(true);
-    expect(isDeveloperDoc('developer-workflow/browser-preview')).toBe(false);
-    expect(isDeveloperDoc('extending/plugins')).toBe(false);
-    expect(isDeveloperDoc('extending/pi-extensions')).toBe(true);
-  });
+    const slugs = flatNavItems().map((item) => item.slug)
+    expect(new Set(slugs).size).toBe(slugs.length)
+    expect(isDeveloperDoc('packages/extension-sdk/0.1/api-reference')).toBe(true)
+    expect(isDeveloperDoc('developer-guide/architecture')).toBe(true)
+    expect(isDeveloperDoc('developer-workflow/browser-preview')).toBe(false)
+    expect(isDeveloperDoc('extending/plugins')).toBe(false)
+    expect(isDeveloperDoc('extending/pi-extensions')).toBe(true)
+  })
 
   it('keeps previous/next links within their documentation area', () => {
-    const lastUser = userItems.at(-1);
-    const firstDeveloper = developerItems[0];
-    expect(lastUser).toBeDefined();
-    expect(firstDeveloper).toBeDefined();
-    if (!lastUser || !firstDeveloper) throw new Error('Missing documentation area');
-    expect(getPrevNext(lastUser.slug).next).toBeNull();
-    expect(getPrevNext(firstDeveloper.slug).prev).toBeNull();
-    expect(getPrevNext('getting-started/first-run')).toEqual({ prev: null, next: userItems[1] });
-    expect(getPrevNext('not-in-the-navigation/page')).toEqual({ prev: null, next: null });
-  });
-});
+    const lastUser = userItems.at(-1)
+    const firstDeveloper = developerItems[0]
+    expect(lastUser).toBeDefined()
+    expect(firstDeveloper).toBeDefined()
+    if (!lastUser || !firstDeveloper) throw new Error('Missing documentation area')
+    expect(getPrevNext(lastUser.slug).next).toBeNull()
+    expect(getPrevNext(firstDeveloper.slug).prev).toBeNull()
+    expect(getPrevNext('getting-started/first-run')).toEqual({ prev: null, next: userItems[1] })
+    expect(getPrevNext('not-in-the-navigation/page')).toEqual({ prev: null, next: null })
+  })
+})

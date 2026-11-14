@@ -82,7 +82,7 @@ import {
 import { resolveUpdateChannel } from './update-channel-settings'
 import * as usageStatisticsSettings from './usage-statistics-settings'
 
-export const createDefaultSettingsSnapshot = (): Settings => ({ ...DEFAULT_SETTINGS })
+export const createDefaultSettingsSnapshot = () => ({ ...DEFAULT_SETTINGS }) satisfies Settings
 
 function getStoredValue(storedSettings: Readonly<Record<string, unknown>>, key: string) {
   return Object.hasOwn(storedSettings, key) ? storedSettings[key] : undefined

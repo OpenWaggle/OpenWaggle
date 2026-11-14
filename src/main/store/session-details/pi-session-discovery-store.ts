@@ -5,8 +5,8 @@ import { isAgentLoopAuditNode } from '@shared/utils/agent-loop-audit-node'
 import * as Effect from 'effect/Effect'
 import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
 import {
-  type PiProjectionTail,
   readPiProjectionFreshnessWithSql,
+  type PiProjectionTail,
 } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
@@ -30,7 +30,7 @@ interface KnownSessionRow {
  * deleted still counts: its row goes before its Pi file does, and listing the file in between
  * would bring the deleted Session back.
  */
-export async function readPiSessionDiscoveryScope(): Promise<PiSessionDiscoveryScopeRows> {
+export async function readPiSessionDiscoveryScope() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -70,11 +70,12 @@ export async function readPiSessionDiscoveryScope(): Promise<PiSessionDiscoveryS
         knownPiSessionIds.add(row.pi_session_id)
         knownPiSessionFiles.add(row.pi_session_file)
       }
-      return {
+      const scope: PiSessionDiscoveryScopeRows = {
         knownPiSessionIds,
         knownPiSessionFiles,
         sessionProjectPaths: projects.map((row) => row.project_path),
       }
+      return scope
     }),
   )
 }
@@ -86,9 +87,7 @@ export async function readPiSessionDiscoveryScope(): Promise<PiSessionDiscoveryS
  * Session holds a transcript of its own. The adoption marks the Session as discovered: its nodes
  * are keyed under a per-Session prefix, and deleting it keeps the file.
  */
-export async function adoptDiscoveredPiSession(
-  input: AdoptDiscoveredPiSessionInput,
-): Promise<boolean> {
+export async function adoptDiscoveredPiSession(input: AdoptDiscoveredPiSessionInput) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -140,7 +139,7 @@ export async function adoptDiscoveredPiSession(
 }
 
 /** See `PiSessionDiscoveryRepositoryShape.listUnattachedDiscoveredSessions`. */
-export async function listUnattachedDiscoveredPiSessions(): Promise<readonly SessionId[]> {
+export async function listUnattachedDiscoveredPiSessions() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -260,9 +259,7 @@ export interface PiSessionProjectionStateRow {
   readonly projectedTail: PiProjectionTail | null
 }
 
-export async function getPiSessionProjectionState(
-  sessionId: SessionId,
-): Promise<PiSessionProjectionStateRow | null> {
+export async function getPiSessionProjectionState(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -292,7 +289,7 @@ export async function getPiSessionProjectionState(
       const auditNodes = customNodes.filter((node) =>
         isAgentLoopAuditNode({ kind: node.kind, contentJson: node.content_json }),
       ).length
-      return {
+      const state: PiSessionProjectionStateRow = {
         sessionId: SessionId(String(sessionId)),
         piSessionFile: session.pi_session_file,
         projectPath: session.project_path,
@@ -300,11 +297,12 @@ export async function getPiSessionProjectionState(
           ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(sessionId) }
           : {}),
         projectedPiEntryCount: nodes.length - auditNodes,
-        projectedNodeIds: new Set(nodes.map((node) => String(node.id))),
+        projectedNodeIds: new Set(nodes.map((node) => node.id)),
         revision,
         fingerprint,
         projectedTail,
       }
+      return state
     }),
   )
 }

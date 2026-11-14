@@ -11,7 +11,7 @@ const SESSION_ID = SessionId('session-pending-resync')
 function summary(input: {
   readonly pendingInteractionAt?: number
   readonly pendingInteractionSnapshotAt: number
-}): SessionSummary {
+}) {
   return {
     id: SESSION_ID,
     title: 'Pending Session',
@@ -20,7 +20,7 @@ function summary(input: {
     updatedAt: 100,
     latestRun: { status: 'active', updatedAt: 100 },
     ...input,
-  }
+  } satisfies SessionSummary
 }
 
 describe('pending-interaction status resync', () => {

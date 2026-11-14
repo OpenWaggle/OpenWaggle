@@ -147,8 +147,9 @@ describe('Access CLI staged credential cleanup', () => {
         commit: mocks.commit,
         discard: mocks.discard,
       })
-      if (failure === 'preparation')
+      if (failure === 'preparation') {
         mocks.client.mockRejectedValue(new Error('Cannot attach to local Host'))
+      }
 
       await expect(runAccessCli(ARGUMENTS)).resolves.not.toBe(0)
 

@@ -5,7 +5,6 @@ import type {
   WorktreeCleanupFailure,
   WorktreeInventory,
   WorktreeInventoryEntry,
-  WorktreeInventoryProject,
 } from '@shared/types/worktree-inventory'
 import { decideAutomaticWorktreeRemoval } from '@shared/utils/automatic-worktree-removal'
 import * as Effect from 'effect/Effect'
@@ -39,14 +38,6 @@ interface ListedRepository {
   readonly canonicalMain: string
   readonly opened: boolean
   readonly worktrees: readonly GitWorktreeInfo[]
-}
-
-interface InventoryCandidate {
-  readonly repository: ListedRepository
-  readonly worktree: GitWorktreeInfo
-  readonly canonicalPath: string
-  readonly managed: boolean
-  readonly underManagedRoot: boolean
 }
 
 function knownProjectPaths(settings: Settings, managedProjects: readonly string[]) {
@@ -149,7 +140,7 @@ function inventoryCandidates(
         .map((worktree) => ({ repository, worktree })),
     )
     const resolved = await Promise.all(
-      linked.map(async ({ repository, worktree }): Promise<InventoryCandidate> => {
+      linked.map(async ({ repository, worktree }) => {
         const canonicalPath = await canonical(worktree.path)
         const managed = managedPaths.has(canonicalPath)
         const underManagedRoot = isWithin(canonicalPath, root)
@@ -294,13 +285,11 @@ export function listWorktreeInventory(
           repository.opened ||
           entries.some((entry) => entry.projectPath === repository.projectPath),
       )
-      .map(
-        (repository): WorktreeInventoryProject => ({
-          projectPath: repository.projectPath,
-          name: projectName(settings, repository.projectPath),
-          opened: repository.opened,
-        }),
-      )
+      .map((repository) => ({
+        projectPath: repository.projectPath,
+        name: projectName(settings, repository.projectPath),
+        opened: repository.opened,
+      }))
     return { projects, entries, problems } satisfies WorktreeInventory
   })
 }

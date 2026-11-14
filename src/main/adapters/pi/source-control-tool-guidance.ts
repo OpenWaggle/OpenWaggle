@@ -5,7 +5,7 @@ import {
 } from '@shared/types/source-control'
 
 /** What the agent should do, or tell the user to do, about an attention item. */
-export function attentionNextStep(attention: SourceControlAttention | null): string | null {
+export function attentionNextStep(attention: SourceControlAttention | null) {
   if (!attention) return null
   return match(attention)
     .with(

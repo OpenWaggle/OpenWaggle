@@ -83,31 +83,28 @@ export function configMatchesPreset(config: WaggleConfig, preset: WagglePreset) 
   return true
 }
 
-export function buildWaggleConfig(state: WaggleFormState): WaggleConfig {
+export function buildWaggleConfig(state: WaggleFormState) {
   const [agentA, agentB] = state.agents
   return {
     mode: state.mode,
     agents: [agentA, agentB],
     stop: { primary: state.stopCondition, maxTurnsSafety: state.maxTurns },
-  }
+  } satisfies WaggleConfig
 }
 
 function updateAgentAt(
   agents: readonly [WaggleAgentSlot, WaggleAgentSlot],
   index: 0 | 1,
   update: (agent: WaggleAgentSlot) => WaggleAgentSlot,
-): readonly [WaggleAgentSlot, WaggleAgentSlot] {
+) {
   if (index === 0) {
-    return [update(agents[0]), agents[1]]
+    return [update(agents[0]), agents[1]] satisfies readonly [WaggleAgentSlot, WaggleAgentSlot]
   }
-  return [agents[0], update(agents[1])]
+  return [agents[0], update(agents[1])] satisfies readonly [WaggleAgentSlot, WaggleAgentSlot]
 }
 
-export function waggleFormReducer(
-  state: WaggleFormState,
-  action: WaggleFormAction,
-): WaggleFormState {
-  return matchBy(action, 'type')
+export function waggleFormReducer(state: WaggleFormState, action: WaggleFormAction) {
+  const result: WaggleFormState = matchBy(action, 'type')
     .with('load-preset', (value) => ({
       agents: value.config.agents,
       mode: value.config.mode,
@@ -145,12 +142,10 @@ export function waggleFormReducer(
     .with('set-stop-condition', (value) => ({ ...state, stopCondition: value.stopCondition }))
     .with('set-max-turns', (value) => ({ ...state, maxTurns: value.maxTurns }))
     .exhaustive()
+  return result
 }
 
-export function wagglePresetReducer(
-  state: WagglePresetState,
-  action: WagglePresetAction,
-): WagglePresetState {
+export function wagglePresetReducer(state: WagglePresetState, action: WagglePresetAction) {
   return matchBy(action, 'type')
     .with('select-preset', (value) => ({ ...state, activePresetId: value.activePresetId }))
     .with('save-success', (value) => ({

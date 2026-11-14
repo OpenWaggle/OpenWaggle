@@ -1,7 +1,8 @@
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import type { BuildChannel } from '../src/shared/types/build-identity'
+import { runWhenInvokedDirectly } from './support/direct-invocation'
 
 /**
  * Regenerates the per-channel Build identity icons (docs/adr/0032) from the
@@ -9,7 +10,7 @@ import type { BuildChannel } from '../src/shared/types/build-identity'
  * channel keeps the full-colour brand mark and adds a small, rounded, floating
  * pill near the bottom so builds are distinguishable at a glance without
  * dominating the artwork. Icons are committed, so this runs on a developer
- * machine, never in CI. Run: `tsx scripts/generate-channel-icons.ts`.
+ * machine, never in CI. Run: `bun scripts/generate-channel-icons.ts`.
  */
 
 const PILL_HEIGHT_RATIO = 0.135
@@ -65,7 +66,7 @@ export function channelPillSvg(input: {
   ].join('')
 }
 
-async function generate(buildDir: string): Promise<void> {
+async function generate(buildDir: string) {
   const source = path.join(buildDir, 'icon.png')
   const { width, height } = await sharp(source).metadata()
   if (!width || !height) throw new Error(`Could not read dimensions of ${source}`)
@@ -75,20 +76,16 @@ async function generate(buildDir: string): Promise<void> {
     const bottom = height - height * PILL_BOTTOM_MARGIN_RATIO
     const pill = Buffer.from(channelPillSvg({ width, height, pillHeight, bottom, color, label }))
     const out = path.join(buildDir, `icon-${channel}.png`)
-    await sharp(source).composite([{ input: pill, top: 0, left: 0 }]).png().toFile(out)
+    await sharp(source)
+      .composite([{ input: pill, top: 0, left: 0 }])
+      .png()
+      .toFile(out)
     console.log(`wrote ${out}`)
   }
 }
 
-const isDirectInvocation =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
-
-if (isDirectInvocation) {
-  const buildDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build')
-  void generate(buildDir).catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-  })
-}
+runWhenInvokedDirectly(import.meta.url, () =>
+  generate(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build')),
+)
 
 export { generate }

@@ -21,7 +21,9 @@ function releaseResolution(source: string) {
 function updateChannelPreference(source: string) {
   const start = source.indexOf(PREFERENCE_START)
   const end = source.indexOf(PREFERENCE_END)
-  if (start < 0 || end <= start) throw new Error('Installer update channel preference was not found.')
+  if (start < 0 || end <= start) {
+    throw new Error('Installer update channel preference was not found.')
+  }
   return source.slice(start + PREFERENCE_START.length, end)
 }
 

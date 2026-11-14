@@ -4,14 +4,11 @@ import {
   mcpConfigFileScope,
   mergeMcpConfigLayers,
 } from '../../../domain/mcp/config/mcp-config-merge'
-import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
 import { withOpenWaggleRuntimeExposure } from '../../../domain/mcp/config/mcp-runtime-exposure'
 import type {
-  McpConfiguredValue,
   McpServerConfig,
   McpTransportKind,
 } from '../../../domain/mcp/config/mcp-server-config'
-import { McpVaultError } from '../../../ports/mcp-errors'
 import {
   mcpFileMigrationPending,
   type PendingMcpFileMigration,
@@ -31,6 +28,7 @@ import {
   readMcpConfigLayers,
 } from './mcp-config-files'
 import { deferredMcpSecret } from './mcp-deferred-secrets'
+import { type McpSecretResolver, resolveServer } from './mcp-runtime-secret-resolution'
 import { mcpFilePendingNotice, mcpScopePendingNotice } from './mcp-write-refusal'
 
 /** One server as Pi's MCP extension receives it (`McpServerEntry`). */
@@ -74,7 +72,7 @@ export interface McpRuntimeConfig {
   readonly connectionConfigs: ReadonlyMap<string, McpServerConfig>
 }
 
-export type McpSecretResolver = (name: string) => Promise<string>
+export type { McpSecretResolver } from './mcp-runtime-secret-resolution'
 
 export interface LoadMcpRuntimeConfigInput {
   readonly roots: McpConfigFileRoots
@@ -98,66 +96,6 @@ export interface LoadMcpRuntimeConfigInput {
   readonly connectProjectServers?: boolean
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
-
-type ResolvedValues =
-  | { readonly ok: true; readonly values: Record<string, string> | undefined }
-  | { readonly ok: false; readonly error: string; readonly missingSecret?: true }
-
-async function resolveValues(
-  server: McpMergedServer,
-  field: 'env' | 'headers',
-  values: Readonly<Record<string, McpConfiguredValue>> | undefined,
-  resolveSecret: McpSecretResolver,
-): Promise<ResolvedValues> {
-  if (!values) return { ok: true, values: undefined }
-  const resolved: Record<string, string> = {}
-  for (const [key, value] of Object.entries(values)) {
-    if (typeof value === 'string') {
-      resolved[key] = value
-      continue
-    }
-    try {
-      // A secret is data: Pi must never read it as `${VAR}` or run it as `!command`.
-      resolved[key] = piLiteral(await resolveSecret(value.secret))
-    } catch (error) {
-      const missing = error instanceof McpVaultError && error.reason === 'secret-not-found'
-      return {
-        ok: false,
-        error: `${server.source.path}: server "${server.name}": ${field} "${key}" names vault secret "${value.secret}", which could not be read: ${errorMessage(error)}`,
-        ...(missing ? { missingSecret: true as const } : {}),
-      }
-    }
-  }
-  return { ok: true, values: resolved }
-}
-
-type ResolvedServer =
-  | { readonly ok: true; readonly config: McpServerConfig }
-  | { readonly ok: false; readonly error: string; readonly missingSecret?: true }
-
-async function resolveServer(
-  server: McpMergedServer,
-  resolveSecret: McpSecretResolver,
-): Promise<ResolvedServer> {
-  const { config } = server
-  if ('url' in config) {
-    const { headers, ...rest } = config
-    const resolved = await resolveValues(server, 'headers', headers, resolveSecret)
-    if (!resolved.ok) return resolved
-    return {
-      ok: true,
-      config: { ...rest, ...(resolved.values ? { headers: resolved.values } : {}) },
-    }
-  }
-  const { env, ...rest } = config
-  const resolved = await resolveValues(server, 'env', env, resolveSecret)
-  if (!resolved.ok) return resolved
-  return { ok: true, config: { ...rest, ...(resolved.values ? { env: resolved.values } : {}) } }
-}
-
 /**
  * The entry Pi's MCP extension sees. Pi knows one kind of override, a project file's override of a
  * global server ("global, project override", "saved to the project mcp.json"), so it hears only of
@@ -165,7 +103,7 @@ async function resolveServer(
  * `updateConfig` saves changes, so Pi is given it as the source, and `/mcp` says "Saved to" the
  * file that is actually written.
  */
-function runtimeEntry(server: McpMergedServer, config: McpServerConfig): McpRuntimeServerEntry {
+function runtimeEntry(server: McpMergedServer, config: McpServerConfig) {
   const projectOverrideOfGlobal =
     server.override !== undefined &&
     server.scope === 'global' &&
@@ -179,10 +117,7 @@ function runtimeEntry(server: McpMergedServer, config: McpServerConfig): McpRunt
   }
 }
 
-export function loadMcpMergedConfig(
-  roots: McpConfigFileRoots,
-  reader?: McpConfigFileReader,
-): McpMergedConfig {
+export function loadMcpMergedConfig(roots: McpConfigFileRoots, reader?: McpConfigFileReader) {
   return mergeMcpConfigLayers(readMcpConfigLayers(mcpConfigFileLocations(roots), reader))
 }
 
@@ -211,10 +146,11 @@ function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigF
       .map(mcpFilePendingNotice),
   ]
   if (closed) {
+    // A scope whose migration is pending lists no server, so no override is orphaned either.
+    const { orphanedOverrides: _withheld, ...withoutOrphans } = merged
     return {
-      ...merged,
+      ...withoutOrphans,
       servers: [],
-      orphanedOverrides: undefined,
       errors: [...notices, ...merged.errors],
       incomplete: true as const,
     }
@@ -246,9 +182,7 @@ export function mcpLeftOutServerNotice(
  * The configuration one Pi session receives: the merged file set with vault references resolved,
  * narrowed by the Session's MCP switch and an Agent definition's allowlist.
  */
-export async function loadMcpRuntimeConfig(
-  input: LoadMcpRuntimeConfigInput,
-): Promise<McpRuntimeConfig> {
+export async function loadMcpRuntimeConfig(input: LoadMcpRuntimeConfigInput) {
   const merged = withProjectServerPolicy(
     loadConnectableMcpConfig(input.roots, input.reader),
     input.connectProjectServers ?? connectsProjectMcpServers(),
@@ -272,15 +206,25 @@ export async function loadMcpRuntimeConfig(
   const connectionConfigs = new Map<string, McpServerConfig>()
   const missingSecrets = new Map<string, string>()
   const stamp = input.secretStamp ?? (async (name: string) => name)
-  for (const configured of selected) {
-    // Files keep `direct` for the `pi` command; OpenWaggle runs it as `codemode`.
-    const server = { ...configured, config: withOpenWaggleRuntimeExposure(configured.config) }
-    const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
-    const resolved = await resolveServer(
-      server,
-      // Not piLiteral-escaped: a marker holds no `$` and does not start with `!`.
-      deferred ? async (name) => deferredMcpSecret(name) : input.resolveSecret,
-    )
+  // resolveServer reports a secret it cannot read instead of rejecting, so every server resolves
+  // at once and the results are gathered in configuration order.
+  const resolutions = await Promise.all(
+    selected.map(async (configured) => {
+      // Files keep `direct` for the `pi` command; OpenWaggle runs it as `codemode`.
+      const server = { ...configured, config: withOpenWaggleRuntimeExposure(configured.config) }
+      const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
+      const resolved = await resolveServer(
+        server,
+        // Not piLiteral-escaped: a marker holds no `$` and does not start with `!`.
+        deferred ? async (name) => deferredMcpSecret(name) : input.resolveSecret,
+      )
+      const stamped = resolved.ok
+        ? await resolveServer(server, async (name) => `vault-secret:${await stamp(name)}`)
+        : undefined
+      return { server, resolved, stamped }
+    }),
+  )
+  for (const { server, resolved, stamped } of resolutions) {
     if (!resolved.ok) {
       errors.push(resolved.error)
       unavailable.set(server.name, resolved.error)
@@ -289,8 +233,7 @@ export async function loadMcpRuntimeConfig(
     }
     servers.push(runtimeEntry(server, resolved.config))
     transports.set(server.name, server.transport)
-    const stamped = await resolveServer(server, async (name) => `vault-secret:${await stamp(name)}`)
-    if (stamped.ok) connectionConfigs.set(server.name, stamped.config)
+    if (stamped?.ok) connectionConfigs.set(server.name, stamped.config)
   }
   return {
     loaded: {

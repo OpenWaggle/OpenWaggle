@@ -24,7 +24,7 @@ import type { ParsedMcpAppResource } from './mcp-app-resource'
 const JSON_INDENT_SPACES = 2
 const logger = createRendererLogger('mcp-app')
 
-function jsonValue(value: unknown): McpJsonValue {
+function jsonValue(value: unknown) {
   const serialized = JSON.stringify(value)
   return decodeUnknownOrThrow(
     mcpConfigValueSchema,
@@ -50,6 +50,8 @@ function appToolResult(value: McpAppToolCallResult) {
 
 interface McpAppBridgeInput {
   readonly contentWindow: Window
+  /** Which load of the frame's document this is: a reload is a new document with a new bridge. */
+  readonly documentLoad: number
   readonly descriptor: McpAppDescriptor
   readonly projectPath: string | null
   readonly sessionId: string | null
@@ -72,7 +74,7 @@ export interface McpAppLayout {
 }
 
 /** The whole host context; the bridge replaces it on every change and sends what differs. */
-function hostContext(layout: McpAppLayout, maxHeight: number): McpUiHostContext {
+function hostContext(layout: McpAppLayout, maxHeight: number) {
   return {
     theme: layout.theme,
     displayMode: 'inline',
@@ -82,7 +84,7 @@ function hostContext(layout: McpAppLayout, maxHeight: number): McpUiHostContext 
     platform: 'desktop',
     containerDimensions:
       layout.width === null ? { maxHeight } : { maxHeight, width: Math.round(layout.width) },
-  }
+  } satisfies McpUiHostContext
 }
 
 async function confirmToolCall(input: McpAppBridgeInput, name: string, arguments_: unknown) {

@@ -144,8 +144,10 @@ export function McpRemoveServer({
           variant="danger"
           size="xs"
           disabled={actions.pending}
-          onClick={async () => {
-            if (await actions.removeServer(server.name)) onRemoved()
+          onClick={() => {
+            void actions.removeServer(server.name).then((removed) => {
+              if (removed) onRemoved()
+            })
           }}
         >
           Remove server

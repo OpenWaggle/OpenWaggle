@@ -15,31 +15,6 @@ import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { publishDelegationAttentionCleared } from './session-control-event-projection'
 import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 
-export function startExternalSessionRun(input: {
-  readonly sessionId: SessionId
-  readonly runId: RunId
-  readonly intent: SessionControlRunIntent
-  readonly hostRunCeiling?: number
-}) {
-  return Effect.gen(function* () {
-    const lifecycle = yield* SessionControlRunLifecycleRepository
-    if (!lifecycle.startExternal) {
-      return yield* Effect.fail(new Error('External Session Run activation is unavailable.'))
-    }
-    const activation = yield* lifecycle.startExternal(input)
-    if (activation.accepted) {
-      publishSessionHostEvent({
-        kind: 'session-state-changed',
-        sessionId: input.sessionId,
-        stateRevision: activation.stateRevision,
-        operation: 'run-activated',
-      })
-      publishDelegationAttentionCleared(activation.attentionCleared)
-    }
-    return activation
-  })
-}
-
 export function prepareExternalSessionRunReplacement(input: {
   readonly sessionId: SessionId
   readonly previousRunId?: RunId

@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 
 const activeExportCancellations = new Map<string, Set<AbortController>>()
 
-function cancellationEffect(signal: AbortSignal): Effect.Effect<never, Error> {
+function cancellationEffect(signal: AbortSignal) {
   return Effect.async<never, Error>((resume) => {
     const abort = () => resume(Effect.fail(new Error('EXPORT_CANCELLED')))
     if (signal.aborted) {

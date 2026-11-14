@@ -1,0 +1,22 @@
+{
+  /*
+   * Strictness flags beyond `strict`, shared by every TypeScript project: src/main, src/preload,
+   * scripts and functions (tsconfig.node.json), src/renderer (tsconfig.web.json,
+   * tsconfig.renderer-tests.json), src/shared with the runtime-neutral packages it imports
+   * (tsconfig.shared.json) and the website's TypeScript (tsconfig.website.json). The packages and
+   * scripts projects set the same flags through tsconfig.package.base.json.
+   */
+  "compilerOptions": {
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedSideEffectImports": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false
+  }
+}

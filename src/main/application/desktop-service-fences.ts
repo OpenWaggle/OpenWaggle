@@ -27,21 +27,24 @@ function asError(error: unknown) {
   return error instanceof Error ? error : new Error('Desktop mutation failed.')
 }
 
+interface DesktopServiceFencesInput {
+  readonly leases: DesktopServiceLeases
+  readonly fences: DesktopFenceRepositoryShape
+  readonly owners: DesktopOwnerRepositoryShape
+  readonly queue: DesktopServiceCommandQueue
+  readonly execute: (
+    command: DesktopServiceCommand,
+    signal: AbortSignal,
+  ) => Promise<DesktopServiceResult>
+}
+
 export class DesktopServiceFences {
   private readonly live = new Set<string>()
+  private readonly input: DesktopServiceFencesInput
 
-  constructor(
-    private readonly input: {
-      readonly leases: DesktopServiceLeases
-      readonly fences: DesktopFenceRepositoryShape
-      readonly owners: DesktopOwnerRepositoryShape
-      readonly queue: DesktopServiceCommandQueue
-      readonly execute: (
-        command: DesktopServiceCommand,
-        signal: AbortSignal,
-      ) => Promise<DesktopServiceResult>
-    },
-  ) {}
+  constructor(input: DesktopServiceFencesInput) {
+    this.input = input
+  }
 
   hasToken(token: string) {
     return this.live.has(token)

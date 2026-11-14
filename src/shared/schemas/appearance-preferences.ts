@@ -50,7 +50,7 @@ const terminalPaletteColorSchema = Schema.NullOr(
   ),
 )
 
-const typographySchema = Schema.Struct({
+export const appearanceTypographyPreferencesSchema = Schema.Struct({
   interfaceFontFamily: fontFamilySchema,
   documentFontFamily: fontFamilySchema,
   codeFontFamily: fontFamilySchema,
@@ -58,6 +58,7 @@ const typographySchema = Schema.Struct({
   terminalUsesCodeFont: Schema.Boolean,
   interfaceScale: boundedNumber(INTERFACE_SCALE_MIN, INTERFACE_SCALE_MAX),
   documentFontSize: boundedNumber(DOCUMENT_FONT_SIZE_MIN, DOCUMENT_FONT_SIZE_MAX),
+  /** Percentage, so 160 means a 1.6 line-height. */
   documentLineHeight: boundedNumber(DOCUMENT_LINE_HEIGHT_MIN, DOCUMENT_LINE_HEIGHT_MAX),
   codeFontSize: boundedNumber(CODE_FONT_SIZE_MIN, CODE_FONT_SIZE_MAX),
   codeLineHeight: boundedNumber(CODE_LINE_HEIGHT_MIN, CODE_LINE_HEIGHT_MAX),
@@ -71,14 +72,20 @@ const typographySchema = Schema.Struct({
   ),
 )
 
+/** User-authored terminal colours. Null keeps the active theme in control of that role. */
+export const appearanceTerminalPalettePreferencesSchema = Schema.Struct({
+  background: terminalPaletteColorSchema,
+  foreground: terminalPaletteColorSchema,
+  cursor: terminalPaletteColorSchema,
+  selection: terminalPaletteColorSchema,
+  scrollbar: terminalPaletteColorSchema,
+})
+
+export const appearanceMotionPreferenceSchema = Schema.Literal(...APPEARANCE_MOTION_PREFERENCES)
+
+/** The persisted Appearance section: the single source of the types in `@shared/types/appearance-preferences`. */
 export const appearancePreferencesSchema = Schema.Struct({
-  typography: typographySchema,
-  terminalPalette: Schema.Struct({
-    background: terminalPaletteColorSchema,
-    foreground: terminalPaletteColorSchema,
-    cursor: terminalPaletteColorSchema,
-    selection: terminalPaletteColorSchema,
-    scrollbar: terminalPaletteColorSchema,
-  }),
-  motion: Schema.Literal(...APPEARANCE_MOTION_PREFERENCES),
+  typography: appearanceTypographyPreferencesSchema,
+  terminalPalette: appearanceTerminalPalettePreferencesSchema,
+  motion: appearanceMotionPreferenceSchema,
 })
