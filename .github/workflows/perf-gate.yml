@@ -10,7 +10,9 @@
 #   verdict against main's thresholds, the full table in the job summary and a report artifact that
 #   perf-report.yml turns into one pull request comment. It passes when timings were skipped.
 #
-# The measuring and judging scripts are main's whenever main has them, never the pull request's.
+# The deciding, measuring and judging scripts are main's whenever main has them, never the pull
+# request's. decide and the gate run them from main's own checkout (trusted/), installed there, so
+# Bun also loads main's bunfig.toml.
 # Only a maintainer accepts a regression: perf-budget-increase for a budget, perf-regression-accepted
 # for a timing. Add the label, then re-run the failed Performance Gate job; it reads labels live.
 #
@@ -85,8 +87,28 @@ jobs:
           fi
           { echo "base_sha=$base"; echo "head_sha=$head"; echo "main_sha=$main"; echo "pairs=$pairs"; } >> "$GITHUB_OUTPUT"
 
+      # main's gate decides, from its own checkout, so a pull request cannot widen what skips timing.
+      - name: Check out main's gate
+        env:
+          MAIN_SHA: ${{ steps.refs.outputs.main_sha }}
+          HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          git worktree add --detach trusted "$MAIN_SHA"
+          if [ ! -f trusted/scripts/perf-gate/gate.ts ]; then
+            echo "::notice::main has no Performance Gate yet; this run uses the pull request's own."
+            git worktree remove --force trusted
+            git worktree add --detach trusted "$HEAD_SHA"
+          fi
+
+      # gate.ts reads its files through Effect Schema, and bunfig.toml disables auto-install.
+      - name: Install the gate's dependencies
+        working-directory: trusted
+        run: bun install --frozen-lockfile --ignore-scripts
+
       - name: Decide whether shipped code changed
         id: decide
+        working-directory: trusted
         env:
           BASE_SHA: ${{ steps.refs.outputs.base_sha }}
           HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
@@ -223,7 +245,9 @@ jobs:
   gate:
     name: Performance Gate
     needs: [decide, timings]
-    if: ${{ always() }}
+    # Not always(): a run a newer push cancelled posts no check. A failed decide or timing job still
+    # reaches the judge step, which fails on it.
+    if: ${{ !cancelled() && needs.decide.result != 'cancelled' && needs.timings.result != 'cancelled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -240,27 +264,35 @@ jobs:
         with:
           bun-version-file: package.json
 
+      # Every gate command runs inside trusted/, so Bun loads main's bunfig.toml, never the pull
+      # request's. The pull request's files are read by absolute path from $GITHUB_WORKSPACE.
       - name: Check out main's gate
         env:
           MAIN_SHA: ${{ needs.decide.outputs.main_sha }}
         run: |
           set -euo pipefail
           git worktree add --detach trusted "$MAIN_SHA"
-          if [ -f trusted/scripts/perf-gate/gate.ts ]; then
-            echo "GATE=trusted/scripts/perf-gate/gate.ts" >> "$GITHUB_ENV"
-            echo "THRESHOLDS=trusted/performance/perf-gate/thresholds.json" >> "$GITHUB_ENV"
-          else
+          if [ ! -f trusted/scripts/perf-gate/gate.ts ]; then
             echo "::notice::main has no Performance Gate yet; this run uses the pull request's own."
-            echo "GATE=scripts/perf-gate/gate.ts" >> "$GITHUB_ENV"
-            echo "THRESHOLDS=performance/perf-gate/thresholds.json" >> "$GITHUB_ENV"
+            git worktree remove --force trusted
+            git worktree add --detach trusted HEAD
           fi
+          # main's budgets; none before the gate landed on main (gate.ts compares every metric as new).
+          git show "$MAIN_SHA:performance/perf-budgets.json" > "$RUNNER_TEMP/main-perf-budgets.json" \
+            || rm -f "$RUNNER_TEMP/main-perf-budgets.json"
+
+      # gate.ts reads its files through Effect Schema, and bunfig.toml disables auto-install.
+      - name: Install the gate's dependencies
+        working-directory: trusted
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Read the maintainer labels
         if: github.event_name == 'pull_request'
+        working-directory: trusted
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-        run: bun "$GATE" labels --repo "$GITHUB_REPOSITORY" --pr "$PR" | tee -a "$GITHUB_ENV"
+        run: bun scripts/perf-gate/gate.ts labels --repo "$GITHUB_REPOSITORY" --pr "$PR" | tee -a "$GITHUB_ENV"
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         if: needs.timings.result == 'success'
@@ -269,6 +301,7 @@ jobs:
           path: ab
 
       - name: Judge budgets and timings
+        working-directory: trusted
         env:
           TIMINGS_RESULT: ${{ needs.timings.result }}
           DECIDE_RESULT: ${{ needs.decide.result }}
@@ -279,32 +312,45 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           set -uo pipefail
-          mkdir -p report
+          pr_tree="$GITHUB_WORKSPACE"
+          report="$GITHUB_WORKSPACE/report"
+          mkdir -p "$report"
           status=0
           [ "$DECIDE_RESULT" = "success" ] || { echo "::error::The decide job did not succeed."; exit 1; }
-          bun "$GATE" budgets --base trusted/performance/perf-budgets.json \
-            --head performance/perf-budgets.json --labels "${labels:-}" --out report/budgets.json || status=1
-          report_args=(--budgets report/budgets.json)
+          case "$RUN_TIMINGS" in
+            true | false) ;;
+            *) echo "::error::The decide job said run='$RUN_TIMINGS', neither true nor false."; exit 1 ;;
+          esac
+          bun scripts/perf-gate/gate.ts budgets --base "$RUNNER_TEMP/main-perf-budgets.json" \
+            --head "$pr_tree/performance/perf-budgets.json" --labels "${labels:-}" \
+            --out "$report/budgets.json" || status=1
+          report_args=(--budgets "$report/budgets.json")
           if [ "$RUN_TIMINGS" = "true" ]; then
             if [ "$TIMINGS_RESULT" != "success" ]; then
               echo "::error::The timing job ended $TIMINGS_RESULT."
               status=1
             else
-              bun "$GATE" verdict --results ab/results/ab.json --thresholds "$THRESHOLDS" \
-                --head-thresholds performance/perf-gate/thresholds.json --labels "${labels:-}" \
-                --out report/verdict.json || status=1
-              report_args+=(--verdict report/verdict.json --results ab/results/ab.json)
+              bun scripts/perf-gate/gate.ts verdict --results "$pr_tree/ab/results/ab.json" \
+                --thresholds performance/perf-gate/thresholds.json \
+                --head-thresholds "$pr_tree/performance/perf-gate/thresholds.json" --labels "${labels:-}" \
+                --out "$report/verdict.json" || status=1
+              report_args+=(--verdict "$report/verdict.json" --results "$pr_tree/ab/results/ab.json")
             fi
           else
+            if [ "$TIMINGS_RESULT" != "skipped" ]; then
+              echo "::error::The timing job ended $TIMINGS_RESULT though the decide job skipped it."
+              status=1
+            fi
             report_args+=(--skipped "no shipped code changed")
           fi
-          bun "$GATE" report --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" ${PR:+--pr "$PR"} \
-            --labels "${labels:-}" "${report_args[@]}" --out report/report.json --markdown report/report.md
-          cat report/report.md >> "$GITHUB_STEP_SUMMARY"
+          bun scripts/perf-gate/gate.ts report --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" ${PR:+--pr "$PR"} \
+            --labels "${labels:-}" "${report_args[@]}" --out "$report/report.json" \
+            --markdown "$report/report.md" || status=1
+          [ -f "$report/report.md" ] && cat "$report/report.md" >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         with:
           name: perf-gate-report
           path: report
