@@ -3,15 +3,15 @@
 
 # @openwaggle/extension-sdk
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.3/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
 
 Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.
 
-[Full documentation](https://openwaggle.ai/docs/packages/extension-sdk/0.2/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
+[Full documentation](https://openwaggle.ai/docs/packages/extension-sdk/0.3/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
 
-`@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.
+`@openwaggle/extension-sdk` is the package you write OpenWaggle extension surfaces with.
 
-Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme and syntax helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
+Use it in extension modules that mount into containers OpenWaggle owns. It gives you the `mount(context)` types, the manifest and broker types, theme and syntax helpers, UI class names, and stylesheet helpers, without importing OpenWaggle renderer internals. The entries your extension loads at run time hold types and small plain functions only, so they add little to its bundle. Validation and test doubles live on two tooling entries.
 
 ## Install
 
@@ -39,7 +39,7 @@ yarn add @openwaggle/extension-sdk
 bun add @openwaggle/extension-sdk
 ```
 
-The package supports Node.js 22.19 and newer. Its runtime exports are browser-safe. Node.js is required for extension build tooling and package consumers.
+The package supports Node.js 22.19 and newer. Every export is browser-safe. You need Node.js for extension build tooling.
 
 ## Main imports
 
@@ -50,30 +50,35 @@ import type {
   OpenWaggleFederatedModule,
 } from '@openwaggle/extension-sdk'
 import {
-  createExtensionBrokerSdk,
   createOpenWaggleExtensionUiStylesheet,
+  defineExtensionManifest,
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES as ui,
 } from '@openwaggle/extension-sdk'
 ```
 
-Supported public subpaths include:
+The package has these subpaths:
 
 | Subpath | Use it for |
 |---------|------------|
-| `@openwaggle/extension-sdk` | Primary types and helpers. |
+| `@openwaggle/extension-sdk` | The main types and helpers, including `defineExtensionManifest`. |
 | `@openwaggle/extension-sdk/context` | Mount context and shared-module helpers. |
-| `@openwaggle/extension-sdk/broker` | Broker SDK creation and invoke input helpers. |
-| `@openwaggle/extension-sdk/manifest` | Manifest schemas, definition/validation helpers, and contribution declarations. |
-| `@openwaggle/extension-sdk/runtime` | Runtime contribution schemas, types, and SDK creation. |
-| `@openwaggle/extension-sdk/docs` | Documentation discovery schemas and DTOs. |
-| `@openwaggle/extension-sdk/theme` | Theme token and CSS-variable helpers. |
-| `@openwaggle/extension-sdk/syntax` | Host-backed syntax highlighting types and plain-text fallback helper. |
-| `@openwaggle/extension-sdk/ui` | Framework-neutral UI class names and stylesheet helpers. |
-| `@openwaggle/extension-sdk/agent-loop` | Agent-loop DTO and interaction types. |
+| `@openwaggle/extension-sdk/types` | Contribution, broker call, storage, and validation result types. The manifest and broker SDK types are on the main entry. |
+| `@openwaggle/extension-sdk/runtime` | Types for contributions you register while the extension runs. |
+| `@openwaggle/extension-sdk/docs` | Docs discovery types. |
+| `@openwaggle/extension-sdk/agent-loop` | Agent-loop and interaction types. |
+| `@openwaggle/extension-sdk/json` | The `JsonValue` and `JsonPrimitive` types. |
+| `@openwaggle/extension-sdk/theme` | Theme tokens and CSS-variable helpers. |
+| `@openwaggle/extension-sdk/syntax` | Host syntax highlighting types and the plain-text fallback. |
+| `@openwaggle/extension-sdk/ui` | UI class names and stylesheet helpers. |
+| `@openwaggle/extension-sdk/constants` | Manifest and broker constants. |
+| `@openwaggle/extension-sdk/validation` | Tooling. `validate*` helpers for manifests, capabilities, and themes. |
+| `@openwaggle/extension-sdk/testing` | Tooling. Broker SDK factories for tests and previews. |
+
+`/validation` and `/testing` bundle the SDK's validator, about 58 KB gzipped. Import them from build scripts and tests, not from code that runs inside OpenWaggle.
 
 ## Federated module example
 
-A visual contribution exports `mount(context)`. OpenWaggle owns the container and passes the mount context, and the extension owns the content appended to `context.root`.
+A visual contribution exports `mount(context)`. OpenWaggle owns the container and passes the mount context, and the extension owns the content it appends to `context.root`.
 
 ```ts
 import type { OpenWaggleFederatedModule } from '@openwaggle/extension-sdk'
@@ -116,7 +121,7 @@ export const mount = module.mount
 
 ## Brokered capability calls
 
-Extension code should call OpenWaggle through the broker SDK on the mount context instead of importing stores, IPC helpers, Electron APIs, or Pi SDK internals.
+Call OpenWaggle through `context.sdk`, the broker SDK OpenWaggle passes in the mount context. Do not import stores, IPC helpers, Electron APIs, or Pi SDK internals, and do not build a broker SDK yourself.
 
 ```ts
 import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
@@ -137,7 +142,7 @@ Declare matching capabilities and methods in `openwaggle.extension.json`. A call
 
 ## Host syntax highlighting
 
-Every mounted surface receives `context.sdk.surface.syntax`. Use it for source owned by the extension so the host can apply the user's active syntax theme, canonical language aliases, worker scheduling, size limits, caching, and a safe plain-text fallback.
+Every mounted surface receives `context.sdk.surface.syntax`. Use it for source the extension shows, so the host applies the user's syntax theme, language aliases, worker scheduling, size limits, caching, and a safe plain-text fallback.
 
 ```ts
 const result = await context.sdk.surface.syntax.highlight({
@@ -147,16 +152,16 @@ const result = await context.sdk.surface.syntax.highlight({
 })
 ```
 
-You can provide `path` instead of `language` when the filename is the reliable signal. The result contains token lines rather than HTML, so extensions keep control of rendering without accepting executable or unsanitized host markup. Do not instantiate a second Shiki highlighter inside the extension frame. A second highlighter bypasses the host's theme, worker, and performance policy.
+You can pass `path` instead of `language` when the file name is the better signal. The result holds token lines, not HTML, so the extension keeps control of rendering and never takes host markup. Do not start a second Shiki highlighter inside the extension frame. It would bypass the host's theme, worker, and performance limits.
 
 ## Manifest typing
 
-Use the manifest type to keep package metadata aligned with the public extension contract.
+`defineExtensionManifest` checks a manifest against the manifest type and returns it unchanged, typed exactly as you wrote it. It checks at compile time only.
 
 ```ts
-import type { OpenWaggleExtensionManifest } from '@openwaggle/extension-sdk'
+import { defineExtensionManifest } from '@openwaggle/extension-sdk'
 
-export default {
+export default defineExtensionManifest({
   manifestVersion: 1,
   id: 'example-extension',
   name: 'Example Extension',
@@ -225,16 +230,69 @@ export default {
       },
     ],
   },
-} satisfies OpenWaggleExtensionManifest
+})
 ```
 
-A side panel's optional `icon` is its Panel rail icon. Use a bundled [Lucide](https://lucide.dev/icons/) icon name in kebab-case, such as `'ticket'`, or `{ svg: 'assets/panel-icon.svg' }` for a single-colour SVG file inside the package. The path must be relative to the package root (no leading `/` or `\` and no drive letter), must not contain empty, `.` or `..` segments, must not have leading or trailing whitespace or NUL bytes, must be at most 260 characters, and must end in `.svg`. OpenWaggle uses only the icon's shape and paints it in the rail's colours. A missing or unusable icon falls back to a letter tile and an extension diagnostic. Only side panels accept `icon`. `extensionSidePanelIconSchema` and the `ExtensionSidePanelIcon` type describe the accepted values. A runtime side panel registration must pass the same icon schema, and its SVG file must be one a manifest side panel declares.
+For a manifest you write as JSON, add `"$schema": "https://openwaggle.ai/schemas/openwaggle-extension-manifest-v1.schema.json"`. Your editor then completes field names and flags wrong types as you type. OpenWaggle ignores the key.
 
-The npm package version and the manifest's `sdk.openwaggle` range are separate contracts. The range above targets OpenWaggle's current `0.1` host SDK and is accepted by extension discovery.
+A side panel's optional `icon` is its Panel rail icon. Use a bundled [Lucide](https://lucide.dev/icons/) icon name in kebab-case, such as `'ticket'`, or `{ svg: 'assets/panel-icon.svg' }` for a single-colour SVG file inside the package. The path must be relative to the package root (no leading `/` or `\` and no drive letter), must not contain empty, `.` or `..` segments, must not have leading or trailing whitespace or NUL bytes, must be at most 260 characters, and must end in `.svg`. OpenWaggle uses only the icon's shape and paints it in the rail's colours. A missing or unusable icon falls back to a letter tile and an extension diagnostic. Only side panels accept `icon`, and the `ExtensionSidePanelIcon` type describes the values it takes. A side panel you register at run time follows the same rules, and its SVG file must be one a manifest side panel declares.
+
+The npm package version and the manifest's `sdk.openwaggle` range are separate contracts. The range above targets OpenWaggle's current `0.1` host SDK, which extension discovery accepts.
+
+## Validate a manifest
+
+`validateExtensionManifest` runs the checks OpenWaggle runs on a manifest's contents when it loads a package. Call it from a build script or a test.
+
+```ts
+import { validateExtensionManifest } from '@openwaggle/extension-sdk/validation'
+
+const result = validateExtensionManifest(manifest)
+if (!result.success) {
+  for (const issue of result.issues) console.error(`${issue.path}: ${issue.message}`)
+  process.exitCode = 1
+}
+```
+
+Every `validate*` helper takes an `unknown` value, never throws, and returns an `ExtensionValidationResult`:
+
+- `{ success: true, value }`, with the value typed, when it is valid.
+- `{ success: false, issues }` when it is not, with every problem found.
+
+Each issue has a `path` and a `message`. The path is the field's dotted path, with list items by index, such as `contributions.sidePanels.0.icon`, and `(root)` for a problem with the value as a whole. OpenWaggle's extension diagnostics use the same paths. The path is empty when reading the value threw, for example from a getter or a `Proxy`.
+
+The `/validation` entry has three helpers:
+
+| Helper | What it checks |
+|--------|----------------|
+| `validateExtensionManifest` | An `openwaggle.extension.json` manifest. |
+| `validateBrokerCapabilityDeclaration` | One entry of `capabilities`, and that a built-in capability lists only methods the broker supports. |
+| `validateOpenWaggleExtensionTheme` | A theme object, including the exact token groups and keys. Its `value` leaves out top-level fields the theme contract doesn't declare. |
+
+## Test with a broker SDK double
+
+OpenWaggle builds `context.sdk` for you. To test code that takes a broker SDK, build one over a transport you control with `createExtensionBrokerSdk` from `/testing`.
+
+```ts
+import type { ExtensionBrokerTransport } from '@openwaggle/extension-sdk/testing'
+import { createExtensionBrokerSdk } from '@openwaggle/extension-sdk/testing'
+
+const calls: string[] = []
+const transport: ExtensionBrokerTransport = async (input) => {
+  calls.push(`${input.capability}.${input.method}`)
+  return { ok: false, error: { code: 'transport-failed', message: 'Offline in tests.' } }
+}
+
+const sdk = createExtensionBrokerSdk(transport, {
+  extensionId: 'example-extension',
+  contributionId: 'example.settings',
+})
+```
+
+The transport receives each call with the identity you passed, and its result goes back to the caller. A success result needs an `audit` entry, as the broker's does. The double checks a success value the way `context.sdk` does, so a fake value of the wrong shape comes back as an `invalid-payload` failure. `createExtensionBrokerSdkFromInvoke` takes an invoke function instead of a transport, and `createNoopExtensionSurfaceSdk` from the main entry gives you a surface SDK for tests.
 
 ## Session resources
 
-Extensions can publish explicit session Sources and Outputs through the brokered SDK. The calling contribution and package manifest must declare `openwaggle.resources`, `list-resources` and/or `publish-resource`, and `session` scope.
+Extensions can publish session Sources and Outputs through the broker SDK. The calling contribution and the package manifest must declare `openwaggle.resources`, `list-resources` or `publish-resource` or both, and `session` scope.
 
 ```ts
 import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
@@ -257,13 +315,13 @@ export async function publishPreview(context: OpenWaggleExtensionMountContext) {
 }
 ```
 
-`publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`. Publishing the same key, kind, role, and normalized locator again from one contribution changes nothing. Build the scope from the mounted `context.sessionId` and project path, not extension-controlled input. The broker verifies both values, so callers cannot reach another open or archived session by changing the scope payload.
+`publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`. Publishing the same key, kind, role, and normalized locator again from one contribution changes nothing. Build the scope from the mounted `context.sessionId` and project path, not from input the extension controls. The broker checks both values, so a caller cannot reach another open or archived session by changing the scope.
 
-`list` returns an operation result. On success, `value.resources` contains display-safe metadata: host resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. A declarative Session Summary row may use a returned resource id to open the same resource browser or image gallery as first-party resources.
+`list` returns an operation result. On success, `value.resources` holds display-safe metadata: the host resource id, title, kind, MIME type, availability, and Source and Output flags. Original locators, managed paths, occurrence history, and canonical keys stay private to the host. A Session Summary row may use a returned resource id to open the same resource browser or image gallery as first-party resources.
 
 ## Theme contract
 
-`context.theme` is one projection of the host's Appearance across the SDK boundary. Every role in the contract resolves to a real host CSS variable when the extension runs inside OpenWaggle, so extension UI matches the host without a second token system.
+`context.theme` carries the host's Appearance across the SDK boundary. Every role in the contract resolves to a real host CSS variable when the extension runs inside OpenWaggle, so extension UI matches the host without a second token system.
 
 The contract covers:
 
@@ -274,9 +332,9 @@ The contract covers:
 - **Shadow.** `twoXs`, `xs`, `sm`, `md`, `lg`, `xl`, and `twoXl`.
 - **Focus.** `ring` and `shadow`, with `transparent` and `none` fallbacks.
 
-The type, spacing, radius, and shadow fallbacks match Tailwind 4.3.3. The contract has no `controlSize` or `elevation` group. Express control dimensions as spacing multiples and use the standard shadow scale.
+The type, spacing, radius, and shadow fallbacks match Tailwind 4.3.3. The contract has no `controlSize` or `elevation` group. Express control sizes as spacing multiples and use the standard shadow scale.
 
-Hosted extensions receive the resolved Appearance through their mount context. Read that object rather than resolving the host's private `--color-*` source variables from inside the isolated frame:
+Hosted extensions receive the resolved Appearance in their mount context. Read that object rather than resolving the host's private `--color-*` variables from inside the isolated frame:
 
 ```ts
 export function mount(context: OpenWaggleExtensionMountContext) {
@@ -285,46 +343,63 @@ export function mount(context: OpenWaggleExtensionMountContext) {
 }
 ```
 
-Outside OpenWaggle, `createOpenWaggleExtensionTheme()` provides published fallback tokens for extension tooling and standalone previews.
+Outside OpenWaggle, `createOpenWaggleExtensionTheme()` gives you the published fallback tokens for tooling and standalone previews.
 
 ## Boundary rules
 
-`@openwaggle/extension-sdk` is browser-safe. Extension modules that use it must still stay inside the public SDK surface:
+Extension modules that use `@openwaggle/extension-sdk` must stay inside its public surface:
 
 - Do not import OpenWaggle renderer feature files, Zustand stores, Electron IPC helpers, main-process services, or Pi SDK internals.
-- Do not deep-import from `@openwaggle/extension-sdk/src`, `dist`, or `dist-cjs`.
-- Use `context.theme` and SDK UI helpers instead of importing OpenWaggle app CSS or Tailwind internals.
+- Do not deep-import from `@openwaggle/extension-sdk/src`, `dist`, or `dist-cjs`. The schemas behind the types are private.
+- Use `context.theme` and the SDK UI helpers instead of importing OpenWaggle app CSS or Tailwind internals.
 - Use `context.sdk.surface.syntax` instead of bundling a separate syntax highlighter or shipping pre-highlighted HTML.
-- Bundle compatible helper code into your extension artifact or resolve the versioned package supplied by the installed SDK path.
+- Keep `/validation` and `/testing` out of the modules OpenWaggle loads.
 
 For the full extension package lifecycle and manifest model, see [OpenWaggle Extensions](https://openwaggle.ai/docs/extending/openwaggle-extensions/).
 
 ## Reference and support
 
-- [Complete API reference](https://openwaggle.ai/docs/packages/extension-sdk/0.2/api-reference/)
+- [Complete API reference](https://openwaggle.ai/docs/packages/extension-sdk/0.3/api-reference/)
+- [Manifest JSON Schema](https://openwaggle.ai/schemas/openwaggle-extension-manifest-v1.schema.json)
 - [npm package](https://www.npmjs.com/package/@openwaggle/extension-sdk)
 - [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/extension-sdk/CHANGELOG.md)
 - [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
 
 ## Troubleshooting
 
-**A capability call fails with an undeclared error.** Confirm the capability, method, and scope are declared in `openwaggle.extension.json`. The broker rejects privileges that are not declared.
+**A capability call fails with an undeclared error.** Check that `openwaggle.extension.json` declares the capability, method, and scope. The broker rejects any privilege the manifest does not declare.
 
-**An import from `src` or `dist` fails.** Import only the documented root and subpath exports. Build directories and source paths are private.
+**An import from `src` or `dist` fails.** Import only the subpaths listed under main imports. Build folders and source paths are private.
 
 **Styles do not match the host.** Use `context.theme`, `createOpenWaggleExtensionUiStylesheet`, and the exported UI class names instead of copying OpenWaggle renderer CSS.
 
-## Migrating from 0.1
+**The extension bundle includes Effect.** A module OpenWaggle loads imports `/validation` or `/testing`. Move that import to a build script or a test.
 
-Version 0.2 replaces the 0.1 theme tokens with the Tailwind-standard contract described under the theme contract. Code that only reads `context.theme` colours keeps working, though the `sm`, `md` and `lg` radii change size. Code that reads the removed tokens or builds theme objects itself needs these changes:
+## Migrating from 0.2
 
-- **Spacing.** `spacing.xs` through `spacing.xl` are gone. Use multiples of `spacing.unit`, for example `calc(var(--ow-spacing) * 3)` instead of `--ow-space-md`.
-- **Radius.** `radius.panel` and `--ow-radius-panel` are gone. Use one of the standard radii from `xs` to `fourXl`. `sm`, `md` and `lg` now follow Tailwind's scale (0.25rem, 0.375rem and 0.5rem instead of 6px, 9px and 12px).
-- **Shadow.** `elevation.card` and `elevation.overlay` are now `shadow.*`, and `--ow-elevation-*` is now `--ow-shadow-*`. The export `EXTENSION_THEME_ELEVATION_KEYS` is now `EXTENSION_THEME_SHADOW_KEYS`.
-- **Theme objects you build yourself.** An `OpenWaggleExtensionThemeTokens` object must now include the colour roles `dangerText`, `infoText`, `review`, `plan`, `progress`, and `neutral`, and `typography.typeScale`. `isOpenWaggleExtensionTheme` now rejects missing or extra keys, so a theme that still has `elevation` fails. Test doubles for the surface SDK need `syntax` (or use `createNoopExtensionSurfaceSdk()`), and broker SDK doubles need `resources`.
-- **Colour scheme.** `OpenWaggleExtensionColorScheme` can now be `light`, `high-contrast-dark`, or `high-contrast-light` as well as `dark`. Handle every value.
+Version 0.3 publishes types and result helpers instead of schemas. Code that only reads `context` and the types keeps working. Code that used the schemas, the validators, or the broker factory needs these changes:
 
-New in 0.2: the `/syntax` subpath and `context.sdk.surface.syntax`, the `openwaggle.resources` capability, an `icon` for `sidePanels`, and `sessionSummarySections`.
+- **Schemas.** The 132 `*Schema` exports are gone, from `jsonValueSchema` to `openWaggleExtensionManifestSchema`. Use the matching type, which usually has the schema's name without `Schema`, such as `ExtensionSidePanelIcon` for `extensionSidePanelIconSchema`. To check a value at run time, use a `validate*` helper. To check a manifest in an editor, use the JSON Schema.
+- **Schemas whose type has another name.**
+  - `extensionRuntimeRequirementSchema`: `ExtensionRuntimeRequirementDeclaration`
+  - `docsDiscoveryViewSchema`: `ExtensionDocsDiscoveryView`
+  - `extensionDocsPackageScopeViewSchema`: `ExtensionPackageScopeView`
+  - `extensionInvokeSessionScopeSchema`: `ExtensionSessionInvokeScope`
+  - `extensionRouteContributionSchema` and `extensionSlotContributionSchema`: `ExtensionSurfaceContribution`
+  - `extensionStateSelectedReadResultSchema`: `ExtensionSelectedStateReadResult`
+  - `extensionInvokeDeclaredSuccessSchema` and `extensionInvokeDeclaredResultSchema`: `ExtensionInvokeSuccess<ExtensionInvokeSuccessValue>` and `ExtensionInvokeResult<ExtensionInvokeSuccessValue>`
+  - `extensionBuildSchema`, `extensionInstallSchema`, `extensionNetworkSchema`, and `extensionDocsSchema`: the matching field of `OpenWaggleExtensionManifest`, such as `NonNullable<OpenWaggleExtensionManifest['build']>`
+  - `extensionIdSchema`, `extensionContributionIdSchema`, `extensionRelativePathSchema`, `extensionSemverVersionSchema`, and `nonEmptyStringSchema`: `string`
+- **Schemas with no public type.** The broker payload schemas, such as `extensionStorageGetPayloadSchema` and the `extensionSettings*PayloadSchema` family, have no type, because `context.sdk` builds those payloads. Neither do the single scope kinds, such as `extensionInvokeAppScopeSchema`, which are `Extract<ExtensionInvokeScope, { kind: 'app' }>`, the per-family registration schemas, which are members of `ExtensionContributionRegistration`, and a few docs internals.
+- **`validateExtensionManifest`.** It moves to `@openwaggle/extension-sdk/validation`. It returns `{ success: true, value }` or `{ success: false, issues }` instead of `{ manifest, issues }`, and each issue is `{ path, message }` instead of a string. Read `result.value` where you read `result.manifest`, and check `result.success` instead of `issues.length`. The `ExtensionManifestValidationResult` type is now `ExtensionValidationResult<OpenWaggleExtensionManifest>`.
+- **`validateBrokerCapabilityDeclaration`.** It is new on `/validation`. It takes an `unknown` capability entry and returns a validation result.
+- **`isOpenWaggleExtensionTheme`.** It is now `validateOpenWaggleExtensionTheme` on `/validation`. Replace `if (isOpenWaggleExtensionTheme(value))` with `const result = validateOpenWaggleExtensionTheme(value)` and `if (result.success)`, and read the theme from `result.value`. Unlike the guard, `result.value` leaves out top-level fields the theme contract doesn't declare.
+- **Broker factories.** `createExtensionBrokerSdk`, `createExtensionBrokerSdkFromInvoke`, `createRuntimeContributionSdk`, and `toInvokeInput` move from the main entry, `/broker`, and `/runtime` to `/testing`. Extension code uses `context.sdk` instead.
+- **Subpaths.** `/broker` and `/manifest` are gone. Import their types and `defineExtensionManifest` from the main entry, and the validators from `/validation`.
+- **Invalid payload errors.** A broker result that fails to decode returns an `invalid-payload` error whose `issues` list every problem, each as `path: message`. In 0.2 it listed the first one only.
+- **New types.** `ExtensionHostContextResult`, `ExtensionSurfaceContribution`, `ExtensionSessionSummaryRow`, `ExtensionSessionSummaryDisclosure`, `ExtensionSessionSummaryState`, `ExtensionValidationResult`, and `ExtensionValidationIssue` are new public types.
+
+The runtime entries no longer include Effect. The main entry drops from 223 KB to 23 KB minified, and `/json`, `/docs`, `/agent-loop`, and `/runtime` now hold types only.
 
 ## License
 

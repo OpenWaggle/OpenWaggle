@@ -12,7 +12,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/extension-sdk"
   },
-  "homepage": "https://openwaggle.ai/docs/packages/extension-sdk/0.2/",
+  "homepage": "https://openwaggle.ai/docs/packages/extension-sdk/0.3/",
   "bugs": {
     "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
   },
