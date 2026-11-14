@@ -269,6 +269,8 @@ export async function ensureLocalSessionHost(
     readonly onUpgradePending?: () => void
     /** Called once that Host has handed over, before this call attaches or launches. */
     readonly onUpgradeReleased?: () => void
+    /** Called once, just before this call launches a Host process. */
+    readonly onLaunching?: () => void
     /** Called once this call has launched a Host process, before it waits for it to listen. */
     readonly onLaunched?: () => void
   },
@@ -279,6 +281,7 @@ export async function ensureLocalSessionHost(
   if (authority.status === 'connected') return authority.negotiation
 
   await sharedLaunches(dependencies, input.paths.databasePath, input.signal, async (signal) => {
+    input.onLaunching?.()
     await dependencies.launch()
     input.onLaunched?.()
     signal.throwIfAborted()

@@ -165,6 +165,8 @@ export async function prepareGuiSessionHostLifecycle(input: {
           ...(signal ? { signal } : {}),
           ...(input.onUpgradePending ? { onUpgradePending: input.onUpgradePending } : {}),
           ...(input.onUpgradeReleased ? { onUpgradeReleased: input.onUpgradeReleased } : {}),
+          // The launch itself, between these two marks, runs a PowerShell helper on Windows.
+          onLaunching: () => input.startupMark('session-host-launch-started'),
           onLaunched: () => {
             input.startupMark('session-host-launched')
             input.onHostUnderway?.()
