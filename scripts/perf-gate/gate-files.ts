@@ -124,7 +124,11 @@ export function abFailureLines(verdict: TimingVerdict, results: AbResults) {
     ? `Accepted by the ${REGRESSION_ACCEPTED_LABEL} label.`
     : `Only a maintainer can accept it, with the ${REGRESSION_ACCEPTED_LABEL} label.`
   return [
+    ...verdict.incomplete,
     ...verdict.regressions.map((row) => {
+      if (row.status === 'unavailable') {
+        return `${row.id}: measured on neither the base nor the head.${samplesOf(results, row.id)} ${outcome}`
+      }
       if (row.status === 'missing') {
         return `${row.id}: measured on the base (${value(row, row.base)}) but not on the head.${samplesOf(results, row.id)} ${outcome}`
       }

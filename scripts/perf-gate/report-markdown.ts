@@ -7,7 +7,7 @@ import type { BudgetRow } from './budget-compare'
 import { BUDGET_INCREASE_LABEL } from './budget-compare'
 import { PERF_BUDGET_METRICS } from './budget-metrics'
 import type { TimingRow } from './ab-verdict'
-import { REGRESSION_ACCEPTED_LABEL } from './ab-verdict'
+import { isTimingFailure, isUnmeasuredReadiness, REGRESSION_ACCEPTED_LABEL } from './ab-verdict'
 import type { PerfGateReport } from './report-data'
 
 /** Finds the gate's comment among a pull request's comments. */
@@ -80,7 +80,7 @@ function timingLine(row: TimingRow) {
     row.relative === null
       ? ''
       : ` (${signed((row.relative * PERCENT).toFixed(DECIMALS), row.relative)}%)`
-  return `| \`${row.id}\` | ${amount(row.base, unit)} | ${amount(row.head, unit)} | ${delta}${relative} | ${amount(row.limit, unit)} | ${TIMING_STATUS_TEXT[row.status]} |`
+  return `| \`${row.id}\` | ${amount(row.base, unit)} | ${amount(row.head, unit)} | ${delta}${relative} | ${amount(row.limit, unit)} | ${isUnmeasuredReadiness(row) ? '🔺 not measured on either side' : TIMING_STATUS_TEXT[row.status]} |`
 }
 
 function table(
@@ -130,6 +130,11 @@ function verdictLines(report: PerfGateReport) {
     )
   }
   const timings = report.timings
+  if (timings && timings.incomplete.length > 0) {
+    lines.push(
+      `- Timings cannot be judged: ${timings.incomplete.join(' ')} Re-run the timing job; no label accepts this.`,
+    )
+  }
   if (timings && (timings.regressions.length > 0 || timings.loosened.length > 0)) {
     lines.push(
       timings.accepted
@@ -147,7 +152,7 @@ export function renderReport(report: PerfGateReport) {
   const timingRows = report.timings?.rows ?? []
   const changedBudgets = budgetRows.filter((row) => row.status !== 'same')
   const changedTimings = timingRows.filter(
-    (row) => row.status === 'regressed' || row.status === 'improved',
+    (row) => isTimingFailure(row) || row.status === 'improved',
   )
   const timingSection = report.timings
     ? table(

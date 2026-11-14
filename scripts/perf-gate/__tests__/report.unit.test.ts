@@ -104,6 +104,33 @@ describe('the Performance Gate report', () => {
     expect(parsed && renderReport(parsed)).toContain('not measured on the head')
   })
 
+  it('fails timings whose samples cannot be judged, and a readiness neither side measured', () => {
+    const parsed = parsePerfGateReport({
+      ...REPORT,
+      timings: {
+        rows: [
+          {
+            ...timingRow('warm.chat-ready', 0, 0, 'unavailable'),
+            base: null,
+            head: null,
+            delta: null,
+          },
+        ],
+        loosened: [],
+        incomplete: ['The A/B results hold 0 base and head sample pairs (base 0, head 0).'],
+        accepted: true,
+      },
+    })
+
+    expect(parsed?.timings).toMatchObject({
+      passed: false,
+      regressions: [{ id: 'warm.chat-ready', status: 'unavailable' }],
+    })
+    const markdown = parsed ? renderReport(parsed) : ''
+    expect(markdown).toContain('Timings cannot be judged: The A/B results hold 0 base')
+    expect(markdown).toContain('not measured on either side')
+  })
+
   it('says why timings were skipped', () => {
     const parsed = parsePerfGateReport({
       ...REPORT,

@@ -68,6 +68,7 @@ const comparisonFields = Schema.Struct({
   rows: unknownField,
   accepted: unknownField,
   loosened: unknownField,
+  incomplete: unknownField,
 })
 const timingRowFields = Schema.Struct({
   id: unknownField,
@@ -190,14 +191,16 @@ function timings(value: unknown) {
   const rows = list(fields.rows).flatMap(timingRow)
   const regressions = rows.filter(isTimingFailure)
   const loosened = list(fields.loosened).flatMap(thresholdChange)
+  const incomplete = list(fields.incomplete).filter((line) => typeof line === 'string')
   const failing = regressions.length > 0 || loosened.length > 0
   const accepted = failing && fields.accepted === true
   const verdict: TimingVerdict = {
     rows,
     regressions,
     loosened,
+    incomplete,
     accepted,
-    passed: !failing || accepted,
+    passed: incomplete.length === 0 && (!failing || accepted),
   }
   return verdict
 }
