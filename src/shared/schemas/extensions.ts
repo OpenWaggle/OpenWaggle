@@ -1,9 +1,9 @@
-import {
-  extensionIdSchema,
-  type ExtensionDocsTopicDeclaration as PublicExtensionDocsTopicDeclaration,
-  type OpenWaggleExtensionManifest as PublicOpenWaggleExtensionManifest,
-  openWaggleExtensionManifestSchema as publicOpenWaggleExtensionManifestSchema,
+import type {
+  ExtensionDocsTopicDeclaration as PublicExtensionDocsTopicDeclaration,
+  OpenWaggleExtensionManifest as PublicOpenWaggleExtensionManifest,
 } from '@openwaggle/extension-sdk'
+import { openWaggleExtensionManifestSchema as publicOpenWaggleExtensionManifestSchema } from '@openwaggle/extension-sdk/internal/manifest-schemas'
+import { extensionIdSchema } from '@openwaggle/extension-sdk/internal/manifest-primitives'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema } from '@shared/schema'
 import { extensionRelativePathSchema } from './extension-contributions'

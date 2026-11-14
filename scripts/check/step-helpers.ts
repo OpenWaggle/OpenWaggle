@@ -61,13 +61,24 @@ export const STANDARDS_IMPLEMENTATION = [
 ]
 
 /** A package build: ESM and CommonJS output, as the package's own `build` script produces. */
-export function packageBuild(name: string, dependsOn: readonly string[] = []) {
+/**
+ * A package's build, the commands its `build` script runs. `pruneDeclarations` deletes the
+ * declarations no export reaches, as the extension SDK's build does for its internal schemas.
+ */
+export function packageBuild(
+  name: string,
+  dependsOn: readonly string[] = [],
+  options: { readonly pruneDeclarations?: boolean } = {},
+) {
   const directory = `packages/${name}`
   return {
     id: `build:${name}`,
     summary: `build ${directory} (dist and dist-cjs) once for the steps that read it`,
     commands: [
       [...TSC, '-p', 'tsconfig.build.json'],
+      ...(options.pruneDeclarations === true
+        ? [bunScript('../../scripts/prune-package-declarations.ts')]
+        : []),
       [...TSC, '-p', 'tsconfig.cjs.json'],
       bunScript('../../scripts/write-cjs-package-json.ts'),
     ],

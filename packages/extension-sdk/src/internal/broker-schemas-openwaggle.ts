@@ -1,7 +1,7 @@
 import * as Schema from 'effect/Schema'
-import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
 import { extensionInvokeScopeSchema, nonEmptyStringSchema } from './broker-schemas-core.js'
-import { extensionContributionIdSchema, extensionIdSchema } from './manifest.js'
+import { extensionContributionIdSchema, extensionIdSchema } from './manifest-primitives.js'
 
 export const extensionModelPrefsSchema = Schema.Struct({
   selectedModel: Schema.String,

@@ -1,11 +1,11 @@
 import type * as Schema from 'effect/Schema'
-import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { safeDecodeExtensionSchema } from './schema.js'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
+import { formatValidationIssue, validateWithSchema } from './schema.js'
 import type {
   ExtensionCapabilityAuditEntry,
   ExtensionInvokeFailure,
   ExtensionInvokeResult,
-} from './types.js'
+} from '../types.js'
 
 export function invalidOperationResult(input: {
   readonly audit: ExtensionCapabilityAuditEntry
@@ -38,10 +38,14 @@ export function toDecodedOperationResult<TValue, TEncoded>(
     return returned
   }
 
-  const decoded = safeDecodeExtensionSchema(schema, result.value)
+  const decoded = validateWithSchema(schema, result.value)
   const returned: ExtensionInvokeResult<TValue> = decoded.success
-    ? { ok: true, value: decoded.data, audit: result.audit }
-    : invalidOperationResult({ audit: result.audit, issues: decoded.issues, message })
+    ? { ok: true, value: decoded.value, audit: result.audit }
+    : invalidOperationResult({
+        audit: result.audit,
+        issues: decoded.issues.map(formatValidationIssue),
+        message,
+      })
   return returned
 }
 

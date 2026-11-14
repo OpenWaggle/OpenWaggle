@@ -3,8 +3,8 @@ import {
   runtimeUnregisterContributionResultSchema,
   toDecodedOperationResult,
 } from './broker-validation.js'
-import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import type { ExtensionRuntimeContributionSdk, ExtensionSdkInvoke } from './sdk-types.js'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
+import type { ExtensionRuntimeContributionSdk, ExtensionSdkInvoke } from '../sdk-types.js'
 
 const RUNTIME_CONTRIBUTION_RESULT_ERROR =
   'Extension broker returned an invalid runtime contribution result.'

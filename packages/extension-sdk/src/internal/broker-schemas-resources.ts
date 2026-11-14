@@ -1,6 +1,6 @@
 import * as Schema from 'effect/Schema'
-import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import { extensionContributionIdSchema, extensionIdSchema } from './manifest.js'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
+import { extensionContributionIdSchema, extensionIdSchema } from './manifest-primitives.js'
 
 const RESOURCE_TEXT_MAX_LENGTH = 512
 const RESOURCE_LOCATOR_MAX_LENGTH = 4096

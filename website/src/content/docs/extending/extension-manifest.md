@@ -12,12 +12,13 @@ This page lists the fields of `openwaggle.extension.json`, what OpenWaggle check
 
 | Field | Type | Required | Default | What it does |
 | --- | --- | --- | --- | --- |
+| `$schema` | URL | No | | The manifest's [JSON Schema](#check-a-manifest), for editor completion. OpenWaggle ignores it |
 | `manifestVersion` | `1` | Yes | | Manifest format version |
 | `id` | string | Yes | | Package id, the same as the package folder's name. See [Limits](#limits) |
 | `name` | string | Yes | | Display name |
 | `version` | semver string | Yes | | Package version, raised with each update |
 | `description` | string | No | | Short description |
-| `sdk.openwaggle` | semver range | Yes | | OpenWaggle SDK versions the package works with, such as `">=0.1.0 <0.2.0"` |
+| `sdk.openwaggle` | semver range | Yes | | Versions of OpenWaggle's extension API the package works with, such as `">=0.1.0 <0.2.0"`. This isn't the `@openwaggle/extension-sdk` npm version |
 | `sourceFiles` | paths | Yes | | Every source file in the package |
 | `builtArtifacts` | paths | Yes | | Every built file OpenWaggle loads, local build outputs included |
 | `install.source` | `prebuilt` or `local-build` | No | `prebuilt` | Whether the package ships built files or builds on the user's machine |
@@ -33,6 +34,23 @@ This page lists the fields of `openwaggle.extension.json`, what OpenWaggle check
 | `runtimeRequirements` | list | No | | Programs the package needs. See [Runtime requirements](#runtime-requirements) |
 
 Paths are relative to the package folder.
+
+## Check a manifest
+
+The manifest's JSON Schema is at `https://openwaggle.ai/schemas/openwaggle-extension-manifest-v1.schema.json`. It checks field types, lengths, allowed values and string formats such as ids, versions, paths and origins. It differs from OpenWaggle's own check in three ways:
+
+- It allows keys the manifest format doesn't declare. OpenWaggle ignores them.
+- It accepts a few network origins that OpenWaggle refuses, ones the URL parser would rewrite, such as a port above 65535 or a port with a leading zero.
+- It doesn't check rules that span fields, such as a declared capability for each contribution's methods or `trusted.renderer` for a `trusted-renderer` contribution.
+
+`validateExtensionManifest` from `@openwaggle/extension-sdk/validation` runs every check OpenWaggle runs on the manifest's contents when it loads the package. It never throws, and returns one of:
+
+| Result | Fields |
+| --- | --- |
+| Valid | `success: true`, and `value`, the manifest |
+| Invalid | `success: false`, and `issues`, a list of `{ path, message }` |
+
+`path` is the field's dotted path, with list items by index, such as `contributions.sidePanels.0.icon`. It is `(root)` for a problem with the whole manifest. OpenWaggle's diagnostics use the same paths.
 
 ## Runtime requirements
 

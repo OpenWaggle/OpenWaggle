@@ -6,6 +6,11 @@ import type {
   ExtensionContributionTargetView,
   ExtensionExecutionPlacement,
 } from './contribution-types.js'
+import type {
+  ExtensionSessionSummaryDisclosure,
+  ExtensionSessionSummaryRow,
+  ExtensionSessionSummaryState,
+} from './generated/manifest.js'
 
 export type ExtensionPackageScopeKind = 'global' | 'project'
 
@@ -43,26 +48,8 @@ export interface ExtensionContributionRegistryEntry {
   readonly entryPath?: string
   readonly sessionSummary?: {
     readonly placement: 'context' | 'coordination' | 'details'
-    readonly disclosure?: {
-      readonly defaultExpanded?: boolean
-      readonly collapsible?: boolean
-      readonly autoCollapseAfterMs?: number
-    }
-    readonly state?:
-      | { readonly status: 'ready' }
-      | { readonly status: 'loading' | 'live'; readonly message?: string }
-      | { readonly status: 'failure'; readonly message: string }
-    readonly rows: readonly {
-      readonly id: string
-      readonly label: string
-      readonly value?: string
-      readonly badge?: string
-      readonly count?: number
-      readonly resourceId?: string
-      readonly action?: {
-        readonly family: 'commands' | 'sidePanels' | 'dialogs'
-        readonly contributionId: string
-      }
-    }[]
+    readonly disclosure?: ExtensionSessionSummaryDisclosure
+    readonly state?: ExtensionSessionSummaryState
+    readonly rows: readonly ExtensionSessionSummaryRow[]
   }
 }

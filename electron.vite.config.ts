@@ -130,7 +130,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
-        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src'),
         '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
         '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
       },
@@ -140,7 +140,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
-        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src'),
       },
     },
   },
@@ -203,7 +203,7 @@ export default defineConfig({
       alias: {
         '@': resolve('src/renderer/src'),
         '@shared': resolve('src/shared'),
-        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src'),
         '@openwaggle/extension-react': resolve('packages/extension-react/src/index.tsx'),
         '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
         '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),

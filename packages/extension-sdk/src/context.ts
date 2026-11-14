@@ -1,4 +1,4 @@
-import type { ExtensionBrokerSdk } from './broker.js'
+import type { ExtensionBrokerSdk } from './sdk-types.js'
 import { OPENWAGGLE_EXTENSION } from './constants.js'
 import type { JsonValue } from './json.js'
 import { createPlainExtensionSyntaxResult, type OpenWaggleExtensionSyntaxSdk } from './syntax.js'

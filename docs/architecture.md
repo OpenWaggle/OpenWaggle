@@ -92,6 +92,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0063-cli-machine-output-contract.md`
 - `docs/adr/0064-move-the-toolchain-to-bun-and-put-the-desktop-shell-behind-ports.md`
 - `docs/adr/0065-parents-show-their-running-workers.md`
+- `docs/adr/0066-the-extension-sdk-public-api-is-types-and-result-helpers.md`
 
 ## Testing
 

@@ -1,13 +1,16 @@
 import {
   defineExtensionManifest,
   OPENWAGGLE_EXTENSION,
-  openWaggleExtensionManifestSchema,
   openWaggleExtensionClassName,
   type OpenWaggleExtensionManifest,
-  validateExtensionManifest,
 } from '@openwaggle/extension-sdk'
-import { extensionDocsDiscoverPayloadSchema } from '@openwaggle/extension-sdk/docs'
-import { extensionContributionRegistrationSchema } from '@openwaggle/extension-sdk/runtime'
+import type { ExtensionDocsDiscoverPayload } from '@openwaggle/extension-sdk/docs'
+import type { ExtensionContributionRegistration } from '@openwaggle/extension-sdk/runtime'
+import { createExtensionBrokerSdk } from '@openwaggle/extension-sdk/testing'
+import {
+  type ExtensionValidationResult,
+  validateExtensionManifest,
+} from '@openwaggle/extension-sdk/validation'
 import { Button, type ButtonProps } from '@openwaggle/extension-react'
 import {
   BUILT_IN_WAGGLE_PRESETS,
@@ -74,11 +77,24 @@ const turnDetails = createPiWaggleTurnDetails({
   agentColor: 'blue',
 })
 
+const validation: ExtensionValidationResult<OpenWaggleExtensionManifest> =
+  validateExtensionManifest(manifest)
+const docsPayload: ExtensionDocsDiscoverPayload = { includeExtensions: true }
+const registration: ExtensionContributionRegistration = {
+  family: 'commands',
+  contribution: { id: 'package-smoke.refresh', title: 'Refresh' },
+}
+const brokerSdk = createExtensionBrokerSdk(
+  async () => ({ ok: false, error: { code: 'transport-failed', message: 'Smoke.' } }),
+  { extensionId: 'package-smoke', contributionId: 'package-smoke.settings' },
+)
+
 void manifest
-void openWaggleExtensionManifestSchema
-void validateExtensionManifest(manifest)
-void extensionDocsDiscoverPayloadSchema
-void extensionContributionRegistrationSchema
+if (validation.success) void validation.value.id
+else void validation.issues.map((issue) => `${issue.path}: ${issue.message}`)
+void docsPayload
+void registration
+void brokerSdk.storage
 void Button(buttonProps)
 void startWaggleRun({ config, sessionId: 'session-smoke' })
 void BUILT_IN_WAGGLE_PRESETS

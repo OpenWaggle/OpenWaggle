@@ -1,8 +1,8 @@
-import { firstPartyDocTopicSchema } from '@openwaggle/extension-sdk'
+import { firstPartyDocTopicSchema } from '@openwaggle/extension-sdk/internal/docs-schemas'
 import { Schema } from '@shared/schema'
 
 // The docs views extensions read through the broker are the public SDK contract.
-export { firstPartyDocTopicSchema } from '@openwaggle/extension-sdk'
+export { firstPartyDocTopicSchema } from '@openwaggle/extension-sdk/internal/docs-schemas'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 

@@ -1,4 +1,5 @@
-import { defineExtensionManifest, validateExtensionManifest } from '@openwaggle/extension-sdk'
+import { defineExtensionManifest } from '@openwaggle/extension-sdk'
+import { validateExtensionManifest } from '@openwaggle/extension-sdk/validation'
 import {
   Alert,
   Badge,
@@ -28,7 +29,10 @@ const browserManifest = defineExtensionManifest({
 })
 
 async function runBrowserSmoke() {
-  validateExtensionManifest(browserManifest)
+  const validation = validateExtensionManifest(browserManifest)
+  if (!validation.success) {
+    throw new Error(`Extension manifest is invalid: ${validation.issues[0]?.message}`)
+  }
   const mount = document.querySelector('#browser-smoke-root')
   if (!(mount instanceof HTMLElement)) {
     throw new Error('Browser package smoke root is missing.')

@@ -39,6 +39,7 @@ Write the manifest first. This one adds a settings section, a side panel, and a 
 
 ```json
 {
+  "$schema": "https://openwaggle.ai/schemas/openwaggle-extension-manifest-v1.schema.json",
   "manifestVersion": 1,
   "id": "example-extension",
   "name": "Example Extension",
@@ -101,6 +102,8 @@ Write the manifest first. This one adds a settings section, a side panel, and a 
   }
 }
 ```
+
+The `$schema` line is optional. It points your editor at the manifest's JSON Schema, so the editor completes field names and flags a wrong type or a missing field as you type. OpenWaggle ignores it.
 
 The manifest is the whole contract. OpenWaggle reads it before it runs any of your code, and anything it does not declare, whether a contribution, capability, file, network origin, runtime requirement, or build step, is not available at run time.
 
