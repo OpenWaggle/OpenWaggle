@@ -18,7 +18,9 @@ export const RENDERER_BUNDLE_STEP: CheckStep = {
   ],
   // The build the perf-budgets step measures: one dev slug, so its sizes match on every checkout.
   env: PERF_BUILD_ENV,
-  // What the build and the three checks read (scripts/check/__tests__/bundle-step-inputs).
+  // The runner reads `inputs` only for a step with `cache` (its fingerprint) or `changedFiles`;
+  // this step has neither and always runs. They list what the step reads, so adding `cache`
+  // later does not skip it after a change that alters the result (__tests__/bundle-step-inputs).
   inputs: [
     'src/**',
     'packages/*/src/**',
@@ -34,6 +36,8 @@ export const RENDERER_BUNDLE_STEP: CheckStep = {
     'scripts/support/**',
     'package.json',
     'bun.lock',
+    'patches/**',
+    'tsconfig*.json',
   ],
   findings: 'generic',
   hint: 'bun run check:renderer-bundle',

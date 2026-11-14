@@ -11,8 +11,9 @@ export const PERF_BUDGETS_STEP: CheckStep = {
   summary: 'performance/perf-budgets.json equals the build and package measurements',
   commands: [bunScript('scripts/perf-gate/budgets.ts', 'check')],
   dependsOn: ['renderer-bundle'],
-  // What the build and the package trim read, besides the sources: a change to any of them can
-  // change a measurement.
+  // The runner reads `inputs` only for a step with `cache` (its fingerprint) or `changedFiles`;
+  // this step has neither and always runs. They list what the step reads, so adding `cache`
+  // later does not skip it after a change that alters the result (__tests__/bundle-step-inputs).
   inputs: [
     'src/**',
     'packages/*/src/**',
@@ -29,6 +30,8 @@ export const PERF_BUDGETS_STEP: CheckStep = {
     'electron-builder.ts',
     'electron.vite.config.ts',
     'bun.lock',
+    'patches/**',
+    'tsconfig*.json',
   ],
   findings: 'generic',
   hint: 'run `bun run perf:budgets:update` and commit performance/perf-budgets.json; no constant to edit, no maintainer needed (.agents/memory/performance.md)',

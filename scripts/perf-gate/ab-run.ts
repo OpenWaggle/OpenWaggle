@@ -66,7 +66,8 @@ const SAMPLE_ATTEMPTS = 2
 
 /**
  * One sample, retried once with a fresh profile: a launch that hangs or loses its inspector is a
- * runner hiccup, and a required check should not fail on one. A second failure ends the run.
+ * runner hiccup, and the advisory gate's report should not lose its timings to one. A second
+ * failure ends the run.
  */
 async function measureWithRetry(input: Parameters<typeof measureSample>[0]) {
   for (let attempt = 1; ; attempt += 1) {

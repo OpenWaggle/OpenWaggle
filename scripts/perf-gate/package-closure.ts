@@ -15,6 +15,7 @@ import { parseJsonUnknown, Schema } from '@shared/schema'
 import { objectFields, unknownField } from '../support/object-fields'
 import {
   BUNDLED_PACKAGE_ASSETS,
+  ELECTRON_PACKAGE,
   PACKAGE_UNLOADED_FILES,
   readManifest,
   RUNTIME_RESOLVED_PACKAGES,
@@ -48,8 +49,6 @@ const EXCLUDED_NAMES = [
   /^tsconfig\.json$/u,
 ]
 const LINUX_TARGET = 'linux-x64'
-/** electron-builder packs Electron itself, never the `electron` package and its download. */
-const ELECTRON = 'electron'
 
 /** Package-relative paths the Linux pack leaves out (electron-builder-native-prebuilds.ts). */
 const PACK_EXCLUSIONS: readonly RegExp[] = [
@@ -127,7 +126,7 @@ function sizeOf(directory: string, files: readonly string[]) {
 function runtimeDirectories(projectRoot: string) {
   const directories = new Map<string, string>()
   const roots = [...mainExternalPackages(), ...RUNTIME_RESOLVED_PACKAGES].filter(
-    (name) => name !== ELECTRON,
+    (name) => name !== ELECTRON_PACKAGE,
   )
   const pending = roots.map((name) => ({
     name,

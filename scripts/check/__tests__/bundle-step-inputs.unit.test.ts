@@ -37,7 +37,7 @@ function step(id: string) {
 }
 
 describe('the bundle check steps', () => {
-  it('re-run the renderer-bundle build and checks when a file they read changes', () => {
+  it('list every file the renderer-bundle build and checks read, for a cache to fingerprint', () => {
     const renderer = step('renderer-bundle')
     const roots = [
       'electron.vite.config.ts',
@@ -46,7 +46,9 @@ describe('the bundle check steps', () => {
       'scripts/check-renderer-csp.ts',
     ]
     expect(uncovered(roots, renderer.inputs)).toEqual([])
-    expect(micromatch.isMatch('bun.lock', [...renderer.inputs])).toBe(true)
+    for (const file of ['bun.lock', 'tsconfig.web.json', 'patches/x@1.0.0.patch']) {
+      expect(micromatch.isMatch(file, [...renderer.inputs]), file).toBe(true)
+    }
   })
 
   it('build what perf-budgets measures with the one slug the measurement expects', () => {
@@ -58,13 +60,15 @@ describe('the bundle check steps', () => {
     )
   })
 
-  it('re-run perf-budgets when the measurement or the package configuration changes', () => {
+  it('list every file the perf-budgets measurement and package configuration read', () => {
     const inputs = [...PERF_BUDGETS_STEP.inputs]
     for (const file of [
       'package.json',
       'electron-builder.ts',
       'electron.vite.config.ts',
       'bun.lock',
+      'tsconfig.node.json',
+      'patches/x@1.0.0.patch',
     ]) {
       expect(micromatch.isMatch(file, inputs), file).toBe(true)
     }
