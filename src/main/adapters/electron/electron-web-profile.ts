@@ -2,6 +2,7 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CommandLine } from 'electron'
 import { limitChromiumHttpDiskCache } from './electron-chromium-cache-limit'
+import { addChromiumFeature } from './chromium-feature-switch'
 
 const CHROMIUM_DIPS_BASENAME = 'DIPS'
 const CHROMIUM_DIPS_SIDE_SUFFIXES = ['', '-wal', '-shm'] as const
@@ -34,7 +35,6 @@ function repairChromiumDipsDatabaseOnce(sessionDataPath: string) {
   writeFileSync(repairMarkerPath, `${CHROMIUM_DIPS_REPAIR_MARKER_FILENAME}\n`)
 }
 
-const DISABLE_FEATURES_SWITCH = 'disable-features'
 const AUDIO_SERVICE_OUT_OF_PROCESS = 'AudioServiceOutOfProcess'
 
 /**
@@ -46,13 +46,7 @@ const AUDIO_SERVICE_OUT_OF_PROCESS = 'AudioServiceOutOfProcess'
 export function runChromiumAudioServiceInProcess(
   commandLine: Pick<CommandLine, 'appendSwitch' | 'getSwitchValue'>,
 ) {
-  const disabled = commandLine.getSwitchValue(DISABLE_FEATURES_SWITCH)
-  const features = disabled.split(',').filter((feature) => feature !== '')
-  if (features.includes(AUDIO_SERVICE_OUT_OF_PROCESS)) return
-  commandLine.appendSwitch(
-    DISABLE_FEATURES_SWITCH,
-    [...features, AUDIO_SERVICE_OUT_OF_PROCESS].join(','),
-  )
+  addChromiumFeature(commandLine, 'disable-features', AUDIO_SERVICE_OUT_OF_PROCESS)
 }
 
 /**
