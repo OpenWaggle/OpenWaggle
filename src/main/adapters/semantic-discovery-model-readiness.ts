@@ -1,4 +1,7 @@
-import type { SemanticDiscoveryReadiness } from '@shared/types/session-query-discovery'
+import type {
+  SemanticDiscoveryModelAvailability,
+  SemanticDiscoveryReadiness,
+} from '@shared/types/session-query-discovery'
 import * as Effect from 'effect/Effect'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import {
@@ -7,9 +10,27 @@ import {
 } from './session-embedding-model-files'
 
 /**
+ * The readiness status while the model is not on disk: `preparing` while it is missing or
+ * downloading, `unavailable` while a download waits to retry. A stored `failed` or `unavailable`
+ * stays, so it is never reported as more ready than the index is.
+ */
+function statusWithoutModel(
+  status: SemanticDiscoveryReadiness['status'],
+  availability: SemanticDiscoveryModelAvailability,
+) {
+  if (status === 'failed' || status === 'unavailable') return status
+  const withoutModel: SemanticDiscoveryReadiness['status'] =
+    availability.state === 'missing' || availability.state === 'downloading'
+      ? 'preparing'
+      : 'unavailable'
+  return withoutModel
+}
+
+/**
  * Adds the embedding model's availability to a readiness: while the model is not on disk (it is
- * fetched on first use) the readiness says so, with download progress or the failure, and its
- * reason, which replaces any stored one, explains that search matches words until it arrives.
+ * fetched on first use) the readiness says so, with download progress or the failure, a status
+ * other than `ready`, and its reason, which replaces any stored one, explains that search matches
+ * words until it arrives.
  */
 export function withModelAvailability(
   readiness: SemanticDiscoveryReadiness,
@@ -22,6 +43,7 @@ export function withModelAvailability(
       if (current.state === 'ready') return readiness
       const unavailable: SemanticDiscoveryReadiness = {
         ...readiness,
+        status: statusWithoutModel(readiness.status, current),
         model: current,
         reason: describeAvailability(current),
       }

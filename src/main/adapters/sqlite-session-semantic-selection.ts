@@ -18,6 +18,16 @@ function restrictedSemanticReadiness(
   readiness: SemanticDiscoveryReadiness | undefined,
 ) {
   if (!authority || scope || !readiness) return readiness
+  // The model download is the same for every caller and names no Session, so a restricted caller
+  // learns why search matches words, not that the index looks ready.
+  if (readiness.model !== undefined) {
+    const modelPending: SemanticDiscoveryReadiness = {
+      status: readiness.status,
+      model: readiness.model,
+      ...(readiness.reason === undefined ? {} : { reason: readiness.reason }),
+    }
+    return modelPending
+  }
   if (readiness.status === 'failed' || readiness.status === 'unavailable') {
     return {
       status: 'unavailable' as const,
