@@ -18,6 +18,7 @@ const stepSchema = Schema.Struct({
 })
 const jobSchema = Schema.Struct({
   if: Schema.optional(Schema.String),
+  'continue-on-error': unknownField,
   permissions: unknownField,
   steps: Schema.Array(Schema.Unknown),
 })
@@ -35,7 +36,13 @@ function workflowJobs(file: string) {
       if (parsed === undefined) throw new Error(`${file} job ${id} has a malformed step.`)
       return parsed
     })
-    return { id, if: job.if, permissions: objectMap(job.permissions), steps }
+    return {
+      id,
+      if: job.if,
+      continueOnError: job['continue-on-error'] === true,
+      permissions: objectMap(job.permissions),
+      steps,
+    }
   })
 }
 
@@ -58,6 +65,8 @@ function stepIndex(job: ReturnType<typeof gateJob>, pattern: RegExp) {
 
 /** A step that runs a TypeScript file or a package script with Bun. */
 const RUNS_BUN_CODE = /\bbun (?:scripts\/|run |"\$)/u
+
+const JUDGE_STEP = 'Judge budgets, report timings'
 
 describe('Performance Gate workflows', () => {
   it.each(WORKFLOWS)('installs dependencies in %s before any step runs code with Bun', (file) => {
@@ -88,9 +97,36 @@ describe('Performance Gate workflows', () => {
 
   it('fails the judge step unless the decide job said exactly true or false', () => {
     const gate = workflowJobs('perf-gate.yml').find((job) => job.id === 'gate')
-    const judge = gate?.steps.find((step) => step.name === 'Judge budgets and timings')
+    const judge = gate?.steps.find((step) => step.name === JUDGE_STEP)
     expect(judge?.run).toContain('case "$RUN_TIMINGS" in\n  true | false) ;;')
     expect(judge?.run).toContain('neither true nor false."; exit 1 ;;')
+  })
+
+  it('fails on budgets only: timings, and a timing job that failed or was cancelled, are reported', () => {
+    const gate = gateJob('gate')
+    expect(gate.if).not.toContain('needs.timings.result')
+    const run = stepNamed(gate, JUDGE_STEP).run ?? ''
+    const budgets = run.slice(0, run.indexOf('report_args=('))
+    const timings = run.slice(run.indexOf('report_args=('), run.indexOf('gate.ts report '))
+    expect(budgets).toContain('gate.ts budgets')
+    expect(budgets).toContain('|| status=1')
+    expect(timings).toContain('gate.ts timings')
+    expect(timings).not.toMatch(/status=1|exit /u)
+    expect(timings).toContain('cancelled) reason="the timing job was cancelled or timed out"')
+    expect(timings).toContain('failure) reason="the timing job failed"')
+    expect(timings).toContain('--unavailable "$reason"')
+  })
+
+  it('posts the comment itself only while main has no reporter, from this repository only', () => {
+    const comment = gateJob('comment-fallback')
+    expect(comment.if).toContain("needs.decide.outputs.gate_fallback == 'true'")
+    expect(comment.if).toContain(
+      'github.event.pull_request.head.repo.full_name == github.repository',
+    )
+    expect(comment.continueOnError).toBe(true)
+    expect(comment.permissions).toEqual(new Map([['pull-requests', 'write']]))
+    expect(comment.steps.filter((step) => /checkout|setup-bun/u.test(step.uses ?? ''))).toEqual([])
+    expect(comment.steps.filter((step) => RUNS_BUN_CODE.test(step.run ?? ''))).toEqual([])
   })
 
   it('posts no check for a run a newer push cancelled', () => {

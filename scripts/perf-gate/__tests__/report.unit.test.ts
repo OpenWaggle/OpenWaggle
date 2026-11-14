@@ -43,6 +43,7 @@ const REPORT = {
   headSha: HEAD,
   pullRequest: 451,
   timingsSkipped: null,
+  timingsUnavailable: null,
   labels: ['perf-budget-increase'],
   budgets: {
     rows: [
@@ -58,7 +59,6 @@ const REPORT = {
       timingRow('cold.chat-ready', 1400, 1700, 'regressed'),
     ],
     loosened: [{ name: 'timing.relative', base: 0.1, head: 0.2 }],
-    accepted: false,
   },
   pairs: 6,
   platform: 'linux-x64',
@@ -71,10 +71,17 @@ describe('the Performance Gate report', () => {
     const markdown = renderReport(parsed)
     expect(markdown.startsWith(REPORT_MARKER)).toBe(true)
     expect(markdown).toContain('Base `aaaaaaaaa` (merge base) vs head `bbbbbbbbb`.')
+    expect(markdown).toContain(
+      'Only budgets can fail this check, and `perf-budget-increase` accepts a raise. Timings and memory are noisy, so they are reported only.',
+    )
     expect(markdown).toContain('- Budgets: 2 increase(s), accepted by `perf-budget-increase`.')
     expect(markdown).toContain(
-      '- Timings: 1 regression(s). Fix them, or a maintainer adds `perf-regression-accepted`.',
+      '- 🔺 Timings: 1 regression(s): `cold.chat-ready`. Timings are reported only and never fail this check; reproduce with `bun run perf:ab`.',
     )
+    expect(markdown.match(/`perf-[a-z-]+`/gu)).toEqual([
+      '`perf-budget-increase`',
+      '`perf-budget-increase`',
+    ])
     expect(markdown).toContain(
       '- Limits raised: budget `package.runtime.files` quantum 8 → 16; timing threshold `timing.relative` 0.1 → 0.2.',
     )
@@ -90,21 +97,34 @@ describe('the Performance Gate report', () => {
     )
   })
 
-  it('counts a metric the head stopped measuring as a failure', () => {
+  it('asks for the budget label on an unaccepted increase, and says the check fails on it', () => {
+    const parsed = parsePerfGateReport({
+      ...REPORT,
+      budgets: { ...REPORT.budgets, accepted: false },
+      timings: { rows: [timingRow('cold.window-ready', 600, 604, 'same')], loosened: [] },
+    })
+
+    expect(parsed?.budgets?.passed).toBe(false)
+    expect(parsed && renderReport(parsed)).toContain(
+      '- 🔺 Budgets: 2 increase(s) fail this check. Fix them, or a maintainer adds `perf-budget-increase` and re-runs the check.',
+    )
+  })
+
+  it('highlights a metric the head stopped measuring, without failing on it', () => {
     const parsed = parsePerfGateReport({
       ...REPORT,
       timings: {
         rows: [{ ...timingRow('cold.chat-ready', 1400, 0, 'missing'), head: null, delta: null }],
         loosened: [],
-        accepted: false,
       },
     })
 
-    expect(parsed?.timings).toMatchObject({ passed: false, regressions: [{ status: 'missing' }] })
-    expect(parsed && renderReport(parsed)).toContain('not measured on the head')
+    expect(parsed?.timings).not.toHaveProperty('passed')
+    expect(parsed?.timings).toMatchObject({ regressions: [{ status: 'missing' }] })
+    expect(parsed && renderReport(parsed)).toContain('🔺 not measured on the head')
   })
 
-  it('fails timings whose samples cannot be judged, and a readiness neither side measured', () => {
+  it('says plainly why timings cannot be judged, and highlights a readiness neither side measured', () => {
     const parsed = parsePerfGateReport({
       ...REPORT,
       timings: {
@@ -117,19 +137,41 @@ describe('the Performance Gate report', () => {
           },
         ],
         loosened: [],
-        incomplete: ['The A/B results hold 0 base and head sample pairs (base 0, head 0).'],
-        accepted: true,
+        incomplete: [
+          'The A/B results hold 0 base and head sample pairs (base 0, head 0); the comparison needs 10.',
+          '**[click](https://example.com)**',
+        ],
       },
     })
 
     expect(parsed?.timings).toMatchObject({
-      passed: false,
+      incomplete: [
+        'The A/B results hold 0 base and head sample pairs (base 0, head 0); the comparison needs 10.',
+      ],
       regressions: [{ id: 'warm.chat-ready', status: 'unavailable' }],
     })
     const markdown = parsed ? renderReport(parsed) : ''
-    expect(markdown).toContain('Timings cannot be judged: The A/B results hold 0 base')
-    expect(markdown).toContain('not measured on either side')
+    expect(markdown).toContain(
+      '- ⚠️ Timings cannot be judged: The A/B results hold 0 base and head sample pairs (base 0, head 0); the comparison needs 10. Timings are reported only and never fail this check; re-run the timing job to measure them.',
+    )
+    expect(markdown).toContain('🔺 not measured on either side')
   })
+
+  it.each(['the timing job failed', 'the timing job was cancelled or timed out'])(
+    'says timings are unavailable when %s',
+    (reason) => {
+      const parsed = parsePerfGateReport({ ...REPORT, timings: null, timingsUnavailable: reason })
+      const markdown = parsed ? renderReport(parsed) : ''
+
+      expect(markdown).toContain(
+        `- ⚠️ Timings unavailable: ${reason}. Timings are reported only and never fail this check; re-run the timing job to measure them.`,
+      )
+      expect(markdown).toContain(`Unavailable: ${reason}.`)
+      expect(parsePerfGateReport({ ...REPORT, timingsUnavailable: '<b>pwned</b>' })).toMatchObject({
+        timingsUnavailable: null,
+      })
+    },
+  )
 
   it('says why timings were skipped', () => {
     const parsed = parsePerfGateReport({

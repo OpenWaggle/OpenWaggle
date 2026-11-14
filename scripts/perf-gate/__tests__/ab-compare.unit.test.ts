@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { AbResults } from '../ab-run'
 import type { AbSample } from '../ab-sample'
-import {
-  loosenedThresholds,
-  median,
-  REGRESSION_ACCEPTED_LABEL,
-  type Thresholds,
-  timingVerdict,
-} from '../ab-verdict'
-import { abFailureLines } from '../gate-files'
+import { compareTimings, loosenedThresholds, median, type Thresholds } from '../ab-compare'
+import { abRegressionLines } from '../gate-files'
 
 const MIB = 1_048_576
 const THRESHOLDS: Thresholds = {
@@ -70,20 +64,29 @@ function results(head: Shape, pairs = 4) {
   return result
 }
 
-function verdict(head: Shape, labels: readonly string[] = [], headThresholds = THRESHOLDS) {
-  return timingVerdict({ results: results(head), thresholds: THRESHOLDS, headThresholds, labels })
+function compare(head: Shape, headThresholds = THRESHOLDS) {
+  return compareTimings({ results: results(head), thresholds: THRESHOLDS, headThresholds })
 }
 
-describe('the timing verdict', () => {
+function compareResults(input: AbResults) {
+  return compareTimings({ results: input, thresholds: THRESHOLDS, headThresholds: THRESHOLDS })
+}
+
+function regressed(head: Shape) {
+  return compare(head).regressions.map((row) => row.id)
+}
+
+describe('the timing comparison', () => {
   it('takes the middle of an even count as the mean of the two middle values', () => {
     expect(median([4, 1, 3, 2])).toBe(2.5)
     expect(median([])).toBeNull()
   })
 
-  it('passes a head measured against itself', () => {
-    const outcome = verdict({})
-    expect(outcome.passed).toBe(true)
+  it('finds nothing to highlight in a head measured against itself', () => {
+    const outcome = compare({})
+    expect(outcome).not.toHaveProperty('passed')
     expect(outcome.regressions).toEqual([])
+    expect(outcome.incomplete).toEqual([])
     expect(outcome.rows.find((row) => row.id === 'cold.chat-ready')).toMatchObject({
       base: 1_403.5,
       head: 1_403.5,
@@ -92,102 +95,65 @@ describe('the timing verdict', () => {
     })
   })
 
-  it('fails a 300 ms slower chat with the medians, the samples and the label that accepts it', () => {
+  it('highlights a 300 ms slower chat with the medians and the samples, and names no label', () => {
     const fixture = results({ chat: 1_700 })
-    const outcome = timingVerdict({
-      results: fixture,
-      thresholds: THRESHOLDS,
-      headThresholds: THRESHOLDS,
-      labels: [],
-    })
-    expect(outcome.passed).toBe(false)
+    const outcome = compareResults(fixture)
     expect(outcome.regressions.map((row) => row.id)).toEqual(['cold.chat-ready', 'warm.chat-ready'])
-    expect(abFailureLines(outcome, fixture)[0]).toBe(
+    expect(abRegressionLines(outcome, fixture)[0]).toBe(
       'cold.chat-ready: 1404 ms -> 1704 ms, paired median +300 ms (21.4%), over the 140 ms limit. ' +
         'Samples: base [1407, 1400, 1407, 1400], head [1707, 1700, 1707, 1700]. ' +
-        `Reproduce with bun run perf:ab (.agents/memory/performance.md). Only a maintainer can accept it, with the ${REGRESSION_ACCEPTED_LABEL} label.`,
+        'Reproduce with bun run perf:ab (.agents/memory/performance.md).',
     )
-    expect(verdict({ chat: 1_700 }, [REGRESSION_ACCEPTED_LABEL])).toMatchObject({
-      passed: true,
-      accepted: true,
-    })
   })
 
-  it('passes a slowdown inside the noise limit', () => {
-    expect(verdict({ chat: 1_450 }).passed).toBe(true)
+  it('leaves a slowdown inside the noise limit unhighlighted', () => {
+    expect(regressed({ chat: 1_450 })).toEqual([])
   })
 
-  it('fails any extra process, and IPC calls past their race floor', () => {
-    expect(verdict({ ipc: 25 }).passed).toBe(true)
-    expect(verdict({ ipc: 26 }).regressions.map((row) => row.id)).toEqual([
-      'cold.ipc-until-chat-ready',
-    ])
-    expect(verdict({ processes: 7 }).regressions.map((row) => row.id)).toEqual([
-      'idle.processes',
-      'after-turn.processes',
-    ])
+  it('highlights any extra process, and IPC calls past their race floor', () => {
+    expect(regressed({ ipc: 25 })).toEqual([])
+    expect(regressed({ ipc: 26 })).toEqual(['cold.ipc-until-chat-ready'])
+    expect(regressed({ processes: 7 })).toEqual(['idle.processes', 'after-turn.processes'])
   })
 
-  it('fails memory above both the relative and the absolute limit only', () => {
-    expect(verdict({ rss: 620 * MIB }).passed).toBe(true)
-    expect(verdict({ rss: 660 * MIB }).regressions.map((row) => row.id)).toEqual([
-      'idle.rss',
-      'after-turn.rss',
-    ])
+  it('highlights memory above both the relative and the absolute limit only', () => {
+    expect(regressed({ rss: 620 * MIB })).toEqual([])
+    expect(regressed({ rss: 660 * MIB })).toEqual(['idle.rss', 'after-turn.rss'])
   })
 
-  it('fails a metric the base measured and the head did not, unless the label accepts it', () => {
+  it('highlights a metric the base measured and the head did not', () => {
     const unmeasured = results({})
     const samples = unmeasured.samples.map((entry) =>
       entry.build === 'head' ? { ...entry, cold: { ...entry.cold, chatReadyMs: null } } : entry,
     )
     const input = { ...unmeasured, samples }
 
-    const verdict = timingVerdict({
-      results: input,
-      thresholds: THRESHOLDS,
-      headThresholds: THRESHOLDS,
-      labels: [],
-    })
+    const outcome = compareResults(input)
 
-    expect(verdict.passed).toBe(false)
-    expect(verdict.regressions.map((row) => [row.id, row.status, row.head])).toEqual([
+    expect(outcome.regressions.map((row) => [row.id, row.status, row.head])).toEqual([
       ['cold.chat-ready', 'missing', null],
     ])
-    expect(abFailureLines(verdict, input)[0]).toContain(
+    expect(abRegressionLines(outcome, input)[0]).toContain(
       'cold.chat-ready: measured on the base (1404 ms) but not on the head.',
     )
-    expect(
-      timingVerdict({
-        results: input,
-        thresholds: THRESHOLDS,
-        headThresholds: THRESHOLDS,
-        labels: [REGRESSION_ACCEPTED_LABEL],
-      }),
-    ).toMatchObject({ passed: true, accepted: true })
   })
 
-  it('leaves a metric neither side measured out of the verdict', () => {
+  it('leaves a count neither side measured unhighlighted', () => {
     const unmeasured = results({})
     const samples = unmeasured.samples.map((entry) => ({
       ...entry,
       cold: { ...entry.cold, ipcCallsUntilChatReady: null },
     }))
 
-    const verdict = timingVerdict({
-      results: { ...unmeasured, samples },
-      thresholds: THRESHOLDS,
-      headThresholds: THRESHOLDS,
-      labels: [],
-    })
+    const outcome = compareResults({ ...unmeasured, samples })
 
-    expect(verdict.passed).toBe(true)
-    expect(verdict.rows.find((row) => row.id === 'cold.ipc-until-chat-ready')?.status).toBe(
+    expect(outcome.regressions).toEqual([])
+    expect(outcome.rows.find((row) => row.id === 'cold.ipc-until-chat-ready')?.status).toBe(
       'unavailable',
     )
   })
 
-  it('fails a readiness timing neither side measured, and names it', () => {
+  it('highlights a readiness timing neither side measured, and names it', () => {
     const unmeasured = results({})
     const input = {
       ...unmeasured,
@@ -197,18 +163,12 @@ describe('the timing verdict', () => {
       })),
     }
 
-    const verdict = timingVerdict({
-      results: input,
-      thresholds: THRESHOLDS,
-      headThresholds: THRESHOLDS,
-      labels: [],
-    })
+    const outcome = compareResults(input)
 
-    expect(verdict.passed).toBe(false)
-    expect(verdict.regressions.map((row) => [row.id, row.status])).toEqual([
+    expect(outcome.regressions.map((row) => [row.id, row.status])).toEqual([
       ['warm.chat-ready', 'unavailable'],
     ])
-    expect(abFailureLines(verdict, input)[0]).toContain(
+    expect(abRegressionLines(outcome, input)[0]).toContain(
       'warm.chat-ready: measured on neither the base nor the head.',
     )
   })
@@ -223,28 +183,25 @@ describe('the timing verdict', () => {
         entry.build === 'head' ? { ...entry, order: entry.order + 10 } : entry,
       ),
     ],
-  ])('fails results with %s, whatever the labels', (_name, samples) => {
+  ])('says why results with %s cannot be judged', (_name, samples) => {
     const input: AbResults = { ...results({}), samples }
 
-    const verdict = timingVerdict({
-      results: input,
-      thresholds: THRESHOLDS,
-      headThresholds: THRESHOLDS,
-      labels: [REGRESSION_ACCEPTED_LABEL],
-    })
+    const outcome = compareResults(input)
 
-    expect(verdict.passed).toBe(false)
-    expect(verdict.incomplete).toHaveLength(1)
-    expect(abFailureLines(verdict, input)[0]).toMatch(/the gate needs 4\.$/)
+    expect(outcome.incomplete).toHaveLength(1)
+    expect(abRegressionLines(outcome, input)[0]).toMatch(/the comparison needs 4\.$/)
   })
 
-  it('names a loosened threshold and needs the label for it', () => {
+  it('names a loosened threshold and says main still judges the run', () => {
     const looser: Thresholds = { ...THRESHOLDS, timing: { relative: 0.2, absolute: 60 }, pairs: 2 }
     expect(loosenedThresholds(THRESHOLDS, looser)).toEqual([
       { name: 'timing.relative', base: 0.1, head: 0.2 },
       { name: 'pairs', base: 4, head: 2 },
     ])
-    expect(verdict({}, [], looser).passed).toBe(false)
-    expect(verdict({}, [REGRESSION_ACCEPTED_LABEL], looser).passed).toBe(true)
+    const outcome = compare({}, looser)
+    expect(outcome.loosened).toHaveLength(2)
+    expect(abRegressionLines(outcome, results({}))[0]).toBe(
+      "performance/perf-gate/thresholds.json timing.relative loosened 0.1 -> 0.2; main's thresholds still judge this run.",
+    )
   })
 })

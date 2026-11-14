@@ -218,11 +218,11 @@ jobs:
           set -uo pipefail
           [ -f results/ab.json ] || exit 0
           cd head
-          bun scripts/perf-gate/gate.ts verdict --results ../results/ab.json \
+          bun scripts/perf-gate/gate.ts timings --results ../results/ab.json \
             --thresholds performance/perf-gate/thresholds.json \
-            --head-thresholds performance/perf-gate/thresholds.json --out ../results/verdict.json || true
+            --head-thresholds performance/perf-gate/thresholds.json --out ../results/timings.json || true
           bun scripts/perf-gate/gate.ts report --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" \
-            --verdict ../results/verdict.json --results ../results/ab.json \
+            --timings ../results/timings.json --results ../results/ab.json \
             --out ../results/report.json --markdown ../results/report.md
           { echo "## ${{ matrix.target }}"; cat ../results/report.md; } >> "$GITHUB_STEP_SUMMARY"
 

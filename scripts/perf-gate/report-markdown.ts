@@ -1,13 +1,14 @@
 /**
  * The Performance Gate's Markdown: the job summary and the one pull request comment
  * (perf-report.yml) show the same tables. Changed rows come first, then the unchanged ones folded
- * away; any raised limit and any accepting label is named above the tables.
+ * away; any raised limit, any accepting label and any reason timings could not be judged is named
+ * above the tables. Only budgets can fail the check; timings and memory are reported only.
  */
 import type { BudgetRow } from './budget-compare'
 import { BUDGET_INCREASE_LABEL } from './budget-compare'
 import { PERF_BUDGET_METRICS } from './budget-metrics'
-import type { TimingRow } from './ab-verdict'
-import { isTimingFailure, isUnmeasuredReadiness, REGRESSION_ACCEPTED_LABEL } from './ab-verdict'
+import type { TimingRow } from './ab-compare'
+import { isTimingRegression, isUnmeasuredReadiness } from './ab-compare'
 import type { PerfGateReport } from './report-data'
 
 /** Finds the gate's comment among a pull request's comments. */
@@ -119,48 +120,67 @@ function raisedLimits(report: PerfGateReport) {
   return [...budgetLimits, ...thresholds]
 }
 
-function verdictLines(report: PerfGateReport) {
-  const lines: string[] = []
+const REPORTED_ONLY = 'Timings are reported only and never fail this check'
+
+function budgetLines(report: PerfGateReport) {
   const budgets = report.budgets
-  if (budgets && budgets.increases.length > 0) {
-    lines.push(
-      budgets.accepted
-        ? `- Budgets: ${String(budgets.increases.length)} increase(s), accepted by \`${BUDGET_INCREASE_LABEL}\`.`
-        : `- Budgets: ${String(budgets.increases.length)} increase(s). Fix them, or a maintainer adds \`${BUDGET_INCREASE_LABEL}\`.`,
-    )
+  if (budgets === null) return ['- Budgets were not compared.']
+  if (budgets.increases.length === 0) return []
+  return [
+    budgets.accepted
+      ? `- Budgets: ${String(budgets.increases.length)} increase(s), accepted by \`${BUDGET_INCREASE_LABEL}\`.`
+      : `- 🔺 Budgets: ${String(budgets.increases.length)} increase(s) fail this check. Fix them, or a maintainer adds \`${BUDGET_INCREASE_LABEL}\` and re-runs the check.`,
+  ]
+}
+
+function timingLines(report: PerfGateReport) {
+  if (report.timingsUnavailable !== null) {
+    return [
+      `- ⚠️ Timings unavailable: ${report.timingsUnavailable}. ${REPORTED_ONLY}; re-run the timing job to measure them.`,
+    ]
   }
   const timings = report.timings
-  if (timings && timings.incomplete.length > 0) {
+  if (timings === null) return []
+  const lines: string[] = []
+  if (timings.incomplete.length > 0) {
     lines.push(
-      `- Timings cannot be judged: ${timings.incomplete.join(' ')} Re-run the timing job; no label accepts this.`,
+      `- ⚠️ Timings cannot be judged: ${timings.incomplete.join(' ')} ${REPORTED_ONLY}; re-run the timing job to measure them.`,
     )
   }
-  if (timings && (timings.regressions.length > 0 || timings.loosened.length > 0)) {
+  if (timings.regressions.length > 0) {
+    const ids = timings.regressions.map((row) => `\`${row.id}\``).join(', ')
     lines.push(
-      timings.accepted
-        ? `- Timings: ${String(timings.regressions.length)} regression(s), accepted by \`${REGRESSION_ACCEPTED_LABEL}\`.`
-        : `- Timings: ${String(timings.regressions.length)} regression(s). Fix them, or a maintainer adds \`${REGRESSION_ACCEPTED_LABEL}\`.`,
+      `- 🔺 Timings: ${String(timings.regressions.length)} regression(s): ${ids}. ${REPORTED_ONLY}; reproduce with \`bun run perf:ab\`.`,
     )
   }
+  return lines
+}
+
+function summaryLines(report: PerfGateReport) {
+  const lines = [...budgetLines(report), ...timingLines(report)]
   const limits = raisedLimits(report)
   if (limits.length > 0) lines.push(`- Limits raised: ${limits.join('; ')}.`)
   return lines.length > 0 ? lines : ['- No budget increase and no timing regression.']
 }
 
+function timingSection(report: PerfGateReport) {
+  const rows = report.timings?.rows ?? []
+  if (report.timings === null || rows.length === 0) {
+    if (report.timingsSkipped !== null) return [`Skipped: ${report.timingsSkipped}.`]
+    if (report.timingsUnavailable !== null) return [`Unavailable: ${report.timingsUnavailable}.`]
+    return ['Not measured.']
+  }
+  const changed = rows.filter((row) => isTimingRegression(row) || row.status === 'improved')
+  return table(
+    ['Metric', 'Base median', 'Head median', 'Paired Δ', 'Limit', 'Result'],
+    changed.map(timingLine),
+    rows.filter((row) => !changed.includes(row)).map(timingLine),
+  )
+}
+
 export function renderReport(report: PerfGateReport) {
   const budgetRows = report.budgets?.rows ?? []
-  const timingRows = report.timings?.rows ?? []
   const changedBudgets = budgetRows.filter((row) => row.status !== 'same')
-  const changedTimings = timingRows.filter(
-    (row) => isTimingFailure(row) || row.status === 'improved',
-  )
-  const timingSection = report.timings
-    ? table(
-        ['Metric', 'Base median', 'Head median', 'Paired Δ', 'Limit', 'Result'],
-        changedTimings.map(timingLine),
-        timingRows.filter((row) => !changedTimings.includes(row)).map(timingLine),
-      )
-    : [report.timingsSkipped ? `Skipped: ${report.timingsSkipped}.` : 'Not measured.']
   const where = report.platform ? `, ${report.platform}` : ''
   const pairs = report.pairs === null ? '' : `, ${String(report.pairs)} interleaved pairs${where}`
   return [
@@ -169,7 +189,9 @@ export function renderReport(report: PerfGateReport) {
     '',
     `Base \`${report.baseSha.slice(0, SHORT_SHA)}\` (merge base) vs head \`${report.headSha.slice(0, SHORT_SHA)}\`.`,
     '',
-    ...verdictLines(report),
+    `Only budgets can fail this check, and \`${BUDGET_INCREASE_LABEL}\` accepts a raise. Timings and memory are noisy, so they are reported only.`,
+    '',
+    ...summaryLines(report),
     '',
     '### Budgets (performance/perf-budgets.json vs main)',
     '',
@@ -181,7 +203,7 @@ export function renderReport(report: PerfGateReport) {
     '',
     `### Timings and memory (built app, A/B${pairs})`,
     '',
-    ...timingSection,
+    ...timingSection(report),
     '',
   ].join('\n')
 }

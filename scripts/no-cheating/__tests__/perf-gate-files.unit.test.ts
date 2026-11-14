@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BUDGETS, PERF_GATE_FILES, ratchetFindings } from '../ratchets'
 
 describe('Performance Gate files', () => {
-  it('leaves the Performance Gate files to the gate, whose maintainer label can accept a raise', () => {
+  it('leaves the Performance Gate files to the gate, which judges them on the pull request', () => {
     expect(
       PERF_GATE_FILES.filter((file) => BUDGETS.some((budget) => budget.files.test(file))),
     ).toEqual([])

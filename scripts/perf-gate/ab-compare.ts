@@ -1,16 +1,14 @@
 /**
- * The Performance Gate's verdict on an A/B run (ab-run.ts): for every timing, memory reading and
- * count, the medians of the base and head samples and the median of their paired differences
+ * The Performance Gate's comparison of an A/B run (ab-run.ts): for every timing, memory reading
+ * and count, the medians of the base and head samples and the median of their paired differences
  * (pair i is the base and head sample measured one after the other, so slow drift of the runner
  * cancels). The head regressed on a metric when that median difference exceeds both the relative
  * limit (of the base median) and the absolute limit of its kind (performance/perf-gate/thresholds.json).
- * A pull request that regresses, or loosens a threshold, fails unless it carries the
- * `perf-regression-accepted` label. Pure: the caller reads the files and the labels.
+ * These measurements are noisy, so they are reported only: the comparison highlights regressions
+ * and never fails the check (.agents/memory/performance.md). Pure: the caller reads the files.
  */
 import type { AbResults } from './ab-run'
 import type { AbSample, MemorySample } from './ab-sample'
-
-export const REGRESSION_ACCEPTED_LABEL = 'perf-regression-accepted'
 
 /** `calls` is a count that races its milestone (IPC before chat ready), so it has a floor. */
 export type MetricKind = 'timing' | 'memory' | 'count' | 'calls'
@@ -30,9 +28,9 @@ export interface Thresholds {
 }
 
 /**
- * `missing`: measured on the base but not the head, which fails like a regression (a head that
- * stops reporting a metric must not pass unjudged). `unavailable`: the base has no value either,
- * which fails too for a readiness timing measured on neither side (every launch reports them).
+ * `missing`: measured on the base but not the head, highlighted like a regression (a head that
+ * stops reporting a metric must not look fine). `unavailable`: the base has no value either, also
+ * highlighted for a readiness timing measured on neither side (every launch reports them).
  */
 export type TimingStatus = 'regressed' | 'missing' | 'improved' | 'same' | 'unavailable'
 
@@ -54,17 +52,14 @@ export interface ThresholdChange {
   readonly head: number
 }
 
-export interface TimingVerdict {
+export interface TimingComparison {
   readonly rows: readonly TimingRow[]
+  /** Rows the report highlights (`isTimingRegression`). */
   readonly regressions: readonly TimingRow[]
+  /** Limits the pull request's thresholds file loosens; main's still judge this run. */
   readonly loosened: readonly ThresholdChange[]
-  /**
-   * Why the samples cannot be judged: fewer base and head samples paired by order than main's
-   * `pairs`. No label accepts it, since there is nothing to accept.
-   */
+  /** Why the samples cannot be judged: fewer base and head samples paired by order than `pairs`. */
   readonly incomplete: readonly string[]
-  readonly accepted: boolean
-  readonly passed: boolean
 }
 
 const PAIR = 2
@@ -103,9 +98,9 @@ export function abMetrics(samples: readonly AbSample[]) {
     [`${launch}.backend-ready`, 'timing', (sample: AbSample) => sample[launch].backendReadyMs],
     [`${launch}.chat-ready`, 'timing', (sample: AbSample) => sample[launch].chatReadyMs],
   ])
-  // Only the cold count is judged. A warm launch's count is bimodal (17 or 25-33 on the gate's
+  // Only the cold count is compared. A warm launch's count is bimodal (17 or 25-33 on the gate's
   // runner) by whether git, skills and project-config calls land before chat ready, so it stays in
-  // the artifact (ipcCallsUntilChatReady) and out of the verdict.
+  // the artifact (ipcCallsUntilChatReady) and out of the comparison.
   launches.push([
     'cold.ipc-until-chat-ready',
     'calls',
@@ -169,8 +164,8 @@ export function isUnmeasuredReadiness(candidate: TimingRow) {
   )
 }
 
-/** A row that fails the gate unless a maintainer accepts it. */
-export function isTimingFailure(candidate: TimingRow) {
+/** A row the report highlights: slower or heavier, gone from the head, or a readiness never measured. */
+export function isTimingRegression(candidate: TimingRow) {
   return (
     candidate.status === 'regressed' ||
     candidate.status === 'missing' ||
@@ -187,7 +182,7 @@ export function incompleteSamples(samples: readonly AbSample[], pairs: number) {
   const paired = [...base].filter((order) => head.has(order)).length
   if (paired >= pairs) return []
   return [
-    `The A/B results hold ${String(paired)} base and head sample pairs (base ${String(base.size)}, head ${String(head.size)}); the gate needs ${String(pairs)}.`,
+    `The A/B results hold ${String(paired)} base and head sample pairs (base ${String(base.size)}, head ${String(head.size)}); the comparison needs ${String(pairs)}.`,
   ]
 }
 
@@ -205,27 +200,19 @@ export function loosenedThresholds(base: Thresholds, head: Thresholds) {
   return changes
 }
 
-export function timingVerdict(input: {
+export function compareTimings(input: {
   readonly results: AbResults
   readonly thresholds: Thresholds
   readonly headThresholds: Thresholds
-  readonly labels: readonly string[]
 }) {
   const rows = abMetrics(input.results.samples).map(([id, kind, read]) =>
     row(id, kind, read, input.results, input.thresholds[kind]),
   )
-  const regressions = rows.filter(isTimingFailure)
-  const loosened = loosenedThresholds(input.thresholds, input.headThresholds)
-  const incomplete = incompleteSamples(input.results.samples, input.thresholds.pairs)
-  const failing = regressions.length > 0 || loosened.length > 0
-  const accepted = failing && input.labels.includes(REGRESSION_ACCEPTED_LABEL)
-  const verdict: TimingVerdict = {
+  const comparison: TimingComparison = {
     rows,
-    regressions,
-    loosened,
-    incomplete,
-    accepted,
-    passed: incomplete.length === 0 && (!failing || accepted),
+    regressions: rows.filter(isTimingRegression),
+    loosened: loosenedThresholds(input.thresholds, input.headThresholds),
+    incomplete: incompleteSamples(input.results.samples, input.thresholds.pairs),
   }
-  return verdict
+  return comparison
 }

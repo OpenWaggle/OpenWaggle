@@ -3,12 +3,15 @@
  *
  *   decide --base <sha> --head <sha>          whether the timing job runs (changed-paths.ts)
  *   budgets --base <main's file> --head <the PR's file> [--labels a,b] --out <json>
- *                                             performance/perf-budgets.json against main's (budget-compare.ts)
+ *                                             performance/perf-budgets.json against main's (budget-compare.ts);
+ *                                             exits 1 on an increase no label accepts, the gate's only failure
  *   labels --repo <owner/name> --pr <number> --run <workflow run id>
- *                                             the gate labels a maintainer added since the run was created
- *   verdict --results <ab.json> --thresholds <main's> --head-thresholds <the PR's> [--labels a,b] --out <json>
- *   report --base-sha <sha> --head-sha <sha> [--pr n] [--budgets <json>] [--verdict <json>]
- *          [--results <ab.json>] [--skipped <reason>] [--labels a,b] --out <json> --markdown <md>
+ *                                             the budget label, if a maintainer added it since the run was created
+ *   timings --results <ab.json> --thresholds <main's> --head-thresholds <the PR's> --out <json>
+ *                                             the A/B comparison (ab-compare.ts); reported only, exits 0
+ *   report --base-sha <sha> --head-sha <sha> [--pr n] [--budgets <json>] [--timings <json>]
+ *          [--results <ab.json>] [--skipped <reason>] [--unavailable <reason>] [--labels a,b]
+ *          --out <json> --markdown <md>
  *   render --report <json> --markdown <md>    the comment, from a report another run wrote
  */
 import { execFileSync } from 'node:child_process'
@@ -17,19 +20,19 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { parseJsonUnknown } from '@shared/schema'
 import type { AbResults } from './ab-run'
-import { REGRESSION_ACCEPTED_LABEL, type Thresholds, timingVerdict } from './ab-verdict'
+import { compareTimings, type Thresholds } from './ab-compare'
 import { BUDGET_INCREASE_LABEL, budgetFailureLines, compareBudgets } from './budget-compare'
 import { type PerfBudgetFile, parsePerfBudgetFile } from './budget-file'
 import { PERF_BUDGET_METRICS } from './budget-metrics'
 import { timingDecision } from './changed-paths'
 import { parsePerfGateReport } from './report-data'
 import { renderReport } from './report-markdown'
-import { abFailureLines, parseAbResults, parseThresholds } from './gate-files'
+import { abRegressionLines, parseAbResults, parseThresholds } from './gate-files'
 
 const FIRST_ARGUMENT = 2
 const JSON_INDENT = 2
-const GATE_LABELS = [BUDGET_INCREASE_LABEL, REGRESSION_ACCEPTED_LABEL]
-/** Repository roles that may accept a regression. */
+const GATE_LABELS = [BUDGET_INCREASE_LABEL]
+/** Repository roles that may accept a budget increase. */
 const MAINTAINER_ROLES: ReadonlySet<string> = new Set(['admin', 'maintain'])
 
 const OPTIONS = {
@@ -46,8 +49,9 @@ const OPTIONS = {
   'base-sha': { type: 'string' },
   'head-sha': { type: 'string' },
   budgets: { type: 'string' },
-  verdict: { type: 'string' },
+  timings: { type: 'string' },
   skipped: { type: 'string' },
+  unavailable: { type: 'string' },
   report: { type: 'string' },
   markdown: { type: 'string' },
 } as const
@@ -130,7 +134,8 @@ export function maintainerLabels(repo: string, pr: string, runId: string, gh: Gh
   })
 }
 
-function verdict(values: GateValues) {
+/** Timings are noisy, so they are reported only: this writes the comparison and always exits 0. */
+function timings(values: GateValues) {
   const results = parseAbResults(readJson(required(values.results, 'results')))
   const thresholds: Thresholds = parseThresholds(
     readJson(required(values.thresholds, 'thresholds')),
@@ -138,15 +143,10 @@ function verdict(values: GateValues) {
   const headThresholds = parseThresholds(
     readJson(required(values['head-thresholds'], 'head-thresholds')),
   )
-  const outcome = timingVerdict({
-    results,
-    thresholds,
-    headThresholds,
-    labels: labelList(values.labels ?? ''),
-  })
-  writeJson(required(values.out, 'out'), outcome)
-  for (const line of abFailureLines(outcome, results)) console.error(line)
-  return outcome.passed ? 0 : 1
+  const comparison = compareTimings({ results, thresholds, headThresholds })
+  writeJson(required(values.out, 'out'), comparison)
+  for (const line of abRegressionLines(comparison, results)) console.log(line)
+  return 0
 }
 
 /** main's file; none before the gate landed on main, which compares every metric as new. */
@@ -177,9 +177,10 @@ function report(values: GateValues) {
     headSha: required(values['head-sha'], 'head-sha'),
     pullRequest: values.pr ? Number(values.pr) : null,
     timingsSkipped: values.skipped ?? null,
+    timingsUnavailable: values.unavailable ?? null,
     labels: labelList(values.labels ?? ''),
     budgets: values.budgets ? readJson(values.budgets) : null,
-    timings: values.verdict ? readJson(values.verdict) : null,
+    timings: values.timings ? readJson(values.timings) : null,
     pairs: results?.pairs ?? null,
     platform: results ? `${results.platform}-${results.arch}` : null,
   })
@@ -219,7 +220,7 @@ export function main(argv: readonly string[]) {
     return 0
   }
   if (command === 'budgets') return budgets(values)
-  if (command === 'verdict') return verdict(values)
+  if (command === 'timings') return timings(values)
   if (command === 'report') return report(values)
   if (command === 'render') return render(values)
   throw new Error('Usage: see the header of scripts/perf-gate/gate.ts.')

@@ -8,7 +8,7 @@
  *     --work <dir> --out <results.json> [--idle-ms 5000] [--base-label main] [--head-label pr]
  *
  * Each checkout must be built (`bun run build`, or `electron-vite build` after the native rebuild);
- * the app runs unpackaged from its directory with that checkout's Electron. ab-verdict.ts compares
+ * the app runs unpackaged from its directory with that checkout's Electron. ab-compare.ts compares
  * the results.
  */
 import fs from 'node:fs'

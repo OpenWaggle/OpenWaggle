@@ -5,7 +5,7 @@
  *
  * It checks the base (the merge base with origin/main unless `--base` names another ref) out
  * into a detached worktree under `.tmp/perf-gate/base`, installs and builds it, builds this
- * checkout, measures both interleaved (ab-run.ts) and prints the gate's verdict and table. Linux
+ * checkout, measures both interleaved (ab-run.ts) and prints the gate's comparison and table. Linux
  * needs a display (`xvfb-run bun run perf:ab`). Local numbers are only comparable with each other:
  * the thresholds were set on GitHub's runners.
  */
@@ -14,8 +14,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { runAb } from './ab-run'
-import { timingVerdict } from './ab-verdict'
-import { abFailureLines, parseThresholds } from './gate-files'
+import { compareTimings } from './ab-compare'
+import { abRegressionLines, parseThresholds } from './gate-files'
 import { parsePerfGateReport } from './report-data'
 import { renderReport } from './report-markdown'
 
@@ -65,19 +65,19 @@ async function main() {
     labels: { base: baseSha, head: headSha },
   })
   fs.writeFileSync(path.join(WORK, 'ab.json'), `${JSON.stringify(results)}\n`)
-  const verdict = timingVerdict({ results, thresholds, headThresholds: thresholds, labels: [] })
+  const comparison = compareTimings({ results, thresholds, headThresholds: thresholds })
   const report = parsePerfGateReport({
     baseSha,
     headSha,
     budgets: null,
-    timings: verdict,
+    timings: comparison,
     pairs: results.pairs,
     platform: `${results.platform}-${results.arch}`,
     labels: [],
   })
   if (report) console.log(renderReport(report))
-  for (const line of abFailureLines(verdict, results)) console.error(line)
-  return verdict.passed ? 0 : 1
+  for (const line of abRegressionLines(comparison, results)) console.error(line)
+  return 0
 }
 
 main().then(

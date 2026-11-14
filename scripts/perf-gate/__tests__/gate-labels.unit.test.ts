@@ -39,25 +39,28 @@ function stubGh(input: {
 describe('Performance Gate maintainer labels', () => {
   it('counts a label a maintainer added after the run was created', () => {
     const { gh } = stubGh({
-      present: ['perf-regression-accepted'],
-      labeled: [{ label: 'perf-regression-accepted', actor: 'lead', at: AFTER }],
+      present: ['perf-budget-increase'],
+      labeled: [{ label: 'perf-budget-increase', actor: 'lead', at: AFTER }],
       roles: { lead: 'maintain' },
     })
 
-    expect(maintainerLabels(REPO, PR, RUN, gh)).toEqual(['perf-regression-accepted'])
+    expect(maintainerLabels(REPO, PR, RUN, gh)).toEqual(['perf-budget-increase'])
   })
 
   it('ignores a label added before this run, so a new push must be labelled again', () => {
     const { gh } = stubGh({
-      present: ['perf-regression-accepted', 'perf-budget-increase'],
-      labeled: [
-        { label: 'perf-budget-increase', actor: 'lead', at: BEFORE },
-        { label: 'perf-regression-accepted', actor: 'lead', at: RUN_CREATED },
-      ],
+      present: ['perf-budget-increase'],
+      labeled: [{ label: 'perf-budget-increase', actor: 'lead', at: BEFORE }],
+      roles: { lead: 'admin' },
+    })
+    const atCreation = stubGh({
+      present: ['perf-budget-increase'],
+      labeled: [{ label: 'perf-budget-increase', actor: 'lead', at: RUN_CREATED }],
       roles: { lead: 'admin' },
     })
 
     expect(maintainerLabels(REPO, PR, RUN, gh)).toEqual([])
+    expect(maintainerLabels(REPO, PR, RUN, atCreation.gh)).toEqual([])
   })
 
   it('judges the last time a label was added', () => {
@@ -76,14 +79,17 @@ describe('Performance Gate maintainer labels', () => {
   it('ignores a label a non-maintainer added, and one no longer on the pull request', () => {
     const { gh } = stubGh({
       present: ['perf-budget-increase'],
-      labeled: [
-        { label: 'perf-budget-increase', actor: 'contributor', at: AFTER },
-        { label: 'perf-regression-accepted', actor: 'lead', at: AFTER },
-      ],
-      roles: { lead: 'admin', contributor: 'write' },
+      labeled: [{ label: 'perf-budget-increase', actor: 'contributor', at: AFTER }],
+      roles: { contributor: 'write' },
+    })
+    const removed = stubGh({
+      present: [],
+      labeled: [{ label: 'perf-budget-increase', actor: 'lead', at: AFTER }],
+      roles: { lead: 'admin' },
     })
 
     expect(maintainerLabels(REPO, PR, RUN, gh)).toEqual([])
+    expect(maintainerLabels(REPO, PR, RUN, removed.gh)).toEqual([])
   })
 
   it('reads nothing more when no gate label is on the pull request', () => {

@@ -8,13 +8,13 @@ import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from '../support/object-fields'
 import type { BudgetComparison, BudgetRow, BudgetRowStatus } from './budget-compare'
 import {
-  isTimingFailure,
+  isTimingRegression,
   type MetricKind,
   type ThresholdChange,
+  type TimingComparison,
   type TimingRow,
   type TimingStatus,
-  type TimingVerdict,
-} from './ab-verdict'
+} from './ab-compare'
 
 export interface PerfGateReport {
   readonly baseSha: string
@@ -22,9 +22,11 @@ export interface PerfGateReport {
   readonly pullRequest: number | null
   /** Why timings did not run, when they did not. */
   readonly timingsSkipped: string | null
+  /** Why timings that should have run have no results (the timing job failed or was cancelled). */
+  readonly timingsUnavailable: string | null
   readonly labels: readonly string[]
   readonly budgets: BudgetComparison | null
-  readonly timings: TimingVerdict | null
+  readonly timings: TimingComparison | null
   readonly pairs: number | null
   readonly platform: string | null
 }
@@ -33,6 +35,9 @@ const SHA = /^[0-9a-f]{40}$/u
 const METRIC_ID = /^[a-z][a-z0-9.-]{0,79}$/u
 const LABEL = /^[a-z0-9][a-z0-9-]{0,49}$/u
 const PLATFORM = /^[a-z0-9-]{1,32}$/u
+/** The one line `incompleteSamples` writes; anything else is dropped, not rendered. */
+const INCOMPLETE_LINE =
+  /^The A\/B results hold \d{1,4} base and head sample pairs \(base \d{1,4}, head \d{1,4}\); the comparison needs \d{1,4}\.$/u
 const MAX_ROWS = 500
 const BUDGET_STATUSES: readonly BudgetRowStatus[] = [
   'raised',
@@ -53,6 +58,12 @@ const TIMING_STATUSES: readonly TimingStatus[] = [
 const KINDS: readonly MetricKind[] = ['timing', 'memory', 'count', 'calls']
 const UNITS = ['bytes', 'count'] as const
 const SKIP_REASONS = ['no shipped code changed', 'not a pull request'] as const
+export const UNAVAILABLE_REASONS = [
+  'the timing job failed',
+  'the timing job was cancelled or timed out',
+  'the timing job did not run',
+  'the timing results could not be read',
+] as const
 
 /** Each field is checked where it is read, so a bad one drops only what it belongs to. */
 const budgetRowFields = Schema.Struct({
@@ -67,6 +78,9 @@ const budgetRowFields = Schema.Struct({
 const comparisonFields = Schema.Struct({
   rows: unknownField,
   accepted: unknownField,
+})
+const timingFields = Schema.Struct({
+  rows: unknownField,
   loosened: unknownField,
   incomplete: unknownField,
 })
@@ -91,6 +105,7 @@ const reportFields = Schema.Struct({
   pullRequest: unknownField,
   platform: unknownField,
   timingsSkipped: unknownField,
+  timingsUnavailable: unknownField,
   labels: unknownField,
   budgets: unknownField,
   timings: unknownField,
@@ -186,23 +201,18 @@ function thresholdChange(value: unknown) {
 }
 
 function timings(value: unknown) {
-  const fields = objectFields(comparisonFields, value)
+  const fields = objectFields(timingFields, value)
   if (fields === undefined) return null
   const rows = list(fields.rows).flatMap(timingRow)
-  const regressions = rows.filter(isTimingFailure)
-  const loosened = list(fields.loosened).flatMap(thresholdChange)
-  const incomplete = list(fields.incomplete).filter((line) => typeof line === 'string')
-  const failing = regressions.length > 0 || loosened.length > 0
-  const accepted = failing && fields.accepted === true
-  const verdict: TimingVerdict = {
+  const comparison: TimingComparison = {
     rows,
-    regressions,
-    loosened,
-    incomplete,
-    accepted,
-    passed: incomplete.length === 0 && (!failing || accepted),
+    regressions: rows.filter(isTimingRegression),
+    loosened: list(fields.loosened).flatMap(thresholdChange),
+    incomplete: list(fields.incomplete).filter(
+      (line): line is string => typeof line === 'string' && INCOMPLETE_LINE.test(line),
+    ),
   }
-  return verdict
+  return comparison
 }
 
 /** The report in `value`, or null when it is not one. */
@@ -221,6 +231,7 @@ export function parsePerfGateReport(value: unknown) {
     headSha,
     pullRequest: pullRequest !== null && Number.isSafeInteger(pullRequest) ? pullRequest : null,
     timingsSkipped: oneOf(fields.timingsSkipped, SKIP_REASONS),
+    timingsUnavailable: oneOf(fields.timingsUnavailable, UNAVAILABLE_REASONS),
     labels: list(fields.labels).filter(
       (label): label is string => typeof label === 'string' && LABEL.test(label),
     ),

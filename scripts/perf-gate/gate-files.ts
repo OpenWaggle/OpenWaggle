@@ -1,4 +1,4 @@
-/** Reading the A/B run's files, and the evidence lines the verdict prints when it fails. */
+/** Reading the A/B run's files, and the evidence lines the comparison prints for what it highlights. */
 import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from '../support/object-fields'
 import type { AbResults } from './ab-run'
@@ -6,11 +6,10 @@ import type { AbSample } from './ab-sample'
 import {
   abMetrics,
   type Limit,
-  REGRESSION_ACCEPTED_LABEL,
   type Thresholds,
+  type TimingComparison,
   type TimingRow,
-  type TimingVerdict,
-} from './ab-verdict'
+} from './ab-compare'
 
 const PERCENT = 100
 const MEBIBYTE = 1_048_576
@@ -118,30 +117,30 @@ function samplesOf(results: AbResults, id: string) {
   return ` Samples: base [${list('base')}], head [${list('head')}].`
 }
 
-/** One line per regression and loosened threshold, with the samples behind it. */
-export function abFailureLines(verdict: TimingVerdict, results: AbResults) {
-  const outcome = verdict.accepted
-    ? `Accepted by the ${REGRESSION_ACCEPTED_LABEL} label.`
-    : `Only a maintainer can accept it, with the ${REGRESSION_ACCEPTED_LABEL} label.`
+/**
+ * One line per highlighted row and loosened threshold, with the samples behind it, for the job log.
+ * Timings are reported only, so none of them fails the check.
+ */
+export function abRegressionLines(comparison: TimingComparison, results: AbResults) {
   return [
-    ...verdict.incomplete,
-    ...verdict.regressions.map((row) => {
+    ...comparison.incomplete,
+    ...comparison.regressions.map((row) => {
       if (row.status === 'unavailable') {
-        return `${row.id}: measured on neither the base nor the head.${samplesOf(results, row.id)} ${outcome}`
+        return `${row.id}: measured on neither the base nor the head.${samplesOf(results, row.id)}`
       }
       if (row.status === 'missing') {
-        return `${row.id}: measured on the base (${value(row, row.base)}) but not on the head.${samplesOf(results, row.id)} ${outcome}`
+        return `${row.id}: measured on the base (${value(row, row.base)}) but not on the head.${samplesOf(results, row.id)}`
       }
       const relative =
         row.relative === null ? '' : ` (${(row.relative * PERCENT).toFixed(DECIMALS)}%)`
       return (
         `${row.id}: ${value(row, row.base)} -> ${value(row, row.head)}, paired median +${value(row, row.delta)}${relative}, ` +
-        `over the ${value(row, row.limit)} limit.${samplesOf(results, row.id)} Reproduce with bun run perf:ab (.agents/memory/performance.md). ${outcome}`
+        `over the ${value(row, row.limit)} limit.${samplesOf(results, row.id)} Reproduce with bun run perf:ab (.agents/memory/performance.md).`
       )
     }),
-    ...verdict.loosened.map(
+    ...comparison.loosened.map(
       (change) =>
-        `performance/perf-gate/thresholds.json ${change.name} loosened ${String(change.base)} -> ${String(change.head)}. ${outcome}`,
+        `performance/perf-gate/thresholds.json ${change.name} loosened ${String(change.base)} -> ${String(change.head)}; main's thresholds still judge this run.`,
     ),
   ]
 }
