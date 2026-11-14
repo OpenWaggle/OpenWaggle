@@ -6,6 +6,7 @@ import {
   reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from '../lib/useAgentChat.utils'
+import type { RunRenderSnapshot } from '../state/background-run-render-state'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
 import { isSendToOtherSession, settleDisplacedSends } from './useAgentChat.foreground-run'
@@ -246,4 +247,17 @@ export function hydrateSessionMessages(
     return
   }
   hydrateIdleSession(input, keys, context)
+}
+
+/** The hydration input a Session's cached render snapshot gives; its rows only while it runs. */
+export function cachedRunSnapshotInput(activeRun: boolean, snapshot: RunRenderSnapshot | null) {
+  return {
+    cachedRenderMessages: activeRun ? (snapshot?.messages ?? null) : null,
+    cachedRenderSeeded: activeRun && snapshot?.seededByRunId !== undefined,
+    ...(snapshot?.settledMessageIds === undefined
+      ? {}
+      : { cachedSettledMessageIds: snapshot.settledMessageIds }),
+    cachedNoticedMessageIds: snapshot?.noticedMessageIds,
+    cachedCompactionStatus: snapshot?.compactionStatus ?? null,
+  }
 }

@@ -62,6 +62,95 @@ describe('createStartedRuns', () => {
     expect(runs.settle(SESSION, 'run-x')).toBe(false)
   })
 
+  it('takes a late settlement of the Run before one whose start was lost for an earlier one', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    runs.end(SESSION, 'run-2')
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
+  it('settles a Run known only from what it streamed under its real id', () => {
+    const runs = createStartedRuns()
+    runs.noteUnannounced(SESSION)
+    runs.noteUnannounced(SESSION)
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+    expect(runs.start(SESSION, 'run-2')).toBe(false)
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
+  it('names a Run whose start was lost by its end, even when it is the Run before continuing', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    // Pi continues run-1 and its start is lost; its end names it.
+    runs.noteUnannounced(SESSION)
+    runs.end(SESSION, 'run-1')
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+  })
+
+  it('takes a late start of a Run that already streamed for that Run, another than the one before', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.start(SESSION, 'run-2')).toBe(true)
+    expect(runs.start(SESSION, 'run-2')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
+  // An auto-retry or a requested Waggle's next turn starts again with no end in between.
+  it('lists the Run before once when the Run whose start was lost starts again as it', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.start(SESSION, 'waggle-of-run-1')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+  })
+
+  it('lists a Run whose start was lost after the Run restored at a reload', () => {
+    const runs = createStartedRuns()
+    runs.noteUnannounced(SESSION, 'run-1')
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    runs.end(SESSION, 'run-2')
+    expect(runs.settle(SESSION, 'run-2')).toBe(false)
+  })
+
+  it('names a Run whose start was lost from the buffer, telling the Run before from another', () => {
+    const runs = createStartedRuns()
+    runs.noteUnannounced(SESSION)
+    expect(runs.name(SESSION, 'run-1')).toBe(false)
+    expect(runs.name(SESSION, 'run-1')).toBeUndefined()
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.name(SESSION, 'run-1')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(false)
+    runs.start(SESSION, 'run-2')
+    runs.end(SESSION, 'run-2')
+    runs.noteUnannounced(SESSION)
+    expect(runs.name(SESSION, 'run-3')).toBe(true)
+    expect(runs.settle(SESSION, 'run-2')).toBe(true)
+    expect(runs.settle(SESSION, 'run-3')).toBe(false)
+  })
+
+  it('tells a settlement followed by a Run known only from what it streamed', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-1')
+    runs.end(SESSION, 'run-1')
+    runs.noteUnannounced(SESSION)
+    expect(runs.unannouncedAfter(SESSION, 'run-1')).toBe(true)
+    expect(runs.name(SESSION, 'run-2')).toBe(true)
+    expect(runs.unannouncedAfter(SESSION, 'run-1')).toBe(true)
+    runs.start(SESSION, 'run-3')
+    expect(runs.unannouncedAfter(SESSION, 'run-2')).toBe(false)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+    expect(runs.unannouncedAfter(SESSION, 'run-1')).toBe(false)
+  })
+
   it('names the classic Run a requested Waggle settles as', () => {
     expect(settlingRunId('waggle-of-run-1')).toBe('run-1')
     expect(settlingRunId('waggle-3')).toBe('waggle-3')

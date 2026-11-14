@@ -3,7 +3,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { vi } from 'vitest'
 import { useBackgroundRunStore } from '../../state/background-run-store'
-import { createBridgeModel } from './transcript-order.bridge'
+import { createBridgeModel, createStartLoss } from './transcript-order.bridge'
 import {
   DEFAULT_LAG_MS,
   type EndRunOptions,
@@ -59,6 +59,7 @@ export function createTranscriptOrderHarness(
   const lagMs = options.lagMs ?? DEFAULT_LAG_MS
   const route = createRouteStore()
   let dropping = false
+  const startLoss = createStartLoss()
   const bridge = createBridgeModel()
   // The Host put steers Pi never took back in the queue; the renderer learns of it once told.
   const forgetPromotions = () => promotions.forgetUndelivered(dropping)
@@ -74,6 +75,7 @@ export function createTranscriptOrderHarness(
     // One clock: the renderer's runs `lagMs` behind the Host's, whether or not the event arrives.
     vi.setSystemTime(Math.max(Date.now(), event.timestamp + lagMs))
     if (dropping) return
+    if (startLoss.takes(event)) return
     if (event.type === 'agent_start') bridge.started(event.runId)
     if (main) main.publish(event)
     else receive(event)
@@ -227,6 +229,7 @@ export function createTranscriptOrderHarness(
     /** The oldest settlement on its way reaches the renderer. */
     settleRun: async () => pendingSettlements.shift()?.(),
     settlementPending: () => pendingSettlements.length > 0,
+    loseNextStart: startLoss.lose,
     stall() {
       dropping = true
       promotions.stalled(true)

@@ -13,9 +13,12 @@ import {
   seededSnapshotForRunStart,
   seedRunRenderSnapshot,
   startedRunOf,
+  withEarlierRunSettledBeforeUnannounced,
   withEndedRunNamed,
+  withNoticeResolved,
   withSettledEarlierMessages,
 } from './background-run-started-run'
+import { withRenderSnapshot } from './background-run-snapshot-map'
 
 export interface RunRenderSnapshot {
   readonly messages: readonly UIMessage[]
@@ -49,6 +52,12 @@ export interface RunRenderSnapshot {
    * the started Run's, which every event it streams needs.
    */
   readonly startedRun?: { readonly runId: string; readonly earlierMessageIds: ReadonlySet<string> }
+  /**
+   * The rows a named Run left when a Run whose start was lost began streaming over them: that Run's
+   * own if Pi continues it, the Run before's if another. Set apart only once that is known
+   * (`withNoticeResolved`).
+   */
+  readonly noticedMessageIds?: ReadonlySet<string>
 }
 
 /** The mark of a settled Run whose settlement named no run id. */
@@ -105,9 +114,12 @@ export function withRunRenderEvent(
   ) {
     return state
   }
-  const next = new Map(state.renderSnapshotsBySessionId)
-  next.set(id, { ...snapshot, messages, compactionStatus, updatedAt: Date.now() })
-  return { renderSnapshotsBySessionId: next }
+  return withRenderSnapshot(state, id, {
+    ...snapshot,
+    messages,
+    compactionStatus,
+    updatedAt: Date.now(),
+  })
 }
 
 /**
@@ -126,16 +138,15 @@ export function withRunRenderMessages(
     new Set([...(existing?.settledMessageIds ?? []), ...(startedRun?.earlierMessageIds ?? [])]),
     messages,
   )
-  const next = new Map(state.renderSnapshotsBySessionId)
-  next.set(id, {
+  return withRenderSnapshot(state, id, {
     messages: [...messages],
     compactionStatus: existing?.compactionStatus ?? null,
     updatedAt: Date.now(),
     ...(existing?.settledRunId === undefined ? {} : { settledRunId: existing.settledRunId }),
     ...(settledMessageIds ? { settledMessageIds } : {}),
     ...(startedRun ? { startedRun } : {}),
+    ...(existing?.noticedMessageIds ? { noticedMessageIds: existing.noticedMessageIds } : {}),
   })
-  return { renderSnapshotsBySessionId: next }
 }
 
 /** The settled message ids a route's transcript still shows; none once it rehydrated without them. */
@@ -176,17 +187,21 @@ export function withRunCompactionStatus(
 ) {
   const existing = state.renderSnapshotsBySessionId.get(id)
   if (!existing) return state
-  const next = new Map(state.renderSnapshotsBySessionId)
-  if (status === null && !active) {
-    next.delete(id)
-    return { renderSnapshotsBySessionId: next }
+  // A Run's own snapshot stays until the Run settles: after its end Pi may continue it, its start
+  // lost, and mid-Run only that snapshot holds the answers the buffer's history budget dropped.
+  if (status === null && !active && !holdsUnsettledNamedRun(existing)) {
+    return withoutRunRenderSnapshot(state, id)
   }
-  next.set(id, {
+  return withRenderSnapshot(state, id, {
     ...existing,
     compactionStatus: rebaseRestoredCompaction(status, existing.messages.length),
     updatedAt: Date.now(),
   })
-  return { renderSnapshotsBySessionId: next }
+}
+
+function holdsUnsettledNamedRun(snapshot: RunRenderSnapshot) {
+  const seed = snapshot.seededByRunId
+  return seed !== undefined && !isUnnamedRunSeed(seed) && snapshot.settledRunId === undefined
 }
 
 /** What a snapshot holding a settled Run is marked with: that Run's id, or a mark naming none. */
@@ -209,9 +224,15 @@ export function withSettledRunRenderSnapshot(
   state: RenderSnapshotState,
   id: SessionId,
   settledRunId: string | undefined,
+  beforeUnannounced = false,
 ) {
   const existing = state.renderSnapshotsBySessionId.get(id)
   if (!existing) return state
+  if (beforeUnannounced) {
+    // The noticed Run is another: the Run before settled, and its rows are the ones noticed.
+    const resolved = withNoticeResolved(existing, UNNAMED_RUN_SEED, true, false)
+    return withRenderSnapshot(state, id, withEarlierRunSettledBeforeUnannounced(resolved))
+  }
   if (settledRunId !== undefined && isSeededByAnotherRun(existing, settledRunId)) return state
   const started = existing.startedRun
   if (settledRunId !== undefined && started && isAnotherNamedRun(started.runId, settledRunId)) {
@@ -219,14 +240,18 @@ export function withSettledRunRenderSnapshot(
   }
   const settledMessageIds = new Set(existing.settledMessageIds)
   for (const message of existing.messages) settledMessageIds.add(message.id)
-  const { seededByRunId: _settledSeed, startedRun: _started, ...unseeded } = existing
-  const next = new Map(state.renderSnapshotsBySessionId)
-  next.set(id, {
+  // A notice left by a Run ending before the Host named it is settled with every row.
+  const {
+    seededByRunId: _settledSeed,
+    startedRun: _started,
+    noticedMessageIds: _noticed,
+    ...unseeded
+  } = existing
+  return withRenderSnapshot(state, id, {
     ...unseeded,
     settledRunId: settledRunMark(settledRunId),
     ...(settledMessageIds.size > 0 ? { settledMessageIds } : {}),
   })
-  return { renderSnapshotsBySessionId: next }
 }
 
 function isSeededByAnotherRun(snapshot: RunRenderSnapshot, runId: string) {

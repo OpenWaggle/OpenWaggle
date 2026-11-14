@@ -29,6 +29,16 @@ export function addActiveRunToState(
   }
 }
 
+/** Bumps the Session's lost-start notice: the chat showing it hydrates it again. */
+export function withUnannouncedRunNotice(
+  state: { readonly unannouncedRunNotices: Map<SessionId, number> },
+  id: SessionId,
+) {
+  const notices = new Map(state.unannouncedRunNotices)
+  notices.set(id, (notices.get(id) ?? 0) + 1)
+  return { unannouncedRunNotices: notices }
+}
+
 export function removeActiveRunFromState(state: ActiveRunState, id: SessionId) {
   if (!state.activeRunIds.has(id) && !state.runModelBySessionId.has(id)) return state
   const activeRunIds = new Set(state.activeRunIds)
