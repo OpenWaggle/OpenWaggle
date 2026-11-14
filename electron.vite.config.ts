@@ -154,7 +154,8 @@ export default defineConfig({
       cssMinify: true,
       // See the main build: hidden maps, never packaged, kept with each release.
       sourcemap: 'hidden',
-      // The chunk graph scripts/check-syntax-bundle.ts budgets. Not packaged (electron-builder.ts).
+      // The chunk graph the renderer budgets read (scripts/perf-gate/build-metrics.ts) and
+      // scripts/check-syntax-bundle.ts checks. Not packaged (electron-builder.ts).
       manifest: true,
       rolldownOptions: {
         // Setting rolldownOptions drops electron-vite's default renderer input.
@@ -164,8 +165,8 @@ export default defineConfig({
             // On, this pass moves every module that each importer of a lazy chunk already loaded
             // into the entry. The eager shell sat in a preloaded shared chunk only while a
             // chat store -> shell import cycle blocked the pass; breaking that cycle folded it into
-            // the entry (283 -> 467 KB) with the same initial bytes. Off keeps the entry within
-            // its budget; the initial graph budget guards what boot actually loads.
+            // the entry (283 -> 467 KB) with the same initial bytes. Off keeps the entry where it
+            // was; the initial graph budget (renderer.initial.bytes) tracks what boot loads.
             avoidRedundantChunkLoads: false,
           },
         },

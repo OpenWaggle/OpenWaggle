@@ -13,8 +13,8 @@ import type {
 
 /*
  * The syntax worker's messages are checked with `'name' in value` narrowing rather than an Effect
- * schema: the worker bundle has a size budget (scripts/check-syntax-bundle.ts) that the schema
- * runtime does not fit in. Each field is narrowed to a declared type and read with dot access.
+ * schema: the worker bundle has a size budget (renderer.syntax-worker.bytes in
+ * performance/perf-budgets.json) that the schema runtime does not fit in. Each field is narrowed to a declared type and read with dot access.
  */
 
 function isStringArray(value: unknown): value is readonly string[] {

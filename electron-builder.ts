@@ -100,7 +100,7 @@ const config = {
     '!out/**/*.d.ts',
     // Hidden source maps of the minified bundles: kept as release artifacts, never shipped.
     '!out/**/*.map',
-    // The renderer build manifest only feeds the bundle budget (scripts/check-syntax-bundle.ts).
+    // The renderer build manifest only feeds the bundle checks and budgets (scripts/perf-gate/build-metrics.ts).
     '!out/renderer/.vite/**/*',
     '!out/main/.vite/**/*',
     '!**/.vscode/*',

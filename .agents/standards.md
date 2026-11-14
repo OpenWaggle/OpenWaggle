@@ -113,7 +113,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native AB
 - No TypeScript `baseUrl`; use explicit `paths` entries (`4bd0325e2`, `check:repository-standards`).
 - `while (true)`, not `for (;;)` (`4bd0325e2`, `openwaggle/no-infinite-for-loop`).
 - Numeric literals outside tests are named `SCREAMING_SNAKE_CASE` constants (`4bd0325e2`, `openwaggle/no-inline-magic-numbers`).
-- A change does not make the app slower or heavier by accident: `performance/perf-budgets.json` follows the measurement, and a raised budget turns the advisory `Performance Gate` check red until a maintainer adds `perf-budget-increase`; timing and memory regressions are reported on the pull request, never failed. `no-cheating/budget` leaves these files to the gate (check `perf-budgets`, CI `Performance Gate`, `.agents/verification.md`).
+- A change does not make the app slower or heavier by accident: `performance/perf-budgets.json` follows the measurement, and a raised budget turns the advisory `Performance Gate` check red until a maintainer adds `perf-budget-increase`; timing and memory regressions are reported on the pull request, never failed. No size or count ceiling lives in code: a bundle or package size is a metric in that file (`scripts/perf-gate/budget-metrics.ts`), so the `perf-budgets` step only checks that the file equals the measurement, and any author fixes it with `bun run perf:budgets:update`. `no-cheating/budget` leaves these files to the gate (check `perf-budgets`, CI `Performance Gate`, `.agents/verification.md`).
 - Bun only: `bun install`, `bun run`, `bunx`. No npm, pnpm, yarn or tsx (ADR 0064).
 - oxfmt formats JavaScript and TypeScript with `.oxfmtrc.json` (ADR 0064, check `format`).
 - Change generated files only by running their generator (`no-cheating/generated-file`; the usage statistics catalog, API snapshots and package docs have their own check steps).
@@ -144,7 +144,7 @@ The `no-cheating` check step (`bun run check:no-cheating`, `scripts/no-cheating/
 - `cast`: a new `as any`, `as unknown as` or `as never`, including in files lint does not cover.
 - `tsconfig`: a source file no project reachable from `tsconfig.json` checks any more, or a strictness flag that got weaker for some file.
 - `lint-config`: a rule turned off or down to a warning, a new ignore or exemption entry, a raised limit or a check option turned off in `oxlint.config.mts`, `.fallowrc.jsonc` or `doctor.config.ts`, with no comment saying why.
-- `budget`: a raised bundle, output, first-turn prefix, memory token or syntax performance budget, or a lowered coverage threshold.
+- `budget`: a raised output, first-turn prefix, memory token or syntax performance budget, or a lowered coverage threshold.
 - `only-shrinks`: a new entry in a list that only shrinks: the design-token and renderer-test type exemptions, the legacy ADR numbers, and the files over the size limits (`OVERSIZED_FILES` in `oxlint.config.mts`). `scripts/no-cheating/ratchets.ts` lists what it watches.
 - `test`: a new `.skip`, `.only` or `.todo`, a `skipIf` or `runIf` with no comment saying when it runs, or a deleted test file whose code still exists.
 - `generated-file`: a published JSON Schema or the syntax language metadata that differs from what its generator writes.
