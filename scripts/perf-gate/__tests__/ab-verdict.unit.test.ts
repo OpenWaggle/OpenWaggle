@@ -187,6 +187,57 @@ describe('the timing verdict', () => {
     )
   })
 
+  it('fails a readiness timing neither side measured, and names it', () => {
+    const unmeasured = results({})
+    const input = {
+      ...unmeasured,
+      samples: unmeasured.samples.map((entry) => ({
+        ...entry,
+        warm: { ...entry.warm, chatReadyMs: null },
+      })),
+    }
+
+    const verdict = timingVerdict({
+      results: input,
+      thresholds: THRESHOLDS,
+      headThresholds: THRESHOLDS,
+      labels: [],
+    })
+
+    expect(verdict.passed).toBe(false)
+    expect(verdict.regressions.map((row) => [row.id, row.status])).toEqual([
+      ['warm.chat-ready', 'unavailable'],
+    ])
+    expect(abFailureLines(verdict, input)[0]).toContain(
+      'warm.chat-ready: measured on neither the base nor the head.',
+    )
+  })
+
+  it.each([
+    ['no samples', []],
+    ['no base samples', results({}).samples.filter((entry) => entry.build === 'head')],
+    ['fewer pairs than main asks for', results({}, 3).samples],
+    [
+      'samples whose orders do not pair',
+      results({}).samples.map((entry) =>
+        entry.build === 'head' ? { ...entry, order: entry.order + 10 } : entry,
+      ),
+    ],
+  ])('fails results with %s, whatever the labels', (_name, samples) => {
+    const input: AbResults = { ...results({}), samples }
+
+    const verdict = timingVerdict({
+      results: input,
+      thresholds: THRESHOLDS,
+      headThresholds: THRESHOLDS,
+      labels: [REGRESSION_ACCEPTED_LABEL],
+    })
+
+    expect(verdict.passed).toBe(false)
+    expect(verdict.incomplete).toHaveLength(1)
+    expect(abFailureLines(verdict, input)[0]).toMatch(/the gate needs 4\.$/)
+  })
+
   it('names a loosened threshold and needs the label for it', () => {
     const looser: Thresholds = { ...THRESHOLDS, timing: { relative: 0.2, absolute: 60 }, pairs: 2 }
     expect(loosenedThresholds(THRESHOLDS, looser)).toEqual([

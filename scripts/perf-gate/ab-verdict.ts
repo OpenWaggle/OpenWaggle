@@ -31,7 +31,8 @@ export interface Thresholds {
 
 /**
  * `missing`: measured on the base but not the head, which fails like a regression (a head that
- * stops reporting a metric must not pass unjudged). `unavailable`: the base has no value either.
+ * stops reporting a metric must not pass unjudged). `unavailable`: the base has no value either,
+ * which fails too for a readiness timing measured on neither side (every launch reports them).
  */
 export type TimingStatus = 'regressed' | 'missing' | 'improved' | 'same' | 'unavailable'
 
@@ -57,6 +58,11 @@ export interface TimingVerdict {
   readonly rows: readonly TimingRow[]
   readonly regressions: readonly TimingRow[]
   readonly loosened: readonly ThresholdChange[]
+  /**
+   * Why the samples cannot be judged: fewer base and head samples paired by order than main's
+   * `pairs`. No label accepts it, since there is nothing to accept.
+   */
+  readonly incomplete: readonly string[]
   readonly accepted: boolean
   readonly passed: boolean
 }
@@ -156,9 +162,33 @@ function row(id: string, kind: MetricKind, read: Reader, results: AbResults, lim
   return measured
 }
 
+/** A readiness timing measured on neither side: the launches did not report it at all. */
+export function isUnmeasuredReadiness(candidate: TimingRow) {
+  return (
+    candidate.kind === 'timing' && candidate.status === 'unavailable' && candidate.head === null
+  )
+}
+
 /** A row that fails the gate unless a maintainer accepts it. */
 export function isTimingFailure(candidate: TimingRow) {
-  return candidate.status === 'regressed' || candidate.status === 'missing'
+  return (
+    candidate.status === 'regressed' ||
+    candidate.status === 'missing' ||
+    isUnmeasuredReadiness(candidate)
+  )
+}
+
+/** The problem with too few samples to judge: under `pairs` base and head samples sharing an order. */
+export function incompleteSamples(samples: readonly AbSample[], pairs: number) {
+  const orders = (build: AbSample['build']) =>
+    new Set(samples.filter((sample) => sample.build === build).map((sample) => sample.order))
+  const base = orders('base')
+  const head = orders('head')
+  const paired = [...base].filter((order) => head.has(order)).length
+  if (paired >= pairs) return []
+  return [
+    `The A/B results hold ${String(paired)} base and head sample pairs (base ${String(base.size)}, head ${String(head.size)}); the gate needs ${String(pairs)}.`,
+  ]
 }
 
 /** Limits the head's thresholds file loosens against main's: a higher limit or fewer pairs. */
@@ -186,14 +216,16 @@ export function timingVerdict(input: {
   )
   const regressions = rows.filter(isTimingFailure)
   const loosened = loosenedThresholds(input.thresholds, input.headThresholds)
+  const incomplete = incompleteSamples(input.results.samples, input.thresholds.pairs)
   const failing = regressions.length > 0 || loosened.length > 0
   const accepted = failing && input.labels.includes(REGRESSION_ACCEPTED_LABEL)
   const verdict: TimingVerdict = {
     rows,
     regressions,
     loosened,
+    incomplete,
     accepted,
-    passed: !failing || accepted,
+    passed: incomplete.length === 0 && (!failing || accepted),
   }
   return verdict
 }
