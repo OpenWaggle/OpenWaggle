@@ -14,7 +14,8 @@
 # request's. decide and the gate run them from main's own checkout (trusted/), installed there, so
 # Bun also loads main's bunfig.toml.
 # Only a maintainer accepts a regression: perf-budget-increase for a budget, perf-regression-accepted
-# for a timing. Add the label, then re-run the failed Performance Gate job; it reads labels live.
+# for a timing. Add the label, then re-run the failed Performance Gate job; it reads labels live and
+# counts one only if it was added after the run's first attempt began, so a new push needs it again.
 #
 # A push to a throwaway bench/perf-gate-* branch runs the same jobs; performance/perf-gate/bench.json
 # on that branch (never on main) may name the base and head refs and the pair count, for example
@@ -251,6 +252,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: read
       issues: read
       pull-requests: read
@@ -292,7 +294,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-        run: bun scripts/perf-gate/gate.ts labels --repo "$GITHUB_REPOSITORY" --pr "$PR" | tee -a "$GITHUB_ENV"
+          RUN_ID: ${{ github.run_id }}
+        run: bun scripts/perf-gate/gate.ts labels --repo "$GITHUB_REPOSITORY" --pr "$PR" --run "$RUN_ID" | tee -a "$GITHUB_ENV"
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         if: needs.timings.result == 'success'
