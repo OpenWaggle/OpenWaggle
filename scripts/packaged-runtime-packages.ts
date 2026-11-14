@@ -50,8 +50,9 @@ export const UNLOADED_PACKAGES: ReadonlySet<string> = new Set(['onnxruntime-web'
  * - lucide: `main` is the CommonJS build. The UMD build is inlined into the main bundle at build
  *   time (src/main/inline-visualization-protocol.ts) and Node ignores the ESM `module` field.
  * - transformers.js: the embedding process loads the file `require.resolve` returns
- *   (`transformers.node.cjs`, src/main/adapters/session-embedding-process.ts); the rest are web
- *   and minified builds, the ONNX web runtime's loader and the TypeScript sources.
+ *   (`transformers.node.cjs`, src/main/adapters/session-embedding-process.ts) and the voice
+ *   handler the file `import()` resolves (`transformers.node.mjs`, src/main/ipc/voice-handler.ts);
+ *   the rest are web and minified builds, the ONNX web runtime's loader and the TypeScript sources.
  * - underscore: mammoth requires the package, whose Node `require` export is `underscore-node.cjs`.
  * - zlibjs: only tesseract.js's browser worker requires it (`bin/node-zlib.js` is its `main`).
  * - tesseract.js-core: the attachment parser asks for the LSTM engine (`OEM.LSTM_ONLY`,
@@ -62,7 +63,11 @@ export const UNLOADED_PACKAGES: ReadonlySet<string> = new Set(['onnxruntime-web'
  */
 export const PACKAGE_UNLOADED_FILES: Readonly<Record<string, readonly string[]>> = {
   lucide: ['dist/esm', 'dist/umd'],
-  '@huggingface/transformers': ['src', 'types', 'dist/!(transformers.node.cjs)'],
+  '@huggingface/transformers': [
+    'src',
+    'types',
+    'dist/!(transformers.node.cjs|transformers.node.mjs)',
+  ],
   underscore: ['!(package.json|underscore-node.cjs|underscore-node-f.cjs)'],
   zlibjs: ['bin/!(node-zlib.js)'],
   'tesseract.js-core': ['*.wasm.js', 'tesseract-core{,-simd,-relaxedsimd}.{js,wasm}'],
