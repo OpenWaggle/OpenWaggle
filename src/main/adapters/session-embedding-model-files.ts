@@ -1,8 +1,10 @@
 /**
  * The Session embedding model's files, fetched on first use instead of shipped with the app. The
  * app no longer carries the ~135 MB multilingual-e5 model (installer, update and installed size);
- * the first embedding downloads it once into userData, which updates keep, from the pinned Hugging
- * Face revision, and checks every file against its pinned SHA-256 before it is used.
+ * the first embedding, or the first read of its availability, downloads it once into userData,
+ * which updates keep, from the pinned Hugging Face revision, and checks every file against its
+ * pinned SHA-256 as it downloads it. A later launch uses the copy when every file has its pinned
+ * size beside the manifest written after verification.
  *
  * Until the files are there, semantic discovery is not usable and search stays lexical
  * (`SqliteSessionSemanticSearch.usable`). A failed download (offline, an HTTP error, a file that

@@ -56,9 +56,9 @@ Released builds also ask GitHub for updates a few seconds after launch and every
 
 ## The session search model
 
-Search by meaning uses a model that runs on your computer. OpenWaggle does not ship it. The Session Host downloads it from Hugging Face (`huggingface.co`) the first time it needs it: when it indexes your sessions in the background, or when you run a search by meaning. The download is about 135 MB, from one pinned revision of `Xenova/multilingual-e5-small`. Hugging Face receives your IP address, and no session text leaves your computer.
+Search by meaning uses a model that runs on your computer. OpenWaggle does not ship it. The Session Host downloads it from Hugging Face (`huggingface.co`) the first time it needs the model or checks for it: when it indexes your sessions in the background, or when you run a search that can match by meaning, as the default search does. A search that only matches words does not start the download. The download is about 135 MB, from one pinned revision of `Xenova/multilingual-e5-small`. Hugging Face receives your IP address, and no session text leaves your computer.
 
-OpenWaggle checks each file against its pinned SHA-256 hash before it uses the model, and refuses a file that does not match. The model is kept in the app data folder, so updates do not download it again. Until it arrives, search matches words. A failed download is tried again after 15 seconds, then after twice as long each time, up to every 30 minutes.
+OpenWaggle checks each file against its pinned SHA-256 hash as it downloads it, and refuses a file that does not match. Later launches use the downloaded copy when all its files are there at their expected sizes. The model is kept in the app data folder, so updates do not download it again. Until it arrives, search matches words. A failed download is tried again after 15 seconds, then after twice as long each time, up to every 30 minutes.
 
 ## Voice input
 

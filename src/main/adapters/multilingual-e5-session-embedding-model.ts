@@ -123,7 +123,14 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
       return ready
     }
     await files.present()
-    return files.availability()
+    const current = files.availability()
+    if (current.state === 'missing' || current.state === 'offline' || current.state === 'failed') {
+      // An install whose index was prepared before the model was fetched on first use, or one that
+      // only searches, never embeds, so reading the state starts the download. `ensure()` refuses
+      // a retry before `retryAt`, and a download in progress is shared.
+      files.ensure().catch(() => undefined)
+    }
+    return current
   }
 
   readonly onAvailabilityChange = (
