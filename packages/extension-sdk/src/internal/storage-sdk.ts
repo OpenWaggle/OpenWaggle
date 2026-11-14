@@ -5,15 +5,15 @@ import {
   storageSetResultSchema,
   toDecodedOperationResult,
 } from './broker-validation.js'
-import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
-import type { JsonValue } from './json.js'
+import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
+import type { JsonValue } from '../json.js'
 import type {
   ExtensionPackageStorageKindSdk,
   ExtensionPackageStorageSdk,
   ExtensionSdkInvoke,
   ExtensionStorageScopeSdk,
-} from './sdk-types.js'
-import type { ExtensionStorageKind, ExtensionStorageScopeSelector } from './types.js'
+} from '../sdk-types.js'
+import type { ExtensionStorageKind, ExtensionStorageScopeSelector } from '../types.js'
 
 const STORAGE_RESULT_ERROR = 'Extension broker returned an invalid storage result.'
 

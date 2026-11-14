@@ -1,10 +1,7 @@
 import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
-import {
-  createOpenWaggleExtensionTheme,
-  extensionThemeCssVariableEntries,
-  isOpenWaggleExtensionTheme,
-} from '../theme.js'
+import { createOpenWaggleExtensionTheme, extensionThemeCssVariableEntries } from '../theme.js'
+import { validateOpenWaggleExtensionTheme } from '../validation.js'
 import {
   DEFAULT_EXTENSION_THEME_TOKENS,
   EXTENSION_THEME_COLOR_KEYS,
@@ -59,13 +56,13 @@ describe('createOpenWaggleExtensionTheme', () => {
       'high-contrast-light',
       'high-contrast-dark',
     ] as const) {
-      expect(isOpenWaggleExtensionTheme({ ...theme, colorScheme })).toBe(true)
+      expect(validateOpenWaggleExtensionTheme({ ...theme, colorScheme }).success).toBe(true)
       expect(createOpenWaggleExtensionTheme({ colorScheme }).colorScheme).toBe(colorScheme)
     }
     expect(
-      isOpenWaggleExtensionTheme(
+      validateOpenWaggleExtensionTheme(
         fromAny<unknown, { colorScheme: 'sepia' }>({ ...theme, colorScheme: 'sepia' }),
-      ),
+      ).success,
     ).toBe(false)
   })
 
@@ -247,8 +244,11 @@ describe('createOpenWaggleExtensionTheme', () => {
 
     expect(theme.tokens).not.toHaveProperty('controlSize')
     expect(theme.tokens).not.toHaveProperty('elevation')
-    expect(isOpenWaggleExtensionTheme(obsoleteGroups)).toBe(false)
-    expect(isOpenWaggleExtensionTheme(obsoleteTypeScale)).toBe(false)
+    const obsoleteGroupIssues = validateOpenWaggleExtensionTheme(obsoleteGroups)
+    expect(
+      obsoleteGroupIssues.success ? [] : obsoleteGroupIssues.issues.map(({ path }) => path),
+    ).toEqual(['tokens.controlSize', 'tokens.elevation'])
+    expect(validateOpenWaggleExtensionTheme(obsoleteTypeScale).success).toBe(false)
   })
 })
 

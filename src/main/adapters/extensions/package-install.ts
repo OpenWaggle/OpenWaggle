@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { extensionIdSchema, extensionRelativePathSchema } from '@openwaggle/extension-sdk'
+import {
+  extensionIdSchema,
+  extensionRelativePathSchema,
+} from '@openwaggle/extension-sdk/internal/manifest-primitives'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { ParseResult, parseJsonUnknown, type Schema, safeDecodeUnknown } from '@shared/schema'
 import { openWaggleExtensionManifestSchema } from '@shared/schemas/extensions'

@@ -1,5 +1,5 @@
-// The broker's openwaggle schemas are the public extension SDK's: the host builds results from the
-// schemas extensions decode them with.
+// The broker's openwaggle schemas are the extension SDK's internal ones: the host builds results
+// from the schemas the SDK's broker client decodes them with.
 export {
   extensionActionSelectProjectPayloadSchema,
   extensionBranchViewSchema,
@@ -15,4 +15,4 @@ export {
   extensionSettingsViewSchema,
   extensionStateReadPayloadSchema,
   extensionStateSelectedReadResultSchema,
-} from '@openwaggle/extension-sdk'
+} from '@openwaggle/extension-sdk/internal/broker-schemas-openwaggle'

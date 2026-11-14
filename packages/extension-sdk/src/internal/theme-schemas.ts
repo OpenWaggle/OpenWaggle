@@ -7,8 +7,7 @@ import {
   EXTENSION_THEME_SPACING_KEYS,
   EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS,
   EXTENSION_THEME_TYPE_SCALE_KEYS,
-} from './theme-data.js'
-import type { OpenWaggleExtensionTheme } from './theme-types.js'
+} from '../theme-data.js'
 
 /** An object with exactly these keys, each holding a value of `value`. */
 function exactKeys<const TKey extends string, TValue, TEncoded>(
@@ -34,20 +33,13 @@ const themeTokensSchema = Schema.Struct({
   focus: exactKeys(EXTENSION_THEME_FOCUS_KEYS, Schema.String),
 })
 
-const extensionThemeSchema = Schema.Struct({
-  colorScheme: Schema.Literal('dark', 'light', 'high-contrast-dark', 'high-contrast-light'),
-  tokens: themeTokensSchema,
-  cssVariables: themeTokensSchema,
+/** Every token group holds exactly its declared keys; the theme itself may carry more fields. */
+const exactThemeTokensSchema = themeTokensSchema.annotations({
+  parseOptions: { onExcessProperty: 'error' },
 })
 
-/** Every token group holds exactly its declared keys; the theme itself may carry more fields. */
-const isExactThemeTokens = Schema.is(themeTokensSchema, { onExcessProperty: 'error' })
-const isThemeShape = Schema.is(extensionThemeSchema)
-
-export function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme {
-  return (
-    isThemeShape(value) &&
-    isExactThemeTokens(value.tokens) &&
-    isExactThemeTokens(value.cssVariables)
-  )
-}
+export const extensionThemeSchema = Schema.Struct({
+  colorScheme: Schema.Literal('dark', 'light', 'high-contrast-dark', 'high-contrast-light'),
+  tokens: exactThemeTokensSchema,
+  cssVariables: exactThemeTokensSchema,
+})

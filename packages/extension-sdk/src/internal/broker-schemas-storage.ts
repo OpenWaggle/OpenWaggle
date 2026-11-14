@@ -1,14 +1,16 @@
 import * as Schema from 'effect/Schema'
-import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from '../constants.js'
 import { nonEmptyStringSchema } from './broker-schemas-core.js'
-import { jsonValueSchema } from './json.js'
+import { jsonValueSchema } from './json-schemas.js'
+import {
+  extensionContributionRegistrationSchema,
+  extensionContributionUnregistrationSchema,
+} from './manifest-contributions.js'
 import {
   extensionContributionFamilySchema,
   extensionContributionIdSchema,
-  extensionContributionRegistrationSchema,
-  extensionContributionUnregistrationSchema,
   extensionIdSchema,
-} from './manifest.js'
+} from './manifest-primitives.js'
 
 const extensionStorageKeySchema = Schema.String.pipe(
   Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.'),
