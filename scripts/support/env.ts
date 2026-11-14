@@ -28,6 +28,7 @@ const scriptEnvSchema = Schema.Struct({
   GITHUB_ACTIONS: optionalString,
   GITHUB_ENV: optionalString,
   GITHUB_EVENT_NAME: optionalString,
+  GITHUB_HEAD_REF: optionalString,
   GITHUB_OUTPUT: optionalString,
   GITHUB_REF: optionalString,
   GITHUB_REPOSITORY: optionalString,
