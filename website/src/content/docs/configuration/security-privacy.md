@@ -30,7 +30,7 @@ flowchart LR
   title -->|"sent when a title is generated"| titleProvider
 ```
 
-A local model endpoint can keep the model requests on your machine. Tools, extensions, browser pages and MCP servers can still reach the network, so a local model alone does not make your work offline. OpenWaggle itself also contacts the network, as described in [Usage statistics and update checks](#usage-statistics-and-update-checks).
+A local model endpoint can keep the model requests on your machine. Tools, extensions, browser pages and MCP servers can still reach the network, so a local model alone does not make your work offline. OpenWaggle itself also contacts the network, as described in [Usage statistics and update checks](#usage-statistics-and-update-checks) and [The session search model](#the-session-search-model).
 
 ## Before you work on sensitive code
 
@@ -53,6 +53,12 @@ OpenWaggle stores MCP servers, secrets and sign-ins apart from both, and it encr
 Released builds send anonymous usage statistics and error reports to OpenWaggle from the first launch. They never include your prompts, code, file paths or project names, or any identifier for you or your install. Turn both off in **Settings > General**, or with `DO_NOT_TRACK=1`. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists what OpenWaggle sends, where it goes, and your rights under the GDPR.
 
 Released builds also ask GitHub for updates a few seconds after launch and every 4 hours, so GitHub receives your IP address. The statistics switch does not stop these checks. See [Update checks](/docs/configuration/usage-statistics#update-checks).
+
+## The session search model
+
+Search by meaning uses a model that runs on your computer. OpenWaggle does not ship it. The Session Host downloads it from Hugging Face (`huggingface.co`) the first time it needs it: when it indexes your sessions in the background, or when you run a search by meaning. The download is about 135 MB, from one pinned revision of `Xenova/multilingual-e5-small`. Hugging Face receives your IP address, and no session text leaves your computer.
+
+OpenWaggle checks each file against its pinned SHA-256 hash before it uses the model, and refuses a file that does not match. The model is kept in the app data folder, so updates do not download it again. Until it arrives, search matches words. A failed download is tried again after 15 seconds, then after twice as long each time, up to every 30 minutes.
 
 ## Voice input
 
