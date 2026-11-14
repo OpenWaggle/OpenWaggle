@@ -4,7 +4,8 @@
  *   decide --base <sha> --head <sha>          whether the timing job runs (changed-paths.ts)
  *   budgets --base <main's file> --head <the PR's file> [--labels a,b] --out <json>
  *                                             performance/perf-budgets.json against main's (budget-compare.ts)
- *   labels --repo <owner/name> --pr <number>  the gate labels a maintainer added (live, not the event's)
+ *   labels --repo <owner/name> --pr <number> --run <workflow run id>
+ *                                             the gate labels a maintainer added since the run was created
  *   verdict --results <ab.json> --thresholds <main's> --head-thresholds <the PR's> [--labels a,b] --out <json>
  *   report --base-sha <sha> --head-sha <sha> [--pr n] [--budgets <json>] [--verdict <json>]
  *          [--results <ab.json>] [--skipped <reason>] [--labels a,b] --out <json> --markdown <md>
@@ -36,6 +37,7 @@ const OPTIONS = {
   head: { type: 'string' },
   repo: { type: 'string' },
   pr: { type: 'string' },
+  run: { type: 'string' },
   results: { type: 'string' },
   thresholds: { type: 'string' },
   'head-thresholds': { type: 'string' },
@@ -73,28 +75,54 @@ function labelList(value: string) {
     .filter((label) => label !== '')
 }
 
-function gh(args: readonly string[]) {
-  return execFileSync('gh', ['api', ...args], { encoding: 'utf8' })
+/** `gh api` with these arguments, returning its output. */
+export type GhApi = (args: readonly string[]) => string
+
+const ghApi: GhApi = (args) => execFileSync('gh', ['api', ...args], { encoding: 'utf8' })
+
+/** When this workflow run's first attempt was created; a re-run keeps it, a new push does not. */
+function runCreatedAt(repo: string, runId: string, gh: GhApi) {
+  const createdAt = Date.parse(
+    gh([`repos/${repo}/actions/runs/${runId}/attempts/1`, '--jq', '.created_at']).trim(),
+  )
+  if (Number.isNaN(createdAt)) throw new Error(`Workflow run ${runId} has no creation time.`)
+  return createdAt
 }
 
-/** The gate labels on the pull request now, each kept only if a maintainer last added it. */
-function maintainerLabels(repo: string, pr: string) {
+/** Each `labeled` event on the pull request, oldest first. */
+function labeledEvents(repo: string, pr: string, gh: GhApi) {
+  return gh([
+    '--paginate',
+    `repos/${repo}/issues/${pr}/events`,
+    '--jq',
+    '.[] | select(.event == "labeled") | [.label.name, .actor.login, .created_at] | @tsv',
+  ])
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((line) => {
+      const [label = '', actor = '', createdAt = ''] = line.split('\t')
+      return { label, actor, createdAt: Date.parse(createdAt) }
+    })
+}
+
+/**
+ * The gate labels on the pull request now, each kept only if a maintainer last added it after this
+ * workflow run was first created: a label accepts the push it was added for, never a later one, so a
+ * new push needs labelling again. Re-running the run's failed job keeps its creation time.
+ */
+export function maintainerLabels(repo: string, pr: string, runId: string, gh: GhApi = ghApi) {
   const present = labelList(
     gh([`repos/${repo}/issues/${pr}/labels`, '--jq', '[.[].name] | join(",")']).trim(),
   )
-  return GATE_LABELS.filter((label) => present.includes(label)).filter((label) => {
-    const actor = gh([
-      '--paginate',
-      `repos/${repo}/issues/${pr}/events`,
-      '--jq',
-      `[.[] | select(.event == "labeled" and .label.name == "${label}") | .actor.login] | last // ""`,
-    ])
-      .trim()
-      .split('\n')
-      .findLast((line) => line !== '')
-    if (actor === undefined) return false
+  const wanted = GATE_LABELS.filter((label) => present.includes(label))
+  if (wanted.length === 0) return []
+  const since = runCreatedAt(repo, runId, gh)
+  const events = labeledEvents(repo, pr, gh)
+  return wanted.filter((label) => {
+    const added = events.findLast((event) => event.label === label)
+    if (added === undefined || added.actor === '' || !(added.createdAt > since)) return false
     const role = gh([
-      `repos/${repo}/collaborators/${actor}/permission`,
+      `repos/${repo}/collaborators/${added.actor}/permission`,
       '--jq',
       '.role_name',
     ]).trim()
@@ -186,7 +214,7 @@ export function main(argv: readonly string[]) {
   }
   if (command === 'labels') {
     console.log(
-      `labels=${maintainerLabels(required(values.repo, 'repo'), required(values.pr, 'pr')).join(',')}`,
+      `labels=${maintainerLabels(required(values.repo, 'repo'), required(values.pr, 'pr'), required(values.run, 'run')).join(',')}`,
     )
     return 0
   }
